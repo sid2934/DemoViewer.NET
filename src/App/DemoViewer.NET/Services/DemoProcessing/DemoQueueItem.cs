@@ -38,6 +38,10 @@ public partial class DemoQueueItem : ObservableObject
     [ObservableProperty]
     private QueueJobKind _kind;
 
+    /// <summary>For <see cref="QueueJobKind.Extension" />, the extension's kind id.</summary>
+    [ObservableProperty]
+    private string? _extensionKind;
+
     /// <summary>Fraction done, 0 to 1, or null when the job does not know.</summary>
     [ObservableProperty]
     private double? _progress;

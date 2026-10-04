@@ -56,13 +56,13 @@ public class ProcessingQueueViewTests
 
             IDemoQueueHandle done = queue.SubmitBackground(new DemoProcessingRequest("/demos/navi-vs-vitality-m2.dem",
                 "library", DemoJobPriority.Background, 1, _ => { }, null, "navi-vs-vitality-m2.dem"));
-            IDemoQueueHandle failed = queue.SubmitJob(new QueueJobRequest(QueueJobKind.LineupClips,
+            IDemoQueueHandle failed = queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension,
                 "Lineup clips: de_nuke, 3 clips from g2-vs-mouz-m1.dem", "lineup-clips", DemoJobPriority.Background,
                 _ => Task.FromException(new InvalidOperationException("no map bundle for de_nuke"))));
             await PumpUntilAsync(() => done.Completion.IsCompleted && failed.Completion.IsCompleted
                                          && queue.QueuedCount + queue.RunningCount == 0, "the finished items and the drain compaction");
 
-            IDemoQueueHandle mining = queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: library",
+            IDemoQueueHandle mining = queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "Strat mining: library",
                 "strat-mining", DemoJobPriority.UserRequested, async job =>
                 {
                     job.Report(48, 366, "48 of 366 demos");
@@ -72,7 +72,7 @@ public class ProcessingQueueViewTests
             await PumpUntilAsync(() => reported.Task.IsCompleted, "the mine to report");
 
             queue.Pause();
-            queue.SubmitJob(new QueueJobRequest(QueueJobKind.LineupClips,
+            queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension,
                 "Lineup clips: de_mirage, 6 clips from faze-vs-spirit-m1.dem", "lineup-clips", DemoJobPriority.Background,
                 _ => Task.CompletedTask, "lineup-clips", "/demos/faze-vs-spirit-m1.dem"));
             queue.SubmitJob(new QueueJobRequest(QueueJobKind.PackExport, "Pack export: 12 segments to review.mp4",

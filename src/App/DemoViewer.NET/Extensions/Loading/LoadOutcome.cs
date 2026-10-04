@@ -36,7 +36,7 @@ public enum LoadFailure
     /// <summary>The manifest's <c>entryType</c> is not in the assembly.</summary>
     EntryTypeMissing,
 
-    /// <summary>The entry type does not implement <see cref="IFeaturePack" /> or could not be constructed.</summary>
+    /// <summary>The entry type does not implement <see cref="IExtension" /> or could not be constructed.</summary>
     NotAPack,
 
     /// <summary>The loaded pack's id or embedded manifest version is not the on-disk manifest's.</summary>

@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///     <see cref="StoreDescriptor" />'s paths against <see cref="StoreRoot.Config" /> or
 ///     <see cref="StoreRoot.Cache" />, counts what is there, deletes on request, and strips the pack's
 ///     payload and stamps from every demo cache record and index row. One instance serves every pack; a
-///     pack hands it its own id, descriptors and facet ids through <see cref="IPackDataRemoval" />.
+///     pack hands it its own id, descriptors and facet ids through <see cref="IExtensionDataRemoval" />.
 ///     <para>
 ///         <b>Path safety.</b> A literal path is refused when it is rooted, empty, <c>"."</c>, carries a
 ///         <c>".."</c> segment, or resolves outside the root (including to the root itself). A demo-sidecar
@@ -32,8 +32,8 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///     </para>
 ///     <para>
 ///         <b>A file that will not delete</b> (locked, permission denied) is skipped, not thrown: the rest
-///         of the pack's stores still go. <see cref="PackDataRemovalResult.Skipped" /> and
-///         <see cref="PackDataRemovalResult.FirstSkippedPath" /> carry the count and the first path, and
+///         of the pack's stores still go. <see cref="ExtensionDataRemovalResult.Skipped" /> and
+///         <see cref="ExtensionDataRemovalResult.FirstSkippedPath" /> carry the count and the first path, and
 ///         each skip is logged once.
 ///     </para>
 /// </summary>
@@ -49,15 +49,15 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
     /// <param name="descriptors">The pack's declared stores.</param>
     /// <param name="ownerTag">The queue item's owner and serial (cancelled together with the pack's other work).</param>
     /// <param name="title">The queue list's line for this item.</param>
-    public Task<PackDataInventory> InventoryAsync(IReadOnlyList<StoreDescriptor> descriptors, string ownerTag, string title) =>
-        RunSerial(title, ownerTag, () => Inventory(descriptors), PackDataInventory.Empty);
+    public Task<ExtensionDataInventory> InventoryAsync(IReadOnlyList<StoreDescriptor> descriptors, string ownerTag, string title) =>
+        RunSerial(title, ownerTag, () => Inventory(descriptors), ExtensionDataInventory.Empty);
 
     /// <summary>
     ///     Deletes every descriptor's files and strips <paramref name="packId" />'s payload and
     ///     <paramref name="facetIds" />'s stamps from the demo cache. Runs through the queue, user priority,
     ///     on serial <paramref name="ownerTag" /> so it never overlaps the pack's own release item; a pack
     ///     re-enabled before this runs cancels it by owner tag first, so it drops without touching anything
-    ///     (<see cref="PackDataRemovalResult.Ran" /> is false).
+    ///     (<see cref="ExtensionDataRemovalResult.Ran" /> is false).
     /// </summary>
     /// <param name="packId">The pack's own id: the key its payload rides <see cref="DemoCacheRecord.Packs" /> under.</param>
     /// <param name="descriptors">The pack's declared stores.</param>
@@ -66,18 +66,18 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
     /// <param name="title">The queue list's line for this item.</param>
     /// <param name="stillOff">
     ///     Evaluated once, inside the queued job, right before any file is touched. False aborts with
-    ///     <see cref="PackDataRemovalResult.NotRun" /> and deletes nothing: the caller's own pre-check
+    ///     <see cref="ExtensionDataRemovalResult.NotRun" /> and deletes nothing: the caller's own pre-check
     ///     (immediately before calling this) closes the gap before the job is submitted, this one closes
     ///     the gap between submission and the job actually running (it may have sat behind another item on
     ///     the same serial). Null (most callers, every test that does not care) never aborts.
     /// </param>
-    public Task<PackDataRemovalResult> DeleteAsync(string packId, IReadOnlyList<StoreDescriptor> descriptors,
+    public Task<ExtensionDataRemovalResult> DeleteAsync(string packId, IReadOnlyList<StoreDescriptor> descriptors,
         IReadOnlyList<string> facetIds, string ownerTag, string title, Func<bool>? stillOff = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packId);
         ArgumentNullException.ThrowIfNull(descriptors);
         ArgumentNullException.ThrowIfNull(facetIds);
-        return RunSerial(title, ownerTag, () => Delete(packId, descriptors, facetIds, stillOff), PackDataRemovalResult.NotRun);
+        return RunSerial(title, ownerTag, () => Delete(packId, descriptors, facetIds, stillOff), ExtensionDataRemovalResult.NotRun);
     }
 
     // QueueWork.RunAsync has no serial parameter; this is QueueWork.Run plus a captured result, with "ran"
@@ -103,7 +103,7 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
         return ran ? result : fallback;
     }
 
-    private PackDataInventory Inventory(IReadOnlyList<StoreDescriptor> descriptors)
+    private ExtensionDataInventory Inventory(IReadOnlyList<StoreDescriptor> descriptors)
     {
         List<StoreInventoryItem> items = [];
         foreach (StoreDescriptor descriptor in descriptors)
@@ -113,15 +113,15 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
             items.Add(new StoreInventoryItem(descriptor, tally.Count, tally.Bytes));
         }
 
-        return new PackDataInventory(items);
+        return new ExtensionDataInventory(items);
     }
 
-    private PackDataRemovalResult Delete(string packId, IReadOnlyList<StoreDescriptor> descriptors, IReadOnlyList<string> facetIds,
+    private ExtensionDataRemovalResult Delete(string packId, IReadOnlyList<StoreDescriptor> descriptors, IReadOnlyList<string> facetIds,
         Func<bool>? stillOff)
     {
         if (stillOff?.Invoke() == false)
         {
-            return PackDataRemovalResult.NotRun;
+            return ExtensionDataRemovalResult.NotRun;
         }
 
         List<StoreInventoryItem> items = [];
@@ -136,7 +136,7 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
         }
 
         int recordsUpdated = StripRecords(packId, facetIds);
-        return new PackDataRemovalResult(true, new PackDataInventory(items), recordsUpdated, totals.Skipped, totals.FirstSkippedPath);
+        return new ExtensionDataRemovalResult(true, new ExtensionDataInventory(items), recordsUpdated, totals.Skipped, totals.FirstSkippedPath);
     }
 
     private void Measure(StoreDescriptor descriptor, bool actuallyDelete, Tally tally)

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/dotnet/Nerdbank.GitVersioning/main/src/NerdBank.GitVersioning/version.schema.json",
+  "inherit": true,
+  "version": "1.0",
+  "versionHeightOffset": -1,
+  "assemblyVersion": {
+    "precision": "major"
+  },
+  "pathFilters": [
+    "/src/Sdk/DemoViewer.NET.Extensions.Sdk",
+    "/src/App/DemoViewer.NET.Modules.Abstractions"
+  ],
+  "publicReleaseRefSpec": [
+    "^refs/heads/main$",
+    "^refs/tags/sdk/v\\d+\\.\\d+"
+  ],
+  "release": {
+    "tagName": "sdk/v{version}"
+  },
+  "cloudBuild": {
+    "setVersionVariables": false,
+    "buildNumber": {
+      "enabled": false
+    }
+  }
+}

@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
 ///     <see cref="PackCompatibility.Check" /> over a fixed host: each reason in check order, the compatible
-///     case, and the user-facing message each reason produces. <see cref="PackStatus.Evaluate(IFeaturePack, ExtensionHostInfo)" />
+///     case, and the user-facing message each reason produces. <see cref="PackStatus.Evaluate(IExtension, ExtensionHostInfo)" />
 ///     adds the manifest-level failures a check never sees: a getter that throws, and an id that is not the pack's.
 /// </summary>
 public class PackCompatibilityTests
@@ -135,8 +135,8 @@ public class PackCompatibilityTests
     [Test]
     public async Task Evaluate_KeepsDeclarationOrder_AndEveryVerdict()
     {
-        IFeaturePack good = new ManifestPack("net.demoviewer.pack.good", FakeManifests.For("net.demoviewer.pack.good"));
-        IFeaturePack bad = new ManifestPack("net.demoviewer.pack.bad",
+        IExtension good = new ManifestPack("net.demoviewer.pack.good", FakeManifests.For("net.demoviewer.pack.good"));
+        IExtension bad = new ManifestPack("net.demoviewer.pack.bad",
             FakeManifests.For("net.demoviewer.pack.bad", "Bad", "3.0.0", "^3.0", "*"));
         IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([bad, good], _host);
         using (Assert.Multiple())
@@ -148,67 +148,67 @@ public class PackCompatibilityTests
         }
     }
 
-    private sealed class ThrowingPack : IFeaturePack
+    private sealed class ThrowingPack : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.pack.throwing";
         public string FeatureId => "pack.throwing";
         public ExtensionManifest Manifest => throw new ExtensionManifestException("no resource");
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }
 
     // Parses its manifest on every read, the way a real pack reads its embedded copy.
-    private sealed class ParsingPack(string json) : IFeaturePack
+    private sealed class ParsingPack(string json) : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.pack.parsing";
         public string FeatureId => "pack.parsing";
         public ExtensionManifest Manifest => ExtensionManifest.Parse(json);
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }
 
-    private sealed class MismatchedIdPack : IFeaturePack
+    private sealed class MismatchedIdPack : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.pack.actual";
         public string FeatureId => "pack.actual";
         public ExtensionManifest Manifest => FakeManifests.For("net.demoviewer.pack.other");
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }
 
-    internal sealed class ManifestPack(string id, ExtensionManifest manifest) : IFeaturePack
+    internal sealed class ManifestPack(string id, ExtensionManifest manifest) : IExtension, IManifestSource
     {
         public string Id => id;
         public string FeatureId => "pack." + id.Split('.')[^1];
         public ExtensionManifest Manifest => manifest;
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

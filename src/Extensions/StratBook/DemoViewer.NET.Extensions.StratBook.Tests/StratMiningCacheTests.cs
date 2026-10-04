@@ -274,7 +274,7 @@ public class StratMiningCacheTests
             await Assert.That(mine.IsCompleted).IsFalse().Because("a parse holds the only slot");
             await Assert.That(service.IsMining).IsTrue();
             DemoQueueItemSnapshot item = queue.Snapshot().Single();
-            await Assert.That(item.Kind).IsEqualTo(QueueJobKind.StratMining);
+            await Assert.That(item.ExtensionKind).IsEqualTo(StratBookJobKinds.Mining);
             await Assert.That(item.Priority).IsEqualTo(DemoJobPriority.UserRequested);
             await Assert.That(item.State).IsEqualTo(DemoQueueItemState.Queued);
         }
@@ -282,7 +282,7 @@ public class StratMiningCacheTests
         await mine.WaitAsync(TimeSpan.FromSeconds(10));
         await Assert.That(service.MinedUtc).IsNotNull();
         await Assert.That(service.IsMining).IsFalse();
-        await Assert.That(queue.Snapshot().Single(s => s.Kind == QueueJobKind.StratMining).State)
+        await Assert.That(queue.Snapshot().Single(s => s.ExtensionKind == StratBookJobKinds.Mining).State)
             .IsEqualTo(DemoQueueItemState.Completed);
         await Idle(queue);
         await Assert.That(gate.InFlight).IsEqualTo(0).Because("the slot is released after the mine");
@@ -305,7 +305,7 @@ public class StratMiningCacheTests
             preview = service.PreviewAsync(execute, StratOwner.Me(), DateTime.UtcNow);
             await Task.Delay(300);
             await Assert.That(preview.IsCompleted).IsFalse().Because("a parse holds the only slot");
-            DemoQueueItemSnapshot item = queue.Snapshot().Single(s => s.Kind == QueueJobKind.StratPreview);
+            DemoQueueItemSnapshot item = queue.Snapshot().Single(s => s.ExtensionKind == StratBookJobKinds.Preview);
             await Assert.That(item.Priority).IsEqualTo(DemoJobPriority.UserRequested);
             await Assert.That(service.IsMining).IsFalse().Because("a preview is not a mine");
         }

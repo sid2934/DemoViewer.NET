@@ -28,8 +28,11 @@
 
     <!-- The manifest: ..\extension.json is a template whose version is stamped from
          ..\version.json at build. The stamped copy is embedded (StratBookPack.Manifest) and copied beside the
-         DLL for the loader. -->
-    <Import Project="..\..\ExtensionManifest.targets"/>
+         DLL for the loader. The targets are the SDK package's, imported from source here. -->
+    <PropertyGroup>
+        <ExtensionManifestTemplate>$(MSBuildProjectDirectory)/../extension.json</ExtensionManifestTemplate>
+    </PropertyGroup>
+    <Import Project="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk\build\DemoViewer.NET.Extensions.Sdk.targets"/>
 
     <ItemGroup>
         <!-- Direct, not transitive: the Avalonia build tasks (XAML compilation) and the MVVM source generators
@@ -42,8 +45,13 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Using Include="DemoViewer.NET.Extensions.Sdk"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- The extension references the app; the app never references the extension.
              The heads reference both and hand the pack list to FeaturePacks. -->
+        <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
         <ProjectReference Include="..\..\..\App\DemoViewer.NET\DemoViewer.NET.csproj"/>
     </ItemGroup>
 

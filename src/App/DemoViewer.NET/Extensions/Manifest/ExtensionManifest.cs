@@ -15,11 +15,11 @@ namespace DemoViewer.NET.Extensions.Manifest;
 ///     required members and ignores members it does not know, so a newer manifest still loads on an older
 ///     app, which then judges it by the fields it understands.
 /// </summary>
-/// <param name="Id">The pack id (<see cref="IFeaturePack.Id" />), reverse-DNS.</param>
+/// <param name="Id">The pack id (<see cref="IExtension.Id" />), reverse-DNS.</param>
 /// <param name="Name">The user-facing name ("Strat Book").</param>
 /// <param name="Version">The extension's own version.</param>
 /// <param name="Assembly">The assembly file name, no directory.</param>
-/// <param name="EntryType">The full name of the <see cref="IFeaturePack" /> type.</param>
+/// <param name="EntryType">The full name of the <see cref="IExtension" /> type.</param>
 /// <param name="RequiresHost">The <see cref="ExtensionHost.ContractVersion" /> range the extension was built against.</param>
 /// <param name="RequiresCs2DemoKit">The CS2DemoKit range; exact by default, since the extension uses its types directly.</param>
 /// <param name="MinAppVersion">The oldest app release the extension runs on, or null for any.</param>

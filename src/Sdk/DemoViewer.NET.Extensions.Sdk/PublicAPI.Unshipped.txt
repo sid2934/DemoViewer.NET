@@ -1,0 +1,669 @@
+#nullable enable
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.AudienceDefaults!
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.AudienceDefaults(bool Consumer, bool PowerUser, bool Developer) -> void
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Consumer.get -> bool
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Consumer.init -> void
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Deconstruct(out bool Consumer, out bool PowerUser, out bool Developer) -> void
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Developer.get -> bool
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Developer.init -> void
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Equals(DemoViewer.NET.Extensions.Sdk.AudienceDefaults? other) -> bool
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.PowerUser.get -> bool
+DemoViewer.NET.Extensions.Sdk.AudienceDefaults.PowerUser.init -> void
+DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds
+DemoViewer.NET.Extensions.Sdk.CommandContext
+DemoViewer.NET.Extensions.Sdk.CommandContext.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.CommandContext!
+DemoViewer.NET.Extensions.Sdk.CommandContext.CommandContext(object! Target) -> void
+DemoViewer.NET.Extensions.Sdk.CommandContext.Deconstruct(out object! Target) -> void
+DemoViewer.NET.Extensions.Sdk.CommandContext.Equals(DemoViewer.NET.Extensions.Sdk.CommandContext? other) -> bool
+DemoViewer.NET.Extensions.Sdk.CommandContext.Target.get -> object!
+DemoViewer.NET.Extensions.Sdk.CommandContext.Target.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.CommandDescriptor!
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.CanRun.get -> System.Func<DemoViewer.NET.Extensions.Sdk.CommandContext!, bool>?
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.CanRun.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.CommandDescriptor(string! Id, string! Label, string! Scope, Avalonia.Input.KeyGesture? DefaultChord, System.Func<DemoViewer.NET.Extensions.Sdk.CommandContext!, bool>! Run, System.Func<DemoViewer.NET.Extensions.Sdk.CommandContext!, bool>? CanRun = null) -> void
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Deconstruct(out string! Id, out string! Label, out string! Scope, out Avalonia.Input.KeyGesture? DefaultChord, out System.Func<DemoViewer.NET.Extensions.Sdk.CommandContext!, bool>! Run, out System.Func<DemoViewer.NET.Extensions.Sdk.CommandContext!, bool>? CanRun) -> void
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.DefaultChord.get -> Avalonia.Input.KeyGesture?
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.DefaultChord.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Equals(DemoViewer.NET.Extensions.Sdk.CommandDescriptor? other) -> bool
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Run.get -> System.Func<DemoViewer.NET.Extensions.Sdk.CommandContext!, bool>!
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Run.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Scope.get -> string!
+DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Scope.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoAction
+DemoViewer.NET.Extensions.Sdk.DemoAction.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.DemoAction.DemoAction(string! id, string! label, string! tooltip, System.Func<string!, bool>! isAvailable, System.Action<string!>! run, string? featureId = null) -> void
+DemoViewer.NET.Extensions.Sdk.DemoAction.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.DemoAction.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoAction.IsAvailable.get -> System.Func<string!, bool>!
+DemoViewer.NET.Extensions.Sdk.DemoAction.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoAction.NotifyChanged() -> void
+DemoViewer.NET.Extensions.Sdk.DemoAction.Run.get -> System.Action<string!>!
+DemoViewer.NET.Extensions.Sdk.DemoAction.Tooltip.get -> string!
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory!
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Deconstruct(out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.StoreInventoryItem!>! Items) -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Equals(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? other) -> bool
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.ExtensionDataInventory(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.StoreInventoryItem!>! Items) -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Items.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.StoreInventoryItem!>!
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Items.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.TotalBytes.get -> long
+DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.UserWorkItems.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.StoreInventoryItem!>!
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult!
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Deconstruct(out bool Ran, out DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory! Removed, out int RecordsUpdated, out int Skipped, out string? FirstSkippedPath) -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Equals(DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? other) -> bool
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.ExtensionDataRemovalResult(bool Ran, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory! Removed, int RecordsUpdated, int Skipped = 0, string? FirstSkippedPath = null) -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.FirstSkippedPath.get -> string?
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.FirstSkippedPath.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Ran.get -> bool
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Ran.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.RecordsUpdated.get -> int
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.RecordsUpdated.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Removed.get -> DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory!
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Removed.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Skipped.get -> int
+DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Skipped.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.ExtensionFeature!
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Deconstruct(out string! Id, out DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind Kind, out string! Label, out string! Description, out string? ParentId, out DemoViewer.NET.Extensions.Sdk.AudienceDefaults! Defaults) -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Defaults.get -> DemoViewer.NET.Extensions.Sdk.AudienceDefaults!
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Defaults.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Description.get -> string!
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Description.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Equals(DemoViewer.NET.Extensions.Sdk.ExtensionFeature? other) -> bool
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.ExtensionFeature(string! Id, DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind Kind, string! Label, string! Description, string? ParentId, DemoViewer.NET.Extensions.Sdk.AudienceDefaults! Defaults) -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Kind.get -> DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Kind.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.ParentId.get -> string?
+DemoViewer.NET.Extensions.Sdk.ExtensionFeature.ParentId.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind
+DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind.Extension = 0 -> DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind
+DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind.SubFeature = 2 -> DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind
+DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind.Tab = 1 -> DemoViewer.NET.Extensions.Sdk.ExtensionFeatureKind
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.ExtensionJobKind!
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Deconstruct(out string! Id, out string! Label, out bool IsLight, out int Rank) -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Equals(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? other) -> bool
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.ExtensionJobKind(string! Id, string! Label, bool IsLight, int Rank = 4) -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.IsLight.get -> bool
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.IsLight.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Rank.get -> int
+DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Rank.init -> void
+DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions
+DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
+DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.EnabledInSession = 1 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
+DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.Startup = 0 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
+DemoViewer.NET.Extensions.Sdk.HostIds
+DemoViewer.NET.Extensions.Sdk.HostInfo
+DemoViewer.NET.Extensions.Sdk.HostInfo.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.HostInfo!
+DemoViewer.NET.Extensions.Sdk.HostInfo.AppVersion.get -> string?
+DemoViewer.NET.Extensions.Sdk.HostInfo.AppVersion.init -> void
+DemoViewer.NET.Extensions.Sdk.HostInfo.Deconstruct(out System.Version! SdkVersion, out string? AppVersion, out bool IsBrowser) -> void
+DemoViewer.NET.Extensions.Sdk.HostInfo.Equals(DemoViewer.NET.Extensions.Sdk.HostInfo? other) -> bool
+DemoViewer.NET.Extensions.Sdk.HostInfo.HostInfo(System.Version! SdkVersion, string? AppVersion, bool IsBrowser) -> void
+DemoViewer.NET.Extensions.Sdk.HostInfo.IsBrowser.get -> bool
+DemoViewer.NET.Extensions.Sdk.HostInfo.IsBrowser.init -> void
+DemoViewer.NET.Extensions.Sdk.HostInfo.SdkVersion.get -> System.Version!
+DemoViewer.NET.Extensions.Sdk.HostInfo.SdkVersion.init -> void
+DemoViewer.NET.Extensions.Sdk.IExtension
+DemoViewer.NET.Extensions.Sdk.IExtension.Commands.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandDescriptor!>!
+DemoViewer.NET.Extensions.Sdk.IExtension.Contribute(DemoViewer.NET.Extensions.Sdk.IExtensionContributions! contributions, System.IServiceProvider! services) -> void
+DemoViewer.NET.Extensions.Sdk.IExtension.FeatureId.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtension.Features.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.ExtensionFeature!>!
+DemoViewer.NET.Extensions.Sdk.IExtension.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtension.JobKinds.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.ExtensionJobKind!>!
+DemoViewer.NET.Extensions.Sdk.IExtension.Register(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContext
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.CreateLogger(string! category) -> Microsoft.Extensions.Logging.ILogger!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.ExtensionId.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.FeatureId.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Features.get -> DemoViewer.NET.Extensions.Sdk.IExtensionFeatures!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Host.get -> DemoViewer.NET.Extensions.Sdk.HostInfo!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Jobs.get -> DemoViewer.NET.Extensions.Sdk.IExtensionJobs!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Post(System.Action! action) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Shell.get -> DemoViewer.NET.Extensions.Sdk.IExtensionShell!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Storage.get -> DemoViewer.NET.Extensions.Sdk.IExtensionStorage!
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Commands(System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandDescriptor!>! commands) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Context.get -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DataRemoval(DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval! removal) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DemoAction(DemoViewer.NET.Extensions.Sdk.DemoAction! action) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Evaluator(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator!>! factory, params string![]! after) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Library(DemoViewer.NET.Extensions.Sdk.ILibraryContribution! contribution) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Playback(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution! contribution) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer.NET.Extensions.Sdk.IReindexEstimate! estimate) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Store(DemoViewer.NET.Extensions.Sdk.StoreDescriptor! store) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Tabs(DemoViewer.NET.Modules.Abstractions.IWorkspaceModule! workspaceModule) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval
+DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval.DeleteAsync() -> System.Threading.Tasks.Task<DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval.FeatureId.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval.InventoryAsync() -> System.Threading.Tasks.Task<DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.Evaluate(string! path, CS2DemoKit.Parser.ParsedDemo! parsed) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.OnFailed(string! path) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.OrderHint(string! path) -> long
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.PendingPaths() -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.PriorityFor(string! path) -> DemoViewer.NET.Extensions.Sdk.JobPriority
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.ReadsUserCommands.get -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.Wants(string! path) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionFeatures
+DemoViewer.NET.Extensions.Sdk.IExtensionFeatures.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.IExtensionFeatures.IsEnabled(string! featureId) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionJobs
+DemoViewer.NET.Extensions.Sdk.IExtensionJobs.CancelAll() -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionJobs.RunAsync(string! title, System.Func<DemoViewer.NET.Extensions.Sdk.IJobContext!, System.Threading.Tasks.Task!>! work, DemoViewer.NET.Extensions.Sdk.JobOptions? options = null) -> System.Threading.Tasks.Task!
+DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle
+DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle.OnDisabledAsync() -> System.Threading.Tasks.Task!
+DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle.OnEnabledAsync(DemoViewer.NET.Extensions.Sdk.ExtensionStartReason reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
+DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle.OnShutdown(System.TimeSpan budget) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionResident
+DemoViewer.NET.Extensions.Sdk.IExtensionResident.Attach() -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionResident.Release() -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionShell
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoChanged -> System.Action?
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoPath.get -> string?
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.OpenDemoAsync(string! path) -> System.Threading.Tasks.Task<bool>!
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.RevealInFileManager(string! path) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.SeekToTick(int tick) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.SelectTab(string! tabId) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionStorage
+DemoViewer.NET.Extensions.Sdk.IExtensionStorage.CacheDirectory.get -> string?
+DemoViewer.NET.Extensions.Sdk.IExtensionStorage.ConfigDirectory.get -> string?
+DemoViewer.NET.Extensions.Sdk.IJobContext
+DemoViewer.NET.Extensions.Sdk.IJobContext.CancellationToken.get -> System.Threading.CancellationToken
+DemoViewer.NET.Extensions.Sdk.IJobContext.Report(int done, int total, string? detail = null) -> void
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.BadgeFor(DemoViewer.NET.Extensions.Sdk.LibraryDemo! demo) -> DemoViewer.NET.Extensions.Sdk.LibraryBadge?
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.BadgeLabels.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.BadgeResetLabel.get -> string?
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.BadgeResetTooltip.get -> string?
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.BadgesFor(System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.LibraryDemo!>! demos) -> System.Collections.Generic.IReadOnlyDictionary<string!, DemoViewer.NET.Extensions.Sdk.LibraryBadge?>!
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.Filter.get -> DemoViewer.NET.Extensions.Sdk.LibraryFilter?
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.HasBadge.get -> bool
+DemoViewer.NET.Extensions.Sdk.ILibraryContribution.SetLabel(DemoViewer.NET.Extensions.Sdk.LibraryDemo! demo, string? label) -> void
+DemoViewer.NET.Extensions.Sdk.IReindexEstimate
+DemoViewer.NET.Extensions.Sdk.IReindexEstimate.CountAsync() -> System.Threading.Tasks.Task<int>!
+DemoViewer.NET.Extensions.Sdk.IReindexEstimate.FeatureId.get -> string!
+DemoViewer.NET.Extensions.Sdk.JobOptions
+DemoViewer.NET.Extensions.Sdk.JobOptions.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.JobOptions!
+DemoViewer.NET.Extensions.Sdk.JobOptions.Deconstruct(out string! Kind, out DemoViewer.NET.Extensions.Sdk.JobPriority Priority, out string? Key, out bool Preemptible, out string? Serial) -> void
+DemoViewer.NET.Extensions.Sdk.JobOptions.Equals(DemoViewer.NET.Extensions.Sdk.JobOptions? other) -> bool
+DemoViewer.NET.Extensions.Sdk.JobOptions.JobOptions(string! Kind = "section", DemoViewer.NET.Extensions.Sdk.JobPriority Priority = DemoViewer.NET.Extensions.Sdk.JobPriority.Background, string? Key = null, bool Preemptible = false, string? Serial = null) -> void
+DemoViewer.NET.Extensions.Sdk.JobOptions.Key.get -> string?
+DemoViewer.NET.Extensions.Sdk.JobOptions.Key.init -> void
+DemoViewer.NET.Extensions.Sdk.JobOptions.Kind.get -> string!
+DemoViewer.NET.Extensions.Sdk.JobOptions.Kind.init -> void
+DemoViewer.NET.Extensions.Sdk.JobOptions.Preemptible.get -> bool
+DemoViewer.NET.Extensions.Sdk.JobOptions.Preemptible.init -> void
+DemoViewer.NET.Extensions.Sdk.JobOptions.Priority.get -> DemoViewer.NET.Extensions.Sdk.JobPriority
+DemoViewer.NET.Extensions.Sdk.JobOptions.Priority.init -> void
+DemoViewer.NET.Extensions.Sdk.JobOptions.Serial.get -> string?
+DemoViewer.NET.Extensions.Sdk.JobOptions.Serial.init -> void
+DemoViewer.NET.Extensions.Sdk.JobPriority
+DemoViewer.NET.Extensions.Sdk.JobPriority.Background = 0 -> DemoViewer.NET.Extensions.Sdk.JobPriority
+DemoViewer.NET.Extensions.Sdk.JobPriority.UserRequested = 1 -> DemoViewer.NET.Extensions.Sdk.JobPriority
+DemoViewer.NET.Extensions.Sdk.LibraryBadge
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryBadge!
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.Deconstruct(out string! Label, out string? Tooltip, out bool IsPinned) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.Equals(DemoViewer.NET.Extensions.Sdk.LibraryBadge? other) -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.IsPinned.get -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.IsPinned.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.LibraryBadge(string! Label, string? Tooltip, bool IsPinned) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.Tooltip.get -> string?
+DemoViewer.NET.Extensions.Sdk.LibraryBadge.Tooltip.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryDemo!
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.Deconstruct(out string! FilePath, out string! FileName, out string? MapName, out System.DateTime Modified, out long FileSizeBytes) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.Equals(DemoViewer.NET.Extensions.Sdk.LibraryDemo? other) -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.FileName.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.FileName.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.FilePath.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.FilePath.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.FileSizeBytes.get -> long
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.FileSizeBytes.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.LibraryDemo(string! FilePath, string! FileName, string? MapName, System.DateTime Modified, long FileSizeBytes) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.MapName.get -> string?
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.MapName.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.Modified.get -> System.DateTime
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.Modified.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilter
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryFilter!
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Deconstruct(out string! Label, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryFilterItem!>! Items, out System.Func<DemoViewer.NET.Extensions.Sdk.LibraryDemo!, string!, bool>! Matches, out string? Tooltip) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Equals(DemoViewer.NET.Extensions.Sdk.LibraryFilter? other) -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Items.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryFilterItem!>!
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Items.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.LibraryFilter(string! Label, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryFilterItem!>! Items, System.Func<DemoViewer.NET.Extensions.Sdk.LibraryDemo!, string!, bool>! Matches, string? Tooltip = null) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Matches.get -> System.Func<DemoViewer.NET.Extensions.Sdk.LibraryDemo!, string!, bool>!
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Matches.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Tooltip.get -> string?
+DemoViewer.NET.Extensions.Sdk.LibraryFilter.Tooltip.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryFilterItem!
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Deconstruct(out string! Key, out string! Display) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Display.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Display.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Equals(DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? other) -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Key.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Key.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.LibraryFilterItem(string! Key, string! Display) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.MenuFor(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand! band) -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry!>!
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.OnBandPressed(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand! band) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.OnEditSpanDragged(int startFrame, int endFrame) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.OnLabelRequested(int frame) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.EditSpan.get -> (int Start, int End)?
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.EditSpan.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsEditable.get -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsEditable.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsSuppressed.get -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.IsSuppressed.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle.Track.get -> DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack!
+DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle
+DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle.Close() -> void
+DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle.Closed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle.IsOpen.get -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle.Open() -> void
+DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle
+DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle.HasKeyboard.get -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle.HasKeyboard.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle.IsShown.get -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle.ShownChanged -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution.Attach(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface! surface, DemoViewer.NET.Modules.Abstractions.IModuleContext! context) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution.Detach() -> void
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.ActionIds.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddActionHandler(System.Func<string!, bool>! handler) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddBandMenu(System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand!, System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry!>!>! items) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddKeyHandler(System.Func<Avalonia.Input.Key, Avalonia.Input.KeyModifiers, bool>! handler) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddLane(DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack! track, DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour? behaviour = null) -> DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddModeToggle(DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle! toggle) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddPane(DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement where, int order, System.Func<object!>! viewModel) -> DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddPanel(int order, System.Func<object!>! viewModel, System.Func<Avalonia.Controls.Control!>? view = null, string? featureId = null, DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle? mode = null) -> DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddPointerPreHandler(System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer!, bool>! handler) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddToolbarItem(DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem! item) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.Deactivated -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.GestureHint(string! actionId) -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.KeymapChanged -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.Levels.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel!>!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.OnDemoChanged(System.Action! handler) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.OnPlayheadChanged(System.Action<int>! handler) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.EventsOfType(string! eventName) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent!>!
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.FrameIndexAtTick(int tick) -> int
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.HasEvent(string! eventName) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.TickRate.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.TotalFrames.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.BuildBands(DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData! data) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand!>!
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.DisplayName.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.IsAvailable(DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData! data) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry!
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Deconstruct(out string! Header, out System.Action! Run) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Equals(DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Header.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Header.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.MenuEntry(string! Header, System.Action! Run) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Run.get -> System.Action!
+DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Run.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.ActionId.get -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.Icon.get -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.IsAvailable.get -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.IsAvailable.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.IsOn.get -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.IsOn.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.ModeToggle(string! id, string! label, string! tooltip, string? actionId = null, string? icon = null) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.PropertyChanged -> System.ComponentModel.PropertyChangedEventHandler?
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.Tooltip.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle.TryToggle() -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement
+DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement.RightColumn = 1 -> DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement
+DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement.Side = 0 -> DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.Deconstruct(out string! TrackId, out int StartFrameIndex, out int EndFrameIndex, out string! Label, out string! Tooltip) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.EndFrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.EndFrameIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.Equals(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.IsRound.get -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.PlaybackBand(string! TrackId, int StartFrameIndex, int EndFrameIndex, string! Label, string! Tooltip) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.StartFrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.StartFrameIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.Tooltip.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.Tooltip.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.TrackId.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.TrackId.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.Deconstruct(out string! Name, out double ZMin, out double ZMax) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.Equals(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.Name.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.Name.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.PlaybackLevel(string! Name, double ZMin, double ZMax) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ZMax.get -> double
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ZMax.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ZMin.get -> double
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ZMin.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Deconstruct(out int Tick, out int FrameIndex) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Equals(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.FrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.FrameIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.PlaybackMoment(int Tick, int FrameIndex) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Tick.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Tick.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Deconstruct(out string? Level, out double WorldX, out double WorldY, out double ScreenX, out double ScreenY, out Avalonia.Input.KeyModifiers Modifiers, out int Tick, out System.Func<string?>! PlaceAt) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Equals(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Level.get -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Level.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Modifiers.get -> Avalonia.Input.KeyModifiers
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Modifiers.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaceAt.get -> System.Func<string?>!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaceAt.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaybackPointer(string? Level, double WorldX, double WorldY, double ScreenX, double ScreenY, Avalonia.Input.KeyModifiers Modifiers, int Tick, System.Func<string?>! PlaceAt) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenX.get -> double
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenX.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenY.get -> double
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenY.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Tick.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Tick.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.WorldX.get -> double
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.WorldX.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.WorldY.get -> double
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.WorldY.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Argb.get -> uint
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Argb.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Deconstruct(out int StartFrameIndex, out int EndFrameIndex, out string! Label, out string! Tooltip, out uint Argb) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.EndFrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.EndFrameIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Equals(DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.StartFrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.StartFrameIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.TimelineBand(int StartFrameIndex, int EndFrameIndex, string! Label, string! Tooltip, uint Argb) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Tooltip.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Tooltip.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Deconstruct(out int Tick, out int FrameIndex, out System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Fields) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Equals(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Fields.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Fields.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.FrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.FrameIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Tick.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Tick.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.TimelineEvent(int Tick, int FrameIndex, System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Fields) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.ActionId.get -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Icon.get -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Label.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.MenuHeader.get -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.MenuHeader.set -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Order.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.PropertyChanged -> System.ComponentModel.PropertyChangedEventHandler?
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Run.get -> System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment!, bool>!
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.ToolbarItem(string! id, string! label, string! tooltip, System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment!, bool>! run, string? actionId = null, int order = 0, string? icon = null, string? menuHeader = null) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Tooltip.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Tooltip.set -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.SettingsPageContribution!
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Deconstruct(out string! Id, out string! Header, out int Order, out string! Keywords, out System.Func<object!>! ViewModelFactory, out System.Func<Avalonia.Controls.Control!>! ViewFactory, out string? FeatureId) -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Equals(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? other) -> bool
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.FeatureId.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Header.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Header.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Keywords.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Keywords.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Order.get -> int
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Order.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.SettingsPageContribution(string! Id, string! Header, int Order, string! Keywords, System.Func<object!>! ViewModelFactory, System.Func<Avalonia.Controls.Control!>! ViewFactory, string? FeatureId = null) -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewFactory.get -> System.Func<Avalonia.Controls.Control!>!
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewFactory.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewModelFactory.get -> System.Func<object!>!
+DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewModelFactory.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.StoreDescriptor!
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Deconstruct(out string! Id, out string! Label, out DemoViewer.NET.Extensions.Sdk.StoreRoot Root, out System.Collections.Generic.IReadOnlyList<string!>! Paths, out bool IsUserWork) -> void
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Equals(DemoViewer.NET.Extensions.Sdk.StoreDescriptor? other) -> bool
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.IsUserWork.get -> bool
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.IsUserWork.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Paths.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Paths.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Root.get -> DemoViewer.NET.Extensions.Sdk.StoreRoot
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Root.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreDescriptor.StoreDescriptor(string! Id, string! Label, DemoViewer.NET.Extensions.Sdk.StoreRoot Root, System.Collections.Generic.IReadOnlyList<string!>! Paths, bool IsUserWork) -> void
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.StoreInventoryItem!
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.Bytes.get -> long
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.Bytes.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.Deconstruct(out DemoViewer.NET.Extensions.Sdk.StoreDescriptor! Descriptor, out int FileCount, out long Bytes) -> void
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.Descriptor.get -> DemoViewer.NET.Extensions.Sdk.StoreDescriptor!
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.Descriptor.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.Equals(DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? other) -> bool
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.FileCount.get -> int
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.FileCount.init -> void
+DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.StoreInventoryItem(DemoViewer.NET.Extensions.Sdk.StoreDescriptor! Descriptor, int FileCount, long Bytes) -> void
+DemoViewer.NET.Extensions.Sdk.StoreRoot
+DemoViewer.NET.Extensions.Sdk.StoreRoot.Cache = 1 -> DemoViewer.NET.Extensions.Sdk.StoreRoot
+DemoViewer.NET.Extensions.Sdk.StoreRoot.Config = 0 -> DemoViewer.NET.Extensions.Sdk.StoreRoot
+DemoViewer.NET.Modules.Abstractions.IWorkspaceModule
+DemoViewer.NET.Modules.Abstractions.IWorkspaceModule.ContractVersion.get -> System.Version!
+DemoViewer.NET.Modules.Abstractions.IWorkspaceModule.CreateTabs(DemoViewer.NET.Modules.Abstractions.IModuleHost! host) -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor!>!
+DemoViewer.NET.Modules.Abstractions.IWorkspaceModule.DisplayName.get -> string!
+DemoViewer.NET.Modules.Abstractions.IWorkspaceModule.Id.get -> string!
+DemoViewer.NET.Modules.Abstractions.TabPlacement
+DemoViewer.NET.Modules.Abstractions.TabPlacement.Diagnostics = 1 -> DemoViewer.NET.Modules.Abstractions.TabPlacement
+DemoViewer.NET.Modules.Abstractions.TabPlacement.Main = 0 -> DemoViewer.NET.Modules.Abstractions.TabPlacement
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Activate(DemoViewer.NET.Modules.Abstractions.IModuleContext! context) -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.ActiveContent.get -> Avalonia.Controls.Control?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Badge.get -> string?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Badge.set -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.DataContext.get -> object?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.DataContext.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Deactivate() -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.FeatureId.get -> string?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.FeatureId.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.HasBadge.get -> bool
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Header.get -> string!
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Header.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.HostId.get -> string?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.HostId.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Icon.get -> object?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Icon.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.IsActive.get -> bool
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Order.get -> int
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Order.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.PendingRestoreState.get -> object?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.PendingRestoreState.set -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Placement.get -> DemoViewer.NET.Modules.Abstractions.TabPlacement
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.Placement.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.PropertyChanged -> System.ComponentModel.PropertyChangedEventHandler?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.TabId.get -> string!
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.TabId.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.TabViewModel.get -> DemoViewer.NET.Modules.Abstractions.IWorkspaceTabViewModel?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.ViewFactory.get -> System.Func<Avalonia.Controls.Control!>!
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.ViewFactory.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.ViewModelFactory.get -> System.Func<DemoViewer.NET.Modules.Abstractions.IWorkspaceTabViewModel!>?
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.ViewModelFactory.init -> void
+DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.WorkspaceTabDescriptor() -> void
+const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Compute = "section" -> string!
+const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Load = "load" -> string!
+const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Save = "save" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.LibraryEvaluator = "library" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.LibraryFeature = "tab.library" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.LibraryTab = "builtin.library" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.MatchOverviewFeature = "tab.matchoverview" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.MatchOverviewTab = "builtin.matchoverview" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DFeature = "tab.playback2d" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DTab = "playback2d.viewport" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.StatsTab = "builtin.stats" -> string!
+override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.CommandContext.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.CommandContext.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.CommandContext.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.ExtensionFeature.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.ExtensionFeature.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.ExtensionFeature.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.HostInfo.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.HostInfo.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.HostInfo.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.JobOptions.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.JobOptions.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.JobOptions.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.LibraryBadge.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.LibraryBadge.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.LibraryBadge.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.LibraryDemo.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.LibraryDemo.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.LibraryDemo.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.LibraryFilter.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.LibraryFilter.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.LibraryFilter.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Developers.get -> DemoViewer.NET.Extensions.Sdk.AudienceDefaults!
+static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Everyone.get -> DemoViewer.NET.Extensions.Sdk.AudienceDefaults!
+static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.PowerUsers.get -> DemoViewer.NET.Extensions.Sdk.AudienceDefaults!
+static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.operator !=(DemoViewer.NET.Extensions.Sdk.AudienceDefaults? left, DemoViewer.NET.Extensions.Sdk.AudienceDefaults? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.operator ==(DemoViewer.NET.Extensions.Sdk.AudienceDefaults? left, DemoViewer.NET.Extensions.Sdk.AudienceDefaults? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.CommandContext.operator !=(DemoViewer.NET.Extensions.Sdk.CommandContext? left, DemoViewer.NET.Extensions.Sdk.CommandContext? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.CommandContext.operator ==(DemoViewer.NET.Extensions.Sdk.CommandContext? left, DemoViewer.NET.Extensions.Sdk.CommandContext? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.CommandDescriptor.operator !=(DemoViewer.NET.Extensions.Sdk.CommandDescriptor? left, DemoViewer.NET.Extensions.Sdk.CommandDescriptor? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.CommandDescriptor.operator ==(DemoViewer.NET.Extensions.Sdk.CommandDescriptor? left, DemoViewer.NET.Extensions.Sdk.CommandDescriptor? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionFeature.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionFeature? left, DemoViewer.NET.Extensions.Sdk.ExtensionFeature? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionFeature.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionFeature? left, DemoViewer.NET.Extensions.Sdk.ExtensionFeature? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? left, DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? left, DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions.GetExtensionContext(this System.IServiceProvider! services, string! extensionId) -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
+static DemoViewer.NET.Extensions.Sdk.HostInfo.operator !=(DemoViewer.NET.Extensions.Sdk.HostInfo? left, DemoViewer.NET.Extensions.Sdk.HostInfo? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.HostInfo.operator ==(DemoViewer.NET.Extensions.Sdk.HostInfo? left, DemoViewer.NET.Extensions.Sdk.HostInfo? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.JobOptions.operator !=(DemoViewer.NET.Extensions.Sdk.JobOptions? left, DemoViewer.NET.Extensions.Sdk.JobOptions? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.JobOptions.operator ==(DemoViewer.NET.Extensions.Sdk.JobOptions? left, DemoViewer.NET.Extensions.Sdk.JobOptions? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryBadge.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryBadge? left, DemoViewer.NET.Extensions.Sdk.LibraryBadge? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryBadge.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryBadge? left, DemoViewer.NET.Extensions.Sdk.LibraryBadge? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryDemo.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryDemo? left, DemoViewer.NET.Extensions.Sdk.LibraryDemo? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryDemo.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryDemo? left, DemoViewer.NET.Extensions.Sdk.LibraryDemo? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryFilter.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryFilter? left, DemoViewer.NET.Extensions.Sdk.LibraryFilter? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryFilter.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryFilter? left, DemoViewer.NET.Extensions.Sdk.LibraryFilter? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? left, DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? left, DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? left, DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? left, DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.operator !=(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? left, DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.operator ==(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? left, DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.StoreDescriptor.operator !=(DemoViewer.NET.Extensions.Sdk.StoreDescriptor? left, DemoViewer.NET.Extensions.Sdk.StoreDescriptor? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.StoreDescriptor.operator ==(DemoViewer.NET.Extensions.Sdk.StoreDescriptor? left, DemoViewer.NET.Extensions.Sdk.StoreDescriptor? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.operator !=(DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? left, DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.operator ==(DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? left, DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? right) -> bool
+static readonly DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Empty -> DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory!
+static readonly DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.NotRun -> DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult!

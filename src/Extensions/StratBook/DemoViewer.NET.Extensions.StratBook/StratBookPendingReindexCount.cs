@@ -17,10 +17,10 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///     <see cref="IServiceProvider" /> every other <c>Contribute</c> closure captures, so
 ///     <c>SettingsViewModel</c> never needs to resolve these evaluators (or know this type exists) itself.
 /// </summary>
-internal sealed class StratBookPendingReindexCount(IServiceProvider services) : IPackReindexEstimate
+internal sealed class StratBookPendingReindexCount(IServiceProvider services) : IReindexEstimate
 {
     /// <inheritdoc />
-    public string PackFeatureId => StratBookPack.PackFeatureId;
+    public string FeatureId => StratBookPack.PackFeatureId;
 
     /// <summary>
     ///     Runs the count as a queue item the user can see and pause, at user priority (the standing rule:

@@ -25,7 +25,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///     <see cref="StratBookPack.Contribute" /> receives so it can turn the pack off and resolve its own
 ///     stores directly, never through the <c>App.Services</c> locator.
 /// </summary>
-internal sealed class StratBookDataRemoval : IPackDataRemoval
+internal sealed class StratBookDataRemoval : IExtensionDataRemoval
 {
     // Every id StratBookPack.Contribute passes to contributions.Evaluator: the facets this pack's stamps
     // carry on DemoCacheRecord.PackStamps, kept in one place so the two cannot drift apart.
@@ -54,11 +54,11 @@ internal sealed class StratBookDataRemoval : IPackDataRemoval
     }
 
     /// <inheritdoc />
-    public string PackFeatureId => StratBookPack.PackFeatureId;
+    public string FeatureId => StratBookPack.PackFeatureId;
 
     /// <inheritdoc />
-    public Task<PackDataInventory> InventoryAsync() =>
-        Remover().InventoryAsync(StratBookStores.All, PackFeatureId, "Strat Book: count extension data");
+    public Task<ExtensionDataInventory> InventoryAsync() =>
+        Remover().InventoryAsync(StratBookStores.All, FeatureId, "Strat Book: count extension data");
 
     /// <inheritdoc />
     /// <remarks>
@@ -77,12 +77,12 @@ internal sealed class StratBookDataRemoval : IPackDataRemoval
     ///         right before any file is touched.
     ///     </para>
     /// </remarks>
-    public async Task<PackDataRemovalResult> DeleteAsync()
+    public async Task<ExtensionDataRemovalResult> DeleteAsync()
     {
         IFeatureGate? gate = _sp.GetService<IFeatureGate>();
-        if (gate?.IsEnabled(PackFeatureId) == true)
+        if (gate?.IsEnabled(FeatureId) == true)
         {
-            _sp.GetRequiredService<SettingsService>().Write(s => s.Features.Overrides[PackFeatureId] = false);
+            _sp.GetRequiredService<SettingsService>().Write(s => s.Features.Overrides[FeatureId] = false);
             if (_sp.GetService<PackSwitch>() is { } packSwitch)
             {
                 await packSwitch.Pending.ConfigureAwait(false);
@@ -91,14 +91,14 @@ internal sealed class StratBookDataRemoval : IPackDataRemoval
 
         _afterReleaseForTests?.Invoke();
 
-        if (gate?.IsEnabled(PackFeatureId) == true)
+        if (gate?.IsEnabled(FeatureId) == true)
         {
-            return PackDataRemovalResult.NotRun;
+            return ExtensionDataRemovalResult.NotRun;
         }
 
-        PackDataRemovalResult result = await Remover()
-            .DeleteAsync(StratBookCache.PackId, StratBookStores.All, FacetIds, PackFeatureId, "Strat Book: delete extension data",
-                stillOff: () => gate?.IsEnabled(PackFeatureId) != true)
+        ExtensionDataRemovalResult result = await Remover()
+            .DeleteAsync(StratBookCache.PackId, StratBookStores.All, FacetIds, FeatureId, "Strat Book: delete extension data",
+                stillOff: () => gate?.IsEnabled(FeatureId) != true)
             .ConfigureAwait(false);
         if (result.Ran)
         {

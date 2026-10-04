@@ -1,9 +1,8 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.ViewModels.Shell;
+using SdkPlayback = DemoViewer.NET.Extensions.Sdk.Playback;
 
 #endregion
 
@@ -13,25 +12,27 @@ namespace DemoViewer.NET.Extensions;
 ///     The composition root's collector for one pack's contributions, in the order the pack made them.
 ///     Each pack gets its own instance so the shell knows which pack contributed what.
 /// </summary>
-internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
+internal sealed class PackContributions(IExtension pack, Func<IExtensionContext> context) : IFirstPartyContributions
 {
+    private IExtensionContext? _context;
     private readonly List<IWorkspaceModule> _modules = [];
     private readonly List<HostTabContribution> _hostTabs = [];
     private readonly List<EvaluatorContribution> _evaluators = [];
-    private readonly List<JobKindDescriptor> _jobKinds = [];
     private readonly List<CommandDescriptor> _commands = [];
     private readonly List<RulesetContribution> _rulesets = [];
     private readonly List<SettingsPageContribution> _settingsPages = [];
     private readonly List<StatusChipContribution> _statusChips = [];
-    private readonly List<IPackReindexEstimate> _reindexEstimates = [];
+    private readonly List<IReindexEstimate> _reindexEstimates = [];
     private readonly List<IPlaybackContribution> _playback = [];
     private readonly List<ILibraryContribution> _library = [];
     private readonly List<StoreDescriptor> _stores = [];
-    private readonly List<Action<MainViewModel>> _shellAttachments = [];
-    private IPackDataRemoval? _dataRemoval;
+    private readonly List<GatedDemoAction> _demoActions = [];
+    private IExtensionDataRemoval? _dataRemoval;
 
     /// <summary>The pack these contributions belong to.</summary>
-    public IFeaturePack Pack { get; } = pack;
+    public IExtension Pack { get; } = pack;
+    public IExtensionContext Context => _context ??= context();
+    public IReadOnlyList<GatedDemoAction> DemoActions => _demoActions;
 
     /// <summary>Rulesets the pack owns, in contribution order.</summary>
     public IReadOnlyList<RulesetContribution> Rulesets => _rulesets;
@@ -46,7 +47,6 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     public IReadOnlyList<EvaluatorContribution> Evaluators => _evaluators;
 
     /// <summary>Job kinds, in contribution order.</summary>
-    public IReadOnlyList<JobKindDescriptor> JobKinds => _jobKinds;
 
     /// <summary>Commands, in contribution order. Named apart from the <see cref="Commands(IEnumerable{CommandDescriptor})" /> method the interface declares.</summary>
     public IReadOnlyList<CommandDescriptor> ContributedCommands => _commands;
@@ -58,7 +58,7 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     public IReadOnlyList<StatusChipContribution> StatusChips => _statusChips;
 
     /// <summary>Re-index estimates, in contribution order.</summary>
-    public IReadOnlyList<IPackReindexEstimate> ReindexEstimates => _reindexEstimates;
+    public IReadOnlyList<IReindexEstimate> ReindexEstimates => _reindexEstimates;
 
     /// <summary>2D Playback contributions, in contribution order.</summary>
     public IReadOnlyList<IPlaybackContribution> PlaybackContributions => _playback;
@@ -70,10 +70,10 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     public IReadOnlyList<StoreDescriptor> Stores => _stores;
 
     /// <summary>The pack's "delete extension data" action, or null when it declared none.</summary>
-    public IPackDataRemoval? DataRemovalContribution => _dataRemoval;
+    public IExtensionDataRemoval? DataRemovalContribution => _dataRemoval;
 
     /// <inheritdoc />
-    public void Module(IWorkspaceModule workspaceModule)
+    public void Tabs(IWorkspaceModule workspaceModule)
     {
         ArgumentNullException.ThrowIfNull(workspaceModule);
         _modules.Add(workspaceModule);
@@ -91,7 +91,13 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     }
 
     /// <inheritdoc />
-    public void Evaluator(string id, Func<IDemoEvaluator> factory, params string[] after)
+    public void Evaluator(string id, Func<IExtensionEvaluator> factory, params string[] after)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(factory);
+        _evaluators.Add(new EvaluatorContribution(id, () => new ExtensionEvaluatorAdapter(factory()), [.. after]));
+    }
+    public void FirstPartyEvaluator(string id, Func<IDemoEvaluator> factory, params string[] after)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
@@ -99,11 +105,6 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     }
 
     /// <inheritdoc />
-    public void JobKind(JobKindDescriptor kind)
-    {
-        ArgumentNullException.ThrowIfNull(kind);
-        _jobKinds.Add(kind);
-    }
 
     /// <inheritdoc />
     public void Commands(IEnumerable<CommandDescriptor> commands)
@@ -139,14 +140,19 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     }
 
     /// <inheritdoc />
-    public void ReindexEstimate(IPackReindexEstimate estimate)
+    public void ReindexEstimate(IReindexEstimate estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
         _reindexEstimates.Add(estimate);
     }
 
     /// <inheritdoc />
-    public void Playback(IPlaybackContribution contribution)
+    public void Playback(SdkPlayback.IPlaybackContribution contribution)
+    {
+        ArgumentNullException.ThrowIfNull(contribution);
+        _playback.Add(new SdkPlaybackContribution(contribution));
+    }
+    public void FirstPartyPlayback(IPlaybackContribution contribution)
     {
         ArgumentNullException.ThrowIfNull(contribution);
         _playback.Add(contribution);
@@ -168,21 +174,18 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
     }
 
     /// <inheritdoc />
-    public void DataRemoval(IPackDataRemoval removal)
+    public void DataRemoval(IExtensionDataRemoval removal)
     {
         ArgumentNullException.ThrowIfNull(removal);
         _dataRemoval = removal;
     }
 
     /// <inheritdoc />
-    public void Shell(Action<MainViewModel> attach)
+    public void DemoAction(DemoAction action)
     {
-        ArgumentNullException.ThrowIfNull(attach);
-        _shellAttachments.Add(attach);
+        ArgumentNullException.ThrowIfNull(action);
+        _demoActions.Add(new GatedDemoAction(action, action.FeatureId ?? Pack.FeatureId));
     }
-
-    /// <summary>What the pack attaches to the shell once it exists, in contribution order.</summary>
-    public IReadOnlyList<Action<MainViewModel>> ShellAttachments => _shellAttachments;
 
     // Stamps the owning pack's id onto a contribution that left FeatureId null, so the host always has a
     // concrete gate id and never has to fall back to "always on" the way a settings page or chip would.
@@ -198,11 +201,11 @@ internal sealed class PackContributions(IFeaturePack pack) : IPackContributions
 
         public LibraryFilter? Filter => inner.Filter;
         public bool HasBadge => inner.HasBadge;
-        public LibraryBadge? BadgeFor(DemoEntry entry) => inner.BadgeFor(entry);
-        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries) => inner.BadgesFor(entries);
+        public LibraryBadge? BadgeFor(LibraryDemo demo) => inner.BadgeFor(demo);
+        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<LibraryDemo> demos) => inner.BadgesFor(demos);
         public IReadOnlyList<string> BadgeLabels => inner.BadgeLabels;
         public string? BadgeResetLabel => inner.BadgeResetLabel;
         public string? BadgeResetTooltip => inner.BadgeResetTooltip;
-        public void SetLabel(DemoEntry entry, string? label) => inner.SetLabel(entry, label);
+        public void SetLabel(LibraryDemo demo, string? label) => inner.SetLabel(demo, label);
     }
 }

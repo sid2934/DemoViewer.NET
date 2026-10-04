@@ -66,7 +66,7 @@ public class SettingsViewModelTests
     // registered in the container so the provider disposes it. reindexEstimate is the test seam
     // for the Extensions "N demos" notice; null everywhere except the tests that exercise it.
     private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(
-        string dir, IPackReindexEstimate? reindexEstimate = null, IPackDataRemoval? dataRemoval = null,
+        string dir, IReindexEstimate? reindexEstimate = null, IExtensionDataRemoval? dataRemoval = null,
         IReadOnlyList<PackStatus>? packStatuses = null, ExtensionUpdateService? extensionUpdates = null,
         Func<bool>? isBrowser = null, Action<AppSettings>? seed = null)
     {
@@ -99,24 +99,24 @@ public class SettingsViewModelTests
 
     // The pending-reindex-count test seam: a fixed pack feature id (the real StratBookPack's) with a
     // caller-supplied count function, so a test can observe "Counting…" before controlling when it lands.
-    private sealed class FakeReindexEstimate(Func<Task<int>> count) : IPackReindexEstimate
+    private sealed class FakeReindexEstimate(Func<Task<int>> count) : IReindexEstimate
     {
-        public string PackFeatureId => StratBookPack.PackFeatureId;
+        public string FeatureId => StratBookPack.PackFeatureId;
         public Task<int> CountAsync() => count();
     }
 
     // The "delete extension data" test seam: canned inventory/delete results and a call count
     // for each, so a test can assert Confirm reached the remover without a real PackDataRemover, queue or
-    // filesystem. No gate/PackSwitch coupling: a real IPackDataRemoval owns that, this fake does not.
-    private sealed class FakePackDataRemoval(PackDataInventory inventory, PackDataRemovalResult result,
-        TaskCompletionSource<PackDataRemovalResult>? deleteGate = null) : IPackDataRemoval
+    // filesystem. No gate/PackSwitch coupling: a real IExtensionDataRemoval owns that, this fake does not.
+    private sealed class FakePackDataRemoval(ExtensionDataInventory inventory, ExtensionDataRemovalResult result,
+        TaskCompletionSource<ExtensionDataRemovalResult>? deleteGate = null) : IExtensionDataRemoval
     {
         public int InventoryCalls { get; private set; }
         public int DeleteCalls { get; private set; }
 
-        public string PackFeatureId => StratBookPack.PackFeatureId;
+        public string FeatureId => StratBookPack.PackFeatureId;
 
-        public Task<PackDataInventory> InventoryAsync()
+        public Task<ExtensionDataInventory> InventoryAsync()
         {
             InventoryCalls++;
             return Task.FromResult(inventory);
@@ -125,7 +125,7 @@ public class SettingsViewModelTests
         // With deleteGate set, DeleteAsync counts the call and then waits for the test to release it, so a
         // test can observe state (IsBusy, a locked row, a second concurrent call) while the delete is
         // still "in flight". Without it, completes immediately with result.
-        public Task<PackDataRemovalResult> DeleteAsync()
+        public Task<ExtensionDataRemovalResult> DeleteAsync()
         {
             DeleteCalls++;
             return deleteGate?.Task ?? Task.FromResult(result);
@@ -1116,7 +1116,7 @@ public class SettingsViewModelTests
                 FeatureToggleRow child = Row(vm, "tab.situations");
                 using (Assert.Multiple())
                 {
-                    await Assert.That(master.Version).IsEqualTo(new StratBookPack().Manifest.Version.ToString());
+                    await Assert.That(master.Version).IsEqualTo(DemoViewer.NET.Extensions.ExtensionManifests.Of(new StratBookPack()).Version.ToString());
                     await Assert.That(master.HasVersion).IsTrue();
                     await Assert.That(master.IsIncompatible).IsFalse();
                     await Assert.That(master.IsInteractive).IsTrue();
@@ -1393,12 +1393,12 @@ public class SettingsViewModelTests
         string dir = NewTempDir();
         try
         {
-            PackDataInventory inventory = new(
+            ExtensionDataInventory inventory = new(
             [
                 new StoreInventoryItem(new StoreDescriptor("strats", "Strats", StoreRoot.Config, ["strats"], true), 3, 4096),
                 new StoreInventoryItem(new StoreDescriptor("round-index", "Round Index", StoreRoot.Cache, ["round-index"], false), 10, 1_048_576)
             ]);
-            PackDataRemovalResult result = new(true, inventory, 1);
+            ExtensionDataRemovalResult result = new(true, inventory, 1);
             FakePackDataRemoval fake = new(inventory, result);
             (SettingsViewModel vm, SettingsService svc, _, ServiceProvider sp) = NewVm(dir, dataRemoval: fake);
             using (sp)
@@ -1449,7 +1449,7 @@ public class SettingsViewModelTests
         string dir = NewTempDir();
         try
         {
-            FakePackDataRemoval fake = new(PackDataInventory.Empty, PackDataRemovalResult.NotRun);
+            FakePackDataRemoval fake = new(ExtensionDataInventory.Empty, ExtensionDataRemovalResult.NotRun);
             (SettingsViewModel vm, _, _, ServiceProvider sp) = NewVm(dir, dataRemoval: fake);
             using (sp)
             {
@@ -1482,8 +1482,8 @@ public class SettingsViewModelTests
         string dir = NewTempDir();
         try
         {
-            TaskCompletionSource<PackDataRemovalResult> gate = new();
-            FakePackDataRemoval fake = new(PackDataInventory.Empty, PackDataRemovalResult.NotRun, gate);
+            TaskCompletionSource<ExtensionDataRemovalResult> gate = new();
+            FakePackDataRemoval fake = new(ExtensionDataInventory.Empty, ExtensionDataRemovalResult.NotRun, gate);
             (SettingsViewModel vm, _, _, ServiceProvider sp) = NewVm(dir, dataRemoval: fake);
             using (sp)
             {
@@ -1501,7 +1501,7 @@ public class SettingsViewModelTests
                     await Assert.That(master.HasLockHint).IsTrue();
                 }
 
-                gate.SetResult(PackDataRemovalResult.NotRun);
+                gate.SetResult(ExtensionDataRemovalResult.NotRun);
                 await confirm;
 
                 using (Assert.Multiple())
@@ -1530,8 +1530,8 @@ public class SettingsViewModelTests
         string dir = NewTempDir();
         try
         {
-            TaskCompletionSource<PackDataRemovalResult> gate = new();
-            FakePackDataRemoval fake = new(PackDataInventory.Empty, PackDataRemovalResult.NotRun, gate);
+            TaskCompletionSource<ExtensionDataRemovalResult> gate = new();
+            FakePackDataRemoval fake = new(ExtensionDataInventory.Empty, ExtensionDataRemovalResult.NotRun, gate);
             (SettingsViewModel vm, _, _, ServiceProvider sp) = NewVm(dir, dataRemoval: fake);
             using (sp)
             {
@@ -1542,7 +1542,7 @@ public class SettingsViewModelTests
 
                 await Assert.That(fake.DeleteCalls).IsEqualTo(1).Because("the second call sees IsBusy already true and no-ops");
 
-                gate.SetResult(new PackDataRemovalResult(true, PackDataInventory.Empty, 0));
+                gate.SetResult(new ExtensionDataRemovalResult(true, ExtensionDataInventory.Empty, 0));
                 await Task.WhenAll(first, second);
 
                 await Assert.That(fake.DeleteCalls).IsEqualTo(1);

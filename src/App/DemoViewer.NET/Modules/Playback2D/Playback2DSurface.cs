@@ -10,6 +10,10 @@ using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
+using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
+using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 
 #endregion
 
@@ -241,7 +245,7 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     {
         foreach (ModeToggle toggle in ModeToggles.ToArray())
         {
-            if (toggle.Action == action)
+            if (toggle.ActionId is { } id && id == action.ToString())
             {
                 return toggle.TryToggle();
             }

@@ -92,7 +92,7 @@ public class DemoOpenQueueTests
         rig.Release.SetResult();
         int ran = 0;
         rig.Queue.Pause();
-        rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "mine", "test", DemoJobPriority.Background,
+        rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "mine", "test", DemoJobPriority.Background,
             _ =>
             {
                 Interlocked.Increment(ref ran);
@@ -124,7 +124,7 @@ public class DemoOpenQueueTests
         using Rig rig = new();
         int starts = 0;
         TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        IDemoQueueHandle job = rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "mine", "test",
+        IDemoQueueHandle job = rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "mine", "test",
             DemoJobPriority.Background, async ctx =>
             {
                 if (Interlocked.Increment(ref starts) == 1)
@@ -310,7 +310,7 @@ public class DemoOpenQueueTests
         using Rig rig = new();
         int ran = 0;
         IDemoOpenTicket open = rig.Queue.BeginOpen("/d/a.dem", "a.dem");
-        rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "mine", "test", DemoJobPriority.Background,
+        rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "mine", "test", DemoJobPriority.Background,
             _ =>
             {
                 Interlocked.Increment(ref ran);

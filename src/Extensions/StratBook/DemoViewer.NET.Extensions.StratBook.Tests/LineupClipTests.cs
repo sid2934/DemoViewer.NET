@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Parser;
 using CS2OpenSchema.Protos;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
@@ -813,8 +814,8 @@ public class LineupClipTests
             _ => false, (_, _) => { }, processing: processing);
 
         await Assert.That(service.Plan()).IsEqualTo(2);
-        DemoQueueItemSnapshot first = processing.Snapshot().Single(i => i.Kind == QueueJobKind.LineupClips);
-        await Assert.That(first.Kind).IsEqualTo(QueueJobKind.LineupClips);
+        DemoQueueItemSnapshot first = processing.Snapshot().Single(i => i.ExtensionKind == StratBookJobKinds.LineupClips);
+        await Assert.That(first.ExtensionKind).IsEqualTo(StratBookJobKinds.LineupClips);
         await Assert.That(first.DisplayName).IsEqualTo("Lineup clips: de_mirage, 1 clip from five.dem");
         await Assert.That(first.State).IsEqualTo(DemoQueueItemState.Queued).Because("a paused queue starts nothing");
         await Assert.That(renderer.Calls).IsEmpty();
@@ -822,7 +823,7 @@ public class LineupClipTests
         processing.Resume();
         await service.WorkerTask.WaitAsync(TimeSpan.FromSeconds(10));
 
-        List<DemoQueueItemSnapshot> items = processing.Snapshot().Where(i => i.Kind == QueueJobKind.LineupClips).ToList();
+        List<DemoQueueItemSnapshot> items = processing.Snapshot().Where(i => i.ExtensionKind == StratBookJobKinds.LineupClips).ToList();
         await Assert.That(items.Count).IsEqualTo(2);
         await Assert.That(items.All(i => i.State == DemoQueueItemState.Completed)).IsTrue();
         await Assert.That(string.Join(",", renderer.Calls.Select(c => c.Demo))).IsEqualTo("/d/five.dem,/d/two.dem");
@@ -841,7 +842,7 @@ public class LineupClipTests
             _ => false, (_, _) => { }, processing: processing);
 
         service.Plan();
-        processing.RemoveByUser(processing.Snapshot().Single(i => i.Kind == QueueJobKind.LineupClips).Id);
+        processing.RemoveByUser(processing.Snapshot().Single(i => i.ExtensionKind == StratBookJobKinds.LineupClips).Id);
         processing.Resume();
         await service.WorkerTask.WaitAsync(TimeSpan.FromSeconds(10));
 

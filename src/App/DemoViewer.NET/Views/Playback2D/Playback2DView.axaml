@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:DemoViewer.NET.Modules.Playback2D"
              xmlns:ext="using:DemoViewer.NET.Extensions"
+             xmlns:sdkp="using:DemoViewer.NET.Extensions.Sdk.Playback"
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:lv="using:DemoViewer.NET.Modules.Playback2D.Levels"
              xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
@@ -164,7 +165,7 @@
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="ext:ModeToggle">
+                                <DataTemplate x:DataType="sdkp:ModeToggle">
                                     <ToggleButton Focusable="False" Padding="8,2" FontSize="11" Margin="6,0,0,0"
                                                   Content="{Binding Label}"
                                                   IsChecked="{Binding IsOn, Mode=TwoWay}"

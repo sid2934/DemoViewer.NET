@@ -7,7 +7,7 @@ using DemoViewer.NET.Extensions.Manifest;
 namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
-///     Manifests for the test fakes that implement <c>IFeaturePack</c>: one that fits any host, and the
+///     Manifests for the test fakes that implement <c>IExtension</c>: one that fits any host, and the
 ///     mismatching shapes <c>PackCompatibilityTests</c> and <c>FeaturePacksTests</c> need.
 /// </summary>
 internal static class FakeManifests

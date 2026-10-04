@@ -60,7 +60,7 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     public bool HasOwners => _item.Kind == QueueJobKind.DemoProcessing && !string.IsNullOrWhiteSpace(_item.Owners);
 
     /// <summary>The job kind's short chip; empty for a demo parse.</summary>
-    public string KindLabel => _jobKinds.Label(_item.Kind);
+    public string KindLabel => _jobKinds.Label(_item.Kind, _item.ExtensionKind);
 
     /// <summary>True for every kind but a demo parse.</summary>
     public bool HasKind => _item.Kind != QueueJobKind.DemoProcessing;

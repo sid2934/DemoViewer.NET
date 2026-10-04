@@ -117,6 +117,9 @@ public partial class DemoEntry : ObservableObject
     /// <summary>Prettified map name for display, e.g. <c>de_nuke → "Nuke"</c>. Falls back to "Unknown".</summary>
     public string MapDisplay => PrettifyMap(MapName);
 
+    /// <summary>This entry as an extension's Library contribution sees it.</summary>
+    public LibraryDemo ToLibraryDemo() => new(FilePath, FileName, MapName, Modified, FileSizeBytes);
+
     /// <summary>Human file size, e.g. "482 MB".</summary>
     public string SizeDisplay => FormatSize(FileSizeBytes);
 

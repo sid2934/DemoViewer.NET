@@ -100,7 +100,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // estimate. At most one pack exists today; a second pack's own toggle would need its own
     // notice slot, which this does not attempt. Null contributes nothing (no pack, or a test that wires
     // none), so the notice mechanism below simply never fires.
-    private readonly IPackReindexEstimate? _reindexEstimate;
+    private readonly IReindexEstimate? _reindexEstimate;
 
     // Bumped on every pack-toggle transition so a slow count that lands after a LATER flip is dropped
     // rather than overwriting a more recent notice.
@@ -424,7 +424,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Action? replayWalkthrough = null, IReadOnlyList<SettingsPageContribution>? settingsPages = null,
-        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null, IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
+        IReadOnlyList<IReindexEstimate>? reindexEstimates = null, IReadOnlyList<IExtensionDataRemoval>? dataRemovals = null,
         IReadOnlyList<PackStatus>? packStatuses = null, ExtensionUpdateService? extensionUpdates = null)
         : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, settingsPages,
             reindexEstimates, dataRemovals, packStatuses, extensionUpdates)
@@ -470,8 +470,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Func<bool> isBrowser, Action? replayWalkthrough = null,
         IReadOnlyList<SettingsPageContribution>? settingsPages = null,
-        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null,
-        IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
+        IReadOnlyList<IReindexEstimate>? reindexEstimates = null,
+        IReadOnlyList<IExtensionDataRemoval>? dataRemovals = null,
         IReadOnlyList<PackStatus>? packStatuses = null,
         ExtensionUpdateService? extensionUpdates = null)
     {
@@ -488,9 +488,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _packStatuses = packStatuses ?? FeaturePacks.Statuses;
         _extensionUpdates = extensionUpdates;
         _reindexEstimate = reindexEstimates is { Count: > 0 } estimates ? estimates[0] : null;
-        foreach (IPackDataRemoval removal in dataRemovals ?? [])
+        foreach (IExtensionDataRemoval removal in dataRemovals ?? [])
         {
-            string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == removal.PackFeatureId)?.Label ?? removal.PackFeatureId;
+            string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == removal.FeatureId)?.Label ?? removal.FeatureId;
             ExtensionDataActions.Add(new ExtensionDataActionViewModel(removal, label));
         }
 
@@ -550,7 +550,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         // Seeded BEFORE the first RefreshFeatureRows below, so that call sees no transition and shows no
         // toggle notice at a plain startup: the notice is feedback for an IN-SESSION flip, not state.
-        _watchedPackWasEnabled = _reindexEstimate is { } watched && gate.IsEnabled(watched.PackFeatureId);
+        _watchedPackWasEnabled = _reindexEstimate is { } watched && gate.IsEnabled(watched.FeatureId);
 
         // Registers every contributed page; none is built yet (BuildContributedSettingsPages).
         BuildContributedSettingsPages(settingsPages);
@@ -2048,7 +2048,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // contributed an estimate.
         if (_reindexEstimate is { } watched)
         {
-            bool watchedNowEnabled = _gate.IsEnabled(watched.PackFeatureId);
+            bool watchedNowEnabled = _gate.IsEnabled(watched.FeatureId);
             if (watchedNowEnabled != _watchedPackWasEnabled)
             {
                 _watchedPackWasEnabled = watchedNowEnabled;
@@ -2060,7 +2060,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                 }
                 else
                 {
-                    string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == watched.PackFeatureId)?.Label
+                    string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == watched.FeatureId)?.Label
                                    ?? "extension";
                     StratBookToggleNotice = $"The {label} stops its background work. Its data stays on disk.";
                 }
@@ -2083,7 +2083,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // Resolves the re-index count off the UI thread (PendingPaths over a large library is not free) and
     // writes the final notice, UNLESS a later toggle already changed the generation: dropping a stale
     // result beats a "12 demos…" note that lands after the user flipped the extension back off.
-    private async Task RecomputeToggleNoticeAsync(IPackReindexEstimate estimate, int generation)
+    private async Task RecomputeToggleNoticeAsync(IReindexEstimate estimate, int generation)
     {
         int count;
         try

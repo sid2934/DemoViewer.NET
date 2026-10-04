@@ -22,8 +22,30 @@ public class QueueJobTests
         "test", "csgo", 0, 0, 0,
         "valve_demo_2", "", "", DemoProfile.Unknown);
 
+    // Two extension kinds ranked between the core kinds, so the mixed-kinds order covers declared ranks.
+    private const string MiningKind = "test.mining";
+    private const string ClipsKind = "test.clips";
+
+    private static readonly DemoViewer.NET.Extensions.JobKindRegistry Kinds = DemoViewer.NET.Extensions.JobKindRegistry.Build([new KindsExtension()]);
+
     private static DemoProcessingQueue NewQueue(HeavyJobGate gate, Func<string, ParsedDemo>? parse = null) =>
-        new(gate, a => a(), parse ?? (_ => SyntheticDemo()), _ => SyntheticDemo(), () => Task.CompletedTask);
+        new(gate, a => a(), parse ?? (_ => SyntheticDemo()), _ => SyntheticDemo(), () => Task.CompletedTask, jobKinds: Kinds);
+
+    private sealed class KindsExtension : IExtension
+    {
+        public string Id => "net.test.kinds";
+        public string FeatureId => "pack.kinds";
+        public IEnumerable<ExtensionFeature> Features => [];
+        public IEnumerable<ExtensionJobKind> JobKinds => [new(MiningKind, "mining", false, 2), new(ClipsKind, "clips", false, 3)];
+
+        public void Register(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
+    }
 
     private static QueueJobRequest Job(QueueJobKind kind, string title, Func<IQueueJobContext, Task> run,
         DemoJobPriority priority = DemoJobPriority.Background, string? key = null, long order = 0) =>
@@ -61,8 +83,8 @@ public class QueueJobTests
             return Task.CompletedTask;
         };
 
-        queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", Record("clips")));
-        queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", Record("mine")));
+        queue.SubmitJob(Job(QueueJobKind.Extension, "clips", Record("clips")) with { ExtensionKind = ClipsKind });
+        queue.SubmitJob(Job(QueueJobKind.Extension, "mine", Record("mine")) with { ExtensionKind = MiningKind });
         queue.SubmitJob(Job(QueueJobKind.SidecarMigration, "migrate", Record("migrate")));
         queue.SubmitBackground(new DemoProcessingRequest("/d/a.dem", "library", DemoJobPriority.Background, 1,
             _ =>
@@ -95,7 +117,7 @@ public class QueueJobTests
             Interlocked.Increment(ref ran);
             return Task.CompletedTask;
         }, DemoJobPriority.UserRequested));
-        queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", _ =>
+        queue.SubmitJob(Job(QueueJobKind.Extension, "clips", _ =>
         {
             Interlocked.Increment(ref ran);
             return Task.CompletedTask;
@@ -118,12 +140,12 @@ public class QueueJobTests
         TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         bool queuedRan = false;
 
-        IDemoQueueHandle running = queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", async ctx =>
+        IDemoQueueHandle running = queue.SubmitJob(Job(QueueJobKind.Extension, "mine", async ctx =>
         {
             started.SetResult();
             await Task.Delay(Timeout.Infinite, ctx.CancellationToken);
         }));
-        IDemoQueueHandle queued = queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", _ =>
+        IDemoQueueHandle queued = queue.SubmitJob(Job(QueueJobKind.Extension, "clips", _ =>
         {
             queuedRan = true;
             return Task.CompletedTask;
@@ -151,7 +173,7 @@ public class QueueJobTests
         bool packQueuedRan = false;
 
         // The running job belongs to the pack and parks on its token until cancelled.
-        IDemoQueueHandle running = queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "mine", "pack", DemoJobPriority.Background,
+        IDemoQueueHandle running = queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "mine", "pack", DemoJobPriority.Background,
             async ctx =>
             {
                 started.SetResult();
@@ -159,7 +181,7 @@ public class QueueJobTests
             }));
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        IDemoQueueHandle packQueued = queue.SubmitJob(new QueueJobRequest(QueueJobKind.LineupClips, "clips", "pack", DemoJobPriority.Background,
+        IDemoQueueHandle packQueued = queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "clips", "pack", DemoJobPriority.Background,
             _ =>
             {
                 packQueuedRan = true;
@@ -226,7 +248,7 @@ public class QueueJobTests
         {
             handles.Add(queue.SubmitBackground(new DemoProcessingRequest($"/d/{i}.dem", "library",
                 DemoJobPriority.Background, i, _ => { })));
-            handles.Add(queue.SubmitJob(Job(i % 2 == 0 ? QueueJobKind.LineupClips : QueueJobKind.StratMining, $"job {i}",
+            handles.Add(queue.SubmitJob(Job(i % 2 == 0 ? QueueJobKind.Extension : QueueJobKind.Extension, $"job {i}",
                 async ctx =>
                 {
                     Enter();
@@ -262,17 +284,17 @@ public class QueueJobTests
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = NewQueue(gate);
         TaskCompletionSource hold = await HoldTheLaneAsync(queue);
-        IDemoQueueHandle first = queue.SubmitJob(Job(QueueJobKind.StratMining, "Strat mining", _ => Task.CompletedTask,
+        IDemoQueueHandle first = queue.SubmitJob(Job(QueueJobKind.Extension, "Strat mining", _ => Task.CompletedTask,
             key: "mine"));
-        IDemoQueueHandle second = queue.SubmitJob(Job(QueueJobKind.StratMining, "Strat mining (user)",
+        IDemoQueueHandle second = queue.SubmitJob(Job(QueueJobKind.Extension, "Strat mining (user)",
             _ => Task.CompletedTask, DemoJobPriority.UserRequested, "mine"));
 
         await Assert.That(second.Id).IsEqualTo(first.Id);
-        DemoQueueItemSnapshot only = queue.Snapshot().Single(s => s.Kind == QueueJobKind.StratMining);
+        DemoQueueItemSnapshot only = queue.Snapshot().Single(s => s.Kind == QueueJobKind.Extension);
         hold.SetResult();
         await Assert.That(only.DisplayName).IsEqualTo("Strat mining (user)");
         await Assert.That(only.Priority).IsEqualTo(DemoJobPriority.UserRequested);
-        await Assert.That(only.Kind).IsEqualTo(QueueJobKind.StratMining);
+        await Assert.That(only.Kind).IsEqualTo(QueueJobKind.Extension);
     }
 
     [Test]
@@ -283,7 +305,7 @@ public class QueueJobTests
         TaskCompletionSource inBatch = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource proceed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        IDemoQueueHandle job = queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", async ctx =>
+        IDemoQueueHandle job = queue.SubmitJob(Job(QueueJobKind.Extension, "mine", async ctx =>
         {
             inBatch.SetResult();
             await proceed.Task;
@@ -312,7 +334,7 @@ public class QueueJobTests
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = NewQueue(gate);
         queue.BackgroundEnabled = false;
-        IDemoQueueHandle background = queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", _ => Task.CompletedTask));
+        IDemoQueueHandle background = queue.SubmitJob(Job(QueueJobKind.Extension, "clips", _ => Task.CompletedTask));
         IDemoQueueHandle user = queue.SubmitJob(Job(QueueJobKind.PackExport, "pack", _ => Task.CompletedTask,
             DemoJobPriority.UserRequested));
 
@@ -345,7 +367,7 @@ public class QueueJobTests
         await Assert.That(queue.Items.Single(i => i.Id == progress.Id).Progress).IsEqualTo(0.25);
         release.SetResult();
 
-        IDemoQueueHandle failing = queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips",
+        IDemoQueueHandle failing = queue.SubmitJob(Job(QueueJobKind.Extension, "clips",
             _ => Task.FromException(new InvalidOperationException("no map bundle"))));
         await failing.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(failing.State).IsEqualTo(DemoQueueItemState.Failed);
@@ -354,7 +376,7 @@ public class QueueJobTests
         List<IDemoQueueHandle> many = [];
         for (int i = 0; i < 40; i++)
         {
-            many.Add(queue.SubmitJob(Job(QueueJobKind.LineupClips, $"clips {i}", _ => Task.CompletedTask)));
+            many.Add(queue.SubmitJob(Job(QueueJobKind.Extension, $"clips {i}", _ => Task.CompletedTask)));
         }
 
         await Task.WhenAll(many.Select(h => h.Completion)).WaitAsync(TimeSpan.FromSeconds(10));
@@ -374,7 +396,7 @@ public class QueueJobTests
         }, () => Task.CompletedTask);
         TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        queue.SubmitJob(new QueueJobRequest(QueueJobKind.LineupClips, "clips", "clips", DemoJobPriority.Background,
+        queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "clips", "clips", DemoJobPriority.Background,
             async ctx =>
             {
                 started.SetResult();
@@ -520,8 +542,8 @@ public class QueueJobTests
                 DemoJobPriority.Background, i, _ => { })));
         }
 
-        handles.Add(queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", Exclusive(false), key: "mine")));
-        handles.Add(queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", Exclusive(false), key: "clips")));
+        handles.Add(queue.SubmitJob(Job(QueueJobKind.Extension, "mine", Exclusive(false), key: "mine")));
+        handles.Add(queue.SubmitJob(Job(QueueJobKind.Extension, "clips", Exclusive(false), key: "clips")));
         handles.Add(queue.SubmitJob(Job(QueueJobKind.SidecarMigration, "migrate", Exclusive(true), key: "migrate")));
         queue.Resume();
 
@@ -559,7 +581,7 @@ public class QueueJobTests
 
         IDemoQueueHandle demo = queue.SubmitBackground(new DemoProcessingRequest("/d/a.dem", "library",
             DemoJobPriority.Background, 1, _ => { }));
-        IDemoQueueHandle clips = queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", _ => Task.CompletedTask));
+        IDemoQueueHandle clips = queue.SubmitJob(Job(QueueJobKind.Extension, "clips", _ => Task.CompletedTask));
         await Task.Delay(300);
         using (Assert.Multiple())
         {
@@ -584,7 +606,7 @@ public class QueueJobTests
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int runs = 0;
 
-        IDemoQueueHandle first = queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", async _ =>
+        IDemoQueueHandle first = queue.SubmitJob(Job(QueueJobKind.Extension, "mine", async _ =>
         {
             Interlocked.Increment(ref runs);
             started.SetResult();
@@ -592,12 +614,12 @@ public class QueueJobTests
         }, key: "mine"));
         await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        IDemoQueueHandle rerun = queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", _ =>
+        IDemoQueueHandle rerun = queue.SubmitJob(Job(QueueJobKind.Extension, "mine", _ =>
         {
             Interlocked.Increment(ref runs);
             return Task.CompletedTask;
         }, key: "mine"));
-        IDemoQueueHandle joined = queue.SubmitJob(Job(QueueJobKind.StratMining, "mine", _ => Task.CompletedTask, key: "mine"));
+        IDemoQueueHandle joined = queue.SubmitJob(Job(QueueJobKind.Extension, "mine", _ => Task.CompletedTask, key: "mine"));
         await Task.Delay(200);
 
         using (Assert.Multiple())
@@ -605,7 +627,7 @@ public class QueueJobTests
             await Assert.That(joined.Id).IsEqualTo(rerun.Id);
             await Assert.That(rerun.Id).IsNotEqualTo(first.Id);
             await Assert.That(rerun.State).IsEqualTo(DemoQueueItemState.Queued).Because("it waits for the running pass");
-            await Assert.That(queue.ActiveCount(QueueJobKind.StratMining)).IsEqualTo(2);
+            await Assert.That(queue.ActiveCount(QueueJobKind.Extension)).IsEqualTo(2);
         }
 
         release.SetResult();

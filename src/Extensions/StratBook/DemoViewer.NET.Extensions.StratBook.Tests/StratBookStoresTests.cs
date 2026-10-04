@@ -43,7 +43,7 @@ public class StratBookStoresTests
             WriteOneItemPerStore(configRoot, cacheRoot);
 
             PackDataRemover remover = new(new DemoCacheStore(null), configRoot, cacheRoot);
-            PackDataInventory inventory = await remover.InventoryAsync(StratBookStores.All, "fake", "count");
+            ExtensionDataInventory inventory = await remover.InventoryAsync(StratBookStores.All, "fake", "count");
 
             int coveredFiles = inventory.Items.Sum(i => i.FileCount);
             int realFiles = CountFiles(configRoot) + CountFiles(cacheRoot);
@@ -80,7 +80,7 @@ public class StratBookStoresTests
         try
         {
             PackDataRemover remover = new(new DemoCacheStore(null), configRoot, cacheRoot);
-            PackDataInventory inventory = await remover.InventoryAsync(StratBookStores.All, "fake", "count");
+            ExtensionDataInventory inventory = await remover.InventoryAsync(StratBookStores.All, "fake", "count");
 
             await Assert.That(inventory.TotalBytes).IsEqualTo(0)
                 .Because("core's own files must never match a pack descriptor");

@@ -801,7 +801,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public void SetBadgeLabel(DemoEntry entry, string? label)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        ActiveBadgeContribution()?.SetLabel(entry, label);
+        ActiveBadgeContribution()?.SetLabel(entry.ToLibraryDemo(), label);
     }
 
     // One BadgesFor call per refresh, not one BadgeFor per entry: a contribution whose per-entry answer
@@ -809,7 +809,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private void RefreshBadges()
     {
         ILibraryContribution? active = ActiveBadgeContribution();
-        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(_library.Entries);
+        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(_library.Entries.Select(e => e.ToLibraryDemo()));
         foreach (DemoEntry entry in _library.Entries)
         {
             LibraryBadge? badge = badges?.GetValueOrDefault(entry.FilePath);

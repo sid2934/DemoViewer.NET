@@ -830,7 +830,7 @@ public class DemoProcessingQueueTests
         }, clock);
 
     private static QueueJobRequest Job(string key, Func<IQueueJobContext, Task> body) =>
-        new(QueueJobKind.StratMining, key, "o", DemoJobPriority.Background, body, key);
+        new(QueueJobKind.Extension, key, "o", DemoJobPriority.Background, body, key);
 
     private static async Task RunJobOnceAsync(DemoProcessingQueue queue, string key)
     {

@@ -41,18 +41,6 @@ public enum QueueJobKind
     /// <summary>The one-off re-encode of pre-gzip sidecars.</summary>
     SidecarMigration,
 
-    /// <summary>A Strat Mining pass over the library's cached files.</summary>
-    StratMining,
-
-    /// <summary>Building one detected pattern's strat for the Detected preview, from cached files.</summary>
-    StratPreview,
-
-    /// <summary>One demo's batch of Lineup Clip GIFs.</summary>
-    LineupClips,
-
-    /// <summary>Reading every demo's Suggested Tags proposals for the Strat Book's Suggested section.</summary>
-    SuggestionsInbox,
-
     /// <summary>The heap compaction after the queue drains.</summary>
     HeapCompaction,
 
@@ -65,8 +53,11 @@ public enum QueueJobKind
     /// <summary>A section building what it shows. Light.</summary>
     SectionCompute,
 
-    /// <summary>A Team Identity command the user gave. Light.</summary>
-    TeamsCommand,
+    /// <summary>
+    ///     A job an extension submitted. Its label, rank and light flag come from the extension's declared
+    ///     kind, named by <see cref="QueueJobRequest.ExtensionKind" />.
+    /// </summary>
+    Extension,
 
     /// <summary>The library's folder walk, copy detection and header reads. Runs with the background switch off.</summary>
     LibraryScan,
@@ -195,6 +186,7 @@ public interface IQueueJobContext
 ///     would otherwise keep running beside the user's item while counted as stopped.
 /// </param>
 /// <param name="Serial">Items sharing it never run at the same time; one runs, the rest wait.</param>
+/// <param name="ExtensionKind">With <see cref="QueueJobKind.Extension" />, the declared kind id that labels and ranks the item.</param>
 public sealed record QueueJobRequest(
     QueueJobKind Kind,
     string Title,
@@ -206,7 +198,8 @@ public sealed record QueueJobRequest(
     long OrderHint = 0,
     bool ReplacePending = false,
     bool Preemptible = true,
-    string? Serial = null);
+    string? Serial = null,
+    string? ExtensionKind = null);
 
 /// <summary>
 ///     An immutable, thread-safe snapshot of one queue item (for code/tests that must read state
@@ -222,7 +215,8 @@ public sealed record DemoQueueItemSnapshot(
     string? Error,
     QueueJobKind Kind = QueueJobKind.DemoProcessing,
     double? Progress = null,
-    string? Detail = null);
+    string? Detail = null,
+    string? ExtensionKind = null);
 
 /// <summary>A handle to a submitted background item: read its state, await completion, or cancel it.</summary>
 public interface IDemoQueueHandle
@@ -287,6 +281,9 @@ public interface IDemoProcessingQueue
 
     /// <summary>Queued plus running items of one kind.</summary>
     int ActiveCount(QueueJobKind kind);
+
+    /// <summary>Queued plus running items of one extension-declared kind.</summary>
+    int ActiveCount(string extensionKind) => 0;
     // ── Foreground (awaitable, highest priority) ──────────────────────────────
 
     /// <summary>

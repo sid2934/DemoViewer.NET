@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
@@ -487,40 +488,37 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         && _computeFullStats is not null
         && SubjectKey is not null;
 
-    // ── Grenade walk ──────────────────────────────────────────────────────────
+    // ── Extension actions ──
+
+    /// <summary>The extensions' actions for the page's demo, each shown while its action says so.</summary>
+    public ObservableCollection<DemoActionRow> DemoActions { get; } = [];
 
     /// <summary>
-    ///     Walks a demo's grenades at user priority, by path: the chip row's "Index grenades".
-    ///     Set by the composition root on the desktop host; null (the browser, tests)
-    ///     leaves the action absent rather than inert.
+    ///     Adds the extensions' Match Overview actions. Called once by the composition root; the rows re-ask
+    ///     their action whenever the page's demo, the feature switches or the action itself change.
     /// </summary>
-    public Action<string>? IndexGrenades { get; set; }
+    internal void AttachDemoActions(IReadOnlyList<GatedDemoAction> actions, Func<string, bool> isFeatureOn)
+    {
+        ArgumentNullException.ThrowIfNull(actions);
+        ArgumentNullException.ThrowIfNull(isFeatureOn);
+        foreach ((DemoAction action, string featureId) in actions)
+        {
+            DemoActionRow row = new(action, featureId, isFeatureOn);
+            action.Changed += RefreshDemoActions;
+            DemoActions.Add(row);
+        }
 
-    /// <summary>Whether a demo's grenades are walked and current, by path. Null reads as "not walked".</summary>
-    public Func<string, bool>? AreGrenadesIndexed { get; set; }
+        RefreshDemoActions();
+    }
 
-    /// <summary>
-    ///     The live <c>pack.stratbook</c> gate: the evaluator <see cref="IndexGrenades" /> calls is pack-owned,
-    ///     and off, a press would queue nothing. Set by the composition root; null (tests, and any host that
-    ///     wires no gate) reads as enabled.
-    /// </summary>
-    public Func<bool>? PackEnabled { get; set; }
-
-    // The subject the action was last pressed for: the button steps aside until the record changes or
-    // the page moves to another demo, so a second press does not read as "nothing happened".
-    private string? _grenadesRequestedFor;
-
-    /// <summary>
-    ///     Gates the "Index grenades" chip. A cached page only, the <see cref="HasHighlightsAction" /> rule:
-    ///     a live page's demo is walked on the parse its open paid for, so the button would queue a second one.
-    /// </summary>
-    public bool HasIndexGrenadesAction =>
-        IndexGrenades is not null
-        && (PackEnabled?.Invoke() ?? true)
-        && Mode == OverviewMode.Cached
-        && SubjectKey is { } key
-        && !string.Equals(_grenadesRequestedFor, key, StringComparison.OrdinalIgnoreCase)
-        && !(AreGrenadesIndexed?.Invoke(key) ?? false);
+    /// <summary>Re-asks every action; the composition root calls it when a feature switch moves.</summary>
+    public void RefreshDemoActions()
+    {
+        foreach (DemoActionRow row in DemoActions)
+        {
+            row.Refresh(SubjectKey);
+        }
+    }
 
     /// <summary>Chip text: the state, in words. Colour is the redundant cue; this is the primary carrier.</summary>
     public string CompletenessLabel => Completeness switch
@@ -1559,7 +1557,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
     private void RaiseCompletenessChanged()
     {
-        OnPropertyChanged(nameof(HasIndexGrenadesAction));
+        RefreshDemoActions();
         OnPropertyChanged(nameof(CompletenessLabel));
         OnPropertyChanged(nameof(CompletenessActionLabel));
         OnPropertyChanged(nameof(HasCompletenessAction));
@@ -1588,30 +1586,6 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         if (SubjectKey is { } key)
         {
             _computeFullStats?.Invoke(key);
-        }
-    }
-
-    /// <summary>
-    ///     Queues this demo's grenade walk at user priority. Like <see cref="ComputeFullStats" />, it never
-    ///     opens the demo; the record change it ends in re-renders the page and hides the button.
-    /// </summary>
-    [RelayCommand]
-    private void RequestGrenadeIndex()
-    {
-        if (!(PackEnabled?.Invoke() ?? true))
-        {
-            // The chip can still be showing from before the pack went off this session (nothing pushes a
-            // refresh on the gate flip). A press must not mark the demo requested: IndexGrenades.Request
-            // is a no-op now, and _grenadesRequestedFor would wrongly hide the chip once the pack returns.
-            OnPropertyChanged(nameof(HasIndexGrenadesAction));
-            return;
-        }
-
-        if (SubjectKey is { } key && IndexGrenades is { } index)
-        {
-            index(key);
-            _grenadesRequestedFor = key;
-            OnPropertyChanged(nameof(HasIndexGrenadesAction));
         }
     }
 

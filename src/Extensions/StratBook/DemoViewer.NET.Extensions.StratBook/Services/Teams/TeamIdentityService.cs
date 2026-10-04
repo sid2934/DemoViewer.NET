@@ -33,7 +33,7 @@ namespace DemoViewer.NET.Services.Teams;
 ///         <b>Browser host.</b> No config root, so both files are session-only and the Teams panel says so.
 ///     </para>
 /// </summary>
-public sealed class TeamIdentityService : IPackResident, IDisposable
+public sealed class TeamIdentityService : IExtensionResident, IDisposable
 {
     /// <summary>The words the Teams panel shows on the browser host, the annotations panel's shape.</summary>
     public const string BrowserNote = "session only: this browser tab forgets teams when it reloads";

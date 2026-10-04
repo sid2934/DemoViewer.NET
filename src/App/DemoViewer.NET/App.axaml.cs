@@ -58,7 +58,7 @@ public class App : Application
     private static bool _shellUnderConstruction;
 
     /// <summary>
-    ///     The application's composition-root service provider, set once by <see cref="BuildServices(IWindowService, IReadOnlyList{IFeaturePack})" />
+    ///     The application's composition-root service provider, set once by <see cref="BuildServices(IWindowService, IReadOnlyList{IExtension})" />
     ///     during framework init. A deliberate service-locator seam so later Settings / first-run-wizard
     ///     commands can resolve the long-lived <see cref="SettingsService" /> /
     ///     <c>IOptionsMonitor&lt;AppSettings&gt;</c> without threading them through every view-model.
@@ -277,9 +277,9 @@ public class App : Application
                         // not whether there is anything to flush now (a pack turned on and off in session,
                         // or one whose tab was opened and written to). Each lifecycle's own "is live" guards
                         // decide what, if anything, to touch; one lifecycle's failure must not skip the others.
-                        foreach (IFeaturePack pack in FeaturePacks.Compatible)
+                        foreach (IExtension pack in FeaturePacks.Compatible)
                         {
-                            if (services.GetKeyedService<IPackLifecycle>(pack.Id) is not { } lifecycle)
+                            if (services.GetKeyedService<IExtensionLifecycle>(pack.Id) is not { } lifecycle)
                             {
                                 continue;
                             }
@@ -644,7 +644,7 @@ public class App : Application
     ///     join the <see cref="FeatureCatalog" /> here, once; each pack then registers its services and,
     ///     in <see cref="BuildRegistry" />, contributes its modules.
     /// </summary>
-    internal static ServiceProvider BuildServices(IWindowService windowService, IReadOnlyList<IFeaturePack> packs)
+    internal static ServiceProvider BuildServices(IWindowService windowService, IReadOnlyList<IExtension> packs)
     {
         ArgumentNullException.ThrowIfNull(packs);
         FeatureCatalog.Compose(packs);
@@ -673,22 +673,22 @@ public class App : Application
     }
 
     /// <summary>
-    ///     Starts the <see cref="PackSwitch" />: each pack whose <see cref="IFeaturePack.FeatureId" /> resolves
-    ///     on gets its <see cref="IPackLifecycle.OnEnabledAsync" /> (fire-and-forget: the loads are queue
+    ///     Starts the <see cref="PackSwitch" />: each pack whose <see cref="IExtension.FeatureId" /> resolves
+    ///     on gets its <see cref="IExtensionLifecycle.OnEnabledAsync" /> (fire-and-forget: the loads are queue
     ///     items), and from then on the gate's <see cref="IFeatureGate.Changed" /> drives the lifecycle both
     ///     ways. On a fresh desktop install nothing starts until the first-run wizard has asked. Shutdown
     ///     does not read anything this records: every pack's lifecycle gets an unconditional
-    ///     <see cref="IPackLifecycle.OnShutdown" /> instead, each deciding for itself what it actually built.
+    ///     <see cref="IExtensionLifecycle.OnShutdown" /> instead, each deciding for itself what it actually built.
     /// </summary>
     internal static void StartPacks(IServiceProvider provider) => provider.GetRequiredService<PackSwitch>().Start();
 
     /// <summary>
     ///     Every registration of the composition root, before the provider is built: the core services,
-    ///     then each pack's <see cref="IFeaturePack.Register" />. Kept apart from
-    ///     <see cref="BuildServices(IWindowService, IReadOnlyList{IFeaturePack})" /> so a test can enumerate
+    ///     then each pack's <see cref="IExtension.Register" />. Kept apart from
+    ///     <see cref="BuildServices(IWindowService, IReadOnlyList{IExtension})" /> so a test can enumerate
     ///     what is registered without constructing the singletons.
     /// </summary>
-    internal static ServiceCollection ComposeServices(IWindowService windowService, IReadOnlyList<IFeaturePack> packs)
+    internal static ServiceCollection ComposeServices(IWindowService windowService, IReadOnlyList<IExtension> packs)
     {
         ArgumentNullException.ThrowIfNull(packs);
         ServiceCollection services = new();
@@ -798,10 +798,10 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action),
                 forwardPass: forward is null ? null : forward.Run,
                 parseReleased: sp.GetRequiredService<MergedRulesBuild>().Forget,
-                // DI-free, like CommandRegistry.Build(packs): reads IFeaturePack.JobKinds directly, no
+                // DI-free, like CommandRegistry.Build(packs): reads IExtension.JobKinds directly, no
                 // PackContributionSet, so building the queue can never re-enter its own DI resolution
                 // through a pack's Contribute (e.g. ReviewQueue resolves IDemoProcessingQueue eagerly).
-                jobKinds: JobKindRegistry.Build(packs));
+                jobKinds: sp.GetRequiredService<JobKindRegistry>());
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {
@@ -947,7 +947,7 @@ public class App : Application
                 IFeatureGate? features = sp.GetService<IFeatureGate>();
                 foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
                 {
-                    IFeaturePack pack = contributions.Pack;
+                    IExtension pack = contributions.Pack;
                     foreach (EvaluatorContribution contribution in contributions.Evaluators)
                     {
                         // .Coordinator (where the evaluator type has one) is set by the evaluator's own DI
@@ -970,9 +970,20 @@ public class App : Application
         // ctor param.
         services.AddSingleton(sp => new RecentFilesStore(sp.GetRequiredService<SettingsService>()));
 
+        // The queue and every extension's job view read one registry.
+        services.AddSingleton(_ => JobKindRegistry.Build(packs));
+
+        // Each extension's host context, keyed by its id, and the hub that hands them the shell once built.
+        services.AddSingleton<ExtensionShellHub>();
+        foreach (IExtension pack in packs)
+        {
+            IExtension owner = pack;
+            services.AddKeyedSingleton<IExtensionContext>(owner.Id, (sp, _) => new ExtensionContext(owner, sp));
+        }
+
         // Each pack's own registrations, unconditional: factories are lazy, and the gate decides what runs,
         // not what is registered.
-        foreach (IFeaturePack pack in packs)
+        foreach (IExtension pack in packs)
         {
             pack.Register(services);
         }
@@ -986,7 +997,7 @@ public class App : Application
         // wizard (NeedsFirstRun is always true there), so it never waits for it.
         services.AddSingleton(sp => new PackSwitch(packs,
             sp.GetRequiredService<IFeatureGate>(),
-            pack => sp.GetKeyedService<IPackLifecycle>(pack.Id),
+            pack => sp.GetKeyedService<IExtensionLifecycle>(pack.Id),
             sp.GetRequiredService<IDemoProcessingQueue>(),
             () => sp.GetRequiredService<DemoEvaluationCoordinator>().ConsiderAll(),
             () => !OperatingSystem.IsBrowser() && sp.GetRequiredService<SettingsService>().NeedsFirstRun));
@@ -1084,11 +1095,15 @@ public class App : Application
             // parameter list is the next thing to edit.
             shell.AttachStatusChips(sp.GetRequiredService<PackContributionSet>().StatusChips);
 
-            // The packs' shell attachments: the delegate slots core pages expose, set here where the
-            // composition root used to set them by hand, with the shell instance, before anything resolves it.
-            foreach (Action<MainViewModel> attach in sp.GetRequiredService<PackContributionSet>().ShellAttachments)
+            sp.GetRequiredService<ExtensionShellHub>().Attach(shell);
+
+            // The extensions' Match Overview actions, re-asked whenever a feature switch moves.
+            IFeatureGate? actionGate = sp.GetService<IFeatureGate>();
+            shell.MatchOverviewTab.AttachDemoActions(sp.GetRequiredService<PackContributionSet>().DemoActions,
+                id => actionGate?.IsEnabled(id) ?? true);
+            if (actionGate is not null)
             {
-                attach(shell);
+                actionGate.Changed += (_, _) => shell.MatchOverviewTab.RefreshDemoActions();
             }
 
             return shell;
@@ -1107,7 +1122,7 @@ public class App : Application
     // real 2D pilot, then asks each pack for its modules. Both hosts use this path (only first-party
     // modules on WASM). This is now invoked exactly once, by the DI factory that HOLDS the resulting
     // registry (see BuildServices).
-    private static ModuleRegistry BuildRegistry(IServiceProvider sp, IReadOnlyList<IFeaturePack> packs)
+    private static ModuleRegistry BuildRegistry(IServiceProvider sp, IReadOnlyList<IExtension> packs)
     {
         IOptionsMonitor<AppSettings>? settings = sp.GetService<IOptionsMonitor<AppSettings>>();
         ModuleRegistry registry = new();
@@ -1146,20 +1161,12 @@ public class App : Application
         // contributes and their order. Rulesets are consumed by MergedRulesBuild.
         foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
-            IFeaturePack pack = contributions.Pack;
+            IExtension pack = contributions.Pack;
             // Evaluators are consumed by the EvaluatorRegistry the DemoEvaluationCoordinator factory
-            // builds; job kinds by JobKindRegistry.Build(packs), DI-free like
-            // CommandRegistry.Build. Same drift check as the Commands block below: the Contribute(...)
-            // call and the DI-free property must agree.
-            if (!contributions.JobKinds.SequenceEqual(pack.JobKinds))
-            {
-                throw new InvalidOperationException(
-                    $"Pack '{pack.Id}' contributed different job kinds through Contribute than its JobKinds property declares.");
-            }
-
-            // CommandRegistry.Default reads IFeaturePack.Commands directly (no DI, so a bare-constructed
+            // builds; job kinds by JobKindRegistry.Build(packs), DI-free like CommandRegistry.Build.
+            // CommandRegistry.Default reads IExtension.Commands directly (no DI, so a bare-constructed
             // view model resolves pack chords in a headless test too). This is the consumer for the
-            // IPackContributions.Commands(...) call: not a second registration, a check that the two
+            // IFirstPartyContributions.Commands(...) call: not a second registration, a check that the two
             // channels agree (CommandRegistry.CommandsMatch) so they cannot drift apart.
             if (!CommandRegistry.CommandsMatch(contributions.ContributedCommands, [.. pack.Commands]))
             {

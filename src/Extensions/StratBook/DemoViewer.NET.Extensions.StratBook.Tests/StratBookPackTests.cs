@@ -46,7 +46,11 @@ public class StratBookPackTests
         // The extension updater, registered when a config root exists to stage into.
         "DemoViewer.NET.Extensions.Updates.ExtensionUpdateService",
         "DemoViewer.NET.Features.IFeatureGate",
-        "DemoViewer.NET.Extensions.IPackLifecycle",
+        "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
+        // The extension host: the job-kind registry, the shell hub and the pack's own context.
+        "DemoViewer.NET.Extensions.JobKindRegistry",
+        "DemoViewer.NET.Extensions.ExtensionShellHub",
+        "DemoViewer.NET.Extensions.Sdk.IExtensionContext",
         // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
@@ -195,8 +199,8 @@ public class StratBookPackTests
                 await Assert.That(chip.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
                 await Assert.That(chip.Source).IsTypeOf<StratBookExportChipSlot>();
 
-                IPackReindexEstimate estimate = pack.ReindexEstimates.Single();
-                await Assert.That(estimate.PackFeatureId).IsEqualTo(StratBookPack.PackFeatureId);
+                IReindexEstimate estimate = pack.ReindexEstimates.Single();
+                await Assert.That(estimate.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
             }
         });
     }
@@ -314,46 +318,23 @@ public class StratBookPackTests
                 }
             }
 
-            string[] packTabIds = [.. new StratBookPack().Features.Where(f => f.Scope == FeatureScope.Tab).Select(f => f.Id)];
+            string[] packTabIds = [.. new StratBookPack().Features.Where(f => f.Kind == ExtensionFeatureKind.Tab).Select(f => f.Id)];
             await Assert.That(declaredIds).IsEquivalentTo(packTabIds)
                 .Because("every tab id the pack registers must be declared by exactly one module, and vice versa");
         });
     }
 
-    // The pack contributes its job kinds through Contribute(...), and BuildRegistry checks that
-    // list against the DI-free JobKinds property (the one JobKindRegistry.Build(packs) reads). If either
-    // channel drifted, composing the provider here would throw before this test's own assertions run.
     [Test]
-    public async Task ThePack_ContributesTheSameJobKinds_ItsJobKindsPropertyDeclares()
+    public async Task ThePack_JobKinds_AreTheFiveStratBookKinds_UnderTheExtensionsPrefix()
     {
-        await WithProvider(null, async provider =>
-        {
-            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
-            await Assert.That(pack.JobKinds).IsEquivalentTo(new StratBookPack().JobKinds,
-                TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        });
-    }
+        ExtensionJobKind[] kinds = [.. new StratBookPack().JobKinds];
 
-    [Test]
-    public async Task ThePack_JobKinds_MatchTheFiveStratBookKinds_WithOwnersAmongTheLifecycleTags()
-    {
-        JobKindDescriptor[] kinds = [.. new StratBookPack().JobKinds];
-
-        await Assert.That(kinds.Select(k => k.Kind)).IsEquivalentTo(
+        await Assert.That(kinds.Select(k => k.Id)).IsEquivalentTo(
         [
-            QueueJobKind.StratMining, QueueJobKind.StratPreview, QueueJobKind.LineupClips,
-            QueueJobKind.SuggestionsInbox, QueueJobKind.TeamsCommand
+            StratBookJobKinds.Mining, StratBookJobKinds.Preview, StratBookJobKinds.LineupClips,
+            StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams
         ]);
-
-        using (Assert.Multiple())
-        {
-            foreach (JobKindDescriptor kind in kinds)
-            {
-                await Assert.That(kind.Owner).IsNotNull().Because($"{kind.Kind} must carry an owner tag");
-                await Assert.That(StratBookLifecycle.OwnerTags).Contains(kind.Owner!)
-                    .Because($"{kind.Kind}'s owner '{kind.Owner}' must be one of the CancelOwned tags");
-            }
-        }
+        await Assert.That(kinds.All(k => k.Id.StartsWith("stratbook.", StringComparison.Ordinal))).IsTrue();
     }
 
     [Test]
@@ -540,13 +521,13 @@ public class StratBookPackTests
     public async Task ThePack_Manifest_NamesItself_AndIsCompatibleWithThisBuild()
     {
         StratBookPack pack = new();
+        ExtensionManifest manifest = ExtensionManifests.Of(pack);
         using (Assert.Multiple())
         {
-            await Assert.That(pack.Manifest).IsNotNull();
-            await Assert.That(pack.Manifest.Id).IsEqualTo(StratBookPack.PackId);
+            await Assert.That(manifest.Id).IsEqualTo(StratBookPack.PackId);
             // Stamped from src/Extensions/StratBook/version.json at build; the 0.x line until the first major.
-            await Assert.That(pack.Manifest.Version.Major).IsEqualTo(0);
-            await Assert.That(pack.Manifest.EntryType).IsEqualTo(typeof(StratBookPack).FullName);
+            await Assert.That(manifest.Version.Major).IsEqualTo(0);
+            await Assert.That(manifest.EntryType).IsEqualTo(typeof(StratBookPack).FullName);
             await Assert.That(PackStatus.Evaluate(pack, ExtensionHost.Current).IsCompatible).IsTrue();
         }
     }
@@ -572,30 +553,12 @@ public class StratBookPackTests
         await Assert.That(Message(() => FeatureCatalog.Build([wrongScope]))).Contains("exactly one Pack-scope descriptor");
     }
 
+    // An SDK feature has no Required flag and no group, so neither core rule can be broken from an extension.
     [Test]
-    public async Task Build_RefusesRequired_OnAPackRow_OrOnATabUnderAPack()
+    public async Task Build_ComposesTheShippedPack_WithoutMovingTheCoreGroupLeaders()
     {
-        FakePack requiredPack = new("pack.req", [Pack("pack.req") with { Required = true }]);
-        FakePack requiredTab = new("pack.reqtab", [Pack("pack.reqtab"), Tab("tab.reqtab", "pack.reqtab") with { Required = true }]);
-        // Owned via OwnerPackId alone: parented to a CORE tab (tab.library), not to the pack directly, the
-        // playback2d.tagger shape.
-        FakePack requiredSubFeatureUnderCoreTab = new("pack.reqsub",
-            [Pack("pack.reqsub"), SubFeature("sub.reqsub", "tab.library") with { Required = true }]);
-
-        await Assert.That(Message(() => FeatureCatalog.Build([requiredPack]))).Contains("may not be Required");
-        await Assert.That(Message(() => FeatureCatalog.Build([requiredTab]))).Contains("may not be Required");
-        await Assert.That(Message(() => FeatureCatalog.Build([requiredSubFeatureUnderCoreTab]))).Contains("may not be Required");
-    }
-
-    [Test]
-    public async Task Build_RefusesAPackRow_InACoreGroup()
-    {
-        FakePack grouped = new("pack.grp",
-            [Pack("pack.grp"), Tab("tab.grp", "pack.grp") with { GroupId = FeatureCatalog.GroupParserDeepDive }]);
-
-        await Assert.That(Message(() => FeatureCatalog.Build([grouped]))).Contains("may not join core group");
-        // The shipped pack passes every rule, and its rows keep the core leaders where they are.
         await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Count(d => d.Scope == FeatureScope.Pack)).IsEqualTo(1);
+        await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Where(d => d.OwnerPackId is not null).All(d => !d.Required)).IsTrue();
         await Assert.That(FeatureCatalog.GroupLeader(FeatureCatalog.GroupParserDeepDive)!.Id).IsEqualTo("parser.hex");
     }
 
@@ -604,7 +567,7 @@ public class StratBookPackTests
     {
         FakePack tabUnderTab = new("pack.tt", [Pack("pack.tt"), Tab("tab.tt", "tab.library")]);
         FakePack subUnderPack = new("pack.sp",
-            [Pack("pack.sp"), Tab("tab.sp", "pack.sp") with { Id = "sub.sp", Scope = FeatureScope.SubFeature }]);
+            [Pack("pack.sp"), Tab("tab.sp", "pack.sp") with { Id = "sub.sp", Kind = ExtensionFeatureKind.SubFeature }]);
         FakePack unknownParent = new("pack.up", [Pack("pack.up"), Tab("tab.up", "pack.missing")]);
 
         await Assert.That(Message(() => FeatureCatalog.Build([tabUnderTab]))).Contains("may not have 'tab.library'");
@@ -699,14 +662,11 @@ public class StratBookPackTests
     private static string Message(Func<object> build) =>
         Assert.Throws<InvalidOperationException>(() => build()).Message;
 
-    private static FeatureDescriptor Pack(string id) =>
-        new(id, FeatureScope.Pack, id, id, null, null, false, FeatureCatalog.Defaults(true, true, true));
+    private static ExtensionFeature Pack(string id) =>
+        new(id, ExtensionFeatureKind.Extension, id, id, null, AudienceDefaults.Everyone);
 
-    private static FeatureDescriptor Tab(string id, string? parent) =>
-        new(id, FeatureScope.Tab, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
-
-    private static FeatureDescriptor SubFeature(string id, string? parent) =>
-        new(id, FeatureScope.SubFeature, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
+    private static ExtensionFeature Tab(string id, string? parent) =>
+        new(id, ExtensionFeatureKind.Tab, id, id, parent, AudienceDefaults.Everyone);
 
     // CreateTabs never reads Context or logs; this is only here to satisfy the parameter.
     private sealed class FakeHost : IModuleHost
@@ -719,18 +679,18 @@ public class StratBookPackTests
         }
     }
 
-    private sealed class FakePack(string featureId, FeatureDescriptor[] features) : IFeaturePack
+    private sealed class FakePack(string featureId, ExtensionFeature[] features) : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
         public ExtensionManifest Manifest => FakeManifests.For(Id);
-        public IEnumerable<FeatureDescriptor> Features => features;
+        public IEnumerable<ExtensionFeature> Features => features;
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

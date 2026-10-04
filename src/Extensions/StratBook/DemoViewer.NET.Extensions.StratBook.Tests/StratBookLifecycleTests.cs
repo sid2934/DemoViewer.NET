@@ -287,9 +287,9 @@ public class StratBookLifecycleTests
             module.CreateTabs(null!).Single().ViewModelFactory!.Invoke(); // "opened Strats": activates the real tab
 
             // The fixed shutdown: every pack's lifecycle, unconditionally, by its own id (no Ran check).
-            foreach (IFeaturePack pack in FeaturePacks.Default)
+            foreach (IExtension pack in FeaturePacks.Default)
             {
-                if (provider.GetKeyedService<IPackLifecycle>(pack.Id) is { } lifecycle)
+                if (provider.GetKeyedService<IExtensionLifecycle>(pack.Id) is { } lifecycle)
                 {
                     lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
                 }

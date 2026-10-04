@@ -1,13 +1,13 @@
 <Project>
-    <!-- Stamps an extension's manifest with the version Nerdbank.GitVersioning computed for the project.
-         The committed extension.json beside the csproj directory is
-         a template whose "version" is the literal "{nbgv}"; the stamped copy is embedded under the logical name
-         extension.json and copied beside the DLL, so neither the pack nor the loader ever sees the placeholder.
-         The placeholder is not a semantic version on purpose: an unstamped copy fails to parse rather than load. -->
+    <!-- Stamps the extension's manifest with the project's package version. extension.json beside the
+         csproj (or $(ExtensionManifestTemplate)) is a template whose "version" is the literal "{version}"; the
+         stamped copy is embedded under the logical name extension.json and copied beside the DLL, where the
+         host reads it. The placeholder is not a semantic version on purpose: an unstamped copy fails to parse.
+         Set $(ExtensionManifestVersion) to stamp a version other than $(PackageVersion). -->
 
     <PropertyGroup>
-        <ExtensionManifestTemplate Condition="'$(ExtensionManifestTemplate)' == ''">$(MSBuildProjectDirectory)/../extension.json</ExtensionManifestTemplate>
-        <ExtensionManifestPlaceholder>{nbgv}</ExtensionManifestPlaceholder>
+        <ExtensionManifestTemplate Condition="'$(ExtensionManifestTemplate)' == ''">$(MSBuildProjectDirectory)/extension.json</ExtensionManifestTemplate>
+        <ExtensionManifestPlaceholder>{version}</ExtensionManifestPlaceholder>
     </PropertyGroup>
 
     <UsingTask TaskName="StampExtensionManifest" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
@@ -46,21 +46,24 @@ if (!File.Exists(OutputPath) || File.ReadAllText(OutputPath) != stamped)
 
     <!-- Before AssignTargetPaths so the items it adds reach both the resource and the copy-to-output lists,
          including a referencing project's GetCopyToOutputDirectoryItems walk. -->
-    <Target Name="StampExtensionManifest" DependsOnTargets="GetBuildVersion" BeforeTargets="AssignTargetPaths">
+    <!-- $(GetPackageVersionDependsOn) is where Nerdbank.GitVersioning, when the project uses it, computes the version. -->
+    <Target Name="StampExtensionManifest" DependsOnTargets="$(GetPackageVersionDependsOn)" BeforeTargets="AssignTargetPaths">
         <PropertyGroup>
             <StampedExtensionManifest>$(IntermediateOutputPath)extension.json</StampedExtensionManifest>
+            <_StampedManifestVersion>$(ExtensionManifestVersion)</_StampedManifestVersion>
+            <_StampedManifestVersion Condition="'$(_StampedManifestVersion)' == ''">$(PackageVersion)</_StampedManifestVersion>
         </PropertyGroup>
 
-        <Error Condition="'$(NuGetPackageVersion)' == '' and '$(DesignTimeBuild)' != 'true'"
-               Text="Nerdbank.GitVersioning produced no NuGetPackageVersion; the extension manifest cannot be stamped."/>
+        <Error Condition="'$(_StampedManifestVersion)' == '' and '$(DesignTimeBuild)' != 'true'"
+               Text="The project has no PackageVersion; the extension manifest cannot be stamped."/>
 
-        <StampExtensionManifest Condition="'$(NuGetPackageVersion)' != ''"
+        <StampExtensionManifest Condition="'$(_StampedManifestVersion)' != ''"
                                 Template="$(ExtensionManifestTemplate)"
                                 Placeholder="$(ExtensionManifestPlaceholder)"
-                                Version="$(NuGetPackageVersion)"
+                                Version="$(_StampedManifestVersion)"
                                 OutputPath="$(StampedExtensionManifest)"/>
 
-        <ItemGroup Condition="'$(NuGetPackageVersion)' != ''">
+        <ItemGroup Condition="'$(_StampedManifestVersion)' != ''">
             <EmbeddedResource Include="$(StampedExtensionManifest)" LogicalName="extension.json" Link="extension.json"/>
             <None Include="$(StampedExtensionManifest)" CopyToOutputDirectory="PreserveNewest" Link="extension.json"/>
             <FileWrites Include="$(StampedExtensionManifest)"/>

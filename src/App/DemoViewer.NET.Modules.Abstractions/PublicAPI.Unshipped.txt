@@ -1,0 +1,106 @@
+#nullable enable
+DemoViewer.NET.Modules.Abstractions.GameEventView
+DemoViewer.NET.Modules.Abstractions.GameEventView.Fields.get -> System.Collections.Generic.IReadOnlyDictionary<string!, object?>!
+DemoViewer.NET.Modules.Abstractions.GameEventView.Fields.init -> void
+DemoViewer.NET.Modules.Abstractions.GameEventView.GameEventView() -> void
+DemoViewer.NET.Modules.Abstractions.GameEventView.Name.get -> string!
+DemoViewer.NET.Modules.Abstractions.GameEventView.Name.init -> void
+DemoViewer.NET.Modules.Abstractions.GameEventView.Tick.get -> int
+DemoViewer.NET.Modules.Abstractions.GameEventView.Tick.init -> void
+DemoViewer.NET.Modules.Abstractions.ILiveSyncHudState
+DemoViewer.NET.Modules.Abstractions.ILiveSyncHudState.Changed -> System.EventHandler?
+DemoViewer.NET.Modules.Abstractions.ILiveSyncHudState.Dot.get -> DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot
+DemoViewer.NET.Modules.Abstractions.ILiveSyncHudState.IsActive.get -> bool
+DemoViewer.NET.Modules.Abstractions.ILiveSyncHudState.IsHollow.get -> bool
+DemoViewer.NET.Modules.Abstractions.ILiveSyncHudState.IsPulsing.get -> bool
+DemoViewer.NET.Modules.Abstractions.ILiveSyncHudState.Label.get -> string!
+DemoViewer.NET.Modules.Abstractions.IModuleContext
+DemoViewer.NET.Modules.Abstractions.IModuleContext.Advanced -> System.Action<DemoViewer.NET.Modules.Abstractions.IPlaybackSnapshot!>!
+DemoViewer.NET.Modules.Abstractions.IModuleContext.AvailableEventNames.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+DemoViewer.NET.Modules.Abstractions.IModuleContext.CurrentFrameIndex.get -> int
+DemoViewer.NET.Modules.Abstractions.IModuleContext.CurrentPlayers.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Modules.Abstractions.IPlayerState!>!
+DemoViewer.NET.Modules.Abstractions.IModuleContext.CurrentTick.get -> int
+DemoViewer.NET.Modules.Abstractions.IModuleContext.CurtimeSeconds(int tick) -> double
+DemoViewer.NET.Modules.Abstractions.IModuleContext.DemoPath.get -> string?
+DemoViewer.NET.Modules.Abstractions.IModuleContext.DemoReset -> System.Action!
+DemoViewer.NET.Modules.Abstractions.IModuleContext.DemoSha256.get -> string?
+DemoViewer.NET.Modules.Abstractions.IModuleContext.Entities.get -> DemoViewer.NET.Modules.Abstractions.IReadOnlyEntityView!
+DemoViewer.NET.Modules.Abstractions.IModuleContext.EventFrames(string! eventName) -> System.Collections.Generic.IReadOnlyList<int>!
+DemoViewer.NET.Modules.Abstractions.IModuleContext.Features.get -> DemoViewer.NET.Modules.Abstractions.IModuleFeatureGate?
+DemoViewer.NET.Modules.Abstractions.IModuleContext.FirstTick.get -> int
+DemoViewer.NET.Modules.Abstractions.IModuleContext.FrameIndexAtTick(int tick) -> int
+DemoViewer.NET.Modules.Abstractions.IModuleContext.GetEventTimeline(string! eventName) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Modules.Abstractions.GameEventView!>!
+DemoViewer.NET.Modules.Abstractions.IModuleContext.GetService<T>() -> T?
+DemoViewer.NET.Modules.Abstractions.IModuleContext.HasDemo.get -> bool
+DemoViewer.NET.Modules.Abstractions.IModuleContext.IsPlaying.get -> bool
+DemoViewer.NET.Modules.Abstractions.IModuleContext.IsSpeedLocked.get -> bool
+DemoViewer.NET.Modules.Abstractions.IModuleContext.LastTick.get -> int
+DemoViewer.NET.Modules.Abstractions.IModuleContext.LiveSyncHud.get -> DemoViewer.NET.Modules.Abstractions.ILiveSyncHudState?
+DemoViewer.NET.Modules.Abstractions.IModuleContext.MapName.get -> string?
+DemoViewer.NET.Modules.Abstractions.IModuleContext.NotifySpectateTarget(int slot) -> void
+DemoViewer.NET.Modules.Abstractions.IModuleContext.Players.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry!>!
+DemoViewer.NET.Modules.Abstractions.IModuleContext.RequestNextEvent(System.Collections.Generic.IReadOnlyCollection<string!>? eventNames) -> void
+DemoViewer.NET.Modules.Abstractions.IModuleContext.RequestPause() -> void
+DemoViewer.NET.Modules.Abstractions.IModuleContext.RequestPlay() -> void
+DemoViewer.NET.Modules.Abstractions.IModuleContext.RequestPrevEvent(System.Collections.Generic.IReadOnlyCollection<string!>? eventNames) -> void
+DemoViewer.NET.Modules.Abstractions.IModuleContext.RequestSeekToFrame(int frameIndex) -> void
+DemoViewer.NET.Modules.Abstractions.IModuleContext.RequestSeekToTick(int tick) -> void
+DemoViewer.NET.Modules.Abstractions.IModuleContext.RequestSpeed(double speed) -> void
+DemoViewer.NET.Modules.Abstractions.IModuleContext.Speed.get -> double
+DemoViewer.NET.Modules.Abstractions.IModuleContext.TickRate.get -> int
+DemoViewer.NET.Modules.Abstractions.IModuleContext.TotalFrames.get -> int
+DemoViewer.NET.Modules.Abstractions.IModuleFeatureGate
+DemoViewer.NET.Modules.Abstractions.IModuleFeatureGate.Changed -> System.Action?
+DemoViewer.NET.Modules.Abstractions.IModuleFeatureGate.IsEnabled(string! featureId) -> bool
+DemoViewer.NET.Modules.Abstractions.IModuleHost
+DemoViewer.NET.Modules.Abstractions.IModuleHost.Context.get -> DemoViewer.NET.Modules.Abstractions.IModuleContext!
+DemoViewer.NET.Modules.Abstractions.IModuleHost.HasCapability(string! capability) -> bool
+DemoViewer.NET.Modules.Abstractions.IModuleHost.Log(DemoViewer.NET.Modules.Abstractions.ModuleLogLevel level, string! message) -> void
+DemoViewer.NET.Modules.Abstractions.IPlaybackSnapshot
+DemoViewer.NET.Modules.Abstractions.IPlaybackSnapshot.Entities.get -> DemoViewer.NET.Modules.Abstractions.IReadOnlyEntityView!
+DemoViewer.NET.Modules.Abstractions.IPlaybackSnapshot.FrameIndex.get -> int
+DemoViewer.NET.Modules.Abstractions.IPlaybackSnapshot.Players.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Modules.Abstractions.IPlayerState!>!
+DemoViewer.NET.Modules.Abstractions.IPlaybackSnapshot.Tick.get -> int
+DemoViewer.NET.Modules.Abstractions.IPlayerState
+DemoViewer.NET.Modules.Abstractions.IPlayerState.Controller.get -> DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity?
+DemoViewer.NET.Modules.Abstractions.IPlayerState.HasLivePawn.get -> bool
+DemoViewer.NET.Modules.Abstractions.IPlayerState.Pawn.get -> DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity?
+DemoViewer.NET.Modules.Abstractions.IPlayerState.Slot.get -> int
+DemoViewer.NET.Modules.Abstractions.IPlayerState.Team.get -> int
+DemoViewer.NET.Modules.Abstractions.IPlayerState.WorldPosition.get -> (float X, float Y, float Z)?
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity.ClassName.get -> string!
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity.IsInPvs.get -> bool
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity.Serial.get -> int
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity.TryGet<T>(string! fieldPath, out T value) -> bool
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity.this[string! fieldPath].get -> object?
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntityView
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntityView.All() -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity!>!
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntityView.ByIndex(int entityIndex) -> DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity?
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntityView.BySerial(int serial) -> DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity?
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntityView.OfClass(string! className) -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity!>!
+DemoViewer.NET.Modules.Abstractions.IReadOnlyEntityView.ResolveHandle(ulong handle) -> DemoViewer.NET.Modules.Abstractions.IReadOnlyEntity?
+DemoViewer.NET.Modules.Abstractions.IWorkspaceTabViewModel
+DemoViewer.NET.Modules.Abstractions.IWorkspaceTabViewModel.OnActivated(DemoViewer.NET.Modules.Abstractions.IModuleContext! context) -> void
+DemoViewer.NET.Modules.Abstractions.IWorkspaceTabViewModel.OnDeactivated() -> void
+DemoViewer.NET.Modules.Abstractions.IWorkspaceTabViewModel.RestoreState(object? state) -> void
+DemoViewer.NET.Modules.Abstractions.IWorkspaceTabViewModel.SnapshotState() -> object?
+DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot
+DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot.Degraded = 3 -> DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot
+DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot.Error = 4 -> DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot
+DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot.Good = 2 -> DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot
+DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot.None = 0 -> DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot
+DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot.Working = 1 -> DemoViewer.NET.Modules.Abstractions.LiveSyncHudDot
+DemoViewer.NET.Modules.Abstractions.ModuleLogLevel
+DemoViewer.NET.Modules.Abstractions.ModuleLogLevel.Debug = 0 -> DemoViewer.NET.Modules.Abstractions.ModuleLogLevel
+DemoViewer.NET.Modules.Abstractions.ModuleLogLevel.Error = 3 -> DemoViewer.NET.Modules.Abstractions.ModuleLogLevel
+DemoViewer.NET.Modules.Abstractions.ModuleLogLevel.Info = 1 -> DemoViewer.NET.Modules.Abstractions.ModuleLogLevel
+DemoViewer.NET.Modules.Abstractions.ModuleLogLevel.Warning = 2 -> DemoViewer.NET.Modules.Abstractions.ModuleLogLevel
+DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry
+DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry.Name.get -> string!
+DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry.Name.init -> void
+DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry.PlayerRosterEntry() -> void
+DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry.Slot.get -> int
+DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry.Slot.init -> void
+DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry.SteamId.get -> ulong
+DemoViewer.NET.Modules.Abstractions.PlayerRosterEntry.SteamId.init -> void

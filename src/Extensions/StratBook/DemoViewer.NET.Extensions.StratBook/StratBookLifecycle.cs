@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 /// <summary>
 ///     The pack's startup loads, its in-session release and its shutdown flushes. <see cref="OnEnabledAsync" />
 ///     is the explicit startup block <c>App.axaml.cs</c> used to run by hand and runs the same way for a
-///     switch-on mid-session: the loads and the <see cref="IPackResident.Attach" /> calls are queue items.
+///     switch-on mid-session: the loads and the <see cref="IExtensionResident.Attach" /> calls are queue items.
 ///     <see cref="OnDisabledAsync" /> cancels the pack's queue items by owner and releases every resident as
 ///     one queue item, so a large index never leaves memory on the UI thread.
 ///     <para>
@@ -32,7 +32,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///         transition's bump and does nothing. Nothing of the pack's state changes outside those items.
 ///     </para>
 /// </summary>
-internal sealed class StratBookLifecycle : IPackLifecycle
+internal sealed class StratBookLifecycle : IExtensionLifecycle
 {
     /// <summary>The owner tag of the pack's own queue items; also the serial its loads and release share.</summary>
     internal const string Owner = StratBookPack.PackFeatureId;
@@ -81,7 +81,7 @@ internal sealed class StratBookLifecycle : IPackLifecycle
 
     /// <inheritdoc />
     /// <remarks>Completes when the loads and the attach have run (or were dropped). The migrations are not awaited.</remarks>
-    public Task OnEnabledAsync(PackStartReason reason, CancellationToken ct)
+    public Task OnEnabledAsync(ExtensionStartReason reason, CancellationToken ct)
     {
         int epoch = Interlocked.Increment(ref _epoch);
         IDemoProcessingQueue? queue = _sp.GetService<IDemoProcessingQueue>();
@@ -99,7 +99,7 @@ internal sealed class StratBookLifecycle : IPackLifecycle
         TeamIdentityService teams = _sp.GetRequiredService<TeamIdentityService>();
         TagFactsRefresher tagFacts = _sp.GetRequiredService<TagFactsRefresher>();
         // The zone graphs are read per map by the loads below and by nothing outside the pack.
-        IPackResident? zones = _sp.GetService<IZonePlaceResolverSource>() as IPackResident;
+        IExtensionResident? zones = _sp.GetService<IZonePlaceResolverSource>() as IExtensionResident;
 
         Task attach = PackItem(queue, QueueJobKind.SectionCompute, AttachTitle, Owner, epoch, () =>
         {
@@ -120,7 +120,7 @@ internal sealed class StratBookLifecycle : IPackLifecycle
             // After a release the typed view is empty; the residents are the same objects. Everything built
             // lazily before the release (Watched Situations, Strat Mining) re-attaches here too.
             _instances.Restore();
-            foreach (IPackResident resident in _instances.Residents)
+            foreach (IExtensionResident resident in _instances.Residents)
             {
                 resident.Attach();
             }
@@ -187,7 +187,7 @@ internal sealed class StratBookLifecycle : IPackLifecycle
     private void Release()
     {
         ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
-        foreach (IPackResident resident in _instances.Residents.Reverse())
+        foreach (IExtensionResident resident in _instances.Residents.Reverse())
         {
             try
             {

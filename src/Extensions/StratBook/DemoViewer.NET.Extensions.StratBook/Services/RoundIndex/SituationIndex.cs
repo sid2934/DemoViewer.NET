@@ -28,7 +28,7 @@ namespace DemoViewer.NET.Services.RoundIndex;
 ///         so a stale sidecar keeps answering until its replacement arrives and then leaves exactly.
 ///     </para>
 /// </summary>
-public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
+public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDisposable
 {
     private static ILogger? _diagLog;
 

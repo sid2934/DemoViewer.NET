@@ -13,13 +13,13 @@ namespace DemoViewer.NET.ViewModels.Settings;
 ///     deleting while off is the main use. Arm counts what is there and shows the confirmation; Confirm
 ///     runs the delete; Cancel drops back to idle without touching anything.
 /// </summary>
-public sealed partial class ExtensionDataActionViewModel(IPackDataRemoval removal, string label) : ObservableObject
+public sealed partial class ExtensionDataActionViewModel(IExtensionDataRemoval removal, string label) : ObservableObject
 {
     /// <summary>The extension's name, read off its own <c>FeatureCatalog</c> row.</summary>
     public string Label { get; } = label;
 
     /// <summary>The pack this row belongs to, so <see cref="SettingsViewModel" /> can find its master row.</summary>
-    public string PackFeatureId { get; } = removal.PackFeatureId;
+    public string PackFeatureId { get; } = removal.FeatureId;
 
     /// <summary>True while counting or deleting; every command is disabled meanwhile.</summary>
     [ObservableProperty]
@@ -50,7 +50,7 @@ public sealed partial class ExtensionDataActionViewModel(IPackDataRemoval remova
         StatusText = "Counting…";
         try
         {
-            PackDataInventory inventory = await removal.InventoryAsync();
+            ExtensionDataInventory inventory = await removal.InventoryAsync();
             if (inventory.TotalBytes == 0 && inventory.Items.All(i => i.FileCount == 0))
             {
                 IsConfirming = false;
@@ -91,7 +91,7 @@ public sealed partial class ExtensionDataActionViewModel(IPackDataRemoval remova
         StatusText = "Deleting…";
         try
         {
-            PackDataRemovalResult result = await removal.DeleteAsync();
+            ExtensionDataRemovalResult result = await removal.DeleteAsync();
             StatusText = result.Ran
                 ? $"Deleted {result.Removed.Items.Sum(i => i.FileCount)} files ({FormatBytes(result.Removed.TotalBytes)})."
                       + (result.Skipped > 0
@@ -105,7 +105,7 @@ public sealed partial class ExtensionDataActionViewModel(IPackDataRemoval remova
         }
     }
 
-    private static string BuildConfirmation(PackDataInventory inventory)
+    private static string BuildConfirmation(ExtensionDataInventory inventory)
     {
         StoreInventoryItem[] userWork = [.. inventory.UserWorkItems.Where(i => i.FileCount > 0)];
         string names = userWork.Length == 0

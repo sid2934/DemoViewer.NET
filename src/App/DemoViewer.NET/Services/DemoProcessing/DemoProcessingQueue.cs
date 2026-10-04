@@ -213,6 +213,16 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    public int ActiveCount(string extensionKind)
+    {
+        lock (_sync)
+        {
+            return _entries.Count(e => e.Kind == QueueJobKind.Extension
+                                       && string.Equals(e.ExtensionKind, extensionKind, StringComparison.Ordinal)
+                                       && IsActive(e));
+        }
+    }
+
     public int MaxConcurrency
     {
         get
@@ -530,7 +540,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
 
         Entry? holder = _entries.FirstOrDefault(e =>
-            e.State == DemoQueueItemState.Running && e.Kind != QueueJobKind.DemoOpen && !IsLight(e.Kind));
+            e.State == DemoQueueItemState.Running && e.Kind != QueueJobKind.DemoOpen && !IsLight(e));
         if (holder is null)
         {
             return "Waiting for the parse slot";
@@ -748,6 +758,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         Entry entry = new()
         {
             Kind = request.Kind,
+            ExtensionKind = request.ExtensionKind,
             Key = request.Key,
             Job = request.RunAsync,
             JobOwner = request.OwnerTag,
@@ -957,7 +968,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
 
         // An open runs on its caller, not a worker; counting it would respawn idle workers forever.
-        int running = _entries.Count(e => e.State == DemoQueueItemState.Running && !IsLight(e.Kind)
+        int running = _entries.Count(e => e.State == DemoQueueItemState.Running && !IsLight(e)
                                           && e.Kind != QueueJobKind.DemoOpen);
         int want = running;
         if (NextStartableLocked(false) is { } next)
@@ -972,7 +983,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             _ = Task.Run(() => WorkerLoopAsync());
         }
 
-        int lightRunning = _entries.Count(e => e.State == DemoQueueItemState.Running && IsLight(e.Kind));
+        int lightRunning = _entries.Count(e => e.State == DemoQueueItemState.Running && IsLight(e));
         int wantLight = Math.Min(1 + MaxUserLight, lightRunning + (NextStartableLocked(true) is not null ? 1 : 0));
         while (_activeLightWorkers < wantLight)
         {
@@ -1021,7 +1032,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // Light items a user is waiting on that may run at once; the pool gave a Dossier's four builds this.
     private const int MaxUserLight = 4;
 
-    private bool IsLight(QueueJobKind kind) => _jobKinds.IsLight(kind);
+    private bool IsLight(Entry e) => _jobKinds.IsLight(e.Kind, e.ExtensionKind);
 
     // Under _sync. A user's item stops the Background job or forward pass running in its lane; that item goes
     // back in the queue, first within its priority, so it runs again once the user's item is done. A retained
@@ -1033,9 +1044,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return null;
         }
 
-        bool light = IsLight(incoming.Kind);
+        bool light = IsLight(incoming);
         Entry? victim = _entries.FirstOrDefault(e =>
-            e.State == DemoQueueItemState.Running && IsLight(e.Kind) == light && e.Priority == DemoJobPriority.Background
+            e.State == DemoQueueItemState.Running && IsLight(e) == light && e.Priority == DemoJobPriority.Background
             && e.Preemptible && !e.Preempted && !e.CancelRequested && !e.Finalizing && e.Kind != QueueJobKind.HeapCompaction
             && (e.Kind != QueueJobKind.DemoProcessing || e.Forward));
         if (victim is null)
@@ -1321,7 +1332,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             entry.Cancel = null;
-            if (entry.Kind != QueueJobKind.HeapCompaction && !IsLight(entry.Kind))
+            if (entry.Kind != QueueJobKind.HeapCompaction && !IsLight(entry))
             {
                 _jobsSinceCompact++;
                 if (entry.ParsedDemo)
@@ -1448,7 +1459,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         int userRunning = 0;
         foreach (Entry e in _entries)
         {
-            if (IsLight(e.Kind) != light)
+            if (IsLight(e) != light)
             {
                 continue;
             }
@@ -1568,7 +1579,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         // A waiter's task holds the ParsedDemo, a job's body its closure; history must not keep either.
         entry.ForegroundWaiters.Clear();
         entry.Job = null;
-        if (IsLight(entry.Kind) && state == DemoQueueItemState.Completed)
+        if (IsLight(entry) && state == DemoQueueItemState.Completed)
         {
             _entries.Remove(entry); // a finished save or section build is not history worth showing
         }
@@ -1696,6 +1707,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                         State = s.State,
                         Error = s.Error,
                         Kind = s.Kind,
+                        ExtensionKind = s.ExtensionKind,
                         Progress = s.Progress,
                         Detail = s.Detail
                     });
@@ -1718,7 +1730,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         e.State == DemoQueueItemState.Queued
         && (!_paused || e.Priority >= DemoJobPriority.UserRequested)
         && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction
-            || IsLight(e.Kind) || e.Kind == QueueJobKind.LibraryScan)
+            || IsLight(e) || e.Kind == QueueJobKind.LibraryScan)
         && !BlockedLocked(e);
 
     // A keyed item waits while one with its key runs (a same-key submit then reruns once, never beside
@@ -1769,7 +1781,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return a.Requeued ? -1 : 1;
         }
 
-        int rank = _jobKinds.Rank(a.Kind).CompareTo(_jobKinds.Rank(b.Kind));
+        int rank = _jobKinds.Rank(a.Kind, a.ExtensionKind).CompareTo(_jobKinds.Rank(b.Kind, b.ExtensionKind));
         if (rank != 0)
         {
             return rank;
@@ -1796,7 +1808,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private static DemoQueueItemSnapshot ToSnapshot(Entry e) => new(
         e.Id, e.Path, e.DisplayName,
         e.JobOwner is { } owner ? [owner] : e.Attachments.Select(a => a.OwnerTag).Distinct(StringComparer.Ordinal).ToList(),
-        e.Priority, e.State, e.Error, e.Kind, e.Progress, e.Detail);
+        e.Priority, e.State, e.Error, e.Kind, e.Progress, e.Detail, e.ExtensionKind);
 
     private static void SafeInvoke(Action action)
     {
@@ -1910,6 +1922,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         public Guid Id { get; } = Guid.NewGuid();
         public QueueJobKind Kind { get; init; }
+        public string? ExtensionKind { get; init; }
         public string? Key { get; init; }
         public string? JobOwner { get; init; }
         public Func<IQueueJobContext, Task>? Job { get; set; }

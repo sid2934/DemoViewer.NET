@@ -50,7 +50,7 @@ public class StratBookLiveToggleTests
         "Load: grenade index"
     ];
 
-    private static IFeaturePack Pack => FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
+    private static IExtension Pack => FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
 
     [Test]
     public async Task OffToOn_RunsTheStartupLoadsOnce_QueuesTheReIndexPoll_AndTheCoordinatorReconsiders()
@@ -120,8 +120,10 @@ public class StratBookLiveToggleTests
             using (Assert.Multiple())
             {
                 await Assert.That(packs.IsOn(Pack)).IsFalse();
-                await Assert.That(queue.CancelledOwners.Skip(cancelsBefore)).IsEquivalentTo(StratBookLifecycle.OwnerTags)
-                    .Because("every owner tag a pack job or parse attachment carries is cancelled, once each");
+                await Assert.That(queue.CancelledOwners.Skip(cancelsBefore))
+                    .IsEquivalentTo([StratBookPack.PackId, .. StratBookLifecycle.OwnerTags])
+                    .Because("every owner tag a pack job or parse attachment carries is cancelled, once each, and the "
+                             + "host cancels the jobs its context submitted under the extension's id");
                 await Assert.That(queue.Titles.Skip(before)).IsEquivalentTo([StratBookLifecycle.ReleaseTitle])
                     .Because("the release is the one item the switch-off queues");
                 await Assert.That(instances.Situations).IsNull();
@@ -341,7 +343,7 @@ public class StratBookLiveToggleTests
             // Still live: the lineups the reload minted (their save item is held) reach disk at shutdown.
             string lineups = Path.Combine(AppPaths.DemoCacheDir!, GrenadeLineupStore.FileName);
             await Assert.That(File.Exists(lineups)).IsFalse().Because("every save item is held; only a flush writes");
-            provider.GetRequiredKeyedService<IPackLifecycle>(Pack.Id).OnShutdown(TimeSpan.FromSeconds(5));
+            provider.GetRequiredKeyedService<IExtensionLifecycle>(Pack.Id).OnShutdown(TimeSpan.FromSeconds(5));
             await Assert.That(File.Exists(lineups)).IsTrue().Because("shutdown flushed a live index, not a released one");
             queue.HoldSaves = false;
             queue.RunDeferred();
@@ -379,7 +381,7 @@ public class StratBookLiveToggleTests
             StratBookDataRemoval removal = new(provider,
                 afterReleaseForTests: () => settings.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId)));
 
-            PackDataRemovalResult result = await removal.DeleteAsync();
+            ExtensionDataRemovalResult result = await removal.DeleteAsync();
             Dispatcher.UIThread.RunJobs();
 
             using (Assert.Multiple())
@@ -438,7 +440,7 @@ public class StratBookLiveToggleTests
             PackSwitch packs = provider.GetRequiredService<PackSwitch>();
             await packs.Pending;
             GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
-            IPackLifecycle lifecycle = provider.GetRequiredKeyedService<IPackLifecycle>(Pack.Id);
+            IExtensionLifecycle lifecycle = provider.GetRequiredKeyedService<IExtensionLifecycle>(Pack.Id);
             string lineups = Path.Combine(AppPaths.DemoCacheDir!, GrenadeLineupStore.FileName);
 
             // The user quits right after switching off: the cancel ran, the release is still queued.

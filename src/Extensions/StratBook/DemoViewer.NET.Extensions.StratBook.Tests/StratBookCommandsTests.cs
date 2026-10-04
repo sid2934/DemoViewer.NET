@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
 ///     The Strat Book extension's 22 keymap commands, declared in <see cref="StratBookCommands" /> and
-///     read by <c>CommandRegistry</c> through <c>IFeaturePack.Commands</c>. Pins each one's gesture and
+///     read by <c>CommandRegistry</c> through <c>IExtension.Commands</c>. Pins each one's gesture and
 ///     scope, so a diff here is a deliberate rebind, not a refactor accident.
 /// </summary>
 [NotInParallel]

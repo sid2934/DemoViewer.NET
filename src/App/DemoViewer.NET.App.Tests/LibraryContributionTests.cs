@@ -52,32 +52,32 @@ public class LibraryContributionTests
         public string? FeatureId { get; set; }
         public LibraryFilter? FilterValue { get; set; }
         public bool HasBadgeValue { get; set; }
-        public Func<DemoEntry, LibraryBadge?>? BadgeForFunc { get; set; }
+        public Func<LibraryDemo, LibraryBadge?>? BadgeForFunc { get; set; }
         public IReadOnlyList<string> BadgeLabelsValue { get; set; } = [];
         public string? BadgeResetLabelValue { get; set; }
         public string? BadgeResetTooltipValue { get; set; }
         public int BadgeForCalls { get; private set; }
         public int BadgesForCalls { get; private set; }
-        public List<(DemoEntry Entry, string? Label)> SetLabelCalls { get; } = [];
+        public List<(LibraryDemo Entry, string? Label)> SetLabelCalls { get; } = [];
 
         public event Action? Changed;
 
         public LibraryFilter? Filter => FilterValue;
         public bool HasBadge => HasBadgeValue;
 
-        public LibraryBadge? BadgeFor(DemoEntry entry)
+        public LibraryBadge? BadgeFor(LibraryDemo demo)
         {
             BadgeForCalls++;
-            return BadgeForFunc?.Invoke(entry);
+            return BadgeForFunc?.Invoke(demo);
         }
 
-        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries)
+        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<LibraryDemo> demos)
         {
             BadgesForCalls++;
             Dictionary<string, LibraryBadge?> result = new(StringComparer.Ordinal);
-            foreach (DemoEntry entry in entries)
+            foreach (LibraryDemo demo in demos)
             {
-                result[entry.FilePath] = BadgeForFunc?.Invoke(entry);
+                result[demo.FilePath] = BadgeForFunc?.Invoke(demo);
             }
 
             return result;
@@ -87,7 +87,7 @@ public class LibraryContributionTests
         public string? BadgeResetLabel => BadgeResetLabelValue;
         public string? BadgeResetTooltip => BadgeResetTooltipValue;
 
-        public void SetLabel(DemoEntry entry, string? label) => SetLabelCalls.Add((entry, label));
+        public void SetLabel(LibraryDemo demo, string? label) => SetLabelCalls.Add((demo, label));
 
         public void RaiseChanged() => Changed?.Invoke();
     }
@@ -110,15 +110,15 @@ public class LibraryContributionTests
 
         public LibraryFilter? Filter => throw new InvalidOperationException("Filter read while off");
         public bool HasBadge => throw new InvalidOperationException("HasBadge read while off");
-        public LibraryBadge? BadgeFor(DemoEntry entry) => throw new InvalidOperationException("BadgeFor called while off");
+        public LibraryBadge? BadgeFor(LibraryDemo demo) => throw new InvalidOperationException("BadgeFor called while off");
 
-        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries) =>
+        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<LibraryDemo> demos) =>
             throw new InvalidOperationException("BadgesFor called while off");
 
         public IReadOnlyList<string> BadgeLabels => throw new InvalidOperationException("BadgeLabels read while off");
         public string? BadgeResetLabel => throw new InvalidOperationException("BadgeResetLabel read while off");
         public string? BadgeResetTooltip => throw new InvalidOperationException("BadgeResetTooltip read while off");
-        public void SetLabel(DemoEntry entry, string? label) => throw new InvalidOperationException("SetLabel called while off");
+        public void SetLabel(LibraryDemo demo, string? label) => throw new InvalidOperationException("SetLabel called while off");
     }
 
     [Test]
@@ -171,7 +171,7 @@ public class LibraryContributionTests
         using (Assert.Multiple())
         {
             await Assert.That(c.SetLabelCalls.Count).IsEqualTo(1);
-            await Assert.That(c.SetLabelCalls[0].Entry).IsEqualTo(lib.Entries[0]);
+            await Assert.That(c.SetLabelCalls[0].Entry).IsEqualTo(lib.Entries[0].ToLibraryDemo());
             await Assert.That(c.SetLabelCalls[0].Label).IsEqualTo("picked");
         }
     }

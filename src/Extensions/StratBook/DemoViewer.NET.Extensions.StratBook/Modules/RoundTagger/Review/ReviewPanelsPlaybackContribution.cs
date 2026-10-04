@@ -21,6 +21,8 @@ using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.Views.RoundTagger;
 using DemoViewer.NET.Views.SuggestedTags;
+using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 
 #endregion
 
@@ -125,7 +127,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
         // Review mode starts as the user left it (off on a first run). The lanes and the panels follow it.
         ModeToggle mode = new(ReviewModeId, "Review", "Review mode (Shift+R): label rounds and review the suggested labels",
-            Playback2DAction.ToggleReviewMode) { IsOn = _settings?.Current.Playback2D.ReviewMode ?? false };
+            nameof(Playback2DAction.ToggleReviewMode)) { IsOn = _settings?.Current.Playback2D.ReviewMode ?? false };
         ReviewMode = mode;
         _registrations.Add(surface.AddModeToggle(mode));
         _tagLane = surface.AddLane(_tagTrack, TimelineBandRow.Lane, new TagLaneBehaviour(this));

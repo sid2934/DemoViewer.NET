@@ -1442,10 +1442,10 @@ public static partial class Variants
 
         // "Delete extension data": a canned inventory, no real PackDataRemover, so the capture
         // is deterministic and needs no temp files. Sizes are plausible, not measured.
-        IPackDataRemoval[]? dataRemovals = armDelete
+        IExtensionDataRemoval[]? dataRemovals = armDelete
             ?
             [
-                new CapturePackDataRemoval(new PackDataInventory(
+                new CapturePackDataRemoval(new ExtensionDataInventory(
                 [
                     new StoreInventoryItem(new StoreDescriptor("strats", "Strats", StoreRoot.Config, ["strats"], true), 14, 182_000),
                     new StoreInventoryItem(new StoreDescriptor("tags", "Tags", StoreRoot.Config, ["tags"], true), 9, 54_000),
@@ -1554,7 +1554,7 @@ public static partial class Variants
 
     // A capture-only second extension: never configured, never composed; only its status exists,
     // and only for "settings-extensions-incompatible".
-    private sealed class CaptureIncompatiblePack : IFeaturePack
+    private sealed class CaptureIncompatiblePack : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.pack.future";
         public string FeatureId => "pack.future";
@@ -1563,24 +1563,24 @@ public static partial class Variants
             Id, "Future Book", new SemVersion(1, 2, 0), "DemoViewer.NET.Extensions.FutureBook.dll",
             "DemoViewer.NET.Extensions.FutureBook.FutureBookPack", VersionRange.Parse("^2.0"), VersionRange.Any);
 
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }
 
-    // A capture-only IPackDataRemoval: returns a fixed inventory, never actually deletes (DeleteAsync is
+    // A capture-only IExtensionDataRemoval: returns a fixed inventory, never actually deletes (DeleteAsync is
     // unused by the "settings-extensions-delete-confirm" variant, which only arms the confirmation).
-    private sealed class CapturePackDataRemoval(PackDataInventory inventory) : IPackDataRemoval
+    private sealed class CapturePackDataRemoval(ExtensionDataInventory inventory) : IExtensionDataRemoval
     {
-        public string PackFeatureId => StratBookPack.PackFeatureId;
-        public Task<PackDataInventory> InventoryAsync() => Task.FromResult(inventory);
-        public Task<PackDataRemovalResult> DeleteAsync() => Task.FromResult(new PackDataRemovalResult(true, inventory, 0));
+        public string FeatureId => StratBookPack.PackFeatureId;
+        public Task<ExtensionDataInventory> InventoryAsync() => Task.FromResult(inventory);
+        public Task<ExtensionDataRemovalResult> DeleteAsync() => Task.FromResult(new ExtensionDataRemovalResult(true, inventory, 0));
     }
 
     // Renders the Playback2D HUD DOMAIN accents (health/armor/headshot/…) as text + glyphs on the real

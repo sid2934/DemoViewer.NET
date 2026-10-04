@@ -11,6 +11,8 @@ using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Teams;
 using DemoViewer.NET.ViewModels.StratBook;
+using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
+using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 
 #endregion
 

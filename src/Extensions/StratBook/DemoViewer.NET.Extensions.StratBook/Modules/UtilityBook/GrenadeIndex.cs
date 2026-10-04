@@ -152,7 +152,7 @@ public sealed record GrenadeCluster(
 ///         leaves the place empty: the grid still clusters, a place filter finds nothing.
 ///     </para>
 /// </summary>
-public sealed class GrenadeIndex : IPackResident, IDisposable
+public sealed class GrenadeIndex : IExtensionResident, IDisposable
 {
     /// <summary>World units per landing cell in X and Y: about a doorway and its approach.</summary>
     public const float LandingCellSize = 256f;

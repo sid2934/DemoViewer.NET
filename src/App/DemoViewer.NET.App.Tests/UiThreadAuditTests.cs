@@ -623,7 +623,7 @@ public class UiThreadAuditTests
 
             double idle = await Build();
             using SemaphoreSlim jobGate = new(0);
-            Task job = Services.DemoProcessing.QueueWork.Run(queue, Services.DemoProcessing.QueueJobKind.LineupClips, "clips", "audit",
+            Task job = Services.DemoProcessing.QueueWork.Run(queue, Services.DemoProcessing.QueueJobKind.Extension, "clips", "audit",
                 _ => jobGate.Wait(TimeSpan.FromSeconds(20), CancellationToken.None));
             double besideJob = await Build();
             jobGate.Release();

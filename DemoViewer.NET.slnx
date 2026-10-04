@@ -16,12 +16,13 @@
         <Project Path="src/App/DemoViewer.NET.UiCapture/DemoViewer.NET.UiCapture.csproj"/>
         <Project Path="src/App/DemoViewer.NET/DemoViewer.NET.csproj"/>
         <Project Path="src/App/DemoViewer.NET.Modules.Abstractions/DemoViewer.NET.Modules.Abstractions.csproj"/>
-        <Project
-                Path="src/App/DemoViewer.NET.Modules.Abstractions.Ui/DemoViewer.NET.Modules.Abstractions.Ui.csproj"/>
         <Project Path="src/App/DemoViewer.NET.LiveSync/DemoViewer.NET.LiveSync.csproj"/>
         <Project Path="src/App/DemoViewer.NET.Desktop/DemoViewer.NET.Desktop.csproj"/>
         <Project Path="src/App/DemoViewer.NET.Browser/DemoViewer.NET.Browser.csproj"/>
         <Project Path="src/App/DemoViewer.NET.App.Tests/DemoViewer.NET.App.Tests.csproj"/>
+    </Folder>
+    <Folder Name="/src/Sdk/">
+        <Project Path="src/Sdk/DemoViewer.NET.Extensions.Sdk/DemoViewer.NET.Extensions.Sdk.csproj"/>
     </Folder>
     <Folder Name="/src/Extensions/">
         <Project

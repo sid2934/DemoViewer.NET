@@ -421,7 +421,7 @@ public static class Playback2DKeymap
 
         // Situation Search, result walking, review mode, the Tag Palette, Label Mode, the Suggested Tags
         // queue and Step Authoring belong to the Strat Book extension (StratBookCommands), read by
-        // CommandRegistry through IFeaturePack.Commands. This table stays core-only: its static
+        // CommandRegistry through IExtension.Commands. This table stays core-only: its static
         // constructor conflict-checks eagerly, which a pack's own commands must never be able to trip.
 
         // ── Shape Tools. Bare letters in the Always scope like D and X, each

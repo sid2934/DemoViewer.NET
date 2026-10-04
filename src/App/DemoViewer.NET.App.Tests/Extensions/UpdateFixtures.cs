@@ -240,18 +240,18 @@ internal static class UpdateFixtures
         }
     }
 
-    private sealed class FakePack(string id) : IFeaturePack
+    private sealed class FakePack(string id) : IExtension, IManifestSource
     {
         public string Id => id;
         public string FeatureId => "pack." + id;
         public ExtensionManifest Manifest => FakeManifests.For(id);
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

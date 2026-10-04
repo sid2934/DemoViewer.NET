@@ -54,4 +54,8 @@
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Extensions\FakeManifests.cs" Link="FakeManifests.cs"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <Using Include="DemoViewer.NET.Extensions.Sdk"/>
+    </ItemGroup>
+
 </Project>

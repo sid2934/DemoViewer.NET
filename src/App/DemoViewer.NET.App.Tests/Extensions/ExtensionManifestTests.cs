@@ -118,7 +118,7 @@ public class ExtensionManifestTests
         }
     }
 
-    // The repo copy is a template: the build stamps "{nbgv}" with the version from version.json
+    // The repo copy is a template: the build stamps "{version}" with the version from version.json
     // (CompatibilityMatrixTests covers the stamping itself).
     [Test]
     public async Task TheManifestTemplate_InTheRepo_DescribesStratBookPack()
@@ -127,7 +127,7 @@ public class ExtensionManifestTests
             ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
         string path = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
         string template = await File.ReadAllTextAsync(path);
-        ExtensionManifest m = ExtensionManifest.Parse(template.Replace("\"{nbgv}\"", "\"0.0.0\"", StringComparison.Ordinal));
+        ExtensionManifest m = ExtensionManifest.Parse(template.Replace("\"{version}\"", "\"0.0.0\"", StringComparison.Ordinal));
         await AssertIsStratBook(m);
     }
 
@@ -148,7 +148,7 @@ public class ExtensionManifestTests
         using (Assert.Multiple())
         {
             await AssertIsStratBook(embedded);
-            await Assert.That(new StratBookPack().Manifest).IsEqualTo(embedded);
+            await Assert.That(DemoViewer.NET.Extensions.ExtensionManifests.Of(new StratBookPack())).IsEqualTo(embedded);
         }
     }
 

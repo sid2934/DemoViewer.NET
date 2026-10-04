@@ -1,21 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      The stable third-party reference target for workspace modules. Deliberately MINIMAL: it has NO
-      package reference at all — no Avalonia, no Parser / EntityTracking / Analysis — because the read
-      surface is pure interfaces. The concrete join logic (PawnLookup, PositionUtil, ModuleContext)
-      lives in the App project, which DOES reference Analysis. Keeping abstractions clean is what makes
-      it a versionable SDK target.
-
-      The two Avalonia-shaped members of the contract (WorkspaceTabDescriptor, IWorkspaceModule) live in
-      the sibling DemoViewer.NET.Modules.Abstractions.Ui project, which keeps THIS namespace. That split
-      is what lets DemoViewer.NET.Playback2D.Pipeline consume IPlaybackSnapshot / IPlayerState /
-      IReadOnlyEntityView while staying Avalonia-free, and it is enforced by an architecture test.
+      The read-only playback contract a module sees (IModuleContext and what it returns). No package
+      references at all, so the Avalonia-free Playback2D.Pipeline can consume it; the Avalonia-shaped half
+      of the module contract lives in DemoViewer.NET.Extensions.Sdk under the same namespace.
+      Published alongside the SDK and versioned with it (version.json); its public API is pinned the same way.
     -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
+        <IsPackable>true</IsPackable>
+        <PackageId>DemoViewer.NET.Modules.Abstractions</PackageId>
+        <Description>The read-only playback contract DemoViewer.NET extensions and modules see. Install DemoViewer.NET.Extensions.Sdk, which depends on it.</Description>
+        <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk</PackageTags>
     </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
+        <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
+        <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
+    </ItemGroup>
 
 </Project>

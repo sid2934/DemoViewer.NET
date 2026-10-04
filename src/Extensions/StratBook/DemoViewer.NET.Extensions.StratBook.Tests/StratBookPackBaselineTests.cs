@@ -155,7 +155,7 @@ public class StratBookPackBaselineTests
     }
 
     // Waits for the situation index, grenade index and Team Identity to report ready and Team Identity's
-    // own rebuild-or-sync job (QueueJobKind.TeamsCommand, submitted by StartAsync) to finish, then forces a
+    // own rebuild-or-sync job (a teams job, submitted by StartAsync) to finish, then forces a
     // full blocking, compacting collection so the snapshot is not mid-GC.
     //
     // Deliberately does NOT wait for the whole queue to drain. With Highlights.BackgroundScan and
@@ -178,7 +178,7 @@ public class StratBookPackBaselineTests
 
         DateTime deadline = DateTime.UtcNow.AddSeconds(90);
         while (!(situations.IsReady && grenades.IsReady && teams.IsLoaded
-                 && queue.ActiveCount(QueueJobKind.TeamsCommand) == 0
+                 && queue.ActiveCount(StratBookJobKinds.Teams) == 0
                  && queue.ActiveCount(QueueJobKind.StoreLoad) == 0))
         {
             if (DateTime.UtcNow >= deadline)
@@ -186,7 +186,7 @@ public class StratBookPackBaselineTests
                 throw new InvalidOperationException(
                     $"startup did not settle within 90s: situationsReady={situations.IsReady} "
                     + $"grenadesReady={grenades.IsReady} teamsLoaded={teams.IsLoaded} "
-                    + $"teamsCommandActive={queue.ActiveCount(QueueJobKind.TeamsCommand)} "
+                    + $"teamsCommandActive={queue.ActiveCount(StratBookJobKinds.Teams)} "
                     + $"storeLoadActive={queue.ActiveCount(QueueJobKind.StoreLoad)} "
                     + $"items=[{string.Join(", ", queue.Items.Select(i => $"{i.Kind}/{i.DisplayName}/{i.State}"))}]");
             }
@@ -201,7 +201,7 @@ public class StratBookPackBaselineTests
         }
     }
 
-    private static readonly IFeaturePack Pack = FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
+    private static readonly IExtension Pack = FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
 
     // Pack-off counterpart to SettleStartupLoads: those readiness flags never go true when nothing of
     // the pack attaches, so this asserts the gate and the residents' state instead of waiting on them.

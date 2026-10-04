@@ -34,7 +34,7 @@ public class PackSwitchTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(lifecycle.Enabled).IsEquivalentTo([PackStartReason.Startup]);
+            await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.Startup]);
             await Assert.That(lifecycle.Disabled).IsEqualTo(0);
             await Assert.That(packs.IsOn(pack)).IsTrue();
             await Assert.That(reconsidered).IsEqualTo(0).Because("startup re-polls through the library rescan, not here");
@@ -57,7 +57,7 @@ public class PackSwitchTests
         await packs.Pending;
         using (Assert.Multiple())
         {
-            await Assert.That(lifecycle.Enabled).IsEquivalentTo([PackStartReason.EnabledInSession]);
+            await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.EnabledInSession]);
             await Assert.That(reconsidered).IsEqualTo(1).Because("the library is re-polled once the loads are queued");
             await Assert.That(lifecycle.LastToken.IsCancellationRequested).IsFalse();
             await Assert.That(packs.IsOn(pack)).IsTrue();
@@ -96,7 +96,7 @@ public class PackSwitchTests
         waiting = false;
         gate.Raise(); // the wizard's Finish writes settings
         await packs.Pending;
-        await Assert.That(lifecycle.Enabled).IsEquivalentTo([PackStartReason.EnabledInSession]);
+        await Assert.That(lifecycle.Enabled).IsEquivalentTo([ExtensionStartReason.EnabledInSession]);
     }
 
     [Test]
@@ -137,13 +137,13 @@ public class PackSwitchTests
         public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private sealed class FakeLifecycle : IPackLifecycle
+    private sealed class FakeLifecycle : IExtensionLifecycle
     {
-        public List<PackStartReason> Enabled { get; } = [];
+        public List<ExtensionStartReason> Enabled { get; } = [];
         public int Disabled { get; private set; }
         public CancellationToken LastToken { get; private set; }
 
-        public Task OnEnabledAsync(PackStartReason reason, CancellationToken ct)
+        public Task OnEnabledAsync(ExtensionStartReason reason, CancellationToken ct)
         {
             Enabled.Add(reason);
             LastToken = ct;
@@ -161,18 +161,18 @@ public class PackSwitchTests
         }
     }
 
-    private sealed class FakePack : IFeaturePack
+    private sealed class FakePack : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.pack.fake";
         public string FeatureId => "pack.fake";
         public ExtensionManifest Manifest => FakeManifests.For(Id);
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

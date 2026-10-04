@@ -2,6 +2,10 @@
 
 using Avalonia.Controls;
 using Avalonia.Input;
+using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
+using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
+using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -10,59 +14,6 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 #endregion
 
 namespace DemoViewer.NET.Extensions;
-
-/// <summary>Where a pane sits in the 2D Playback tab.</summary>
-public enum PanePlacement
-{
-    /// <summary>The side pane over the viewport's right edge, the export pane's place. One open at a time.</summary>
-    Side,
-
-    /// <summary>
-    ///     The right column under the player cards. Several panels show at once, in order; see
-    ///     <see cref="IPlaybackSurface.AddPanel" /> and <see cref="IPanelHandle" />.
-    /// </summary>
-    RightColumn
-}
-
-/// <summary>A pane a contribution added. Opening builds the view model from the factory; closing disposes it.</summary>
-public interface IPaneHandle : IDisposable
-{
-    /// <summary>True while the pane shows.</summary>
-    bool IsOpen { get; }
-
-    /// <summary>
-    ///     Shows the pane with a fresh view model. For a side pane, open already means rebuilt and the other
-    ///     side pane closes; for a right-column panel, open already is a no-op and the others stay.
-    /// </summary>
-    void Open();
-
-    /// <summary>Hides the pane and disposes its view model. No-op when closed.</summary>
-    void Close();
-
-    /// <summary>The pane closed, by <see cref="Close" />, by the host's Close button or because another pane took its place.</summary>
-    event Action? Closed;
-}
-
-/// <summary>
-///     A right-column panel a contribution added. Several panels are open at once and show in order, each
-///     while its gate is on and the <see cref="ModeToggle" /> it was bound to, if any, is on. A panel can
-///     hold the keyboard (<see cref="HasKeyboard" />): its focus scope, under which the contribution's key
-///     handlers run before the tab's keymap and its action handlers see every action first.
-/// </summary>
-public interface IPanelHandle : IPaneHandle
-{
-    /// <summary>Open, gate on and the panel's mode on. What the user sees.</summary>
-    bool IsShown { get; }
-
-    /// <summary><see cref="IsShown" /> changed: the gate, the mode or the panel's own open state moved.</summary>
-    event Action? ShownChanged;
-
-    /// <summary>
-    ///     The panel's focus scope. The contribution sets it from its own focus state; the host reads it only
-    ///     while the panel <see cref="IsShown" />.
-    /// </summary>
-    bool HasKeyboard { get; set; }
-}
 
 /// <summary>
 ///     The 2D Playback tab as a contribution sees it. Each tab view-model owns one; a

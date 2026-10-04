@@ -242,7 +242,7 @@ public class ExtensionLoaderTests
             using (Assert.Multiple())
             {
                 await Assert.That(result.Failure).IsNull().Because(result.Failure?.Detail ?? "loaded");
-                IFeaturePack pack = result.Pack!;
+                IExtension pack = result.Pack!;
                 await Assert.That(pack.Id).IsEqualTo(StratBookPack.PackId);
                 await Assert.That(pack.GetType()).IsNotEqualTo(typeof(StratBookPack)).Because("same name, different assembly");
                 await Assert.That(pack.GetType().FullName).IsEqualTo(typeof(StratBookPack).FullName);
@@ -252,12 +252,12 @@ public class ExtensionLoaderTests
                 await Assert.That(context).IsTypeOf<ExtensionLoadContext>();
                 await Assert.That(context!.Name).IsEqualTo($"extension:{StratBookPack.PackId}@{candidate.Manifest.Version}");
                 await Assert.That(context.IsCollectible).IsFalse();
-                await Assert.That(pack.Manifest.Version).IsEqualTo(candidate.Manifest.Version);
+                await Assert.That(ExtensionManifests.Of(pack).Version).IsEqualTo(candidate.Manifest.Version);
                 // This build's own copy references exactly what this process runs, and its contract members read.
                 await Assert.That(ExtensionLoader.CheckReferences(candidate, pack.GetType().Assembly, ExtensionLoader.RunningVersion)).IsNull();
                 await Assert.That(ExtensionLoader.Probe(candidate, pack)).IsNull();
                 // Its dependencies bound to the copies this process runs on, so the pack contract is one type.
-                await Assert.That(AssemblyLoadContext.GetLoadContext(pack.GetType().GetInterface(nameof(IFeaturePack))!.Assembly))
+                await Assert.That(AssemblyLoadContext.GetLoadContext(pack.GetType().GetInterface(nameof(IExtension))!.Assembly))
                     .IsEqualTo(AssemblyLoadContext.Default);
             }
         }
@@ -628,7 +628,7 @@ public class ExtensionLoaderTests
             await Assert.That(outcome?.Failure).IsEqualTo(LoadFailure.ReferenceMismatch);
             await Assert.That(outcome!.UserMessage).StartsWith("Update 1.3.0 was not loaded: it was built against DemoViewer.NET ")
                 .And.EndsWith("; this app ships 9.9.0.0");
-            await Assert.That(ExtensionLoader.RunningVersion("DemoViewer.NET")).IsEqualTo(typeof(IFeaturePack).Assembly.GetName().Version);
+            await Assert.That(ExtensionLoader.RunningVersion("DemoViewer.NET")).IsEqualTo(typeof(DemoViewer.NET.Extensions.ExtensionHost).Assembly.GetName().Version);
             await Assert.That(ExtensionLoader.RunningVersion("No.Such.Assembly")).IsNull();
         }
     }
@@ -709,13 +709,13 @@ public class ExtensionLoaderTests
 
     // A pack compiled against a type or member the running app no longer has: Register (or Features)
     // throws what the runtime would throw.
-    private sealed class ProbeFailingPack(bool onRegister) : IFeaturePack
+    private sealed class ProbeFailingPack(bool onRegister) : IExtension, IManifestSource
     {
         public string Id => FakeId;
         public string FeatureId => "pack.fake";
         public ExtensionManifest Manifest => FakeManifests.For(FakeId);
 
-        public IEnumerable<Features.FeatureDescriptor> Features =>
+        public IEnumerable<ExtensionFeature> Features =>
             onRegister ? [] : throw new MissingMethodException("Method not found: 'Features.Gone()'.");
 
         public void Register(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
@@ -726,7 +726,7 @@ public class ExtensionLoaderTests
             }
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

@@ -161,16 +161,15 @@ public class CommandRegistryTests
         }
     }
 
-    private sealed class FakePack(string featureId, CommandDescriptor[] commands) : IFeaturePack
+    private sealed class FakePack(string featureId, CommandDescriptor[] commands) : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
         public ExtensionManifest Manifest => FakeManifests.For(Id);
 
-        public IEnumerable<FeatureDescriptor> Features =>
+        public IEnumerable<ExtensionFeature> Features =>
         [
-            new(featureId, FeatureScope.Pack, "Fake pack", "a test pack", null, null, false,
-                FeatureCatalog.Defaults(true, true, true))
+            new(featureId, ExtensionFeatureKind.Extension, "Fake pack", "a test pack", null, AudienceDefaults.Everyone)
         ];
 
         public IEnumerable<CommandDescriptor> Commands => commands;
@@ -179,7 +178,7 @@ public class CommandRegistryTests
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

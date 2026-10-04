@@ -10,6 +10,8 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
+using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 
 #endregion
 
@@ -315,18 +317,18 @@ public class Playback2DRightColumnTests
         public void Dispose() => Disposed = true;
     }
 
-    private sealed class FakePack : IFeaturePack
+    private sealed class FakePack : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.pack.fake";
         public string FeatureId => "pack.fake";
         public ExtensionManifest Manifest => FakeManifests.For(Id);
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

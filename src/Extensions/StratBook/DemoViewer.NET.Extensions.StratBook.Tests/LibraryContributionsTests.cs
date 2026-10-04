@@ -56,16 +56,8 @@ public class LibraryContributionsTests
         return record;
     }
 
-    private static DemoEntry Entry(string path, string map = "de_nuke") => new()
-    {
-        FilePath = path,
-        FileName = Path.GetFileName(path),
-        Directory = "/d",
-        FileSizeBytes = 1000,
-        Modified = new DateTime(2026, 3, 1),
-        MapName = map,
-        State = DemoIndexState.Indexed
-    };
+    private static LibraryDemo Entry(string path, string map = "de_nuke") =>
+        new(path, Path.GetFileName(path), map, new DateTime(2026, 3, 1), 1000);
 
     // Two rosters that met twice (clusters into one team each), and a demo nobody recurs on.
     private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> Library()
@@ -135,8 +127,8 @@ public class LibraryContributionsTests
                 await Assert.That(contribution.BadgeLabels).IsEmpty();
             }
 
-            DemoEntry a = Entry("/d/a.dem");
-            DemoEntry c = Entry("/d/c.dem");
+            LibraryDemo a = Entry("/d/a.dem");
+            LibraryDemo c = Entry("/d/c.dem");
             Guid teamId = teams.Teams[0].Id;
             string teamKey = teamId.ToString();
 
@@ -179,7 +171,7 @@ public class LibraryContributionsTests
             await Assert.That(contribution.Filter).IsNull().Because("the provenance chip offers no filter");
             await Assert.That(provenanceResolves).IsEqualTo(0).Because("reading Filter must not resolve anything either");
 
-            DemoEntry a = Entry("/d/a.dem");
+            LibraryDemo a = Entry("/d/a.dem");
             contribution.BadgeFor(a);
             using (Assert.Multiple())
             {
@@ -227,7 +219,7 @@ public class LibraryContributionsTests
             CountingProvenanceSource counting = new(real);
             ProvenanceLibraryContribution contribution = new(() => counting, () => teams);
 
-            DemoEntry[] entries = [Entry("/d/a.dem"), Entry("/d/b.dem"), Entry("/d/c.dem")];
+            LibraryDemo[] entries = [Entry("/d/a.dem"), Entry("/d/b.dem"), Entry("/d/c.dem")];
             IReadOnlyDictionary<string, LibraryBadge?> badges = contribution.BadgesFor(entries);
 
             using (Assert.Multiple())
@@ -297,7 +289,7 @@ public class LibraryContributionsTests
             teams.SetMyAccounts([Ids(1)[0]]);
             DemoProvenanceSource source = new(cache, teams);
             ProvenanceLibraryContribution contribution = new(() => source, () => teams);
-            DemoEntry a = Entry("/d/a.dem");
+            LibraryDemo a = Entry("/d/a.dem");
 
             LibraryBadge? before = contribution.BadgeFor(a);
             using (Assert.Multiple())

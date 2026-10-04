@@ -60,4 +60,8 @@
         <Compile Include="..\..\..\tools\extension-signing\FeedMerge.cs" Link="Extensions\FeedMerge.cs"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <Using Include="DemoViewer.NET.Extensions.Sdk"/>
+    </ItemGroup>
+
 </Project>

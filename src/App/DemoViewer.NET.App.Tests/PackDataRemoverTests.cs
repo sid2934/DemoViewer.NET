@@ -49,7 +49,7 @@ public class PackDataRemoverTests
             StoreDescriptor roundIndex = new("round-index", "Round Index", StoreRoot.Cache, ["round-index"], false);
             PackDataRemover remover = new(new DemoCacheStore(null), configRoot, cacheRoot);
 
-            PackDataInventory before = await remover.InventoryAsync([strats, teams, roundIndex], "fake", "count");
+            ExtensionDataInventory before = await remover.InventoryAsync([strats, teams, roundIndex], "fake", "count");
             using (Assert.Multiple())
             {
                 await Assert.That(before.Items.First(i => i.Descriptor.Id == "strats").FileCount).IsEqualTo(2);
@@ -59,7 +59,7 @@ public class PackDataRemoverTests
                 await Assert.That(before.UserWorkItems.Select(i => i.Descriptor.Id)).IsEquivalentTo(["strats", "teams"]);
             }
 
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [strats, teams, roundIndex], [], "fake", "delete");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [strats, teams, roundIndex], [], "fake", "delete");
 
             using (Assert.Multiple())
             {
@@ -96,8 +96,8 @@ public class PackDataRemoverTests
             StoreDescriptor descriptor = new("escape", "Escape", StoreRoot.Config, [relative], false);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataInventory inventory = await remover.InventoryAsync([descriptor], "fake", "count");
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+            ExtensionDataInventory inventory = await remover.InventoryAsync([descriptor], "fake", "count");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
 
             using (Assert.Multiple())
             {
@@ -126,7 +126,7 @@ public class PackDataRemoverTests
             StoreDescriptor descriptor = new("rooted", "Rooted", StoreRoot.Config, [outsideFile], false);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
 
             await Assert.That(result.Removed.Items[0].FileCount).IsEqualTo(0);
             await Assert.That(File.Exists(outsideFile)).IsTrue();
@@ -152,7 +152,7 @@ public class PackDataRemoverTests
             StoreDescriptor nested = new("nested", "Nested", StoreRoot.Config, ["nested/inner"], false);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataInventory inventory = await remover.InventoryAsync([trailing, nested], "fake", "count");
+            ExtensionDataInventory inventory = await remover.InventoryAsync([trailing, nested], "fake", "count");
 
             using (Assert.Multiple())
             {
@@ -183,7 +183,7 @@ public class PackDataRemoverTests
                 ["demos/*.grenades.json.gz", "demos/*.grenades.paths.json.gz"], false);
             PackDataRemover remover = new(new DemoCacheStore(null), null, cacheRoot);
 
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
 
             using (Assert.Multiple())
             {
@@ -212,7 +212,7 @@ public class PackDataRemoverTests
             StoreDescriptor descriptor = new("dem", "Dem", StoreRoot.Config, ["match.dem"], false);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
 
             await Assert.That(result.Removed.Items[0].FileCount).IsEqualTo(0);
             await Assert.That(File.Exists(demFile)).IsTrue();
@@ -281,7 +281,7 @@ public class PackDataRemoverTests
             store.SaveIndex();
 
             PackDataRemover remover = new(store, null, null);
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a", "facet-b"], "fake", "strip");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a", "facet-b"], "fake", "strip");
 
             await Assert.That(result.RecordsUpdated).IsEqualTo(1);
 
@@ -328,7 +328,7 @@ public class PackDataRemoverTests
             // A fresh store: seed's capacity-1 record cache would otherwise still answer the deleted file.
             DemoCacheStore store = new(cacheRoot);
             PackDataRemover remover = new(store, null, null);
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
 
             using (Assert.Multiple())
             {
@@ -364,7 +364,7 @@ public class PackDataRemoverTests
 
             StoreDescriptor descriptor = new("strats", "Strats", StoreRoot.Config, ["strats"], true);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null, queue);
-            Task<PackDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete");
+            Task<ExtensionDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete");
 
             await Task.Delay(150);
             using (Assert.Multiple())
@@ -374,7 +374,7 @@ public class PackDataRemoverTests
             }
 
             release.Set();
-            PackDataRemovalResult result = await delete;
+            ExtensionDataRemovalResult result = await delete;
 
             using (Assert.Multiple())
             {
@@ -418,12 +418,12 @@ public class PackDataRemoverTests
             bool stillOff = true;
             StoreDescriptor descriptor = new("strats", "Strats", StoreRoot.Config, ["strats"], true);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null, queue);
-            Task<PackDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete", stillOff: () => stillOff);
+            Task<ExtensionDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete", stillOff: () => stillOff);
 
             await Task.Delay(150);
             stillOff = false; // the pack was re-enabled while the job still sat behind the blocker
             release.Set();
-            PackDataRemovalResult result = await delete;
+            ExtensionDataRemovalResult result = await delete;
 
             using (Assert.Multiple())
             {
@@ -451,7 +451,7 @@ public class PackDataRemoverTests
             StoreDescriptor descriptor = new("strats", "Strats", StoreRoot.Config, ["strats"], true);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataRemovalResult result = await DeleteWithTheFileUnremovable(remover, descriptor, dir, locked);
+            ExtensionDataRemovalResult result = await DeleteWithTheFileUnremovable(remover, descriptor, dir, locked);
 
             using (Assert.Multiple())
             {
@@ -472,7 +472,7 @@ public class PackDataRemoverTests
     // Windows refuses a delete of a file open without FileShare.Delete; Unix refuses a delete inside a
     // directory whose own write bit is off. Either way the directory's permissions are restored before the
     // caller's own cleanup runs, win or lose.
-    private static async Task<PackDataRemovalResult> DeleteWithTheFileUnremovable(
+    private static async Task<ExtensionDataRemovalResult> DeleteWithTheFileUnremovable(
         PackDataRemover remover, StoreDescriptor descriptor, string dir, string locked)
     {
         if (OperatingSystem.IsWindows())
@@ -559,7 +559,7 @@ public class PackDataRemoverTests
 
             // The legacy fold always writes the payload under LegacyPackFields.PackId: the literal the old
             // Strat Book sidecars carried, not whatever pack id a caller happens to pass.
-            PackDataRemovalResult result = await remover.DeleteAsync(LegacyPackFields.PackId, [], facetIds, "fake", "strip");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(LegacyPackFields.PackId, [], facetIds, "fake", "strip");
 
             await Assert.That(result.RecordsUpdated).IsEqualTo(1).Because("the fold on read already promoted the flat fields to a payload and stamps");
 

@@ -41,7 +41,7 @@ namespace DemoViewer.NET.Modules.Situations;
 ///         keeps the watches for the session only.
 ///     </para>
 /// </summary>
-public sealed class WatchedSituationsService : IPackResident, IDisposable
+public sealed class WatchedSituationsService : IExtensionResident, IDisposable
 {
     /// <summary>The file under the config root.</summary>
     public const string FileName = "watched-situations.json";

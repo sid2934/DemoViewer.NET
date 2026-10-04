@@ -46,7 +46,7 @@ public class ViewLocator : IDataTemplate
     // and the core library.
     private static Type? PackViewType(string name)
     {
-        foreach (IFeaturePack pack in FeaturePacks.Compatible)
+        foreach (IExtension pack in FeaturePacks.Compatible)
         {
             if (pack.GetType().Assembly.GetType(name) is { } type)
             {

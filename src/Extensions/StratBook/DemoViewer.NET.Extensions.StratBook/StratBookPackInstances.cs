@@ -28,7 +28,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 internal sealed class StratBookPackInstances
 {
     private readonly object _gate = new();
-    private readonly List<IPackResident> _residents = [];
+    private readonly List<IExtensionResident> _residents = [];
 
     public SituationIndex? Situations { get; set; }
     public GrenadeIndex? Grenades { get; set; }
@@ -39,7 +39,7 @@ internal sealed class StratBookPackInstances
     public StratMiningService? Mining { get; set; }
 
     // The four evaluator-registry contributions, set inline by their own factories, not
-    // through Record: they are plain fan-out evaluators, not IPackResident, so Clear/Restore leave
+    // through Record: they are plain fan-out evaluators, not IExtensionResident, so Clear/Restore leave
     // them alone. Once set they stay set for the session: "was ever constructed", not "is live now".
     public RoundFactsEvaluator? RoundFacts { get; set; }
     public RoundIndexEvaluator? RoundIndex { get; set; }
@@ -51,7 +51,7 @@ internal sealed class StratBookPackInstances
     public TagStore? Tags { get; set; }
 
     /// <summary>Every resident built this session, in build order; survives a release.</summary>
-    public IReadOnlyList<IPackResident> Residents
+    public IReadOnlyList<IExtensionResident> Residents
     {
         get
         {
@@ -63,7 +63,7 @@ internal sealed class StratBookPackInstances
     }
 
     /// <summary>A factory built one: remembered for the next release and attach, and live from now.</summary>
-    public void Record(IPackResident built)
+    public void Record(IExtensionResident built)
     {
         ArgumentNullException.ThrowIfNull(built);
         lock (_gate)
@@ -80,7 +80,7 @@ internal sealed class StratBookPackInstances
     /// <summary>Points the typed properties at the built residents again, after a release.</summary>
     public void Restore()
     {
-        foreach (IPackResident resident in Residents)
+        foreach (IExtensionResident resident in Residents)
         {
             Assign(resident);
         }
@@ -98,7 +98,7 @@ internal sealed class StratBookPackInstances
         Mining = null;
     }
 
-    private void Assign(IPackResident resident)
+    private void Assign(IExtensionResident resident)
     {
         switch (resident)
         {

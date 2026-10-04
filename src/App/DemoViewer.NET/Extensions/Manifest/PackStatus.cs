@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Extensions.Manifest;
 ///     running. Settings shows them under the row so a user can see why an update did not take.
 /// </param>
 public sealed record PackStatus(
-    IFeaturePack Pack,
+    IExtension Pack,
     ExtensionManifest? Manifest,
     PackCompatibility Compatibility,
     PackSource? Source = null,
@@ -45,7 +45,7 @@ public sealed record PackStatus(
     ///     <see cref="PackCompatibility.ManifestInvalid" />; nothing here throws for a bad pack, since the
     ///     point is to keep it out rather than take the app down with it.
     /// </summary>
-    public static IReadOnlyList<PackStatus> Evaluate(IReadOnlyList<IFeaturePack> packs, ExtensionHostInfo host)
+    public static IReadOnlyList<PackStatus> Evaluate(IReadOnlyList<IExtension> packs, ExtensionHostInfo host)
     {
         ArgumentNullException.ThrowIfNull(packs);
         ArgumentNullException.ThrowIfNull(host);
@@ -58,15 +58,15 @@ public sealed record PackStatus(
         return statuses;
     }
 
-    /// <summary><see cref="Evaluate(IReadOnlyList{IFeaturePack}, ExtensionHostInfo)" /> for one pack.</summary>
-    public static PackStatus Evaluate(IFeaturePack pack, ExtensionHostInfo host)
+    /// <summary><see cref="Evaluate(IReadOnlyList{IExtension}, ExtensionHostInfo)" /> for one pack.</summary>
+    public static PackStatus Evaluate(IExtension pack, ExtensionHostInfo host)
     {
         ArgumentNullException.ThrowIfNull(pack);
         ArgumentNullException.ThrowIfNull(host);
         ExtensionManifest manifest;
         try
         {
-            manifest = pack.Manifest ?? throw new ExtensionManifestException("the pack declares no manifest");
+            manifest = ExtensionManifests.Of(pack);
         }
         catch (ExtensionManifestException ex)
         {

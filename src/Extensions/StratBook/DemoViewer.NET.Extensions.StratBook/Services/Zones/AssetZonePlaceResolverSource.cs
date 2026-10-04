@@ -27,7 +27,7 @@ namespace DemoViewer.NET.Services.Zones;
 ///         not watched.
 ///     </para>
 /// </summary>
-public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IPackResident
+public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IExtensionResident
 {
     private readonly Func<string, string?> _bundleDirFor;
     private readonly Lock _lock = new();

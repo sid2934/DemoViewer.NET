@@ -136,8 +136,8 @@ public class FeaturePacksTests
         StratBookPack stratBook = new();
 
         IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([incompatible, stratBook], host);
-        IReadOnlyList<IFeaturePack> declared = [.. statuses.Select(s => s.Pack)];
-        IReadOnlyList<IFeaturePack> compatible = [.. statuses.Where(s => s.IsCompatible).Select(s => s.Pack)];
+        IReadOnlyList<IExtension> declared = [.. statuses.Select(s => s.Pack)];
+        IReadOnlyList<IExtension> compatible = [.. statuses.Where(s => s.IsCompatible).Select(s => s.Pack)];
 
         using (Assert.Multiple())
         {
@@ -172,13 +172,13 @@ public class FeaturePacksTests
 
         FrozenList<PackStatus> compatibleFirst = new();
         compatibleFirst.Set(PackStatus.Evaluate([incompatible, fine], host));
-        IReadOnlyList<IFeaturePack> c1 = [.. compatibleFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
-        IReadOnlyList<IFeaturePack> d1 = [.. compatibleFirst.Value.Select(s => s.Pack)];
+        IReadOnlyList<IExtension> c1 = [.. compatibleFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
+        IReadOnlyList<IExtension> d1 = [.. compatibleFirst.Value.Select(s => s.Pack)];
 
         FrozenList<PackStatus> defaultFirst = new();
         defaultFirst.Set(PackStatus.Evaluate([incompatible, fine], host));
-        IReadOnlyList<IFeaturePack> d2 = [.. defaultFirst.Value.Select(s => s.Pack)];
-        IReadOnlyList<IFeaturePack> c2 = [.. defaultFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
+        IReadOnlyList<IExtension> d2 = [.. defaultFirst.Value.Select(s => s.Pack)];
+        IReadOnlyList<IExtension> c2 = [.. defaultFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
 
         using (Assert.Multiple())
         {
@@ -237,7 +237,7 @@ public class FeaturePacksTests
 
     // A pack built against contract 2.x on a 1.x host, with a job kind and a command each registry would
     // refuse, so the checks above can tell whether a registry saw it.
-    private sealed class IncompatibleFakePack : IFeaturePack
+    private sealed class IncompatibleFakePack : IExtension, IManifestSource
     {
         public const string PackFeatureId = "pack.incompatible";
 
@@ -246,20 +246,20 @@ public class FeaturePacksTests
 
         public ExtensionManifest Manifest => FakeManifests.For(Id, "Incompatible", "2.0.0", "^2.0", "*");
 
-        public IEnumerable<FeatureDescriptor> Features =>
+        public IEnumerable<ExtensionFeature> Features =>
         [
-            new(PackFeatureId, FeatureScope.Pack, "Incompatible", "d", null, null, false, new Dictionary<UserCategory, bool>())
+            new(PackFeatureId, ExtensionFeatureKind.Extension, "Incompatible", "d", null, new AudienceDefaults(false, false, false))
         ];
 
         public IEnumerable<CommandDescriptor> Commands => [new CommandDescriptor("incompatible.cmd", "Cmd", "playback2d", null, _ => true)];
 
-        public IEnumerable<JobKindDescriptor> JobKinds => [new JobKindDescriptor(QueueJobKind.StoreSave, "collides", 9, false)];
+        public IEnumerable<ExtensionJobKind> JobKinds => [new ExtensionJobKind(BuiltInJobKinds.Save, "collides", false, 9)];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

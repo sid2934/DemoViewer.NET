@@ -21,10 +21,10 @@ public class CompatibilityMatrixTests
 {
     // ── 1: the shipped manifest against this build's host, every axis ─────────────────────────────
 
-    // The repo copy is a template: its version is the literal "{nbgv}" and the build stamps the value
+    // The repo copy is a template: its version is the literal "{version}" and the build stamps the value
     // Nerdbank.GitVersioning computes from src/Extensions/StratBook/version.json. The placeholder
     // must not parse as a version, so an unstamped copy can never load.
-    private const string VersionPlaceholder = "\"{nbgv}\"";
+    private const string VersionPlaceholder = "\"{version}\"";
 
     [Test]
     public async Task ManifestTemplate_InTheRepo_CarriesThePlaceholderOnce_AndStampsToTheBinCopy()
@@ -56,7 +56,7 @@ public class CompatibilityMatrixTests
         await Assert.That(File.Exists(binPath)).IsTrue().Because($"the bin copy must exist at {binPath}");
 
         ExtensionManifest fromBin = ExtensionManifest.Parse(await File.ReadAllTextAsync(binPath));
-        ExtensionManifest fromEmbedded = new StratBookPack().Manifest;
+        ExtensionManifest fromEmbedded = ExtensionManifests.Of(new StratBookPack());
         string? informational = typeof(StratBookPack).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
         using (Assert.Multiple())

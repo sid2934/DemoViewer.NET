@@ -17,7 +17,7 @@ public sealed record PackCommand(CommandDescriptor Command, string PackId, strin
 /// <summary>
 ///     The merged command set: the core <see cref="Playback2DKeymap" /> table, whose rows already carry a
 ///     command id one to one with their <see cref="Playback2DAction" /> name, union every compiled-in
-///     pack's <see cref="IFeaturePack.Commands" />. Built once, with no DI and no composition root, so a
+///     pack's <see cref="IExtension.Commands" />. Built once, with no DI and no composition root, so a
 ///     bare-constructed view model in a headless test resolves pack chords the same as a fully composed app.
 ///     <para>
 ///         A pack row whose default chord collides with an earlier row (core, the shell, or another pack)
@@ -70,7 +70,7 @@ public sealed class CommandRegistry
     ///     state, so a test proves the conflict and pack-off paths with its own fake pack instead of
     ///     touching <see cref="Default" />.
     /// </summary>
-    public static CommandRegistry Build(IReadOnlyList<IFeaturePack> packs)
+    public static CommandRegistry Build(IReadOnlyList<IExtension> packs)
     {
         ArgumentNullException.ThrowIfNull(packs);
 
@@ -79,7 +79,7 @@ public sealed class CommandRegistry
         List<string> conflicts = [];
         Dictionary<Playback2DAction, PackCommand> byAction = new();
 
-        foreach (IFeaturePack pack in packs)
+        foreach (IExtension pack in packs)
         {
             string label = pack.Features.FirstOrDefault(f => f.Id == pack.FeatureId)?.Label ?? pack.FeatureId;
 
@@ -180,7 +180,7 @@ public sealed class CommandRegistry
     ///     Whether two command lists agree on id, scope and default chord, position by position.
     ///     <see cref="CommandDescriptor.Run" /> and <see cref="CommandDescriptor.CanRun" /> are delegates
     ///     and compare by reference, so they are deliberately excluded. This is the check the composition
-    ///     root runs between a pack's <c>Contribute(...)</c> call and its <see cref="IFeaturePack.Commands" />
+    ///     root runs between a pack's <c>Contribute(...)</c> call and its <see cref="IExtension.Commands" />
     ///     property, so the two channels cannot drift apart.
     /// </summary>
     public static bool CommandsMatch(IReadOnlyList<CommandDescriptor> a, IReadOnlyList<CommandDescriptor> b)

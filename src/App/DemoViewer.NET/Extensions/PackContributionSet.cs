@@ -1,14 +1,13 @@
 #region
 
 using DemoViewer.NET.Features;
-using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
 
 namespace DemoViewer.NET.Extensions;
 
 /// <summary>
-///     Every pack's contributions, collected once: <see cref="IFeaturePack.Contribute" /> runs per pack when
+///     Every pack's contributions, collected once: <see cref="IExtension.Contribute" /> runs per pack when
 ///     this is first resolved, and every consumer (the module registry, the merged rules build) reads the
 ///     same collection. A container singleton so no consumer triggers a second <c>Contribute</c>.
 /// </summary>
@@ -16,14 +15,14 @@ internal sealed class PackContributionSet
 {
     /// <param name="packs">The packs, in registration order.</param>
     /// <param name="sp">The composition root each pack resolves its services from.</param>
-    public PackContributionSet(IReadOnlyList<IFeaturePack> packs, IServiceProvider sp)
+    public PackContributionSet(IReadOnlyList<IExtension> packs, IServiceProvider sp)
     {
         ArgumentNullException.ThrowIfNull(packs);
         ArgumentNullException.ThrowIfNull(sp);
         List<PackContributions> collected = new(packs.Count);
-        foreach (IFeaturePack pack in packs)
+        foreach (IExtension pack in packs)
         {
-            PackContributions contributions = new(pack);
+            PackContributions contributions = new(pack, () => sp.GetExtensionContext(pack.Id));
             pack.Contribute(contributions, sp);
             collected.Add(contributions);
         }
@@ -44,7 +43,7 @@ internal sealed class PackContributionSet
     public IReadOnlyList<StatusChipContribution> StatusChips => [.. Packs.SelectMany(p => p.StatusChips)];
 
     /// <summary>Every pack's re-index estimate, in pack order. Settings watches only the first for the toggle notice.</summary>
-    public IReadOnlyList<IPackReindexEstimate> ReindexEstimates => [.. Packs.SelectMany(p => p.ReindexEstimates)];
+    public IReadOnlyList<IReindexEstimate> ReindexEstimates => [.. Packs.SelectMany(p => p.ReindexEstimates)];
 
     /// <summary>Every pack's Library filter/badge contributions, in pack order. The Library hosts these generically.</summary>
     public IReadOnlyList<ILibraryContribution> LibraryContributions => [.. Packs.SelectMany(p => p.LibraryContributions)];
@@ -52,11 +51,11 @@ internal sealed class PackContributionSet
     /// <summary>Every pack's store and cache paths, in pack order then contribution order.</summary>
     public IReadOnlyList<StoreDescriptor> Stores => [.. Packs.SelectMany(p => p.Stores)];
 
-    /// <summary>Every pack's shell attachment, in pack order; the shell factory runs them once after construction.</summary>
-    public IReadOnlyList<Action<MainViewModel>> ShellAttachments => [.. Packs.SelectMany(p => p.ShellAttachments)];
+    /// <summary>Every extension's Match Overview actions, in extension order.</summary>
+    public IReadOnlyList<GatedDemoAction> DemoActions => [.. Packs.SelectMany(p => p.DemoActions)];
 
     /// <summary>Every pack's "delete extension data" action, in pack order. One row per entry in Settings.</summary>
-    public IReadOnlyList<IPackDataRemoval> DataRemovals => [.. Packs.Select(p => p.DataRemovalContribution).OfType<IPackDataRemoval>()];
+    public IReadOnlyList<IExtensionDataRemoval> DataRemovals => [.. Packs.Select(p => p.DataRemovalContribution).OfType<IExtensionDataRemoval>()];
 
     /// <summary>
     ///     Every pack-owned ruleset with its owner's live gate answer. A null gate reads every pack as on,

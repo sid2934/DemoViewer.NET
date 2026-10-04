@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The contract an extension builds against. It references no app or Playback2D assembly: everything an
+      extension reaches in the host goes through the interfaces here, which the app implements.
+      Its public API is pinned by PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt, and the assembly version
+      is Major.0.0.0 (version.json), so an extension built against any 1.x binds to every 1.x host.
+    -->
+    <PropertyGroup>
+        <RootNamespace>DemoViewer.NET.Extensions.Sdk</RootNamespace>
+        <IsPackable>true</IsPackable>
+        <PackageId>DemoViewer.NET.Extensions.Sdk</PackageId>
+        <Description>Build extensions for DemoViewer.NET: tabs, demo evaluators, 2D Playback contributions, library filters and settings pages.</Description>
+        <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk</PackageTags>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="CS2DemoKit.Parser"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\App\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
+        <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
+        <None Include="build\**" Pack="true" PackagePath="build\"/>
+    </ItemGroup>
+
+</Project>

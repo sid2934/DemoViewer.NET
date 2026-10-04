@@ -147,6 +147,7 @@
              chunk (App bootstrap); the refs live here so SettingsService can use Configuration/Options
              now. Microsoft.Extensions.Hosting is intentionally NOT added. Pinned to the net10.0 line. -->
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.0"/>
@@ -160,5 +161,7 @@
              boundary. Pinned to the net10.0 line. -->
         <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0"/>
         <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.0"/>
+        <!-- The extension SDK's public surface is pinned by a shipped/unshipped list. -->
+        <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0"/>
     </ItemGroup>
 </Project>

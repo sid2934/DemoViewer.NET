@@ -221,22 +221,22 @@ public class HostTabContributionTests
 
     // A pack with one host tab and one module of two sections; the host's view is built in code so the
     // test owns what the rail shows.
-    private sealed class FakePack : IFeaturePack
+    private sealed class FakePack : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.test.fakepack";
         public string FeatureId => PackId;
         public ExtensionManifest Manifest => FakeManifests.For(Id);
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
-            contributions.HostTab(new HostTabContribution(HostId, HostId, "Fake", 7, "FAKE RAIL",
+            ((IFirstPartyContributions)contributions).HostTab(new HostTabContribution(HostId, HostId, "Fake", 7, "FAKE RAIL",
                 () => new FakeHostViewModel(), () => new FakeHostView()));
-            contributions.Module(new SectionsModule());
+            contributions.Tabs(new SectionsModule());
         }
     }
 

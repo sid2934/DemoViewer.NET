@@ -19,9 +19,10 @@ public static class QueueWork
     ///     a user's item may stop it and it runs again later. False for work that cannot stop part-way.
     /// </param>
     /// <param name="serial">Items sharing it never run at the same time.</param>
+    /// <param name="extensionKind">With <see cref="QueueJobKind.Extension" />, the declared kind id.</param>
     public static Task Run(IDemoProcessingQueue? queue, QueueJobKind kind, string title, string owner,
         Action<CancellationToken> work, DemoJobPriority priority = DemoJobPriority.Background, string? key = null,
-        bool preemptible = false, string? serial = null)
+        bool preemptible = false, string? serial = null, string? extensionKind = null)
     {
         ArgumentNullException.ThrowIfNull(work);
         if (queue is null || Bypass)
@@ -48,7 +49,7 @@ public static class QueueWork
             }
 
             return Task.CompletedTask;
-        }, key, ReplacePending: key is not null, Preemptible: preemptible, Serial: serial));
+        }, key, ReplacePending: key is not null, Preemptible: preemptible, Serial: serial, ExtensionKind: extensionKind));
 
         // A disposed queue refuses without running; the work still has to happen.
         return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(CancellationToken.None)) : handle.Completion;

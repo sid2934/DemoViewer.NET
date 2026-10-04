@@ -16,11 +16,11 @@ namespace DemoViewer.NET.Extensions;
 public sealed class PlaybackContributionHost
 {
     private readonly IFeatureGate? _gate;
-    private readonly IReadOnlyList<(IFeaturePack Pack, IReadOnlyList<IPlaybackContribution> Contributions)> _packs;
+    private readonly IReadOnlyList<(IExtension Pack, IReadOnlyList<IPlaybackContribution> Contributions)> _packs;
 
     /// <param name="packs">Each pack with its playback contributions, in pack order.</param>
     /// <param name="gate">The live gate, or null for a host that does not gate.</param>
-    public PlaybackContributionHost(IEnumerable<(IFeaturePack Pack, IReadOnlyList<IPlaybackContribution> Contributions)> packs,
+    public PlaybackContributionHost(IEnumerable<(IExtension Pack, IReadOnlyList<IPlaybackContribution> Contributions)> packs,
         IFeatureGate? gate)
     {
         ArgumentNullException.ThrowIfNull(packs);
@@ -98,7 +98,7 @@ public sealed class PlaybackContributionHost
                 return;
             }
 
-            foreach ((IFeaturePack pack, IReadOnlyList<IPlaybackContribution> contributions) in _host._packs)
+            foreach ((IExtension pack, IReadOnlyList<IPlaybackContribution> contributions) in _host._packs)
             {
                 bool on = _host._gate?.IsEnabled(pack.FeatureId) ?? true;
                 foreach (IPlaybackContribution contribution in contributions)

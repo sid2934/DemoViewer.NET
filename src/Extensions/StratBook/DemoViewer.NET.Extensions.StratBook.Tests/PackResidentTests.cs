@@ -15,7 +15,7 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     <see cref="IPackResident" /> on each resident, outside any container: Release empties and
+///     <see cref="IExtensionResident" /> on each resident, outside any container: Release empties and
 ///     unsubscribes, a source change after it changes nothing, Attach plus the load bring the state back, and
 ///     both calls are idempotent.
 /// </summary>

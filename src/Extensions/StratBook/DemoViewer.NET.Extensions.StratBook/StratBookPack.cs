@@ -56,7 +56,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///     Review Queue are registered by the composition root, not here: core surfaces read them. Round Facts
 ///     is registered here: its ruleset rides the merged build only while the pack is on.
 /// </summary>
-public sealed class StratBookPack : IFeaturePack
+public sealed class StratBookPack : IExtension
 {
     /// <summary>The umbrella gate id. A persisted override key.</summary>
     public const string PackFeatureId = "pack.stratbook";
@@ -71,16 +71,13 @@ public sealed class StratBookPack : IFeaturePack
     public string FeatureId => PackFeatureId;
 
     /// <inheritdoc />
-    public ExtensionManifest Manifest => _manifest.Value;
-
-    /// <inheritdoc />
-    public IEnumerable<FeatureDescriptor> Features => _features;
+    public IEnumerable<ExtensionFeature> Features => _features;
 
     /// <inheritdoc />
     public IEnumerable<CommandDescriptor> Commands => StratBookCommands.All;
 
     /// <inheritdoc />
-    public IEnumerable<JobKindDescriptor> JobKinds => StratBookJobKinds.All;
+    public IEnumerable<ExtensionJobKind> JobKinds => StratBookJobKinds.All;
 
     /// <summary>
     ///     The Strat Book hub as a host tab: one strip tab whose rail lists every section that names
@@ -96,111 +93,106 @@ public sealed class StratBookPack : IFeaturePack
             () => new StratBookHubViewModel(layout()), () => new StratBookHubView(), PackFeatureId);
     }
 
-    // The embedded extension.json (src/Extensions/StratBook/extension.json stamped with the version from
-    // version.json at build; see src/Extensions/ExtensionManifest.targets), read once.
-    private static readonly Lazy<ExtensionManifest> _manifest =
-        new(() => ExtensionManifest.ReadEmbedded(typeof(StratBookPack).Assembly));
-
     // Every id is a persisted override key and must never be renamed; labels and descriptions are display
     // text. Tabs are parented to the pack; sub-features keep their tab parent, so the two docked in 2D
     // Playback cascade from tab.playback2d, not from the pack, until they are reparented.
-    private static readonly FeatureDescriptor[] _features =
+    private static readonly ExtensionFeature[] _features =
     [
         new(
-            PackFeatureId, FeatureScope.Pack, "Strat Book extension",
+            PackFeatureId, ExtensionFeatureKind.Extension, "Strat Book extension",
             "Strats, situations, tags, utility, review, dossier and teams: the whole Strat Book, its "
             + "background indexing included. Off hides every section and stops its work.",
-            null, null, false, FeatureCatalog.Defaults(true, true, true)),
+            null, AudienceDefaults.Everyone),
 
         // ---------------- TABS (ParentId = the pack) ----------------
         // The Situations tab: Situation Search over the round index. Default-visible to every category
         // like Reels, for the same reason: the flagship's payoff must not hide from the audience that
         // wants it.
         new(
-            "tab.situations", FeatureScope.Tab, "Situations",
+            "tab.situations", ExtensionFeatureKind.Tab, "Situations",
             "Find rounds by where the players stood: search the library's round index for a setup, "
             + "an execute or a retake and walk the hits.",
-            PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            PackFeatureId, AudienceDefaults.Everyone),
         // The Teams tab: who played in which demo, which team is us, the opponent per demo. Default-visible
         // like Situations: the Library's team filter and every "our / their" surface read what is decided
         // here.
         new(
-            "tab.teams", FeatureScope.Tab, "Teams",
+            "tab.teams", ExtensionFeatureKind.Tab, "Teams",
             "The teams found across your demos: name them, say which one is you, merge or split rosters, "
             + "and confirm your own accounts so every demo knows which side is ours.",
-            PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            PackFeatureId, AudienceDefaults.Everyone),
         // The Review tab: the Review Queue every surface sends clips to, the Reels tray's included.
         // Default-visible like Teams: the Reels tray stages into it whether or not it shows.
         new(
-            ReviewQueueModule.TabFeatureId, FeatureScope.Tab, "Review",
+            ReviewQueueModule.TabFeatureId, ExtensionFeatureKind.Tab, "Review",
             "One queue of clips from any demo: staged highlights, situation search results and picks at the "
             + "playhead, in sections with a question per clip.",
-            PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            PackFeatureId, AudienceDefaults.Everyone),
         // The Strat Book's Suggested section: every demo's tag suggestions in one inbox. Default-visible like
         // Review.
         new(
-            SuggestedInboxModule.TabFeatureId, FeatureScope.Tab, "Suggested",
+            SuggestedInboxModule.TabFeatureId, ExtensionFeatureKind.Tab, "Suggested",
             "Every demo's tag suggestions in one list: accept them into the demo's tags, dismiss them, or open "
             + "one in 2D Playback.",
-            PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            PackFeatureId, AudienceDefaults.Everyone),
         // The Round Tagger's Matrix tab: codes by labels across the library's tags. Default-visible like
         // Situations and Teams.
         new(
-            RoundTaggerModule.TabFeatureId, FeatureScope.Tab, "Round Tagger",
+            RoundTaggerModule.TabFeatureId, ExtensionFeatureKind.Tab, "Round Tagger",
             "Tag stretches of a round with your own codes and labels, then pivot them across every demo "
             + "in the Matrix.",
-            PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            PackFeatureId, AudienceDefaults.Everyone),
         // The Strat Book tab: strats per book (a team or you) on the round clock, with slots, steps and
         // branches. Default-visible like the Matrix, and on both hosts: the browser keeps strats for the
         // session and says so.
         new(
-            StratBookModule.TabFeatureId, FeatureScope.Tab, "Strat Book",
+            StratBookModule.TabFeatureId, ExtensionFeatureKind.Tab, "Strat Book",
             "Write your team's strats on the round clock: five slots, the steps each one takes, and the "
             + "branches when the plan changes.",
-            PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            PackFeatureId, AudienceDefaults.Everyone),
         // The Utility Book tab: the Grenade Index, every indexed grenade clustered by where it landed.
         // Default-visible like the Strat Book, and on both hosts: the browser indexes the open demo for the
         // session and says so.
         new(
-            UtilityBookModule.TabFeatureId, FeatureScope.Tab, "Utility Book",
+            UtilityBookModule.TabFeatureId, ExtensionFeatureKind.Tab, "Utility Book",
             "Every grenade in your indexed demos, grouped by where it landed: pick a map, a grenade and a "
             + "landing place to see every position it was thrown from.",
-            PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            PackFeatureId, AudienceDefaults.Everyone),
         // The Opponent Dossier tab: the Map Pool Record and, later, the rest of the Dossier sections,
         // keyed by a Team Identity team. Default-visible like the Strat Book and the Utility Book, and
         // on both hosts: the browser keeps teams for the session and the Teams tab already says so.
         new(
-            DossierModule.TabFeatureId, FeatureScope.Tab, "Dossier",
+            DossierModule.TabFeatureId, ExtensionFeatureKind.Tab, "Dossier",
             "A scouting page per team: maps played, win rate, side wins and the decider record where "
             + "it is inferable, plus a veto history you enter by hand.",
-            PackFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            PackFeatureId, AudienceDefaults.Everyone),
 
         // ---------------- SUB-FEATURES (ParentId = owning tab) ----------------
         // The Round Tagger's palette docked in the 2D tab. Works on both hosts: the
         // browser keeps tags for the session and the palette says so.
         new(
-            RoundTaggerModule.PaletteFeatureId, FeatureScope.SubFeature, "Tag palette",
+            RoundTaggerModule.PaletteFeatureId, ExtensionFeatureKind.SubFeature, "Tag palette",
             "Tag the round you are watching with a hotkey palette; tags are saved per demo.",
-            "tab.playback2d", null, false, FeatureCatalog.Defaults(true, true, true)),
+            "tab.playback2d", AudienceDefaults.Everyone),
         // Suggested Tags: the Suggested track, the proposal queue and the
         // evaluator. On for both hosts; the browser keeps proposals and verdicts for the session.
         new(
-            SuggestedTagsService.FeatureId, FeatureScope.SubFeature, "Suggested tags",
+            SuggestedTagsService.FeatureId, ExtensionFeatureKind.SubFeature, "Suggested tags",
             "Offer tags found by detectors (execute, default, fake, opener, retake) to accept, edit or reject.",
-            "tab.playback2d", null, false, FeatureCatalog.Defaults(true, true, true)),
+            "tab.playback2d", AudienceDefaults.Everyone),
         // Strat Export: the open strat to GIF or video with no demo behind it. Desktop
         // only for playback2d.export's reason, through the same ShellModuleFeatureGate.DesktopOnlyIds.
         new(
-            StratBookTabViewModel.ExportFeatureId, FeatureScope.SubFeature, "Strat export",
+            StratBookTabViewModel.ExportFeatureId, ExtensionFeatureKind.SubFeature, "Strat export",
             "Render a strat to gif/webm/mp4 from the Strat Book canvas. Desktop only.",
-            StratBookModule.TabFeatureId, null, false, FeatureCatalog.Defaults(true, true, true)),
+            StratBookModule.TabFeatureId, AudienceDefaults.Everyone),
         // Token routing: strat tokens walk the map's nav round walls instead of in
         // straight lines, on the canvas, the Detected preview and an export. On by default; off is the straight lines
         // and timing strats had before. Both hosts: the graph is built from the map's zones.json.
         new(
-            FeatureCatalog.StratRoutingFeatureId, FeatureScope.SubFeature, "Token routing",
+            FeatureCatalog.StratRoutingFeatureId, ExtensionFeatureKind.SubFeature, "Token routing",
             "Move strat tokens along the map's walkways instead of in straight lines through walls.",
-            StratBookModule.TabFeatureId, null, false, FeatureCatalog.Defaults(true, true, true))
+            StratBookModule.TabFeatureId, AudienceDefaults.Everyone)
     ];
 
     /// <inheritdoc />
@@ -324,8 +316,9 @@ public sealed class StratBookPack : IFeaturePack
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
                 action => Dispatcher.UIThread.Post(action),
-                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
-                    "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial),
+                run: work => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.Extension,
+                    "Teams: update", "teams", _ => work(), serial: TeamIdentityService.QueueSerial,
+                    extensionKind: StratBookJobKinds.Teams),
                 scheduleLoad: StartupLoad(sp, "Load: teams", "teams"),
                 loadAtStart: false);
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
@@ -360,9 +353,9 @@ public sealed class StratBookPack : IFeaturePack
                     await shell.LoadDemoFromPathAsync(path);
                 }
             },
-            command: (what, change) => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.TeamsCommand,
+            command: (what, change) => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.Extension,
                 "Teams: " + what.TrimEnd('…'), "teams", _ => change(), DemoJobPriority.UserRequested,
-                serial: TeamIdentityService.QueueSerial),
+                serial: TeamIdentityService.QueueSerial, extensionKind: StratBookJobKinds.Teams),
             post: action => Dispatcher.UIThread.Post(action)));
 
         // SituationIndex, TeamIdentityService and TagFactsRefresher were registered by the composition root,
@@ -798,7 +791,7 @@ public sealed class StratBookPack : IFeaturePack
 
         // The pack's lifecycle: resolved by the app only while pack.stratbook resolves on,
         // keyed by the pack's own id so a future second pack's lifecycle never collides with this one.
-        services.AddKeyedSingleton<IPackLifecycle, StratBookLifecycle>(Id);
+        services.AddKeyedSingleton<IExtensionLifecycle, StratBookLifecycle>(Id);
 
         // The Strat Book export chip's mount point: shared by the StatusChip contribution below
         // and the IStratExport factory's mount callback, so both sides of the hand-off agree on one slot.
@@ -813,7 +806,7 @@ public sealed class StratBookPack : IFeaturePack
     // Wraps an existing registration's factory so the built instance is also recorded on the tracker,
     // without adding, dropping or re-scoping the registration itself (StratBookPackTests pins the set).
     private static void TrackBuilt<T>(IServiceCollection services)
-        where T : class, IPackResident
+        where T : class, IExtensionResident
     {
         ServiceDescriptor original = services.First(d => d.ServiceType == typeof(T));
         Func<IServiceProvider, object> factory = original.ImplementationFactory
@@ -826,7 +819,7 @@ public sealed class StratBookPack : IFeaturePack
         }));
     }
 
-    // Like TrackBuilt, for a core-registered evaluator that is not an IPackResident: no
+    // Like TrackBuilt, for a core-registered evaluator that is not an IExtensionResident: no
     // Attach/Release, just a was-it-constructed field a test reads.
     private static void TrackBuiltEvaluator<T>(IServiceCollection services, Action<StratBookPackInstances, T> record)
         where T : class
@@ -843,16 +836,21 @@ public sealed class StratBookPack : IFeaturePack
     }
 
     /// <inheritdoc />
-    public void Contribute(IPackContributions contributions, IServiceProvider sp)
+    public void Contribute(IExtensionContributions contributions, IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(contributions);
-        ArgumentNullException.ThrowIfNull(sp);
+        ArgumentNullException.ThrowIfNull(services);
+        IServiceProvider sp = services;
+
+        // The hub tab, the export chip, the round_facts ruleset, the forward-pass evaluators and the playback
+        // contributions that read scene frames and keymap scopes are first-party surfaces the SDK does not carry.
+        IFirstPartyContributions firstParty = (IFirstPartyContributions)contributions;
 
         contributions.Commands(StratBookCommands.All);
 
         // The hub every section below sits on. The shell builds the hub VM when it builds the strip, so the
         // layout singleton resolves then, pack on or off, as it did when the shell took it by constructor.
-        contributions.HostTab(HubHostTab(sp.GetRequiredService<StratBookLayout>));
+        firstParty.HostTab(HubHostTab(sp.GetRequiredService<StratBookLayout>));
 
         // Settings pages: the Suggested Tags tuning card and the Grenade Index card, both
         // desktop-only (no filesystem on the browser, same gate they had before the move).
@@ -864,7 +862,7 @@ public sealed class StratBookPack : IFeaturePack
 
         // The Strat Book export chip: the shell shows it only while the pack is on, through the
         // same slot the IStratExport factory mounts into on the first Export.
-        contributions.StatusChip(new StatusChipContribution(
+        firstParty.StatusChip(new StatusChipContribution(
             "stratbook.export", 0, sp.GetRequiredService<StratBookExportChipSlot>()));
 
         // The Settings "N demos will be re-indexed" notice's count, over the same evaluators the
@@ -876,13 +874,12 @@ public sealed class StratBookPack : IFeaturePack
         // evaluator resolves inside the delegates, so a press, not the shell's construction, builds it.
         if (!OperatingSystem.IsBrowser())
         {
-            IFeatureGate? gate = sp.GetService<IFeatureGate>();
-            contributions.Shell(shell =>
-            {
-                shell.MatchOverviewTab.IndexGrenades = path => sp.GetRequiredService<GrenadeIndexEvaluator>().Request(path);
-                shell.MatchOverviewTab.AreGrenadesIndexed = path => sp.GetRequiredService<GrenadeIndexEvaluator>().IsCurrent(path);
-                shell.MatchOverviewTab.PackEnabled = () => gate?.IsEnabled(PackFeatureId) ?? true;
-            });
+            IExtensionContext context = contributions.Context;
+            contributions.DemoAction(new DemoAction("stratbook.index-grenades", "Index grenades",
+                "Queue this demo's grenade walk: every throw with its lineup and landing point. It runs in the background and never opens the demo",
+                path => !string.Equals(path, context.Shell.CurrentDemoPath, StringComparison.OrdinalIgnoreCase)
+                        && !sp.GetRequiredService<GrenadeIndexEvaluator>().IsCurrent(path),
+                path => sp.GetRequiredService<GrenadeIndexEvaluator>().Request(path)));
         }
 
         // The Library's Team filter and provenance chip, each resolving its service lazily on first use.
@@ -896,7 +893,7 @@ public sealed class StratBookPack : IFeaturePack
         // The round_facts ruleset in the rules directories is the pack's: MergedRulesBuild runs it only
         // while the pack is on and keeps it out of the highlights fingerprint. Not a doc of its own, so
         // the user overlay and the Workbench keep working on it.
-        contributions.Ruleset(RoundFactsFingerprint.RulesetId);
+        firstParty.Ruleset(RoundFactsFingerprint.RulesetId);
 
         // The four pack evaluators on the demo fan-out, ordered to match the dependency chain
         // each one reads: Round Facts after the library write, Round Index after Round Facts' rows,
@@ -904,20 +901,15 @@ public sealed class StratBookPack : IFeaturePack
         // the others write). The registry resolves this only while the pack is on, so these factories are
         // never invoked, and these services never constructed, with the pack off.
         string libraryId = sp.GetRequiredService<DemoLibraryService>().Id;
-        contributions.Evaluator(RoundFactsEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundFactsEvaluator>(),
+        firstParty.FirstPartyEvaluator(RoundFactsEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundFactsEvaluator>(),
             libraryId);
-        contributions.Evaluator(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
+        firstParty.FirstPartyEvaluator(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
             RoundFactsEvaluator.EvaluatorId);
-        contributions.Evaluator(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
+        firstParty.FirstPartyEvaluator(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
             RoundIndexEvaluator.EvaluatorId);
-        contributions.Evaluator(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
+        firstParty.FirstPartyEvaluator(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             libraryId);
 
-        // The pack's five job kinds, from the same array JobKinds below exposes DI-free.
-        foreach (JobKindDescriptor kind in StratBookJobKinds.All)
-        {
-            contributions.JobKind(kind);
-        }
 
         // Every store and cache path the pack owns, and the "delete extension data" action over
         // them: no filesystem on the browser, the same gate the two settings pages above take.
@@ -934,9 +926,9 @@ public sealed class StratBookPack : IFeaturePack
         // Create Strat From Round in 2D Playback: the round band's entry and the review pane, one
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
         // gate above decides what the band offers; nothing is constructed here.
-        contributions.Playback(new CreateStratPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
-        contributions.Playback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
-        contributions.Playback(new Modules.Situations.SituationsPlaybackContribution());
+        firstParty.FirstPartyPlayback(new CreateStratPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
+        firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(action => Dispatcher.UIThread.Post(action)));
+        firstParty.FirstPartyPlayback(new Modules.Situations.SituationsPlaybackContribution());
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator
@@ -945,19 +937,19 @@ public sealed class StratBookPack : IFeaturePack
         // situation index and Team Identity) on every launch regardless of the pack's gate.
         IFeatureGate? situationsGate = sp.GetService<IFeatureGate>();
         bool situationsOn = situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false;
-        contributions.Module(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>,
+        contributions.Tabs(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>,
             situationsOn ? sp.GetRequiredService<WatchedSituationsService>() : null,
             enabled: () => situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false,
             gate: situationsGate));
 
         // The Teams tab, hosted inside the Library.
-        contributions.Module(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
+        contributions.Tabs(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
 
         // The Review tab. Same gated-resolve shape as Situations: ReviewQueue is core (Reels uses it too),
         // but resolving it here regardless of the gate still queued its startup load on every launch.
         IFeatureGate? reviewGate = sp.GetService<IFeatureGate>();
         bool reviewOn = reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false;
-        contributions.Module(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
+        contributions.Tabs(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
             reviewOn ? sp.GetRequiredService<ReviewQueue>() : null,
             enabled: () => reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false,
             gate: reviewGate));
@@ -966,22 +958,22 @@ public sealed class StratBookPack : IFeaturePack
         // enabled/gate read sp directly, not the App.Services locator: Contribute runs inside
         // BuildServiceProvider, before App.Services is assigned, so the static fallback would see null here.
         IFeatureGate? suggestedGate = sp.GetService<IFeatureGate>();
-        contributions.Module(new SuggestedInboxModule(sp.GetRequiredService<SuggestedInboxViewModel>,
+        contributions.Tabs(new SuggestedInboxModule(sp.GetRequiredService<SuggestedInboxViewModel>,
             sp.GetService<DemoCacheStore>(),
             enabled: () => suggestedGate?.IsEnabled(SuggestedInboxModule.TabFeatureId) ?? false,
             gate: suggestedGate));
 
         // The Round Tagger's Matrix tab.
-        contributions.Module(new RoundTaggerModule(sp.GetRequiredService<TagMatrixTabViewModel>));
+        contributions.Tabs(new RoundTaggerModule(sp.GetRequiredService<TagMatrixTabViewModel>));
 
         // The Strat Book tab.
-        contributions.Module(new StratBookModule(sp.GetRequiredService<StratBookTabViewModel>));
+        contributions.Tabs(new StratBookModule(sp.GetRequiredService<StratBookTabViewModel>));
 
         // The Utility Book tab.
-        contributions.Module(new UtilityBookModule(sp.GetRequiredService<UtilityBookTabViewModel>));
+        contributions.Tabs(new UtilityBookModule(sp.GetRequiredService<UtilityBookTabViewModel>));
 
         // The Opponent Dossier tab.
-        contributions.Module(new DossierModule(sp.GetRequiredService<DossierTabViewModel>));
+        contributions.Tabs(new DossierModule(sp.GetRequiredService<DossierTabViewModel>));
     }
 
     // The Utility Book tab, and the Strat Book's lineup picker (locked to the strat's map): the same index,

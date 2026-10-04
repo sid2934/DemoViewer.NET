@@ -62,11 +62,11 @@ public interface ILineupClipRenderer
 ///     <para>
 ///         <b>Threading.</b> <see cref="PlanSoon" /> is what an index change calls: it coalesces a burst of
 ///         changes and runs <see cref="Plan" /> on the pool, one plan at a time, so planning every lineup never
-///         blocks the UI thread. Renders run one demo at a time as <see cref="QueueJobKind.LineupClips" /> items of
+///         blocks the UI thread. Renders run one demo at a time as <see cref="DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.LineupClips" /> items of
 ///         the processing queue, which runs them exclusively; the sweep runs on the pool.
 ///     </para>
 /// </summary>
-public sealed class LineupClipService : IPackResident, IDisposable
+public sealed class LineupClipService : IExtensionResident, IDisposable
 {
     /// <summary>The file in the clip directory listing evicted pair stems, one per line.</summary>
     public const string EvictedFileName = "evicted.txt";
@@ -885,9 +885,10 @@ public sealed class LineupClipService : IPackResident, IDisposable
         string title = string.Create(CultureInfo.InvariantCulture,
             $"Lineup clips: {demo.Map}, {demo.Count} {(demo.Count == 1 ? "clip" : "clips")} from {Path.GetFileName(demo.Path)}");
         CancellationToken ct = _ct;
-        IDemoQueueHandle handle = processing.SubmitJob(new QueueJobRequest(QueueJobKind.LineupClips, title,
+        IDemoQueueHandle handle = processing.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, title,
             "lineup-clips", demo.Requested ? DemoJobPriority.UserRequested : DemoJobPriority.Background,
-            job => RenderBatchAsync(demo.Path, job, ct), "lineup-clips", demo.Path));
+            job => RenderBatchAsync(demo.Path, job, ct), "lineup-clips", demo.Path,
+            ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.LineupClips));
         if (handle.State == DemoQueueItemState.Rejected)
         {
             Stop(false);

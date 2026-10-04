@@ -9,6 +9,8 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.ViewModels;
 using SkiaSharp;
+using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 
 #endregion
 
@@ -195,7 +197,7 @@ public class Playback2DLaneHostingTests
     public async Task AModeToggle_IsListed_ItsActionFlipsItWhileAvailableOrOn_AndBoundPanelsFollow()
     {
         (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
-        ModeToggle mode = new("fake.mode", "Mode", "A fake mode", Playback2DAction.ToggleReviewMode);
+        ModeToggle mode = new("fake.mode", "Mode", "A fake mode", nameof(Playback2DAction.ToggleReviewMode));
         int flips = 0;
         mode.Changed += () => flips++;
 

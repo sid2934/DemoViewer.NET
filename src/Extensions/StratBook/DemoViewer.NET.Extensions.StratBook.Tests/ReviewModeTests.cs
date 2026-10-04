@@ -14,6 +14,7 @@ using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Views.Playback2D;
 using DemoViewer.NET.Views.RoundTagger;
+using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 
 #endregion
 

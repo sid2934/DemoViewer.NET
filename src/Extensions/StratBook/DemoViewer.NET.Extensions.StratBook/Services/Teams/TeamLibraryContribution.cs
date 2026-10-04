@@ -52,7 +52,7 @@ public sealed class TeamLibraryContribution(Func<TeamIdentityService> resolve, s
     public bool HasBadge => false;
 
     /// <inheritdoc />
-    public LibraryBadge? BadgeFor(DemoEntry entry) => null;
+    public LibraryBadge? BadgeFor(LibraryDemo demo) => null;
 
     /// <inheritdoc />
     public IReadOnlyList<string> BadgeLabels => [];
@@ -61,14 +61,14 @@ public sealed class TeamLibraryContribution(Func<TeamIdentityService> resolve, s
     public string? BadgeResetLabel => null;
 
     /// <inheritdoc />
-    public void SetLabel(DemoEntry entry, string? label)
+    public void SetLabel(LibraryDemo demo, string? label)
     {
         // No badge offered; nothing to set.
     }
 
     // "us" keeps demos whose our side resolved; a team key keeps demos with either end-of-demo side
     // assigned to that team.
-    private static Func<DemoEntry, string, bool> Matches(TeamIdentityService teams) => (entry, key) =>
+    private static Func<LibraryDemo, string, bool> Matches(TeamIdentityService teams) => (entry, key) =>
     {
         if (teams.GetAssignment(entry.FilePath) is not { } a)
         {

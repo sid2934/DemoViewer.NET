@@ -88,12 +88,12 @@ public sealed class SuggestedInboxService : IDisposable
 
             _loading = _queue is null
                 ? _run(ReadAll)
-                : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.SuggestionsInbox, "Suggested tags: library",
+                : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "Suggested tags: library",
                     "suggested-inbox", DemoJobPriority.UserRequested, _ =>
                     {
                         ReadAll();
                         return Task.CompletedTask;
-                    }, Key: "suggested-inbox")).Completion;
+                    }, Key: "suggested-inbox", ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.SuggestionsInbox)).Completion;
             return _loading;
         }
     }

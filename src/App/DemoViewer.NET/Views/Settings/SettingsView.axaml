@@ -719,7 +719,7 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- Delete extension data: one row per pack's IPackDataRemoval, available
+                        <!-- Delete extension data: one row per pack's IExtensionDataRemoval, available
                      whether the pack is on or off (deleting while off is the main use), so it is NOT
                      gated by a FeatureId the way a contributed page is. Arm counts what is there and
                      shows the confirmation inline (no modal dialog exists in this app to reuse); Confirm

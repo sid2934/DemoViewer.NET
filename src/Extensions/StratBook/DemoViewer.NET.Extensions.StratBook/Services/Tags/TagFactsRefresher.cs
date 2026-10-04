@@ -33,7 +33,7 @@ namespace DemoViewer.NET.Services.Tags;
 ///         person or Team Identity says so.
 ///     </para>
 /// </summary>
-public sealed class TagFactsRefresher : IPackResident, IDisposable
+public sealed class TagFactsRefresher : IExtensionResident, IDisposable
 {
     private readonly Action<Action> _background;
     private readonly IRoundFactsSource _facts;

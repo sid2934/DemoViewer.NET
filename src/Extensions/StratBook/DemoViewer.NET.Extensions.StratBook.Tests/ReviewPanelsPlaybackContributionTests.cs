@@ -76,7 +76,7 @@ public class ReviewPanelsPlaybackContributionTests
                 .Because("the tag lane comes first, then the suggestions, after the tab's own tracks");
             await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo([TagTrack.TrackId, ProposalTrack.TrackId]);
             await Assert.That(vm.Surface.ModeToggles.Select(t => t.Id)).IsEquivalentTo([ReviewPanelsPlaybackContribution.ReviewModeId]);
-            await Assert.That(review.ReviewMode!.Action).IsEqualTo(Playback2DAction.ToggleReviewMode);
+            await Assert.That(review.ReviewMode!.ActionId).IsEqualTo(nameof(Playback2DAction.ToggleReviewMode));
             await Assert.That(review.ReviewMode.IsOn).IsFalse();
             await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsTrue().Because("the lanes are the mode's");
             await Assert.That(vm.Surface.Panels.Select(p => p.Content!.GetType()))

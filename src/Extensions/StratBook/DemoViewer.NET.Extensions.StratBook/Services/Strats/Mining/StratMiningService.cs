@@ -46,7 +46,7 @@ public sealed record PromoteResult(StratDocument? Document, bool PatternChanged)
 ///         inputs changed (<see cref="SignatureCache" />).
 ///     </para>
 /// </summary>
-public sealed class StratMiningService : IPackResident, IDisposable
+public sealed class StratMiningService : IExtensionResident, IDisposable
 {
     /// <summary>The detected file's shape version.</summary>
     public const int SchemaVersion = 1;
@@ -345,14 +345,14 @@ public sealed class StratMiningService : IPackResident, IDisposable
             return loop;
         }
 
-        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: library",
+        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "Strat mining: library",
             "strat-mining", user ? DemoJobPriority.UserRequested : DemoJobPriority.Background, MineQueuedAsync,
-            Key: "strat-mining"));
+            Key: "strat-mining", ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.Mining));
         Task mine = handle.Completion.ContinueWith(_ =>
         {
             lock (_gate)
             {
-                _running = _queue.ActiveCount(QueueJobKind.StratMining) > 0;
+                _running = _queue.ActiveCount(DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.Mining) > 0;
             }
 
             _post(() => Changed?.Invoke());
@@ -603,13 +603,13 @@ public sealed class StratMiningService : IPackResident, IDisposable
             return cancellationToken.IsCancellationRequested ? null : built;
         }
 
-        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratPreview,
+        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension,
             $"Strat preview: {MinedStratBuilder.Name(pattern)}", "strat-mining", DemoJobPriority.UserRequested,
             async job =>
             {
                 job.CancellationToken.ThrowIfCancellationRequested();
                 await _run(() => built = Build(pattern, owner, nowUtc, job.CancellationToken)).ConfigureAwait(false);
-            }));
+            }, ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.Preview));
         await using (cancellationToken.Register(handle.Cancel))
         {
             await handle.Completion.ConfigureAwait(false);
@@ -720,12 +720,12 @@ public sealed class StratMiningService : IPackResident, IDisposable
         Mutate(state => state.Promoted.Remove(key));
         LastRunRemoval = _queue is null
             ? _run(() => RemoveRuns(id))
-            : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: remove a deleted strat's runs",
+            : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "Strat mining: remove a deleted strat's runs",
                 "strat-mining", DemoJobPriority.UserRequested, _ =>
                 {
                     RemoveRuns(id);
                     return Task.CompletedTask;
-                }, Key: "strat-runs:" + id.ToString("N"))).Completion;
+                }, Key: "strat-runs:" + id.ToString("N"), ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.Mining)).Completion;
     }
 
     /// <summary>

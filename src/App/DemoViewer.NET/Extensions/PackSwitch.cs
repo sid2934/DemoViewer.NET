@@ -11,10 +11,10 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Extensions;
 
 /// <summary>
-///     Drives each pack's <see cref="IPackLifecycle" /> from the gate, in both directions, on real
+///     Drives each pack's <see cref="IExtensionLifecycle" /> from the gate, in both directions, on real
 ///     transitions only: the resolved <see cref="IFeatureGate.IsEnabled" /> of the pack's id is compared with
 ///     the state the lifecycle was last put in, so a settings write that leaves the pack where it was does
-///     nothing. <see cref="Start" /> is the startup pass (<see cref="PackStartReason.Startup" />); every later
+///     nothing. <see cref="Start" /> is the startup pass (<see cref="ExtensionStartReason.Startup" />); every later
 ///     <see cref="IFeatureGate.Changed" /> is a live toggle. Off to on runs the same loads startup runs and
 ///     then re-polls the library so the pack's evaluators pick up every demo they now want; on to off hands
 ///     the lifecycle its release and cancels an enable still in flight through its token.
@@ -27,8 +27,8 @@ namespace DemoViewer.NET.Extensions;
 public sealed class PackSwitch : IDisposable
 {
     private readonly IFeatureGate _gate;
-    private readonly Func<IFeaturePack, IPackLifecycle?> _lifecycleFor;
-    private readonly IReadOnlyList<IFeaturePack> _packs;
+    private readonly Func<IExtension, IExtensionLifecycle?> _lifecycleFor;
+    private readonly IReadOnlyList<IExtension> _packs;
     private readonly IDemoProcessingQueue? _queue;
     private readonly Action _reconsider;
     private readonly Dictionary<string, PackState> _states = new(StringComparer.Ordinal);
@@ -42,7 +42,7 @@ public sealed class PackSwitch : IDisposable
     /// <param name="queue">The processing queue the re-poll runs in; null runs it on the pool.</param>
     /// <param name="reconsider">Re-polls every evaluator over the library (the coordinator's capacity re-feed).</param>
     /// <param name="waitForFirstRun">True while the first-run wizard has still to ask about the packs.</param>
-    public PackSwitch(IReadOnlyList<IFeaturePack> packs, IFeatureGate gate, Func<IFeaturePack, IPackLifecycle?> lifecycleFor,
+    public PackSwitch(IReadOnlyList<IExtension> packs, IFeatureGate gate, Func<IExtension, IExtensionLifecycle?> lifecycleFor,
         IDemoProcessingQueue? queue, Action reconsider, Func<bool>? waitForFirstRun = null)
     {
         ArgumentNullException.ThrowIfNull(packs);
@@ -69,12 +69,12 @@ public sealed class PackSwitch : IDisposable
         }
 
         _started = true;
-        Apply(PackStartReason.Startup);
+        Apply(ExtensionStartReason.Startup);
         _gate.Changed += OnGateChanged;
     }
 
     /// <summary>True while <paramref name="pack" />'s lifecycle has been enabled and not disabled since.</summary>
-    public bool IsOn(IFeaturePack pack)
+    public bool IsOn(IExtension pack)
     {
         ArgumentNullException.ThrowIfNull(pack);
         return _states.TryGetValue(pack.Id, out PackState? state) && state.Enabled;
@@ -102,16 +102,16 @@ public sealed class PackSwitch : IDisposable
         }
     }
 
-    private void OnGateChanged(object? sender, EventArgs e) => Apply(PackStartReason.EnabledInSession);
+    private void OnGateChanged(object? sender, EventArgs e) => Apply(ExtensionStartReason.EnabledInSession);
 
-    private void Apply(PackStartReason reason)
+    private void Apply(ExtensionStartReason reason)
     {
         if (_disposed || _waitForFirstRun())
         {
             return;
         }
 
-        foreach (IFeaturePack pack in _packs)
+        foreach (IExtension pack in _packs)
         {
             if (!_states.TryGetValue(pack.Id, out PackState? state))
             {
@@ -137,7 +137,7 @@ public sealed class PackSwitch : IDisposable
         }
     }
 
-    private void Enable(IFeaturePack pack, PackState state, PackStartReason reason)
+    private void Enable(IExtension pack, PackState state, ExtensionStartReason reason)
     {
         if (_lifecycleFor(pack) is not { } lifecycle)
         {
@@ -157,7 +157,7 @@ public sealed class PackSwitch : IDisposable
             return;
         }
 
-        if (reason != PackStartReason.EnabledInSession)
+        if (reason != ExtensionStartReason.EnabledInSession)
         {
             state.Pending = loads;
             return;
@@ -178,13 +178,16 @@ public sealed class PackSwitch : IDisposable
         state.Pending = Task.WhenAll(loads, reconsider);
     }
 
-    private void Disable(IFeaturePack pack, PackState state)
+    private void Disable(IExtension pack, PackState state)
     {
         // Cancelled then disposed: the items that hold its token only read IsCancellationRequested, which
         // a disposed source still answers.
         state.Enabling?.Cancel();
         state.Enabling?.Dispose();
         state.Enabling = null;
+
+        // Jobs submitted through the extension's context carry its id as their owner.
+        _queue?.CancelOwned(pack.Id);
         if (_lifecycleFor(pack) is not { } lifecycle)
         {
             return;
@@ -200,7 +203,7 @@ public sealed class PackSwitch : IDisposable
         }
     }
 
-    private static string LabelOf(IFeaturePack pack) =>
+    private static string LabelOf(IExtension pack) =>
         pack.Features.FirstOrDefault(d => d.Id == pack.FeatureId)?.Label ?? pack.Id;
 
     private static ILogger Log => DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
