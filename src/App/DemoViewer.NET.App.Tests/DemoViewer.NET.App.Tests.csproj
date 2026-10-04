@@ -34,6 +34,9 @@
              moving the pack's OWN tests out didn't remove this project's need for the pack assembly. -->
         <ProjectReference Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
         <ProjectReference Include="..\..\Testing\DemoViewer.NET.TestSupport\DemoViewer.NET.TestSupport.csproj"/>
+        <!-- Built, not referenced: the third-party extension tests install its output under a temp extensions folder. -->
+        <ProjectReference Include="..\..\..\samples\Extensions\HelloExtension\HelloExtension.csproj"
+                          ReferenceOutputAssembly="false" Private="false"/>
     </ItemGroup>
 
     <!-- These four files moved to the extension test project along with the rest of

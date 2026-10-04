@@ -32,6 +32,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
@@ -3541,6 +3542,43 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     the clock; the Diagnostics card and the idle resume read the same field.
     /// </summary>
     internal string? LoadedDemoPath => _loadedDemoPath;
+
+    // ── Safe mode ──
+
+    // Both fixed for the process: the decision is made in Main, before the shell exists.
+    private readonly SafeModeState _safeMode = LaunchGuard.Current?.Decision ?? SafeModeState.Off;
+    private readonly Action? _restart = AppHostHooks.Restart;
+
+    /// <summary>True when this launch loaded no extension.</summary>
+    public bool IsSafeMode => _safeMode.IsActive;
+
+    /// <summary>Why, in a sentence.</summary>
+    public string SafeModeMessage => _safeMode.Message;
+
+    /// <summary>True when the app can relaunch itself.</summary>
+    public bool CanRestart => _restart is not null;
+
+    /// <summary>True when the previous crash named an extension and its switch can be turned off.</summary>
+    public bool CanTurnOffSafeModeExtension =>
+        CanRestart && _settingsService is not null && _safeMode.ExtensionFeatureId is not null;
+
+    /// <summary>The button that turns the named extension off before restarting.</summary>
+    public string SafeModeTurnOffLabel => $"Turn off {_safeMode.ExtensionName} and restart";
+
+    [RelayCommand]
+    private void RestartNormally() => _restart?.Invoke();
+
+    [RelayCommand]
+    private void TurnOffExtensionAndRestart()
+    {
+        if (_safeMode.ExtensionFeatureId is not { } featureId || _settingsService is null)
+        {
+            return;
+        }
+
+        _settingsService.Write(s => s.Features.Overrides[featureId] = false);
+        _restart?.Invoke();
+    }
 
     /// <summary>
     ///     Drops every shell-held reference to the currently-loaded demo. Shared by the two load entry

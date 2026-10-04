@@ -701,6 +701,49 @@
                             </Border>
                         </StackPanel>
 
+                        <!-- Third-party extensions: the unverified switch (read at launch) and what is installed. -->
+                        <StackPanel Spacing="0" IsVisible="{x:Static settings:SettingsViewModel.ShowExternalExtensions}">
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="12">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="{x:Static settings:SettingsViewModel.AllowUnverifiedLabel}"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock
+                                                Text="Loads extensions nobody has verified. An extension runs inside the app with the same access to your files and network as the app itself, so only allow this for extensions you trust. Takes effect the next time the app starts."
+                                                Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                      OnContent="" OffContent=""
+                                                      IsChecked="{Binding AllowUnverifiedExtensions, Mode=TwoWay}" />
+                                    </Grid>
+                                    <TextBlock Text="Restart the app for this to take effect."
+                                               Foreground="{DynamicResource AccentCaution}" FontSize="11"
+                                               IsVisible="{Binding ShowAllowUnverifiedRestartNotice}" />
+
+                                    <ItemsControl ItemsSource="{Binding ExternalExtensionRows}"
+                                                  IsVisible="{Binding HasExternalExtensions}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="settings:ExternalExtensionRow">
+                                                <StackPanel Spacing="1" Margin="0,4">
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                                        <TextBlock Text="{Binding Version}" Foreground="{DynamicResource TextDim}" FontSize="11"
+                                                                   VerticalAlignment="Bottom" />
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding State}" TextWrapping="Wrap" FontSize="10"
+                                                               Foreground="{DynamicResource TextDim}" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="No third-party extensions are installed."
+                                               Foreground="{DynamicResource TextDim}" FontSize="11"
+                                               IsVisible="{Binding !HasExternalExtensions}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
                         <!-- Contributed settings pages: Content is null until the page's own
                      gate first resolves on, so ContentControl shows nothing for an unbuilt page; its
                      DataContext is set explicitly when built, not resolved through ViewLocator. -->

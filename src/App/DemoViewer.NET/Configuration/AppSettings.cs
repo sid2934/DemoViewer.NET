@@ -421,6 +421,12 @@ public sealed class ExtensionsSettings
     ///     an hour; the per-extension button always does.
     /// </summary>
     public DateTimeOffset? LastUpdateCheckUtc { get; set; }
+
+    /// <summary>
+    ///     "Allow unverified and potentially dangerous extensions". Off by default for every user. Read once
+    ///     at launch, before the app's own settings load, so a change takes effect at the next start.
+    /// </summary>
+    public bool AllowUnverified { get; set; }
 }
 
 /// <summary>Demo-library settings.</summary>

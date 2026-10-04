@@ -23,6 +23,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
@@ -239,6 +240,23 @@ public class App : Application
             }
 
             window.Opened += ShowWhatsNewOnce;
+
+            // The launch counts as started once the window opened and the UI thread kept answering for a
+            // few seconds; from then on the watchdog records a freeze the user has to kill.
+            if (LaunchGuard.Current is { } launch)
+            {
+                void MarkRunningOnce(object? sender, EventArgs e)
+                {
+                    window.Opened -= MarkRunningOnce;
+                    DispatcherTimer.RunOnce(() =>
+                    {
+                        launch.MarkRunning();
+                        _watchdog ??= new UiWatchdog(launch.MarkHung);
+                    }, TimeSpan.FromSeconds(5));
+                }
+
+                window.Opened += MarkRunningOnce;
+            }
 
             window.Content = new MainView();
             window.DataContext = viewModel;
@@ -680,6 +698,9 @@ public class App : Application
     ///     does not read anything this records: every pack's lifecycle gets an unconditional
     ///     <see cref="IExtensionLifecycle.OnShutdown" /> instead, each deciding for itself what it actually built.
     /// </summary>
+    // Lives for the process: it watches the UI thread until exit.
+    private static UiWatchdog? _watchdog;
+
     internal static void StartPacks(IServiceProvider provider) => provider.GetRequiredService<PackSwitch>().Start();
 
     /// <summary>
@@ -751,9 +772,10 @@ public class App : Application
         // the same trust policy the loader runs in Main. Desktop only: the browser has no config root.
         if (AppPaths.ConfigRoot is { } extensionsConfigRoot)
         {
+            // Only the extensions this app ships update from its feed; a third-party one is the user's to replace.
             services.AddSingleton(sp => new ExtensionUpdateService(
                 extensionsConfigRoot,
-                FeaturePacks.Statuses,
+                [.. FeaturePacks.Statuses.Where(st => st.Source is not PackSource.External)],
                 ExtensionHost.Current,
                 TrustPolicy.Default,
                 HttpExtensionFeedClient.Shared,

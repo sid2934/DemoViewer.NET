@@ -177,6 +177,26 @@
              re-entry point — "Details…" re-opens the pop-up after a "Later". Nothing downloads
              until "Update & Restart" is pressed: the package is a ~110 MB full release (no deltas
              yet), so consent is the whole point of this surface existing. -->
+            <!-- Safe mode: no extension loaded this launch. The reason, and the way back. -->
+            <Border DockPanel.Dock="Top"
+                    IsVisible="{Binding IsSafeMode}"
+                    Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource AccentCaution}"
+                    BorderThickness="0,0,0,2"
+                    Padding="12,8">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0">
+                        <Button Content="{Binding SafeModeTurnOffLabel}"
+                                IsVisible="{Binding CanTurnOffSafeModeExtension}"
+                                Command="{Binding TurnOffExtensionAndRestartCommand}" />
+                        <Button Content="Restart normally"
+                                IsVisible="{Binding CanRestart}"
+                                Command="{Binding RestartNormallyCommand}" />
+                    </StackPanel>
+                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Text="{Binding SafeModeMessage}" />
+                </DockPanel>
+            </Border>
+
             <Border DockPanel.Dock="Top"
                     IsVisible="{Binding Update.IsUpdateAvailable}"
                     Background="{DynamicResource CardBg}"

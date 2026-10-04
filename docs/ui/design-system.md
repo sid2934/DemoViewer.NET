@@ -386,7 +386,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   `ListBox.strat-rail` items in the shell tab's monospace 13 with the header's badge on the right);
   `"builtin.library"` puts it behind the Library toolbar's Demos / Teams toggle. The strip went from four
   tabs to eleven when every Strat Room feature took its own; the rail is where such features go now.
-- **Contract:** a host tab is a pack contribution (`IPackContributions.HostTab`, a `HostTabContribution`: host
+- **Contract:** a host tab is a pack contribution (`IExtensionContributions.HostTab`, a `HostTabContribution`: host
   id, tab id, header, strip order, rail label, feature id, VM and view factories); the shell builds the host VM
   with the strip and keys one `TabSectionHost` per host id, the Library being the built-in host. The descriptor
   keeps its `TabId` and feature id, so `TrySelectTab`, the gate and the session file treat a section exactly as
@@ -1275,10 +1275,10 @@ is what an untouched install routes, not what every install routes.
 
 **Item 19 (command ids) moved every Strat Book extension row out of this file.** `Ctrl+F` and `J`/`K`
 below are two of them: their chord, scope and description now live in `StratBookCommands`
-(`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/StratBookCommands.cs`), read by `CommandRegistry` through `IFeaturePack.Commands`
+(`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/StratBookCommands.cs`), read by `CommandRegistry` through `IExtension.Commands`
 (DI-free, so a bare-constructed view model resolves them with no composition root), not
-in `Playback2DKeymap.BuildDefault()`. `IPackContributions.Commands(...)` is a separate, parallel
-declaration the composition root cross-checks against `IFeaturePack.Commands` so the two cannot drift;
+in `Playback2DKeymap.BuildDefault()`. `IExtensionContributions.Commands(...)` is a separate, parallel
+declaration the composition root cross-checks against `IExtension.Commands` so the two cannot drift;
 it is not what the keymap itself reads. `Playback2DAction` keeps every member (every existing switch over
 it is unchanged), and `CommandRegistry` (`Extensions/CommandRegistry.cs`) composes the pack's rows back
 over the core table with no DI, so `Playback2DKeymapProfile` resolves them exactly as before: a bare
@@ -2336,7 +2336,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **`FeatureGate.HiddenCount` excludes a `Pack`-scope row.** It renders as its own live master switch, not
   a hidden feature; counting it too would double against the switch itself. Everything the master cascades
   off still counts (it is still rendered, under Extensions, disabled).
-- **The two pack-only settings blocks are contributed pages now** (`IPackContributions.SettingsPage`,
+- **The two pack-only settings blocks are contributed pages now** (`IExtensionContributions.SettingsPage`,
   item 14), content unchanged: Suggested Tags tuning and the GRENADE INDEX card (`Walk library grenades
   in the background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
   construction, but its VM and View build lazily, through `EnsureBuilt`, the first time its own
@@ -2379,7 +2379,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   overflow at every indent level, verified at 560 and visually at 1280×800 (`settings-extensions-on/-off`
   UiCapture variants, Light + Dark; custom themes crash UiCapture per the open item on the editor-room
   decisions above).
-- **Delete extension data (strat-book-plugin.md item 24, 2026-10-03):** one row per `IPackDataRemoval`
+- **Delete extension data (strat-book-plugin.md item 24, 2026-10-03):** one row per `IExtensionDataRemoval`
   below `ContributedSettingsPages`, `ItemsControl ItemsSource="{Binding ExtensionDataActions}"`. Unlike a
   contributed page it is NOT gated by the pack's `FeatureId`: it shows whether the pack is on or off,
   since deleting while off is the main use. No modal dialog exists anywhere in this app to reuse, so the
@@ -2388,7 +2388,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   Delete, `PanelHeaderHoverDeep` for the panel so it reads as a step inside the card rather than a second
   card), Cancel collapses it, Confirm runs the delete and leaves a status line. `StatusText` alone (no
   panel) covers "Counting…", "Nothing to delete." and the final count. `ExtensionDataActionViewModel` is
-  its own small Arm/Confirm/Cancel state machine, one per row, built from the pack's `IPackDataRemoval`
+  its own small Arm/Confirm/Cancel state machine, one per row, built from the pack's `IExtensionDataRemoval`
   and a label read off `FeatureCatalog` the same way `StratBookToggleNotice` reads one.
 
 ---

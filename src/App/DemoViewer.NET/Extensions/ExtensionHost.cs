@@ -27,8 +27,11 @@ namespace DemoViewer.NET.Extensions;
 /// </summary>
 public static class ExtensionHost
 {
-    /// <summary>The pack contract version this app implements.</summary>
-    public static SemVersion ContractVersion { get; } = new(1, 0, 0);
+    /// <summary>
+    ///     The extension SDK version this app implements: the SDK assembly's release, without prerelease or
+    ///     build metadata, so a manifest's <c>requiresHost</c> range compares against a plain version.
+    /// </summary>
+    public static SemVersion ContractVersion { get; } = ReadContractVersion();
 
     /// <summary>The app release (<see cref="AppVersionInfo.CurrentReleaseVersion" />), or null when unstamped.</summary>
     public static SemVersion? AppVersion { get; } =
@@ -60,6 +63,15 @@ public static class ExtensionHost
 
         Version v = assemblyVersion ?? new Version(0, 0, 0);
         return new SemVersion(Math.Max(v.Major, 0), Math.Max(v.Minor, 0), Math.Max(v.Build, 0));
+    }
+
+    private static SemVersion ReadContractVersion()
+    {
+        Assembly sdk = typeof(IExtension).Assembly;
+        SemVersion version = ResolveVersion(
+            sdk.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+            sdk.GetName().Version);
+        return new SemVersion(version.Major, version.Minor, version.Patch);
     }
 
     private static SemVersion ReadCs2DemoKitVersion()

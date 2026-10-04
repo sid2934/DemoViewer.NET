@@ -1,6 +1,8 @@
 #region
 
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Features;
+using DemoViewer.NET.ViewModels.Diagnostics;
 
 #endregion
 
@@ -23,7 +25,17 @@ internal sealed class PackContributionSet
         foreach (IExtension pack in packs)
         {
             PackContributions contributions = new(pack, () => sp.GetExtensionContext(pack.Id));
-            pack.Contribute(contributions, sp);
+            try
+            {
+                pack.Contribute(contributions, sp);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // One extension failing its Contribute must not stop the app: it contributes nothing.
+                AppLog.OperationFailed(Log, "contribute extension " + pack.Id, ex);
+                contributions = new PackContributions(pack, () => sp.GetExtensionContext(pack.Id));
+            }
+
             collected.Add(contributions);
         }
 
@@ -32,6 +44,8 @@ internal sealed class PackContributionSet
 
     /// <summary>One entry per pack, in pack order.</summary>
     public IReadOnlyList<PackContributions> Packs { get; }
+
+    private static Microsoft.Extensions.Logging.ILogger Log => DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
 
     /// <summary>Every pack's host tabs, in pack order then contribution order. The shell builds its strip from this.</summary>
     public IReadOnlyList<HostTabContribution> HostTabs => [.. Packs.SelectMany(p => p.HostTabs)];

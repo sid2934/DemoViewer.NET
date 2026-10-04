@@ -54,7 +54,11 @@ public sealed class JobKindRegistry
     }
 
     /// <summary>Built once from the compatible compiled-in packs (<see cref="FeaturePacks.Compatible" />).</summary>
-    public static JobKindRegistry Default { get; } = Build(FeaturePacks.Compatible);
+    // Lazy: the loader builds registries to check a third-party extension before FeaturePacks is set, and
+    // reading FeaturePacks then would freeze it empty.
+    private static readonly Lazy<JobKindRegistry> _default = new(() => Build(FeaturePacks.Compatible));
+
+    public static JobKindRegistry Default => _default.Value;
 
     /// <summary>
     ///     Composes every extension's <see cref="IExtension.JobKinds" /> beside <see cref="CoreDescriptors" />

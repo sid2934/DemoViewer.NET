@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Features;
@@ -502,6 +503,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // Seed the bound state directly from the FIELDS (not the properties) so construction does not
         // trip the change-hooks and write settings straight back.
         AppSettings current = settings.Current;
+        _allowUnverifiedExtensions = current.Extensions.AllowUnverified;
+        _allowUnverifiedAtOpen = current.Extensions.AllowUnverified;
+        ExternalExtensionRows = ExternalExtensionRow.Build(StatusesOrProcess(packStatuses), FeaturePacks.ExternalRejected);
         _selectedCategoryOption = OptionFor(current.UserCategory);
         _selectedTheme = ThemeFor(current.Theme);
         // Live Sync section: the enable toggle mirrors the GATE decision (an override write flips it); the
@@ -672,6 +676,44 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     ///     and <see cref="ChromeFeatureRows" /> so they are never listed twice.
     /// </summary>
     public ObservableCollection<FeatureToggleRow> ExtensionsFeatureRows { get; } = [];
+
+    // ── Third-party extensions ──
+
+    private readonly bool _allowUnverifiedAtOpen;
+
+    /// <summary>"Allow unverified and potentially dangerous extensions". Read at launch, so a change waits for a restart.</summary>
+    [ObservableProperty]
+    private bool _allowUnverifiedExtensions;
+
+    /// <summary>The setting's label, verbatim.</summary>
+    public static string AllowUnverifiedLabel => ExternalExtensions.AllowUnverifiedLabel;
+
+    /// <summary>Shown once the setting differs from what this launch loaded with.</summary>
+    public bool ShowAllowUnverifiedRestartNotice => AllowUnverifiedExtensions != _allowUnverifiedAtOpen;
+
+    /// <summary>The third-party extensions under the extensions folder: loaded, and why the others did not.</summary>
+    public IReadOnlyList<ExternalExtensionRow> ExternalExtensionRows { get; }
+
+    /// <summary>True when any third-party extension is installed.</summary>
+    public bool HasExternalExtensions => ExternalExtensionRows.Count > 0;
+
+    /// <summary>The browser loads no third-party extension.</summary>
+    public static bool ShowExternalExtensions => !OperatingSystem.IsBrowser();
+
+    partial void OnAllowUnverifiedExtensionsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowAllowUnverifiedRestartNotice));
+        if (_applyingExternal)
+        {
+            return;
+        }
+
+        Persist(s => s.Extensions.AllowUnverified = value);
+    }
+
+    // The statuses passed in, else the process's own.
+    private static IReadOnlyList<PackStatus> StatusesOrProcess(IReadOnlyList<PackStatus>? statuses) =>
+        statuses ?? FeaturePacks.Statuses;
 
     /// <summary>
     ///     Settings pages the packs contribute, rendered under Extensions beneath
@@ -2203,6 +2245,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             SelectedCategoryOption = OptionFor(settings.UserCategory);
             SelectedTheme = ThemeFor(settings.Theme);
             // Live Sync section (the enable toggle is gate-driven, re-synced via RefreshFeatureRows).
+            AllowUnverifiedExtensions = settings.Extensions.AllowUnverified;
             LiveSyncMockMode = settings.LiveSync.MockMode;
             Cs2InstallPath = settings.LiveSync.Cs2RootInstallationDirectory;
             ForceIncompatiblePlugin = settings.LiveSync.ForceIncompatiblePlugin;

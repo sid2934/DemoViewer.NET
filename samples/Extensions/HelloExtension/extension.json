@@ -1,0 +1,9 @@
+{
+  "id": "dev.example.hello",
+  "name": "Hello",
+  "version": "{version}",
+  "assembly": "HelloExtension.dll",
+  "entryType": "HelloExtension.HelloExtension",
+  "requiresHost": "^1.0",
+  "requiresCs2DemoKit": "*"
+}

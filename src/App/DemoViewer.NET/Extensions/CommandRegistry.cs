@@ -57,7 +57,11 @@ public sealed class CommandRegistry
     public IReadOnlyList<string> Conflicts { get; }
 
     /// <summary>Built once from the compatible compiled-in packs (<see cref="FeaturePacks.Compatible" />).</summary>
-    public static CommandRegistry Default { get; } = Build(FeaturePacks.Compatible);
+    // Lazy: the loader builds registries to check a third-party extension before FeaturePacks is set, and
+    // reading FeaturePacks then would freeze it empty.
+    private static readonly Lazy<CommandRegistry> _default = new(() => Build(FeaturePacks.Compatible));
+
+    public static CommandRegistry Default => _default.Value;
 
     /// <summary>
     ///     Looks up a pack command by the <see cref="Playback2DAction" /> its id parses to. Used by the

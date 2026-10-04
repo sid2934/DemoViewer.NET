@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 
 #endregion
@@ -58,6 +59,22 @@ public static class FeaturePacks
     /// <param name="statuses">One per pack, in composition order, judged against <see cref="ExtensionHost.Current" />.</param>
     /// <exception cref="InvalidOperationException">Already configured, or the list was already read.</exception>
     public static void ConfigureResolved(IReadOnlyList<PackStatus> statuses) => List.Set(statuses);
+
+    /// <summary>
+    ///     <see cref="ConfigureResolved(IReadOnlyList{PackStatus})" /> plus the third-party copies the loader
+    ///     refused, which no status carries because none of them loaded.
+    /// </summary>
+    public static void ConfigureResolved(IReadOnlyList<PackStatus> statuses, IReadOnlyList<LoadOutcome> externalRejected)
+    {
+        ArgumentNullException.ThrowIfNull(externalRejected);
+        List.Set(statuses);
+        _externalRejected = externalRejected;
+    }
+
+    /// <summary>Third-party copies under the extensions folder that did not load, with the reason.</summary>
+    public static IReadOnlyList<LoadOutcome> ExternalRejected => _externalRejected;
+
+    private static volatile IReadOnlyList<LoadOutcome> _externalRejected = [];
 
     /// <summary>
     ///     <see cref="Configure(IReadOnlyList{IExtension})" /> for a path that cannot know whether Main

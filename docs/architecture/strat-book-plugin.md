@@ -10,7 +10,7 @@ Users see it as an **extension** ("Strat Book extension").
 ## 1. Summary
 
 The Strat Book ships as `DemoViewer.NET.Extensions.StratBook`, a first-party extension that is built
-against the app and loaded by it (`IFeaturePack`, `extension.json`, `FeaturePacks`), rather than a
+against the app and loaded by it (`IExtension`, `extension.json`, `FeaturePacks`), rather than a
 third-party, runtime-loaded plugin. It lives in its own project under `src/Extensions/StratBook/`,
 references the app (never the reverse), and carries its own manifest and version, so it can be signed,
 staged under the config root and updated on its own release cadence, independent of the app build.
@@ -21,7 +21,14 @@ evaluators and background jobs stop at the next poll, and its resident indexes (
 `GrenadeIndex`, `SignatureCache`, Team Identity) release their memory in session rather than waiting for a
 restart. Data on disk is untouched; re-enabling backfills whatever indexing was missed while it was off.
 
-The extension reaches the shell, 2D Playback and the Library through `IPackContributions` (tabs,
+The public contract is the `DemoViewer.NET.Extensions.Sdk` package (`src/Sdk/DemoViewer.NET.Extensions.Sdk`,
+author guide in its README): `IExtension`, `IExtensionContributions`, `IExtensionContext` and the SDK's
+playback types. Surfaces the SDK does not carry (the hub tab, status chips, rulesets, forward-pass
+evaluators, the scene-frame playback surface) stay first-party behind `IFirstPartyContributions`, which the
+Strat Book reaches by casting. Third-party extensions load from the same extensions folder; unverified ones
+only with the user's consent, and none at all in safe mode.
+
+The extension reaches the shell, 2D Playback and the Library through `IExtensionContributions` (tabs,
 evaluators, job kinds, settings pages, playback panels and lanes, library filters and badges, session
 state, commands, stores) instead of being wired by hand into `App.axaml.cs` and
 `Playback2DTabViewModel`.
@@ -37,23 +44,23 @@ add-on work wants it.
 ### 2.1 The pack
 
 ```csharp
-public interface IFeaturePack
+public interface IExtension
 {
     string Id { get; }                       // "net.demoviewer.pack.stratbook"; persisted key, distinct from the module id
     string FeatureId { get; }                // "pack.stratbook"; the umbrella gate
     IEnumerable<FeatureDescriptor> Features { get; }   // parented to FeatureId
     void Register(IServiceCollection services);        // all DI, unconditional (factories are lazy)
-    void Contribute(IPackContributions to, IServiceProvider sp);
+    void Contribute(IExtensionContributions to, IServiceProvider sp);
 }
 
-public interface IPackLifecycle            // optional, resolved from the pack's own registrations
+public interface IExtensionLifecycle            // optional, resolved from the pack's own registrations
 {
-    Task OnEnabledAsync(PackStartReason reason, CancellationToken ct);  // startup loads, subscriptions
+    Task OnEnabledAsync(ExtensionStartReason reason, CancellationToken ct);  // startup loads, subscriptions
     Task OnDisabledAsync();                  // unsubscribe, cancel owned jobs, release resident indexes (completes when released)
     void OnShutdown(TimeSpan budget);        // flushes
 }
 
-public interface IPackResident              // a pack-built singleton whose state can be dropped and rebuilt
+public interface IExtensionResident              // a pack-built singleton whose state can be dropped and rebuilt
 {
     void Attach();                           // subscribe to the sources that keep it current; loads nothing
     void Release();                          // unsubscribe, flush what is pending, drop the state
@@ -67,7 +74,7 @@ contributions' visibility.
 ### 2.2 Contributions
 
 ```csharp
-public interface IPackContributions
+public interface IExtensionContributions
 {
     void Module(IWorkspaceModule module);                    // tabs and sections
     void HostTab(HostTabContribution host);                  // a tab that hosts sections (the hub)
@@ -382,14 +389,14 @@ public interface ISessionParticipant
 public sealed record StoreDescriptor(string Id, string Label, StoreRoot Root, IReadOnlyList<string> Paths);
 ```
 
-As built (`Extensions/IPackContributions.cs`): one filter and one badge per contribution rather than
+As built (`Extensions/IExtensionContributions.cs`): one filter and one badge per contribution rather than
 a list of filters, since the Library hosts N *contributions* (each optionally offering a filter, a badge, or
 both) instead of one contribution offering N filters. `LibraryFilter(Label, Items, Matches)` carries its own
 items and predicate; `LibraryFilterItem(Key, Display)` reserves `Key == ""` as the neutral "All" choice the
 Library skips when applying predicates. A badge needs a fourth member beyond the sketch,
 `bool HasBadge { get; }`: `BadgeLabels` alone cannot say whether a contribution renders a badge at all, since
 a read-only badge (no settable menu) legitimately has an empty label list. `FeatureId` (nullable, default
-`null`) and `Changed` complete the interface, matching 2.2's general contract; `IPackContributions.Library(...)`
+`null`) and `Changed` complete the interface, matching 2.2's general contract; `IExtensionContributions.Library(...)`
 stamps a null `FeatureId` to the owning pack's id the same way `SettingsPage` does, through a small internal
 wrapper (`PackContributions.StampedLibraryContribution`) rather than a record `with`, since `ILibraryContribution`
 is an interface, not a record. `LibraryTabViewModel` owns a generic host: it calls into a contribution only
@@ -438,7 +445,7 @@ Theme tokens are not a contribution: they stay in the core dictionaries, which c
 when unused. A pack token manifest only matters for third-party add-ons.
 
 As built (session only): no
-`IPackContributions.Session` and no standalone `ISessionParticipant`. Wiring the sketch above would have
+`IExtensionContributions.Session` and no standalone `ISessionParticipant`. Wiring the sketch above would have
 meant handing `MainViewModel`'s constructor a new `PackContributionSet`-derived parameter, and that
 constructor region already belongs to the library contributions' own timing window. Instead `IHostTabViewModel` (`ViewModels/Shell/`)
 carries three new, all-default members: `string? SessionPackId`, `JsonElement? SnapshotPackState()`,
@@ -476,7 +483,7 @@ blob, not the one loaded at startup, wins), and a pack that was never enabled th
 its loaded blob through unread and unwritten.
 
 **As built.** `StoreDescriptor` gained a fifth field, `IsUserWork`, read by the Settings
-confirmation; `IPackContributions` gained `Store(StoreDescriptor)` and `DataRemoval(IPackDataRemoval)`,
+confirmation; `IExtensionContributions` gained `Store(StoreDescriptor)` and `DataRemoval(IExtensionDataRemoval)`,
 aggregated on `PackContributionSet` as `Stores` and `DataRemovals`. `PackDataRemover`
 (`Services/DemoCache/PackDataRemover.cs`) resolves a descriptor's paths against `AppPaths.ConfigRoot` or
 `AppPaths.DemoCacheDir`, refuses anything rooted, carrying a `..` segment, or resolving to the root itself,
@@ -572,13 +579,13 @@ references these.
 under the logical name `extension.json` and copied beside the DLL on build (`None` with
 `CopyToOutputDirectory`, which flows through every project reference, so a head's publish output and the
 test binary's directory both carry it). The loader reads the on-disk copy before loading the
-assembly; the pack reports the embedded copy in process through `IFeaturePack.Manifest`.
+assembly; the pack reports the embedded copy in process through `IExtension.Manifest`.
 
 ```json
 {
   "id": "net.demoviewer.pack.stratbook",
   "name": "Strat Book",
-  "version": "{nbgv}",
+  "version": "{version}",
   "assembly": "DemoViewer.NET.Extensions.StratBook.dll",
   "entryType": "DemoViewer.NET.Extensions.StratBook.StratBookPack",
   "requiresHost": "^1.0",
@@ -586,18 +593,18 @@ assembly; the pack reports the embedded copy in process through `IFeaturePack.Ma
 }
 ```
 
-The committed file is a template (section 2.11): `"{nbgv}"` is replaced at build with the version
+The committed file is a template (section 2.11): `"{version}"` is replaced at build with the version
 Nerdbank.GitVersioning computes from `src/Extensions/StratBook/version.json`, and the stamped copy is what is
 embedded and copied beside the DLL. The placeholder is not a semantic version on purpose, so an unstamped
 copy fails to parse rather than load.
 
 | Member | Required | Meaning |
 |---|---|---|
-| `id` | yes | The pack id; must equal `IFeaturePack.Id` or the status is `ManifestInvalid`. Reverse-DNS, no whitespace. |
+| `id` | yes | The pack id; must equal `IExtension.Id` or the status is `ManifestInvalid`. Reverse-DNS, no whitespace. |
 | `name` | yes | The user-facing name. |
-| `version` | yes | The extension's own SemVer 2.0 version. Stamped at build from the extension's `version.json`; the committed template holds `{nbgv}`. |
+| `version` | yes | The extension's own SemVer 2.0 version. Stamped at build from the extension's `version.json`; the committed template holds `{version}`. |
 | `assembly` | yes | A bare `.dll` file name; a path is refused so a manifest cannot point outside its own directory. |
-| `entryType` | yes | The full name of the `IFeaturePack` type the loader instantiates. |
+| `entryType` | yes | The full name of the `IExtension` type the loader instantiates. |
 | `requiresHost` | yes | A range over `ExtensionHost.ContractVersion`. |
 | `requiresCs2DemoKit` | yes | A range over `ExtensionHost.Cs2DemoKitVersion`. Exact by default: the extension uses CS2DemoKit types directly, so only the same version is known good. |
 | `minAppVersion` | no | The oldest app release the extension runs on. |
@@ -680,7 +687,7 @@ table test pins `PackCompatibility.Check`'s semantics over representative host/m
 **The reference check.** The extension's compiled `GetReferencedAssemblies()` is checked against the app
 assembly's own transitive closure (loaded by simple name, minus the BCL), not a fixed list: the extension
 references `CS2OpenDev.Sdk`, `CS2OpenDev.Protos`, `Google.Protobuf`, `DemoViewer.NET.Modules.Abstractions`
-and `.Modules.Abstractions.Ui` directly, five of the eighteen non-BCL assemblies it references today, none
+and `.Extensions.Sdk` directly, five of the eighteen non-BCL assemblies it references today, none
 in this section's example families; a fixed list drawn from those families would have missed them. Every
 one of the eighteen is app-shipped, so the private allowlist is empty today; the heads are deliberately not
 walked, so a dependency only a head adds trips the exhaustiveness test instead of passing unnoticed. The
@@ -733,7 +740,7 @@ after `VelopackApp.Build().Run()` and before Avalonia starts, and returns the `P
    Every higher candidate it passed over is recorded with its reason; candidates below the chosen one are
    not examined.
 3. `Load` loads the chosen assembly, resolves `entryType` by name (`EntryTypeMissing`), requires it to
-   implement `IFeaturePack` with a public parameterless constructor (`NotAPack`), constructs it, and
+   implement `IExtension` with a public parameterless constructor (`NotAPack`), constructs it, and
    checks that the pack's `Id` and the version of its embedded manifest equal the on-disk manifest
    (`IdentityMismatch`). A corrupt or missing file is `AssemblyLoadFailed`.
 4. Two skew checks run on the loaded copy before it is accepted. `CheckReferences` compares every assembly
@@ -1387,7 +1394,7 @@ is `0.1.<height>` where the height counts the commits that touched `src/Extensio
 `pathFilters` are `.` and an exclusion for the test project) since that line was last changed;
 `versionHeightOffset` is -1 so the commit that introduced the file reads `0.1.0`. A change anywhere else
 in the repo leaves the extension's version alone, which is what the independent-cadence structure rule asked for;
-that includes `src/Extensions/ExtensionManifest.targets` itself, one level up, so a fix to the stamping
+that includes `src/Sdk/DemoViewer.NET.Extensions.Sdk/build/DemoViewer.NET.Extensions.Sdk.targets` itself, one level up, so a fix to the stamping
 ships under the extension's current version. Its `publicReleaseRefSpec` is `main`, the app's own `v*`
 release tags (an app release builds from its tag, not from `main`, and bundles the extension, so the
 bundled copy must read clean) and the extension's release tags; a build off any other ref carries a
@@ -1397,8 +1404,8 @@ bundled copy must read clean) and the extension's release tags; a build off any 
 build. `release.tagName` is `extensions/net.demoviewer.pack.stratbook/v{version}`, which is what
 `nbgv tag` creates, from the plain `major.minor.patch` on any commit.
 
-The committed `extension.json` is a template whose `version` is the literal `{nbgv}`.
-`src/Extensions/ExtensionManifest.targets`, imported by the extension csproj, runs before
+The committed `extension.json` is a template whose `version` is the literal `{version}`.
+`src/Sdk/DemoViewer.NET.Extensions.Sdk/build/DemoViewer.NET.Extensions.Sdk.targets`, imported by the extension csproj, runs before
 `AssignTargetPaths` (after NBGV's `GetBuildVersion`), writes the template with `$(NuGetPackageVersion)`
 in place of the placeholder to `obj/.../extension.json`, and adds that file as the embedded resource and
 the copy beside the DLL; the placeholder must appear exactly once or the build fails. A second extension
@@ -1487,7 +1494,7 @@ so a settings write that leaves the pack where it was does nothing. `App.StartPa
   live view intact (shutdown's lineup flush still writes), and a fast on-off leaves nothing loaded.
 - *What release means.* The residents are container singletons that core surfaces hold references to
   (Team Identity for the Library filter, the situation index for the shell), so the object cannot be
-  replaced; its state can. Each implements `IPackResident`: `Release` unsubscribes from the sources that
+  replaced; its state can. Each implements `IExtensionResident`: `Release` unsubscribes from the sources that
   would refill it (`DemoCacheStore.Changed`, the evaluators' `Written`/`Indexed`, the index's `Changed`),
   writes anything pending (lineups, the signature cache) and drops the loaded data; `Attach` subscribes
   again and the next load rebuilds. Released: `SituationIndex`, `GrenadeIndex` (and its lineup document),
@@ -1573,7 +1580,7 @@ Before the move to its own project, inside the app project, with namespaces unch
 
 ```
 src/App/DemoViewer.NET/Extensions/StratBook/
-  StratBookPack.cs                      the IFeaturePack
+  StratBookPack.cs                      the IExtension
   Modules/     StratBook, UtilityBook, RoundTagger, SuggestedTags, Situations, Dossier, Teams, Review
   Services/    Strats, RoundIndex, RoundFacts, Tags, Teams, Provenance
   ViewModels/  StratBook, UtilityBook, Situations, Dossier, RoundTagger, SuggestedTags, Teams, Review
@@ -1624,7 +1631,7 @@ src/Extensions/StratBook/
                                                        linked back into App.Tests: core tests use them as fixtures
   extension.json                                    the manifest template (section 2.7); stamped, embedded and copied beside the DLL
   version.json                                      the extension's own Nerdbank.GitVersioning file (0.1, pathFilters on this directory)
-src/Extensions/ExtensionManifest.targets            the stamping target every extension csproj imports
+src/Sdk/DemoViewer.NET.Extensions.Sdk/build/DemoViewer.NET.Extensions.Sdk.targets            the stamping target every extension csproj imports
 src/App/DemoViewer.NET.App.Tests/Extensions/PackBoundaryTests.cs   pack-agnostic; pulled out of the test-project move
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants; the test-project move did not touch this
 src/App/DemoViewer.NET/Extensions/Loading/        the loader (section 2.8) and the signing and

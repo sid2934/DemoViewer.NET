@@ -38,4 +38,13 @@ public abstract record PackSource
         /// <inheritdoc />
         public override string Label => "installed update";
     }
+
+    /// <summary>A third-party extension installed under the extensions folder.</summary>
+    /// <param name="Directory">The version folder it loaded from.</param>
+    /// <param name="Verified">True when this app's publisher key signed it.</param>
+    public sealed record External(string Directory, bool Verified) : PackSource
+    {
+        /// <inheritdoc />
+        public override string Label => Verified ? "installed, verified" : "installed, unverified";
+    }
 }

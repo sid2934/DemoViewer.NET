@@ -1,6 +1,8 @@
 #region
 
+using System.Diagnostics;
 using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
@@ -9,6 +11,7 @@ using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Options;
 using Velopack;
@@ -67,15 +70,36 @@ internal sealed class Program
         // declared before anything Avalonia-side runs. The shipped pack sits behind a factory: a method that
         // mentions StratBookPack loads the shipped assembly when it is compiled, and the loader must decide
         // before that happens, so nothing else in Main may name the type.
-        FeaturePacks.ConfigureResolved(ExtensionLoader.Resolve(
+        //
+        // Safe mode loads none of them, the shipped one included: --safe-mode asks for it, and the launch
+        // guard turns it on when the previous launch never finished starting, crashed inside an extension or
+        // froze until it was killed. Third-party extensions load beside the shipped one, and an unverified
+        // copy only while the user has allowed unverified extensions in Settings.
+        LaunchGuard launch = LaunchGuard.Begin(AppPaths.ConfigRoot, args).Install();
+        ExtensionStartupResult extensions = ExtensionStartup.Resolve(
             AppPaths.ConfigRoot,
             [ShippedPack.BesideApp(StratBookPack.PackId, static () => new StratBookPack())],
             ExtensionHost.Current,
-            TrustPolicy.Default));
+            TrustPolicy.Default,
+            PublisherKeys.Current,
+            ExtensionStartup.ReadAllowUnverified(AppPaths.SettingsFile),
+            launch.Decision.IsActive);
+        FeaturePacks.ConfigureResolved(extensions.Statuses, extensions.ExternalRejected);
 
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
-        // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack.
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => WriteCrashLog(e.ExceptionObject);
+        // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack, and tell the
+        // launch guard which extension it was in, if any.
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            WriteCrashLog(e.ExceptionObject);
+            if (e.ExceptionObject is Exception ex)
+            {
+                launch.RecordCrash(ex, FeaturePacks.Statuses.Select(st =>
+                    new ExtensionIdentity(st.Pack.GetType().Assembly, st.Manifest?.Name ?? st.Pack.Id, st.Pack.FeatureId)));
+            }
+        };
+
+        AppHostHooks.Restart = () => Restart(launch);
 
         // CSVG live sync: the engine lives in the desktop-only
         // DemoViewer.NET.LiveSync project (CSVG + ASP.NET Core: the App/Browser projects must
@@ -110,6 +134,36 @@ internal sealed class Program
         // Live / per-moment capture without any of this is available via dotnet-counters / dotnet-trace.
         using ProfilingSession? session = ProfilingSession.StartFromEnvironment();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        launch.MarkExited();
+    }
+
+    // The same executable with the same arguments minus --safe-mode. Under `dotnet run` the process is the
+    // dotnet host, whose first argument is the app's own assembly.
+    private static void Restart(LaunchGuard launch)
+    {
+        if (Environment.ProcessPath is not { } executable)
+        {
+            return;
+        }
+
+        launch.MarkExited();
+        string[] commandLine = Environment.GetCommandLineArgs();
+        ProcessStartInfo start = new(executable) { UseShellExecute = false };
+        if (string.Equals(Path.GetFileNameWithoutExtension(executable), "dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            start.ArgumentList.Add(commandLine[0]);
+        }
+
+        foreach (string arg in commandLine.Skip(1).Where(a => !LaunchGuard.IsSafeModeArgument(a)))
+        {
+            start.ArgumentList.Add(arg);
+        }
+
+        using Process? started = Process.Start(start);
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.Shutdown();
+        }
     }
 
     private static void WriteCrashLog(object exceptionObject)
