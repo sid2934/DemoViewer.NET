@@ -19,6 +19,15 @@
     <ItemGroup>
         <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Loading\ExtensionSignature.cs" Link="Shared\ExtensionSignature.cs"/>
         <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Loading\PublisherKeys.cs" Link="Shared\PublisherKeys.cs"/>
+        <!-- Pure value types the packaging step needs (report, feed-merge, feed-check): no Avalonia, no
+             CS2DemoKit, nothing that would turn this into an app reference. -->
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Manifest\SemVersion.cs" Link="Shared\SemVersion.cs"/>
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Manifest\VersionRange.cs" Link="Shared\VersionRange.cs"/>
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Manifest\ExtensionHostInfo.cs" Link="Shared\ExtensionHostInfo.cs"/>
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Manifest\ExtensionManifest.cs" Link="Shared\ExtensionManifest.cs"/>
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Manifest\PackCompatibility.cs" Link="Shared\PackCompatibility.cs"/>
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Manifest\CompatibilityReport.cs" Link="Shared\CompatibilityReport.cs"/>
+        <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Updates\ExtensionFeed.cs" Link="Shared\ExtensionFeed.cs"/>
     </ItemGroup>
 
 </Project>

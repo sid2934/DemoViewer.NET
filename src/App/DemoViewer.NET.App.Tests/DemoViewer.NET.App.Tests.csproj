@@ -53,4 +53,11 @@
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\ToleranceSliderHarness.cs" Link="ToleranceSliderHarness.cs"/>
     </ItemGroup>
 
+    <!-- Item 37's feed-merge logic lives beside the signing tool (tools/extension-signing), not in this
+         app, so ExtensionPackagingTests exercises it as linked source rather than a project reference;
+         it already resolves ExtensionFeed and ExtensionManifest through the ProjectReference above. -->
+    <ItemGroup>
+        <Compile Include="..\..\..\tools\extension-signing\FeedMerge.cs" Link="Extensions\FeedMerge.cs"/>
+    </ItemGroup>
+
 </Project>
