@@ -1222,7 +1222,7 @@ assembly; the pack reports the embedded copy in process through `IFeaturePack.Ma
 {
   "id": "net.demoviewer.pack.stratbook",
   "name": "Strat Book",
-  "version": "1.0.0",
+  "version": "{nbgv}",
   "assembly": "DemoViewer.NET.Extensions.StratBook.dll",
   "entryType": "DemoViewer.NET.Extensions.StratBook.StratBookPack",
   "requiresHost": "^1.0",
@@ -1230,11 +1230,16 @@ assembly; the pack reports the embedded copy in process through `IFeaturePack.Ma
 }
 ```
 
+The committed file is a template (item 39, section 7.11): `"{nbgv}"` is replaced at build with the version
+Nerdbank.GitVersioning computes from `src/Extensions/StratBook/version.json`, and the stamped copy is what is
+embedded and copied beside the DLL. The placeholder is not a semantic version on purpose, so an unstamped
+copy fails to parse rather than load.
+
 | Member | Required | Meaning |
 |---|---|---|
 | `id` | yes | The pack id; must equal `IFeaturePack.Id` or the status is `ManifestInvalid`. Reverse-DNS, no whitespace. |
 | `name` | yes | The user-facing name. |
-| `version` | yes | The extension's own SemVer 2.0 version. |
+| `version` | yes | The extension's own SemVer 2.0 version. Stamped at build from the extension's `version.json`; the committed template holds `{nbgv}`. |
 | `assembly` | yes | A bare `.dll` file name; a path is refused so a manifest cannot point outside its own directory. |
 | `entryType` | yes | The full name of the `IFeaturePack` type the loader instantiates. |
 | `requiresHost` | yes | A range over `ExtensionHost.ContractVersion`. |
@@ -1262,7 +1267,9 @@ when written the same.
   `IModuleContext`, `IHostTabViewModel` or the `IPlaybackSurface` family: a removed or renamed member, a
   changed signature, a new abstract member on an interface a pack implements. **Minor** on an additive
   change: a new contribution kind, a new optional member with a default. Never patch; a contract has no
-  behaviour of its own to fix.
+  behaviour of its own to fix. Decision 6 (section 10) adds a release rule on top: a **major** bump of the
+  contract ships only with a major release of the app, so an extension built for one app major keeps
+  loading on every later minor and patch of it.
 - `AppVersion`, from `AppVersionInfo.CurrentReleaseVersion`; null on an unstamped build.
 - `Cs2DemoKitVersion`, read at runtime from `CS2DemoKit.Analysis`'s informational version. NBGV stamps
   `0.13.0.1-beta0001+9f1e3e3b4a`; the fourth component and the metadata are dropped so the value equals
@@ -2017,11 +2024,43 @@ whichever extension version the heads reference at app release time with no chan
 of this workflow fails at the signing step with that fact stated plainly; a dry run (the dispatch default)
 works with no secret at all.
 
-**Cutting a release, step by step.** Bump `version` in `src/Extensions/StratBook/extension.json`, commit
-it, push a tag `extensions/net.demoviewer.pack.stratbook/v<version>` matching that bump. The workflow
-builds, tests, signs, zips, creates the release and updates the feed with no further action; watch its
-run in the Actions tab. To preview without publishing, dispatch the workflow by hand with `dry_run` left
-at its default and read the artifact it uploads.
+**Versioning (item 39).** The extension's version is computed, not edited. `src/Extensions/StratBook/version.json`
+is a Nerdbank.GitVersioning file that inherits the root one and sets `version` to `0.1`, so the extension
+is `0.1.<height>` where the height counts the commits that touched `src/Extensions/StratBook/` (its
+`pathFilters` are `.` and an exclusion for the test project) since that line was last changed;
+`versionHeightOffset` is -1 so the commit that introduced the file reads `0.1.0`. A change anywhere else
+in the repo leaves the extension's version alone, which is the independent cadence decision 5 asked for;
+that includes `src/Extensions/ExtensionManifest.targets` itself, one level up, so a fix to the stamping
+ships under the extension's current version. Its `publicReleaseRefSpec` is `main`, the app's own `v*`
+release tags (an app release builds from its tag, not from `main`, and bundles the extension, so the
+bundled copy must read clean) and the extension's release tags; a build off any other ref carries a
+`-g<sha>` prerelease label and sorts below the release it precedes. Two such dev builds of the same
+`major.minor.patch` compare by the hash text, which says nothing about which is newer: the loader's
+"strictly newer than shipped" rule is only meaningful between releases, or between a release and a dev
+build. `release.tagName` is `extensions/net.demoviewer.pack.stratbook/v{version}`, which is what
+`nbgv tag` creates, from the plain `major.minor.patch` on any commit.
+
+The committed `extension.json` is a template whose `version` is the literal `{nbgv}`.
+`src/Extensions/ExtensionManifest.targets`, imported by the extension csproj, runs before
+`AssignTargetPaths` (after NBGV's `GetBuildVersion`), writes the template with `$(NuGetPackageVersion)`
+in place of the placeholder to `obj/.../extension.json`, and adds that file as the embedded resource and
+the copy beside the DLL; the placeholder must appear exactly once or the build fails. A second extension
+would import the same file and get the same behaviour from its own `version.json`. `pack-extension.sh`
+asks `nbgv` for the version first (restoring the tool manifest if needed), checks the tag against it
+before building, and, since the tag is itself a public-release ref and reads clean from any commit, a
+real run also refuses a tagged commit that is not on `origin/main`. After the build it checks that the
+stamped copy says that version, equals the embedded copy byte for byte, and equals the template with the
+placeholder filled in. `CompatibilityMatrixTests` asserts
+the same three things from the test binary's side, plus that the manifest's major.minor.patch equals the
+assembly's informational version. The first minor of the extension is 0.1; `requiresHost` is unchanged.
+
+**Cutting a release, step by step.** Merge the change to `main`, then on that commit run
+`dotnet nbgv tag -p src/Extensions/StratBook` and push the tag it prints
+(`extensions/net.demoviewer.pack.stratbook/v<version>`). Nothing is bumped by hand; the tag must agree
+with the computed version or the workflow refuses it. The workflow builds, tests, signs, zips, creates the
+release and updates the feed with no further action; watch its run in the Actions tab. To preview without
+publishing, dispatch the workflow by hand with `dry_run` left at its default and read the artifact it
+uploads. `dotnet nbgv get-version -p src/Extensions/StratBook` shows what the next tag would be.
 
 **What is not yet done.** Section 7.8 leaves item 37 the rename of the shipped manifest copy from the
 bare `extension.json` to `<id>.extension.json`, needed once a second extension ships beside this one in
@@ -2192,8 +2231,11 @@ data for the session only.
      does not move with its package version, and anything compiled on first use (lambda bodies,
      `Contribute`, views), can still fail after the loader reported success.
 
-   Item 34 implements (B). Items 36 and 37 follow whichever the owner picks: (A) adds the CI-written block
-   and a loader check against it; (B) stands as built. Not decided here.
+   Item 34 implements (B). *Decided 2026-10-03: (B), as built*, with two rules on top. Every extension
+   release states the oldest extension framework it runs on (`requiresHost`, section 7.7), and the
+   contract never takes a breaking change outside a major release of the app, so an extension built for
+   one app major keeps loading across that major's minors and patches. Item 39 (section 7.11) makes the
+   extension's version computed by Nerdbank.GitVersioning from its own `version.json`, starting at 0.1.
 
 
 ---
@@ -2641,7 +2683,9 @@ src/Extensions/StratBook/
                                                        which stayed in App.Tests)
     RoundIndexTestData.cs, CacheRecordTestExtensions.cs, StratBookHubAccess.cs, ToleranceSliderHarness.cs
                                                        linked back into App.Tests: core tests use them as fixtures
-  extension.json                                    the manifest (item 33, section 7.7); embedded and copied beside the DLL
+  extension.json                                    the manifest template (items 33 and 39, section 7.7); stamped, embedded and copied beside the DLL
+  version.json                                      item 39: the extension's own Nerdbank.GitVersioning file (0.1, pathFilters on this directory)
+src/Extensions/ExtensionManifest.targets            item 39: the stamping target every extension csproj imports
 src/App/DemoViewer.NET.App.Tests/Extensions/PackBoundaryTests.cs   pack-agnostic; pulled out of the item 28 move
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants; item 28 did not touch this
 src/App/DemoViewer.NET/Extensions/Loading/        the loader (item 34, section 7.8) and the signing and

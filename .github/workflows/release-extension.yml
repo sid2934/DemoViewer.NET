@@ -95,6 +95,10 @@ jobs:
           echo "do_publish=$DO_PUBLISH" >> "$GITHUB_OUTPUT"
           echo "resolved id=$ID is_tag=$IS_TAG do_publish=$DO_PUBLISH"
 
+      # pack-extension.sh reads the extension's version from nbgv (the .config/dotnet-tools.json manifest).
+      - name: Restore CLI tools (nbgv)
+        run: dotnet tool restore
+
       - name: Extension suite, standard tier
         run: bash scripts/test.sh -t standard -p ext -c Release
 

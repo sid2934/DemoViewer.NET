@@ -26,13 +26,10 @@
                           LogicalName="DemoViewer.NET.Services.Strats.Callouts.%(Filename)%(Extension)"/>
     </ItemGroup>
 
-    <!-- The manifest (strat-book-plugin.md §7.7), twice from one file: embedded so the pack reports its own
-         version in process (StratBookPack.Manifest), and copied beside the DLL so a loader can read it before
-         loading the assembly. -->
-    <ItemGroup>
-        <EmbeddedResource Include="..\extension.json" LogicalName="extension.json" Link="extension.json"/>
-        <None Include="..\extension.json" CopyToOutputDirectory="PreserveNewest" Link="extension.json"/>
-    </ItemGroup>
+    <!-- The manifest (strat-book-plugin.md §7.7): ..\extension.json is a template whose version is stamped from
+         ..\version.json at build. The stamped copy is embedded (StratBookPack.Manifest) and copied beside the
+         DLL for the loader. -->
+    <Import Project="..\..\ExtensionManifest.targets"/>
 
     <ItemGroup>
         <!-- Direct, not transitive: the Avalonia build tasks (XAML compilation) and the MVVM source generators
