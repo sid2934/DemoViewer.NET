@@ -2,6 +2,7 @@
 
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Security.Cryptography;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
@@ -437,6 +438,66 @@ public class ExtensionLoaderTests
                 await Assert.That(statuses[0].Rejected.Single().Failure).IsEqualTo(LoadFailure.Untrusted);
                 await Assert.That(statuses[0].Rejected.Single().UserMessage)
                     .IsEqualTo("Update 1.0.0 was not loaded: the copy is not signed by this app's publisher");
+            }
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
+    // ── Resolve with a signed staged copy (item 35, strat-book-plugin.md §7.9) ──────────────────
+
+    [Test]
+    public async Task Resolve_LoadsASignedStagedCopy_WithoutTheEnvVar()
+    {
+        string root = NewRoot();
+        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        string publicKey = Convert.ToBase64String(key.ExportSubjectPublicKeyInfo());
+        try
+        {
+            ExtensionCandidate staged = StageRealCopy(root, versionOverride: null);
+            File.WriteAllText(Path.Combine(staged.Directory, ExtensionSignature.FileName), ExtensionSignature.Sign(staged.Directory, key));
+            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, "0.9.0"));
+
+            IReadOnlyList<PackStatus> statuses = ExtensionLoader.Resolve(root, [shipped], Host, TrustPolicy.SignedOrOptIn([publicKey], static _ => null));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(statuses[0].Source).IsEqualTo(new PackSource.Staged(staged.Directory));
+                await Assert.That(statuses[0].Rejected).IsEmpty();
+            }
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
+    // A directory signed and then altered: the signature itself still parses and names a known key,
+    // but the content no longer matches what it signed.
+    [Test]
+    public async Task Resolve_ASignedStagedCopyWithAFlippedByte_IsUntrusted_WithTheChangedAfterSigningDetail()
+    {
+        string root = NewRoot();
+        using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        string publicKey = Convert.ToBase64String(key.ExportSubjectPublicKeyInfo());
+        try
+        {
+            ExtensionCandidate staged = StageRealCopy(root, versionOverride: null);
+            File.WriteAllText(Path.Combine(staged.Directory, ExtensionSignature.FileName), ExtensionSignature.Sign(staged.Directory, key));
+            byte[] dllBytes = File.ReadAllBytes(staged.AssemblyPath);
+            dllBytes[^1] ^= 0xFF;
+            File.WriteAllBytes(staged.AssemblyPath, dllBytes);
+            ShippedPack shipped = new(StratBookPack.PackId, static () => new StratBookPack(), WriteShippedManifest(root, "0.9.0"));
+
+            IReadOnlyList<PackStatus> statuses = ExtensionLoader.Resolve(root, [shipped], Host, TrustPolicy.SignedOrOptIn([publicKey], static _ => null));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(statuses[0].Source).IsEqualTo(PackSource.Bundled);
+                await Assert.That(statuses[0].Rejected.Single().Failure).IsEqualTo(LoadFailure.Untrusted);
+                await Assert.That(statuses[0].Rejected.Single().Detail).IsEqualTo("a file changed after signing");
             }
         }
         finally

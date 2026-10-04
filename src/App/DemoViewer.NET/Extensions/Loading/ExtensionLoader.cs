@@ -110,23 +110,20 @@ public static class ExtensionLoader
                 continue;
             }
 
-            bool trusted;
-            string why = "the copy is not signed by this app's publisher";
-            string? trustError = null;
+            TrustVerdict verdict;
             try
             {
-                trusted = trust.IsTrusted(candidate.Directory, m);
+                verdict = trust.Judge(candidate.Directory, m);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
-                trusted = false;
-                why = "the trust check failed";
-                trustError = ex.Message;
+                verdict = TrustVerdict.No("the trust check failed", ex.Message);
             }
 
-            if (!trusted)
+            if (!verdict.Trusted)
             {
-                rejected.Add(new LoadOutcome(candidate.Directory, m, LoadFailure.Untrusted, why, trustError));
+                rejected.Add(new LoadOutcome(candidate.Directory, m, LoadFailure.Untrusted,
+                    verdict.Reason ?? "the copy is not signed by this app's publisher", verdict.LogDetail));
                 continue;
             }
 
