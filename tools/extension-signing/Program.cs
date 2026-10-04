@@ -34,7 +34,7 @@ static void PrintUsage()
 {
     Console.Error.WriteLine("usage:");
     Console.Error.WriteLine("  extension-signing keygen --out <private.pem>");
-    Console.Error.WriteLine("  extension-signing sign <dir> --key <private.pem>");
+    Console.Error.WriteLine("  extension-signing sign <dir> --key <private.pem> [--force]");
     Console.Error.WriteLine("  extension-signing verify <dir>");
 }
 
@@ -51,6 +51,30 @@ static string? GetOption(string[] args, string name)
     return null;
 }
 
+static bool HasFlag(string[] args, string name) => args.Contains(name, StringComparer.Ordinal);
+
+// The file never exists world- or group-readable, even for the instant between create and chmod:
+// the create mode is set on the open itself, off Windows (which has no POSIX mode to set).
+static void WritePrivateKeyFile(string path, string pem)
+{
+    if (OperatingSystem.IsWindows())
+    {
+        File.WriteAllText(path, pem + Environment.NewLine);
+        return;
+    }
+
+    FileStreamOptions options = new()
+    {
+        Mode = FileMode.Create,
+        Access = FileAccess.Write,
+        UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
+    };
+    using FileStream stream = new(path, options);
+    using StreamWriter writer = new(stream);
+    writer.Write(pem);
+    writer.Write(Environment.NewLine);
+}
+
 static int Keygen(string[] args)
 {
     string? outPath = GetOption(args, "--out");
@@ -62,11 +86,7 @@ static int Keygen(string[] args)
 
     using ECDsa key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
     string pem = key.ExportPkcs8PrivateKeyPem();
-    File.WriteAllText(outPath, pem + Environment.NewLine);
-    if (!OperatingSystem.IsWindows())
-    {
-        File.SetUnixFileMode(outPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-    }
+    WritePrivateKeyFile(outPath, pem);
 
     string publicBase64 = Convert.ToBase64String(key.ExportSubjectPublicKeyInfo());
     string keyId = ExtensionSignature.KeyId(key.ExportSubjectPublicKeyInfo());
@@ -84,7 +104,7 @@ static int Sign(string[] args)
 {
     if (args.Length == 0)
     {
-        Console.Error.WriteLine("usage: extension-signing sign <dir> --key <private.pem>");
+        Console.Error.WriteLine("usage: extension-signing sign <dir> --key <private.pem> [--force]");
         return 1;
     }
 
@@ -92,14 +112,20 @@ static int Sign(string[] args)
     string? keyPath = GetOption(args, "--key");
     if (keyPath is null)
     {
-        Console.Error.WriteLine("usage: extension-signing sign <dir> --key <private.pem>");
+        Console.Error.WriteLine("usage: extension-signing sign <dir> --key <private.pem> [--force]");
+        return 1;
+    }
+
+    string sigPath = Path.Combine(dir, ExtensionSignature.FileName);
+    if (File.Exists(sigPath) && !HasFlag(args, "--force"))
+    {
+        Console.Error.WriteLine($"{sigPath} already exists. Pass --force to overwrite it.");
         return 1;
     }
 
     using ECDsa key = ECDsa.Create();
     key.ImportFromPem(File.ReadAllText(keyPath));
     string json = ExtensionSignature.Sign(dir, key);
-    string sigPath = Path.Combine(dir, ExtensionSignature.FileName);
     File.WriteAllText(sigPath, json);
     Console.WriteLine($"Wrote {sigPath}");
     return 0;

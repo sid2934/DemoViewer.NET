@@ -1318,6 +1318,7 @@ the browser head, UiCapture and the test assembly still compile-link the pack an
 <config root>/extensions/<id>/<version>/
   extension.json                            the manifest (section 7.7); id and version must equal the folder names
   DemoViewer.NET.Extensions.StratBook.dll   the assembly the manifest names
+  extension.sig                             the detached signature (section 7.9) over everything else here
 ```
 
 The loader reads only under `<config root>/extensions/`; it never writes, moves or deletes (item 36 owns
@@ -1472,12 +1473,18 @@ manual, never `Directory.EnumerateFiles(..., AllDirectories)`: every entry, file
 checked for a reparse point before it is used, and refused (`ExtensionSignatureException`) rather than
 followed, matching the loader's own rule for the staged folder one level up. `EnumerationOptions` sets
 `AttributesToSkip = 0`; the default skips `Hidden`, and .NET marks a Unix dotfile `Hidden`, so leaving
-the default in place would let an added dotfile hide from the digest. The walk also refuses more than
-`MaxFiles` (2000) files or more than `MaxTotalBytes` (512 MB) total content, checked from `FileInfo.Length`
-before a file is opened, so a tree that is too big to safely hash fails fast rather than streaming
-hundreds of megabytes first. This is the form item 37's CI step must reproduce byte for byte; nothing
-about it is specific to this tool, and the tool and the app compile the identical source file (see
-below), so there is only one implementation to keep in sync.
+the default in place would let an added dotfile hide from the digest. It also sets
+`IgnoreInaccessible = false`: that property defaults to true, which silently skips an entry the process
+cannot read instead of throwing, exactly the gap that would let part of a tampered tree go unhashed
+with no reason at all; with it off, an unreadable file or directory anywhere in the tree is a reason,
+not a silent omission, and the enumeration itself (not only the per-entry attribute read after it) is
+inside the same guard, since it can throw mid-walk, a directory disappearing or a permission revoked
+under it, not only at the first call. The walk also refuses more than `MaxFiles` (2000) files or more
+than `MaxTotalBytes` (512 MB) total content, checked from `FileInfo.Length` before a file is opened, so
+a tree that is too big to safely hash fails fast rather than streaming hundreds of megabytes first.
+This is the form item 37's CI step must reproduce byte for byte; nothing about it is specific to this
+tool, and the tool and the app compile the identical source file (see below), so there is only one
+implementation to keep in sync.
 
 **`extension.sig`** is JSON beside `extension.json`:
 
@@ -1551,12 +1558,17 @@ app component, following the `NavPathSpike` convention of a comment saying so pl
 settings):
 
 ```
-extension-signing keygen --out <private.pem>     generates an ECDSA P-256 key pair; writes the
-                                                  private key to <private.pem> (chmod 600 off
-                                                  Windows) and prints the public half as a
-                                                  PublisherKeys.cs constant and its key id
-extension-signing sign <dir> --key <private.pem> writes <dir>/extension.sig
-extension-signing verify <dir>                   checks <dir>/extension.sig against PublisherKeys.Current
+extension-signing keygen --out <private.pem>              generates an ECDSA P-256 key pair; the
+                                                           private key is created at <private.pem>
+                                                           already mode 600 off Windows (the create
+                                                           mode is set on the open, not chmod'd after),
+                                                           and the public half prints as a
+                                                           PublisherKeys.cs constant plus its key id
+extension-signing sign <dir> --key <private.pem> [--force] writes <dir>/extension.sig; refuses to
+                                                           overwrite one that is already there
+                                                           unless --force is given
+extension-signing verify <dir>                            checks <dir>/extension.sig against
+                                                           PublisherKeys.Current
 ```
 
 `<AssemblyName>` is `extension-signing`, so a publish produces that binary name; from source,
@@ -1590,17 +1602,24 @@ or clean up anything it used to get them there before the loader ever sees it.
 
 **Tests.** `src/App/DemoViewer.NET.App.Tests/Extensions/ExtensionSignatureTests.cs`: sign-then-verify
 round trip with a key generated in process; a byte change, a rename, an added file, a removed file, and
-a wrong key each fail with the detail named above; the canonical digest is identical across two runs and
-independent of the files' creation order; a dotfile changes the digest; both caps are enforced; a
-symlinked file inside the tree is refused. `SignedTrustPolicyTests.cs`: a missing signature is untrusted
-with the generic reason; a valid one is trusted; `SignedOrOptIn` trusts a signed directory without the
-env var, trusts an unsigned one only with it, and (a documented edge, not a new rule) the opt-in still
-bypasses a directory signed by the wrong key since it does not inspect the directory at all;
-`PublisherKeys.Current`'s one entry imports as a NIST P-256 key. `ExtensionLoaderTests.cs` gained two
-cases: `Resolve` loads a staged copy of the real extension signed with a freshly generated key, no env
-var set; the same staged copy with one byte flipped in the DLL is rejected as `Untrusted` with detail
-"a file changed after signing". No test commits a private key; every test that signs something
-generates its own ephemeral key pair and injects the matching public half.
+a wrong key each fail with the detail named above; a forged digest (rewritten to match a tampered tree)
+and a spoofed key id (naming a key that never signed anything) both still fail, since the order of
+checks never compares digests before the signature over them verifies; a listed key on another curve
+(P-384) is skipped rather than handed to `VerifyData`; a subdirectory made unreadable mid-walk (chmod
+000, skipped on Windows and under an account that can read it anyway) is a reason, never a thrown
+exception, both through `ComputeDigest` directly and through `Verify`; the canonical digest is identical
+across two runs and independent of the files' creation order; a dotfile changes the digest; both caps
+are enforced; a symlinked file inside the tree is refused. `SignedTrustPolicyTests.cs`: a missing
+signature is untrusted with the generic reason; a valid one is trusted; `Default` itself (not just
+`SignedOrOptIn` with an injected key) refuses a directory signed with a key outside
+`PublisherKeys.Current`; `SignedOrOptIn` trusts a signed directory without the env var, trusts an
+unsigned one only with it, and (a documented edge, not a new rule) the opt-in still bypasses a directory
+signed by the wrong key since it does not inspect the directory at all; `PublisherKeys.Current`'s one
+entry imports as a NIST P-256 key. `ExtensionLoaderTests.cs` gained two cases: `Resolve` loads a staged
+copy of the real extension signed with a freshly generated key, no env var set; the same staged copy
+with one byte flipped in the DLL is rejected as `Untrusted` with detail "a file changed after signing".
+No test commits a private key; every test that signs something generates its own ephemeral key pair and
+injects the matching public half.
 
 ---
 
