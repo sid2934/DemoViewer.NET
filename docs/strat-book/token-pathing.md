@@ -4,7 +4,7 @@ Request, 2026-10-01: tokens in the strat preview move in straight lines between 
 through walls. This note covers what map data we already have, the approaches we could take, a prototype
 measured on three maps, and a recommendation.
 
-**Status (2026-10-01): built** on `feature/strat-book-pathing` from the owner's decisions in section 7. The
+**Status (2026-10-01): built** on `feature/strat-book-pathing` from the decisions in section 7. The
 production pathfinder, the projection, the wiring, authored-segment bending, the route line and `via` are in; the
 baker change (item 5) is not. docs/strat-format.md ("Motion on the canvas", "Via") is the reference for what ships;
 this note stays as the spike's record.
@@ -106,7 +106,7 @@ not a foundation.
 
 ## 3. Prototype measurements
 
-Machine: the owner's Mac, Release build, .NET 10. Routes run place anchor to place anchor. An anchor is
+Machine: the Mac, Release build, .NET 10. Routes run place anchor to place anchor. An anchor is
 the place's area-weighted centroid, snapped into one of the place's own areas. Off-mesh is the share of
 points, sampled every 8 u, that lie more than 8 u from any nav area. A query is two `Locate` calls plus
 `FindPath`, which is what the projection would do per run. Timings are taken after a 500 ms JIT warmup over
@@ -202,7 +202,7 @@ with a floor key per waypoint, and the projection treats it as follows:
   `Locate(placeId)` and route to it. A spot that does not snap uses the place arrival.
 - **Authored entries** are drag placements with fixed ticks. Their timing belongs to the author, so routing
   only bends the line: in a post-pass over the built track, insert corners between two authored keyframes
-  at arc-length-proportional ticks inside that segment's window. Whether to do this at all is an owner
+  at arc-length-proportional ticks inside that segment's window. Whether to do this at all is an open
   question, listed below.
 - **Off-mesh points.** A drop inside a wall snaps to the nearest area within 256 u. The route goes there,
   then straight to the point. A point that does not snap gets a straight line, as today.
@@ -235,7 +235,7 @@ count and should be measured in item 2.
 3. **App wiring.** Build the graph in `ZonePlaceResolverAdapter`, expose it like `PlaceArrival`, pass it from
    the canvas, drag preview and export, behind a setting until it is verified. Then a UiCapture or dv2d
    check on dust2 and nuke. Small.
-4. **Authored-segment bending,** if the owner wants it. A post-pass over built tracks, with tests. Small.
+4. **Authored-segment bending,** if wanted. A post-pass over built tracks, with tests. Small.
 5. **Optional baker change** (Windows lane, needs the vpk). Emit directed links, the portal edge id and
    ladders as additive `zones.json` fields, re-bake the ten maps, and drop the climb heuristic when the
    fields are present. Small to medium, plus a re-bake.
@@ -285,7 +285,7 @@ Items 1 to 3 give routed tokens. Item 5 can come later without blocking anything
 - The projection takes the resolver through `PlaceSet`, so `Build`, `Run`, `TrackOf` and `TrackWith` all see it.
   Null is the old straight lines; the feature `stratbook.routing` (on by default) decides what the canvas passes.
 - Cost per edit, Execute B on dust2 (8 steps, 10 tracks, a lurk, two throws, opponents dragged at three steps), Debug
-  build on the owner's Mac: a full projection build is 0.17 ms straight and 1.7 ms routed with a warm memo (3.1 ms
+  build on the Mac: a full projection build is 0.17 ms straight and 1.7 ms routed with a warm memo (3.1 ms
   on a fresh graph), and 1.7 ms after a one-token edit; the drag preview (`TrackWith`) is 0.14 ms per pointer move.
   Under a frame, so no per-slot cache was added. Keyframes go from 63 straight to 313 routed.
 - UiCapture at 1280x800 (`strat-routing-execute-b`, `strat-routing-execute-b-push`, `strat-routing-via`):

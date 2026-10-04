@@ -8,7 +8,7 @@ correction disagree, **the correction wins**, and this document is the registry 
 review, the author folds the corrections that name it into an `## Integrator corrections (BINDING)`
 block at the top of that file, the house shape.
 
-Every design indexed here has since been built; at the time of writing nothing was. Every claim about the tree cites a file; every measured number is the
+Nothing here is implemented. Every claim about the tree cites a file; every measured number is the
 design's own and is cited by section.
 
 ---

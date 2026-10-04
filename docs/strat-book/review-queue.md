@@ -4,7 +4,7 @@ The Strat Book's Review section (`review.queue`) froze the app once the queue pa
 entries. This note records what was measured, what was fixed on `feature/strat-book-review-queue`,
 and the product questions that are still open.
 
-## What is in the owner's queue
+## What is in the queue
 
 Measured on a read-only copy of `~/Library/Application Support/DemoViewer.NET/review-queue.json`,
 taken 2026-09-28.
@@ -108,15 +108,15 @@ added, they get it for free: only realized rows exist.
 
 ## Product shape: what a reviewer needs
 
-The owner decided these on 2026-09-28; what was built is under "Decisions, built" below. The
+These were decided 2026-09-28; what was built is under "Decisions, built" below. The
 options are kept as they were proposed.
 
 Built, since none of it needs a decision: sections with counts, collapsed big sections, a source
 filter, search across notes, questions, demo names and section titles, and Expand all / Collapse all.
 
-Open questions, with a recommendation for each. **(owner)** marks the ones that need the owner's call.
+Open questions, with a recommendation for each. **(decision)** marks the ones that need one.
 
-1. **Should auto-generated lineup clips be in the Review queue at all? (owner)**
+1. **Should auto-generated lineup clips be in the Review queue at all? (decision)**
    The numbers say no. There are 4,792 of them and none has a question. The Utility Book card already
    lists every throw with its GIF and setpos, which is where a lineup gets looked at. The queue is the
    list a reviewer walks, and a clip nobody chose buries the seven Dossier clips someone did send.
@@ -131,18 +131,18 @@ Open questions, with a recommendation for each. **(owner)** marks the ones that 
      but the header still reads "4,799 clips" and the badge still shows 4,799.
    - **Option C: keep them out of the badge and the header count only.** Cheap, but it leaves two
      meanings of "queued" in one list.
-2. **Reviewed state. (owner)** Mark a clip reviewed, "mark section reviewed", and a
+2. **Reviewed state. (decision)** Mark a clip reviewed, "mark section reviewed", and a
    reviewed/unreviewed filter. This needs a `reviewed` field on `ReviewEntry`. The field is additive:
-   older builds keep it through `JsonExtensionData`, so there is no schema bump. The owner needs to
-   decide what reviewed does: hide the clip, sink it, or count it, and whether writing an answer to
+   older builds keep it through `JsonExtensionData`, so there is no schema bump. What reviewed does is
+   still open: hide the clip, sink it, or count it, and whether writing an answer to
    the question counts as reviewing. Recommendation: a per-clip flag, hidden by default behind the
    filter, with "mark section reviewed" on the title card.
-3. **Map and team filters. (owner, for team)** Entries carry no map or team field. A map filter can
+3. **Map and team filters. (decision, for team)** Entries carry no map or team field. A map filter can
    come from the demo cache by `Sha256`, with no change to the file; it can be built next without a
    decision. A team filter needs the sending surface (Dossier, Situations) to write the team onto the
    clip. That is a new field and a question of which team: the clip's subject or the demo's
-   opponent. It follows the owner's team-identity rule, which has no automatic team tracking.
-4. **Remove a section with its clips. (owner, tied to 1)** Today ✕ on a title card removes only the
+   opponent. It follows the team-identity rule, which has no automatic team tracking.
+4. **Remove a section with its clips. (decision, tied to 1)** Today ✕ on a title card removes only the
    card. Removing a lineup section would also cancel its pending renders, through the coupling
    described under option A. After option A this is a plain delete and needs no decision.
 
@@ -171,14 +171,14 @@ no question, not marked reviewed, and a note in the generated shape (`<title>. s
 r`), then drops "Lineup clips, <map>" cards left empty. The new file is written beside the old one,
 read back and compared by id, but only after the old file is copied to `review-queue.lineups.bak`;
 without that copy nothing migrates. If the rewrite fails after the copy, the migrated set stays in
-memory and the next ordinary save writes it, so the unmigrated set is never saved over a migrated file. A refused file (newer schema, unreadable) is left alone. On the owner's copy: 4,792
+memory and the next ordinary save writes it, so the unmigrated set is never saved over a migrated file. A refused file (newer schema, unreadable) is left alone. On the copy: 4,792
 dropped, 0 kept, 11 cards dropped. The 7 Dossier clips and their card stay.
 
 An old pair is adopted only when its setpos line is the new job's, since the old per-lineup clip
 showed the lineup's representative, which is not always the first technique's. Otherwise the clip
 renders again and the old pair is deleted once the new one exists. Planning runs on the pool: an index
 change calls `PlanSoon`, which waits 500 ms for more changes and runs one plan at a time. Measured over
-a copy of the cache with the owner's clip folder mirrored (GIFs empty, setpos lines copied): 12,899
+a copy of the cache with the clip folder mirrored (GIFs empty, setpos lines copied): 12,899
 lineups plan 14,027 jobs, the index change costs its thread 0.08 ms, the first plan takes 2.1 s off
 it and adopts 309 pairs, and a steady plan takes 1.8 s off it. The byte cap, already full, decides
 how many of the new clips render.

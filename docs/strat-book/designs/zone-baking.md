@@ -10,7 +10,7 @@ addition was requested: **user-defined zones and callouts with the baked set as 
 which is §3.8 and raises two new decisions, Z-1 and Z-2, with recommended answers. Nothing here is
 implemented.
 **Tree:** `main` at `d90ec9f` (0.8.1). CS2DemoKit 0.12.0. ValveResourceFormat 19.2.6339. ValvePak 4.0.0.142.
-**Work item:** Zone Baking, `plan.md` §3 Phase 0 (`plan.md` §3). Findings F1, F2, F15, F17 apply.
+**Work item:** Zone Baking, `plan.md` §3 Phase 0 (plan.md:255). Findings F1, F2, F15, F17 apply.
 **Date:** 2026-09-23.
 
 ---
@@ -21,20 +21,20 @@ Issue #5 asks for "map trigger volumes / nav zones, baked into the map asset bun
 position can resolve to a named place or a bombsite", with the baker as the place the extraction
 lands so the app stays VRF-free.
 
-Finding F1 (`plan.md` §2) removes the round index from the list of consumers: `PositionSampler.Walk`
+Finding F1 (plan.md:61) removes the round index from the list of consumers: `PositionSampler.Walk`
 already yields each pawn's `m_szLastPlaceName`, and `rules/highlights_position.rules.yaml:36-53`
 consumes it as `player.place`. What is left needs a lookup from an arbitrary world point, which no
 demo field gives:
 
 | Consumer (plan.md name) | Needs from this item |
 |---|---|
-| Query Canvas (`plan.md` §3) | a click on a pane at a given floor, to a place token identical to what the index stores |
-| Grenade Index (`plan.md` §3) | a detonation or landing point, to a place |
-| Tolerance Slider (`plan.md` §3) | a place-adjacency graph |
+| Query Canvas (plan.md:275) | a click on a pane at a given floor, to a place token identical to what the index stores |
+| Grenade Index (plan.md:417) | a detonation or landing point, to a place |
+| Tolerance Slider (plan.md:293) | a place-adjacency graph |
 | Zone outlines on the canvas | per-floor outline geometry for each place, drawable by a scene layer |
 | "inside bombsite" for arbitrary points (Grenade Index, Round Facts consumers) | the two `func_bomb_target` volumes as testable solids |
-| Click To Tag Position (`plan.md` §3) | point to place |
-| Callout Aliases (`plan.md` §3) | the canonical place vocabulary per map |
+| Click To Tag Position (plan.md:331) | point to place |
+| Callout Aliases (plan.md:369) | the canonical place vocabulary per map |
 | A technical user (requirement added at review) | a way to define their own zones and callouts over the baked default, because teams do not share callouts |
 
 In scope: the baker extension, the file it writes, the app-side resolver, the outline layer's data
@@ -461,7 +461,7 @@ shares rulesets and themes: copy the file. It is never written into `assets/`.
 `zones.json` is read from the bundle directory beside the executable, which the browser head does
 not have (`wasm-matrix.md:117`). `ZoneAssetPipeline.TryLoad` returns null there; `PlaceResolver` is
 absent; every consumer takes its documented fallback: the Query Canvas snaps to the index's sampled
-place centroids (`plan.md` §3), the Grenade Index leaves the landing place empty, the Tolerance
+place centroids (plan.md:275-278), the Grenade Index leaves the landing place empty, the Tolerance
 Slider offers exact match only, the outline layer is not registered. `wasm-matrix.md` gets a row:
 "Zone data | absent | no asset directory on the browser host; every consumer degrades to its no-zones
 path; shipping `zones.json` as a web asset is the same open option as the radar set." Fetching it
@@ -472,7 +472,7 @@ over HTTP is not part of this item.
 | Alternative | Why not |
 |---|---|
 | Take place names from the `.nav` file | CS2 nav v36 carries none (§2.5 Q1). Not a VRF gap; the data is not there. |
-| Derive place polygons from demos: cluster `m_szLastPlaceName` samples by position | Needs demos for every map before any resolver exists; boundaries are wherever players happened to walk; nothing for a bombsite volume. The Query Canvas keeps this as its no-zones fallback (`plan.md` §3), which is the right place for it. |
+| Derive place polygons from demos: cluster `m_szLastPlaceName` samples by position | Needs demos for every map before any resolver exists; boundaries are wherever players happened to walk; nothing for a bombsite volume. The Query Canvas keeps this as its no-zones fallback (plan.md:277), which is the right place for it. |
 | Volumes only, no nav join | 88.5 to 98.8 percent agreement alone (§7), and 6 to 24 percent of nav areas on nuke, vertigo and mirage are outside every volume. The nav join lifts those maps by 3 to 5 points and gives outlines and adjacency, which volumes cannot. |
 | Nav flood only, no volume test | Volumes are the game's own rule and win on dust2 (98.8 vs 97.8). The cascade is one extra AABB pass. |
 | Polygon union per place (Clipper2 in the baker) | Adds a package to produce what boundary-edge extraction produces for free from `areaLinks`. Revisit only if a consumer needs a filled region as one path. |

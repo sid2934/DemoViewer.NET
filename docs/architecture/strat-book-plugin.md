@@ -1,9 +1,9 @@
 # Strat Book as a plugin: investigation and design
 
 Status: investigated 2026-10-02 on `spike/strat-book-plugin` (off `feature/strat-book` at `8275d5a6`);
-owner decisions recorded 2026-10-02 (section 10). Line numbers are against that commit and will drift.
+decisions recorded 2026-10-02 (section 10). Line numbers are against that commit and will drift.
 
-Goal: make the Strat Book features a plugin that a user can fully disable, extend the plugin
+Request: make the Strat Book features a plugin that a user can fully disable, extend the plugin
 framework where the Strat Book needs seams it does not have, and grow the existing feature hiding into a
 modular application.
 
@@ -195,7 +195,7 @@ news up its analysis services inside its lazy VM factory and costs nothing until
 ### 3.7 DI
 
 About 50 singleton factory registrations in `App.BuildServices` (:690-1290) for Strat Book types, all
-inline in one method, plus the explicit startup force-resolves listed in 3.2. Note that the comment above
+inline in one method, plus the explicit startup force-resolves listed in 3.2. The comment above
 `BuildServiceProvider` says `ValidateOnBuild` constructs every singleton. MS.DI validates call sites and
 does not invoke factories, so the startup cost is the explicit list at :1373-1402, not every registration.
 That is good news: moving the registrations into a `StratBookPack.Register(services)` costs nothing at
@@ -263,7 +263,7 @@ packs instead of hardcoding them. One umbrella feature id, with the existing per
 - **Effort:** 24 items (section 6). Phases 0 and 1 (real "off", with in-session memory release) are 10.
 - **Risk:** low. No new loading, no type-identity problems, no XAML resource resolution across assemblies.
   The main risk is regression in 2D Playback while inverting its dependencies, which has good headless
-  coverage (`Playback2D*Tests`, `SceneLayerListParityTests`, follow-card render tests). Owner-facing risk:
+  coverage (`Playback2D*Tests`, `SceneLayerListParityTests`, follow-card render tests). User-facing risk:
   none, the feature works the same when on.
 - **Performance and memory:** when on, identical. When off: no Round Index or Grenade walks, no
   `SituationIndex` or `GrenadeIndex` resident, no Team Identity rebuild, no tag-facts saves, no mining. If
@@ -356,9 +356,9 @@ and small, separate seams instead of all queueing on `App.axaml.cs`.
    `DemoViewer.NET.App.Tests/Extensions/StratBook/`, UiCapture variants under
    `DemoViewer.NET.UiCapture/Extensions/StratBook/`. Pure `git mv` plus csproj globs; namespaces and
    behaviour unchanged, so the diff is renames only and `git log --follow` keeps every file's history.
-   Runs alone after item 0, before wave 1, because it touches every file the later items edit. The
+   Runs alone after item 0, before every later item, because it touches every file the later items edit. The
    csproj split (Phase 5) then moves that one directory up to `src/Extensions/`.
-   M0. **Baseline measurement.** On a copy of the owner's library (never the live config dir): resident set
+   M0. **Baseline measurement.** On a copy of the demo library (never the live config dir): resident set
    after startup, and library index time, at the current head with everything on. Record the numbers in
    section 12 of this doc. Runs alongside item 0; it is the only heavy parse at the time.
 
@@ -617,7 +617,7 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     `SignedTrustPolicy` filling the `ITrustPolicy` seam item 34 left; `TrustPolicy.Default` now checks
     signing first and the developer opt-in second. A signing tool at `tools/extension-signing` (outside
     the `.slnx`) generates keys, signs and verifies. Section 7.9 has the digest format, the verification
-    order, the tool and the owner's action on the private key.
+    order, the tool and the action required on the private key.
 36. **Update feed.** Velopack owns `current/` and cannot carry a second package, so the extension has its
     own feed (a GitHub release per extension version); the app's Update service checks it, downloads,
     verifies, stages under the config root and applies on next start. Settings shows the installed and
@@ -645,7 +645,7 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     passed when `do_publish == '1'`, and `pack-extension.sh` itself refuses that secret in `--dry-run`
     regardless. The rolling feed is merged and validated before the per-version release is touched, so
     a refused downgrade leaves nothing orphaned. Section 7.11 has the rest: the tag convention, the zip
-    layout as produced, the feed update rules, the secrets and the owner action, the dry-run path, and
+    layout as produced, the feed update rules, the secrets and the action required, the dry-run path, and
     how to cut a release step by step. Nothing changes in `release.yml`: the app installer bundles
     whichever extension version the heads reference at app release time, same as before this item.
     Deviations from the sketch above: (1) the shipped manifest is still copied beside the app's DLL
@@ -1393,7 +1393,7 @@ after `VelopackApp.Build().Run()` and before Avalonia starts, and returns the `P
    models. A staged copy that passes both can still fail lazily there; the reference check narrows that to
    packages whose assembly version does not move with the package version (CommunityToolkit.Mvvm stays
    8.0.0.0 across patches; NBGV stamps the first-party assemblies at major.minor, so a patch release of
-   the app is invisible to it). Section 10 decision 6 is the owner's call on how much tighter to pin.
+   the app is invisible to it). Section 10 decision 6 settled how much tighter to pin: (B), as built.
 5. Anything that fails falls back to the shipped copy. The whole resolve is wrapped: a loader bug is a
    `LoaderFailed` outcome on the shipped pack, never a crash at startup.
 
@@ -1589,7 +1589,7 @@ bypass, not a narrower "only when truly unsigned" rule.
 verifies it. The public key in this repo today has key id
 `dfe4ae3ebb28794fb79a03562ad36eaf252ebe1753292574e752bad4bc1c4cc0`, generated 2026-10-03.
 
-**The signing tool**, `tools/extension-signing` (out of the `.slnx`, a CI/owner utility rather than an
+**The signing tool**, `tools/extension-signing` (out of the `.slnx`, a CI and command-line utility rather than an
 app component, following the `NavPathSpike` convention of a comment saying so plus relaxed analyzer
 settings):
 
@@ -1619,12 +1619,12 @@ four failure buckets (missing, malformed, wrong key, one byte flipped after sign
 tool and the real embedded key.
 
 **Action before the first release.** The matching private key is not in this repo, not even on a branch that stays
-unpushed: it was generated with `keygen` and written to a path under the owner's home directory, outside
-every git working tree, permissions restricted to the owner. Before item 37 wires a release workflow
-that signs the shipped extension automatically, the owner stores that private key's PEM contents as the
+unpushed: it was generated with `keygen` and written to a path under a home directory, outside
+every git working tree, with owner-only permissions. Before item 37 wires a release workflow
+that signs the shipped extension automatically, store that private key's PEM contents as the
 GitHub repository secret `DV_EXTENSION_SIGNING_KEY`, the same pattern the existing `DV_SIGN_*` /
-`DV_NOTARY_PROFILE` secrets already use in `release.yml` (unset today; wired via repo secrets when the
-owner is ready). Rotating the key is `keygen` again, adding the new public constant to
+`DV_NOTARY_PROFILE` secrets already use in `release.yml` (unset today; wired via repo secrets before that
+release). Rotating the key is `keygen` again, adding the new public constant to
 `PublisherKeys.Current` ahead of removing the old one (so an extension signed with the old key still
 loads until every shipped build has the new constant), then updating the stored secret once releases
 move to the new key.
@@ -1743,7 +1743,7 @@ user-terms `Error` and the exception message on `LogDetail` for the log only; a 
 did not read is `Unknown`. Nothing throws. The service remembers the last state per pack for the run
 (`LastStates`, `LastState(id)`).
 
-**Decision 6's predicate.** `IsOffered` is the one place the owner's pending choice lands.
+**Decision 6's predicate.** `IsOffered` is the one place decision 6 (section 10) lands.
 `ExtensionUpdateService.DefaultIsOffered` is option (B): `PackCompatibility.Check(entry.Manifest, host)`
 accepts it. Option (A) replaces the predicate passed to the constructor with one that reads the
 CI-written `builtAgainst` block from the entry's manifest and compares it with the running versions; the
@@ -1869,8 +1869,8 @@ way locally and in CI. In order:
    caller sets the secret alongside `--dry-run`. A real run reads `DV_EXTENSION_SIGNING_KEY` into a
    `mktemp` file (`chmod 600`, removed by a `trap ... EXIT`) and verifies with no override, against
    `PublisherKeys.Current`, so a secret that is not the key behind `Primary` fails here rather than
-   shipping a zip no app will trust. A real run with no key available fails outright with the owner
-   action below; a dry run with none notes it and ships an unsigned zip.
+   shipping a zip no app will trust. A real run with no key available fails outright with the action
+   below; a dry run with none notes it and ships an unsigned zip.
 8. Zips the staged directory deterministically (`extension-signing zip`, `DeterministicZip` below:
    entries sorted ordinal by `/`-path, every entry's timestamp fixed to 1980-01-01 and its Unix mode
    normalized to `0644`, no directory entries) to
@@ -2079,7 +2079,7 @@ item adds that second extension, not done here.
 | UI (tabs, sections, panes, lanes, menus, keybinds, settings pages, chips) | Gone immediately (gate is already live; sections reconcile by identity) | Never built |
 | Background jobs (evaluators, mining, inbox, lineup clips, migrations) | Evaluators stop at the next `Wants()` poll; queued jobs owned by the pack are cancelled by owner tag; a job already running finishes its current unit | Never queued |
 | Indexing passes (Round Index, Grenade walk, Suggested Tags, Round Facts if pack-owned) | Stop at the next demo; nothing new written | Not run. Library indexing does strictly less work |
-| Resident memory (`SituationIndex`, `GrenadeIndex`, `SignatureCache`, cached VMs) | Released in session (owner decision 3; Phase 1 item 4) | Not allocated |
+| Resident memory (`SituationIndex`, `GrenadeIndex`, `SignatureCache`, cached VMs) | Released in session (decision 3; Phase 1 item 8) | Not allocated |
 | Startup cost (index loads, Team Identity rebuild, store construction) | n/a | None |
 | Data on disk (stores in 3.6, cache sidecars, record fields) | Kept, untouched | Kept, untouched |
 
@@ -2094,7 +2094,7 @@ and tag labels go with the pack rather than showing rows written while it was on
 records and come back with the pack; a bare run cached under one gate state is not served under another.
 
 **Stale cache while off.** Library keeps indexing new demos without pack passes. The pack fields of those
-records are simply absent (or, after Phase 4, the `Packs` entry is missing). Fields of records indexed
+records are absent (or, after Phase 4, the `Packs` entry is missing). Fields of records indexed
 before the switch stay as they were.
 
 **Re-enabling.** The pack's evaluators report every demo whose pack fingerprint is missing or stale through
@@ -2215,7 +2215,7 @@ data for the session only.
 5. **Structure:** each extension lives in its own directory from the start (Phase 0b) and becomes its own
    csproj once the edges are cut (Phase 5), so extensions can be released on a different cadence from the
    app (Phase 6).
-6. **(pending) How strictly a staged extension is pinned to the app build.** The extension compiles
+6. **How strictly a staged extension is pinned to the app build.** The extension compiles
    against the app assembly, Avalonia, CS2DemoKit, Playback2D and the rest of the app's packages, and a
    staged copy built against a different patch of any of them loads and fails only when the mismatched
    member is first called. Two options:
@@ -2252,7 +2252,7 @@ Two items in flight never shared a hot file. The hot files are `App.axaml.cs`, `
 
 ## 12. Measurements
 
-Filled in by M0 and item 9. Resident set after startup and library index time, on a copy of the owner's
+Filled in by M0 and item 9. Resident set after startup and library index time, on a copy of the demo
 library, with the pack on (M0), off at startup (9), and after an on-to-off toggle in session (9).
 
 | State | Resident set after startup | Library index time | Notes |
@@ -2267,7 +2267,7 @@ library, with the pack on (M0), off at startup (9), and after an on-to-off toggl
 Reproduced by `tools/strat-book-baseline/run.sh` (also usable directly: the three `StratBookPackBaselineTests`
 probes in `DemoViewer.NET.App.Tests`, each `[Category("Environmental")]` and skipped unless its env var is
 set, so the standard tier never runs them). Machine: a 16 GB macOS arm64 dev machine. Build: Release. Head:
-`f48f6695`. The copy: the owner's live config dir (`~/Library/Application Support/DemoViewer.NET/`), minus
+`f48f6695`. The copy: the live config dir (`~/Library/Application Support/DemoViewer.NET/`), minus
 `lineup-clips/` (1.0 GB of rendered GIFs, no measurement reads them), `logs/`, `crash.log` and `*.bak`; 79 MB
 copied, 382 demos indexed. In the copy's `settings.json`: `Highlights.BackgroundScan`,
 `ProcessingQueue.BackgroundProcessingEnabled`, `Situations.BackgroundIndex`, `Grenades.BackgroundIndex` and
@@ -2369,7 +2369,7 @@ regardless of the pack, it should show up (and by about the same amount) whether
 
 **Pack resident cost, isolated** (`PackResidentCostDirect`, no DI container, no `App.BuildServices`): there
 is no seam yet to boot with the startup loads skipped, since `App.axaml.cs` runs them unconditionally and
-owns that file this wave (item 0). As a narrower, exact substitute, `SituationIndex`, `GrenadeIndex` and
+is item 0's hot file at that point. As a narrower, exact substitute, `SituationIndex`, `GrenadeIndex` and
 `TeamIdentityService` are constructed directly over a fresh `DemoCacheStore` on the copy (the same
 construction `StratMiningCalibration` already uses), each measured by a `GC.GetTotalMemory(true)` delta
 around its own load, immediately (no idle period, matching the full-boot probe's "early"); the probe then
@@ -2468,7 +2468,7 @@ third probe, `OnThenOffThenOn_InSession`, flips `Features.Overrides["pack.stratb
 one), so awaiting `PackSwitch.Pending` waits for the actual "Strat Book: release memory" and startup-load
 items to run, not just for them to be submitted. Machine, build and library: same as M0 (macOS arm64,
 Release, 382 demos), head `396495e1` (code-identical to `fa77bad5`, the item 8/10 merge point; only
-`docs/strat-room/plan.md` sits between them). Fresh config copies, made the same way M0's was (the live
+a planning-note commit sits between them). Fresh config copies, made the same way M0's was (the live
 config dir minus `lineup-clips/`, `logs/`, `crash.log`, `*.bak`, `.DS_Store`; the same five background
 flags forced off): one with no `pack.stratbook` override (resolves on, used for the "pack on, rerun" row's
 resident-set and index-time trials) and one with the override set to `false` (for the "pack off" row). A
@@ -2594,7 +2594,7 @@ Library index time was not measured inside the toggle probe: the pack-off row ab
 does indexing cost with the pack off", and parsing demos inside the same process that the three resident
 readings share would pollute their JIT and GC history for no new number.
 
-**Method deltas from M0, and two things worth naming.** The index-time demo lists for the on-rerun and
+**Method deltas from M0, and two caveats.** The index-time demo lists for the on-rerun and
 off rows are disjoint from EACH OTHER (no filename appears in both), both from the same size-median
 `match730_*` cluster M0 used (not M0's exact 8: the library has 381 to 382 entries depending on exactly
 when it is counted, and M0's doc did not record filenames, only the selection rule).

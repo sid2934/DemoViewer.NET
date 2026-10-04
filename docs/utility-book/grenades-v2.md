@@ -7,7 +7,7 @@ forward walk give byte-identical rows on three benchmark demos, and the real-dem
 equals unfiltered, the measured invariants) pass. It has not been compared with the walk before the
 refactor, because the Grenade Walk golden was never captured; slice 2 captures it first.
 
-Data: a copy of the owner's cache taken 2026-09-28 (381 demos walked by walker 2, 95,583 grenades, 94,845
+Data: a copy of the cache taken 2026-09-28 (381 demos walked by walker 2, 95,583 grenades, 94,845
 with an origin and a landing, so indexable). 56 of the demos are de_mirage (4,523 smokes). No demo is
 counted twice: 64 have no hash yet, and no two share a file name and size.
 
@@ -28,7 +28,7 @@ The Utility Book never shows it. `UtilityBookTabViewModel.BuildGroups` stores gr
 by `LandingGroup.Id`, which was `"{Kind}:{Cell}"`, with `Cell` the 256-unit grid cell of the group's seed.
 Landing groups are merged at 96 units, so one 256-unit cell can seed several groups. They share a key, and
 since clusters arrive most thrown first, the smallest group in the cell is written last and replaces the
-bigger ones. The icon the owner saw at Window was a 9-throw group that happened to seed in the same cell.
+bigger ones. The icon at Window was a 9-throw group that happened to seed in the same cell.
 
 Measured through the real C# path (`GrenadesV2Probe`, de_mirage smokes, default filters):
 
@@ -61,7 +61,7 @@ within 1.5% of the C# numbers on Mirage):
 All kinds and maps: 1,504 of 1,944 groups shown, 10,540 of 25,084 lineup throws (42%). The busiest spots
 are the ones most likely to lose, because a busy cell seeds more groups.
 
-### 1.3 The owner's examples and other well-known lineups
+### 1.3 Reported examples and other well-known lineups
 
 Each row is the throws from the named area landing within 160 units of the spot (`known.py`). "Shown
 today" counts throws in a lineup of 2 or more whose group survived the dictionary. The last two columns
@@ -127,7 +127,7 @@ Why these numbers: a CS2 smoke is about 144 units in radius, so two detonations 
 ground. 24 units is two feet. 64 in height is the jump apex plus a crouch. 192 on the landing lets bounces
 scatter without letting two lineups from one spot to different places merge.
 
-Results on the owner's library, smokes:
+Results on the library, smokes:
 
 | Map | Grid lineups ≥2 | Throws covered | Largest | Density lineups ≥2 | Throws covered | Largest |
 |---|---|---|---|---|---|---|
@@ -159,7 +159,7 @@ parameter change) re-mints under a new store version and records old id to new i
 (`{map}-{kind}-{lineupId:N}`), and review queue entries store today's ids. The mining cache
 (`detected.json`) is rebuilt on every mine and needs nothing. The prototype fills `AliasIds` with every member's grid id,
 which is not enough: the density grouping splits by strength and running where the grid did not, and on
-the owner's library 2,866 of 7,905 grid lineups (13,469 throws) spread over more than one density lineup
+the library 2,866 of 7,905 grid lineups (13,469 throws) spread over more than one density lineup
 (`aliases.py`). With aliases on every piece, `DescribeLineup` would return whichever piece comes first.
 Rule for the persisted alias table: each old id maps to exactly one anchor, the one that received the most
 of that grid position's throws, ties broken by the anchor's throw count and then its id. Clip stems follow
@@ -210,7 +210,7 @@ throw or lineup aggregates. Suggested Tags reads the parse, not the rows.
 Total about 7.7 MB gzipped against 51.1 MB today (-85%), and the index would hold structs of about 43 bytes
 per throw instead of ~1 KB objects. A cap is then cheap to add: for example, drop throw log records of
 single throws from demos older than N months, or keep only the newest K members per lineup with counts
-carried in the aggregate. Whether to cap at all is an owner call (§7).
+carried in the aggregate. Whether to cap at all is an open decision (§7).
 
 Existing rows convert without a re-walk: the rows sibling has every field the throw log needs, and the
 paths sibling has the representative trajectories. The conversion runs once as a queue item, like the
@@ -224,7 +224,7 @@ window), and they are most of the parse's LOH (§7 of `docs/perf/memory-and-stor
 (release position, eye angles, flags, throw strength) come from entities.
 
 Prototype: `GrenadeWalker.WalkForward` (`Modules/UtilityBook/GrenadeWalkerForward.cs`), on the research
-branch `feature/strat-book-grenades-v2` only (commit `0b702929`). The owner deferred it; the build branch
+branch `feature/strat-book-grenades-v2` only (commit `0b702929`). It was deferred; the build branch
 does not carry it.
 
 - **Pass 1**, `DemoReader` with Header, StringTables, Schema, Entities and GameEvents. A tap records every
@@ -285,7 +285,7 @@ positions stack under count badges. Neither hides data, but the map needs a decl
 
 0. **Landing group key** (done on this branch, `UtilityBookTabViewModel`): key a group by its most thrown
    lineup's id. `GrenadeIndexTests.TwoLandingGroupsSeededInOneCell_BothReachTheMap` fails without it (the
-   map keeps the 2-throw group and drops the 4-throw one). Fixes the owner's complaint on its own. Hours.
+   map keeps the 2-throw group and drops the 4-throw one). Fixes the reported issue on its own. Hours.
 1. **Stop writing the paths sibling** for new walks; keep trajectories in memory for the current session.
    Keep the existing files until slice 4 converts them into one path per lineup, or accept straight flight
    lines for those demos (which is what the map shows for them today). Nothing reads the files now. Small.
@@ -303,7 +303,7 @@ positions stack under count badges. Neither hides data, but the map needs a decl
    zoom), aim spread and technique on the card, optionally count single throws in an icon's size. Small to
    medium.
 
-## 7. Decisions
+## 7. Open decisions
 
 1. Slice 0 now, ahead of everything else? It is one line and a test.
 2. Technique split: should running, jump, and left/right/both-click throws from one spot always be separate
@@ -366,7 +366,7 @@ reads back with them. A pass with no failures writes `grenades-v3.done`; otherwi
 retries what is left. Anchors and the alias map are built when the index first loads, before the
 migration runs.
 
-On a copy of the owner's cache (381 demos, 95,583 throws):
+On a copy of the cache (381 demos, 95,583 throws):
 
 | | Before | After |
 |---|---|---|

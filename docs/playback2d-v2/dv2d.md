@@ -183,7 +183,7 @@ later phase register the fixture it will author before it can render it.
 **The four `strat-mirage-exec-*` entries are pending for a different reason than a missing input**:
 they are the Strat Book canvas's goldens (step-authoring.md §7), captured and gated entirely by the
 App suite's `StratGoldenCaptureTests`, which projects a strat through `StratSceneProjection` and plays
-it back through `StratFrameSource` — a reader `dv2d` does not have and does not need, since the strat
+it back through `StratFrameSource`, a reader `dv2d` does not have and does not need, since the strat
 JSON reader stays in the App (decision 6). Each entry's `layers` names `hud.clock`, and every one of
 `render`/`golden`/`bench` refuses every `hud.*` id outright (the row above this section), so `dv2d
 golden verify` could never judge these four even with a `.dvstrat.json` reader. They are listed here
@@ -387,7 +387,7 @@ the queue file is the whole input.
 an ordered list of clips (`demo`, `from`, `to`, a note) and section title cards, the same shape
 `ReviewQueueFile` deserializes either side of the App/CLI boundary. `dv2d pack` **filters nothing of
 its own**; which rounds are "tagged" is decided upstream, wherever the queue file was written (the
-Matrix, Result Cards, a hand-built file for a cron job) — the same posture `export` takes toward its
+Matrix, Result Cards, a hand-built file for a cron job), the same posture `export` takes toward its
 `--from`/`--to` range.
 
 | Flag | Default | Meaning |
@@ -396,7 +396,7 @@ Matrix, Result Cards, a hand-built file for a cron job) — the same posture `ex
 | `--out <file>` | `dv2d-pack.<format>` | The pack's file for a video format; for `gif`, the **folder** the clips go in (the path without its extension) |
 | `--format` | `mp4` | `webm` · `mp4` · `gif` |
 | `--fps` | 30 (20 for gif) | Must be one the format supports: GIF is 10/20/25/50 |
-| `--size` | `1080x1080` (`480x480` for gif) | **Square only** — the radar frame is square, and a pack's clips all share one frame size |
+| `--size` | `1080x1080` (`480x480` for gif) | **Square only**: the radar frame is square, and a pack's clips all share one frame size |
 | `--title-seconds` | `2.5` | How long a section's title card holds, video formats only (GIF gets no cards; see below) |
 | `--encoder` | `auto` | Same ladder as `export`: see [Encoder ladder](#encoder-ladder) |
 | `--quality` | `standard` | `draft` · `standard` · `best` |
@@ -404,7 +404,7 @@ Matrix, Result Cards, a hand-built file for a cron job) — the same posture `ex
 | `--ffmpeg-log` | off | Echo ffmpeg's stderr |
 | `--json` | off | One JSON object on stdout; every human line (including a left-out clip's warning) moves to stderr |
 
-`dv2d pack` is `PackPlanner` and `PackExporter` (`DemoViewer.NET.Services.Export.Pack`) — the **same**
+`dv2d pack` is `PackPlanner` and `PackExporter` (`DemoViewer.NET.Services.Export.Pack`): the **same**
 plan-then-stitch policy the app's Export pack row runs, not a second implementation of it. Only the
 clip renderer and the encoder are per-host: the app's own `PackClipRenderer`/`PackEncoder` need the
 heavy-job gate and an app-managed ffmpeg download this headless tool does not have, so `dv2d` supplies
@@ -414,13 +414,13 @@ its own (`HeadlessPackClipRenderer`, `HeadlessPackEncoder`), built from the same
 
 **One video, or one GIF per clip.** For a video format, every clip renders into **one** encode: a
 section's title card is drawn once and held, then its clips follow, all through one `SceneExportSession`
-per clip feeding one sink — the same reasoning `export`'s single-timeline `moov` atom relies on, so the
+per clip feeding one sink, the same reasoning `export`'s single-timeline `moov` atom relies on, so the
 pack plays on a phone without edit-list seams. GIF instead writes one file per clip into a folder named
 after `--out` (its extension stripped), numbered in play order with its section folded into the file
 name, because a GIF's palette build caps it at 1800 frames and a whole pack in one GIF would blow that
 cap by its third clip.
 
-**Every demo's own ink is burned in, unconditionally** — Pack Export has no `--annotations` flag,
+**Every demo's own ink is burned in, unconditionally**: Pack Export has no `--annotations` flag,
 because a pack spans demos the way `export`'s single range never does, and always drawing what each
 one has (or nothing, when it has none) is simpler than asking per clip. The palette is always dark;
 Pack Export has no `--palette` either, matching the app's own Export pack row, which offers neither.
@@ -429,7 +429,7 @@ Pack Export has no `--palette` either, matching the app's own Export pack row, w
 empty, is left out **before anything is rendered or opened** (`PackPlanner.Plan`'s own pass); a clip
 that fails to parse or render on its own is left out and the rest of the pack continues; a title card
 with every one of its clips left out gets no card, so a pack never shows a section heading over
-nothing. Only a failure in the shared encoder — ffmpeg gone, a full disk — ends the pack, the same way
+nothing. Only a failure in the shared encoder (ffmpeg gone, a full disk) ends the pack, the same way
 Ctrl+C does, and removes the half-written file. Both kinds of leaving-out are named in `--json`'s
 `left_out` (pre-render) and `failed` (post-render) arrays, and as `warning:` lines otherwise.
 

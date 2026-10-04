@@ -904,7 +904,7 @@ catches a missing handler.
 Every object in `.dvstrat.json`, `book.json` and `callouts.json` carries a `[JsonExtensionData]` bag:
 a field written by a newer build round-trips through an older one, load, edit and save. `schemaVersion`
 is advisory, read for whatever this build understands rather than refused outright. `.history.jsonl` is
-append-only by construction, so forward compatibility there is simply that an older reader stops
+append-only by construction, so forward compatibility there is that an older reader stops
 understanding new op shapes it meets rather than losing the ones it already wrote. Every vocabulary
 field (`type`, `verb`, `economy`, …) is a plain string for the same reason a value this build does not
 recognise is a validator warning, or in the closed-vocabulary case of `verb` a refusal, never a load

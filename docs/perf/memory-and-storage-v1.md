@@ -1,8 +1,8 @@
 # Memory and storage at library scale (v1.0.0 input)
 
-Measured 2026-09-27 on the 16 GB M-series Mac, branch `feature/strat-book` at 6b6d370f, while the owner's
+Measured 2026-09-27 on the 16 GB M-series Mac, branch `feature/strat-book` at 6b6d370f, while the live
 app (Debug build, pid 27970) was walking grenades across the library in the background. Nothing here
-changes product code. The measurement harness is an uncommitted test class in this worktree:
+changes product code. The measurement harness is an uncommitted test class in the working tree:
 `src/App/DemoViewer.NET.App.Tests/MemoryFootprintProbe.cs` (tests `Measure`, `StreamingReads`,
 `OrphanClips`, all `Environmental`, all gated on `MEM_PROBE_CONFIG`).
 
@@ -22,7 +22,7 @@ demos, grow faster than linearly, are never evicted, and 19% of them are already
 | L1 | **LOH fragmentation is never reclaimed during background work.** The only compacting collect in the app is `CloseDemoAsync` (`ViewModels/Shell/MainViewModel.cs:3508-3514`), and Workstation GC with `ConserveMemory` unset does not compact the LOH on its own. A likely contributor, not yet isolated from the parser's own large arrays: every background parse reads the whole `.dem` into one `byte[]` on the LOH (`Services/DemoProcessing/DemoProcessingQueue.cs:87`, `Modules/UtilityBook/LineupClipService.cs:298`), and demos differ in size, so freed blocks rarely fit the next one. | Live counters, 6 samples over 18 min: LOH 2.6-3.5 GB with 0.9-2.6 GB of it free; gen2 0.8-2.0 GB with 0.03-1.2 GB free; committed 3.5-4.9 GB. `footprint`: 4.8-5.5 GB, 5.15 GB of it untagged VM_ALLOCATE (GC regions). | Grows with the spread of demo sizes and job count until a demo is closed. |
 | L2 | **Lineup clips: unbounded disk, orphans, one full parse per render batch.** Nothing deletes from `lineup-clips/`. The stem hashes the representative throw's key (`Modules/UtilityBook/LineupClipPlanner.cs:235-241`); the representative is the first throw ordered by demo path (`GrenadeIndex.cs:458-460`), so a new demo that sorts earlier re-keys the lineup, renders a new GIF with a new parse, and orphans the old pair. | At 106 walked demos: 2,288 lineups planned, 1,177 GIFs on disk (747 MB, median 605 KB), **228 orphans (144 MB)**, 1,339 still to render. Lineups planned: 404 at 25 walked demos, 920 at 48, 2,288 at 106 (superlinear). | None. |
 | L3 | **ReviewQueue grows without bound.** Every `Plan` that finds new jobs appends a new section header per map (`LineupClipService.cs:154`) and entries are never superseded (`Services/Review/ReviewQueue.cs:39`); `LineupClipService._planned` only grows (`:67`). | `review-queue.json`: 2,057 entries (61 sections) at 01:55, 3,386 entries (113 sections) at 03:57, 1.0 MB to 1.6 MB. | None. |
-| L4 | **Queue history can root whole parsed demos.** Terminal entries keep `ForegroundWaiters` (`DemoProcessingQueue.cs:760`), whose results are the `ParsedDemo`; the list is copied at `:539` but never cleared, and 30 terminal entries are kept (`:42`). A foreground open that coalesced onto a background parse keeps its multi-GB demo rooted until 30 more jobs finish. In a Debug build the `parsed` local (`:469`) is also hoisted into the async state machine and stays rooted while the worker waits for the next slot. The owner runs Debug. | Code reading; not measured (needs a parse). | 30 entries, but each can be GBs. |
+| L4 | **Queue history can root whole parsed demos.** Terminal entries keep `ForegroundWaiters` (`DemoProcessingQueue.cs:760`), whose results are the `ParsedDemo`; the list is copied at `:539` but never cleared, and 30 terminal entries are kept (`:42`). A foreground open that coalesced onto a background parse keeps its multi-GB demo rooted until 30 more jobs finish. In a Debug build the `parsed` local (`:469`) is also hoisted into the async state machine and stays rooted while the worker waits for the next slot. The live app runs Debug. | Code reading; not measured (needs a parse). | 30 entries, but each can be GBs. |
 | L5 | **UtilityBook reloads map art on every index change and never disposes the old one.** The singleton VM subscribes to `GrenadeIndex.Changed` (`ViewModels/UtilityBook/UtilityBookTabViewModel.cs:127`); `Refresh` calls `RebindMap` (`:225`), which calls `MapAssetPipeline.TryLoad` (`:327-340`); that returns a new `LoadedMapAsset` with new `SKImage`s each time (`Playback2D.Pipeline/Assets/MapAssetPipeline.cs:243-282`), so the `ReferenceEquals` early-out never fires and the old asset waits for its finalizer. Also re-binds the scene. Only once the tab VM exists. | Code reading. | Native churn per walked demo, released only by finalization. |
 | L6 | Dossier heatmap `Bitmap`s are cleared without dispose (`ViewModels/Dossier/DossierTabViewModel.cs:501`), and a rebuild runs on every `TeamIdentityService.Changed` while a team is selected. `SuggestedTagsTuningService._cache` (`Modules/SuggestedTags/SuggestedTagsTuningService.cs:34`) holds per-demo detection inputs with no cap (Settings tuning preview only). | Code reading. | Per rebuild / per previewed demo. |
 | L7 | SituationIndex per-map token table never shrinks when demos leave (`Services/RoundIndex/SituationIndex.cs:607-612`, `Remove` at `:684-740`). | Code reading. | Distinct tokens per map; small. |
@@ -36,7 +36,7 @@ publish. It is a CPU and allocation churn problem (section 3, F4).
 
 - Library: a copy of the live config (`rsync`, no logs, no lineup clips) into scratch. 366 demos in the
   cache index, 355 with round-index sidecars, 53 with grenade sidecars (a second copy an hour later had
-  106). No `cache/strat-mining/` yet, so auto re-mining is not armed in the owner's app.
+  106). No `cache/strat-mining/` yet, so auto re-mining is not armed in the live app.
 - Subsets: 90 and 180 demos, random sample with a fixed seed, by filtering `cache/index.json`.
 - Host: the App.Tests TUnit process, Debug build, forced to the app's GC config
   (`DOTNET_gcServer=0`, concurrent on, `DOTNET_GCConserveMemory=0` to override the test project's 5).
@@ -164,7 +164,7 @@ basis.
 
 ### Quick wins (small, low risk, no format change)
 
-| Rank | Option | RAM saving | Disk saving | Perf cost | Size | Risk | Owner decision |
+| Rank | Option | RAM saving | Disk saving | Perf cost | Size | Risk | Decision |
 |---|---|---|---|---|---|---|---|
 | Q1 | **Compact the LOH after background jobs.** Either set `System.GC.ConserveMemory` to 5-7 in the Desktop csproj (any non-zero value makes the GC compact the LOH when it is too fragmented), or run the same `CompactOnce` + blocking gen2 that `CloseDemoAsync` runs when the processing queue drains or every N jobs. | Estimated 1-3 GB of committed heap: the live free-LOH figure was 0.9-2.6 GB. | 0 | ConserveMemory: more gen2 GCs during a parse, unmeasured for this workload. Explicit compact: one blocking full GC per drain, about what close already pays. | 1-10 lines | Low | Yes: choose knob vs explicit collect; wants an `AnalysisBench gc-sweep` run over sequential background parses (section 5). |
 | Q2 | **Stop the lineup-clip bleed:** key the stem by lineup id (`GrenadeIndex.LineupId`), not the representative throw; delete a lineup's previous pair when it re-plans; sweep GIFs no current lineup plans. | Removes repeat parses. | 144 MB today (19%), and every future re-key. | None | ~50 lines | Low | No |
@@ -181,12 +181,12 @@ two `DemoParser.Parse(File.ReadAllBytes(path))` defaults (`DemoProcessingQueue.c
 `LineupClipService.cs:298`) takes the 100-400 MB input array off the LOH per job, into file-backed pages the
 kernel can evict. RAM saving: the size of each demo, per job, plus whatever share of L1 it accounts for
 (section 5, item 1). Perf: unmeasured; page faults on sequential first touch. Size: 2 lines. Risk: low.
-No change to the parser source, so no protected-file approval is needed; owner call only because it
-changes the parse path.
+No change to the parser source, so no protected-file approval is needed; it is an open decision only
+because it changes the parse path.
 
 ### Structural changes
 
-| Rank | Option | RAM saving | Disk saving | Perf cost | Size | Risk | Owner decision |
+| Rank | Option | RAM saving | Disk saving | Perf cost | Size | Risk | Decision |
 |---|---|---|---|---|---|---|---|
 | S1 | **Parse less in the background.** The pinned parser has `ParseOptions.Plan` (`DecodePlan` presets that never materialise unplanned payloads) and a forward-only `DemoReader.OpenFile` that keeps only the current frame. The background evaluators and the lineup renderer (which needs a few seconds per clip) all take a full `ParsedDemo` today. Move them to a narrower plan or the reader. | Unmeasured. Live gen2 during processing was 0.8-2.0 GB and the retained parse is most of it; this is likely the largest RAM lever not yet measured. | 0 | Faster parse with a narrower plan | Large: every evaluator's input contract | Medium-high | Yes. Package API only as it stands; if a new parser option is needed it lands in CS2DemoKit's DemoParser.cs, which is protected and needs explicit approval. |
 | S2 | **Slim SituationIndex:** drop `LoadedDemo.Document` (keep a small Places/Transitions summary and the tick rate), make `Posting`/`DecodedRun` structs, one flat postings array per token, intern token strings per map. | Estimated 75-85 MB of 120 (-65%): 64.6 MB measured for the documents alone, plus ~20 MB of per-object headers from the gcdump counts. At 2,000 demos about 400 MB. | 0 | Load slightly faster (fewer objects); queries unchanged | ~200 lines in one file | Low-medium: removal path must stay exact | No |
@@ -208,7 +208,7 @@ built runtimeconfigs say `System.GC.Server: false`). Two comments still describe
 should be corrected: `MainViewModel.cs:3453` and `tools/AnalysisBench/GcSweepCommand.cs:47`. The
 open-demo peak under Workstation was not re-measured here (item 7).
 
-The owner's background run ruled out any parse here. Still open:
+The background run ruled out any parse here. Still open:
 
 1. **Q1 and S1 effect on committed heap during background processing.** Extend `AnalysisBench gc-sweep`
    with a scenario that parses 10-20 demos of varying size back to back without closing, reporting
@@ -222,7 +222,7 @@ The owner's background run ruled out any parse here. Still open:
 3. **Native memory**: `footprint <pid>` showed 230 MB MALLOC_SMALL and ~110 MB of graphics; a
    `vmmap --summary` after a long UtilityBook session would show whether L5's undisposed `SKImage`s
    accumulate.
-4. **Re-mine churn in practice**: the owner's app has not mined yet. After the first mine, count
+4. **Re-mine churn in practice**: the live app has not mined yet. After the first mine, count
    "service mine" log lines per background run.
 5. **Grenade index at full coverage**: re-run `Measure` on a copy after the walk finishes (projected
    ~80 MB at 366 walked demos), and `OrphanClips` to confirm the lineup and orphan growth curve.
@@ -262,15 +262,15 @@ Built and merged into `feature/strat-book`, each on its own branch with a review
   S3 (per-demo signature cache: a second mine 10 s / 2.3 GB allocated before, 5.9 s / 66 MB after; the gate
   is taken per 16-demo batch; no quiet re-mine while the processing queue has work).
 
-Still open, because each needs a real parse to measure and the owner's library was being processed:
+Still open, because each needs a real parse to measure and the library was being processed:
 S1 (narrower background parse plans), S7 (Server GC with DATAS), and the gc-sweep that would say whether
 `ConserveMemory` beats the drain compaction. Nothing shows the lineup clips in the app today, so rendering
-them on demand instead of in the background would remove their parses at no visible cost; that is an owner
-call.
+them on demand instead of in the background would remove their parses at no visible cost; that is an open
+decision.
 
-Follow-up, same day: after the owner's library finished processing, the queue list was empty while
+Follow-up, same day: after the library finished processing, the queue list was empty while
 `LineupClipService` kept rendering on its own worker (92% CPU, 71 GIFs in three minutes, a 1 GB cap full
-with 4,361 clips evicted). Owner rule: all background work is reported and managed by the one queue.
+with 4,361 clips evicted). Rule: all background work is reported and managed by the one queue.
 `feature/strat-book-bg-queue` makes demo processing, lineup clips (one item per demo), strat mining, the
 sidecar migration, pack export and heap compaction queue items with a title, state and progress; pause,
 cancel and priority apply to all of them, and non-parse jobs run alone at any concurrency. Clips still render
@@ -293,7 +293,7 @@ clip; a clip is written to a temp file and renamed only when it finishes.
 - Peak memory from `/usr/bin/time -l`. "Peak memory footprint" (fp) excludes clean file-backed pages, so
   it is the right number for mapped parses; max RSS counts resident mapped pages and makes the two read
   paths look the same. Peak heap from a 20 ms sampler.
-- Configurations interleaved, order reversed between repetitions. The owner's app was not running
+- Configurations interleaved, order reversed between repetitions. The app was not running
   during any measurement.
 - **The library is on NFS** (`/Users/austingray/Demos` is `192.168.1.7:/mnt/user/Demos`). A cold
   ~270 MB demo takes 6-8 s to parse against ~1 s warm, so cold wall time is network-bound. The GC
@@ -411,7 +411,7 @@ Parse plus bare rules evaluation (the highlights path), same demos:
 | Retained, minus `UserCmds` | 502-510 MB / 2.8-3.0 | 714-720 MB / 3.4-3.5 | 1,031-1,037 MB / 4.2-4.6 | same |
 | Forward reader (`DemoAnalysis.Run(path)`) | 204 MB / 4.2 | 199-205 MB / 3.9 | 206-223 MB / 4.3 | same |
 
-### After the owner decisions (branch `feature/strat-book-perf-narrow`)
+### After the decisions (branch `feature/strat-book-perf-narrow`)
 
 Built: a compaction queued after every background parse (a demo processing entry, or a lineup clip item),
 ahead of every other item; the 30 s throttle and drain rule stay for non-parse jobs. The shared background
@@ -490,7 +490,7 @@ card as the retained parse, and the merged build's firings and Round Facts rows 
 builds'. A rules-only pass (what a round-facts-only entry runs) writes the same rows. The only changed field
 is `RoundFactsFingerprint`.
 
-The same comparison over owner-library demos read in place (`ForwardPass_ListedDemos`, paths in
+The same comparison over library demos read in place (`ForwardPass_ListedDemos`, paths in
 `FORWARD_PASS_DEMOS`): identical for a 430 MB matchmaking overtime demo (28 rounds), the 380 MB BLAST pro
 demo, the 751 MB PGL demo, and two tournament demos with no Round Facts rows on either path (eBot train, ESL
 nuke). One difference, on the 706 MB ESL demo (iem-krakw furia-vs-vitality m1 mirage), in the last round only
@@ -532,7 +532,7 @@ queue's existing `HeapCompaction` item, with the 30 s throttle dropped or shorte
 was a parse): peak footprint -37% in the bench, and each job starts from ~50-80 MB committed instead of
 0.9-1.5 GB. If a blocking gen2 per job is
 unwelcome, `System.GC.ConserveMemory=7` in the Desktop csproj is the config-only fallback (-28% peak,
--40% median committed, +4% eval). Keep the drain compaction either way. Owner call: which of the two.
+-40% median committed, +4% eval). Keep the drain compaction either way. Open decision: which of the two.
 Re-measure in the app afterwards (`dotnet-counters` on committed and LOH free during a queue run).
 
 **Q9.** Keep the mapped parse. It takes exactly the file's size off committed heap and footprint
@@ -541,32 +541,32 @@ Re-measure in the app afterwards (`dotnet-counters` on committed and LOH free du
 **S1, ranked.** None of these needs a new `ParseOptions` or `DecodePlan` member, so none touches the
 protected `DemoParser.cs`.
 
-The owner's settings have `Grenades.BackgroundIndex: true` (and `Situations.BackgroundIndex: true`), so
+The live app's settings have `Grenades.BackgroundIndex: true` (and `Situations.BackgroundIndex: true`), so
 Grenade walk is on the shared fan-out today and reads user commands. That sets the order.
 
 1. **Lineup and pack clips on `EntityReplay`.** Parse footprint 558 to 261 MB (MM), 767 to 399 (Pro),
    1,556 to 584 (Big): -47% to -62%, and faster. Two call sites, no contract change, unconditional.
    Measured on the parse only; the renderer's tracker replay and GIF output need a byte or visual A/B
-   before shipping. No owner call beyond approval.
+   before shipping. No open decision beyond approval.
 2. **Drop user commands from the shared background parse when no consumer needs them:**
    `Plan = DecodePlan.Everything with { Categories = MessageCategories.All & ~MessageCategories.UserCmds }`
    when `Grenades.BackgroundIndex` is off or the demo's grenade sidecar is already current (the case for
    every re-processed demo once the walk has caught up). Parse+eval footprint -29% (MM), -31% (Pro),
-   -44% (Big), LOH -80%, parse 10-20% faster, identical highlights. Owner call: the per-job condition
+   -44% (Big), LOH -80%, parse 10-20% faster, identical highlights. Open decision: the per-job condition
    (the queue has to know before parsing whether Grenade walk will run). Check that the other five
    consumers' sidecars come out byte-identical before shipping. The open-demo parse stays full.
 3. **Library tier 2, Highlights (bare) and Round Facts on the forward reader.** Built; see "S1 item 3" above. Peak ~200-220 MB whatever
    the demo size, against 0.72-1.84 GB retained (-72% to -89%), identical highlights; cost +1.2 s on the
    276 MB demo, +0.4 s Pro, none on Big. Large: the queue's handler contract changes from `ParsedDemo` to
-   a path or reader. Owner calls: drop the fan-out for these consumers; two rules passes or one merged
+   a path or reader. Open decisions: drop the fan-out for these consumers; two rules passes or one merged
    build (changes fingerprint and exclusion semantics). Forced (snapshot) highlights keep the full parse.
 4. **Round Index and Suggested Tags positions on the same forward pass.** Needs a reader-side position
    sampler: an app shim from public parts (`EntityTrackerFactory.CreateCurated`, `PawnLookup`,
    `PositionUtil`), or an upstream ask for `PositionSampler.Walk(IDemoFrameSource)` in the CS2DemoKit
-   parser package (not `DemoParser.cs`). Owner call: shim or upstream. With 3 and 4 done no background job
+   parser package (not `DemoParser.cs`). Open decision: shim or upstream. With 3 and 4 done no background job
    retains frames, so the ~200 MB of item 3 is the whole job (estimated).
 5. **Grenade walk last.** Random frame access and user commands: a two-pass redesign, or keep the full
-   parse when the owner enables the background sweep.
+   parse when the background sweep is enabled.
 
 Commands: `AnalysisBench bg-run --list=<file> [--read=mmap|bytes|forward|app-retained|app-forward] [--eval]
 [--compact=none|end|each] [--plan=everything|no-usercmds|replay|events|structure]`, GC from the

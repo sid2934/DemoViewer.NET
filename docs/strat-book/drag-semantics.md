@@ -1,8 +1,8 @@
 # Token drags on the strat canvas: what a drag writes
 
-Request, 2026-10-01. In the strat editor the owner dragged E, on a lurk step, to Long Doors. E zipped across
+Request, 2026-10-01. In the strat editor, dragging E, on a lurk step, to Long Doors made E zip across
 the map in one second. The step's own fields (to, via, lurk areas) were still there, but the drag silently
-overrode them. Nothing in the UI shows that a drag happened, and nothing removes it. The owner's words: "Simply
+overrode them. Nothing in the UI shows that a drag happened, and nothing removes it. The reported words: "Simply
 dragging should not invisibly override the step's definitions."
 
 **Status:** decided 2026-10-01 (option A, the four recommended answers in section 9) and built on
@@ -70,7 +70,7 @@ held (section 5). Every result is a field value or a chip, and both already have
 * **The step that wins on the tick.** Under the same-tick rule (strat-format.md, "Several steps on one tick"), when
   steps share a tick, the one later in path order wins for a slot. So the drag aims at the step that wins for that
   slot at that tick, not blindly at the selected step. Otherwise the row would change while the canvas did not,
-  which is the owner's complaint in reverse.
+  which is the original complaint in reverse.
 * **The drag selects the step it writes**, so that step's row scrolls into view and shows the change. The label
   names the step when it is not the selected one (`step 3 · B via + Lower Tunnels`).
 * **Via insertion order.** A via place is inserted at the index of the leg the token was on, among the places. A
@@ -213,7 +213,7 @@ A chip per entry would flood the 315 px row. So these rules apply:
 * **Validator.** An info at `/steps/i/positions/j` for a departure on a travel verb. It becomes a warning when the
   leg it re-times is faster than a run (`E would cross 1900 u in 1.0 s`). That flags the zip itself.
 * **Migration: none.** Files load and save byte for byte as before; nothing is rewritten on open. Old drags show as
-  chips, and the owner converts or clears them one at a time.
+  chips, and are converted or cleared one at a time.
 
 ## 7. Cones
 
@@ -240,7 +240,7 @@ lives on the verbs that watch.
 strip, with the zip warning and the destination pins.
 
 * *For:* small and honest.
-* *Against:* fails the request. The fields still disagree with the canvas, the owner's own drag would still zip,
+* *Against:* fails the request. The fields still disagree with the canvas, that drag would still zip,
   and the user has to learn that a drag means "leaves from".
 
 **C. The departure becomes `from`.** A `from` with a point starts the run there, so a drag on a travel verb writes
@@ -248,14 +248,14 @@ strip, with the zip warning and the destination pins.
 
 * *For:* the override gets a real field.
 * *Against:*
-  * it serves the wrong intent: the owner meant "go here", not "start here";
+  * it serves the wrong intent: the request was "go here", not "start here";
   * it changes what `from` means;
   * captures and templates hold place-only `from`s, so only a pointed `from` may move tokens, which is a subtle rule;
   * it still re-times the leg before.
 
   It works best as the Alt behaviour inside A (decision 1).
 
-## 9. Decisions (owner, 2026-10-01: all four as recommended)
+## 9. Decisions (2026-10-01: all four as recommended)
 
 1. **Departure overrides.** Decided: **Alt writes a `placed` chip.** Should "this travel starts from an exact point"
    survive? Pick one:

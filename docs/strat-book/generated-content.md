@@ -5,14 +5,14 @@ curated list, and reviewed, dismissed and hidden mean the same thing in every fe
 
 The precedent is the Review queue (`review-queue.md`): 4,792 auto lineup clips buried the 7 clips someone
 sent on purpose. They moved to the Utility Book card. This note surveys every other producer, proposes
-one rule, lists what each producer would change, and ranks the calls the owner has to make.
+one rule, lists what each producer would change, and ranks the decisions still to make.
 
 ## Survey
 
 Counts are from a copy of `~/Library/Application Support/DemoViewer.NET/` taken 2026-09-28 (logs, lineup
 clips, per-demo cache records and positions files left out). The live directory was only read.
 
-| Producer | What it makes (owner's copy) | Where it lands | Curated list? | Review / accept | Dismiss | Restore | State persisted |
+| Producer | What it makes (the copy) | Where it lands | Curated list? | Review / accept | Dismiss | Restore | State persisted |
 |---|---|---|---|---|---|---|---|
 | Suggested Tags | 3,795 proposals over 149 demos; 10 accepted, 0 rejected, so about 3,785 pending | 2D Playback Review mode, Suggested tab, one open demo at a time. The Library index carries a per-demo pending count | No for proposals. Yes once accepted: an accept writes a `source: suggested` tag into the demo's tag document, listed in the Labels tab beside hand tags (10 such tags vs 3 human) | Y accepts, Enter edits then accepts, Ctrl+Y accept-all with a confirm and the current filters | N rejects | None. A rejection is permanent and there is no view of rejected proposals | Yes, `tags/verdicts/<sha>.verdicts.json`, append-only. An unreadable file offers nothing and is never overwritten |
 | Strat Mining | 303 patterns (100 executes, 203 setups), all utility-compared; 0 dismissed, 2 promoted | Strats section, Detected toggle with its own list and detail pane | No for patterns. Promotion writes a strat into the book (its purpose) and a `suggested` run tag into every member demo: 6 such tags, shown in the Labels tab | Preview, then Add to book | Dismiss | Restore, behind a "dismissed" checkbox | Yes, `strat-mining.json` under the config root; carried across re-mines by the half-the-rounds rule. Was not refused when unreadable (fixed, below) |
@@ -26,7 +26,7 @@ clips, per-demo cache records and positions files left out). The live directory 
 
 Also found:
 
-- The plan log's calibration said 25 of 227 patterns compared utility. The owner's detected file now
+- The plan log's calibration said 25 of 227 patterns compared utility. The detected file now
   has 303, every one utility-compared. The Grenade Index has grown since; the numbers above are what
   the file holds today, not a re-mine.
 - A promoted pattern whose strat is later deleted stays "in book" forever, and its member-demo run tags
@@ -79,7 +79,7 @@ toggle's count.
 | Review queue | Reviewed already matches the rule; decide whether bulk sends above a size ask first | 9 |
 | Lineup clips, Highlights | No state today and none needed while they live on their own card and dashboard | 10 |
 
-## Built on this branch (no owner decision)
+## Built without a decision
 
 - `GeneratedState`, `GeneratedFilter`, `GeneratedCounts`, with tests. `DetectedPattern.State` feeds the
   Detected list and its count; what it shows is unchanged.
@@ -93,7 +93,7 @@ toggle's count.
 
 ## Decisions, built (2026-09-28)
 
-The owner approved decisions 1 to 8 and 10 as recommended, with a Suggested section for decision 4. Decision
+Decisions 1 to 8 and 10 were approved as recommended, with a Suggested section for decision 4. Decision
 9 (a confirm above 50 clips sent to Review) was not approved.
 
 - **One vocabulary and one toggle (1).** Dismiss and Restore everywhere generated items appear: the per-demo
