@@ -33,7 +33,7 @@ public class Playback2DFollowFunnelTests
     public async Task SelectingCard_RaisesFollowSlotChangedOnce() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActivation.Activated();
 
             List<int> raised = [];
             vm.FollowSlotChanged += raised.Add;
@@ -48,7 +48,7 @@ public class Playback2DFollowFunnelTests
     public async Task SelectingCard_CallsNotifySpectateTarget() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
 
             vm.SelectedPlayer = vm.Attributes.First(a => a.Slot == 2);
 
@@ -60,7 +60,7 @@ public class Playback2DFollowFunnelTests
     public async Task MenuPickAndCardPick_TakeTheSameFunnel() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
 
             // The camera-mode SplitButton submenu calls NotifyFollowSlotChanged directly.
             vm.NotifyFollowSlotChanged(1);
@@ -85,7 +85,7 @@ public class Playback2DFollowFunnelTests
     public async Task FollowedSlot_SetsIsFollowedOnExactlyOneRow() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActivation.Activated();
 
             vm.NotifyFollowSlotChanged(1);
 
@@ -102,7 +102,7 @@ public class Playback2DFollowFunnelTests
     public async Task ClearFollow_ResetsEveryIsFollowed() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActivation.Activated();
             vm.NotifyFollowSlotChanged(0);
 
             vm.ClearFollow();
@@ -116,7 +116,7 @@ public class Playback2DFollowFunnelTests
     public async Task FollowStatus_SaysRequested_NeverConfirmed() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActivation.Activated();
 
             vm.NotifyFollowSlotChanged(0);
 
@@ -135,7 +135,7 @@ public class Playback2DFollowFunnelTests
             // The view is rebuilt on every tab activation, and its ListBox writes a transient null back through
             // the two-way SelectedItem binding while it re-templates. That must not silently drop follow state
             // the VM is holding across the deactivation.
-            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActivation.Activated();
             vm.NotifyFollowSlotChanged(1);
 
             bool refit = false;
@@ -153,7 +153,7 @@ public class Playback2DFollowFunnelTests
     public async Task SelectionNull_AfterTheRowLeavesTheRoster_ClearsTheFollow() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActivation.Activated();
             vm.NotifyFollowSlotChanged(1);
 
             vm.Attributes.Clear();
@@ -167,7 +167,7 @@ public class Playback2DFollowFunnelTests
     public async Task GateTurningOff_ClearsAnExistingFollow() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActionDispatchTests.Activated();
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
             vm.NotifyFollowSlotChanged(0);
 
             ctx.Gate!.SetEnabled("playback2d.follow", false);
@@ -188,7 +188,7 @@ public class Playback2DFollowFunnelTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) =
-                Playback2DActionDispatchTests.Activated("/demos/first.dem");
+                Playback2DActivation.Activated("/demos/first.dem");
 
             vm.NotifyFollowSlotChanged(1);
             await Assert.That(vm.FollowStatus).Contains("Bravo");
@@ -230,7 +230,7 @@ public class Playback2DFollowFunnelTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) =
-                Playback2DActionDispatchTests.Activated("/demos/first.dem");
+                Playback2DActivation.Activated("/demos/first.dem");
 
             vm.NotifyFollowSlotChanged(1);
 
