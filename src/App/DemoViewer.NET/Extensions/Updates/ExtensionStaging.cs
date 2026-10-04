@@ -89,6 +89,7 @@ public static class ExtensionStaging
 
             long total = 0;
             List<(ZipArchiveEntry Entry, string Path, bool IsDirectory)> plan = [];
+            HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
             foreach (ZipArchiveEntry entry in archive.Entries)
             {
                 if (entry.Length < 0 || (total += entry.Length) > MaxBytes)
@@ -96,10 +97,16 @@ public static class ExtensionStaging
                     return "the archive unpacks to more than the allowed size";
                 }
 
+                string shortName = Path.GetFileName(entry.FullName.TrimEnd('/', '\\'));
+                if (IsUnixSymlink(entry))
+                {
+                    return $"the archive entry '{shortName}' is a link";
+                }
+
                 string? relative = SafeRelativePath(entry.FullName);
                 if (relative is null)
                 {
-                    return $"the archive entry '{Path.GetFileName(entry.FullName.TrimEnd('/', '\\'))}' has an unsafe path";
+                    return $"the archive entry '{shortName}' has an unsafe path";
                 }
 
                 bool isDirectory = entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\');
@@ -107,6 +114,13 @@ public static class ExtensionStaging
                 if (!full.StartsWith(targetWithSeparator, StringComparison.Ordinal))
                 {
                     return $"the archive entry '{Path.GetFileName(relative)}' resolves outside the extension folder";
+                }
+
+                // Two names that differ only by case are one file on macOS and Windows; which one wins
+                // would depend on the order, so neither does.
+                if (!seen.Add(relative))
+                {
+                    return $"the archive has two entries named '{Path.GetFileName(relative)}' differing only by case";
                 }
 
                 plan.Add((entry, full, isDirectory));
@@ -236,6 +250,10 @@ public static class ExtensionStaging
         string full = Path.GetFullPath(path);
         return full.StartsWith(rootWithSeparator, StringComparison.Ordinal) && full.Length > rootWithSeparator.Length;
     }
+
+    // The high 16 bits of a Unix-made entry's attributes carry the st_mode; type bits 0xA000 are a symlink.
+    // ZipArchive writes the link's target text as a file, so this is defence in depth, not a path.
+    private static bool IsUnixSymlink(ZipArchiveEntry entry) => (((uint)entry.ExternalAttributes >> 16) & 0xF000) == 0xA000;
 
     // Both separators are split on: a zip written on Windows may carry backslashes, and on Unix a
     // backslash is a legal file-name character, which is exactly how ".." hides.

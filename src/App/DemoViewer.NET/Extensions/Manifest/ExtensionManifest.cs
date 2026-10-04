@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 #endregion
 
@@ -22,7 +23,7 @@ namespace DemoViewer.NET.Extensions.Manifest;
 /// <param name="RequiresHost">The <see cref="ExtensionHost.ContractVersion" /> range the extension was built against.</param>
 /// <param name="RequiresCs2DemoKit">The CS2DemoKit range; exact by default, since the extension uses its types directly.</param>
 /// <param name="MinAppVersion">The oldest app release the extension runs on, or null for any.</param>
-public sealed record ExtensionManifest(
+public sealed partial record ExtensionManifest(
     string Id,
     string Name,
     SemVersion Version,
@@ -83,7 +84,7 @@ public sealed record ExtensionManifest(
     private static ExtensionManifest FromDto(Dto dto)
     {
         string id = Required(dto.Id, "id");
-        if (id.Any(char.IsWhiteSpace) || !id.Contains('.', StringComparison.Ordinal))
+        if (!IsValidId(id))
         {
             throw new ExtensionManifestException($"'id' must be a reverse-DNS name; got '{id}'.");
         }
@@ -118,6 +119,17 @@ public sealed record ExtensionManifest(
 
         return new ExtensionManifest(id, Required(dto.Name, "name"), version, assembly, Required(dto.EntryType, "entryType"), host, kit, minApp);
     }
+
+    /// <summary>
+    ///     The id rule the manifest and the feed share: reverse-DNS over <c>[A-Za-z0-9._-]</c>, starting
+    ///     with a letter or digit. The id names a folder under the config root, and the loader skips dot
+    ///     folders, so a leading dot is refused here rather than hidden there.
+    /// </summary>
+    public static bool IsValidId(string? id) =>
+        id is not null && IdPattern().IsMatch(id) && id.Contains('.', StringComparison.Ordinal);
+
+    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$")]
+    private static partial Regex IdPattern();
 
     private static string Required(string? value, string member) =>
         string.IsNullOrWhiteSpace(value) ? throw new ExtensionManifestException($"'{member}' is required.") : value.Trim();

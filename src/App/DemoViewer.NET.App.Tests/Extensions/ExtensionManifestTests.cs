@@ -95,6 +95,10 @@ public class ExtensionManifestTests
     [Arguments("\"assembly\": \"Example.dll\"", "\"assembly\": \"Example.exe\"", "assembly")]
     [Arguments("\"id\": \"net.demoviewer.pack.example\"", "\"id\": \"example\"", "id")]
     [Arguments("\"id\": \"net.demoviewer.pack.example\"", "\"id\": \"net.demo viewer\"", "id")]
+    [Arguments("\"id\": \"net.demoviewer.pack.example\"", "\"id\": \".evil.pack\"", "id")]
+    [Arguments("\"id\": \"net.demoviewer.pack.example\"", "\"id\": \"../net.demoviewer\"", "id")]
+    [Arguments("\"id\": \"net.demoviewer.pack.example\"", "\"id\": \"net.demoviewer/pack\"", "id")]
+    [Arguments("\"id\": \"net.demoviewer.pack.example\"", "\"id\": \"net.demoviewer:pack\"", "id")]
     public async Task Parse_FailsOnABadValue(string original, string replacement, string member)
     {
         string json = Good.Replace(original, replacement, StringComparison.Ordinal);

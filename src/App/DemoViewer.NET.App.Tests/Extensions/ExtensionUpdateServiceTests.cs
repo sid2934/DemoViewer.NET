@@ -1,5 +1,6 @@
 #region
 
+using System.IO.Compression;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.Updates;
@@ -209,6 +210,60 @@ public class ExtensionUpdateServiceTests
         finally
         {
             Cleanup(root);
+        }
+    }
+
+    // Defence in depth: ZipArchive would write a link entry as a file holding the target text, but a
+    // Unix-made entry whose mode says symlink is refused before anything is written.
+    [Test]
+    public async Task Download_SymlinkEntry_OrTwoNamesDifferingOnlyByCase_Refused()
+    {
+        string root = NewRoot();
+        try
+        {
+            string manifest = FakeFeeds.Manifest(Id, new FakeFeeds.Entry("1.0.1"));
+            byte[] withLink;
+            using (MemoryStream stream = new())
+            {
+                using (ZipArchive archive = new(stream, ZipArchiveMode.Create, leaveOpen: true))
+                {
+                    Write(archive, ExtensionManifest.FileName, manifest);
+                    Write(archive, "Fake.dll", "x");
+                    ZipArchiveEntry link = Write(archive, "link.dll", "../../outside.dll");
+                    link.ExternalAttributes = unchecked((int)0xA1FF0000);
+                }
+
+                withLink = stream.ToArray();
+            }
+
+            byte[] caseTwins = Zip((ExtensionManifest.FileName, manifest), ("Fake.dll", "x"), ("fake.dll", "y"));
+
+            using (Assert.Multiple())
+            {
+                foreach ((byte[] zip, string reason) in new[] { (withLink, "'link.dll' is a link"), (caseTwins, "differing only by case") })
+                {
+                    FakeFeeds.Entry entry = new("1.0.1", zip);
+                    FakeFeedClient client = new();
+                    client.Zips[entry.Url] = zip;
+                    StageResult result = await NewService(root, client).DownloadAndStageAsync(Entry(entry));
+                    await Assert.That(result.Outcome).IsEqualTo(StageOutcome.Refused);
+                    await Assert.That(result.Detail).Contains(reason);
+                    await Assert.That(NothingStaged(root)).IsTrue();
+                }
+            }
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+
+        static ZipArchiveEntry Write(ZipArchive archive, string name, string content)
+        {
+            ZipArchiveEntry entry = archive.CreateEntry(name);
+            using Stream body = entry.Open();
+            byte[] bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            body.Write(bytes, 0, bytes.Length);
+            return entry;
         }
     }
 

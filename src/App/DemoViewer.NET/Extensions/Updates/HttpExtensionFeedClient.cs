@@ -9,24 +9,49 @@ using System.Text;
 namespace DemoViewer.NET.Extensions.Updates;
 
 /// <summary>
-///     <see cref="IExtensionFeedClient" /> over one shared <see cref="HttpClient" />. The feed is a small JSON
-///     asset; the zip is streamed to the caller's file with a per-read stall timeout, since the client's own
-///     timeout covers only the headers once the body is read as a stream.
+///     <see cref="IExtensionFeedClient" /> over one <see cref="HttpClient" />. The client's own timeout is
+///     off: it would span the whole transfer, body included, and abort a slow download that is making
+///     progress. The headers get <see cref="HeaderTimeout" />; the body is governed by a per-read stall
+///     timeout (<see cref="StallTimeout" />) and the caller's byte cap.
 /// </summary>
-public sealed class HttpExtensionFeedClient : IExtensionFeedClient
+public sealed class HttpExtensionFeedClient : IExtensionFeedClient, IDisposable
 {
-    private static readonly TimeSpan _readTimeout = TimeSpan.FromSeconds(60);
-    private static readonly HttpClient _http = CreateClient();
+    private readonly HttpClient _http;
+    private readonly TimeSpan _headerTimeout;
+    private readonly TimeSpan _stallTimeout;
 
-    /// <summary>The process-wide instance.</summary>
+    /// <summary>The process-wide instance over the shared handler and the default budgets.</summary>
     public static HttpExtensionFeedClient Shared { get; } = new();
+
+    /// <summary>How long the response headers may take; 30 s by default.</summary>
+    public static TimeSpan HeaderTimeout => TimeSpan.FromSeconds(30);
+
+    /// <summary>How long one body read may make no progress before the transfer counts as stalled; 60 s by default.</summary>
+    public static TimeSpan StallTimeout => TimeSpan.FromSeconds(60);
+
+    /// <summary>The default budgets over the default handler.</summary>
+    public HttpExtensionFeedClient() : this(null, null, null)
+    {
+    }
+
+    /// <param name="handler">The message handler, or null for the default; a test hands in a fake.</param>
+    /// <param name="headerTimeout">Overrides <see cref="HeaderTimeout" />.</param>
+    /// <param name="stallTimeout">Overrides <see cref="StallTimeout" />.</param>
+    public HttpExtensionFeedClient(HttpMessageHandler? handler, TimeSpan? headerTimeout = null, TimeSpan? stallTimeout = null)
+    {
+        _http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
+        _http.Timeout = Timeout.InfiniteTimeSpan;
+        // GitHub rejects requests without a User-Agent.
+        _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("DemoViewer.NET", "1.0"));
+        _headerTimeout = headerTimeout ?? HeaderTimeout;
+        _stallTimeout = stallTimeout ?? StallTimeout;
+    }
 
     /// <inheritdoc />
     public async Task<string> GetFeedAsync(Uri url, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(url);
-        using HttpResponseMessage response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        using HttpResponseMessage response = await SendForHeaders(url, ct).ConfigureAwait(false);
         await using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
         using StreamReader reader = new(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         char[] buffer = ArrayPool<char>.Shared.Rent(16 * 1024);
@@ -60,9 +85,7 @@ public sealed class HttpExtensionFeedClient : IExtensionFeedClient
     {
         ArgumentNullException.ThrowIfNull(url);
         ArgumentNullException.ThrowIfNull(destination);
-        using HttpRequestMessage request = new(HttpMethod.Get, url);
-        using HttpResponseMessage response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-        response.EnsureSuccessStatusCode();
+        using HttpResponseMessage response = await SendForHeaders(url, ct).ConfigureAwait(false);
         if (response.Content.Headers.ContentLength is { } declared && declared > maxBytes)
         {
             throw new ExtensionDownloadException($"the server offers {declared} bytes; the feed said {maxBytes}");
@@ -97,12 +120,42 @@ public sealed class HttpExtensionFeedClient : IExtensionFeedClient
         }
     }
 
-    // A read that makes no progress for _readTimeout is a stalled transfer, not a cancellation.
-    private static async Task<int> ReadWithStallTimeout(Func<Task<int>> read, CancellationToken ct)
+    /// <inheritdoc />
+    public void Dispose() => _http.Dispose();
+
+    // The header budget applies to this call alone; the body stream it returns is read under the stall budget.
+    private async Task<HttpResponseMessage> SendForHeaders(Uri url, CancellationToken ct)
+    {
+        using CancellationTokenSource headers = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        headers.CancelAfter(_headerTimeout);
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, headers.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            throw new ExtensionDownloadException("the server did not answer in time");
+        }
+
+        try
+        {
+            response.EnsureSuccessStatusCode();
+            return response;
+        }
+        catch
+        {
+            response.Dispose();
+            throw;
+        }
+    }
+
+    // A read that makes no progress for the stall budget is a stalled transfer, not a cancellation.
+    private async Task<int> ReadWithStallTimeout(Func<Task<int>> read, CancellationToken ct)
     {
         using CancellationTokenSource delay = CancellationTokenSource.CreateLinkedTokenSource(ct);
         Task<int> pending = read();
-        Task finished = await Task.WhenAny(pending, Task.Delay(_readTimeout, delay.Token)).ConfigureAwait(false);
+        Task finished = await Task.WhenAny(pending, Task.Delay(_stallTimeout, delay.Token)).ConfigureAwait(false);
         if (finished != pending)
         {
             ct.ThrowIfCancellationRequested();
@@ -111,16 +164,5 @@ public sealed class HttpExtensionFeedClient : IExtensionFeedClient
 
         await delay.CancelAsync().ConfigureAwait(false);
         return await pending.ConfigureAwait(false);
-    }
-
-    private static HttpClient CreateClient()
-    {
-        HttpClient client = new()
-        {
-            Timeout = TimeSpan.FromSeconds(30)
-        };
-        // GitHub rejects requests without a User-Agent.
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("DemoViewer.NET", "1.0"));
-        return client;
     }
 }

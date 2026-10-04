@@ -1509,9 +1509,13 @@ extension.sig                             item 35's signature over the directory
 Nothing is renamed, dropped or added on the way to disk: the signature item 35 verifies at load is the
 signature that came out of the zip. A zip is refused for more than 4096 entries, more than 512 MB of
 content (the feed's `size` is held to the same cap), an entry whose stream is longer than it declares,
-or an entry whose name is rooted, carries a drive letter, a `..`, `.` or empty segment (split on both
-separators, since a Windows-written zip may carry backslashes and on Unix a backslash is a legal file-name
-character), or that resolves outside the target directory.
+an entry whose Unix mode bits say symlink (`ZipArchive` would write the target text as a file; refused
+anyway), two entries whose names differ only by case (one file on macOS and Windows), or an entry whose
+name is rooted, carries a drive letter, a `..`, `.` or empty segment (split on both separators, since a
+Windows-written zip may carry backslashes and on Unix a backslash is a legal file-name character), or
+that resolves outside the target directory. The id rule is one constant for the manifest and the feed
+(`ExtensionManifest.IsValidId`): a leading dot is refused at parse time, not hidden by the loader's dot
+folder skip.
 
 **The check.** `ExtensionUpdateService.CheckAsync` fetches every declared extension's feed as one queue
 item at user priority (the user pressed the button or opened Settings) and computes one
@@ -1541,8 +1545,10 @@ reason in user terms) or `Cancelled`. In order:
 
 1. `extensions/<id>/<version>/` already exists: `AlreadyInstalled`, nothing is fetched or changed.
 2. The zip streams to `extensions/.staging/<id>/<version>.zip.part`, bounded by the feed's `size` (the
-   client stops at one byte over and refuses a `Content-Length` above it), with a 60 s stall timeout per
-   read. Progress (bytes received of total) reaches the Settings row and the queue item.
+   client stops at one byte over and refuses a `Content-Length` above it). The `HttpClient`'s own timeout
+   is off, since it would span the body too; the headers get 30 s, and the body a 60 s stall budget per
+   read, so a slow download that keeps arriving completes. Progress (bytes received of total) reaches the
+   Settings row and the queue item.
 3. The file's length must equal `size`, then its SHA-256 must equal `sha256`. Nothing is opened before
    both pass.
 4. The zip unpacks into `extensions/.staging/<id>/<version>/` under the rules above, planned before anything

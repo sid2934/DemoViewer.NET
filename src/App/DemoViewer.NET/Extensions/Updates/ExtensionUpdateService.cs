@@ -71,6 +71,10 @@ public sealed class ExtensionUpdateService
 
     private static ILogger Log => DiagnosticsLog.CreateLogger(AppLog.ExtensionsCategory);
 
+    // Windows and macOS file systems fold case by default; a path there is the same path in any case.
+    private static StringComparison PathComparison =>
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
     /// <summary>How long a check result stands before opening Settings checks again.</summary>
     public static TimeSpan AutoCheckInterval => _autoCheckInterval;
 
@@ -277,7 +281,7 @@ public sealed class ExtensionUpdateService
                     }
 
                     string directory = Path.GetFullPath(candidate.Directory);
-                    if (string.Equals(directory, runningDirectory, StringComparison.Ordinal)
+                    if (string.Equals(directory, runningDirectory, PathComparison)
                         || !ExtensionStaging.IsInside(_extensionsDirectory, directory))
                     {
                         continue;

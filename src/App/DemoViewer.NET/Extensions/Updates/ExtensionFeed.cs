@@ -68,7 +68,7 @@ public sealed partial record ExtensionFeed(string Id, IReadOnlyList<ExtensionFee
             }
 
             string id = RequiredString(root, "id");
-            if (!IdPattern().IsMatch(id) || !id.Contains('.', StringComparison.Ordinal))
+            if (!ExtensionManifest.IsValidId(id))
             {
                 throw new ExtensionFeedException($"'id' must be a reverse-DNS name; got '{id}'.");
             }
@@ -182,10 +182,6 @@ public sealed partial record ExtensionFeed(string Id, IReadOnlyList<ExtensionFee
 
         return value.GetString()!.Trim();
     }
-
-    // The id names a folder under the config root, so only characters that are a plain name everywhere.
-    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$")]
-    private static partial Regex IdPattern();
 
     [GeneratedRegex("^[0-9a-fA-F]{64}$")]
     private static partial Regex Sha256Pattern();
