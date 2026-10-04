@@ -55,9 +55,8 @@ jobs:
       - name: Build the solution (Release)
         run: dotnet build DemoViewer.NET.slnx -c Release -p:WasmBuildNative=false
 
-      # Cheap packaging drift check (item 37, docs/architecture/strat-book-plugin.md §7.11): no signing
-      # key here, so this only proves the extension still builds, stages and zips the way the release
-      # workflow expects. The extension itself already built above; this is near-free on top of it.
+      # Packaging drift check (docs/architecture/strat-book-plugin.md §7.11): no signing key, so this
+      # only proves staging and zipping still match what the release workflow expects.
       - name: Extension packaging dry run (Strat Book)
         run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
 

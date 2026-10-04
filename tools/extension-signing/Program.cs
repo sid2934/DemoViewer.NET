@@ -249,7 +249,9 @@ static int Manifest(string[] args)
 
     try
     {
-        Console.WriteLine(ReadEmbeddedManifestText(args[0]));
+        // Write, not WriteLine: the embedded text already carries its own trailing newline (or
+        // doesn't), and the caller byte-compares this output against the repo file.
+        Console.Out.Write(ReadEmbeddedManifestText(args[0]));
         return 0;
     }
     catch (Exception ex) when (ex is InvalidOperationException or IOException or BadImageFormatException)

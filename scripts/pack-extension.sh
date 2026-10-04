@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# Packages one first-party extension for release (docs/architecture/strat-book-plugin.md §7.11, item 37):
+# Packages one first-party extension for release (docs/architecture/strat-book-plugin.md §7.11):
 # builds it, stages exactly what the extension project itself produces, prints a compatibility report,
 # signs and verifies the staged directory, zips it deterministically, and emits the feed entry fragment
-# item 37's release workflow merges into the rolling extensions.json.
+# the release workflow merges into the rolling extensions.json.
 #
 #   scripts/pack-extension.sh <id> [--key <private.pem>] [--dry-run] [--out <dir>]
 #
 #   <id>          the extension id (see EXTENSIONS below)
-#   --key         a PEM private key to sign with. Omit to read DV_EXTENSION_SIGNING_KEY from the
-#                 environment (CI); omit both to skip signing in --dry-run, or to fail outright
-#                 otherwise.
-#   --dry-run     a real release is not being cut: a missing signing key is a note, not a failure, and
-#                 the git-tag/manifest-version check only runs when a matching tag ref IS present.
+#   --key         a PEM private key to sign with.
+#   --dry-run     a real release is not being cut: a missing key is a note, not a failure; the
+#                 git-tag/manifest-version check only runs when a matching tag ref is present;
+#                 DV_EXTENSION_SIGNING_KEY is never used, signed or not, only an explicit --key.
 #   --out         output directory (default: artifacts/extension-release/<id>)
 #
 # Every step fails loudly; nothing here is skipped silently.
@@ -46,8 +45,8 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# Captured before the signing section can reassign KEY_PATH to a temp file for the
-# DV_EXTENSION_SIGNING_KEY path; the verify override below applies only to this one.
+# Captured before the signing section can reassign KEY_PATH to a temp file: the verify override and
+# the dry-run signing gate below both act only on a key the caller passed explicitly.
 EXPLICIT_KEY_PATH="$KEY_PATH"
 
 if [ -z "$ID" ]; then
@@ -81,8 +80,8 @@ mkdir -p "$STAGE_DIR"
 echo "[pack-extension] id=$ID csproj=$CSPROJ_FILE manifest=$MANIFEST_PATH out=$OUT_BASE"
 
 # ── Host values this build offers, for the compatibility report ───────────────────────────────────────
-# Both are read from source, not restated: a contract bump or a CS2DemoKit bump that forgets one of
-# these two files is a real defect this step should catch, not something the script also owns a copy of.
+# Read from source rather than restated: a contract or CS2DemoKit bump that forgets one of these two
+# files is a real defect this step should catch.
 CONTRACT_HOST_FILE="src/App/DemoViewer.NET/Extensions/ExtensionHost.cs"
 CONTRACT_MATCHES="$(grep -oE 'ContractVersion \{ get; \} = new\([0-9]+, *[0-9]+, *[0-9]+\)' "$CONTRACT_HOST_FILE" || true)"
 CONTRACT_COUNT="$(printf '%s\n' "$CONTRACT_MATCHES" | grep -c . || true)"
@@ -110,8 +109,7 @@ ASSEMBLY_BASENAME="${MANIFEST_ASSEMBLY%.dll}"
 echo "[pack-extension] manifest version=$MANIFEST_VERSION assembly=$MANIFEST_ASSEMBLY"
 
 # A tag push names the version being released; a dispatch run or a local invocation has none, which
-# is not an error (pack-velopack.sh's own tag guard is the same shape: check only when the ref IS a
-# release tag for this extension).
+# is not an error (pack-velopack.sh's own tag guard is the same shape).
 TAG_REF="${GITHUB_REF:-}"
 case "$TAG_REF" in
     refs/tags/extensions/"$ID"/v*)
@@ -129,10 +127,7 @@ case "$TAG_REF" in
 esac
 
 # ── Build the signing tool and the extension, Release, framework-dependent ────────────────────────────
-# -getProperty is evaluation-only: TargetPath/TargetDir are computable without the Build target ever
-# running, so a build invoked ONLY with -getProperty prints a path to a file that was never produced.
-# Each project gets a plain build first (which fails loudly on a real error), then a second,
-# near-instant invocation (everything up to date) to read the paths back out as JSON.
+# -getProperty alone does not build: it only evaluates. Build first, then query.
 echo "[pack-extension] building tools/extension-signing"
 dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -v q --nologo
 TOOL_DLL="$(dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -getProperty:TargetPath -v q)"
@@ -155,13 +150,10 @@ if [ ! -f "$DLL_PATH" ] || [ ! -f "$DEPS_PATH" ]; then
 fi
 
 # ── Stage exactly what the extension project itself produces ──────────────────────────────────────────
-# deps.json's own entry for this project (its key starts with "<AssemblyName>/", the NBGV-stamped
-# version) lists only the files THIS project's compile output contributes under "runtime" and
-# "resources": every referenced project and package is a separate dependency entry, never folded in
-# here. That is "the project's own output minus every reference" without re-deriving a reference
-# closure by hand. "native" or "runtimeTargets" on this same entry would mean a RID-specific asset
-# (a native library) the extension itself ships, which item 37 does not support: a managed-only,
-# AnyCPU extension loads into the app's process on every OS alike.
+# deps.json's own entry for this project (key "<AssemblyName>/<nbgv-version>") lists, under "runtime"
+# and "resources", only the files this project's own compile output contributes; every referenced
+# project and package is a separate entry. "native" or "runtimeTargets" on this same entry would mean
+# a RID-specific asset, which this script refuses to package: the extension is managed-only, AnyCPU.
 OWN_LIBRARY_JSON="$(jq --arg name "$BUILT_ASSEMBLY_NAME" '
     .targets[(.targets | keys[0])] as $libs
     | $libs | to_entries[] | select(.key | startswith($name + "/")) | .value
@@ -174,43 +166,53 @@ fi
 HAS_NATIVE="$(printf '%s' "$OWN_LIBRARY_JSON" | jq -r 'has("native") or has("runtimeTargets")')"
 if [ "$HAS_NATIVE" = "true" ]; then
     echo "error: $BUILT_ASSEMBLY_NAME ships a RID-specific native asset (deps.json has 'native' or" >&2
-    echo "       'runtimeTargets' on its own library entry). Item 37 packages a managed-only," >&2
-    echo "       framework-dependent, AnyCPU extension only; stopping rather than shipping a" >&2
-    echo "       half-correct zip." >&2
+    echo "       'runtimeTargets' on its own library entry); this script packages a managed-only," >&2
+    echo "       AnyCPU extension only." >&2
     exit 1
 fi
 
-cp "$DLL_PATH" "$STAGE_DIR/"
+# Copy every file deps.json's own-library entry lists under "runtime" and "resources", each at its own
+# relative path: this is "the project's own output" without a hand-maintained file list.
+stage_from_deps() {
+    local member="$1"
+    local paths
+    paths="$(printf '%s' "$OWN_LIBRARY_JSON" | jq -r --arg m "$member" '.[$m] // {} | keys[]')"
+    [ -z "$paths" ] && return 0
+    while IFS= read -r rel; do
+        [ -z "$rel" ] && continue
+        mkdir -p "$STAGE_DIR/$(dirname "$rel")"
+        cp "${TARGET_DIR}${rel}" "$STAGE_DIR/$rel"
+    done <<< "$paths"
+}
+stage_from_deps runtime
+stage_from_deps resources
+if [ ! -f "$STAGE_DIR/$BUILT_ASSEMBLY_NAME.dll" ]; then
+    echo "error: deps.json's 'runtime' entry for $BUILT_ASSEMBLY_NAME staged no $BUILT_ASSEMBLY_NAME.dll." >&2
+    exit 2
+fi
+
+# deps.json does not track the XML doc file; stage it when the build produced one.
 XML_PATH="${TARGET_DIR}${BUILT_ASSEMBLY_NAME}.xml"
 if [ -f "$XML_PATH" ]; then
     cp "$XML_PATH" "$STAGE_DIR/"
 fi
 
-# Satellite resource assemblies, each keyed by its culture-relative path (e.g. "de/Foo.resources.dll").
-RESOURCE_PATHS="$(printf '%s' "$OWN_LIBRARY_JSON" | jq -r '.resources // {} | keys[]')"
-if [ -n "$RESOURCE_PATHS" ]; then
-    while IFS= read -r rel; do
-        [ -z "$rel" ] && continue
-        mkdir -p "$STAGE_DIR/$(dirname "$rel")"
-        cp "${TARGET_DIR}${rel}" "$STAGE_DIR/$rel"
-    done <<< "$RESOURCE_PATHS"
-fi
-
 # The repo copy is canonical; the build's PreserveNewest copy beside the DLL should be byte-identical
-# to it (same source file, per the csproj's Link), which the embedded-manifest check below confirms.
+# (same source file, via the csproj's Link), which the embedded-manifest check below confirms.
 cp "$MANIFEST_PATH" "$STAGE_DIR/extension.json"
 
 echo "[pack-extension] staged:"
 (cd "$STAGE_DIR" && find . -type f | sort | sed 's/^/  /')
 
-# ── The embedded manifest must equal the repo file ─────────────────────────────────────────────────────
-EMBEDDED_MANIFEST="$(dotnet "$TOOL_DLL" manifest "$DLL_PATH")"
-REPO_MANIFEST="$(cat "$MANIFEST_PATH")"
-if [ "$EMBEDDED_MANIFEST" != "$REPO_MANIFEST" ]; then
+# ── The embedded manifest must equal the repo file, byte for byte ─────────────────────────────────────
+EMBEDDED_MANIFEST_PATH="$OUT_BASE/embedded-manifest.json"
+dotnet "$TOOL_DLL" manifest "$DLL_PATH" > "$EMBEDDED_MANIFEST_PATH"
+if ! cmp -s "$EMBEDDED_MANIFEST_PATH" "$MANIFEST_PATH"; then
     echo "error: the manifest embedded in $DLL_PATH does not match $MANIFEST_PATH." >&2
     echo "       rebuild after editing extension.json, or check the csproj's EmbeddedResource Link." >&2
     exit 2
 fi
+rm -f "$EMBEDDED_MANIFEST_PATH"
 echo "[pack-extension] embedded manifest matches $MANIFEST_PATH"
 
 # ── Compatibility report ───────────────────────────────────────────────────────────────────────────────
@@ -228,30 +230,27 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The verify override is keyed on --dry-run, never merely on "a --key was given": a real release run
-# (no --dry-run) always verifies against PublisherKeys.Current with no override, even if --key was
-# passed explicitly, so a key that is not the one behind Primary fails here rather than shipping a zip
-# no app will trust. Only a dry run, with an explicit --key (an ephemeral keygen'd key never appears in
-# PublisherKeys.Current), is told to check against that key's own public half instead. Left empty
-# rather than built as an array on purpose: an empty array hits bash 3.2's nounset-on-empty-array bug,
-# still the default /bin/bash on macOS.
+# A real release always verifies against PublisherKeys.Current with no override, even with --key; only
+# a dry run with an explicit --key (an ephemeral keygen'd key, never in PublisherKeys.Current) checks
+# against that key's own public half. Left empty rather than built as an array: an empty array hits
+# bash 3.2's nounset-on-empty-array bug, still the default /bin/bash on macOS.
 VERIFY_KEY_PATH=""
 if [ "$DRY_RUN" -eq 1 ] && [ -n "$EXPLICIT_KEY_PATH" ]; then
     VERIFY_KEY_PATH="$EXPLICIT_KEY_PATH"
 fi
 
-if [ -z "$KEY_PATH" ] && [ -n "${DV_EXTENSION_SIGNING_KEY:-}" ]; then
+# DV_EXTENSION_SIGNING_KEY is never read in a dry run, signed or not: a dry run signs only with an
+# explicit --key, so the production key can never end up on an unpublished artifact.
+if [ "$DRY_RUN" -ne 1 ] && [ -z "$KEY_PATH" ] && [ -n "${DV_EXTENSION_SIGNING_KEY:-}" ]; then
     KEY_TMP="$(mktemp)"
     chmod 600 "$KEY_TMP"
     printf '%s' "$DV_EXTENSION_SIGNING_KEY" > "$KEY_TMP"
     KEY_PATH="$KEY_TMP"
-    # A real secret must verify against PublisherKeys.Current with no override: that is what proves
-    # the stored secret is actually the key this app's loader trusts, not merely A key.
 fi
 
 if [ -z "$KEY_PATH" ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
-        echo "[pack-extension] no signing key (no --key, no DV_EXTENSION_SIGNING_KEY); dry run, shipping an unsigned zip"
+        echo "[pack-extension] no --key given (DV_EXTENSION_SIGNING_KEY is ignored in dry-run mode); shipping an unsigned zip"
     else
         echo "error: no signing key available. Pass --key <private.pem>, or set DV_EXTENSION_SIGNING_KEY" >&2
         echo "       (the owner stores the private key's PEM as that GitHub repo secret; see" >&2
@@ -273,8 +272,8 @@ ZIP_NAME="${ASSEMBLY_BASENAME}-${MANIFEST_VERSION}.zip"
 ZIP_PATH="$OUT_BASE/$ZIP_NAME"
 dotnet "$TOOL_DLL" zip "$STAGE_DIR" --out "$ZIP_PATH"
 
-# Verify the actual zip contents, not just the staged directory: what item 36's loader extracts is
-# this archive, and a zip tool bug would otherwise go unnoticed.
+# Verify the actual zip contents, not just the staged directory: what the loader extracts is this
+# archive, and a zip tool bug would otherwise go unnoticed.
 UNZIP_DIR="$OUT_BASE/unzip-check"
 rm -rf "$UNZIP_DIR"
 mkdir -p "$UNZIP_DIR"
@@ -325,9 +324,8 @@ jq -n \
 
 echo "[pack-extension] feed entry: $FEED_ENTRY_PATH"
 
-# Self-test: the fragment is exactly what feed-merge takes as its second argument, so merging it into
-# "no existing feed" and feed-checking the result proves it parses as a real ExtensionFeed entry, not
-# merely as JSON.
+# Self-test: merging the fragment into "no existing feed" and feed-checking the result proves it
+# parses as a real ExtensionFeed entry, not merely as JSON.
 NO_EXISTING_FEED="$OUT_BASE/.no-existing-feed.json"
 rm -f "$NO_EXISTING_FEED"
 FEED_CHECK_PATH="$OUT_BASE/feed-entry-check.json"
