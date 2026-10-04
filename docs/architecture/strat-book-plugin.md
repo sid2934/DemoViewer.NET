@@ -158,9 +158,9 @@ contribution" depends on which ring it is in.
 | Keymap actions | P/G | Closed `Playback2DAction` enum and static default table gained Tag*, Suggestion*, ToggleReviewMode, FindRoundsLikeThis, situation result nav, ToolToken, step add/duplicate/delete/nav; scopes `WhenPaletteFocused`, `WhenSuggestionSelected` | No | String-keyed command ids with defaults, registered by the pack (section 5.9) |
 | "Rounds like this" button and menu | P | `Playback2DView.axaml:294, :322`; `IFindRoundsLikeThis` | No | Toolbar and menu contribution |
 | Lineup picker | P | Lives in the Strat Book (`LineupPickerView`), hosts `UtilityMapHost : MapSceneHost` | Yes (inside the pack) | None, if `MapSceneHost` is reachable |
-| Token editor, guides layer | P in G code | Core `ITokenEditor`, `TokenTool`, `SceneGuides`, `GuideLayer`; `Scene2DHost` always registers `TokenTool` and binds guides when the frame host has an editor; router hardcodes a Token fallback | Inert without a strat host | Tool and layer registration on the host (5.5); not urgent, it costs nothing at runtime |
-| Keyframes, routes, route palette | P in G code | Core `Keyframes/`, `TokenRouteLine`, `Scene2DFrame.Routes`, `ScenePalette.Route*`; Pipeline `StratFrameSource`, `StratSceneSpec`, `StratHudDataSource` | Inert | None for (a). For (b), move the strat-only types out of Core and Pipeline into the pack |
-| Zones, shape and text tools, `MapSceneHost`, `ISceneFrameHost`, `RegisterTrack` | G | Core and app | n/a | Stay core. `ISceneFrameHost` should lose `TokenEditor`, `Guides`, `TryTagPositionAt` into optional interfaces |
+| Token editor, guides layer | P | **Moved (item 26).** `TokenTool`, `GuideLayer` are in the extension (`Playback2D/Input`, `Playback2D/Layers`); `ITokenEditor`, `TokenGrip`, `TokenHitTest` stay core (`IToolServices.Tokens` needs the interface type with the pack off). `Scene2DHost.AddTool`/`AddLayer` register them once, called by `StratCanvasView`'s constructor; the 2D Playback tab's host calls neither | None left; the router's Token fallback still reads the registration by key, not by type |
+| Keyframes, routes, route palette | P/G | **Keyframes moved (item 26):** `StepSchedule`, `TokenKeyframe`, `TokenTrack*` are in the extension, namespace unchanged (nothing in Core referenced it). `StratFrameSource`, `StratSceneSpec`, `StratHudDataSource` moved too, into an extension-owned namespace (`Pipeline.Frames`/`.Hud` keep `TrackerFrameSource` and friends behind). **`TokenRouteLine`, `Scene2DFrame.Routes`, `ScenePalette.Route*` stay, because:** `MarkerLayer` (core) draws `Scene2DFrame.Routes` unconditionally and `SceneFixtureSerializer` (pipeline) round-trips it in every golden fixture, pack or no pack; moving the type would make two core/pipeline files reference the extension |
+| Zones, shape and text tools, `MapSceneHost`, `ISceneFrameHost`, `RegisterTrack` | G | Core and app | n/a | Stay core. **Done (item 26):** `ISceneFrameHost` lost `TokenEditor` and `Guides` into `ITokenEditingHost`/`IGuidesHost`, optional interfaces `SceneHostToolServices`/`Scene2DHost` type-test for; `TryTagPositionAt` was already folded into `TryPointerPreHandler` by item 20 |
 | Export dialog reuse (`ExportDialogScene`) | G | Strat Book reuses `Playback2DExportDialogViewModel` | Yes | None |
 
 ### 3.4 Situations, Dossier
@@ -942,6 +942,23 @@ for a live pack toggle with a demo already open, and on every `OnDemoChanged`) a
 `AddLayer` and `AddTool` exist for completeness and for (b). For (a), the token tool and guides layer can
 stay core-registered: they are inert without a strat frame host and cost nothing. Code keeps the word
 "pack" for the type names; user-facing copy says "extension" (decision 4).
+
+**As built by item 26, not on `IPlaybackSurface` but on `Scene2DHost` directly.** Nothing contributes a
+layer or a tool to the 2D Playback tab yet, so `IPlaybackSurface.AddLayer`/`AddTool` are still unbuilt; the
+strat canvas does not go through a pack contribution or `IPlaybackSurface` at all; its own `StratCanvasView`
+mounts a private `Scene2DHost` instance directly in its XAML (`<pb:Scene2DHost x:Name="Host" />`), distinct
+from the Playback2D tab's. `Scene2DHost` gained the same two members, narrower: `AddTool(IPointerTool tool)`
+is `Router.Register(tool)`; `AddLayer(string layerId, Func<ISceneLayer> layer)` adds the layer once,
+immediately, and keeps the factory so a release/rebuild (a re-parent, a re-template) can rebuild it the way
+the fixed layer set already rebuilds itself. Both are called exactly once, from `StratCanvasView`'s
+constructor, right after `FindControl<Scene2DHost>("Host")`: `host.AddTool(new TokenTool())` and
+`host.AddLayer(SceneLayerIds.Guides, () => new GuideLayer(() => (host.FrameHost as IGuidesHost)?.Guides ??
+SceneGuides.None))`. Nothing calls either for the Playback2D tab's own host, so pack off (and the regular
+tab, pack on) carries neither: not inert-and-present as before, but absent. `TokenTool` and `GuideLayer` are
+pure consumers of core contracts (`IPointerTool`, `ISceneLayer`) and move to the extension with the rest of
+item 26; `ITokenEditor` and `SceneGuides` do not, because `IToolServices.Tokens` and the new `IGuidesHost`
+need the types regardless of whether the pack is loaded. `SceneHostToolServices.Tokens` reads
+`(host.FrameHost as ITokenEditingHost)?.TokenEditor` in place of the removed `ISceneFrameHost.TokenEditor`.
 
 ### 7.4 Library, settings, session, stores
 
@@ -1817,20 +1834,34 @@ src/Extensions/StratBook/
     StratBookPack.cs, StratBookLifecycle.cs, ...    the pack root files
     Modules/ Services/ ViewModels/ Views/ Controls/ Assets/   the Phase 0b tree, moved whole, namespaces unchanged
     Services/Zones/AssetZonePlaceResolverSource.cs  the one file that moved in from core (it implements a pack interface)
+    Playback2D/Input/TokenTool.cs                   item 26: moved in, namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Input
+    Playback2D/Layers/GuideLayer.cs                 item 26: moved in, namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Layers
+    Playback2D/Frames/StratFrameSource.cs, StratSceneSpec.cs   item 26: moved in, namespace ...Playback2D.Frames
+    Playback2D/Hud/StratHudDataSource.cs            item 26: moved in, namespace ...Playback2D.Hud
+    Playback2D/Keyframes/StepSchedule.cs, TokenKeyframe.cs, TokenTrack*.cs   item 26: moved in, namespace UNCHANGED (DemoViewer.NET.Playback2D.Core.Keyframes; nothing in Core used it)
   DemoViewer.NET.Extensions.StratBook.Tests/        item 28: RootNamespace DemoViewer.NET.AppTests (the App.Tests one)
-    *.cs                                             182 files: 172 moved whole, 7 that lived at App.Tests'
-                                                       root, and 3 new ones: StratBookCompositionRootTests.cs
-                                                       (5 cases split out of AppCompositionRootTests, which
-                                                       stayed) and ReviewQueueTabTests.cs (3 cases split out of
-                                                       ReviewQueueTests, which stayed), plus
-                                                       ToleranceSliderHarness.cs (extracted from one of the
-                                                       172, ToleranceSliderTests.cs, to link back)
+    *.cs                                             flat, no subfolders: 182 files item 28 moved whole or split
+                                                       out, plus item 26's StepScheduleTests, StratFrameSourceTests,
+                                                       TokenTrackTests and TokenToolTests (moved a second time,
+                                                       App.Tests/Extensions/StratBook/Playback2D/ to here), and
+                                                       TokenToolHostTests (split out of Scene2DHostFrameHostTests,
+                                                       which stayed in App.Tests)
     RoundIndexTestData.cs, CacheRecordTestExtensions.cs, StratBookHubAccess.cs, ToleranceSliderHarness.cs
                                                        linked back into App.Tests: core tests use them as fixtures
   extension.json                                    the manifest (item 33, section 7.7); embedded and copied beside the DLL
 src/App/DemoViewer.NET.App.Tests/Extensions/PackBoundaryTests.cs   pack-agnostic; pulled out of the item 28 move
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants; item 28 did not touch this
 ```
+
+Item 26's namespace rule: a moved type keeps its original namespace when the move vacates that namespace
+entirely from Core/Pipeline (`Keyframes`: nothing else lived there); it takes an extension-owned namespace
+(`DemoViewer.NET.Extensions.StratBook.Playback2D.<Area>`) when a sibling stays behind under the same
+namespace and core app files import it for that sibling (`Input`: `DrawTool`/`EraseTool`/the router stay;
+`Layers`: `MarkerLayer`/`RadarLayer`/etc. stay; `Pipeline.Frames`: `TrackerFrameSource`/`FixtureFrameSource`
+stay; `Pipeline.Hud`: `TimelineHudDataSource`/`KillFeedTimeline` stay). Keeping the old namespace there would
+make `PackBoundaryTests`' pack-owned-namespace scan flag every one of those unrelated App files as a false
+edge. `ITokenEditor`, `TokenGrip`, `TokenHitTest`, `SceneGuides`, `TokenRouteLine`, `Scene2DFrame.Routes` and
+`ScenePalette.Route*` are not moved at all: see 3.3.
 
 Rules as built:
 
@@ -1855,7 +1886,11 @@ Rules as built:
   6's loader loads only first-party signed assemblies, so this exposes nothing to third parties) and, since
   item 28, `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal seams App.Tests reaches). The
   extension grants `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and
-  `DemoViewer.NET.Extensions.StratBook.Tests`. No core member was widened to public for the split.
+  `DemoViewer.NET.Extensions.StratBook.Tests`. **Item 26** adds a second grantor: `DemoViewer.NET.Playback2D.Core`
+  also grants `DemoViewer.NET.Extensions.StratBook`, because the strat frame source (moved there) writes
+  `Scene2DFrame`'s internal backing fields directly, the pooled-refill pattern `SceneFrameBuilder` itself
+  uses; `Scene2DHost.AddTool`/`AddLayer`/`FrameHost` stay covered by the app's existing grant. No core
+  member was widened to public for the split.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
   assembly, asks each compatible pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 7.4).

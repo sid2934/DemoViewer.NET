@@ -6,7 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Keyframes;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 
 /// <summary>
 ///     Everything <see cref="StratFrameSource" /> needs to play a strat, on the strat frame clock

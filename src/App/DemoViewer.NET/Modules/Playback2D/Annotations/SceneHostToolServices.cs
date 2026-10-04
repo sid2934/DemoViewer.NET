@@ -197,9 +197,10 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
     public void RequestTextEdit(Guid elementId) => host.RequestTextEdit(elementId);
 
     // Read through the host at every use rather than captured: a tab activation re-binds the host to a
-    // different frame host, and the 2D Playback tab answers null, so the token tool falls through there.
+    // different frame host, and a host with no ITokenEditingHost (the 2D Playback tab) answers null, so
+    // the token tool falls through there.
     /// <inheritdoc />
-    public ITokenEditor? Tokens => host.FrameHost?.TokenEditor;
+    public ITokenEditor? Tokens => (host.FrameHost as ITokenEditingHost)?.TokenEditor;
 
     /// <inheritdoc />
     public void RequestRender() => host.RequestToolRender();

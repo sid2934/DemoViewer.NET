@@ -1,21 +1,22 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Hud;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
-using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
-using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2DTests;
+namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The strat as a frame source (step-authoring.md §3.6, §7): the frame count is the tracker's
@@ -356,10 +357,12 @@ public class StratFrameSourceTests
         using CpuSurfaceProvider surfaces = new();
         HashingFrameSink sink = new();
 
+        ExportRequest request = new(0, Math.Max(0, source.FrameCount - 1), 20, new SKSizeI(96, 64), 1.0,
+            ExportFormats.Gif, new HashSet<string>(layers, StringComparer.Ordinal),
+            new CameraScript.Fixed(new Dictionary<MapLevelId, ViewportTransform>()));
+
         await new SceneExportSession(compositor).RunAsync(
-            ExportFixtures.Request(source.FrameCount, ExportFormats.Gif, new SKSizeI(96, 64),
-                layerIds: new HashSet<string>(layers, StringComparer.Ordinal), fps: 20),
-            source, sink, surfaces, null, CancellationToken.None);
+            request, source, sink, surfaces, null, CancellationToken.None);
 
         return sink.FrameHashes;
     }

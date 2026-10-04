@@ -100,7 +100,20 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     private VisionLayer _visionLayer;
     private ISceneFrameHost? _vm;
     private ZoneOutlineLayer? _zoneLayer;
-    private GuideLayer? _guideLayer;
+
+    // Layers a caller added through AddLayer (guides, for the strat canvas): kept here so BuildScene can
+    // re-add them after a release/rebuild, which the fixed layer set already does for itself.
+    private readonly Dictionary<string, Func<ISceneLayer>> _extraLayers = new();
+
+    // The ids this host already manages itself (BuildScene's fixed set, plus BindAnnotations' and
+    // BindZones' dynamic ones). AddLayer refuses these outright rather than let a collision surface
+    // later as an obscure duplicate-id failure out of SceneCompositor.Add.
+    private static readonly HashSet<string> OwnLayerIds = new(StringComparer.Ordinal)
+    {
+        SceneLayerIds.Radar, SceneLayerIds.Trails, SceneLayerIds.AreaEffects, SceneLayerIds.Vision,
+        SceneLayerIds.Markers, SceneLayerIds.Bomb, SceneLayerIds.FloorLabel, SceneLayerIds.Annotations,
+        SceneLayerIds.Zones
+    };
 
     /// <summary>Creates the host and registers the seven scene layers.</summary>
     public Scene2DHost()
@@ -125,11 +138,6 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         Router.Register(new ShapeTool(ToolKind.Ellipse));
         Router.Register(_textTool);
 
-        // Inert on the 2D Playback tab, whose frame host has no token editor: a press falls through. It
-        // is registered here rather than by the strat view so a host re-bound between the two never has
-        // a selected tool the router silently turned into pan.
-        Router.Register(new TokenTool());
-
         BuildScene();
     }
 
@@ -153,6 +161,46 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
     /// <summary>The layer stack. B2 and B4 register their layers on it.</summary>
     public SceneCompositor Compositor => _compositor;
+
+    /// <summary>
+    ///     Registers a pointer tool on this host only (item 26): the strat canvas's token tool, never the
+    ///     2D Playback tab's, since nothing calls this for it. A host re-bound away from the registering
+    ///     view model leaves the tool in place but inert, exactly as an unregistered tool would be.
+    /// </summary>
+    /// <param name="tool">The tool.</param>
+    internal void AddTool(IPointerTool tool) => Router.Register(tool);
+
+    /// <summary>
+    ///     Registers a scene layer on this host only, built fresh by <paramref name="layer" /> now and
+    ///     again every time a release rebuilds the compositor. <paramref name="layerId" /> must match
+    ///     <see cref="ISceneLayer.Id" />; registering the same id again replaces it. Refuses an id this
+    ///     host already manages itself (<see cref="OwnLayerIds" />).
+    /// </summary>
+    /// <param name="layerId">The layer's id.</param>
+    /// <param name="layer">Builds a fresh layer instance.</param>
+    /// <exception cref="ArgumentException"><paramref name="layerId" /> names one of this host's own layers.</exception>
+    internal void AddLayer(string layerId, Func<ISceneLayer> layer)
+    {
+        ArgumentNullException.ThrowIfNull(layerId);
+        ArgumentNullException.ThrowIfNull(layer);
+
+        if (OwnLayerIds.Contains(layerId))
+        {
+            throw new ArgumentException($"'{layerId}' is one of this host's own layers.", nameof(layerId));
+        }
+
+        _extraLayers[layerId] = layer;
+        if (_released)
+        {
+            return;
+        }
+
+        using (_gate.Enter())
+        {
+            _compositor.Remove(layerId);
+            _compositor.Add(layer());
+        }
+    }
 
     /// <summary>The layout policy. B3 swaps in <c>SingleLayout</c> here.</summary>
     public ILevelLayoutPolicy LayoutPolicy
@@ -442,13 +490,19 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         _compositor.Add(new BombLayer());
         _compositor.Add(new FloorLabelLayer(_text));
 
+        // A caller's own layers (AddLayer, before or after this build): re-added here too, since a
+        // release wipes the whole compositor and this is the one place every layer is rebuilt.
+        foreach (Func<ISceneLayer> factory in _extraLayers.Values)
+        {
+            _compositor.Add(factory());
+        }
+
         // The map bundle and the annotation session are re-pulled on the next SyncFromViewModel, so the
         // fresh layers are bound.
         _boundAsset = null;
         AnnotationLayerForTest = null;
         _boundSession = null;
         _zoneLayer = null;
-        _guideLayer = null;
         _released = false;
     }
 
@@ -1095,7 +1149,6 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         BindAnnotations(vm.AnnotationSession);
         _compositor.SetEnabled(SceneLayerIds.Annotations, vm.IsAnnotationsEnabled);
-        BindGuides(vm.TokenEditor is not null);
 
         // Only asked for when shown: vm.Zones is the lazy read that parses the file, and a map whose
         // outlines nobody turned on must not pay for them on every sync.
@@ -1149,30 +1202,6 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
 
         _toolServices.Session = session;
         Router.SetActive(session.ActiveTool);
-    }
-
-    // The drag guides belong to a host with tokens to drag; the 2D tab and the read-only previews never mount them.
-    // Under the render gate, as BindZones.
-    private void BindGuides(bool wanted)
-    {
-        if (wanted == _guideLayer is not null)
-        {
-            return;
-        }
-
-        using (_gate.Enter())
-        {
-            if (_guideLayer is not null)
-            {
-                _compositor.Remove(SceneLayerIds.Guides);
-                _guideLayer = null;
-            }
-            else
-            {
-                _guideLayer = new GuideLayer(() => _vm?.Guides ?? SceneGuides.None);
-                _compositor.Add(_guideLayer);
-            }
-        }
     }
 
     // Mounts, re-points or drops the zone outline layer. Under the render gate for the same reason

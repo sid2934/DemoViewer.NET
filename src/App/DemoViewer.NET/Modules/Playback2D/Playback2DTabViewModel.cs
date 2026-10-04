@@ -566,11 +566,6 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public bool IsAnnotationsEnabled => Annotations.IsEnabled;
 
-    // A demo has no tokens: the token tool is registered on the host but falls through here. The strat
-    // canvas is the frame host that supplies one (step-authoring.md §3.10).
-    /// <inheritdoc />
-    ITokenEditor? ISceneFrameHost.TokenEditor => null;
-
     /// <summary>The scrub / rounds / markers chrome docked under the viewport.</summary>
     public Playback2DTimelineViewModel Timeline { get; } = new();
 

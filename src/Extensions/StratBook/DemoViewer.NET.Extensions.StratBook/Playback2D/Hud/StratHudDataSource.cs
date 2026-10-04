@@ -1,11 +1,11 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Playback2D.Core.Hud;
-using DemoViewer.NET.Playback2D.Pipeline.Frames;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Pipeline.Hud;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Hud;
 
 /// <summary>
 ///     The HUD for a strat: the round clock counting down from the strat's round length, and nothing else

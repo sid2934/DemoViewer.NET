@@ -986,7 +986,7 @@ public sealed class StratBookPack : IFeaturePack
     // The Utility Book tab, and the Strat Book's lineup picker (locked to the strat's map): the same index,
     // clip directory and queue section, so the picker shows what the tab shows. The picker draws the strat
     // canvas's bundle instead of decoding its own; the canvas keeps it.
-    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, Playback2D.Pipeline.Assets.LoadedMapAsset? sharedAsset)
+    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, global::DemoViewer.NET.Playback2D.Pipeline.Assets.LoadedMapAsset? sharedAsset)
     {
         DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
         return new UtilityBookTabViewModel(
