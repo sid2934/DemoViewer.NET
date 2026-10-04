@@ -61,12 +61,37 @@ public class SignedTrustPolicyTests
         }
     }
 
+    // Proves Default is wired to the real PublisherKeys.Current, not just to some list: a directory
+    // signed with a key generated here, which is certainly not in PublisherKeys.Current, must still
+    // come back untrusted through Default itself. Skipped under the developer opt-in, which bypasses
+    // this regardless of the signature (that is its own test below).
     [Test]
-    public async Task Judge_DefaultsToPublisherKeysCurrent_WhenNoneAreInjected()
+    public async Task Default_DoesNotTrustADirectorySignedWithAKeyOutsidePublisherKeysCurrent()
     {
-        SignedTrustPolicy policy = new();
-        TrustVerdict verdict = policy.Judge("/does/not/exist", FakeManifests.For("net.demoviewer.pack.fake"));
-        await Assert.That(verdict.Trusted).IsFalse().Because("no directory exists there, let alone a signature");
+        if (string.Equals(Environment.GetEnvironmentVariable(TrustPolicy.TrustUnsignedEnvVar)?.Trim(), "1", StringComparison.Ordinal))
+        {
+            throw new TUnit.Core.Exceptions.SkipTestException(
+                $"{TrustPolicy.TrustUnsignedEnvVar} is set in this process; Default would bypass regardless of the signature");
+        }
+
+        string dir = NewTree();
+        using ECDsa notThePublisher = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, ExtensionSignature.FileName), ExtensionSignature.Sign(dir, notThePublisher));
+
+            TrustVerdict verdict = TrustPolicy.Default.Judge(dir, FakeManifests.For("net.demoviewer.pack.fake"));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(verdict.Trusted).IsFalse();
+                await Assert.That(verdict.Reason).IsEqualTo("the copy is not signed by this app's publisher");
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
     }
 
     [Test]

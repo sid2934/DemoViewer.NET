@@ -197,6 +197,74 @@ public class ExtensionSignatureTests
         }
     }
 
+    // A tamper that also rewrites the recorded digest to match the tampered tree, keeping keyId and
+    // signature as signed. If Verify ever compared digests before the signature over them, or verified
+    // the signature against the recomputed digest instead of the recorded one, this would pass.
+    [Test]
+    public async Task Verify_ForgedDigest_FailsAsSignatureInvalid_NeverVerified()
+    {
+        string dir = NewTree();
+        (string publicKey, ECDsa privateKey) = NewKeyPair();
+        using (privateKey)
+        {
+            try
+            {
+                WriteSignature(dir, privateKey);
+                byte[] bytes = File.ReadAllBytes(Path.Combine(dir, "extension.json"));
+                bytes[0] ^= 0xFF;
+                File.WriteAllBytes(Path.Combine(dir, "extension.json"), bytes);
+                byte[] tamperedDigest = ExtensionSignature.ComputeDigest(dir);
+                RewriteSignatureField(dir, "digest", Convert.ToBase64String(tamperedDigest));
+
+                SignatureCheck check = ExtensionSignature.Verify(dir, [publicKey]);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(check.Verified).IsFalse();
+                    await Assert.That(check.Failure).IsEqualTo(SignatureFailure.SignatureInvalid);
+                    await Assert.That(check.Detail).IsEqualTo("signature invalid");
+                }
+            }
+            finally
+            {
+                Cleanup(dir);
+            }
+        }
+    }
+
+    // keyId alone names no trust: rewriting it to a key that never signed anything must not verify,
+    // even when that key IS one Verify is given to check against.
+    [Test]
+    public async Task Verify_SpoofedKeyId_FailsAsSignatureInvalid_NeverVerified()
+    {
+        string dir = NewTree();
+        (string signerPublicKey, ECDsa signerPrivateKey) = NewKeyPair();
+        (string otherPublicKey, ECDsa otherPrivateKey) = NewKeyPair();
+        using (signerPrivateKey)
+        using (otherPrivateKey)
+        {
+            try
+            {
+                WriteSignature(dir, signerPrivateKey);
+                string otherKeyId = ExtensionSignature.KeyId(Convert.FromBase64String(otherPublicKey));
+                RewriteSignatureField(dir, "keyId", otherKeyId);
+
+                SignatureCheck check = ExtensionSignature.Verify(dir, [signerPublicKey, otherPublicKey]);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(check.Verified).IsFalse();
+                    await Assert.That(check.Failure).IsEqualTo(SignatureFailure.SignatureInvalid);
+                    await Assert.That(check.Detail).IsEqualTo("signature invalid");
+                }
+            }
+            finally
+            {
+                Cleanup(dir);
+            }
+        }
+    }
+
     [Test]
     public async Task ComputeDigest_RefusesMoreFilesThanTheCap()
     {
@@ -338,6 +406,17 @@ public class ExtensionSignatureTests
     {
         string json = ExtensionSignature.Sign(dir, privateKey);
         File.WriteAllText(Path.Combine(dir, ExtensionSignature.FileName), json);
+    }
+
+    // Edits one field of an already-written extension.sig, leaving the others as signed. Used only to
+    // construct an attack shape (a forged digest, a spoofed key id); ExtensionSignature itself never
+    // edits a signature in place.
+    private static void RewriteSignatureField(string dir, string fieldName, string value)
+    {
+        string path = Path.Combine(dir, ExtensionSignature.FileName);
+        System.Text.Json.Nodes.JsonNode node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+        node[fieldName] = value;
+        File.WriteAllText(path, node.ToJsonString());
     }
 
     // extension.json, sub/a.txt and a dotfile: enough shape to exercise sub-directories and hidden files.
