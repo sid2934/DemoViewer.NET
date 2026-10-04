@@ -19,7 +19,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task TogglePlay_CallsRequestPlayThenRequestPause()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
 
         await Assert.That(vm.ExecuteAction(Playback2DAction.TogglePlay)).IsTrue();
         await Assert.That(ctx.PlayCount).IsEqualTo(1);
@@ -33,7 +33,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task StepForward_RequestsCurrentPlusOne()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
         ctx.CurrentFrameIndex = 42;
 
         await Assert.That(vm.ExecuteAction(Playback2DAction.StepForward)).IsTrue();
@@ -44,7 +44,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task StepBack_AtFrameZero_DoesNotRequestNegative()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
         ctx.CurrentFrameIndex = 0;
 
         await Assert.That(vm.ExecuteAction(Playback2DAction.StepBack)).IsFalse();
@@ -54,7 +54,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task StepForward_AtLastFrame_DoesNotRequestPastTheEnd()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
         ctx.TotalFrames = 100;
         ctx.CurrentFrameIndex = 99;
 
@@ -65,7 +65,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task SpeedUp_WalksThePresetLadder()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
 
         vm.ExecuteAction(Playback2DAction.SpeedUp);
         vm.ExecuteAction(Playback2DAction.SpeedUp);
@@ -80,7 +80,7 @@ public class Playback2DActionDispatchTests
     {
         // The LiveSync interlock: a Synced session without the plugin's timescale capability pins speed,
         // and the NavStrip ComboBox is disabled for the same reason. The key must not open a side door.
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
         ctx.IsSpeedLocked = true;
 
         vm.ExecuteAction(Playback2DAction.SpeedUp);
@@ -102,7 +102,7 @@ public class Playback2DActionDispatchTests
     public async Task NextRound_RequestsNextEventWithFreezeEndFilter()
     {
         // Rounds OPEN at round_freeze_end, so round nav and the timeline's bands key off the same event.
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
 
         vm.ExecuteAction(Playback2DAction.NextRound);
         vm.ExecuteAction(Playback2DAction.PrevRound);
@@ -116,7 +116,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task NextKill_RequestsNextEventWithPlayerDeathFilter()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
 
         vm.ExecuteAction(Playback2DAction.NextKill);
 
@@ -127,7 +127,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task CycleFollowNext_WrapsAroundFollowablePlayers()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
         ctx.Push(1, 2);
 
         int[] order = [.. vm.FollowablePlayers.Select(p => p.Slot)];
@@ -150,7 +150,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task ClearFollow_RaisesFitRequestedAndDoesNotNotifySpectate()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
         ctx.Push(1, 2);
         vm.ExecuteAction(Playback2DAction.CycleFollowNext);
         ctx.SpectateTargets.Clear();
@@ -177,7 +177,7 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task FollowKeys_AreInertWhenTheFollowGateIsOff()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
         ctx.Push(1, 2);
         ctx.Gate!.SetEnabled("playback2d.follow", false);
 
@@ -198,7 +198,7 @@ public class Playback2DActionDispatchTests
     [Arguments(Playback2DAction.ToolText, ToolKind.Text)]
     public async Task ShapeToolKey_SelectsTheTool_AndAgainGoesBackToPan(Playback2DAction action, ToolKind kind)
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext _) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DActivation.Activated();
 
         await Assert.That(vm.ExecuteAction(action)).IsTrue();
         await Assert.That(vm.Annotations.ActiveTool).IsEqualTo(kind);
@@ -211,34 +211,10 @@ public class Playback2DActionDispatchTests
     [Test]
     public async Task ShapeToolKey_GatedOff_IsLeftUnhandled()
     {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activated();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DActivation.Activated();
         ctx.Gate!.SetEnabled("playback2d.annotations", false);
 
         await Assert.That(vm.ExecuteAction(Playback2DAction.ToolArrow)).IsFalse();
         await Assert.That(vm.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
-    }
-
-    /// <param name="demoPath">
-    ///     The demo the context is on, set BEFORE activation. Null (the default) is the shape every
-    ///     pre-round-3A caller had. It matters because the tab's resync clears the follow target when the
-    ///     path changes under it, so a test that assigns the path after activation has already staged a
-    ///     demo swap without meaning to.
-    /// </param>
-    internal static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Activated(string? demoPath = null)
-    {
-        Playback2DFakeContext ctx = new()
-        {
-            Gate = new FakeModuleFeatureGate(),
-            DemoPath = demoPath
-        };
-        ctx.AddPlayer(0, "Alpha", 2);
-        ctx.AddPlayer(1, "Bravo", 2);
-        ctx.AddPlayer(2, "Charlie", 3);
-        ctx.Frames["round_freeze_end"] = [0, 300, 600];
-        ctx.Timelines["player_death"] = [];
-
-        Playback2DTabViewModel vm = new();
-        vm.OnActivated(ctx);
-        return (vm, ctx);
     }
 }

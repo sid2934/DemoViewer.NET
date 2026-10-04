@@ -15,3 +15,6 @@ using System.Runtime.CompilerServices;
 // (strat-book-plugin.md §13, decision 5 option (b)). Phase 6's loader only loads signed first-party
 // assemblies, so this widens nothing to third parties.
 [assembly: InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook")]
+// The pack's own test project (item 28), moved out of App.Tests, needs the same internal seams
+// App.Tests uses (the composition-root and Playback2D tests it inherited).
+[assembly: InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook.Tests")]

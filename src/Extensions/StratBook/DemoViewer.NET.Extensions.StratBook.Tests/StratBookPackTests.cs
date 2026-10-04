@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Manifest;

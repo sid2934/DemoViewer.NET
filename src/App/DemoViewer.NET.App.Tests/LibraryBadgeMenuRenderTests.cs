@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     A real <see cref="LibraryTabView" />'s card badge chip, over a fake <see cref="ILibraryContribution" />
 ///     that only tracks calls (the real Team/Provenance contributions are
-///     <see cref="DemoViewer.NET.AppTests.Extensions.StratBook.LibraryContributionsTests" />'s job). Opens the
+///     <c>DemoViewer.NET.AppTests.Extensions.StratBook.LibraryContributionsTests</c>'s job). Opens the
 ///     real <c>MenuFlyout</c> and clicks a realized <c>MenuItem</c>, so <c>LibraryTabView.OnBadgeLabelPicked</c>'s
 ///     walk-up from the item (inside the flyout's popup) back to the card's <see cref="DemoEntry" /> is
 ///     actually exercised, not just the view-model's own <see cref="LibraryTabViewModel.SetBadgeLabel" />.

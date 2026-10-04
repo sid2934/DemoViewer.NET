@@ -26,6 +26,8 @@
     <Folder Name="/src/Extensions/">
         <Project
                 Path="src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/DemoViewer.NET.Extensions.StratBook.csproj"/>
+        <Project
+                Path="src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook.Tests/DemoViewer.NET.Extensions.StratBook.Tests.csproj"/>
     </Folder>
     <Folder Name="/src/GameIcons/">
         <Project Path="src/GameIcons/DemoViewer.NET.GameIcons/DemoViewer.NET.GameIcons.csproj"/>
