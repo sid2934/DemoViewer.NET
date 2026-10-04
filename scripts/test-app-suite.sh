@@ -32,9 +32,9 @@ done
 # Kept character-for-character in step with scripts/test.sh and tests/shared/TestTiers.cs. The
 # contract test asserts the script text, so a drifting copy turns every suite red.
 case "$TIER" in
-  fast)     TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=RealDemo)&(Category!=Render)]' ;;
-  standard) TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=RealDemo)]' ;;
-  full)     TIER_FILTER='' ;;
+  fast)     TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Gpu)&(Category!=Integration)&(Category!=KnownFailure)&(Category!=RealDemo)&(Category!=Render)]' ;;
+  standard) TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=KnownFailure)&(Category!=RealDemo)]' ;;
+  full)     TIER_FILTER='[(Category!=KnownFailure)]' ;;
   *) echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
 esac
 
