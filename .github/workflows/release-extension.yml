@@ -1,0 +1,267 @@
+# One extension's release (docs/architecture/strat-book-plugin.md §7.11): the signed zip, its sha256,
+# and an update to the rolling extensions.json feed item 36's updater reads.
+#
+# Publishes only on a tag push matching extensions/<id>/v<version>, or a workflow_dispatch run against
+# that same tag with dry_run=false. Every other trigger, including any dispatch from a branch, is a
+# dry run: build, sign, zip, verify, report; no release, no feed change.
+#
+# Every value that can carry attacker-controlled text (a dispatch input, a ref-derived id) is passed
+# through env:, never interpolated into run: script text, and the id is validated against the
+# manifest id shape before it is used for anything.
+name: release-extension
+
+on:
+  push:
+    tags: ['extensions/*/v*']
+  workflow_dispatch:
+    inputs:
+      id:
+        description: 'Extension id (only used when not triggered by a tag)'
+        type: choice
+        options:
+          - net.demoviewer.pack.stratbook
+        default: net.demoviewer.pack.stratbook
+      dry_run:
+        description: 'Build, sign and zip only; do not create a release or touch the feed'
+        type: boolean
+        default: true
+      allow_downgrade:
+        description: 'Publish even if the version is not newer than the feed''s current latest'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Constant: not keyed on the id, so two releases of different extensions still serialize. One
+# extension today; revisit if that cost matters once a second one exists.
+concurrency:
+  group: release-extension
+  cancel-in-progress: false
+
+jobs:
+  build-and-pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      id: ${{ steps.resolve.outputs.id }}
+      do_publish: ${{ steps.resolve.outputs.do_publish }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Nerdbank.GitVersioning needs full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The ext suite and CompatibilityMatrixTests both render through Avalonia.Headless + Avalonia.Skia.
+      - name: Install native deps
+        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+
+      - name: Resolve id and publish/dry-run
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          INPUT_ID: ${{ github.event.inputs.id }}
+          INPUT_DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF" =~ ^refs/tags/extensions/(.+)/v(.+)$ ]]; then
+            ID="${BASH_REMATCH[1]}"
+            IS_TAG=1
+          else
+            ID="$INPUT_ID"
+            IS_TAG=0
+          fi
+
+          # The id becomes a folder name, a release tag and a release-asset URL; refuse anything that
+          # is not the manifest's own id shape (ExtensionManifest.IsValidId), whatever it came from.
+          if ! [[ "$ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z0-9._-]*$ ]]; then
+            echo "::error::'$ID' is not a valid extension id" >&2
+            exit 1
+          fi
+
+          if [ "$IS_TAG" = "1" ] && [ "$EVENT_NAME" != "workflow_dispatch" ]; then
+            DO_PUBLISH=1
+          elif [ "$IS_TAG" = "1" ] && [ "$INPUT_DRY_RUN" = "false" ]; then
+            DO_PUBLISH=1
+          else
+            DO_PUBLISH=0
+          fi
+
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "do_publish=$DO_PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "resolved id=$ID is_tag=$IS_TAG do_publish=$DO_PUBLISH"
+
+      - name: Extension suite, standard tier
+        run: bash scripts/test.sh -t standard -p ext -c Release
+
+      - name: Build App.Tests
+        run: dotnet build src/App/DemoViewer.NET.App.Tests -c Release
+
+      # The release gate (strat-book-plugin.md §7.7): the shipped manifest against this host on every
+      # axis, and the extension's compiled references against what this build actually loads.
+      - name: CompatibilityMatrixTests
+        run: >
+          dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release --no-build
+          -- --treenode-filter "/*/*/CompatibilityMatrixTests/*" --disable-logo --no-progress
+
+      - name: Pack extension (build, stage, sign, verify, zip)
+        env:
+          EXT_ID: ${{ steps.resolve.outputs.id }}
+          DO_PUBLISH: ${{ steps.resolve.outputs.do_publish }}
+          # Only a real publish ever sees the production key; pack-extension.sh also refuses it in
+          # --dry-run on its own, so this is belt and suspenders, not the only guard.
+          DV_EXTENSION_SIGNING_KEY: ${{ steps.resolve.outputs.do_publish == '1' && secrets.DV_EXTENSION_SIGNING_KEY || '' }}
+        run: |
+          set -euo pipefail
+          ARGS=("$EXT_ID" --out "artifacts/extension-release/$EXT_ID")
+          if [ "$DO_PUBLISH" != "1" ]; then
+            ARGS+=(--dry-run)
+          fi
+          bash scripts/pack-extension.sh "${ARGS[@]}"
+
+      - name: Upload packaging artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-release-${{ steps.resolve.outputs.id }}
+          path: |
+            artifacts/extension-release/${{ steps.resolve.outputs.id }}/*.zip*
+            artifacts/extension-release/${{ steps.resolve.outputs.id }}/feed-entry.json
+          if-no-files-found: error
+
+      - name: Dry run summary
+        if: steps.resolve.outputs.do_publish != '1'
+        env:
+          EXT_ID: ${{ steps.resolve.outputs.id }}
+        run: |
+          echo "Dry run for $EXT_ID: built, staged, signed only if an explicit --key was given, zipped and verified."
+          echo "No GitHub release was created and the feed was not touched."
+          cat "artifacts/extension-release/$EXT_ID/feed-entry.json"
+
+  publish:
+    needs: build-and-pack
+    if: needs.build-and-pack.outputs.do_publish == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      EXT_ID: ${{ needs.build-and-pack.outputs.id }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-release-${{ needs.build-and-pack.outputs.id }}
+          path: artifacts/extension-release/${{ needs.build-and-pack.outputs.id }}
+
+      - name: Build the signing tool
+        run: |
+          set -euo pipefail
+          dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -v q --nologo
+          TOOL="$(dotnet build tools/extension-signing/ExtensionSigningTool.csproj -c Release -getProperty:TargetPath -v q)"
+          echo "TOOL=$TOOL" >> "$GITHUB_ENV"
+
+      # Merges and validates the rolling feed before anything is published: a refused downgrade (or
+      # any other merge failure) must leave no per-version release and no feed asset behind.
+      - name: Merge and validate the rolling feed
+        id: feed_merge
+        env:
+          ALLOW_DOWNGRADE: ${{ github.event.inputs.allow_downgrade }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/extension-release/$EXT_ID"
+          ROLLING="extensions-$EXT_ID"
+          EXISTING_PATH="$OUT/existing-feed.json"
+          rm -f "$EXISTING_PATH"
+
+          # "Absent" (the rolling release does not exist) is the only case this run treats as an
+          # empty feed, and only because it is then this run's own job to create that release. A
+          # release that exists but carries no extensions.json asset is left alone: that is an
+          # anomalous state (a prior run crashed mid-publish, or the asset was removed by hand), not
+          # an empty feed, and needs manual repair rather than a silent restart from zero. Any other
+          # gh failure (auth, rate limit, a transient API error) fails the job outright.
+          ROLLING_EXISTED=1
+          if VIEW_JSON="$(gh release view "$ROLLING" --repo "$REPO" --json assets 2>"$OUT/view-error.txt")"; then
+            HAS_ASSET="$(printf '%s' "$VIEW_JSON" | jq -r '[.assets[].name] | index("extensions.json") != null')"
+            if [ "$HAS_ASSET" = "true" ]; then
+              gh release download "$ROLLING" --repo "$REPO" -p extensions.json -O "$EXISTING_PATH" --clobber
+            else
+              echo "::error::rolling release '$ROLLING' exists but has no extensions.json asset; this needs manual repair, not an automatic empty-feed restart." >&2
+              exit 1
+            fi
+          elif grep -qi "release not found" "$OUT/view-error.txt"; then
+            ROLLING_EXISTED=0
+          else
+            echo "::error::gh release view '$ROLLING' failed: $(cat "$OUT/view-error.txt")" >&2
+            exit 1
+          fi
+
+          ALLOW_FLAG=()
+          if [ "$ALLOW_DOWNGRADE" = "true" ]; then
+            ALLOW_FLAG=(--allow-downgrade)
+          fi
+          dotnet "$TOOL" feed-merge "$EXISTING_PATH" "$OUT/feed-entry.json" --id "$EXT_ID" --out "$OUT/extensions.json" "${ALLOW_FLAG[@]}"
+          dotnet "$TOOL" feed-check "$OUT/extensions.json"
+
+          echo "rolling_existed=$ROLLING_EXISTED" >> "$GITHUB_OUTPUT"
+
+      # Idempotent against a re-run: the release may already exist from an earlier attempt that
+      # failed after this step (the url check below, or the feed publish step).
+      - name: Publish the per-version release and verify its asset URL
+        run: |
+          set -euo pipefail
+          OUT="artifacts/extension-release/$EXT_ID"
+          VERSION="$(jq -r .version "$OUT/feed-entry.json")"
+          TAG="$EXT_ID-v$VERSION"
+          ZIP="$(jq -r '.manifest.assembly | sub("\\.dll$"; "")' "$OUT/feed-entry.json")-$VERSION.zip"
+
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>"$OUT/view-error.txt"; then
+            gh release upload "$TAG" --repo "$REPO" --clobber "$OUT/$ZIP" "$OUT/$ZIP.sha256"
+          elif grep -qi "release not found" "$OUT/view-error.txt"; then
+            gh release create "$TAG" \
+              --repo "$REPO" \
+              --title "$EXT_ID $VERSION" \
+              --notes "Extension release. See docs/architecture/strat-book-plugin.md §7.11." \
+              --latest=false \
+              --target "${{ github.sha }}" \
+              "$OUT/$ZIP" "$OUT/$ZIP.sha256"
+          else
+            echo "::error::gh release view '$TAG' failed: $(cat "$OUT/view-error.txt")" >&2
+            exit 1
+          fi
+
+          EXPECTED_URL="$(jq -r .url "$OUT/feed-entry.json")"
+          ACTUAL_URL="$(gh release view "$TAG" --repo "$REPO" --json assets --jq ".assets[] | select(.name == \"$ZIP\") | .url")"
+          if [ "$EXPECTED_URL" != "$ACTUAL_URL" ]; then
+            echo "::error::feed entry url '$EXPECTED_URL' does not match the uploaded asset's actual url '$ACTUAL_URL'" >&2
+            exit 1
+          fi
+
+      - name: Publish the rolling feed
+        env:
+          ROLLING_EXISTED: ${{ steps.feed_merge.outputs.rolling_existed }}
+        run: |
+          set -euo pipefail
+          OUT="artifacts/extension-release/$EXT_ID"
+          ROLLING="extensions-$EXT_ID"
+          if [ "$ROLLING_EXISTED" != "1" ]; then
+            gh release create "$ROLLING" \
+              --repo "$REPO" \
+              --title "$EXT_ID updates" \
+              --notes "Rolling update feed for $EXT_ID. See docs/architecture/strat-book-plugin.md §7.10." \
+              --latest=false \
+              --target "${{ github.sha }}"
+          fi
+          gh release upload "$ROLLING" "$OUT/extensions.json" --repo "$REPO" --clobber

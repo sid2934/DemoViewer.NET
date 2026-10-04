@@ -55,6 +55,11 @@ jobs:
       - name: Build the solution (Release)
         run: dotnet build DemoViewer.NET.slnx -c Release -p:WasmBuildNative=false
 
+      # Packaging drift check (docs/architecture/strat-book-plugin.md §7.11): no signing key, so this
+      # only proves staging and zipping still match what the release workflow expects.
+      - name: Extension packaging dry run (Strat Book)
+        run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
+
   # The WASM regression net (docs/playback2d-v2/wasm-matrix.md). It PUBLISHES rather than builds:
   # `dotnet build` of this head succeeds even when the app cannot boot, and the two ways it has
   # actually broken (a missing native relink, giving a runtime DllNotFoundException for libSkiaSharp,
