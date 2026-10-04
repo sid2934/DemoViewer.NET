@@ -35,22 +35,22 @@ Canvas snap both work before Zone Baking lands.
 
 ## 1. Problem and scope
 
-Finding F1 (`plan.md:61-70`): the round-index token needs no Zone Baking because
+Finding F1 (`plan.md` §2): the round-index token needs no Zone Baking because
 `PositionSampler.Walk` streams every pawn's `m_szLastPlaceName`. The plan's entry
-(`plan.md:266-273`) asks for one row per (demo, round, sampled tick), a per-side place-count token
+(`plan.md` §3) asks for one row per (demo, round, sampled tick), a per-side place-count token
 that matches exactly, a foreign key into Round Facts, a cadence decision, a storage decision (D2,
-`plan.md:586-591`), size per demo and rebuild triggers, with the done bar "a corpus indexes at a
+`plan.md` §3, The Round Index), size per demo and rebuild triggers, with the done bar "a corpus indexes at a
 stated rate, and a token lookup over it returns in under a second".
 
 | Consumer (plan name) | What it needs from this store |
 |---|---|
-| Query Canvas (`plan.md:275-280`) | a token identical to what the index stores; without Zone Baking, a place centroid per map to snap a dropped token to |
+| Query Canvas (`plan.md` §3) | a token identical to what the index stores; without Zone Baking, a place centroid per map to snap a dropped token to |
 | Find Rounds Like This | the same encoder applied to the current tick's positions |
-| Search Filters And Live Count (`plan.md:287-291`) | a count that equals the result set, updated as tokens move, intersected with `RoundFactsFilter` |
-| Tolerance Slider (`plan.md:293-296`) | adjacent-area matching over a place-adjacency graph; exact only when no graph exists |
+| Search Filters And Live Count (`plan.md` §3) | a count that equals the result set, updated as tokens move, intersected with `RoundFactsFilter` |
+| Tolerance Slider (`plan.md` §3) | adjacent-area matching over a place-adjacency graph; exact only when no graph exists |
 | Result Cards And Walking | hits as (demo, round, matched tick) so the card seeks to the tick minus ten seconds |
 | Overlay View, Setup Heatmaps By Buy, Post-Plant And Retake | the matching rows with their ticks, to render positions from the demo |
-| Watched Situations (`plan.md:308-310`) | a hook when a new demo indexes, and "new since" after a restart |
+| Watched Situations (`plan.md` §3) | a hook when a new demo indexes, and "new since" after a restart |
 | Suggested Tags (`designs/suggested-tags.md` §2.9, §5.1) | a decodable, alive-only per-side token per sampled second |
 
 **In scope.** The token, the sampling rule, the sidecar, the in-memory index and its query API, the
@@ -117,7 +117,7 @@ like).
 
 ### 2.3 Clocks and levels
 
-- Everything positional is frame clock (F15, `plan.md:180-184`). `ClipRound.StartTickFrameClock`
+- Everything positional is frame clock (F15, `plan.md` §2). `ClipRound.StartTickFrameClock`
   is `GameEvent.GameTick` (CS2DemoKit.Analysis XML, `ClipRound`). `PositionSample.Tick` is
   `DemoFrame.ServerTick`, the same clock; the scratch probe aligned the two directly (§2.6).
 - The annotation sidecar's `clock` block (`docs/playback2d-v2/annotations-format.md:24-36`) is the
@@ -858,10 +858,9 @@ all start after step 3; none needs Zone Baking to start.
 ## 10. Sources
 
 **Tree, `main` at `d90ec9f`.**
-- `plan.md` §2 (F1 `:61-70`, F9 `:148-153`, F14 `:175-178`, F15 `:180-184`,
-  F17 `:191-193`), §3 (The Round Index `:266-273`, Query Canvas `:275-280`, Find Rounds Like This
-  `:282-285`, Search Filters And Live Count `:287-291`, Tolerance Slider `:293-296`, Result Cards
-  And Walking `:298-302`, Watched Situations `:308-310`), §6 D2 (`:586-591`), D7 (`:613-614`).
+- `plan.md` §2 (F1, F9, F14, F15, F17), §3 (The Round Index, Query Canvas, Find Rounds Like This,
+  Search Filters And Live Count, Tolerance Slider, Result Cards And Walking, Watched Situations),
+  §6 D2, D7.
 - `docs/strat-book/designs/round-facts.md` §2.7, §3.3, §3.4, §3.5, §3.6, §3.7, §9;
   `designs/zone-baking.md` §3.2, §3.4, §3.6, §3.7, §7.1; `designs/team-identity.md` §3.7;
   `designs/suggested-tags.md` §2.9, §3.2, §5.1, §8; `designs/tag-store.md` §2.9, §4.1.

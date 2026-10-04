@@ -9,11 +9,7 @@ read them. A committed sample strat and its scripted history live under
 [`tests/fixtures/strats/`](../tests/fixtures/strats/), pinned by `StratSchemaSnapshotTests`; a committed
 call sheet golden lives beside them, pinned by `StratTextExporterTests`.
 
-**A location note.** `strat-model.md` names this page `docs/strat-room/strat-format.md`. That path is
-under `docs/strat-room/`, this repository's untracked design-and-planning tree, and is never committed.
-This page is the committed one and lives at `docs/strat-format.md` instead, the same top-level spot as
-[`tags-format.md`](tags-format.md), [`team-identity-format.md`](team-identity-format.md) and
-[`round-index-format.md`](round-index-format.md).
+**A location note.** `strat-model.md` names this page `docs/strat-format.md`.
 
 The format is modelled on the [annotation sidecar](playback2d-v2/annotations-format.md), which settled
 identity, clock and forward compatibility the same way.

@@ -3,7 +3,7 @@
 Status: investigated 2026-10-02 on `spike/strat-book-plugin` (off `feature/strat-book` at `8275d5a6`);
 decisions recorded 2026-10-02 (section 10). Line numbers are against that commit and will drift.
 
-Request: make the Strat Book features a plugin that a user can fully disable, extend the plugin
+Goal: make the Strat Book features a plugin that a user can fully disable, extend the plugin
 framework where the Strat Book needs seams it does not have, and grow the existing feature hiding into a
 modular application.
 
