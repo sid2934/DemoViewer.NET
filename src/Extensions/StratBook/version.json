@@ -14,5 +14,11 @@
   ],
   "release": {
     "tagName": "extensions/net.demoviewer.pack.stratbook/v{version}"
+  },
+  "cloudBuild": {
+    "setVersionVariables": false,
+    "buildNumber": {
+      "enabled": false
+    }
   }
 }
