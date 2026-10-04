@@ -50,6 +50,7 @@ public class JobKindRegistryTests
             (QueueJobKind.StoreLoad, "load", 4, true),
             (QueueJobKind.SectionCompute, "section", 4, true),
             (QueueJobKind.LibraryScan, "library", 4, false),
+            (QueueJobKind.ExtensionUpdate, "extension update", 4, true),
             (QueueJobKind.DemoOpen, "open", 4, false)
         ];
 

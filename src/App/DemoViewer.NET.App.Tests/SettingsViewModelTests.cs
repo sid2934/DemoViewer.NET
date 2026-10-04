@@ -7,11 +7,13 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
+using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
@@ -65,9 +67,15 @@ public class SettingsViewModelTests
     // for the Extensions "N demos" notice; null everywhere except the tests that exercise it.
     private static (SettingsViewModel Vm, SettingsService Svc, IFeatureGate Gate, ServiceProvider Sp) NewVm(
         string dir, IPackReindexEstimate? reindexEstimate = null, IPackDataRemoval? dataRemoval = null,
-        IReadOnlyList<PackStatus>? packStatuses = null)
+        IReadOnlyList<PackStatus>? packStatuses = null, ExtensionUpdateService? extensionUpdates = null,
+        Func<bool>? isBrowser = null, Action<AppSettings>? seed = null)
     {
         SettingsService svc = new(dir);
+        if (seed is not null)
+        {
+            svc.Write(seed);
+        }
+
         ServiceCollection services = new();
         services.Configure<AppSettings>(svc.Configuration);
         services.AddSingleton<IFeatureGate>(s =>
@@ -75,11 +83,19 @@ public class SettingsViewModelTests
         ServiceProvider sp = services.BuildServiceProvider();
         IOptionsMonitor<AppSettings> monitor = sp.GetRequiredService<IOptionsMonitor<AppSettings>>();
         IFeatureGate gate = sp.GetRequiredService<IFeatureGate>();
-        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), OperatingSystem.IsBrowser,
+        SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), isBrowser ?? OperatingSystem.IsBrowser,
             null, null, reindexEstimate is null ? null : [reindexEstimate], dataRemoval is null ? null : [dataRemoval],
-            packStatuses);
+            packStatuses, extensionUpdates);
         return (vm, svc, gate, sp);
     }
+
+    // Item 36: the real pack's status over a fake feed client rooted at dir. The feed offers whatever the
+    // caller serves; the zip carries a manifest for the real pack id so the staged copy is discoverable.
+    private static ExtensionUpdateService NewUpdater(string dir, UpdateFixtures.FakeFeedClient client, ITrustPolicy? trust = null) =>
+        new(dir, [FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId)], ExtensionHost.Current,
+            trust ?? UpdateFixtures.TrustAll, client, UpdateFixtures.FeedUrl);
+
+    private static string StratBookFeed(params FakeFeeds.Entry[] entries) => FakeFeeds.Json(StratBookPack.PackId, entries);
 
     // The pending-reindex-count test seam: a fixed pack feature id (the real StratBookPack's) with a
     // caller-supplied count function, so a test can observe "Counting…" before controlling when it lands.
@@ -1533,6 +1549,298 @@ public class SettingsViewModelTests
 
                 vm.Dispose();
             }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // ── Item 36: the update line ────────────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task ExtensionUpdateLine_ChecksOnDemand_OffersTheVersion_AndTheUpdateButtonStagesIt()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SemVersion running = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId).Manifest!.Version;
+            string next = new SemVersion(running.Major, running.Minor, running.Patch + 1).ToString();
+            byte[] zip = UpdateFixtures.ExtensionZip(StratBookPack.PackId, next);
+            FakeFeeds.Entry offered = new(next, zip);
+            UpdateFixtures.FakeFeedClient client = new();
+            client.Zips[offered.Url] = zip;
+            client.Feeds[UpdateFixtures.FeedUrl(StratBookPack.PackId)] = StratBookFeed(offered);
+            ExtensionUpdateService updater = NewUpdater(dir, client);
+
+            // Checked a minute ago: opening Settings must not check again on its own.
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir, extensionUpdates: updater,
+                seed: s => s.Extensions.LastUpdateCheckUtc = DateTimeOffset.UtcNow.AddMinutes(-1));
+            using (sp)
+            {
+                FeatureToggleRow master = Row(vm, StratBookPack.PackFeatureId);
+                ExtensionUpdateRow line = master.Update ?? throw new InvalidOperationException("the master row has no update line");
+                FeatureToggleRow child = vm.ExtensionsFeatureRows.First(r => r.OwnerPackId == StratBookPack.PackFeatureId);
+                DateTimeOffset? before = svc.Current.Extensions.LastUpdateCheckUtc;
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(child.HasUpdate).IsFalse().Because("only the master row carries the line");
+                    await Assert.That(line.IsSupported).IsTrue();
+                    await Assert.That(line.Message).IsEqualTo(string.Empty).Because("nothing was checked this run");
+                    await Assert.That(line.ShowCheck).IsTrue();
+                    await Assert.That(line.CanUpdate).IsFalse();
+                    await Assert.That(client.FeedFetches).IsEqualTo(0);
+                }
+
+                await line.CheckCommand.ExecuteAsync(null);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(client.FeedFetches).IsEqualTo(1);
+                    await Assert.That(line.Message).IsEqualTo($"{next} available.");
+                    await Assert.That(line.CanUpdate).IsTrue();
+                    await Assert.That(line.OfferedVersion).IsEqualTo(next);
+                    await Assert.That(svc.Current.Extensions.LastUpdateCheckUtc).IsNotEqualTo(before).Because("a manual check records its time");
+                }
+
+                await line.UpdateCommand.ExecuteAsync(null);
+
+                string installed = Path.Combine(dir, "extensions", StratBookPack.PackId, next);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(line.Message).IsEqualTo($"{next} installed, restart to use it.");
+                    await Assert.That(line.CanUpdate).IsFalse();
+                    await Assert.That(line.IsDownloading).IsFalse();
+                    await Assert.That(line.HasFailure).IsFalse();
+                    await Assert.That(File.Exists(Path.Combine(installed, ExtensionManifest.FileName))).IsTrue();
+                    await Assert.That(updater.PendingRestart).IsTrue();
+                    await Assert.That(master.IsInteractive).IsTrue().Because("a staged update locks nothing");
+                }
+
+                // A second check with the same feed keeps saying restart: the staged copy is what the loader takes.
+                await line.CheckCommand.ExecuteAsync(null);
+                await Assert.That(line.Message).IsEqualTo($"{next} installed, restart to use it.");
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task ExtensionUpdateLine_SaysWhyAVersionCannotRunHere_AndReportsAFeedFailure_AndARefusedDownload()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SemVersion running = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId).Manifest!.Version;
+            string next = new SemVersion(running.Major, running.Minor, running.Patch + 1).ToString();
+            string future = new SemVersion(running.Major + 1, 0, 0).ToString();
+            byte[] zip = UpdateFixtures.ExtensionZip(StratBookPack.PackId, next);
+            UpdateFixtures.FakeFeedClient client = new();
+            client.Feeds[UpdateFixtures.FeedUrl(StratBookPack.PackId)] = StratBookFeed(new FakeFeeds.Entry(future, RequiresHost: "^9.0"));
+            ExtensionUpdateService updater = NewUpdater(dir, client);
+
+            (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir, extensionUpdates: updater,
+                seed: s => s.Extensions.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
+            using (sp)
+            {
+                ExtensionUpdateRow line = Row(vm, StratBookPack.PackFeatureId).Update!;
+
+                await line.CheckCommand.ExecuteAsync(null);
+                string needsApp = line.Message;
+
+                client.FeedFailure = new HttpRequestException("offline");
+                await line.CheckCommand.ExecuteAsync(null);
+                string unreachable = line.Message;
+
+                client.FeedFailure = null;
+                client.Feeds[UpdateFixtures.FeedUrl(StratBookPack.PackId)] = "{ nope";
+                await line.CheckCommand.ExecuteAsync(null);
+                string invalid = line.Message;
+
+                FakeFeeds.Entry lying = new(next, zip, Sha256: new string('a', 64));
+                client.Zips[lying.Url] = zip;
+                client.Feeds[UpdateFixtures.FeedUrl(StratBookPack.PackId)] = StratBookFeed(lying);
+                await line.CheckCommand.ExecuteAsync(null);
+                await line.UpdateCommand.ExecuteAsync(null);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(needsApp).IsEqualTo(
+                        $"{future} available but needs app contract ^9.0 (this app provides {ExtensionHost.ContractVersion}).");
+                    await Assert.That(unreachable).IsEqualTo("Could not check for updates: the update feed could not be reached.");
+                    await Assert.That(invalid).IsEqualTo("Could not check for updates: the update feed could not be read.");
+                    await Assert.That(line.Message).IsEqualTo($"{next} available.").Because("a refused download leaves the offer standing");
+                    await Assert.That(line.Failure).IsEqualTo($"Update {next} could not be installed: the download does not match the feed's checksum.");
+                    await Assert.That(line.CanUpdate).IsTrue().Because("the user can retry");
+                    await Assert.That(Directory.Exists(Path.Combine(dir, "extensions", StratBookPack.PackId))).IsFalse();
+                }
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task ExtensionUpdateLine_ChecksOnOpen_AtMostOnceAnHour_AndSeedsFromTheLastCheck()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SemVersion running = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId).Manifest!.Version;
+            UpdateFixtures.FakeFeedClient client = new();
+            client.Feeds[UpdateFixtures.FeedUrl(StratBookPack.PackId)] = StratBookFeed(new FakeFeeds.Entry(running.ToString()));
+            ExtensionUpdateService updater = NewUpdater(dir, client);
+
+            (SettingsViewModel first, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir, extensionUpdates: updater);
+            using (sp)
+            {
+                // Never checked: opening Settings asks the feed. The check is fire-and-forget, so wait for its record.
+                DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+                while (svc.Current.Extensions.LastUpdateCheckUtc is null && DateTimeOffset.UtcNow < deadline)
+                {
+                    await Task.Delay(20);
+                }
+
+                ExtensionUpdateRow line = Row(first, StratBookPack.PackFeatureId).Update!;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(svc.Current.Extensions.LastUpdateCheckUtc).IsNotNull();
+                    await Assert.That(client.FeedFetches).IsEqualTo(1);
+                    await Assert.That(line.Message).IsEqualTo("Up to date.");
+                }
+
+                first.Dispose();
+
+                // Opened again within the hour: no second fetch, and the row shows the remembered verdict.
+                (SettingsViewModel second, SettingsService _, IFeatureGate _, ServiceProvider sp2) = NewVm(dir, extensionUpdates: updater);
+                using (sp2)
+                {
+                    await Task.Delay(100);
+                    ExtensionUpdateRow again = Row(second, StratBookPack.PackFeatureId).Update!;
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(client.FeedFetches).IsEqualTo(1);
+                        await Assert.That(again.Message).IsEqualTo("Up to date.");
+                        await Assert.That(again.IsChecking).IsFalse();
+                    }
+
+                    second.Dispose();
+                }
+            }
+
+            DateTimeOffset now = new(2026, 10, 3, 12, 0, 0, TimeSpan.Zero);
+            using (Assert.Multiple())
+            {
+                await Assert.That(SettingsViewModel.ShouldAutoCheckExtensionUpdates(null, now)).IsTrue();
+                await Assert.That(SettingsViewModel.ShouldAutoCheckExtensionUpdates(now.AddMinutes(-30), now)).IsFalse();
+                await Assert.That(SettingsViewModel.ShouldAutoCheckExtensionUpdates(now.AddMinutes(-60), now)).IsTrue();
+                await Assert.That(SettingsViewModel.ShouldAutoCheckExtensionUpdates(now.AddMinutes(5), now)).IsTrue().Because("a clock that went backwards is due");
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task ExtensionUpdateLine_OnTheBrowser_SaysUpdatesComeWithTheApp()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir, isBrowser: () => true);
+            using (sp)
+            {
+                ExtensionUpdateRow? line = Row(vm, StratBookPack.PackFeatureId).Update;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(line).IsNotNull();
+                    await Assert.That(line!.IsSupported).IsFalse();
+                    await Assert.That(line.Message).IsEqualTo("Updates come with the app.");
+                    await Assert.That(line.ShowCheck).IsFalse();
+                    await Assert.That(line.CanUpdate).IsFalse();
+                    await Assert.That(vm.ExtensionUpdateRows).IsEmpty().Because("nothing to check on this host");
+                }
+
+                vm.Dispose();
+            }
+
+            (SettingsViewModel desktop, SettingsService _, IFeatureGate _, ServiceProvider sp2) = NewVm(dir);
+            using (sp2)
+            {
+                await Assert.That(Row(desktop, StratBookPack.PackFeatureId).HasUpdate).IsFalse().Because("a desktop with no updater shows no line");
+                desktop.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Render: the "available" and "installed, restart" states draw inside the Extensions card and the row
+    // template keeps its width at the real host width.
+    [Test]
+    public async Task ExtensionUpdateLine_RendersBothStates_AtTheRealHostWidth()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SemVersion running = FeaturePacks.Statuses.Single(s => s.Pack.Id == StratBookPack.PackId).Manifest!.Version;
+            string next = new SemVersion(running.Major, running.Minor, running.Patch + 1).ToString();
+            UpdateFixtures.FakeFeedClient client = new();
+            client.Feeds[UpdateFixtures.FeedUrl(StratBookPack.PackId)] = StratBookFeed(new FakeFeeds.Entry(next));
+            ExtensionUpdateService updater = NewUpdater(dir, client);
+            await updater.CheckAsync();
+
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                (SettingsViewModel vm, SettingsService _, IFeatureGate _, ServiceProvider sp) = NewVm(dir, extensionUpdates: updater,
+                    seed: s => s.Extensions.LastUpdateCheckUtc = DateTimeOffset.UtcNow);
+                using (sp)
+                {
+                    vm.SettingsFilterText = "extension";
+                    SettingsView view = new()
+                    {
+                        DataContext = vm
+                    };
+                    Window window = new()
+                    {
+                        Width = 560,
+                        Height = 900,
+                        Content = view
+                    };
+                    window.Show();
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+
+                    ScrollViewer scroll = view.FindControl<ScrollViewer>("SectionsScroll")
+                                           ?? throw new InvalidOperationException("SectionsScroll is gone from the view.");
+                    Button? update = view.GetVisualDescendants().OfType<Button>().FirstOrDefault(b => b.Content as string == "Update" && b.IsVisible);
+                    TextBlock? message = view.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(t => t.Text == $"{next} available.");
+
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(scroll.Extent.Width).IsLessThanOrEqualTo(scroll.Viewport.Width);
+                        await Assert.That(update).IsNotNull().Because("the offered version has its button");
+                        await Assert.That(message).IsNotNull();
+                    }
+
+                    vm.Dispose();
+                }
+            });
         }
         finally
         {

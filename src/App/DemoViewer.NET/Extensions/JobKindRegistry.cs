@@ -34,6 +34,7 @@ public sealed class JobKindRegistry
         new(QueueJobKind.StoreLoad, "load", 4, true),
         new(QueueJobKind.SectionCompute, "section", 4, true),
         new(QueueJobKind.LibraryScan, "library", 4, false),
+        new(QueueJobKind.ExtensionUpdate, "extension update", 4, true),
         new(QueueJobKind.DemoOpen, "open", 4, false)
     ];
 

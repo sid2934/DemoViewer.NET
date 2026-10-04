@@ -43,6 +43,12 @@ public static class ExtensionLoader
         string root = Path.GetFullPath(extensionsDirectory);
         foreach (string idDir in Directory.EnumerateDirectories(root))
         {
+            // A dot folder is not an extension: .staging holds item 36's downloads in progress.
+            if (Path.GetFileName(idDir).StartsWith('.'))
+            {
+                continue;
+            }
+
             if (!IsInside(root, idDir))
             {
                 rejected.Add(new LoadOutcome(idDir, null, LoadFailure.PathEscapes, "the extension folder is a link or resolves outside the extensions folder"));

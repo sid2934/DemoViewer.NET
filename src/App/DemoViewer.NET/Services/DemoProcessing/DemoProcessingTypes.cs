@@ -71,6 +71,9 @@ public enum QueueJobKind
     /// <summary>The library's folder walk, copy detection and header reads. Runs with the background switch off.</summary>
     LibraryScan,
 
+    /// <summary>An extension feed check, a download being staged, or the staging cleanup at startup. Light.</summary>
+    ExtensionUpdate,
+
     /// <summary>
     ///     A user opening a demo (<see cref="IDemoProcessingQueue.BeginOpen" />). It sits at the front, ignores
     ///     pause and the background switch, and no other heavy item starts while it is active.
