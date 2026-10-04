@@ -6,6 +6,7 @@
          tool and the app run exactly the same digest and verify code without pulling in Avalonia. -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
+        <AssemblyName>extension-signing</AssemblyName>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>

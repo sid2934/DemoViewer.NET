@@ -29,8 +29,7 @@ public sealed class SignedTrustPolicy(IReadOnlyList<string>? publicKeysBase64Spk
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // ExtensionSignature.Verify does not throw; this is defense in depth, matching the
-            // interface's own contract that a policy that throws reads as untrusted.
+            // Must not throw: ITrustPolicy.Judge's contract reads a throw as untrusted anyway.
             return TrustVerdict.No("signature invalid", ex.Message);
         }
     }

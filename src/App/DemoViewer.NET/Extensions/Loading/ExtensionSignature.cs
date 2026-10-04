@@ -275,8 +275,8 @@ public static class ExtensionSignature
     // Manual recursive walk, never Directory.EnumerateFiles(..., AllDirectories): that can follow a
     // symlinked subdirectory transparently. Every entry, file or directory, is checked for a reparse
     // point before it is used and refused rather than followed. AttributesToSkip is cleared because the
-    // default skips Hidden, and a dotfile is Hidden on every OS .NET runs on; skipping it here would
-    // let an added file hide from the digest.
+    // default skips Hidden, and .NET marks a Unix dotfile Hidden; skipping it here would let an added
+    // dotfile hide from the digest.
     private static void Walk(string dir, string root, List<string> relatives)
     {
         EnumerationOptions options = new() { AttributesToSkip = 0 };
