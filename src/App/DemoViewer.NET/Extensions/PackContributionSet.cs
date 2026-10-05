@@ -25,6 +25,29 @@ internal sealed class PackContributionSet
         ArgumentNullException.ThrowIfNull(sp);
         List<PackContributions> collected = new(packs.Count);
         ExtensionFaults faults = sp.GetService<ExtensionFaults>() ?? ExtensionFaults.For(packs, static a => a());
+        _collecting++;
+        try
+        {
+            Collect(packs, sp, faults, collected);
+        }
+        finally
+        {
+            _collecting--;
+        }
+
+        Packs = collected;
+        _sp = sp;
+    }
+
+    // Per thread: the container serializes a construction on another thread, so only a read from inside a
+    // pack's Contribute on this thread would build a second set.
+    [ThreadStatic] private static int _collecting;
+
+    /// <summary>True while a set is collecting the packs' contributions on this thread.</summary>
+    internal static bool Collecting => _collecting > 0;
+
+    private static void Collect(IReadOnlyList<IExtension> packs, IServiceProvider sp, ExtensionFaults faults, List<PackContributions> collected)
+    {
         foreach (IExtension pack in packs)
         {
             ExtensionGuard guard = faults.GuardFor(pack);
@@ -51,9 +74,6 @@ internal sealed class PackContributionSet
 
             collected.Add(contributions);
         }
-
-        Packs = collected;
-        _sp = sp;
     }
 
     private readonly IServiceProvider _sp;

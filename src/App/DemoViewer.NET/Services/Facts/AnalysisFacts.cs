@@ -105,18 +105,10 @@ public sealed class AnalysisFacts : IAnalysisFacts, IFactsVisibility
             : null;
     }
 
-    // Until something has read the stamped rulesets every stamp shows: reading them from a library row could
-    // resolve the extensions' contributions while an extension is still contributing.
-    string IFactsVisibility.ShownKey =>
-        _facts is null ? ""
-        : !_facts.Rules.StampedRulesetsRead ? "\0unread"
-        : string.Join('\n', _facts.Facets().Select(f => f.RulesetId));
+    string IFactsVisibility.ShownKey => _facts is null ? "" : string.Join('\n', _facts.Facets().Select(f => f.RulesetId));
 
     bool IFactsVisibility.Shows(string stampId) =>
-        StampedFacts.RulesetOf(stampId) is not { } rulesetId
-        || _facts is null
-        || !_facts.Rules.StampedRulesetsRead
-        || _facts.Facet(rulesetId) is not null;
+        StampedFacts.RulesetOf(stampId) is not { } rulesetId || _facts?.Facet(rulesetId) is not null;
 
     /// <inheritdoc />
     public IReadOnlyList<LibraryHighlight> Highlights(string demoPath)

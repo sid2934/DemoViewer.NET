@@ -21,11 +21,17 @@ internal sealed class HostLibrary : IExtensionLibrary
 {
     private static readonly ConditionalWeakTable<DemoCacheStore, HostLibrary> Shared = new();
 
+    // The shown key of a row projected while the packs contributed: never a key the facts answer.
+    private const string DeferredKey = "\0deferred";
+
     private readonly ConditionalWeakTable<DemoCacheIndexEntry, LibraryDemo> _projected = new();
     private string? _shownKey;
+    private bool _deferred;
+    private int _recheckPosted;
     private volatile bool _hasFactsStamps;
     private readonly object _gate = new();
     private readonly Func<bool> _onUiThread;
+    private readonly Action<Action> _post;
     private readonly IDemoProcessingQueue? _queue;
     private readonly Dictionary<string, DemoCacheIndexEntry> _seen = new(StringComparer.OrdinalIgnoreCase);
     private readonly DemoCacheStore _store;
@@ -35,11 +41,16 @@ internal sealed class HostLibrary : IExtensionLibrary
     /// <param name="store">The demo cache.</param>
     /// <param name="queue">The processing queue a UI-thread detail read runs on; null reads inline.</param>
     /// <param name="onUiThread">True on the UI thread; the dispatcher's check when null.</param>
-    internal HostLibrary(DemoCacheStore store, IDemoProcessingQueue? queue, Func<bool>? onUiThread = null)
+    /// <param name="post">Runs an action on the UI thread later; the dispatcher's post when null.</param>
+    /// <param name="facts">Resolves the analysis facts on first read; null until <see cref="For" /> is handed one.</param>
+    internal HostLibrary(DemoCacheStore store, IDemoProcessingQueue? queue, Func<bool>? onUiThread = null,
+        Action<Action>? post = null, Func<IAnalysisFacts>? facts = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _queue = queue;
         _onUiThread = onUiThread ?? (static () => Dispatcher.UIThread.CheckAccess());
+        _post = post ?? (static action => Dispatcher.UIThread.Post(action));
+        _factsSource = facts;
         foreach (DemoCacheIndexEntry entry in store.Index)
         {
             _seen[entry.Path] = entry;
@@ -55,7 +66,7 @@ internal sealed class HostLibrary : IExtensionLibrary
     /// <param name="facts">Resolves the analysis facts on first read; the first caller that passes one wins.</param>
     public static HostLibrary For(DemoCacheStore store, IDemoProcessingQueue? queue, Func<IAnalysisFacts>? facts = null)
     {
-        HostLibrary library = Shared.GetValue(store, s => new HostLibrary(s, queue));
+        HostLibrary library = Shared.GetValue(store, s => new HostLibrary(s, queue, facts: facts));
         if (facts is not null)
         {
             Interlocked.CompareExchange(ref library._factsSource, facts, null);
@@ -72,17 +83,37 @@ internal sealed class HostLibrary : IExtensionLibrary
     // Which facts stamps a row shows moves with the rulesets that are on, which no index write signals, so a
     // move drops every projection and the cached list. The facts are not resolved before a row carries a facts
     // stamp: resolving them reads the rules, which must not happen inside an early store event.
-    private IFactsVisibility? Shown() => _hasFactsStamps ? _factsSource?.Invoke() as IFactsVisibility : null;
+    // While the packs contribute on this thread the rulesets are not known yet, so a row shows every stamp
+    // and one recheck is posted to drop an off ruleset's stamps, with a change, once they are.
+    private (IFactsVisibility? Visibility, string Key) Shown()
+    {
+        if (!_hasFactsStamps || _factsSource is null)
+        {
+            return (null, "");
+        }
+
+        if (PackContributionSet.Collecting)
+        {
+            if (Interlocked.Exchange(ref _recheckPosted, 1) == 0)
+            {
+                _post(RecheckFacts);
+            }
+
+            return (null, DeferredKey);
+        }
+
+        return _factsSource() is IFactsVisibility visibility ? (visibility, visibility.ShownKey) : (null, "");
+    }
 
     private static bool HasFactsStamp(DemoCacheIndexEntry entry) =>
         entry.PackStamps.Any(s => StampedFacts.RulesetOf(s.Id) is not null);
 
     private IFactsVisibility? Revalidate()
     {
-        IFactsVisibility? visibility = Shown();
-        string key = visibility?.ShownKey ?? "";
+        (IFactsVisibility? visibility, string key) = Shown();
         lock (_gate)
         {
+            _deferred |= string.Equals(key, DeferredKey, StringComparison.Ordinal);
             if (!string.Equals(key, _shownKey, StringComparison.Ordinal))
             {
                 _shownKey = key;
@@ -100,10 +131,20 @@ internal sealed class HostLibrary : IExtensionLibrary
     /// </summary>
     internal void RecheckFacts()
     {
-        string key = Shown()?.ShownKey ?? "";
+        Interlocked.Exchange(ref _recheckPosted, 0);
+        string key = Shown().Key;
+        if (string.Equals(key, DeferredKey, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        // A row handed out while the packs contributed is reported moved even when a later read already
+        // resolved the rulesets: its reader never heard.
         lock (_gate)
         {
-            if (_shownKey is null || string.Equals(key, _shownKey, StringComparison.Ordinal))
+            bool moved = _deferred || (_shownKey is not null && !string.Equals(key, _shownKey, StringComparison.Ordinal));
+            _deferred = false;
+            if (!moved)
             {
                 return;
             }
