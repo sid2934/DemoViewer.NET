@@ -1280,8 +1280,10 @@ below are two of them: their chord, scope and description now live in `StratBook
 (DI-free, so a bare-constructed view model resolves them with no composition root), not
 in `Playback2DKeymap.BuildDefault()`. `IExtensionContributions.Commands(...)` is a separate, parallel
 declaration the composition root cross-checks against `IExtension.Commands` so the two cannot drift;
-it is not what the keymap itself reads. `Playback2DAction` keeps every member (every existing switch over
-it is unchanged), and `CommandRegistry` (`Extensions/CommandRegistry.cs`) composes the pack's rows back
+it is not what the keymap itself reads. Those rows are string ids prefixed with the pack id
+(`net.demoviewer.pack.stratbook.FindRoundsLikeThis`), never `Playback2DAction` members: the enum holds the
+core actions only, and an override row saved under an old bare id still applies through the pack's aliases.
+`CommandRegistry` (`Extensions/CommandRegistry.cs`) composes the pack's rows back
 over the core table with no DI, so `Playback2DKeymapProfile` resolves them exactly as before: a bare
 `new Playback2DTabViewModel()` with no container still opens on the full table. The Tag Palette,
 Suggested Tags, Review Mode and Step Authoring rows (`FocusTagPalette`/`TagNote`/`TagClearSticky`/

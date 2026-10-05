@@ -127,10 +127,10 @@ public interface IPlaybackSurface
     IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
         ModeToggle? mode = null);                                  // shown while open, gate on and the mode on
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);             // before the tab's keymap, in order
-    IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);           // unhandled actions; first while a panel has the keyboard
+    IDisposable AddActionHandler(Func<string, bool> handler);                     // unhandled action ids; first while a panel has the keyboard
     IDisposable AddToolbarItem(ToolbarItem item);                                 // the toolbar and the overflow menu both list it
     IDisposable AddPointerPreHandler(Func<ScenePointer, bool> handler);           // before the tool router, on a primary press not diverted to pan
-    string GestureHint(Playback2DAction action);                                  // " (Ctrl+F)" under Keymap, or "" unbound
+    string GestureHint(string actionId);                                          // " (Ctrl+F)" under Keymap, or "" unbound
     // Not built yet, in the order the items need them:
     void AddLayer(string layerId, Func<ISceneLayer> layer);                                     // later; guides
     void AddTool(IPointerTool tool);                                                            // later; token
@@ -142,7 +142,7 @@ public sealed record ScenePointer(MapLevel Level, double WorldX, double WorldY, 
 public sealed class ToolbarItem   // a button a contribution adds; also an overflow-menu entry
 {
     public ToolbarItem(string id, string label, string tooltip, Func<Scene2DFrame, bool> run,
-        Playback2DAction? action = null, int order = 0, string? icon = null);
+        string? actionId = null, int order = 0, string? icon = null);
     public string Label { get; set; }        // mutable: the owner refreshes it on KeymapChanged
     public string Tooltip { get; set; }
     public ICommand? Command { get; }         // wired by AddToolbarItem; what the view binds
@@ -166,7 +166,7 @@ public interface ILaneHandle : IDisposable   // Dispose unregisters the track an
 
 public sealed class ModeToggle   // a mode of the tab a contribution owns
 {
-    public ModeToggle(string id, string label, string tooltip, Playback2DAction? action = null, string? icon = null);
+    public ModeToggle(string id, string label, string tooltip, string? actionId = null, string? icon = null);
     public bool IsOn { get; set; }           // raises Changed on a flip
     public bool IsAvailable { get; set; }    // off: the toolbar hides the toggle; the action only leaves the mode
     public event Action? Changed;
@@ -331,12 +331,12 @@ an eager field would force `LoadedMapAsset.ZoneLoad` on every pan click instead.
 (`Playback2DSurface`, ordered by `ToolbarItem.Order`); `Playback2DView.axaml` renders it in the slot the
 static "Rounds like this" `Button` held, and `Playback2DView.axaml.cs` rebuilds the overflow `MenuItem`s from
 it on every open, after the divider `Separator` (`IsVisible="{Binding Surface.HasToolbarItems}"`, as the toolbar
-row's own divider is). `TryExecute` tries a `ModeToggle` whose `Action` matches first, then a `ToolbarItem`
-whose `Action` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
+row's own divider is). `TryExecute` tries a `ModeToggle` whose `ActionId` matches first, then a `ToolbarItem`
+whose `ActionId` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
 and the keymap action are one funnel. The Situations contribution
 (`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/Situations/SituationsPlaybackContribution.cs`) registers the button's own text,
 "Rounds like this", as `Label` (icon `⌕`, restoring today's button face, which the menu entry does not carry)
-and keeps the tooltip's "Find rounds like this" wording, both with that funnel (`Playback2DAction.FindRoundsLikeThis`);
+and keeps the tooltip's "Find rounds like this" wording, both with that funnel (`StratBookActions.FindRoundsLikeThis`);
 its `Run` resolves `IFindRoundsLikeThis` through `context.GetService<T>()` as `TryFindRoundsLikeThis` used to
 from `App.Services`. The item is added only while `IModuleContext.MapName` is non-empty (checked at attach,
 for a live pack toggle with a demo already open, and on every `OnDemoChanged`) and removed when it closes, so
@@ -549,11 +549,16 @@ public sealed record CommandDescriptor(
 returning false means unhandled, so the key falls through to whatever else wants it) has to survive
 through a command, or a resolved key that does nothing would read as handled anyway.
 
-Core `Playback2DAction` values map to command ids one to one, so persisted keybind overrides keep working.
-The built ids equal the action's own enum name (not the `stratbook.step.add` style sketched
-above), since that is what keeps a persisted `KeybindOverrides` row readable unchanged; check the actual
-ids before copying the dotted style for a future pack. A command palette, if one
-is ever built, reads the same registry.
+Action ids are strings end to end. Core ids stay bare: a core `Playback2DAction` member's name is its id,
+and the enum is a closed vocabulary the tab maps to at the edge. An extension's ids carry its extension id
+and a dot (`net.demoviewer.pack.stratbook.TagNote`); the registry refuses a third-party command without the
+prefix. The Strat Book's commands shipped under bare ids, so its pack declares an alias map
+(`StratBookCommands.Aliases`, read through the internal `ICommandAliases`) and override parsing resolves an
+old `TagNote=Ctrl+Shift+M` row to the current id. Ids are unique across the merged set ignoring case: a
+compiled-in pack that repeats one fails the registry build, a third-party command that does is reported in
+`CommandRegistry.Conflicts` and left out. Focus scopes beyond `playback2d` and `playback2d.tool` are declared
+by the extension (`IExtension.CommandScopes`, with the label Settings shows) and resolved by its own key
+handler. A command palette, if one is ever built, reads the same registry.
 
 ### 2.6 How the gate folds in
 
