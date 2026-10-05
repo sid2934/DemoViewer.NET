@@ -368,29 +368,39 @@ public sealed partial class NotificationCardViewModel : ObservableObject
     /// <summary>The extension that posted it, stamped by the host.</summary>
     public string SourceName { get; }
 
+    /// <summary>How the card is tinted: info, success, warning or error.</summary>
     [ObservableProperty] private NotificationSeverity _severity;
 
+    /// <summary>The card's one-line headline.</summary>
     [ObservableProperty] private string _title = "";
 
+    /// <summary>The detail under the title, or null for a title-only card.</summary>
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasBody))]
     private string? _body;
 
+    /// <summary>The action button's label, or null when the card has no action.</summary>
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(HasAction))]
     private string? _actionLabel;
 
     /// <summary>When the host closes it, or null to keep it.</summary>
     public DateTimeOffset? ExpiresAt { get; private set; }
 
+    /// <summary>True when <see cref="Body" /> has text to show.</summary>
     public bool HasBody => !string.IsNullOrEmpty(Body);
 
+    /// <summary>True when the card shows an action button.</summary>
     public bool HasAction => ActionLabel is not null;
 
+    /// <summary>True for an <see cref="NotificationSeverity.Info" /> card.</summary>
     public bool IsInfo => Severity == NotificationSeverity.Info;
 
+    /// <summary>True for a <see cref="NotificationSeverity.Success" /> card.</summary>
     public bool IsSuccess => Severity == NotificationSeverity.Success;
 
+    /// <summary>True for a <see cref="NotificationSeverity.Warning" /> card.</summary>
     public bool IsWarning => Severity == NotificationSeverity.Warning;
 
+    /// <summary>True for an <see cref="NotificationSeverity.Error" /> card.</summary>
     public bool IsError => Severity == NotificationSeverity.Error;
 
     partial void OnSeverityChanged(NotificationSeverity value)
@@ -423,6 +433,7 @@ public sealed partial class NotificationCardViewModel : ObservableObject
         _center.Close(this);
     }
 
+    /// <summary>Closes the card without running its action.</summary>
     [RelayCommand]
     private void Dismiss() => _center.Close(this);
 }
