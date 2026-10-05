@@ -95,7 +95,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     /// <summary>Store and cache paths the pack declared, in contribution order.</summary>
     public IReadOnlyList<StoreDescriptor> Stores => _stores;
 
-    /// <summary>The pack's "delete extension data" action, or null when it declared none.</summary>
+    /// <summary>The pack's own "delete extension data", replacing the host's, or null when it declared none.</summary>
     public IExtensionDataRemoval? DataRemovalContribution => _dataRemoval;
 
     /// <inheritdoc />

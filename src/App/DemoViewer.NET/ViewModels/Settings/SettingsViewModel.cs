@@ -724,7 +724,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public ObservableCollection<MountedSettingsPage> ContributedSettingsPages { get; } = [];
 
     /// <summary>
-    ///     One "delete extension data" row per pack that declared one, rendered under Extensions
+    ///     One "delete extension data" row per extension, rendered under Extensions
     ///     beneath <see cref="ContributedSettingsPages" />. Unlike a contributed page, available whether its
     ///     pack is on or off: deleting while off is the main use.
     /// </summary>

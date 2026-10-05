@@ -94,7 +94,10 @@ internal sealed class HostDataRemoval : IExtensionDataRemoval
         return result;
     }
 
-    private string Label => _pack.Pack.Id;
+    // The extension's own name, as its master switch shows it.
+    private string Label =>
+        _pack.Guard.Run("feature list", () => _pack.Pack.Features.FirstOrDefault(f => f.Id == _pack.Pack.FeatureId)?.Label, null)
+        ?? _pack.Pack.Id;
 
     private PackDataRemover Remover() =>
         new(_sp.GetRequiredService<DemoCacheStore>(), AppPaths.ConfigRoot, AppPaths.DemoCacheDir, _pack.Context.Jobs);
