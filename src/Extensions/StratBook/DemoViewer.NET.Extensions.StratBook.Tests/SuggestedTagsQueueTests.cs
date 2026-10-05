@@ -6,7 +6,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Services.Tags;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
@@ -37,8 +37,7 @@ public class SuggestedTagsQueueTests
             return frame >= TotalFrames ? -1 : frame;
         }
 
-        public IReadOnlyList<int> FramesForEvent(string eventName) => [];
-        public IReadOnlyList<TimelineEventRecord> EventsOfType(string eventName) => [];
+        public IReadOnlyList<TimelineEvent> EventsOfType(string eventName) => [];
         public bool HasEvent(string eventName) => false;
     }
 
@@ -59,7 +58,7 @@ public class SuggestedTagsQueueTests
     {
         ProposalTrack track = new();
         int changed = 0;
-        track.MarkersChanged += () => changed++;
+        track.Changed += () => changed++;
         track.SetProposals([Execute, Opener, Default]);
         HalfTickData data = new(20000);
 
@@ -73,8 +72,7 @@ public class SuggestedTagsQueueTests
             await Assert.That(bands[0].StartFrameIndex).IsEqualTo(650);
             await Assert.That(bands[0].EndFrameIndex).IsEqualTo(900);
             await Assert.That(bands[1].Label).IsEqualTo("default").Because("no site: the code alone");
-            await Assert.That(bands.All(b => b.TrackId == ProposalTrack.TrackId)).IsTrue();
-            await Assert.That(track.BuildMarkers(data)).IsEmpty();
+            await Assert.That(((ITimelineTrack)track).BuildMarks(data)).IsEmpty();
             await Assert.That(string.Join(' ', track.ProposalsInRun(data, 650))).IsEqualTo($"{Opener.Id} {Execute.Id}");
             await Assert.That(track.ProposalsInRun(data, 660)).IsEmpty();
         }

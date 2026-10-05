@@ -47,17 +47,6 @@ internal sealed class SdkPlaybackContribution(SdkP.IPlaybackContribution inner, 
     }
 }
 
-/// <summary>A first-party playback contribution with its attach and detach run as its extension's.</summary>
-internal sealed class GuardedPlaybackContribution(IPlaybackContribution inner, ExtensionGuard guard) : IPlaybackContribution
-{
-    public IPlaybackContribution Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
-
-    public void Attach(IPlaybackSurface surface, IModuleContext context) =>
-        guard.Run("playback attach", () => Inner.Attach(surface, context));
-
-    public void Detach() => guard.Run("playback detach", Inner.Detach);
-}
-
 /// <summary>
 ///     The SDK's view of one 2D Playback tab, over the app's surface. Every handler and factory the extension
 ///     hands in is wrapped once, at registration, so a throw is reported against the extension and the tab
@@ -85,6 +74,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             ? [.. zones.Zones.Places.Select(p => p.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal)]
             : [];
+
+    public string? PlacesVersion => _surface.Zones?.Zones.EffectiveVersion;
 
     public IReadOnlyCollection<string> ActionIds => CommandRegistry.Default.ActionIds;
 
@@ -328,7 +319,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         public bool HasEvent(string eventName) => data.HasEvent(eventName);
     }
 
-    private sealed class CoreTrack : Core.ITimelineTrack
+    /// <summary>An SDK track as the timeline reads it, every call into it guarded.</summary>
+    internal sealed class CoreTrack : Core.ITimelineTrack
     {
         private readonly SdkP.ITimelineTrack _track;
         private readonly ExtensionGuard _guard;
@@ -352,7 +344,13 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         public bool IsAvailable(Core.ITimelineData data) =>
             _guard.Run("timeline track", () => _track.IsAvailable(new TimelineData(data)), false);
 
-        public IReadOnlyList<Core.TimelineMarker> BuildMarkers(Core.ITimelineData data) => [];
+        public IReadOnlyList<Core.TimelineMarker> BuildMarkers(Core.ITimelineData data) =>
+            _guard.Run<IReadOnlyList<Core.TimelineMarker>>("timeline track", () =>
+            [
+                .. _track.BuildMarks(new TimelineData(data))
+                    .Select(m => new Core.TimelineMarker(Id, m.FrameIndex, m.Tick, Core.TimelineMarkerKind.Custom, m.Glyph,
+                        m.Tooltip, m.Argb))
+            ], []);
 
         public IReadOnlyList<Core.TimelineBand> BuildBands(Core.ITimelineData data) =>
             _guard.Run<IReadOnlyList<Core.TimelineBand>>("timeline track", () =>

@@ -270,7 +270,7 @@ public class FindRoundsLikeThisTests
         await HeadlessSession.RunOnUi(async () =>
         {
             RecordingSeam seam = new();
-            PlaybackContributionHost host = new([(new StratBookPack(), [new SituationsPlaybackContribution()])], null);
+            PlaybackContributionHost host = Extensions.StratBook.ReviewPanelsHarness.Host(null, new SituationsPlaybackContribution());
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab(
                 contributions: host, configure: c =>
                 {

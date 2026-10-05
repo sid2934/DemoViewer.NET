@@ -36,6 +36,13 @@ public interface IPlaybackSurface
     string? PlaceAt(string? level, double worldX, double worldY);
 
     /// <summary>
+    ///     The version of the place data <see cref="PlaceAt" /> answers from, or null where the map has no
+    ///     zones. It changes when the user edits the map's zones: store it beside a resolved place to know
+    ///     when the place should be resolved again.
+    /// </summary>
+    string? PlacesVersion { get; }
+
+    /// <summary>
     ///     The ids of every action the keymap knows: the tab's own and every extension's commands. What
     ///     <see cref="GestureHint" /> and <see cref="AddActionHandler" /> name.
     /// </summary>

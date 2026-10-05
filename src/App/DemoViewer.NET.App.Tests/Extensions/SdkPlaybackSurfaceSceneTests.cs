@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
+using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
@@ -182,6 +183,20 @@ public class SdkPlaybackSurfaceSceneTests
     }
 
     [Test]
+    public async Task AnSdkLanesMarks_ReachTheTimeline_UnderTheLanesId()
+    {
+        (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
+        using SdkPlaybackSurface surface = new(vm.Surface, new FaultRig().Guard);
+
+        using SdkP.ILaneHandle lane = surface.AddLane(new MarkingTrack());
+
+        TimelineMarkerViewModel mark = vm.Timeline.Markers.Single(m => m.TrackId == "marking");
+        await Assert.That(mark.Glyph).IsEqualTo("*");
+        await Assert.That(mark.Tooltip).IsEqualTo("a mark");
+        vm.Dispose();
+    }
+
+    [Test]
     public async Task ComposedIds_NeverStartWithAHostRoot()
     {
         string[] hostIds =
@@ -193,6 +208,25 @@ public class SdkPlaybackSurfaceSceneTests
 
         await Assert.That(hostIds).DoesNotContain(composed);
         await Assert.That(composed).IsEqualTo("ext.playback2d.radar");
+    }
+
+    private sealed class MarkingTrack : SdkP.ITimelineTrack
+    {
+        public string Id => "marking";
+
+        public string DisplayName => "Marking";
+
+        public event Action? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public bool IsAvailable(SdkP.ITimelineData data) => true;
+
+        public IReadOnlyList<SdkP.TimelineBand> BuildBands(SdkP.ITimelineData data) => [new(10, 20, "band", "", 0xFF00FF00)];
+
+        public IReadOnlyList<SdkP.TimelineMark> BuildMarks(SdkP.ITimelineData data) => [new(15, 30, "*", "a mark", 0xFFFF0000)];
     }
 
     private sealed class RecordingLayer(string id) : ISceneLayer

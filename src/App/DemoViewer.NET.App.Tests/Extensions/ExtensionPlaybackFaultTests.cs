@@ -131,20 +131,6 @@ public class ExtensionPlaybackFaultTests
         vm.Dispose();
     }
 
-    [Test]
-    public async Task AnAttachThatThrows_IsContained_ForAFirstPartyContributionToo()
-    {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-        FaultRig rig = new();
-        GuardedPlaybackContribution guarded = new(new ThrowingFirstParty(), rig.Guard);
-
-        guarded.Attach(vm.Surface, ctx);
-        guarded.Detach();
-
-        await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsEqualTo(2);
-        vm.Dispose();
-    }
-
     private sealed class ThrowingContribution : Sdk.IPlaybackContribution
     {
         public const string EntryHeader = "Throws when run";
@@ -196,10 +182,4 @@ public class ExtensionPlaybackFaultTests
         public IEnumerable<Sdk.MenuEntry> MenuFor(Sdk.PlaybackBand band) => throw new InvalidOperationException("lane menu");
     }
 
-    private sealed class ThrowingFirstParty : IPlaybackContribution
-    {
-        public void Attach(IPlaybackSurface surface, IModuleContext context) => throw new InvalidOperationException("attach");
-
-        public void Detach() => throw new InvalidOperationException("detach");
-    }
 }

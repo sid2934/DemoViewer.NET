@@ -300,7 +300,7 @@ public class TagPaletteTests
     {
         using TagSession session = await Attached();
         using TagPaletteViewModel palette = Palette(session, () => 15_000);
-        palette.ApplyKeymap(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected));
+        palette.ApplyKeymap(PaletteKeymap.From(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected)));
         await Assert.That(rejected).IsEmpty();
 
         Hit(palette, Key.D3);

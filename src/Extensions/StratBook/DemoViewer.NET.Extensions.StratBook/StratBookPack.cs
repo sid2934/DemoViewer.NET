@@ -908,8 +908,8 @@ public sealed class StratBookPack : IExtension, ICommandAliases
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
         // gate above decides what the band offers; nothing is constructed here.
         contributions.Playback(new CreateStratPlaybackContribution(contributions.Context.Post));
-        firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post));
-        firstParty.FirstPartyPlayback(new Modules.Situations.SituationsPlaybackContribution());
+        contributions.Playback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post));
+        contributions.Playback(new Modules.Situations.SituationsPlaybackContribution());
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: resolving WatchedSituationsService unconditionally would build

@@ -33,7 +33,7 @@ public class SituationsPlaybackContributionTests
         IFeatureGate? gate = null, Action<Playback2DFakeContext>? configure = null)
     {
         SituationsPlaybackContribution situations = new();
-        PlaybackContributionHost host = new([(new StratBookPack(), [situations])], gate);
+        PlaybackContributionHost host = ReviewPanelsHarness.Host(gate, situations);
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx) =
             Playback2DTimelineHarness.Tab(contributions: host, configure: configure);
         return (vm, ctx, situations);
@@ -60,7 +60,7 @@ public class SituationsPlaybackContributionTests
         using (Assert.Multiple())
         {
             await Assert.That(situations.ToolbarItem).IsNotNull().Because("the pack came on with a map already open");
-            await Assert.That(vm.Surface.ToolbarItems).IsEquivalentTo([situations.ToolbarItem]);
+            await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id]);
         }
 
         gate.On = false;
@@ -88,7 +88,7 @@ public class SituationsPlaybackContributionTests
         using (Assert.Multiple())
         {
             await Assert.That(situations.ToolbarItem).IsNotNull();
-            await Assert.That(vm.Surface.ToolbarItems).IsEquivalentTo([situations.ToolbarItem]);
+            await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id]);
         }
 
         ctx.MapName = null;
@@ -105,7 +105,7 @@ public class SituationsPlaybackContributionTests
         // builds an empty scene, which is the state before the first push.
         RecordingSeam seam = new();
         SituationsPlaybackContribution situations = new();
-        PlaybackContributionHost host = new([(new StratBookPack(), [situations])], null);
+        PlaybackContributionHost host = ReviewPanelsHarness.Host(null, situations);
         Playback2DTabViewModel vm = new() { Contributions = host };
         Playback2DFakeContext ctx = new() { MapName = "de_dust2" };
         ctx.SetService<IFindRoundsLikeThis>(seam);
@@ -117,7 +117,7 @@ public class SituationsPlaybackContributionTests
 
         ctx.PushPlacedMarkers((1, 3, 600, -400, 64, "BombsiteA"), (6, 2, -900, 200, 64, "Lobby"));
 
-        situations.ToolbarItem!.Command!.Execute(null);
+        vm.Surface.ToolbarItems.Single().Command!.Execute(null);
         using (Assert.Multiple())
         {
             await Assert.That(seam.Calls.Count).IsEqualTo(1);
@@ -149,7 +149,7 @@ public class SituationsPlaybackContributionTests
         {
             RecordingSeam seam = new();
             SituationsPlaybackContribution situations = new();
-            PlaybackContributionHost host = new([(new StratBookPack(), [situations])], null);
+            PlaybackContributionHost host = ReviewPanelsHarness.Host(null, situations);
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab(
                 contributions: host, configure: c =>
                 {
@@ -193,7 +193,7 @@ public class SituationsPlaybackContributionTests
         {
             FakeGate gate = new() { On = false };
             SituationsPlaybackContribution situations = new();
-            PlaybackContributionHost host = new([(new StratBookPack(), [situations])], gate);
+            PlaybackContributionHost host = ReviewPanelsHarness.Host(gate, situations);
             (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab(
                 contributions: host, configure: c => c.MapName = "de_dust2");
 
@@ -223,7 +223,7 @@ public class SituationsPlaybackContributionTests
     public async Task TheLabelIsConstant_TheMenuHeaderAndTheToolTip_ReadTheResolvedProfile_AndFollowARebind()
     {
         (Playback2DTabViewModel vm, _, SituationsPlaybackContribution situations) = Tab(configure: c => c.MapName = "de_dust2");
-        ToolbarItem item = situations.ToolbarItem!;
+        global::DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem item = situations.ToolbarItem!;
 
         using (Assert.Multiple())
         {

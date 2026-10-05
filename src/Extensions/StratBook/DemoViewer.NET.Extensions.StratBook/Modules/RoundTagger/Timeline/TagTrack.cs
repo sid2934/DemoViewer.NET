@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using System.Text;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -96,8 +96,11 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
     /// <inheritdoc />
     public string DisplayName => "Tags";
 
+    /// <summary>The timeline data the bands were last built from, for a band press; null before the first build.</summary>
+    public ITimelineData? LastData { get; private set; }
+
     /// <inheritdoc />
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 
     /// <inheritdoc />
     public bool IsAvailable(ITimelineData data)
@@ -121,6 +124,7 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
     /// <inheritdoc />
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data)
     {
+        LastData = data;
         List<Span> spans = Spans(data);
         if (spans.Count == 0)
         {
@@ -152,22 +156,22 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
     }
 
     /// <inheritdoc />
-    public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data)
+    public IReadOnlyList<TimelineMark> BuildMarks(ITimelineData data)
     {
         List<Span> spans = Spans(data);
         if (spans.Count == 0)
         {
-            return Array.Empty<TimelineMarker>();
+            return Array.Empty<TimelineMark>();
         }
 
-        List<TimelineMarker> markers = new(spans.Count);
+        List<TimelineMark> marks = new(spans.Count);
         foreach (Span span in spans)
         {
-            markers.Add(new TimelineMarker(TrackId, span.Start, span.Instance.FromTick, TimelineMarkerKind.Custom,
-                Glyph, Tooltip(span.Instance), ColourOf(span.Instance.Code)));
+            marks.Add(new TimelineMark(span.Start, span.Instance.FromTick, Glyph, Tooltip(span.Instance),
+                ColourOf(span.Instance.Code)));
         }
 
-        return markers;
+        return marks;
     }
 
     /// <summary>
@@ -263,7 +267,7 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
         TagInstance head = spans[first].Instance;
         if (count == 1)
         {
-            return new TimelineBand(TrackId, spans[first].Start, endFrame, head.Code, Tooltip(head),
+            return new TimelineBand(spans[first].Start, endFrame, head.Code, Tooltip(head),
                 ColourOf(head.Code));
         }
 
@@ -280,7 +284,7 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
             sb.Append("\n…");
         }
 
-        return new TimelineBand(TrackId, spans[first].Start, endFrame,
+        return new TimelineBand(spans[first].Start, endFrame,
             count.ToString(CultureInfo.InvariantCulture), sb.ToString(), 0u);
     }
 
@@ -333,7 +337,7 @@ public sealed class TagTrack : ITimelineTrack, IDisposable
             Volatile.Write(ref _pending, 0);
             if (!_disposed)
             {
-                MarkersChanged?.Invoke();
+                Changed?.Invoke();
             }
         });
     }

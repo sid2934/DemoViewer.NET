@@ -365,6 +365,7 @@ DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.PlaceAt(string? level, d
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.Places.get -> System.Collections.Generic.IReadOnlyList<string!>!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.OnDemoChanged(System.Action! handler) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.OnPlayheadChanged(System.Action<int>! handler) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.PlacesVersion.get -> string?
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.EventsOfType(string! eventName) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent!>!
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.FrameIndexAtTick(int tick) -> int
@@ -373,6 +374,7 @@ DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.TickRate.get -> int
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData.TotalFrames.get -> int
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.BuildBands(DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData! data) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand!>!
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.BuildMarks(DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData! data) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark!>!
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.Changed -> System.Action?
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.DisplayName.get -> string!
 DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.Id.get -> string!
@@ -490,6 +492,21 @@ DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.FrameIndex.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Tick.get -> int
 DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Tick.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.TimelineEvent(int Tick, int FrameIndex, System.Collections.Generic.IReadOnlyDictionary<string!, string!>! Fields) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Argb.get -> uint
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Argb.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Deconstruct(out int FrameIndex, out int Tick, out string! Glyph, out string! Tooltip, out uint Argb) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Equals(DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.FrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.FrameIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Glyph.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Glyph.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Tick.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Tick.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.TimelineMark(int FrameIndex, int Tick, string! Glyph, string! Tooltip, uint Argb) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Tooltip.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Tooltip.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.ActionId.get -> string?
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Icon.get -> string?
@@ -688,6 +705,9 @@ override DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.ToString() -> strin
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ToString() -> string!
@@ -748,6 +768,8 @@ static DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.operator !=(DemoViewe
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.operator !=(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? left, DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.operator ==(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? left, DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StatusChipContribution.operator !=(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? left, DemoViewer.NET.Extensions.Sdk.StatusChipContribution? right) -> bool

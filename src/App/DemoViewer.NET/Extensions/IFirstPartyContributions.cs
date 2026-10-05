@@ -65,9 +65,6 @@ internal interface IFirstPartyContributions : IExtensionContributions
 
     /// <summary>A ruleset the merged background build runs only while the extension is on.</summary>
     void Ruleset(string rulesetId);
-
-    /// <summary>A 2D Playback contribution against the app's own surface: keymap scopes, scene frames, core tracks.</summary>
-    void FirstPartyPlayback(IPlaybackContribution contribution);
 }
 
 /// <summary>

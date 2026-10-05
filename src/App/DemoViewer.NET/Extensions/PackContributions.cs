@@ -216,13 +216,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     }
 
     /// <inheritdoc />
-    public void FirstPartyPlayback(IPlaybackContribution contribution)
-    {
-        ArgumentNullException.ThrowIfNull(contribution);
-        _playback.Add(new GuardedPlaybackContribution(contribution, _guard));
-    }
-
-    /// <inheritdoc />
     public void Library(ILibraryContribution contribution)
     {
         ArgumentNullException.ThrowIfNull(contribution);

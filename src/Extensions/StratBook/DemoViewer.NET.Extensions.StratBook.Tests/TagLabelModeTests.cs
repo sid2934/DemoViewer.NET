@@ -246,7 +246,7 @@ public class TagLabelModeTests
 
         using TagSession session = await Attached();
         using TagPaletteViewModel palette = Palette(session, () => 12_000);
-        palette.ApplyKeymap(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected));
+        palette.ApplyKeymap(PaletteKeymap.From(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected)));
         await Assert.That(rejected).IsEmpty();
         await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsFalse();
         await Assert.That(Hit(palette, Key.L, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();
@@ -264,7 +264,7 @@ public class TagLabelModeTests
         session.Apply(new TagDelta.Add(early));
         session.Apply(new TagDelta.Add(apart));
         using TagTrack track = new(session, static action => action());
-        FakeTimelineData data = new(1_000);
+        SdkTimeline data = new(new FakeTimelineData(1_000));
 
         using (Assert.Multiple())
         {

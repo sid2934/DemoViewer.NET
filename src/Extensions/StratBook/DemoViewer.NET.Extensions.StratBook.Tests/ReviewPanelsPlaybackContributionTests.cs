@@ -68,7 +68,7 @@ public class ReviewPanelsPlaybackContributionTests
 
         gate.On = true;
         gate.Raise();
-        TagTrack lane = vm.Timeline.RegisteredTracks.OfType<TagTrack>().Single();
+        TagTrack lane = review.Tags!;
         using (Assert.Multiple())
         {
             await Assert.That(review.Session).IsNotNull();
@@ -281,7 +281,7 @@ public class ReviewPanelsPlaybackContributionTests
         TagSession session = review.Session!;
         await session.AttachAsync(Demo, Clock, DemoPath);
         review.ReviewMode!.IsOn = true;
-        TagTrack lane = vm.Timeline.RegisteredTracks.OfType<TagTrack>().Single();
+        TagTrack lane = review.Tags!;
 
         review.Review!.LabelHereCommand.Execute(null);
         ReviewPanelsHarness.Press(vm, Key.C);

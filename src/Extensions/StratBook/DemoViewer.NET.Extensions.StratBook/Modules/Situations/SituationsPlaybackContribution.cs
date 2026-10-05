@@ -1,10 +1,8 @@
 #region
 
-using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core;
 
 #endregion
 
@@ -101,9 +99,9 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
     // scalars the scene built inside the last Advanced callback, place included, and the pooled entities
     // behind them are not safe to read from a key handler. Refused with no seam, no map, or no frame
     // pushed yet; the seam refuses on its own when nobody is alive.
-    private bool RunFindRoundsLikeThis(Scene2DFrame frame) =>
+    private bool RunFindRoundsLikeThis(PlaybackMoment moment) =>
         _findRounds is { } find && _context?.MapName is { Length: > 0 } map
-        && frame.Markers.Count > 0 && find.Show(map, frame.Time, frame.Markers);
+        && moment.Frame.Markers.Count > 0 && find.Show(map, moment.Frame.Time, moment.Frame.Markers);
 
     // J/K: the walk seeks through the seam's own funnel, so the shared clock and LiveSync's observer see
     // it as any other seek. Gated by the Situations tab's own feature, which the pack cascades off with.

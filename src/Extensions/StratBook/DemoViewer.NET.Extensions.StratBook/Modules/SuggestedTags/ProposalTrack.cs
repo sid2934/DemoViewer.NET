@@ -2,7 +2,7 @@
 
 using System.Globalization;
 using System.Text;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Extensions.Sdk.Playback;
 
 #endregion
 
@@ -25,7 +25,7 @@ public enum ConfidenceStep
 ///     The Proposal Track: the open demo's pending proposals as bands on the tag
 ///     lane, labelled <c>code@site</c> and tinted by confidence. Accepted proposals leave it and show on the
 ///     Tag Track as instances; rejected ones disappear. The queue hands it the pending set with
-///     <see cref="SetProposals" />, which raises <see cref="MarkersChanged" />.
+///     <see cref="SetProposals" />, which raises <see cref="Changed" />.
 ///     <para>
 ///         <b>Merged like the Tag Track.</b> Bands must not overlap within a track and an execute overlaps
 ///         the opener of the same round, so overlapping windows merge into runs: a run of one is the
@@ -57,8 +57,11 @@ public sealed class ProposalTrack : ITimelineTrack
     /// <inheritdoc />
     public string DisplayName => "Suggested";
 
+    /// <summary>The timeline data the bands were last built from, for a band press; null before the first build.</summary>
+    public ITimelineData? LastData { get; private set; }
+
     /// <inheritdoc />
-    public event Action? MarkersChanged;
+    public event Action? Changed;
 
     /// <summary>The step a confidence falls in.</summary>
     /// <param name="confidence">In <c>[0, 1]</c>.</param>
@@ -92,7 +95,7 @@ public sealed class ProposalTrack : ITimelineTrack
     {
         ArgumentNullException.ThrowIfNull(pending);
         _proposals = [.. pending];
-        MarkersChanged?.Invoke();
+        Changed?.Invoke();
     }
 
     /// <inheritdoc />
@@ -100,18 +103,16 @@ public sealed class ProposalTrack : ITimelineTrack
         data is not null && _proposals.Any(p => data.FrameIndexAtTick(p.FromTick) >= 0);
 
     /// <inheritdoc />
-    public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => Array.Empty<TimelineMarker>();
-
-    /// <inheritdoc />
     public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data)
     {
+        LastData = data;
         List<TimelineBand> bands = [];
         foreach ((List<Span> run, int end) in Runs(data))
         {
             Span head = run[0];
             if (run.Count == 1)
             {
-                bands.Add(new TimelineBand(TrackId, head.Start, end, LabelOf(head.Proposal), Tooltip(head.Proposal),
+                bands.Add(new TimelineBand(head.Start, end, LabelOf(head.Proposal), Tooltip(head.Proposal),
                     ColourOf(StepOf(head.Proposal.Confidence))));
                 continue;
             }
@@ -130,7 +131,7 @@ public sealed class ProposalTrack : ITimelineTrack
 
             // A run is as sure as its surest member: that is the one a press picks first.
             double best = run.Max(s => s.Proposal.Confidence);
-            bands.Add(new TimelineBand(TrackId, head.Start, end, run.Count.ToString(CultureInfo.InvariantCulture),
+            bands.Add(new TimelineBand(head.Start, end, run.Count.ToString(CultureInfo.InvariantCulture),
                 sb.ToString(), ColourOf(StepOf(best))));
         }
 

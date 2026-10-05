@@ -15,6 +15,27 @@ using DemoViewer.NET.Services.Tags;
 
 namespace DemoViewer.NET.Modules.RoundTagger.Palette;
 
+/// <summary>The palette's keys: the action a key is bound to in the palette's scope, and an action's gesture text.</summary>
+/// <param name="ActionFor">The palette-scope action for a key, or null.</param>
+/// <param name="GestureText">An action's gesture, such as <c>"Ctrl+Z"</c>; empty when unbound.</param>
+public sealed record PaletteKeymap(Func<Key, KeyModifiers, string?> ActionFor, Func<string, string> GestureText)
+{
+    /// <summary>The shipped keymap's palette keys.</summary>
+    public static PaletteKeymap Default { get; } = From(Playback2DKeymapProfile.Default);
+
+    /// <summary>The palette keys under a resolved keymap profile.</summary>
+    /// <param name="keymap">The profile.</param>
+    public static PaletteKeymap From(Playback2DKeymapProfile keymap)
+    {
+        ArgumentNullException.ThrowIfNull(keymap);
+        return new PaletteKeymap(
+            (key, modifiers) => keymap.TryResolveInScope(StratBookActions.PaletteScope, key, modifiers, out string? action)
+                ? action
+                : null,
+            keymap.GestureText);
+    }
+}
+
 /// <summary>One palette button as the panel shows it: its hotkey parsed once, its caption and its colour.</summary>
 public sealed class TagPaletteButtonViewModel
 {
@@ -111,7 +132,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isFocused;
 
-    private Playback2DKeymapProfile _keymap = Playback2DKeymapProfile.Default;
+    private PaletteKeymap _keymap = PaletteKeymap.Default;
 
     // Label Mode's target as last shown, so a playhead move that keeps the same tag leaves the panel alone,
     // and its line as last raised, so the per-frame refresh raises nothing while the line stands still.
@@ -252,10 +273,10 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Pushes the tab's resolved keymap in, for <see cref="TryHandleKey" /> and the hint line.</summary>
-    /// <param name="keymap">The profile the tab routes through.</param>
-    public void ApplyKeymap(Playback2DKeymapProfile keymap)
+    /// <param name="keymap">The palette's keys under the keymap the tab routes through.</param>
+    public void ApplyKeymap(PaletteKeymap keymap)
     {
-        _keymap = keymap ?? Playback2DKeymapProfile.Default;
+        _keymap = keymap ?? PaletteKeymap.Default;
         OnPropertyChanged(nameof(HintText));
     }
 
@@ -293,7 +314,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
             return false;
         }
 
-        if (_keymap.TryResolveInScope(StratBookActions.PaletteScope, key, modifiers, out string? action))
+        if (_keymap.ActionFor(key, modifiers) is { } action)
         {
             return Execute(action);
         }
