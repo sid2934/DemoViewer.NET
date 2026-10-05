@@ -192,6 +192,7 @@ public class StratBookLibraryTests
         string pack = Path.Combine(DemoTestHelper.FindRepoRoot()!, "src", "Extensions", "StratBook",
             "DemoViewer.NET.Extensions.StratBook");
         List<string> found = [];
+        HashSet<string> stillAllowed = new(StringComparer.Ordinal);
         foreach (string file in Directory.EnumerateFiles(pack, "*.*", SearchOption.AllDirectories))
         {
             string relative = Path.GetRelativePath(pack, file).Replace('\\', '/');
@@ -203,12 +204,23 @@ public class StratBookLibraryTests
 
             string code = WithoutComments(await File.ReadAllTextAsync(file));
             string[] allowed = _cacheAccessAllowed.GetValueOrDefault(relative, []);
+            if (allowed.Any(name => Regex.IsMatch(code, $@"\b{Regex.Escape(name)}\b")))
+            {
+                stillAllowed.Add(relative);
+            }
+
             found.AddRange(_cacheTypes
                 .Where(name => !allowed.Contains(name) && Regex.IsMatch(code, $@"\b{Regex.Escape(name)}\b"))
                 .Select(name => $"{relative}: {name}"));
         }
 
-        await Assert.That(found).IsEmpty();
+        using (Assert.Multiple())
+        {
+            await Assert.That(found).IsEmpty();
+            await Assert.That(stillAllowed.Order(StringComparer.Ordinal).ToList())
+                .IsEquivalentTo(_cacheAccessAllowed.Keys.Order(StringComparer.Ordinal).ToList())
+                .Because("an allowance the code no longer needs is removed with it");
+        }
     }
 
     private static string WithoutComments(string source)
