@@ -1,10 +1,11 @@
 #region
 
 using CS2DemoKit.Analysis.Clips;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Services.Facts;
 
 /// <summary>
 ///     Turns the <c>round_facts</c> table into the record: pairs the two rows of each round by side,

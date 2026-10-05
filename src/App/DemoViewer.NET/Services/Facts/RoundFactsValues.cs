@@ -3,10 +3,11 @@
 using System.Collections;
 using System.Globalization;
 using System.Text.Json;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Services.Facts;
 
 /// <summary>
 ///     Coercions for table cells and cached scalars. A cell arrives as whatever the row source used
@@ -173,11 +174,4 @@ internal static class RoundFactsValues
     /// <summary>Whether two cells carry the same value, compared as text so a boxed int and a JSON number agree.</summary>
     public static bool SameValue(object? a, object? b) =>
         string.Equals(ToText(a), ToText(b), StringComparison.Ordinal);
-
-    /// <summary>An enum name in the label vocabulary's spelling: <c>Pistol</c> to <c>pistol</c>, <c>MidRound</c> to <c>midRound</c>.</summary>
-    public static string LowerCamel<T>(T value) where T : struct, Enum
-    {
-        string name = value.ToString();
-        return name.Length == 0 ? name : char.ToLowerInvariant(name[0]) + name[1..];
-    }
 }

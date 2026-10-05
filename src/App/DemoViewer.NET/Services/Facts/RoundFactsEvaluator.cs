@@ -8,10 +8,11 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Services.Facts;
 
 /// <summary>
 ///     The evaluator that writes round facts: a core pass on the demo's visit, so it costs no second parse.
@@ -192,7 +193,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
             }
 
             RoundFactsRows rows = RoundFactsProjection.Project(roundsOf(), table);
-            rows.Clock = RoundFactsClock.From(clockOf());
+            rows.Clock = RoundFactsClocks.From(clockOf());
             foreach (string warning in rows.Warnings)
             {
                 RoundFactsLog.ProjectionWarning(Log, fileName, warning);

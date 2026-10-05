@@ -4,7 +4,8 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
@@ -58,7 +59,7 @@ public class TagMatrixRealDemoTests
         await matrix.Pending;
 
         Dictionary<string, int> expected = tags.TryLoad(Sha)!.Instances
-            .Select(i => RoundFactsValues.LowerCamel(RoundFactsSource.FindRound(rows.Rounds, i.FromTick)!.T.BuyType))
+            .Select(i => RoundFactsRules.LowerCamel(RoundFactsRules.FindRound(rows.Rounds, i.FromTick)!.T.BuyType))
             .GroupBy(b => b, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 

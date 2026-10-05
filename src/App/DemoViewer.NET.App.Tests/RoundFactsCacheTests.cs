@@ -2,7 +2,8 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
@@ -215,7 +216,7 @@ public class RoundFactsCacheTests
                 await Assert.That(round.Kills[0].AttackerSlot).IsEqualTo(1);
                 await Assert.That(round.Sources[RoundFactsColumns.Money]).IsEqualTo(RoundFactsSourceKind.Unavailable);
                 // Extra comes back as JSON; the label projection reads it through the same coercion.
-                await Assert.That(RoundFactsSource.Labels(round).Single(l => l.Key == "my_column").Value).IsEqualTo("5");
+                await Assert.That(RoundFactsRules.Labels(round).Single(l => l.Key == "my_column").Value).IsEqualTo("5");
             }
         }
         finally

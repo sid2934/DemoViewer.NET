@@ -5,7 +5,8 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -541,7 +542,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
                 }
 
                 RoundFacts? facts = factsRows?.Rounds.FirstOrDefault(r => r.Number == candidate.Round.Number);
-                if (facts is null || !RoundFactsSource.Matches(candidate.Demo.Path, facts, filter))
+                if (facts is null || !RoundFactsRules.Matches(candidate.Demo.Path, facts, filter))
                 {
                     continue;
                 }
@@ -557,7 +558,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
                         for (int step = from; step <= to; step++)
                         {
                             int tick = candidate.Round.FreezeEndTick + step * candidate.Demo.CadenceTicks;
-                            if (RoundFactsSource.MatchesAt(facts, filter, tick, tickRate))
+                            if (RoundFactsRules.MatchesAt(facts, filter, tick, tickRate))
                             {
                                 first = Math.Min(first, step);
                                 last = Math.Max(last, step);

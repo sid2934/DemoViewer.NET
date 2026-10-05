@@ -7,7 +7,8 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
@@ -438,32 +439,32 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
 
         if (filters.BuyCt is { } buyCt)
         {
-            yield return $"CT buy {RoundFactsValues.LowerCamel(buyCt)}";
+            yield return $"CT buy {RoundFactsRules.LowerCamel(buyCt)}";
         }
 
         if (filters.BuyT is { } buyT)
         {
-            yield return $"T buy {RoundFactsValues.LowerCamel(buyT)}";
+            yield return $"T buy {RoundFactsRules.LowerCamel(buyT)}";
         }
 
         if (filters.Phase is { } phase)
         {
-            yield return RoundFactsValues.LowerCamel(phase);
+            yield return RoundFactsRules.LowerCamel(phase);
         }
 
         if (filters.Clock is { } clock)
         {
-            yield return RoundFactsValues.LowerCamel(clock);
+            yield return RoundFactsRules.LowerCamel(clock);
         }
 
         if (filters.ManCount is { } manCount)
         {
-            yield return RoundFactsValues.LowerCamel(manCount);
+            yield return RoundFactsRules.LowerCamel(manCount);
         }
 
         if (filters.Score is { } score)
         {
-            yield return RoundFactsValues.LowerCamel(score);
+            yield return RoundFactsRules.LowerCamel(score);
         }
 
         if (filters.Opponent is not null)

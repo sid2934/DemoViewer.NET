@@ -6,10 +6,11 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using DemoViewer.NET.Modules.Highlights;
 using Microsoft.Extensions.Logging;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Services.Facts;
 
 /// <summary>
 ///     What decides whether cached round facts are current: <see cref="MergedRulesBuild.RulesetIdentity" />

@@ -3,7 +3,8 @@
 using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -86,7 +87,7 @@ public class TagFactsRefresherTests
             await Assert.That(Value(execute, "plantTick")).IsEqualTo("12000");
             await Assert.That(Value(execute, "roundTime")).IsEqualTo("88");
             await Assert.That(Value(execute, "phase")).IsEqualTo(
-                RoundFactsValues.LowerCamel(RoundPhases.At(Rows().Rounds[1], 11_000)))
+                RoundFactsRules.LowerCamel(RoundPhases.At(Rows().Rounds[1], 11_000)))
                 .Because("the tick-anchored facts are read at fromTick");
             await Assert.That(Value(execute, "manCount.ct")).IsEqualTo("5");
             await Assert.That(Value(execute, "manCount.t")).IsEqualTo("5");
@@ -382,12 +383,12 @@ public class TagFactsRefresherTests
         public RoundFactsRows? TryGet(string demoPath) => Rows;
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
-            Rows is null ? null : RoundFactsSource.FindRound(Rows.Rounds, frameClockTick);
+            Rows is null ? null : RoundFactsRules.FindRound(Rows.Rounds, frameClockTick);
 
         public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter) => [];
 
         public IReadOnlyList<FactLabel> FactsFor(string demoPath, int round, int? atTick = null) =>
-            Rows?.Rounds.FirstOrDefault(r => r.Number == round) is { } facts ? RoundFactsSource.Labels(facts, atTick) : [];
+            Rows?.Rounds.FirstOrDefault(r => r.Number == round) is { } facts ? RoundFactsRules.Labels(facts, atTick) : [];
 
         public void Raise(string demoPath) => _updated?.Invoke(demoPath);
     }

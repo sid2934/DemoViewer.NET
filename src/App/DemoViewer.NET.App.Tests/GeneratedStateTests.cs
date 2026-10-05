@@ -1,7 +1,8 @@
 #region
 
 using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 #endregion

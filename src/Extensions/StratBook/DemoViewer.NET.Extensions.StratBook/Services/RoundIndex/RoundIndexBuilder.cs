@@ -4,7 +4,8 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
@@ -85,7 +86,7 @@ public static class RoundIndexBuilder
         RoundIndexDocument document = new()
         {
             Fingerprint = fingerprint,
-            Clock = RoundFactsClock.From(FrameClock.IdentityFor(demo)),
+            Clock = RoundFactsClock.For(demo),
             Map = demo.MapName,
             CadenceTicks = cadenceTicks,
             Rounds = [.. windows.Select(w => w.Round)]

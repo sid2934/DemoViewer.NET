@@ -6,7 +6,8 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels;
 
@@ -182,9 +183,9 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
         Clock = new SearchFilterField<ClockBand?>("Clock",
         [
             new SearchFilterOption<ClockBand?>("Any time", null),
-            new SearchFilterOption<ClockBand?>($"First {RoundFactsSource.EarlyBandSeconds} s", ClockBand.Early),
-            new SearchFilterOption<ClockBand?>($"{RoundFactsSource.EarlyBandSeconds} s to {MinutesAndSeconds(RoundFactsSource.LateBandSeconds)}", ClockBand.Middle),
-            new SearchFilterOption<ClockBand?>($"After {MinutesAndSeconds(RoundFactsSource.LateBandSeconds)}", ClockBand.Late)
+            new SearchFilterOption<ClockBand?>($"First {RoundFactsRules.EarlyBandSeconds} s", ClockBand.Early),
+            new SearchFilterOption<ClockBand?>($"{RoundFactsRules.EarlyBandSeconds} s to {MinutesAndSeconds(RoundFactsRules.LateBandSeconds)}", ClockBand.Middle),
+            new SearchFilterOption<ClockBand?>($"After {MinutesAndSeconds(RoundFactsRules.LateBandSeconds)}", ClockBand.Late)
         ]);
         ManCount = new SearchFilterField<ManCountState?>("Man count",
         [
@@ -390,7 +391,7 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
         yield return new SearchFilterOption<BuyType?>("Any buy", null);
         foreach (BuyType buy in new[] { BuyType.Pistol, BuyType.Eco, BuyType.Semi, BuyType.Force, BuyType.Full })
         {
-            yield return new SearchFilterOption<BuyType?>(RoundFactsValues.LowerCamel(buy), buy);
+            yield return new SearchFilterOption<BuyType?>(RoundFactsRules.LowerCamel(buy), buy);
         }
     }
 

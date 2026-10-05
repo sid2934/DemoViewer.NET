@@ -4,7 +4,8 @@ using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules;
 
 #endregion
@@ -126,7 +127,7 @@ public static class GrenadeSidecar
             Engine = GrenadeWalker.EngineVersion,
             InputDecoder = walk.InputDecoder
         };
-        RoundFactsClock clock = RoundFactsClock.From(FrameClock.IdentityFor(parsed));
+        RoundFactsClock clock = RoundFactsClock.For(parsed);
         GrenadeSourceHeader source = new()
         {
             Kind = record?.SourceKind,

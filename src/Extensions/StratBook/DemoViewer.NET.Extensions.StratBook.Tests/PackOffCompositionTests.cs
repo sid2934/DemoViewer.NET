@@ -158,7 +158,7 @@ public class PackOffCompositionTests
 
             // When the pack is off, these evaluators want nothing because their Wants() predicate
             // gates on the feature flag; Round Facts is the host's, gated on the pack's claim of its ruleset.
-            DemoViewer.NET.Services.RoundFacts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<DemoViewer.NET.Services.RoundFacts.RoundFactsEvaluator>();
+            DemoViewer.NET.Services.Facts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<DemoViewer.NET.Services.Facts.RoundFactsEvaluator>();
             DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator>();
             DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService>();
             DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator>();

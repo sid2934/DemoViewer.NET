@@ -1,10 +1,11 @@
 #region
 
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Services.Facts;
 
 /// <summary>
 ///     The Round Facts rows on a demo's cache record (<see cref="DemoCacheRecord.RoundFacts" />) and their
@@ -13,10 +14,10 @@ namespace DemoViewer.NET.Services.RoundFacts;
 public static class RoundFactsRecords
 {
     /// <summary>The stamp's facet: the Round Facts pass id.</summary>
-    public const string FacetId = "roundfacts";
+    public const string FacetId = RoundFactsRows.FacetId;
 
     /// <summary>The rows' shape. Part of the stamp, so a bump re-runs Round Facts alone.</summary>
-    public const int Schema = 1;
+    public const int Schema = RoundFactsRows.CurrentSchema;
 
     /// <summary>A demo's round facts rows: a sidecar read served by the store's capacity-1 record cache. Null when none.</summary>
     /// <param name="store">The demo cache.</param>

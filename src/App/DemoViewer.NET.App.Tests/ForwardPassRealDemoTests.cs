@@ -16,7 +16,8 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
@@ -147,7 +148,7 @@ public class ForwardPassRealDemoTests
         RoundFactsTable factsTable =
             EngineRoundFactsRowSource.FromTable(table, EngineRoundFactsRowSource.ParametersOf(doc), ClipRounds.Derive(parsed));
         RoundFactsRows rows = RoundFactsProjection.Project(ClipRounds.Derive(parsed), factsTable);
-        rows.Clock = RoundFactsClock.From(FrameClock.IdentityFor(parsed));
+        rows.Clock = RoundFactsClock.For(parsed);
 
         Dictionary<string, string> old = new()
         {

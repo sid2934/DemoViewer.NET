@@ -8,7 +8,8 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
@@ -687,7 +688,7 @@ public sealed class SuggestedTagsService : IExtensionPass
                     FileName = fileName,
                     SizeBytes = record.FileSizeBytes
                 },
-                Clock = RoundFactsClock.From(clock),
+                Clock = RoundFactsClocks.From(clock),
                 DetectorSet = new ProposalDetectorSet
                 {
                     Fingerprint = fingerprint,

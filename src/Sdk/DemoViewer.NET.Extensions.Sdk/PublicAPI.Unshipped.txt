@@ -10,7 +10,39 @@ DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Developer.init -> void
 DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Equals(DemoViewer.NET.Extensions.Sdk.AudienceDefaults? other) -> bool
 DemoViewer.NET.Extensions.Sdk.AudienceDefaults.PowerUser.get -> bool
 DemoViewer.NET.Extensions.Sdk.AudienceDefaults.PowerUser.init -> void
+DemoViewer.NET.Extensions.Sdk.BombSite
+DemoViewer.NET.Extensions.Sdk.BombSite.A = 1 -> DemoViewer.NET.Extensions.Sdk.BombSite
+DemoViewer.NET.Extensions.Sdk.BombSite.B = 2 -> DemoViewer.NET.Extensions.Sdk.BombSite
+DemoViewer.NET.Extensions.Sdk.BombSite.Unknown = 0 -> DemoViewer.NET.Extensions.Sdk.BombSite
 DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds
+DemoViewer.NET.Extensions.Sdk.BuyThresholds
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.BuyThresholds!
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.BuyThresholds() -> void
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.EcoMaxPerPlayer.get -> int
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.EcoMaxPerPlayer.init -> void
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.Equals(DemoViewer.NET.Extensions.Sdk.BuyThresholds? other) -> bool
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.ForceMoneyMaxPerPlayer.get -> int
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.ForceMoneyMaxPerPlayer.init -> void
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.FullMinPerPlayer(int side) -> int
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.FullMinPerPlayerCt.get -> int
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.FullMinPerPlayerCt.init -> void
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.FullMinPerPlayerT.get -> int
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.FullMinPerPlayerT.init -> void
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.MoneySaneMax.get -> int
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.MoneySaneMax.init -> void
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.RegulationRounds.get -> int
+DemoViewer.NET.Extensions.Sdk.BuyThresholds.RegulationRounds.init -> void
+DemoViewer.NET.Extensions.Sdk.BuyType
+DemoViewer.NET.Extensions.Sdk.BuyType.Eco = 2 -> DemoViewer.NET.Extensions.Sdk.BuyType
+DemoViewer.NET.Extensions.Sdk.BuyType.Force = 4 -> DemoViewer.NET.Extensions.Sdk.BuyType
+DemoViewer.NET.Extensions.Sdk.BuyType.Full = 5 -> DemoViewer.NET.Extensions.Sdk.BuyType
+DemoViewer.NET.Extensions.Sdk.BuyType.Pistol = 1 -> DemoViewer.NET.Extensions.Sdk.BuyType
+DemoViewer.NET.Extensions.Sdk.BuyType.Semi = 3 -> DemoViewer.NET.Extensions.Sdk.BuyType
+DemoViewer.NET.Extensions.Sdk.BuyType.Unknown = 0 -> DemoViewer.NET.Extensions.Sdk.BuyType
+DemoViewer.NET.Extensions.Sdk.ClockBand
+DemoViewer.NET.Extensions.Sdk.ClockBand.Early = 0 -> DemoViewer.NET.Extensions.Sdk.ClockBand
+DemoViewer.NET.Extensions.Sdk.ClockBand.Late = 2 -> DemoViewer.NET.Extensions.Sdk.ClockBand
+DemoViewer.NET.Extensions.Sdk.ClockBand.Middle = 1 -> DemoViewer.NET.Extensions.Sdk.ClockBand
 DemoViewer.NET.Extensions.Sdk.CommandContext
 DemoViewer.NET.Extensions.Sdk.CommandContext.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.CommandContext!
 DemoViewer.NET.Extensions.Sdk.CommandContext.CommandContext(object! Target) -> void
@@ -169,6 +201,17 @@ DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.EnabledInSession = 1 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.Startup = 0 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
+DemoViewer.NET.Extensions.Sdk.FactLabel
+DemoViewer.NET.Extensions.Sdk.FactLabel.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactLabel!
+DemoViewer.NET.Extensions.Sdk.FactLabel.Deconstruct(out string! Group, out string! Key, out string! Value) -> void
+DemoViewer.NET.Extensions.Sdk.FactLabel.Equals(DemoViewer.NET.Extensions.Sdk.FactLabel? other) -> bool
+DemoViewer.NET.Extensions.Sdk.FactLabel.FactLabel(string! Group, string! Key, string! Value) -> void
+DemoViewer.NET.Extensions.Sdk.FactLabel.Group.get -> string!
+DemoViewer.NET.Extensions.Sdk.FactLabel.Group.init -> void
+DemoViewer.NET.Extensions.Sdk.FactLabel.Key.get -> string!
+DemoViewer.NET.Extensions.Sdk.FactLabel.Key.init -> void
+DemoViewer.NET.Extensions.Sdk.FactLabel.Value.get -> string!
+DemoViewer.NET.Extensions.Sdk.FactLabel.Value.init -> void
 DemoViewer.NET.Extensions.Sdk.HostIds
 DemoViewer.NET.Extensions.Sdk.HostInfo
 DemoViewer.NET.Extensions.Sdk.HostInfo.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.HostInfo!
@@ -318,6 +361,12 @@ DemoViewer.NET.Extensions.Sdk.IPassContext.Parsed.get -> CS2DemoKit.Parser.Parse
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.CountAsync() -> System.Threading.Tasks.Task<int>!
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.FeatureId.get -> string!
+DemoViewer.NET.Extensions.Sdk.IRoundFacts
+DemoViewer.NET.Extensions.Sdk.IRoundFacts.FactsFor(string! demoPath, int round, int? atTick = null) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactLabel!>!
+DemoViewer.NET.Extensions.Sdk.IRoundFacts.RoundAt(string! demoPath, int frameClockTick) -> DemoViewer.NET.Extensions.Sdk.RoundFacts?
+DemoViewer.NET.Extensions.Sdk.IRoundFacts.Schema.get -> int
+DemoViewer.NET.Extensions.Sdk.IRoundFacts.TryGet(string! demoPath) -> DemoViewer.NET.Extensions.Sdk.RoundFactsRows?
+DemoViewer.NET.Extensions.Sdk.IRoundFacts.Updated -> System.Action<string!>?
 DemoViewer.NET.Extensions.Sdk.JobOptions
 DemoViewer.NET.Extensions.Sdk.JobOptions.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.JobOptions!
 DemoViewer.NET.Extensions.Sdk.JobOptions.Deconstruct(out string! Kind, out DemoViewer.NET.Extensions.Sdk.JobPriority Priority, out string? Key, out bool Preemptible, out string? Serial) -> void
@@ -363,6 +412,20 @@ DemoViewer.NET.Extensions.Sdk.JobStatus.Failed = 3 -> DemoViewer.NET.Extensions.
 DemoViewer.NET.Extensions.Sdk.JobStatus.Queued = 0 -> DemoViewer.NET.Extensions.Sdk.JobStatus
 DemoViewer.NET.Extensions.Sdk.JobStatus.Rejected = 5 -> DemoViewer.NET.Extensions.Sdk.JobStatus
 DemoViewer.NET.Extensions.Sdk.JobStatus.Running = 1 -> DemoViewer.NET.Extensions.Sdk.JobStatus
+DemoViewer.NET.Extensions.Sdk.KillStep
+DemoViewer.NET.Extensions.Sdk.KillStep.AttackerSlot.get -> int
+DemoViewer.NET.Extensions.Sdk.KillStep.AttackerSlot.set -> void
+DemoViewer.NET.Extensions.Sdk.KillStep.CtAlive.get -> int
+DemoViewer.NET.Extensions.Sdk.KillStep.CtAlive.set -> void
+DemoViewer.NET.Extensions.Sdk.KillStep.KillStep() -> void
+DemoViewer.NET.Extensions.Sdk.KillStep.TAlive.get -> int
+DemoViewer.NET.Extensions.Sdk.KillStep.TAlive.set -> void
+DemoViewer.NET.Extensions.Sdk.KillStep.Tick.get -> int
+DemoViewer.NET.Extensions.Sdk.KillStep.Tick.set -> void
+DemoViewer.NET.Extensions.Sdk.KillStep.VictimSide.get -> int
+DemoViewer.NET.Extensions.Sdk.KillStep.VictimSide.set -> void
+DemoViewer.NET.Extensions.Sdk.KillStep.VictimSlot.get -> int
+DemoViewer.NET.Extensions.Sdk.KillStep.VictimSlot.set -> void
 DemoViewer.NET.Extensions.Sdk.LibraryBadge
 DemoViewer.NET.Extensions.Sdk.LibraryBadge.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryBadge!
 DemoViewer.NET.Extensions.Sdk.LibraryBadge.Deconstruct(out string! Label, out string? Tooltip, out bool IsPinned) -> void
@@ -575,6 +638,10 @@ DemoViewer.NET.Extensions.Sdk.LibrarySort.FileName = 2 -> DemoViewer.NET.Extensi
 DemoViewer.NET.Extensions.Sdk.LibrarySort.Map = 3 -> DemoViewer.NET.Extensions.Sdk.LibrarySort
 DemoViewer.NET.Extensions.Sdk.LibrarySort.NewestFirst = 0 -> DemoViewer.NET.Extensions.Sdk.LibrarySort
 DemoViewer.NET.Extensions.Sdk.LibrarySort.OldestFirst = 1 -> DemoViewer.NET.Extensions.Sdk.LibrarySort
+DemoViewer.NET.Extensions.Sdk.ManCountState
+DemoViewer.NET.Extensions.Sdk.ManCountState.CtUp = 1 -> DemoViewer.NET.Extensions.Sdk.ManCountState
+DemoViewer.NET.Extensions.Sdk.ManCountState.Even = 0 -> DemoViewer.NET.Extensions.Sdk.ManCountState
+DemoViewer.NET.Extensions.Sdk.ManCountState.TUp = 2 -> DemoViewer.NET.Extensions.Sdk.ManCountState
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.MenuFor(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand! band) -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry!>!
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.OnBandPressed(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand! band) -> void
@@ -753,6 +820,166 @@ DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Run.get -> System.Func<DemoVi
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.ToolbarItem(string! id, string! label, string! tooltip, System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment!, bool>! run, string? actionId = null, int order = 0, string? icon = null, string? menuHeader = null) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Tooltip.get -> string!
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Tooltip.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.BombDefused = 7 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.CTStoppedEscape = 5 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.CTSurrender = 18 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.CTWin = 8 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.CTsReachedHostage = 20 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.Draw = 10 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.GameStart = 16 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.HostagesNotRescued = 13 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.HostagesRescued = 11 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.TargetBombed = 1 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.TargetSaved = 12 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.TerroristsEscaped = 4 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.TerroristsNotEscaped = 14 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.TerroristsPlanted = 19 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.TerroristsStopped = 6 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.TerroristsSurrender = 17 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.TerroristsWin = 9 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.Unknown = 0 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.VipEscaped = 2 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.VipKilled = 3 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndReason.VipNotEscaped = 15 -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundEndSource
+DemoViewer.NET.Extensions.Sdk.RoundEndSource.None = 0 -> DemoViewer.NET.Extensions.Sdk.RoundEndSource
+DemoViewer.NET.Extensions.Sdk.RoundEndSource.OfficiallyEndedEvent = 2 -> DemoViewer.NET.Extensions.Sdk.RoundEndSource
+DemoViewer.NET.Extensions.Sdk.RoundEndSource.WinStatus = 1 -> DemoViewer.NET.Extensions.Sdk.RoundEndSource
+DemoViewer.NET.Extensions.Sdk.RoundFacts
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Ct.get -> DemoViewer.NET.Extensions.Sdk.SideFacts!
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Ct.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.DefuseTick.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.DefuseTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.EndReason.get -> DemoViewer.NET.Extensions.Sdk.RoundEndReason
+DemoViewer.NET.Extensions.Sdk.RoundFacts.EndReason.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.EndSource.get -> DemoViewer.NET.Extensions.Sdk.RoundEndSource
+DemoViewer.NET.Extensions.Sdk.RoundFacts.EndSource.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.EndTick.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.EndTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.ExplodeTick.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.ExplodeTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Extra.get -> System.Collections.Generic.Dictionary<string!, object?>!
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Extra.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.FirstContactTick.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.FirstContactTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.FreezeEndTick.get -> int
+DemoViewer.NET.Extensions.Sdk.RoundFacts.FreezeEndTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.GamePhase.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.GamePhase.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Half.get -> DemoViewer.NET.Extensions.Sdk.RoundHalf
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Half.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.IsLive.get -> bool
+DemoViewer.NET.Extensions.Sdk.RoundFacts.IsLive.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Kills.get -> System.Collections.Generic.List<DemoViewer.NET.Extensions.Sdk.KillStep!>!
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Kills.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.MatchRoundNumber.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.MatchRoundNumber.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Number.get -> int
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Number.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.OpeningKillTick.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.OpeningKillTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.PlantSite.get -> DemoViewer.NET.Extensions.Sdk.BombSite
+DemoViewer.NET.Extensions.Sdk.RoundFacts.PlantSite.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.PlantSiteEntity.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.PlantSiteEntity.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.PlantTick.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.PlantTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.PlanterSlot.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.PlanterSlot.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.ProjectionWarnings.get -> System.Collections.Generic.List<string!>!
+DemoViewer.NET.Extensions.Sdk.RoundFacts.ProjectionWarnings.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.RoundFacts() -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.RoundTimeSeconds.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFacts.RoundTimeSeconds.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Sources.get -> System.Collections.Generic.Dictionary<string!, string!>!
+DemoViewer.NET.Extensions.Sdk.RoundFacts.Sources.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.T.get -> DemoViewer.NET.Extensions.Sdk.SideFacts!
+DemoViewer.NET.Extensions.Sdk.RoundFacts.T.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFacts.WinnerLabel.get -> string!
+DemoViewer.NET.Extensions.Sdk.RoundFacts.WinnerSide.get -> int
+DemoViewer.NET.Extensions.Sdk.RoundFacts.WinnerSide.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.FirstTick.get -> int
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.FirstTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.FrameCount.get -> int
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.FrameCount.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.Kind.get -> string!
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.Kind.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.LastTick.get -> int
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.LastTick.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.RoundFactsClock() -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.TickRate.get -> int
+DemoViewer.NET.Extensions.Sdk.RoundFactsClock.TickRate.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.BuyCt.get -> DemoViewer.NET.Extensions.Sdk.BuyType?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.BuyCt.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.BuyT.get -> DemoViewer.NET.Extensions.Sdk.BuyType?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.BuyT.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.ClockBand.get -> DemoViewer.NET.Extensions.Sdk.ClockBand?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.ClockBand.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.CtAlive.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.CtAlive.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Demos.get -> System.Collections.Generic.IReadOnlySet<string!>?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Demos.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.EndReason.get -> DemoViewer.NET.Extensions.Sdk.RoundEndReason?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.EndReason.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Extra.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Extra.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Half.get -> DemoViewer.NET.Extensions.Sdk.RoundHalf?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Half.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.HasTickAnchored.get -> bool
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.LiveOnly.get -> bool
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.LiveOnly.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.ManCount.get -> DemoViewer.NET.Extensions.Sdk.ManCountState?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.ManCount.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Phase.get -> DemoViewer.NET.Extensions.Sdk.RoundPhase?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Phase.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.PlantSite.get -> DemoViewer.NET.Extensions.Sdk.BombSite?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.PlantSite.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.RoundFactsFilter() -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Score.get -> DemoViewer.NET.Extensions.Sdk.ScoreSituation?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Score.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.TAlive.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.TAlive.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Where.get -> System.Func<string!, DemoViewer.NET.Extensions.Sdk.RoundFacts!, bool>?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.Where.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.WinnerSide.get -> int?
+DemoViewer.NET.Extensions.Sdk.RoundFactsFilter.WinnerSide.init -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.Clock.get -> DemoViewer.NET.Extensions.Sdk.RoundFactsClock?
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.Clock.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.DemoSha256.get -> string?
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.DemoSha256.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.RoundFactsRows() -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.Rounds.get -> System.Collections.Generic.List<DemoViewer.NET.Extensions.Sdk.RoundFacts!>!
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.Rounds.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.Schema.get -> int
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.Schema.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.Warnings.get -> System.Collections.Generic.List<string!>!
+DemoViewer.NET.Extensions.Sdk.RoundFactsRows.Warnings.set -> void
+DemoViewer.NET.Extensions.Sdk.RoundFactsRules
+DemoViewer.NET.Extensions.Sdk.RoundFactsSourceKind
+DemoViewer.NET.Extensions.Sdk.RoundHalf
+DemoViewer.NET.Extensions.Sdk.RoundHalf.First = 1 -> DemoViewer.NET.Extensions.Sdk.RoundHalf
+DemoViewer.NET.Extensions.Sdk.RoundHalf.Overtime = 3 -> DemoViewer.NET.Extensions.Sdk.RoundHalf
+DemoViewer.NET.Extensions.Sdk.RoundHalf.Second = 2 -> DemoViewer.NET.Extensions.Sdk.RoundHalf
+DemoViewer.NET.Extensions.Sdk.RoundHalf.Unknown = 0 -> DemoViewer.NET.Extensions.Sdk.RoundHalf
+DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhase.Freeze = 2 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhase.MidRound = 4 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhase.None = 0 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhase.Opening = 3 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhase.PostPlant = 5 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhase.PostRound = 7 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhase.Retake = 6 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhase.Warmup = 1 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+DemoViewer.NET.Extensions.Sdk.RoundPhases
+DemoViewer.NET.Extensions.Sdk.ScoreSituation
+DemoViewer.NET.Extensions.Sdk.ScoreSituation.CtLeading = 1 -> DemoViewer.NET.Extensions.Sdk.ScoreSituation
+DemoViewer.NET.Extensions.Sdk.ScoreSituation.MatchPoint = 3 -> DemoViewer.NET.Extensions.Sdk.ScoreSituation
+DemoViewer.NET.Extensions.Sdk.ScoreSituation.TLeading = 2 -> DemoViewer.NET.Extensions.Sdk.ScoreSituation
+DemoViewer.NET.Extensions.Sdk.ScoreSituation.Tied = 0 -> DemoViewer.NET.Extensions.Sdk.ScoreSituation
 DemoViewer.NET.Extensions.Sdk.SettingChoice
 DemoViewer.NET.Extensions.Sdk.SettingChoice.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.SettingChoice!
 DemoViewer.NET.Extensions.Sdk.SettingChoice.Deconstruct(out string! Value, out string! Label) -> void
@@ -827,6 +1054,28 @@ DemoViewer.NET.Extensions.Sdk.SettingsSchema.Order.init -> void
 DemoViewer.NET.Extensions.Sdk.SettingsSchema.Settings.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingDescriptor!>!
 DemoViewer.NET.Extensions.Sdk.SettingsSchema.Settings.init -> void
 DemoViewer.NET.Extensions.Sdk.SettingsSchema.SettingsSchema(string! Id, string! Header, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingDescriptor!>! Settings) -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts
+DemoViewer.NET.Extensions.Sdk.SideFacts.BuyType.get -> DemoViewer.NET.Extensions.Sdk.BuyType
+DemoViewer.NET.Extensions.Sdk.SideFacts.BuyType.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.EquipmentFreezeEnd.get -> int
+DemoViewer.NET.Extensions.Sdk.SideFacts.EquipmentFreezeEnd.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.MoneyAtFreezeEnd.get -> int?
+DemoViewer.NET.Extensions.Sdk.SideFacts.MoneyAtFreezeEnd.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.MoneyReliable.get -> bool
+DemoViewer.NET.Extensions.Sdk.SideFacts.MoneyReliable.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.PlayersAtFreezeEnd.get -> int
+DemoViewer.NET.Extensions.Sdk.SideFacts.PlayersAtFreezeEnd.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.ScoreBefore.get -> int
+DemoViewer.NET.Extensions.Sdk.SideFacts.ScoreBefore.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.Side.get -> int
+DemoViewer.NET.Extensions.Sdk.SideFacts.Side.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.SideFacts() -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.Slots.get -> int[]!
+DemoViewer.NET.Extensions.Sdk.SideFacts.Slots.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.Thresholds.get -> DemoViewer.NET.Extensions.Sdk.BuyThresholds!
+DemoViewer.NET.Extensions.Sdk.SideFacts.Thresholds.set -> void
+DemoViewer.NET.Extensions.Sdk.SideFacts.WonPreviousRound.get -> bool
+DemoViewer.NET.Extensions.Sdk.SideFacts.WonPreviousRound.set -> void
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.StoreDescriptor!
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Deconstruct(out string! Id, out string! Label, out DemoViewer.NET.Extensions.Sdk.StoreRoot Root, out System.Collections.Generic.IReadOnlyList<string!>! Paths, out bool IsUserWork) -> void
@@ -909,9 +1158,19 @@ const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DFeature = "tab.playback2d"
 const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DTab = "playback2d.viewport" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass = "roundfacts" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.StatsTab = "builtin.stats" -> string!
+const DemoViewer.NET.Extensions.Sdk.RoundFactsClock.FrameClockKind = "dv-frame-clock" -> string!
+const DemoViewer.NET.Extensions.Sdk.RoundFactsRows.CurrentSchema = 1 -> int
+const DemoViewer.NET.Extensions.Sdk.RoundFactsRows.FacetId = "roundfacts" -> string!
+const DemoViewer.NET.Extensions.Sdk.RoundFactsRules.EarlyBandSeconds = 30 -> int
+const DemoViewer.NET.Extensions.Sdk.RoundFactsRules.LateBandSeconds = 75 -> int
+const DemoViewer.NET.Extensions.Sdk.RoundFactsSourceKind.Engine = "Engine" -> string!
+const DemoViewer.NET.Extensions.Sdk.RoundFactsSourceKind.Unavailable = "Unavailable" -> string!
 override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.BuyThresholds.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.BuyThresholds.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.BuyThresholds.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.CommandContext.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.CommandContext.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.CommandContext.ToString() -> string!
@@ -939,6 +1198,9 @@ override DemoViewer.NET.Extensions.Sdk.ExtensionFeature.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.FactLabel.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.FactLabel.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.FactLabel.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.HostInfo.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.HostInfo.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.HostInfo.ToString() -> string!
@@ -1028,6 +1290,9 @@ static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Everyone.get -> DemoViewer
 static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.PowerUsers.get -> DemoViewer.NET.Extensions.Sdk.AudienceDefaults!
 static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.operator !=(DemoViewer.NET.Extensions.Sdk.AudienceDefaults? left, DemoViewer.NET.Extensions.Sdk.AudienceDefaults? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.AudienceDefaults.operator ==(DemoViewer.NET.Extensions.Sdk.AudienceDefaults? left, DemoViewer.NET.Extensions.Sdk.AudienceDefaults? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.BuyThresholds.Default.get -> DemoViewer.NET.Extensions.Sdk.BuyThresholds!
+static DemoViewer.NET.Extensions.Sdk.BuyThresholds.operator !=(DemoViewer.NET.Extensions.Sdk.BuyThresholds? left, DemoViewer.NET.Extensions.Sdk.BuyThresholds? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.BuyThresholds.operator ==(DemoViewer.NET.Extensions.Sdk.BuyThresholds? left, DemoViewer.NET.Extensions.Sdk.BuyThresholds? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.CommandContext.operator !=(DemoViewer.NET.Extensions.Sdk.CommandContext? left, DemoViewer.NET.Extensions.Sdk.CommandContext? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.CommandContext.operator ==(DemoViewer.NET.Extensions.Sdk.CommandContext? left, DemoViewer.NET.Extensions.Sdk.CommandContext? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.CommandDescriptor.operator !=(DemoViewer.NET.Extensions.Sdk.CommandDescriptor? left, DemoViewer.NET.Extensions.Sdk.CommandDescriptor? right) -> bool
@@ -1047,6 +1312,8 @@ static DemoViewer.NET.Extensions.Sdk.ExtensionFeature.operator ==(DemoViewer.NET
 static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? left, DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? left, DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions.GetExtensionContext(this System.IServiceProvider! services, string! extensionId) -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
+static DemoViewer.NET.Extensions.Sdk.FactLabel.operator !=(DemoViewer.NET.Extensions.Sdk.FactLabel? left, DemoViewer.NET.Extensions.Sdk.FactLabel? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.FactLabel.operator ==(DemoViewer.NET.Extensions.Sdk.FactLabel? left, DemoViewer.NET.Extensions.Sdk.FactLabel? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.HostInfo.operator !=(DemoViewer.NET.Extensions.Sdk.HostInfo? left, DemoViewer.NET.Extensions.Sdk.HostInfo? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.HostInfo.operator ==(DemoViewer.NET.Extensions.Sdk.HostInfo? left, DemoViewer.NET.Extensions.Sdk.HostInfo? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.JobOptions.operator !=(DemoViewer.NET.Extensions.Sdk.JobOptions? left, DemoViewer.NET.Extensions.Sdk.JobOptions? right) -> bool
@@ -1097,6 +1364,16 @@ static DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.operator !=(DemoViewe
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.RoundFactsClock.For(CS2DemoKit.Parser.ParsedDemo! parsed) -> DemoViewer.NET.Extensions.Sdk.RoundFactsClock!
+static DemoViewer.NET.Extensions.Sdk.RoundFactsClock.For(DemoViewer.NET.Modules.Abstractions.IModuleContext! context) -> DemoViewer.NET.Extensions.Sdk.RoundFactsClock!
+static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.FindRound(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.RoundFacts!>! rounds, int frameClockTick) -> DemoViewer.NET.Extensions.Sdk.RoundFacts?
+static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.Labels(DemoViewer.NET.Extensions.Sdk.RoundFacts! round, int? atTick = null) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactLabel!>!
+static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.LowerCamel<T>(T value) -> string!
+static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.Matches(string! demoPath, DemoViewer.NET.Extensions.Sdk.RoundFacts! round, DemoViewer.NET.Extensions.Sdk.RoundFactsFilter! filter) -> bool
+static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.MatchesAnywhere(DemoViewer.NET.Extensions.Sdk.RoundFacts! round, DemoViewer.NET.Extensions.Sdk.RoundFactsFilter! filter, int tickRate) -> bool
+static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.MatchesAt(DemoViewer.NET.Extensions.Sdk.RoundFacts! round, DemoViewer.NET.Extensions.Sdk.RoundFactsFilter! filter, int tick, int tickRate) -> bool
+static DemoViewer.NET.Extensions.Sdk.RoundPhases.AliveAt(DemoViewer.NET.Extensions.Sdk.RoundFacts! round, int tick) -> (int Ct, int T)
+static DemoViewer.NET.Extensions.Sdk.RoundPhases.At(DemoViewer.NET.Extensions.Sdk.RoundFacts? round, int tick, int? side = null) -> DemoViewer.NET.Extensions.Sdk.RoundPhase
 static DemoViewer.NET.Extensions.Sdk.SettingChoice.operator !=(DemoViewer.NET.Extensions.Sdk.SettingChoice? left, DemoViewer.NET.Extensions.Sdk.SettingChoice? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingChoice.operator ==(DemoViewer.NET.Extensions.Sdk.SettingChoice? left, DemoViewer.NET.Extensions.Sdk.SettingChoice? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Choice(string! key, string! label, string! defaultValue, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingChoice!>! choices, string? help = null) -> DemoViewer.NET.Extensions.Sdk.SettingDescriptor!

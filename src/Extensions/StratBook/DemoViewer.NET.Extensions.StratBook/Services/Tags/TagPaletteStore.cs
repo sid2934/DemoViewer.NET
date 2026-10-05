@@ -5,7 +5,8 @@ using System.Text.Json;
 using Avalonia.Input;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -254,7 +255,7 @@ public static class TagPaletteValidator
 
     /// <summary>
     ///     Round Facts' fact names plus <see cref="StratGroups" />. The fact names
-    ///     are read from <see cref="RoundFactsSource.Labels" /> over a round with every optional fact
+    ///     are read from <see cref="RoundFactsRules.Labels" /> over a round with every optional fact
     ///     present, so a fact Round Facts adds is refused here without a second list to keep in step.
     /// </summary>
     public static IReadOnlyCollection<string> DefaultReservedGroups { get; } = BuildReservedGroups();
@@ -478,7 +479,7 @@ public static class TagPaletteValidator
         HashSet<string> groups = new(StratGroups, StringComparer.Ordinal);
 
         // Every optional fact present, so Labels emits every name it can; the values are irrelevant.
-        DemoViewer.NET.Services.RoundFacts.RoundFacts probe = new()
+        RoundFacts probe = new()
         {
             Number = 1,
             MatchRoundNumber = 1,
@@ -496,7 +497,7 @@ public static class TagPaletteValidator
 
         try
         {
-            foreach (FactLabel fact in RoundFactsSource.Labels(probe, 0))
+            foreach (FactLabel fact in RoundFactsRules.Labels(probe, 0))
             {
                 groups.Add(fact.Key);
             }

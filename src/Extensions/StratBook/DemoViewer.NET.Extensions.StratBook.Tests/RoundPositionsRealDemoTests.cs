@@ -8,7 +8,8 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
@@ -194,8 +195,8 @@ public class RoundPositionsRealDemoTests
             foreach ((ResultCardViewModel card, RoundFacts row) in vm.Cards.Zip(rows.Rounds))
             {
                 await Assert.That(card.ScoreText).IsEqualTo($"CT {row.Ct.ScoreBefore} : {row.T.ScoreBefore} T");
-                await Assert.That(card.CtBuyText).IsEqualTo(RoundFactsValues.LowerCamel(row.Ct.BuyType));
-                await Assert.That(card.TBuyText).IsEqualTo(RoundFactsValues.LowerCamel(row.T.BuyType));
+                await Assert.That(card.CtBuyText).IsEqualTo(RoundFactsRules.LowerCamel(row.Ct.BuyType));
+                await Assert.That(card.TBuyText).IsEqualTo(RoundFactsRules.LowerCamel(row.T.BuyType));
                 await Assert.That(card.EndReasonText).IsEqualTo(ResultCardViewModel.EndReasonLabel(row.EndReason));
             }
 

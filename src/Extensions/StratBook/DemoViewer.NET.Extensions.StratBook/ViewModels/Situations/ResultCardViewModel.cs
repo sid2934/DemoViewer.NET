@@ -3,7 +3,8 @@
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.ViewModels;
 
@@ -149,7 +150,7 @@ public sealed partial class ResultCardViewModel : ViewModelBase
         RoundEndReason.CTSurrender => "CT surrendered",
         RoundEndReason.Draw => "draw",
         RoundEndReason.Unknown => NoData,
-        _ => RoundFactsValues.LowerCamel(reason)
+        _ => RoundFactsRules.LowerCamel(reason)
     };
 
     /// <summary>Fills the facts from the demo's rows, or marks them absent. Called on the UI thread.</summary>
@@ -175,8 +176,8 @@ public sealed partial class ResultCardViewModel : ViewModelBase
         else
         {
             ScoreText = $"CT {round.Ct.ScoreBefore} : {round.T.ScoreBefore} T";
-            CtBuyText = RoundFactsValues.LowerCamel(round.Ct.BuyType);
-            TBuyText = RoundFactsValues.LowerCamel(round.T.BuyType);
+            CtBuyText = RoundFactsRules.LowerCamel(round.Ct.BuyType);
+            TBuyText = RoundFactsRules.LowerCamel(round.T.BuyType);
             EndReasonText = EndReasonLabel(round.EndReason);
             EndReasonIconKey = EndReasonIcon(round.EndReason);
             double elapsed = Math.Max(0, (Hit.FirstMatchTick - round.FreezeEndTick) / (double)TickRate);

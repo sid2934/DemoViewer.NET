@@ -1,9 +1,11 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Facts;
 
 #endregion
 
@@ -30,9 +32,7 @@ public static class FrameClock
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        return new ClockIdentity(ClockIdentity.DvFrameClock,
-            context.TickRate > 0 ? context.TickRate : 64,
-            context.TotalFrames, context.FirstTick, context.LastTick);
+        return RoundFactsClock.For(context).ToIdentity();
     }
 
     /// <summary>
@@ -43,12 +43,7 @@ public static class FrameClock
     {
         ArgumentNullException.ThrowIfNull(parsed);
 
-        IReadOnlyList<DemoFrame> frames = parsed.Frames;
-        return new ClockIdentity(ClockIdentity.DvFrameClock,
-            parsed.TickRate > 0 ? parsed.TickRate : 64,
-            frames.Count,
-            frames.Count > 0 ? frames[0].ServerTick : 0,
-            frames.Count > 0 ? frames[^1].ServerTick : 0);
+        return RoundFactsClock.For(parsed).ToIdentity();
     }
 
     /// <summary>The header for a forward pass, by the same definition: the pass counts the frames it read.</summary>
