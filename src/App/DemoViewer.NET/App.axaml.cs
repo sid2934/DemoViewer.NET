@@ -837,9 +837,16 @@ public class App : Application
         services.AddSingleton(_ => new MergedRulesBuild(() => [StampedRuleset.Core(RoundFactsFingerprint.RulesetId)]));
         services.AddSingleton(sp =>
         {
+            // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo.
+            MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
             ForwardPassRunner? forward = OperatingSystem.IsBrowser()
                 ? null
-                : new ForwardPassRunner(sp.GetRequiredService<MergedRulesBuild>());
+                : new ForwardPassRunner(rules)
+                {
+                    OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
+                        ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
+                        : sp.GetRequiredService<FactsEvaluator>().Records(path, id))
+                };
             DemoProcessingQueue queue = new(
                 sp.GetRequiredService<HeavyJobGate>(),
                 action => Dispatcher.UIThread.Post(action),
@@ -975,6 +982,18 @@ public class App : Application
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<RoundFactsEvaluator>()));
 
+        // Every other stamped ruleset's tables, stored per demo as library facts by one core pass on the same
+        // merged run, and the read API over them, the highlights and Round Facts that extensions get.
+        services.AddSingleton(sp => new StampedFacts(sp.GetRequiredService<MergedRulesBuild>()));
+        services.AddSingleton(sp => new FactsEvaluator(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<StampedFacts>(),
+            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton(sp => new AnalysisFacts(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<StampedFacts>(),
+            sp.GetRequiredService<IRoundFactsSource>()));
+
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
@@ -999,11 +1018,13 @@ public class App : Application
             HighlightScanService highlights = sp.GetRequiredService<HighlightScanService>();
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
             RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
+            FactsEvaluator facts = sp.GetRequiredService<FactsEvaluator>();
 
             PassRegistry registry = new();
             registry.AddCoreEvaluator(library.Id, () => library);
             registry.AddCoreEvaluator(highlights.Id, () => highlights);
             registry.AddCoreEvaluator(roundFacts.Id, () => roundFacts, highlights.Id);
+            registry.AddCoreEvaluator(facts.Id, () => facts, highlights.Id);
 
             // Each pack pass's extension, so a throw from any call into it counts against that extension.
             // Filled when the registry populates, before anything can fault.
@@ -1062,7 +1083,7 @@ public class App : Application
             Lazy<IReadOnlyList<(IExtension Pack, Func<IRecordPass> Factory)>> contributed = new(() =>
             [
                 .. sp.GetRequiredService<PackContributionSet>().Packs.SelectMany(c => c.RecordPasses.Select(r =>
-                    (c.Pack, ExtensionRecordPassHost.Cached(r, () => HostLibrary.For(cache, queue)))))
+                    (c.Pack, ExtensionRecordPassHost.Cached(r, () => HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>)))))
             ]);
             IFeatureGate? features = sp.GetService<IFeatureGate>();
             return new RecordPassRunner(() =>

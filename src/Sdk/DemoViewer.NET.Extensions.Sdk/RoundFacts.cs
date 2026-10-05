@@ -959,7 +959,7 @@ public static class RoundFactsRules
 
 /// <summary>
 ///     Round Facts: the per-round, per-side rows the core <c>round_facts</c> ruleset writes for every demo, read
-///     through the library's analysis facts. Values are absolute per side (<c>ct</c> / <c>t</c>).
+///     through <see cref="IAnalysisFacts.RoundFacts" />. Values are absolute per side (<c>ct</c> / <c>t</c>).
 /// </summary>
 public interface IRoundFacts
 {

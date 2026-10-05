@@ -48,8 +48,22 @@ internal sealed class HostLibrary : IExtensionLibrary
     /// <summary>The one host library over <paramref name="store" />, built on first use.</summary>
     /// <param name="store">The demo cache.</param>
     /// <param name="queue">The processing queue; read by the first caller only.</param>
-    public static HostLibrary For(DemoCacheStore store, IDemoProcessingQueue? queue) =>
-        Shared.GetValue(store, s => new HostLibrary(s, queue));
+    /// <param name="facts">Resolves the analysis facts on first read; the first caller that passes one wins.</param>
+    public static HostLibrary For(DemoCacheStore store, IDemoProcessingQueue? queue, Func<IAnalysisFacts>? facts = null)
+    {
+        HostLibrary library = Shared.GetValue(store, s => new HostLibrary(s, queue));
+        if (facts is not null)
+        {
+            Interlocked.CompareExchange(ref library._factsSource, facts, null);
+        }
+
+        return library;
+    }
+
+    private Func<IAnalysisFacts>? _factsSource;
+
+    /// <summary>The analysis outputs over the same store; empty until the composition root hands them over.</summary>
+    public IAnalysisFacts Facts => _factsSource?.Invoke() ?? NoFacts.Instance;
 
     /// <summary>The store's index as rows. Rebuilt only when the index moved since the last read.</summary>
     public IReadOnlyList<LibraryDemo> Demos
@@ -284,6 +298,25 @@ internal sealed class ExtensionLibraryView : IExtensionLibrary
     public Task<LibraryDemoDetail?> GetDetailAsync(string path, CancellationToken cancellationToken = default) =>
         _host.GetDetailAsync(path, cancellationToken);
 
+    public IAnalysisFacts Facts
+    {
+        get
+        {
+            IAnalysisFacts inner = _host.Facts;
+            lock (_gate)
+            {
+                if (_facts is null || !ReferenceEquals(_facts.Inner, inner))
+                {
+                    _facts = new ExtensionFactsView(inner, _guard);
+                }
+
+                return _facts;
+            }
+        }
+    }
+
+    private ExtensionFactsView? _facts;
+
     public event Action<LibraryChange>? Changed
     {
         add
@@ -324,5 +357,105 @@ internal sealed class ExtensionLibraryView : IExtensionLibrary
         {
             _guard.Run("library change handler", () => handler(change));
         }
+    }
+}
+
+/// <summary>The analysis facts as one extension sees them: each of its Round Facts handlers runs as the extension's.</summary>
+internal sealed class ExtensionFactsView(IAnalysisFacts inner, ExtensionGuard guard) : IAnalysisFacts
+{
+    public IAnalysisFacts Inner => inner;
+
+    public IReadOnlyList<FactKey> Declared => inner.Declared;
+
+    public IRoundFacts RoundFacts { get; } = new GuardedRoundFacts(inner.RoundFacts, guard);
+
+    public FactStatus Status(string demoPath, FactKey key) => inner.Status(demoPath, key);
+
+    public bool IsCurrent(string demoPath, FactKey key) => inner.IsCurrent(demoPath, key);
+
+    public FactTable? TryGet(string demoPath, FactKey key) => inner.TryGet(demoPath, key);
+
+    public IReadOnlyList<LibraryHighlight> Highlights(string demoPath) => inner.Highlights(demoPath);
+
+    private sealed class GuardedRoundFacts(IRoundFacts rows, ExtensionGuard guard) : IRoundFacts
+    {
+        private readonly List<(Action<string> Handler, Action<string> Guarded)> _handlers = [];
+
+        public int Schema => rows.Schema;
+
+        public RoundFactsRows? TryGet(string demoPath) => rows.TryGet(demoPath);
+
+        public RoundFacts? RoundAt(string demoPath, int frameClockTick) => rows.RoundAt(demoPath, frameClockTick);
+
+        public IReadOnlyList<FactLabel> FactsFor(string demoPath, int round, int? atTick = null) => rows.FactsFor(demoPath, round, atTick);
+
+        public event Action<string>? Updated
+        {
+            add
+            {
+                if (value is null)
+                {
+                    return;
+                }
+
+                Action<string> guarded = path => guard.Run("round facts handler", () => value(path));
+                lock (_handlers)
+                {
+                    _handlers.Add((value, guarded));
+                }
+
+                rows.Updated += guarded;
+            }
+            remove
+            {
+                Action<string>? guarded = null;
+                lock (_handlers)
+                {
+                    int i = _handlers.FindIndex(h => h.Handler.Equals(value));
+                    if (i >= 0)
+                    {
+                        guarded = _handlers[i].Guarded;
+                        _handlers.RemoveAt(i);
+                    }
+                }
+
+                if (guarded is not null)
+                {
+                    rows.Updated -= guarded;
+                }
+            }
+        }
+    }
+}
+
+/// <summary>The facts of a host that keeps none: nothing declared, nothing written.</summary>
+internal sealed class NoFacts : IAnalysisFacts, IRoundFacts
+{
+    public static NoFacts Instance { get; } = new();
+
+    public IReadOnlyList<FactKey> Declared => [];
+
+    public IRoundFacts RoundFacts => this;
+
+    public FactStatus Status(string demoPath, FactKey key) => FactStatus.Absent;
+
+    public bool IsCurrent(string demoPath, FactKey key) => false;
+
+    public FactTable? TryGet(string demoPath, FactKey key) => null;
+
+    public IReadOnlyList<LibraryHighlight> Highlights(string demoPath) => [];
+
+    public int Schema => RoundFactsRows.CurrentSchema;
+
+    public RoundFactsRows? TryGet(string demoPath) => null;
+
+    public RoundFacts? RoundAt(string demoPath, int frameClockTick) => null;
+
+    public IReadOnlyList<FactLabel> FactsFor(string demoPath, int round, int? atTick = null) => [];
+
+    public event Action<string>? Updated
+    {
+        add { }
+        remove { }
     }
 }

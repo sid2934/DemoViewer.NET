@@ -97,6 +97,18 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     public bool WantsAfterUpstream(string path) =>
         TryFingerprint(BacklogTickRate) is not null && _demoCache.TryGetIndex(path) is not { ParseSchema: > 0 };
 
+    /// <summary>
+    ///     Whether a read of the demo should record the <c>round_facts</c> table: its rows are missing or stale, or
+    ///     the library has not parsed it yet, so nothing is known about them.
+    /// </summary>
+    /// <param name="path">The demo's path.</param>
+    public bool Records(string path)
+    {
+        string? fingerprint = TryFingerprint(BacklogTickRate);
+        return fingerprint is not null
+               && (_demoCache.TryGetIndex(path) is not { ParseSchema: > 0 } entry || entry.NeedsRoundFacts(fingerprint));
+    }
+
     /// <inheritdoc />
     public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
 

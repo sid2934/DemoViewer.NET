@@ -201,6 +201,15 @@ DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.EnabledInSession = 1 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.Startup = 0 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
+DemoViewer.NET.Extensions.Sdk.FactKey
+DemoViewer.NET.Extensions.Sdk.FactKey.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactKey!
+DemoViewer.NET.Extensions.Sdk.FactKey.Deconstruct(out string! RulesetId, out string! Output) -> void
+DemoViewer.NET.Extensions.Sdk.FactKey.Equals(DemoViewer.NET.Extensions.Sdk.FactKey? other) -> bool
+DemoViewer.NET.Extensions.Sdk.FactKey.FactKey(string! RulesetId, string! Output) -> void
+DemoViewer.NET.Extensions.Sdk.FactKey.Output.get -> string!
+DemoViewer.NET.Extensions.Sdk.FactKey.Output.init -> void
+DemoViewer.NET.Extensions.Sdk.FactKey.RulesetId.get -> string!
+DemoViewer.NET.Extensions.Sdk.FactKey.RulesetId.init -> void
 DemoViewer.NET.Extensions.Sdk.FactLabel
 DemoViewer.NET.Extensions.Sdk.FactLabel.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactLabel!
 DemoViewer.NET.Extensions.Sdk.FactLabel.Deconstruct(out string! Group, out string! Key, out string! Value) -> void
@@ -212,6 +221,57 @@ DemoViewer.NET.Extensions.Sdk.FactLabel.Key.get -> string!
 DemoViewer.NET.Extensions.Sdk.FactLabel.Key.init -> void
 DemoViewer.NET.Extensions.Sdk.FactLabel.Value.get -> string!
 DemoViewer.NET.Extensions.Sdk.FactLabel.Value.init -> void
+DemoViewer.NET.Extensions.Sdk.FactRow
+DemoViewer.NET.Extensions.Sdk.FactRow.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactRow!
+DemoViewer.NET.Extensions.Sdk.FactRow.Deconstruct(out System.Collections.Generic.IReadOnlyDictionary<string!, DemoViewer.NET.Extensions.Sdk.FactValue!>! Dimensions, out System.Collections.Generic.IReadOnlyDictionary<string!, DemoViewer.NET.Extensions.Sdk.FactValue!>! Values) -> void
+DemoViewer.NET.Extensions.Sdk.FactRow.Dimensions.get -> System.Collections.Generic.IReadOnlyDictionary<string!, DemoViewer.NET.Extensions.Sdk.FactValue!>!
+DemoViewer.NET.Extensions.Sdk.FactRow.Dimensions.init -> void
+DemoViewer.NET.Extensions.Sdk.FactRow.Equals(DemoViewer.NET.Extensions.Sdk.FactRow? other) -> bool
+DemoViewer.NET.Extensions.Sdk.FactRow.FactRow(System.Collections.Generic.IReadOnlyDictionary<string!, DemoViewer.NET.Extensions.Sdk.FactValue!>! Dimensions, System.Collections.Generic.IReadOnlyDictionary<string!, DemoViewer.NET.Extensions.Sdk.FactValue!>! Values) -> void
+DemoViewer.NET.Extensions.Sdk.FactRow.Values.get -> System.Collections.Generic.IReadOnlyDictionary<string!, DemoViewer.NET.Extensions.Sdk.FactValue!>!
+DemoViewer.NET.Extensions.Sdk.FactRow.Values.init -> void
+DemoViewer.NET.Extensions.Sdk.FactStatus
+DemoViewer.NET.Extensions.Sdk.FactStatus.Absent = 0 -> DemoViewer.NET.Extensions.Sdk.FactStatus
+DemoViewer.NET.Extensions.Sdk.FactStatus.Current = 1 -> DemoViewer.NET.Extensions.Sdk.FactStatus
+DemoViewer.NET.Extensions.Sdk.FactStatus.Failed = 3 -> DemoViewer.NET.Extensions.Sdk.FactStatus
+DemoViewer.NET.Extensions.Sdk.FactStatus.NeedsFullAnalysis = 4 -> DemoViewer.NET.Extensions.Sdk.FactStatus
+DemoViewer.NET.Extensions.Sdk.FactStatus.Stale = 2 -> DemoViewer.NET.Extensions.Sdk.FactStatus
+DemoViewer.NET.Extensions.Sdk.FactTable
+DemoViewer.NET.Extensions.Sdk.FactTable.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactTable!
+DemoViewer.NET.Extensions.Sdk.FactTable.ColumnClocks.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>!
+DemoViewer.NET.Extensions.Sdk.FactTable.ColumnClocks.init -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Deconstruct(out DemoViewer.NET.Extensions.Sdk.FactKey! Key, out string! Fingerprint, out int Schema, out string! Grain, out System.Collections.Generic.IReadOnlyList<string!>! Dimensions, out System.Collections.Generic.IReadOnlyList<string!>! Values, out System.Collections.Generic.IReadOnlyDictionary<string!, string!>! ColumnClocks, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactRow!>! Rows) -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Dimensions.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.FactTable.Dimensions.init -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Equals(DemoViewer.NET.Extensions.Sdk.FactTable? other) -> bool
+DemoViewer.NET.Extensions.Sdk.FactTable.FactTable(DemoViewer.NET.Extensions.Sdk.FactKey! Key, string! Fingerprint, int Schema, string! Grain, System.Collections.Generic.IReadOnlyList<string!>! Dimensions, System.Collections.Generic.IReadOnlyList<string!>! Values, System.Collections.Generic.IReadOnlyDictionary<string!, string!>! ColumnClocks, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactRow!>! Rows) -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Fingerprint.get -> string!
+DemoViewer.NET.Extensions.Sdk.FactTable.Fingerprint.init -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Grain.get -> string!
+DemoViewer.NET.Extensions.Sdk.FactTable.Grain.init -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Key.get -> DemoViewer.NET.Extensions.Sdk.FactKey!
+DemoViewer.NET.Extensions.Sdk.FactTable.Key.init -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Rows.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactRow!>!
+DemoViewer.NET.Extensions.Sdk.FactTable.Rows.init -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Schema.get -> int
+DemoViewer.NET.Extensions.Sdk.FactTable.Schema.init -> void
+DemoViewer.NET.Extensions.Sdk.FactTable.Values.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.FactTable.Values.init -> void
+DemoViewer.NET.Extensions.Sdk.FactValue
+DemoViewer.NET.Extensions.Sdk.FactValue.AsBoolean() -> bool?
+DemoViewer.NET.Extensions.Sdk.FactValue.AsInteger() -> long?
+DemoViewer.NET.Extensions.Sdk.FactValue.AsNumber() -> double?
+DemoViewer.NET.Extensions.Sdk.FactValue.AsText() -> string?
+DemoViewer.NET.Extensions.Sdk.FactValue.Equals(DemoViewer.NET.Extensions.Sdk.FactValue? other) -> bool
+DemoViewer.NET.Extensions.Sdk.FactValue.Items.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactValue!>!
+DemoViewer.NET.Extensions.Sdk.FactValue.Kind.get -> DemoViewer.NET.Extensions.Sdk.FactValueKind
+DemoViewer.NET.Extensions.Sdk.FactValueKind
+DemoViewer.NET.Extensions.Sdk.FactValueKind.Boolean = 3 -> DemoViewer.NET.Extensions.Sdk.FactValueKind
+DemoViewer.NET.Extensions.Sdk.FactValueKind.List = 5 -> DemoViewer.NET.Extensions.Sdk.FactValueKind
+DemoViewer.NET.Extensions.Sdk.FactValueKind.Null = 0 -> DemoViewer.NET.Extensions.Sdk.FactValueKind
+DemoViewer.NET.Extensions.Sdk.FactValueKind.Number = 2 -> DemoViewer.NET.Extensions.Sdk.FactValueKind
+DemoViewer.NET.Extensions.Sdk.FactValueKind.Text = 4 -> DemoViewer.NET.Extensions.Sdk.FactValueKind
+DemoViewer.NET.Extensions.Sdk.FactValueKind.Whole = 1 -> DemoViewer.NET.Extensions.Sdk.FactValueKind
 DemoViewer.NET.Extensions.Sdk.HostIds
 DemoViewer.NET.Extensions.Sdk.HostInfo
 DemoViewer.NET.Extensions.Sdk.HostInfo.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.HostInfo!
@@ -224,6 +284,13 @@ DemoViewer.NET.Extensions.Sdk.HostInfo.IsBrowser.get -> bool
 DemoViewer.NET.Extensions.Sdk.HostInfo.IsBrowser.init -> void
 DemoViewer.NET.Extensions.Sdk.HostInfo.SdkVersion.get -> System.Version!
 DemoViewer.NET.Extensions.Sdk.HostInfo.SdkVersion.init -> void
+DemoViewer.NET.Extensions.Sdk.IAnalysisFacts
+DemoViewer.NET.Extensions.Sdk.IAnalysisFacts.Declared.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactKey!>!
+DemoViewer.NET.Extensions.Sdk.IAnalysisFacts.Highlights(string! demoPath) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryHighlight!>!
+DemoViewer.NET.Extensions.Sdk.IAnalysisFacts.IsCurrent(string! demoPath, DemoViewer.NET.Extensions.Sdk.FactKey! key) -> bool
+DemoViewer.NET.Extensions.Sdk.IAnalysisFacts.RoundFacts.get -> DemoViewer.NET.Extensions.Sdk.IRoundFacts!
+DemoViewer.NET.Extensions.Sdk.IAnalysisFacts.Status(string! demoPath, DemoViewer.NET.Extensions.Sdk.FactKey! key) -> DemoViewer.NET.Extensions.Sdk.FactStatus
+DemoViewer.NET.Extensions.Sdk.IAnalysisFacts.TryGet(string! demoPath, DemoViewer.NET.Extensions.Sdk.FactKey! key) -> DemoViewer.NET.Extensions.Sdk.FactTable?
 DemoViewer.NET.Extensions.Sdk.IDemoJobContext
 DemoViewer.NET.Extensions.Sdk.IDemoJobContext.DemoPath.get -> string!
 DemoViewer.NET.Extensions.Sdk.IDemoJobContext.Parsed.get -> CS2DemoKit.Parser.ParsedDemo!
@@ -291,6 +358,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionJobs.RunAsync(string! title, System.Func
 DemoViewer.NET.Extensions.Sdk.IExtensionLibrary
 DemoViewer.NET.Extensions.Sdk.IExtensionLibrary.Changed -> System.Action<DemoViewer.NET.Extensions.Sdk.LibraryChange!>?
 DemoViewer.NET.Extensions.Sdk.IExtensionLibrary.Demos.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryDemo!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionLibrary.Facts.get -> DemoViewer.NET.Extensions.Sdk.IAnalysisFacts!
 DemoViewer.NET.Extensions.Sdk.IExtensionLibrary.Find(string! path) -> DemoViewer.NET.Extensions.Sdk.LibraryDemo?
 DemoViewer.NET.Extensions.Sdk.IExtensionLibrary.FindBySha256(string! sha256) -> DemoViewer.NET.Extensions.Sdk.LibraryDemo?
 DemoViewer.NET.Extensions.Sdk.IExtensionLibrary.GetDetailAsync(string! path, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<DemoViewer.NET.Extensions.Sdk.LibraryDemoDetail?>!
@@ -561,6 +629,27 @@ DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Equals(DemoViewer.NET.Extensions
 DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Key.get -> string!
 DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Key.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.LibraryFilterItem(string! Key, string! Display) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryHighlight!
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Deconstruct(out string! RulesetId, out string! HighlightId, out int Tick, out int PlayerSlot, out int RoundNumber, out string! Title, out int Score, out string! Kind) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Equals(DemoViewer.NET.Extensions.Sdk.LibraryHighlight? other) -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.HighlightId.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.HighlightId.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Kind.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Kind.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.LibraryHighlight(string! RulesetId, string! HighlightId, int Tick, int PlayerSlot, int RoundNumber, string! Title, int Score, string! Kind) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.PlayerSlot.get -> int
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.PlayerSlot.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.RoundNumber.get -> int
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.RoundNumber.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.RulesetId.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.RulesetId.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Score.get -> int
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Score.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Tick.get -> int
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Tick.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Title.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Title.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryPage
 DemoViewer.NET.Extensions.Sdk.LibraryPage.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryPage!
 DemoViewer.NET.Extensions.Sdk.LibraryPage.Deconstruct(out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryDemo!>! Demos, out int Total) -> void
@@ -1149,6 +1238,8 @@ DemoViewer.NET.Modules.Abstractions.WorkspaceTabDescriptor.WorkspaceTabDescripto
 const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Compute = "section" -> string!
 const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Load = "load" -> string!
 const DemoViewer.NET.Extensions.Sdk.BuiltInJobKinds.Save = "save" -> string!
+const DemoViewer.NET.Extensions.Sdk.FactKey.ScoreboardOutput = "scoreboard" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.FactsPass = "facts" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.LibraryFeature = "tab.library" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.LibraryPass = "library" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.LibraryTab = "builtin.library" -> string!
@@ -1198,9 +1289,21 @@ override DemoViewer.NET.Extensions.Sdk.ExtensionFeature.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.FactKey.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.FactKey.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.FactKey.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.FactLabel.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.FactLabel.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.FactLabel.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.FactRow.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.FactRow.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.FactRow.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.FactTable.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.FactTable.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.FactTable.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.FactValue.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.FactValue.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.FactValue.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.HostInfo.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.HostInfo.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.HostInfo.ToString() -> string!
@@ -1231,6 +1334,9 @@ override DemoViewer.NET.Extensions.Sdk.LibraryFilter.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.LibraryHighlight.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.LibraryHighlight.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.LibraryHighlight.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.LibraryPage.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.LibraryPage.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.LibraryPage.ToString() -> string!
@@ -1312,8 +1418,20 @@ static DemoViewer.NET.Extensions.Sdk.ExtensionFeature.operator ==(DemoViewer.NET
 static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? left, DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? left, DemoViewer.NET.Extensions.Sdk.ExtensionJobKind? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions.GetExtensionContext(this System.IServiceProvider! services, string! extensionId) -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
+static DemoViewer.NET.Extensions.Sdk.FactKey.operator !=(DemoViewer.NET.Extensions.Sdk.FactKey? left, DemoViewer.NET.Extensions.Sdk.FactKey? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.FactKey.operator ==(DemoViewer.NET.Extensions.Sdk.FactKey? left, DemoViewer.NET.Extensions.Sdk.FactKey? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.FactLabel.operator !=(DemoViewer.NET.Extensions.Sdk.FactLabel? left, DemoViewer.NET.Extensions.Sdk.FactLabel? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.FactLabel.operator ==(DemoViewer.NET.Extensions.Sdk.FactLabel? left, DemoViewer.NET.Extensions.Sdk.FactLabel? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.FactRow.operator !=(DemoViewer.NET.Extensions.Sdk.FactRow? left, DemoViewer.NET.Extensions.Sdk.FactRow? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.FactRow.operator ==(DemoViewer.NET.Extensions.Sdk.FactRow? left, DemoViewer.NET.Extensions.Sdk.FactRow? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.FactTable.operator !=(DemoViewer.NET.Extensions.Sdk.FactTable? left, DemoViewer.NET.Extensions.Sdk.FactTable? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.FactTable.operator ==(DemoViewer.NET.Extensions.Sdk.FactTable? left, DemoViewer.NET.Extensions.Sdk.FactTable? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.FactValue.Null.get -> DemoViewer.NET.Extensions.Sdk.FactValue!
+static DemoViewer.NET.Extensions.Sdk.FactValue.Of(System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.FactValue!>! items) -> DemoViewer.NET.Extensions.Sdk.FactValue!
+static DemoViewer.NET.Extensions.Sdk.FactValue.Of(bool value) -> DemoViewer.NET.Extensions.Sdk.FactValue!
+static DemoViewer.NET.Extensions.Sdk.FactValue.Of(double value) -> DemoViewer.NET.Extensions.Sdk.FactValue!
+static DemoViewer.NET.Extensions.Sdk.FactValue.Of(long value) -> DemoViewer.NET.Extensions.Sdk.FactValue!
+static DemoViewer.NET.Extensions.Sdk.FactValue.Of(string? value) -> DemoViewer.NET.Extensions.Sdk.FactValue!
 static DemoViewer.NET.Extensions.Sdk.HostInfo.operator !=(DemoViewer.NET.Extensions.Sdk.HostInfo? left, DemoViewer.NET.Extensions.Sdk.HostInfo? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.HostInfo.operator ==(DemoViewer.NET.Extensions.Sdk.HostInfo? left, DemoViewer.NET.Extensions.Sdk.HostInfo? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.JobOptions.operator !=(DemoViewer.NET.Extensions.Sdk.JobOptions? left, DemoViewer.NET.Extensions.Sdk.JobOptions? right) -> bool
@@ -1340,6 +1458,8 @@ static DemoViewer.NET.Extensions.Sdk.LibraryFilter.operator !=(DemoViewer.NET.Ex
 static DemoViewer.NET.Extensions.Sdk.LibraryFilter.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryFilter? left, DemoViewer.NET.Extensions.Sdk.LibraryFilter? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? left, DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryFilterItem.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? left, DemoViewer.NET.Extensions.Sdk.LibraryFilterItem? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryHighlight.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryHighlight? left, DemoViewer.NET.Extensions.Sdk.LibraryHighlight? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryHighlight.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryHighlight? left, DemoViewer.NET.Extensions.Sdk.LibraryHighlight? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryPage.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryPage? left, DemoViewer.NET.Extensions.Sdk.LibraryPage? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryPage.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryPage? left, DemoViewer.NET.Extensions.Sdk.LibraryPage? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryPlayer.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryPlayer? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayer? right) -> bool

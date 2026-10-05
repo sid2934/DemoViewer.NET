@@ -159,6 +159,37 @@ public sealed class MergedRulesBuild
         return WithoutStampedRulesets(rulesets, StampedRulesets);
     }
 
+    /// <summary>True when <paramref name="rulesetId" /> is a stamped ruleset, on or off.</summary>
+    /// <param name="rulesetId">The ruleset's id.</param>
+    public bool IsStamped(string rulesetId) =>
+        StampedRulesets.Any(r => string.Equals(r.RulesetId, rulesetId, StringComparison.Ordinal));
+
+    /// <summary>
+    ///     The configured outputs the stamped rulesets that are on declare (their <c>show: tables:</c>), limited to
+    ///     those whose ruleset <paramref name="stale" /> answers true for. Null keeps every one.
+    /// </summary>
+    /// <param name="stale">Whether a stamped ruleset's stored outputs need writing, by its id.</param>
+    public IReadOnlySet<string> StampedOutputs(Func<string, bool>? stale = null)
+    {
+        HashSet<string> outputs = new(StringComparer.Ordinal);
+        IReadOnlyList<RulesetDoc> docs = Docs;
+        foreach (StampedRuleset ruleset in StampedRulesets)
+        {
+            RulesetDoc? doc = docs.FirstOrDefault(d => d.Enabled && string.Equals(d.Id, ruleset.RulesetId, StringComparison.Ordinal));
+            if (doc?.Show is not { } show || (stale is not null && !stale(ruleset.RulesetId)))
+            {
+                continue;
+            }
+
+            foreach (TableDef table in show.Tables)
+            {
+                outputs.Add(table.Name);
+            }
+        }
+
+        return outputs;
+    }
+
     /// <summary>
     ///     The enabled ruleset with this id in the merged set (a user's same-id override wins), or null
     ///     when there is none: not in the directories, disabled by an override, or stamped and off.
@@ -235,7 +266,10 @@ public sealed class MergedRulesBuild
             }
         }
 
-        BuildResult build = ForwardDemoPass.Build(parsed, docs);
+        // A held parse is rare and shared by every pass on it, so it records every stamped output, and
+        // round_facts whether or not this build stamps it.
+        HashSet<string> outputs = [.. StampedOutputs(), ForwardDemoPass.RoundFactsTable];
+        BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs);
         RulesetExclusionReport.Report(Log, build);
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
         lock (_gate)

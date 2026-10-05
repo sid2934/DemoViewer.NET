@@ -279,6 +279,9 @@ public interface IExtensionLibrary
     /// <param name="cancellationToken">Stops the wait.</param>
     Task<LibraryDemoDetail?> GetDetailAsync(string path, CancellationToken cancellationToken = default);
 
+    /// <summary>The analysis outputs the library holds for its demos: highlights, Round Facts and ruleset tables.</summary>
+    IAnalysisFacts Facts { get; }
+
     /// <summary>Raised on the UI thread after the library changed. Many changes at once arrive as one, with a null path.</summary>
     event Action<LibraryChange>? Changed;
 }

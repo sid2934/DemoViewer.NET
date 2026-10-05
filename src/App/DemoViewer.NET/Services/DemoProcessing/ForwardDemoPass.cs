@@ -22,7 +22,7 @@ public enum ForwardNeeds
     /// <summary>The final CCSTeam scores, clans and coach slots (library tier 2).</summary>
     FinalState = 1,
 
-    /// <summary>The merged highlights plus <c>round_facts</c> rules run, without snapshots.</summary>
+    /// <summary>The merged highlights plus stamped rules run, without snapshots.</summary>
     Rules = 2
 }
 
@@ -126,7 +126,7 @@ public sealed record FinalTeamState(int? Ct, int? T, string? CtClan, string? TCl
 /// </summary>
 public static class ForwardDemoPass
 {
-    /// <summary>The configured output round facts are read from; the only one the bare run records.</summary>
+    /// <summary>The configured output round facts are read from; what a build records when told nothing else.</summary>
     public const string RoundFactsTable = "round_facts";
 
     private const string FreezeEndEvent = "round_freeze_end";
@@ -140,19 +140,21 @@ public static class ForwardDemoPass
     };
 
     /// <summary>
-    ///     A build over <paramref name="docs" /> whose configured outputs are cut to <c>round_facts</c>. A
-    ///     bare run cannot project a per-event output, and recording the other tables costs for nothing.
+    ///     A build over <paramref name="docs" /> whose configured outputs are cut to <paramref name="outputs" />:
+    ///     every table a bare run records costs nodes and memory on every demo, so only the tables of rulesets
+    ///     whose stored outputs are stale for this demo are kept. Null keeps <c>round_facts</c> alone.
     /// </summary>
-    public static BuildResult Build(DemoReader reader, IReadOnlyList<RulesetDoc> docs, CancellationToken cancellationToken = default) =>
-        OnlyRoundFactsOutput(DemoAnalysis.Build(reader, docs, new AnalysisOptions { CancellationToken = cancellationToken }));
+    public static BuildResult Build(DemoReader reader, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs = null,
+        CancellationToken cancellationToken = default) =>
+        CutOutputs(DemoAnalysis.Build(reader, docs, new AnalysisOptions { CancellationToken = cancellationToken }), outputs);
 
-    /// <inheritdoc cref="Build(DemoReader, IReadOnlyList{RulesetDoc}, CancellationToken)" />
-    public static BuildResult Build(ParsedDemo parsed, IReadOnlyList<RulesetDoc> docs) =>
-        OnlyRoundFactsOutput(DemoAnalysis.Build(parsed, docs));
+    /// <inheritdoc cref="Build(DemoReader, IReadOnlyList{RulesetDoc}, IReadOnlySet{string}, CancellationToken)" />
+    public static BuildResult Build(ParsedDemo parsed, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs = null) =>
+        CutOutputs(DemoAnalysis.Build(parsed, docs), outputs);
 
-    private static BuildResult OnlyRoundFactsOutput(BuildResult build) => build with
+    private static BuildResult CutOutputs(BuildResult build, IReadOnlySet<string>? outputs) => build with
     {
-        Outputs = build.Outputs?.Where(o => string.Equals(o.Id, RoundFactsTable, StringComparison.Ordinal)).ToList()
+        Outputs = build.Outputs?.Where(o => outputs?.Contains(o.Id) ?? string.Equals(o.Id, RoundFactsTable, StringComparison.Ordinal)).ToList()
     };
 
     /// <summary>The build's own plan, widened to what the tap reads.</summary>
@@ -187,19 +189,21 @@ public static class ForwardDemoPass
     /// <param name="needs">What to produce beyond header, rounds and clock.</param>
     /// <param name="docs">The merged rulesets; required when <paramref name="needs" /> has <see cref="ForwardNeeds.Rules" />.</param>
     /// <param name="progress">Fraction of the file consumed, at most every <see cref="CheckEveryFrames" /> frames.</param>
+    /// <param name="outputs">The configured outputs the rules run records; null records <c>round_facts</c> alone.</param>
     /// <param name="cancellationToken">Stops the read; the pass then throws <see cref="OperationCanceledException" />.</param>
     public static ForwardDemoResult Run(
         DemoReader reader,
         ForwardNeeds needs,
         IReadOnlyList<RulesetDoc>? docs,
         Action<double>? progress = null,
+        IReadOnlySet<string>? outputs = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reader);
 
         // Build before Configure: the build probes the dialect, which needs the reader unstarted.
         BuildResult? build = (needs & ForwardNeeds.Rules) != 0
-            ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)), cancellationToken)
+            ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)), outputs, cancellationToken)
             : null;
         reader.Configure(PlanFor(build, needs));
 

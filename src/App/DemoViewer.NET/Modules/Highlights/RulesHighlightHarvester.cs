@@ -46,6 +46,12 @@ public interface IHighlightHarvester
 
     /// <summary>Drops the cached rule config (Authoring Workbench save trigger).</summary>
     void InvalidateRules();
+
+    /// <summary>
+    ///     True when highlights of <paramref name="rulesetId" /> belong in the highlights tier. A stamped
+    ///     ruleset rides the same run but stays out of the fingerprint, so its firings stay out of the tier too.
+    /// </summary>
+    bool IsHighlightRuleset(string rulesetId) => true;
 }
 
 /// <summary>
@@ -89,4 +95,7 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
 
     /// <inheritdoc />
     public void InvalidateRules() => _rules.Invalidate();
+
+    /// <inheritdoc />
+    public bool IsHighlightRuleset(string rulesetId) => !_rules.IsStamped(rulesetId);
 }

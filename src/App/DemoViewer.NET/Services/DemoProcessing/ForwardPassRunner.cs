@@ -26,6 +26,12 @@ public sealed class ForwardPassRunner
         _time = timeProvider ?? TimeProvider.System;
     }
 
+    /// <summary>
+    ///     The configured outputs a read of a demo records, by its path: the tables of the stamped rulesets whose
+    ///     stored outputs are stale for it. Null records <c>round_facts</c> alone.
+    /// </summary>
+    public Func<string, IReadOnlySet<string>?>? OutputsFor { get; init; }
+
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
 
     /// <summary>One forward pass over <paramref name="path" />.</summary>
@@ -38,7 +44,8 @@ public sealed class ForwardPassRunner
             ? DemoReader.OpenFile(path, options)
             : DemoReader.Open(File.ReadAllBytes(path), options);
         ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs,
-            (needs & ForwardNeeds.Rules) != 0 ? _rules.Docs : null, progress, cancellationToken);
+            (needs & ForwardNeeds.Rules) != 0 ? _rules.Docs : null, progress,
+            (needs & ForwardNeeds.Rules) != 0 ? OutputsFor?.Invoke(path) : null, cancellationToken);
         if (pass.Run is { } run)
         {
             RulesetExclusionReport.Report(Log, run.Build);

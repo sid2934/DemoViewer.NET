@@ -32,4 +32,10 @@ public static class HostIds
     ///     are written.
     /// </summary>
     public const string RoundFactsPass = "roundfacts";
+
+    /// <summary>
+    ///     The analysis facts pass: name it in <c>after</c> to run on a demo once the tables of every ruleset the
+    ///     host runs beside the highlights are written (<see cref="IAnalysisFacts" />).
+    /// </summary>
+    public const string FactsPass = "facts";
 }

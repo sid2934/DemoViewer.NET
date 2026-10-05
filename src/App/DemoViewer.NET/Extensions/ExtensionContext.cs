@@ -8,6 +8,7 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -77,7 +78,8 @@ internal sealed class ExtensionContext : IExtensionContext
                 services.GetRequiredService<DemoCacheStore>(), Post, version)
             : UnavailableDemoData.Instance);
         _library = new Lazy<IExtensionLibrary>(() => new ExtensionLibraryView(
-            HostLibrary.For(services.GetRequiredService<DemoCacheStore>(), services.GetService<IDemoProcessingQueue>()), _guard));
+            HostLibrary.For(services.GetRequiredService<DemoCacheStore>(), services.GetService<IDemoProcessingQueue>(),
+                () => services.GetService<AnalysisFacts>() ?? (IAnalysisFacts)NoFacts.Instance), _guard));
     }
 
     public string ExtensionId { get; }

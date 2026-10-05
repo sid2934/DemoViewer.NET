@@ -121,7 +121,7 @@ public class ForwardPassRealDemoTests
                 {
                     cancel.Cancel();
                 }
-            }, cancel.Token));
+            }, cancellationToken: cancel.Token));
         await Assert.That(seen).IsGreaterThan(0.25).And.IsLessThan(0.5);
     }
 
