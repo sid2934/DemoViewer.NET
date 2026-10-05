@@ -184,6 +184,12 @@ public interface IJobContext
 
     /// <summary>Progress for the queue list.</summary>
     void Report(int done, int total, string? detail = null);
+
+    /// <summary>
+    ///     Gives the parse slot up and takes it back once an open or a job the user asked for has had it. Call
+    ///     between batches of a long job that does not read a demo. A no-op where there is no slot to give.
+    /// </summary>
+    Task StepAsideAsync() => Task.CompletedTask;
 }
 
 /// <summary>
@@ -208,21 +214,58 @@ public interface IExtensionJobs
 
     /// <summary>Removes every queued job of this extension. A running one finishes its current step.</summary>
     void CancelAll();
+}
+
+/// <summary>
+///     The job the calling code runs in, for code that has no job context at hand: a section build several
+///     calls deep, a click handler that queues through a shared runner. The host enters every job it runs.
+/// </summary>
+public static class JobScope
+{
+    private static readonly AsyncLocal<bool> _userAction = new();
+    private static readonly AsyncLocal<CancellationToken> _current = new();
+
+    /// <summary>True inside a <see cref="UserAction" /> scope.</summary>
+    public static bool IsUserAction => _userAction.Value;
 
     /// <summary>
     ///     Marks the jobs queued inside the scope, and in what it awaits, as asked for by the user, whatever their
     ///     <see cref="JobOptions.Priority" />. For one runner shared by a click and a background refresh: the
     ///     click's handler opens the scope.
     /// </summary>
-    IDisposable UserAction();
+    public static IDisposable UserAction()
+    {
+        bool outer = _userAction.Value;
+        _userAction.Value = true;
+        return new Scope(() => _userAction.Value = outer);
+    }
 
     /// <summary>
     ///     Throws <see cref="OperationCanceledException" /> when the job running this code has been stopped, by
     ///     the user or for the user's own job. For work that has no token at hand, at its natural boundaries.
     ///     Never throws outside a job.
     /// </summary>
-    void ThrowIfStopped();
+    public static void ThrowIfStopped() => _current.Value.ThrowIfCancellationRequested();
 
     /// <summary>True when <paramref name="exception" /> is the queue stopping the running job, which must be let through.</summary>
-    bool IsStop(Exception exception);
+    public static bool IsStop(Exception exception) =>
+        exception is OperationCanceledException && _current.Value.IsCancellationRequested;
+
+    /// <summary>
+    ///     Makes <paramref name="token" /> the running job's for <see cref="ThrowIfStopped" /> and
+    ///     <see cref="IsStop" /> until disposed. The host enters it around every job it runs.
+    /// </summary>
+    public static IDisposable Enter(CancellationToken token)
+    {
+        CancellationToken outer = _current.Value;
+        _current.Value = token;
+        return new Scope(() => _current.Value = outer);
+    }
+
+    private sealed class Scope(Action end) : IDisposable
+    {
+        private Action? _end = end;
+
+        public void Dispose() => Interlocked.Exchange(ref _end, null)?.Invoke();
+    }
 }

@@ -49,6 +49,8 @@ public class StratBookPackTests
         // The process's extension fault tracker, which the gate takes.
         "DemoViewer.NET.Extensions.ExtensionFaults",
         "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
+        // The export seam the pack renders Pack Export and strat exports through.
+        "DemoViewer.NET.Extensions.FirstPartyExports",
         // The extension host: the job-kind registry, the shell hub and the pack's own context.
         "DemoViewer.NET.Extensions.JobKindRegistry",
         "DemoViewer.NET.Extensions.ExtensionShellHub",
@@ -327,14 +329,15 @@ public class StratBookPackTests
     }
 
     [Test]
-    public async Task ThePack_JobKinds_AreTheSixStratBookKinds_UnderTheExtensionsPrefix()
+    public async Task ThePack_JobKinds_AreTheSevenStratBookKinds_UnderTheExtensionsPrefix()
     {
         ExtensionJobKind[] kinds = [.. new StratBookPack().JobKinds];
 
         await Assert.That(kinds.Select(k => k.Id)).IsEquivalentTo(
         [
             StratBookJobKinds.Mining, StratBookJobKinds.Preview, StratBookJobKinds.LineupClips,
-            StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams, StratBookJobKinds.Tuning
+            StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams, StratBookJobKinds.Tuning,
+            StratBookJobKinds.Migration
         ]);
         await Assert.That(kinds.All(k => k.Id.StartsWith("stratbook.", StringComparison.Ordinal))).IsTrue();
     }

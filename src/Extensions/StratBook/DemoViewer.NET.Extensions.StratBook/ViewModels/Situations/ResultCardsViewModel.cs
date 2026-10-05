@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Media.Imaging;
@@ -294,7 +293,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
 
         List<ResultCardViewModel> snapshot = [.. Cards];
         // Only a search loads a set: the user is waiting on it.
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             BatchTask = _run("fill")(() => Fill(generation, snapshot));
         }
@@ -466,7 +465,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         List<SituationHit> hits = [.. Cards.Select(c => c.Hit)];
         IsOverlayBuilding = true;
         OverlayLine = "stacking the rounds";
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             OverlayTask = _run("overlay")(() => BuildOverlay(generation, hits));
         }
@@ -512,7 +511,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
                 return;
             }
 
-            QueueWork.ThrowIfStopped();
+            JobScope.ThrowIfStopped();
 
             if (!string.Equals(currentPath, hit.DemoPath, StringComparison.Ordinal))
             {
@@ -593,7 +592,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
                 return;
             }
 
-            QueueWork.ThrowIfStopped();
+            JobScope.ThrowIfStopped();
 
             SituationHit hit = card.Hit;
             if (!string.Equals(currentPath, hit.DemoPath, StringComparison.Ordinal))

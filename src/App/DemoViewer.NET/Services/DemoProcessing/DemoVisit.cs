@@ -69,6 +69,10 @@ internal sealed class DemoVisit
 
     public bool Contains(IDemoPass pass) => _passes.Exists(p => ReferenceEquals(p.Pass, pass));
 
+    /// <summary>True when a job of one of <paramref name="owners" /> rides this visit.</summary>
+    public bool HasJobOwnedBy(IReadOnlySet<string> owners) =>
+        _passes.Exists(p => p.Pass is DemoJobPass && owners.Contains(p.Pass.Owner));
+
     /// <summary>True when a pass needing <paramref name="needs" /> can join a visit already reading this way.</summary>
     public static bool CanJoinRunning(PassNeeds needs, bool forward, ForwardNeeds produced, bool userCommands) =>
         forward

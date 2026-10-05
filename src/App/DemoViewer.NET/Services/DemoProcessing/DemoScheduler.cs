@@ -72,6 +72,12 @@ public sealed class DemoScheduler : IDisposable
     public Action<string, string?, Exception>? Faulted { get; set; }
 
     /// <summary>
+    ///     Raised with a pass id when that pass takes a demo or finishes one, on whatever thread changed it. A
+    ///     handler must not block: it runs in the planning item or in the queue's slot.
+    /// </summary>
+    public event Action<string>? OutstandingChanged;
+
+    /// <summary>
     ///     The registered passes' ids in run order. The order is a contract other features build on (a pass
     ///     may read what the one before it wrote on the same visit), so the composition root's list is pinned
     ///     by a test through this.
@@ -138,22 +144,21 @@ public sealed class DemoScheduler : IDisposable
     ///     <see cref="HasOutstanding(string)" /> for a pass that belongs to <paramref name="owner" />; false for a
     ///     pass id another owner registered.
     /// </summary>
-    public bool HasOutstanding(string passId, string owner)
+    public bool HasOutstanding(string passId, string owner) =>
+        string.Equals(OwnerOf(passId), owner, StringComparison.Ordinal) && HasOutstanding(passId);
+
+    /// <summary>The owner of the registered pass <paramref name="passId" />, or null when no enabled pass has that id.</summary>
+    public string? OwnerOf(string passId)
     {
-        IReadOnlyList<IDemoPass> passes;
         try
         {
-            passes = _passes();
+            return _passes().FirstOrDefault(p => string.Equals(p.Id, passId, StringComparison.Ordinal))?.Owner;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             ReportFault("scheduler", null, ex);
-            return false;
+            return null;
         }
-
-        return passes.Any(p => string.Equals(p.Id, passId, StringComparison.Ordinal)
-                               && string.Equals(p.Owner, owner, StringComparison.Ordinal))
-               && HasOutstanding(passId);
     }
 
     /// <summary>True when the pass threw on this demo earlier in the session; it is not offered the demo again until restart.</summary>
@@ -378,6 +383,11 @@ public sealed class DemoScheduler : IDisposable
             return;
         }
 
+        foreach (IDemoPass pass in submitting)
+        {
+            RaiseOutstanding(pass.Id);
+        }
+
         IDemoQueueHandle handle = _queue.SubmitVisit(new DemoVisitRequest(path, level, submitting, orderHint,
             Path.GetFileName(path), (pass, outcome, error) => PassEnded(path, pass, outcome, error)));
 
@@ -415,6 +425,20 @@ public sealed class DemoScheduler : IDisposable
         if (outcome == PassOutcome.Failed && error is not null)
         {
             ReportFault(key.Id, key.Path, error);
+        }
+
+        RaiseOutstanding(key.Id);
+    }
+
+    private void RaiseOutstanding(string passId)
+    {
+        try
+        {
+            OutstandingChanged?.Invoke(passId);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            ReportFault("scheduler", null, ex);
         }
     }
 

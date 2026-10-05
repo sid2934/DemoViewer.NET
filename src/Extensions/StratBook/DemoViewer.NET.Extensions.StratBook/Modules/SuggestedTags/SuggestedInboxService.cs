@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -27,7 +26,7 @@ public sealed class SuggestedInboxService : IDisposable
     private readonly DemoCacheStore _cache;
     private readonly object _gate = new();
     private readonly Action<Action> _post;
-    private readonly IDemoProcessingQueue? _queue;
+    private readonly IExtensionJobs? _jobs;
     private readonly Func<Action, Task> _run;
     private readonly SuggestedTagsService _suggestions;
     private Dictionary<string, IReadOnlyList<SuggestedInboxItem>> _byDemo = new(StringComparer.OrdinalIgnoreCase);
@@ -35,17 +34,17 @@ public sealed class SuggestedInboxService : IDisposable
 
     /// <param name="suggestions">The engine: proposals, verdicts, accept, dismiss and restore.</param>
     /// <param name="cache">The demo index: which demos have proposals, their maps and pending counts.</param>
-    /// <param name="queue">Where the library read runs; null runs it on <paramref name="run" />.</param>
+    /// <param name="jobs">Where the library read runs; null runs it on <paramref name="run" />.</param>
     /// <param name="run">Runs work off the UI thread; defaults to <see cref="Task.Run(Action)" />.</param>
     /// <param name="post">UI-thread marshal for <see cref="Changed" />.</param>
-    public SuggestedInboxService(SuggestedTagsService suggestions, DemoCacheStore cache, IDemoProcessingQueue? queue = null,
+    public SuggestedInboxService(SuggestedTagsService suggestions, DemoCacheStore cache, IExtensionJobs? jobs = null,
         Func<Action, Task>? run = null, Action<Action>? post = null)
     {
         ArgumentNullException.ThrowIfNull(suggestions);
         ArgumentNullException.ThrowIfNull(cache);
         _suggestions = suggestions;
         _cache = cache;
-        _queue = queue;
+        _jobs = jobs;
         _run = run ?? Task.Run;
         _post = post ?? (a => a());
         _suggestions.Changed += OnSuggestionsChanged;
@@ -86,14 +85,13 @@ public sealed class SuggestedInboxService : IDisposable
                 return running;
             }
 
-            _loading = _queue is null
+            _loading = _jobs is null
                 ? _run(ReadAll)
-                : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "Suggested tags: library",
-                    "suggested-inbox", DemoJobPriority.UserRequested, _ =>
-                    {
-                        ReadAll();
-                        return Task.CompletedTask;
-                    }, Key: "suggested-inbox", ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.SuggestionsInbox)).Completion;
+                : _jobs.Enqueue(new JobRequest("Suggested tags: library", _ =>
+                {
+                    ReadAll();
+                    return Task.CompletedTask;
+                }, new JobOptions(StratBookJobKinds.SuggestionsInbox, JobPriority.UserRequested, "suggested-inbox"))).Completion;
             return _loading;
         }
     }

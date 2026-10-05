@@ -83,19 +83,6 @@ internal sealed class InlineJobs : IExtensionJobs
     {
     }
 
-    public IDisposable UserAction() => new Nothing();
-
-    public void ThrowIfStopped() => JobToken.ThrowIfCancellationRequested();
-
-    public bool IsStop(Exception exception) => exception is OperationCanceledException && JobToken.IsCancellationRequested;
-
-    private sealed class Nothing : IDisposable
-    {
-        public void Dispose()
-        {
-        }
-    }
-
     private sealed class Context(CancellationToken token) : IJobContext
     {
         public CancellationToken CancellationToken => token;

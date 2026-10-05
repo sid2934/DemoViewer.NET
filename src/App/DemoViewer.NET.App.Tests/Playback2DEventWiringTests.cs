@@ -164,6 +164,13 @@ public class Playback2DEventWiringTests
                     continue; // not public
                 }
 
+                // An extension SDK event is subscribed by extensions, which this repo does not contain, however
+                // the host implements its accessors.
+                if (InterfaceDeclaring(type, evt)?.Assembly == typeof(IExtension).Assembly)
+                {
+                    continue;
+                }
+
                 if (type.GetField(evt.Name,
                         BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance |
                         BindingFlags.Static | BindingFlags.DeclaredOnly) is null)

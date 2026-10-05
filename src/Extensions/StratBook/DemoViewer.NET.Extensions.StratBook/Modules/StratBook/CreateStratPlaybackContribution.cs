@@ -22,7 +22,8 @@ namespace DemoViewer.NET.Modules.StratBook;
 ///     reaches it: off, the service resolves null and the band offers nothing.
 /// </summary>
 /// <param name="post">Marshals the walk's result onto the UI thread; synchronous when omitted (tests).</param>
-public sealed class CreateStratPlaybackContribution(Action<Action>? post = null) : IPlaybackContribution
+/// <param name="jobs">The queue the round's walk runs on; the pool when null (tests).</param>
+public sealed class CreateStratPlaybackContribution(Action<Action>? post = null, IExtensionJobs? jobs = null) : IPlaybackContribution
 {
     /// <summary>The round band's menu entry.</summary>
     public const string Label = "Create strat from this round";
@@ -142,7 +143,7 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null)
 
         _next = () =>
         {
-            CreateStratDialogViewModel dialog = new(request, walk, host.Store, _post);
+            CreateStratDialogViewModel dialog = new(request, walk, host.Store, _post, jobs: jobs);
             dialog.Closed += () => pane.Close();
             dialog.StratCreated += id => host.OpenStrat?.Invoke(id);
             return dialog;

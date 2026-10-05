@@ -222,7 +222,7 @@ public class UtilityCardClipTests
 
     private sealed class NeverRenders : ILineupClipRenderer
     {
-        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, CS2DemoKit.Parser.ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
             CancellationToken ct) => Task.FromResult<IReadOnlyList<LineupClipJob>>([]);
     }
 

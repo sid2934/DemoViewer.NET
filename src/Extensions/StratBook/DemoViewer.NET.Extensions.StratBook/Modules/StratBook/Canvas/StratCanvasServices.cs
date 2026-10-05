@@ -14,6 +14,7 @@ namespace DemoViewer.NET.Modules.StratBook.Canvas;
 ///     the settings read for keybind overrides. One bundle so callers two hops away
 ///     (<c>StratBookTabViewModel</c>, <c>DetectedStratsViewModel</c>) pass one parameter instead of three.
 ///     A null member means the same as no host did before: routing off, the baked-in place resolver, no
-///     keybind overrides.
+///     keybind overrides, place reads on the pool.
 /// </summary>
-public sealed record StratCanvasServices(IFeatureGate? Gate, IZonePlaceResolverSource? Places, SettingsService? Settings);
+public sealed record StratCanvasServices(IFeatureGate? Gate, IZonePlaceResolverSource? Places, SettingsService? Settings,
+    IExtensionJobs? Jobs = null);

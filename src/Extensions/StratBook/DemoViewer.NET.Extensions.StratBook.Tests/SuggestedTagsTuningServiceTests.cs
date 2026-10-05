@@ -45,7 +45,7 @@ public class SuggestedTagsTuningServiceTests
     private static readonly ClockIdentity Clock = new(ClockIdentity.DvFrameClock, 64, 2, 1, 20000);
 
     private static SuggestedTagsTuningService Tuning(SuggestedTagsReviewHarness h) =>
-        new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs(), _ => Parse());
+        new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
 
     [Test]
     public async Task BuildStoredReport_ReflectsHistoryAndScoresAgainstHandTags()
@@ -123,20 +123,20 @@ public class SuggestedTagsTuningServiceTests
     }
 
     [Test]
-    public async Task PreviewAsync_ParsesInsideAUserRequestedQueueJob_ThatWaitsForTheSlotInUse()
+    public async Task PreviewAsync_ReadsEachDemoOnItsVisit_AtUserPriority_ThatWaitsForTheSlotInUse()
     {
         using SuggestedTagsReviewHarness h = new();
         h.Build();
         using HeavyJobGate gate = new();
-        using DemoProcessingQueue queue = new(gate, a => a(), _ => throw new NotSupportedException(),
-            _ => throw new NotSupportedException(), () => Task.CompletedTask);
-        ExtensionJobs jobs = new(StratBookPack.PackId, () => queue, () => JobKindRegistry.Build([new StratBookPack()]));
         int parses = 0;
-        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, jobs, _ =>
-        {
-            Interlocked.Increment(ref parses);
-            return Parse();
-        });
+        using DemoProcessingQueue queue = new(gate, a => a(), _ => throw new NotSupportedException(),
+            _ => throw new NotSupportedException(), () => Task.CompletedTask, parseFileWithPlan: (_, _) =>
+            {
+                Interlocked.Increment(ref parses);
+                return Parse();
+            });
+        ExtensionJobs jobs = new(StratBookPack.PackId, () => queue, () => JobKindRegistry.Build([new StratBookPack()]));
+        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, jobs);
         TuningReport baseline = tuning.BuildStoredReport();
 
         Task<TuningReport> preview;
@@ -145,14 +145,17 @@ public class SuggestedTagsTuningServiceTests
             preview = tuning.PreviewAsync(h.Profile, baseline, tuning.ScoredDemoPaths());
             await Task.Delay(300);
             await Assert.That(preview.IsCompleted).IsFalse().Because("a parse holds the only slot");
-            await Assert.That(parses).IsEqualTo(0).Because("the preview parses inside its queue job, not beside it");
-            DemoQueueItemSnapshot item = queue.Snapshot().Single(s => s.ExtensionKind == StratBookJobKinds.Tuning);
+            await Assert.That(parses).IsEqualTo(0).Because("the preview reads the demo on its visit, not beside it");
+            DemoQueueItemSnapshot item = queue.Snapshot().Single(s => s.Kind == QueueJobKind.DemoProcessing);
             await Assert.That(item.Priority).IsEqualTo(DemoJobPriority.UserRequested);
         }
 
         TuningReport report = await preview.WaitAsync(TimeSpan.FromSeconds(10));
         await Assert.That(parses).IsEqualTo(1);
         await Assert.That(report.Rows.Count).IsEqualTo(baseline.Rows.Count);
+
+        await tuning.PreviewAsync(h.Profile, baseline, tuning.ScoredDemoPaths()).WaitAsync(TimeSpan.FromSeconds(10));
+        await Assert.That(parses).IsEqualTo(1).Because("a later tweak scores what the first read kept");
     }
 
     [Test]

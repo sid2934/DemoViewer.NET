@@ -11,6 +11,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Dependencies;
 using Microsoft.Extensions.Logging;
 
@@ -19,13 +20,14 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.Export.Pack;
 
 /// <summary>
-///     The production <see cref="IPackClipRenderer" />: parses a clip's demo, loads its map bundle and its
-///     saved annotations, and renders the clip through <see cref="SceneExportRunner.RenderSceneAsync" />,
-///     the 2D export's own session. Private everything, as every export.
+///     The production <see cref="IPackClipRenderer" />: takes a clip's demo from the demo's visit, loads its map
+///     bundle and its saved annotations, and renders the clip through <see cref="SceneExportRunner.RenderSceneAsync" />,
+///     the 2D export's own session. Its own map bundle and surface, as every export.
 ///     <para>
 ///         <b>One demo held at a time.</b> A queue walks clips in the reviewer's order, which mostly keeps a
-///         demo's clips together; consecutive clips from one demo share the parse, and the next demo
-///         replaces it. A parse is hundreds of megabytes, so holding more than one is not worth it.
+///         demo's clips together; consecutive clips from one demo share the lease on its parse, and the next
+///         demo's lease replaces it. The lease holds the visit's slot, so no other demo is read meanwhile, and a
+///         demo open in the shell lends its own parse.
 ///     </para>
 ///     <para>
 ///         <b>The ink</b> is the demo's saved document, the one the 2D tab loads when it opens it, read
@@ -36,27 +38,27 @@ namespace DemoViewer.NET.Services.Export.Pack;
 public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
 {
     private readonly AnnotationStore? _annotations;
-    private readonly HeavyJobGate? _gate;
+    private readonly Func<string, CancellationToken, Task<DemoLease>>? _lease;
     private readonly Func<string, LoadedMapAsset?> _loadMap;
     private readonly Action<string>? _log;
-    private readonly Func<string, ParsedDemo> _parse;
+    private readonly Func<string, ParsedDemo>? _parse;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
     private Loaded? _current;
 
-    /// <param name="gate">The heavy-job gate; each parse takes an interactive slot, since the user asked for this.</param>
+    /// <param name="lease">Joins a demo's visit and lends its parse until the lease is disposed.</param>
     /// <param name="annotations">Where each demo's ink is read from, or null to render without ink.</param>
-    /// <param name="parse">Reads and parses a demo; an entity-replay <c>DemoParser.Parse</c> over the file when null.</param>
+    /// <param name="parse">A demo's parse without a visit; wins over <paramref name="lease" /> (tests).</param>
     /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
     /// <param name="surfaces">Builds the render surface; the CPU rasteriser when null.</param>
     /// <param name="log">Line sink for a missing bundle or an unreadable sidecar.</param>
-    public PackClipRenderer(HeavyJobGate? gate, AnnotationStore? annotations, Func<string, ParsedDemo>? parse = null,
+    public PackClipRenderer(Func<string, CancellationToken, Task<DemoLease>>? lease, AnnotationStore? annotations,
+        Func<string, ParsedDemo>? parse = null,
         Func<string, LoadedMapAsset?>? loadMap = null, Func<IRenderSurfaceProvider>? surfaces = null,
         Action<string>? log = null)
     {
-        _gate = gate;
+        _lease = lease;
         _annotations = annotations;
-        _parse = parse ?? (path => DemoParser.Parse(File.ReadAllBytes(path).AsMemory(),
-            new ParseOptions { Plan = DecodePlan.EntityReplay }));
+        _parse = parse;
         _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _surfaces = surfaces ?? RenderSurfaceProviderFactory.CreateCpu;
         _log = log;
@@ -66,6 +68,7 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
     public void Dispose()
     {
         _current?.Asset?.Dispose();
+        _current?.Lease?.Dispose();
         _current = null;
     }
 
@@ -107,10 +110,17 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
         }
 
         Dispose();
+        DemoLease? lease = null;
         ParsedDemo parsed;
-        using (IDisposable? slot = _gate is null ? null : await _gate.AcquireInteractiveAsync(ct).ConfigureAwait(false))
+        if (_parse is not null)
         {
             parsed = _parse(path);
+        }
+        else
+        {
+            lease = await (_lease ?? throw new InvalidOperationException("A pack renders on a demo's visit, and none was given."))
+                (path, ct).ConfigureAwait(false);
+            parsed = lease.Parsed;
         }
 
         LoadedMapAsset? asset = null;
@@ -123,8 +133,19 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
             _log?.Invoke($"pack export: no map bundle for {parsed.MapName}: {ex.Message}");
         }
 
-        AnnotationSession? ink = await LoadInkAsync(path, parsed, ct).ConfigureAwait(false);
-        _current = new Loaded(path, parsed, asset, ink);
+        AnnotationSession? ink;
+        try
+        {
+            ink = await LoadInkAsync(path, parsed, ct).ConfigureAwait(false);
+        }
+        catch
+        {
+            asset?.Dispose();
+            lease?.Dispose();
+            throw;
+        }
+
+        _current = new Loaded(path, parsed, asset, ink, lease);
         return _current;
     }
 
@@ -147,7 +168,7 @@ public sealed class PackClipRenderer : IPackClipRenderer, IDisposable
         return new AnnotationSession(document) { TicksPerSecond = clock.TickRate };
     }
 
-    private sealed record Loaded(string Path, ParsedDemo Parsed, LoadedMapAsset? Asset, AnnotationSession? Ink);
+    private sealed record Loaded(string Path, ParsedDemo Parsed, LoadedMapAsset? Asset, AnnotationSession? Ink, DemoLease? Lease);
 }
 
 /// <summary>

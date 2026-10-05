@@ -52,7 +52,7 @@ public class ClipReplayPlanRealDemoTests
             int rate = full.TickRate;
             string map = full.MapName;
 
-            ParsedDemo replay = LineupClipRenderer.ParseForReplay(path, TimeProvider.System, MappedParsePolicy.StatFile);
+            ParsedDemo replay = ParseForReplay(path);
             using (Assert.Multiple())
             {
                 await Assert.That(replay.Plan).IsEqualTo(DecodePlan.EntityReplay);
@@ -93,6 +93,10 @@ public class ClipReplayPlanRealDemoTests
         }
     }
 
+    // An entity-replay parse, the smallest plan a clip render reads.
+    private static ParsedDemo ParseForReplay(string path) =>
+        BackgroundPlanRealDemoTests.ParseMapped(path, DecodePlan.EntityReplay);
+
     private static async Task<List<string>> RenderLineups(string path, GrenadeRow[] picked, string map, int rate,
         string directory, Func<string, ParsedDemo>? parse)
     {
@@ -106,14 +110,15 @@ public class ClipReplayPlanRealDemoTests
                 picked[i].ThrowerSteamId, "", gif, LineupClipPlanner.SetposPathFor(gif), [], []));
         }
 
-        IReadOnlyList<LineupClipJob> rendered = await new LineupClipRenderer(parse).RenderAsync(path, jobs, CancellationToken.None);
+        IReadOnlyList<LineupClipJob> rendered =
+            await new LineupClipRenderer().RenderAsync(path, (parse ?? ParseForReplay)(path), jobs, CancellationToken.None);
         return [.. rendered.Select(j => j.GifPath)];
     }
 
     private static async Task<List<string>> RenderPackClip(string path, int from, int to, int rate,
         Func<string, ParsedDemo>? parse)
     {
-        using PackClipRenderer renderer = new(null, null, parse);
+        using PackClipRenderer renderer = new(null, null, parse ?? ParseForReplay);
         PackClip clip = new(ReviewEntry.Clip(path, from, to, "", ReviewSources.Manual, rate), 1, null, 0, 120, null);
         PackSettings settings = PackSettings.For("unused.gif", ExportFormats.Gif) with { Side = 160 };
         HashingSink sink = new();

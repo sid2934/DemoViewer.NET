@@ -37,8 +37,45 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///         each skip is logged once.
 ///     </para>
 /// </summary>
-public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, string? cacheRoot, IDemoProcessingQueue? queue = null)
+public sealed class PackDataRemover
 {
+    private readonly string? cacheRoot;
+    private readonly string? configRoot;
+    private readonly Func<string, string, Action, Task> _run;
+    private readonly DemoCacheStore store;
+
+    /// <param name="store">The demo cache whose payloads and stamps are stripped.</param>
+    /// <param name="configRoot">The config root the descriptors' config paths resolve under.</param>
+    /// <param name="cacheRoot">The cache root the descriptors' cache paths resolve under.</param>
+    /// <param name="queue">The processing queue the work runs on; the pool when null.</param>
+    public PackDataRemover(DemoCacheStore store, string? configRoot, string? cacheRoot, IDemoProcessingQueue? queue = null)
+        : this(store, configRoot, cacheRoot, (title, serial, work) => QueueWork.Run(queue, QueueJobKind.SectionCompute, title,
+            serial, _ => work(), DemoJobPriority.UserRequested, serial: serial))
+    {
+    }
+
+    /// <param name="store">The demo cache whose payloads and stamps are stripped.</param>
+    /// <param name="configRoot">The config root the descriptors' config paths resolve under.</param>
+    /// <param name="cacheRoot">The cache root the descriptors' cache paths resolve under.</param>
+    /// <param name="jobs">The extension's jobs the work runs as.</param>
+    public PackDataRemover(DemoCacheStore store, string? configRoot, string? cacheRoot, IExtensionJobs jobs)
+        : this(store, configRoot, cacheRoot, (title, serial, work) => jobs.RunAsync(title, _ =>
+        {
+            work();
+            return Task.CompletedTask;
+        }, new JobOptions(BuiltInJobKinds.Compute, JobPriority.UserRequested, Serial: serial)))
+    {
+        ArgumentNullException.ThrowIfNull(jobs);
+    }
+
+    private PackDataRemover(DemoCacheStore store, string? configRoot, string? cacheRoot, Func<string, string, Action, Task> run)
+    {
+        this.store = store;
+        this.configRoot = configRoot;
+        this.cacheRoot = cacheRoot;
+        _run = run;
+    }
+
     private static ILogger Log => DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
 
     /// <summary>
@@ -87,11 +124,11 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
     {
         bool ran = false;
         T result = fallback;
-        Task task = QueueWork.Run(queue, QueueJobKind.SectionCompute, title, ownerTag, _ =>
+        Task task = _run(title, ownerTag, () =>
         {
             result = work();
             ran = true;
-        }, DemoJobPriority.UserRequested, serial: ownerTag);
+        });
         try
         {
             await task.ConfigureAwait(false);

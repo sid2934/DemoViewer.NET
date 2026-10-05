@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
@@ -249,7 +248,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     // A click or a showing: the read goes to the front of the queue.
     private void RefreshForUser()
     {
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             Refresh();
         }
@@ -316,7 +315,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             {
                 result = Compute(map, place, kinds, side);
             }
-            catch (Exception ex) when (!QueueWork.IsStop(ex))
+            catch (Exception ex) when (!JobScope.IsStop(ex))
             {
                 ExceptionDispatchInfo failure = ExceptionDispatchInfo.Capture(ex);
                 _post(failure.Throw);
@@ -341,9 +340,9 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     {
         IReadOnlyList<string> maps = _lockedMap is { } locked ? [locked] : _index.Maps();
         string? map = _lockedMap ?? (selectedMap is not null && maps.Contains(selectedMap) ? selectedMap : maps.Count > 0 ? maps[0] : null);
-        QueueWork.ThrowIfStopped();
+        JobScope.ThrowIfStopped();
         List<string> places = [AnyPlace, .. map is not null ? _index.LandingPlaces(map) : []];
-        QueueWork.ThrowIfStopped();
+        JobScope.ThrowIfStopped();
         string place = selectedPlace is not null && places.Contains(selectedPlace) ? selectedPlace : AnyPlace;
         IReadOnlyList<GrenadeCluster> clusters = map is not { Length: > 0 }
             ? []

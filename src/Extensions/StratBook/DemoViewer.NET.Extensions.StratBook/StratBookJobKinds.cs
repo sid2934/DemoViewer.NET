@@ -2,8 +2,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
 ///     The pack's own processing-queue job kinds. <see cref="StratBookPack.JobKinds" /> declares them; jobs name
-///     them by id. Owner strings match <see cref="StratBookLifecycle.OwnerTags" />, so <c>CancelOwned(owner)</c>
-///     reaches every job of the kind.
+///     them by id. Every job carries the pack's id, so switching the pack off cancels them all.
 /// </summary>
 internal static class StratBookJobKinds
 {
@@ -13,6 +12,7 @@ internal static class StratBookJobKinds
     public const string SuggestionsInbox = "stratbook.suggestions";
     public const string Teams = "stratbook.teams";
     public const string Tuning = "stratbook.tuning";
+    public const string Migration = "stratbook.migration";
 
     public static readonly ExtensionJobKind[] All =
     [
@@ -21,6 +21,7 @@ internal static class StratBookJobKinds
         new(LineupClips, "clips", false, 3),
         new(SuggestionsInbox, "suggestions", false, 2),
         new(Teams, "teams", true),
-        new(Tuning, "tuning", false, 2)
+        new(Tuning, "tuning", false, 2),
+        new(Migration, "migration", false, 1)
     ];
 }

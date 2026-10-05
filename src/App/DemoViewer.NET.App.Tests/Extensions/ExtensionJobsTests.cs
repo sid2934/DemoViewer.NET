@@ -218,7 +218,7 @@ public class ExtensionJobsTests
         ExtensionJobs jobs = rig.JobsFor("dev.example.one");
         rig.Queue.Pause();
         IJobHandle handle;
-        using (jobs.UserAction())
+        using (JobScope.UserAction())
         {
             handle = jobs.Enqueue(new JobRequest("work", _ => Task.CompletedTask));
         }
@@ -238,7 +238,7 @@ public class ExtensionJobsTests
             started.TrySetResult();
             while (true)
             {
-                jobs.ThrowIfStopped();
+                JobScope.ThrowIfStopped();
                 await Task.Delay(5, CancellationToken.None);
             }
         }));

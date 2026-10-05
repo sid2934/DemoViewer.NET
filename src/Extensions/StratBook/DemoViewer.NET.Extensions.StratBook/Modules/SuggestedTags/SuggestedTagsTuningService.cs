@@ -4,6 +4,7 @@ using System.Runtime.ExceptionServices;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -17,10 +18,10 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 ///     <para>
 ///         <b>What a re-run actually redoes.</b> A demo's occupancy and placed events do not depend on
 ///         the profile (only its site-region overrides and its detector thresholds do), so the first
-///         preview of a session parses each scored demo once
-///         (<see cref="SuggestedTagsService.BuildDetectionInputs" />) and every later parameter tweak
-///         only re-runs <see cref="ProposalDetection.Detect" /> over what is already held in memory,
-///         rather than reparsed. The made/accepted/edited/rejected counts are history and are
+///         preview of a session reads each scored demo once, as a job on the demo's visit
+///         (<see cref="SuggestedTagsService.BuildDetectionInputs" />), on the shell's parse when the demo is
+///         open, and every later parameter tweak only re-runs <see cref="ProposalDetection.Detect" /> over
+///         what is already held in memory, rather than reparsed. The made/accepted/edited/rejected counts are history and are
 ///         never recomputed by a preview; only recall and precision move.
 ///     </para>
 ///     <para>
@@ -44,7 +45,6 @@ public sealed class SuggestedTagsTuningService
     private readonly DemoCacheStore _demoCache;
     private readonly Lock _gate = new();
     private readonly IExtensionJobs _jobs;
-    private readonly Func<string, ParsedDemo> _parseFile;
     private readonly SiteRegionStore _regions;
     private readonly SuggestedTagsService _suggestedTags;
     private readonly TagStore? _tags;
@@ -53,15 +53,13 @@ public sealed class SuggestedTagsTuningService
     /// <param name="suggestedTags">The evaluator: stored proposals, verdicts, and the detection-input builder.</param>
     /// <param name="tags">The Tag Store hand tags are scored against; null runs with no ground truth (every row's recall/precision is "no data").</param>
     /// <param name="regions">The learned site region tables, the same store the evaluator reads.</param>
-    /// <param name="jobs">The processing queue a preview sweep runs on, as a user-requested job.</param>
-    /// <param name="parseFile">The parse to run per demo; defaults to reading the file and parsing its bytes.</param>
+    /// <param name="jobs">The processing queue a preview reads its demos and scores them on, as user-requested jobs.</param>
     public SuggestedTagsTuningService(
         DemoCacheStore demoCache,
         SuggestedTagsService suggestedTags,
         TagStore? tags,
         SiteRegionStore regions,
-        IExtensionJobs jobs,
-        Func<string, ParsedDemo>? parseFile = null)
+        IExtensionJobs jobs)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(suggestedTags);
@@ -72,7 +70,6 @@ public sealed class SuggestedTagsTuningService
         _suggestedTags = suggestedTags;
         _tags = tags;
         _regions = regions;
-        _parseFile = parseFile ?? (path => DemoParser.Parse(File.ReadAllBytes(path).AsMemory()));
     }
 
     /// <summary>Every demo the evaluator has built proposals for, newest first: what the tables score over.</summary>
@@ -123,9 +120,10 @@ public sealed class SuggestedTagsTuningService
     ///     Re-runs detection under <paramref name="candidate" /> over <paramref name="demoPaths" /> and
     ///     returns <paramref name="baseline" /> with only <see cref="DetectorTuningRow.Recall" /> and
     ///     <see cref="DetectorTuningRow.Precision" /> replaced: the two numbers a
-    ///     parameter change updates before it is saved. Runs as one user-requested job on the processing
-    ///     queue, since a cold cache parses demos; a newer preview replaces one still queued. A demo that
-    ///     fails to parse or has no Round Facts rows is skipped, the way the evaluator skips it.
+    ///     parameter change updates before it is saved. A demo not in the cache is read as a user-requested
+    ///     job on its own visit, which scores it there; the rest are scored in one user-requested job, which a
+    ///     newer preview replaces while it is still queued. A demo that fails to parse or has no Round Facts rows
+    ///     is skipped, the way the evaluator skips it.
     /// </summary>
     /// <param name="candidate">The profile to preview.</param>
     /// <param name="baseline">The report to keep the verdict counts from (<see cref="BuildStoredReport" />).</param>
@@ -139,6 +137,8 @@ public sealed class SuggestedTagsTuningService
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentNullException.ThrowIfNull(baseline);
         ArgumentNullException.ThrowIfNull(demoPaths);
+        Dictionary<string, IReadOnlyList<TagProposal>?> fired = await ReadUncachedAsync(candidate, demoPaths, cancellationToken)
+            .ConfigureAwait(false);
         TuningReport? report = null;
         ExceptionDispatchInfo? failure = null;
         await _jobs.RunAsync("Suggested Tags: preview tuning", job =>
@@ -147,7 +147,7 @@ public sealed class SuggestedTagsTuningService
                 CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.CancellationToken);
             try
             {
-                report = Preview(candidate, baseline, demoPaths, job, linked.Token);
+                report = Preview(candidate, baseline, demoPaths, fired, job, linked.Token);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -156,14 +156,66 @@ public sealed class SuggestedTagsTuningService
             }
 
             return Task.CompletedTask;
-        }, new JobOptions(StratBookJobKinds.Tuning, JobPriority.UserRequested, PreviewJobKey)).ConfigureAwait(false);
+        }, new JobOptions(BuiltInJobKinds.Compute, JobPriority.UserRequested, PreviewJobKey)).ConfigureAwait(false);
         failure?.Throw();
         cancellationToken.ThrowIfCancellationRequested();
         return report ?? throw new OperationCanceledException("The preview was removed from the queue before it finished.");
     }
 
+    // Every demo the cache does not hold is read as a job on its own visit, all queued at once so the queue can
+    // order them; each scores its demo on the parse and keeps the inputs for the next tweak. Null marks a
+    // demo that could not be scored.
+    private async Task<Dictionary<string, IReadOnlyList<TagProposal>?>> ReadUncachedAsync(DetectorProfile candidate,
+        IReadOnlyList<string> demoPaths, CancellationToken cancellationToken)
+    {
+        Dictionary<string, IReadOnlyList<TagProposal>?> fired = new(StringComparer.OrdinalIgnoreCase);
+        List<IJobHandle> reads = [];
+        foreach (string path in demoPaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            lock (_gate)
+            {
+                if (_cache.ContainsKey(path))
+                {
+                    continue;
+                }
+            }
+
+            if (Inputs(path) is null)
+            {
+                fired[path] = null;
+                continue;
+            }
+
+            reads.Add(_jobs.Enqueue(JobRequest.OnDemo("Suggested Tags: preview " + Path.GetFileName(path), path, job =>
+            {
+                IReadOnlyList<TagProposal>? proposals = Build(path, job.Parsed) is { } built ? Detect(built, candidate) : null;
+                lock (fired)
+                {
+                    fired[path] = proposals;
+                }
+
+                return Task.CompletedTask;
+            }, new JobOptions(StratBookJobKinds.Tuning, JobPriority.UserRequested))));
+        }
+
+        await using (cancellationToken.Register(() => reads.ForEach(r => r.Cancel())))
+        {
+            await Task.WhenAll(reads.Select(r => r.Completion)).ConfigureAwait(false);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return fired;
+    }
+
+    private static IReadOnlyList<TagProposal> Detect(CachedDemo cached, DetectorProfile candidate)
+    {
+        SiteRegions regions = SiteRegions.Compose(cached.Map, null, cached.Table, candidate);
+        return ProposalDetection.Detect(cached.Map, cached.Inputs.TickRate, regions, cached.Inputs.Events,
+            cached.Inputs.Rounds, candidate);
+    }
+
     private TuningReport Preview(DetectorProfile candidate, TuningReport baseline, IReadOnlyList<string> demoPaths,
-        IJobContext job, CancellationToken cancellationToken)
+        Dictionary<string, IReadOnlyList<TagProposal>?> fired, IJobContext job, CancellationToken cancellationToken)
     {
         Dictionary<string, List<FiredProposal>> firedByDetector = new(StringComparer.Ordinal);
         List<string> scoredPaths = [];
@@ -172,15 +224,22 @@ public sealed class SuggestedTagsTuningService
             string path = demoPaths[i];
             cancellationToken.ThrowIfCancellationRequested();
             job.Report(i, demoPaths.Count, Path.GetFileName(path));
-            if (GetOrBuildCache(path) is not { } cached)
+            IReadOnlyList<TagProposal>? proposals;
+            if (fired.TryGetValue(path, out IReadOnlyList<TagProposal>? read))
+            {
+                proposals = read;
+            }
+            else
+            {
+                proposals = Cached(path) is { } cached ? Detect(cached, candidate) : null;
+            }
+
+            if (proposals is null)
             {
                 continue;
             }
 
             scoredPaths.Add(path);
-            SiteRegions regions = SiteRegions.Compose(cached.Map, null, cached.Table, candidate);
-            IReadOnlyList<TagProposal> proposals = ProposalDetection.Detect(
-                cached.Map, cached.Inputs.TickRate, regions, cached.Inputs.Events, cached.Inputs.Rounds, candidate);
             AddFired(firedByDetector, DemoKey(path, _demoCache.TryGetIndex(path)?.Sha256), proposals);
         }
 
@@ -210,7 +269,7 @@ public sealed class SuggestedTagsTuningService
         }
     }
 
-    private CachedDemo? GetOrBuildCache(string path)
+    private CachedDemo? Cached(string path)
     {
         lock (_gate)
         {
@@ -221,18 +280,19 @@ public sealed class SuggestedTagsTuningService
             }
         }
 
-        DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-        if (record is null || _demoCache.RoundFactsOf(record) is not { Schema: StratBookCache.RoundFactsSchema } facts)
-        {
-            return null; // no Round Facts rows: nothing to bound rounds and seat sides with
-        }
+        return null;
+    }
 
-        ParsedDemo parsed;
-        try
-        {
-            parsed = _parseFile(path);
-        }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+    // The record and its Round Facts rows, or null when the demo has none: nothing bounds rounds and seats sides.
+    private (DemoCacheRecord Record, RoundFactsRows Facts)? Inputs(string path) =>
+        _demoCache.TryLoadRecord(path) is { } record
+        && _demoCache.RoundFactsOf(record) is { Schema: StratBookCache.RoundFactsSchema } facts
+            ? (record, facts)
+            : null;
+
+    private CachedDemo? Build(string path, ParsedDemo parsed)
+    {
+        if (Inputs(path) is not var (record, facts))
         {
             return null;
         }

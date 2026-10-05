@@ -109,8 +109,8 @@ public class StratBookLiveToggleTests
             await Assert.That(grenades.DemoCount).IsEqualTo(3);
             await Assert.That(teams.IsLoaded).IsTrue();
             int before = queue.Titles.Count;
-            await Assert.That(queue.CancelledOwners).IsEquivalentTo([StratBookLifecycle.Owner])
-                .Because("the enable drops a release still queued, by the pack's own owner tag, and nothing else");
+            await Assert.That(queue.CancelledOwners).IsEmpty()
+                .Because("the enable drops only its own release, through that job's handle, and nothing else");
             int cancelsBefore = queue.CancelledOwners.Count;
 
             settings.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
@@ -120,10 +120,8 @@ public class StratBookLiveToggleTests
             using (Assert.Multiple())
             {
                 await Assert.That(packs.IsOn(Pack)).IsFalse();
-                await Assert.That(queue.CancelledOwners.Skip(cancelsBefore))
-                    .IsEquivalentTo([StratBookPack.PackId, .. StratBookLifecycle.OwnerTags])
-                    .Because("every owner tag a pack job or parse attachment carries is cancelled, once each, and the "
-                             + "host cancels the jobs its context submitted under the extension's id");
+                await Assert.That(queue.CancelledOwners.Skip(cancelsBefore)).IsEquivalentTo([StratBookPack.PackId])
+                    .Because("every job and pass of the pack carries the extension's id, which the host cancels once");
                 await Assert.That(queue.Titles.Skip(before)).IsEquivalentTo([StratBookLifecycle.ReleaseTitle])
                     .Because("the release is the one item the switch-off queues");
                 await Assert.That(instances.Situations).IsNull();
@@ -205,10 +203,10 @@ public class StratBookLiveToggleTests
             await Assert.That(queue.Titles).Contains("Load: situations index");
             settings.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
 
-            await Assert.That(queue.CancelledOwners).Contains("situations");
+            await Assert.That(queue.CancelledOwners).Contains(StratBookPack.PackId);
             await Assert.That(queue.Titles).Contains(StratBookLifecycle.ReleaseTitle);
 
-            // The real queue dropped those by owner; this double runs them anyway. Two guards hold a late load
+            // The real queue dropped those by the pack's id; this double runs them anyway. Two guards hold a late load
             // and this proves their union: the enable's token is cancelled and the disable bumped the epoch,
             // and the item checks both. PackSwitchTests pins the token; the epoch alone is pinned by the fast
             // off-on case, where the token is live and only the epoch can stop the stale release.
@@ -312,10 +310,10 @@ public class StratBookLiveToggleTests
             await Assert.That(queue.Titles.Skip(before).First()).IsEqualTo(StratBookLifecycle.ReleaseTitle);
             await Assert.That(queue.Titles.Skip(before).Skip(1).First()).IsEqualTo(StratBookLifecycle.AttachTitle)
                 .Because("the enable's attach item is queued right behind the release, ahead of its loads");
-            await Assert.That(queue.CancelledOwners.Skip(cancelsBefore).Count(o => o == StratBookLifecycle.Owner)).IsEqualTo(2)
-                .Because("the disable cancels the pack's own items, and so does the enable, for the release still queued");
+            await Assert.That(queue.CancelledOwners.Skip(cancelsBefore).Count(o => o == StratBookPack.PackId)).IsEqualTo(1)
+                .Because("the disable cancels the pack's jobs by its id; the enable drops the stale release through its handle");
 
-            // The real queue dropped the release by owner; this double runs it anyway to prove the epoch alone
+            // The real queue dropped the release through its handle; this double runs it anyway to prove the epoch alone
             // keeps it from tearing down what the enable behind it attaches.
             queue.RunDeferred();
             await packs.Pending;
@@ -446,7 +444,7 @@ public class StratBookLiveToggleTests
             // The user quits right after switching off: the cancel ran, the release is still queued.
             queue.Defer = true;
             settings.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
-            await Assert.That(queue.CancelledOwners).Contains("utility");
+            await Assert.That(queue.CancelledOwners).Contains(StratBookPack.PackId);
             await Assert.That(File.Exists(lineups)).IsFalse();
             lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
             await Assert.That(File.Exists(lineups)).IsTrue().Because("the index is still live, so shutdown's flush writes the pending lineup");

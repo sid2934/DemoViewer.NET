@@ -167,10 +167,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionFeatures.IsEnabled(string! featureId) ->
 DemoViewer.NET.Extensions.Sdk.IExtensionJobs
 DemoViewer.NET.Extensions.Sdk.IExtensionJobs.CancelAll() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionJobs.Enqueue(DemoViewer.NET.Extensions.Sdk.JobRequest! request) -> DemoViewer.NET.Extensions.Sdk.IJobHandle!
-DemoViewer.NET.Extensions.Sdk.IExtensionJobs.IsStop(System.Exception! exception) -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionJobs.RunAsync(string! title, System.Func<DemoViewer.NET.Extensions.Sdk.IJobContext!, System.Threading.Tasks.Task!>! work, DemoViewer.NET.Extensions.Sdk.JobOptions? options = null) -> System.Threading.Tasks.Task!
-DemoViewer.NET.Extensions.Sdk.IExtensionJobs.ThrowIfStopped() -> void
-DemoViewer.NET.Extensions.Sdk.IExtensionJobs.UserAction() -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle
 DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle.OnDisabledAsync() -> System.Threading.Tasks.Task!
 DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle.OnEnabledAsync(DemoViewer.NET.Extensions.Sdk.ExtensionStartReason reason, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task!
@@ -184,6 +181,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionPass.PriorityFor(string! demoPath) -> De
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.ReadsUserCommands.get -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.Run(DemoViewer.NET.Extensions.Sdk.IPassContext! context) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses
+DemoViewer.NET.Extensions.Sdk.IExtensionPasses.Changed -> System.Action?
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses.IsBusy(string! passId) -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses.RecheckAll() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses.Request(string! demoPath) -> void
@@ -205,6 +203,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionStorage.WriteAtomicAsync(DemoViewer.NET.
 DemoViewer.NET.Extensions.Sdk.IJobContext
 DemoViewer.NET.Extensions.Sdk.IJobContext.CancellationToken.get -> System.Threading.CancellationToken
 DemoViewer.NET.Extensions.Sdk.IJobContext.Report(int done, int total, string? detail = null) -> void
+DemoViewer.NET.Extensions.Sdk.IJobContext.StepAsideAsync() -> System.Threading.Tasks.Task!
 DemoViewer.NET.Extensions.Sdk.IJobHandle
 DemoViewer.NET.Extensions.Sdk.IJobHandle.Cancel() -> void
 DemoViewer.NET.Extensions.Sdk.IJobHandle.Completed -> System.Action<DemoViewer.NET.Extensions.Sdk.JobResult!>?
@@ -265,6 +264,7 @@ DemoViewer.NET.Extensions.Sdk.JobResult.Error.init -> void
 DemoViewer.NET.Extensions.Sdk.JobResult.JobResult(DemoViewer.NET.Extensions.Sdk.JobStatus Status, System.Exception? Error = null) -> void
 DemoViewer.NET.Extensions.Sdk.JobResult.Status.get -> DemoViewer.NET.Extensions.Sdk.JobStatus
 DemoViewer.NET.Extensions.Sdk.JobResult.Status.init -> void
+DemoViewer.NET.Extensions.Sdk.JobScope
 DemoViewer.NET.Extensions.Sdk.JobStatus
 DemoViewer.NET.Extensions.Sdk.JobStatus.Cancelled = 4 -> DemoViewer.NET.Extensions.Sdk.JobStatus
 DemoViewer.NET.Extensions.Sdk.JobStatus.Completed = 2 -> DemoViewer.NET.Extensions.Sdk.JobStatus
@@ -695,6 +695,11 @@ static DemoViewer.NET.Extensions.Sdk.JobOptions.operator ==(DemoViewer.NET.Exten
 static DemoViewer.NET.Extensions.Sdk.JobRequest.OnDemo(string! title, string! demoPath, System.Func<DemoViewer.NET.Extensions.Sdk.IDemoJobContext!, System.Threading.Tasks.Task!>! work, DemoViewer.NET.Extensions.Sdk.JobOptions? options = null) -> DemoViewer.NET.Extensions.Sdk.JobRequest!
 static DemoViewer.NET.Extensions.Sdk.JobResult.operator !=(DemoViewer.NET.Extensions.Sdk.JobResult? left, DemoViewer.NET.Extensions.Sdk.JobResult? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.JobResult.operator ==(DemoViewer.NET.Extensions.Sdk.JobResult? left, DemoViewer.NET.Extensions.Sdk.JobResult? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.JobScope.Enter(System.Threading.CancellationToken token) -> System.IDisposable!
+static DemoViewer.NET.Extensions.Sdk.JobScope.IsStop(System.Exception! exception) -> bool
+static DemoViewer.NET.Extensions.Sdk.JobScope.IsUserAction.get -> bool
+static DemoViewer.NET.Extensions.Sdk.JobScope.ThrowIfStopped() -> void
+static DemoViewer.NET.Extensions.Sdk.JobScope.UserAction() -> System.IDisposable!
 static DemoViewer.NET.Extensions.Sdk.LibraryBadge.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryBadge? left, DemoViewer.NET.Extensions.Sdk.LibraryBadge? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryBadge.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryBadge? left, DemoViewer.NET.Extensions.Sdk.LibraryBadge? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryDemo.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryDemo? left, DemoViewer.NET.Extensions.Sdk.LibraryDemo? right) -> bool

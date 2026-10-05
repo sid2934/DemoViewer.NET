@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -206,43 +207,43 @@ public class StratMiningCacheTests
     }
 
     [Test]
-    public async Task TheQuietRemine_WaitsForTheQueueToDrain_AndAUserMineDoesNot()
+    public async Task TheQuietRemine_WaitsForThePacksPassesToSettle_AndAUserMineDoesNot()
     {
         using Library library = Library.Create();
-        FakeQueue queue = new() { RunningCount = 1 };
+        InlineJobs jobs = new();
+        FakePasses passes = new() { Busy = true };
         using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
             library.Strats, library.Tags, null, null, run: a =>
             {
                 a();
                 return Task.CompletedTask;
-            }, queue: queue) { QuietDelay = Timeout.InfiniteTimeSpan };
+            }, jobs: jobs, passes: passes) { QuietDelay = Timeout.InfiniteTimeSpan };
+
+        int Mines() => jobs.Submitted.Count(j => j.Title == "Strat mining: library");
 
         await service.MineAsync();
-        await Assert.That(queue.Jobs).IsEqualTo(1).Because("a user mine is submitted while the queue is busy");
+        await Assert.That(Mines()).IsEqualTo(1).Because("a user mine is submitted while the passes are busy");
 
         service.OnQuiet();
-        await Assert.That(queue.Jobs).IsEqualTo(1).Because("the quiet re-mine holds while a demo is parsing");
-
-        queue.RunningCount = 0;
-        queue.QueuedCount = 2;
-        queue.Raise();
-        service.OnQuiet();
-        await Assert.That(queue.Jobs).IsEqualTo(1).Because("queued work holds it too");
+        await Assert.That(Mines()).IsEqualTo(1).Because("the quiet re-mine holds while a pass it reads has a demo in flight");
 
         service.QuietDelay = TimeSpan.FromMilliseconds(20);
-        queue.QueuedCount = 0;
-        queue.Raise();
-        for (int i = 0; i < 200 && queue.Jobs < 2; i++)
+        passes.Busy = false;
+        passes.Raise();
+        for (int i = 0; i < 200 && Mines() < 2; i++)
         {
             await Task.Delay(25);
         }
 
-        await Assert.That(queue.Jobs).IsEqualTo(2).Because("the drain re-arms the quiet timer and it fires");
+        await Assert.That(Mines()).IsEqualTo(2).Because("the passes settling re-arms the quiet timer and it fires");
 
-        queue.Raise();
+        passes.Raise();
         await Task.Delay(200);
-        await Assert.That(queue.Jobs).IsEqualTo(2).Because("a drain with nothing held back mines nothing");
+        await Assert.That(Mines()).IsEqualTo(2).Because("settling with nothing held back mines nothing");
     }
+
+    private static ExtensionJobs Jobs(DemoProcessingQueue queue) =>
+        new(StratBookPack.PackId, () => queue, () => JobKindRegistry.Build([new StratBookPack()]));
 
     // The drain compaction item may still hold the slot for a moment after the mine completes.
     private static async Task Idle(DemoProcessingQueue queue)
@@ -264,7 +265,7 @@ public class StratMiningCacheTests
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = RealQueue(gate);
         using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
-            library.Strats, library.Tags, null, null, queue: queue) { QuietDelay = Timeout.InfiniteTimeSpan };
+            library.Strats, library.Tags, null, null, jobs: Jobs(queue)) { QuietDelay = Timeout.InfiniteTimeSpan };
 
         Task mine;
         using (await gate.AcquireBackgroundAsync())
@@ -295,7 +296,7 @@ public class StratMiningCacheTests
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = RealQueue(gate);
         using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
-            library.Strats, library.Tags, null, null, queue: queue) { QuietDelay = Timeout.InfiniteTimeSpan };
+            library.Strats, library.Tags, null, null, jobs: Jobs(queue)) { QuietDelay = Timeout.InfiniteTimeSpan };
         await service.MineAsync().WaitAsync(TimeSpan.FromSeconds(10));
         MinedPattern execute = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute);
 
@@ -331,7 +332,7 @@ public class StratMiningCacheTests
         TaskCompletionSource proceed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int steps = 0;
         using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
-            library.Strats, library.Tags, null, null, queue: queue, run: a => Task.Run(async () =>
+            library.Strats, library.Tags, null, null, jobs: Jobs(queue), run: a => Task.Run(async () =>
             {
                 a();
                 // Step 1 is Begin, step 2 the first batch, run while the mine holds the slot.
@@ -367,90 +368,22 @@ public class StratMiningCacheTests
         }
     }
 
-    private sealed class FakeQueue : IDemoProcessingQueue
+    private sealed class FakePasses : IExtensionPasses
     {
-        public ReadOnlyObservableCollection<DemoQueueItem> Items { get; } = new([]);
+        public bool Busy { get; set; }
+
         public event Action? Changed;
-
-        public event Action? CapacityAvailable
-        {
-            add { }
-            remove { }
-        }
-
-        public int MaxConcurrency { get; set; } = 1;
-        public int MaxQueueSize { get; set; } = 200;
-        public bool BackgroundEnabled { get; set; } = true;
-        public bool IsPaused => false;
-        public int QueuedCount { get; set; }
-        public int RunningCount { get; set; }
 
         public void Raise() => Changed?.Invoke();
 
-        public Task<ParsedDemo> RequestForegroundAsync(string? path, ReadOnlyMemory<byte> bytes, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
-
-        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
-
-        public int ActiveCount(QueueJobKind kind) => kind == QueueJobKind.DemoProcessing ? QueuedCount + RunningCount : 0;
-
-        public int Jobs { get; private set; }
-
-        // Runs the job at once, as a queue with nothing else in it would.
-        public IDemoQueueHandle SubmitJob(QueueJobRequest request)
-        {
-            Jobs++;
-            return new DoneHandle(request.RunAsync(new InlineContext()));
-        }
-
-        private sealed class InlineContext : IQueueJobContext
-        {
-            public CancellationToken CancellationToken => CancellationToken.None;
-
-            public void Report(int done, int total, string? detail = null)
-            {
-            }
-
-            public Task StepAsideAsync() => Task.CompletedTask;
-
-            public void ReleaseSlot()
-            {
-            }
-        }
-
-        private sealed class DoneHandle(Task completion) : IDemoQueueHandle
-        {
-            public Guid Id { get; } = Guid.NewGuid();
-            public DemoQueueItemState State => completion.IsCompleted ? DemoQueueItemState.Completed : DemoQueueItemState.Running;
-            public Task Completion => completion;
-
-            public void Cancel()
-            {
-            }
-        }
-
-        public IReadOnlyList<DemoQueueItemSnapshot> Snapshot() => [];
-
-        public void RemoveByUser(Guid itemId)
+        public void Request(string demoPath)
         {
         }
 
-        public void CancelOwned(string ownerTag, string path)
+        public void RecheckAll()
         {
         }
 
-        public void CancelOwned(string ownerTag)
-        {
-        }
-
-        public void Pause()
-        {
-        }
-
-        public void Resume()
-        {
-        }
+        public bool IsBusy(string passId) => Busy;
     }
 }

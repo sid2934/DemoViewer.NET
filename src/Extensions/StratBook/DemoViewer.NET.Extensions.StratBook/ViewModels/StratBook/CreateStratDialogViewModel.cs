@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Extensions.StratBook;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -83,8 +83,9 @@ public sealed partial class CreateStratDialogViewModel : ViewModelBase, IDisposa
     /// <param name="store">The strat store the strat is committed to.</param>
     /// <param name="post">Marshals the walk's result onto the UI thread; synchronous when omitted.</param>
     /// <param name="utcNow">The creation time's clock.</param>
+    /// <param name="jobs">The queue the walk runs on; the pool when null.</param>
     public CreateStratDialogViewModel(StratCaptureRequest request, Func<IProgress<double>, CancellationToken, RoundCapture> walk,
-        StratStore store, Action<Action>? post = null, Func<DateTime>? utcNow = null)
+        StratStore store, Action<Action>? post = null, Func<DateTime>? utcNow = null, IExtensionJobs? jobs = null)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(walk);
@@ -100,8 +101,8 @@ public sealed partial class CreateStratDialogViewModel : ViewModelBase, IDisposa
         CancellationToken ct = _cancel.Token;
         Progress = new WalkProgress(this);
         // A queue item at the front: the user asked for it.
-        Walking = QueueWork.RunAsync<RoundCapture?>(QueueWork.Ambient, QueueJobKind.SectionCompute, "Strats: read the round",
-                "strats", () => walk(Progress, ct), null, DemoJobPriority.UserRequested)
+        Walking = StratBookJobs.RunAsync<RoundCapture?>(jobs, "Strats: read the round", () => walk(Progress, ct), null,
+                new JobOptions(Priority: JobPriority.UserRequested))
             .ContinueWith(t => t.Result ?? throw new OperationCanceledException(ct), ct,
                 TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default)
             .ContinueWith(t => _post(() => OnWalked(t)), TaskScheduler.Default);

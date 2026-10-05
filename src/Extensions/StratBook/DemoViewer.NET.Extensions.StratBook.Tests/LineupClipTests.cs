@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Parser;
 using CS2OpenSchema.Protos;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -51,6 +52,10 @@ public class LineupClipTests
     // The id is the position's, stable across calls, as GrenadeIndex.LineupId is; here keyed by the first row.
     private static GrenadeLineup Lineup(params IndexedGrenade[] throws) =>
         new(throws[0].Origin, false, throws, IdOf(throws[0].Row.Id));
+
+    // The pack's jobs over a real queue, as the extension context hands them out.
+    private static ExtensionJobs Jobs(DemoProcessingQueue queue) =>
+        new(StratBookPack.PackId, () => queue, () => JobKindRegistry.Build([new StratBookPack()]));
 
     private static Guid IdOf(string seed) =>
         new(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(seed)).AsSpan(0, 16));
@@ -686,28 +691,6 @@ public class LineupClipTests
         }
     }
 
-    [Test]
-    public async Task TheDefaultParse_MapsOnlyASettledFile()
-    {
-        DateTimeOffset now = new(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
-        TimeProvider clock = new FixedClock(now);
-        FileStat old = new(100, now.AddMinutes(-5));
-        FileStat fresh = new(100, now.AddSeconds(-10));
-        int calls = 0;
-        FileStat Growing(string _) => new(100 + calls++, now.AddMinutes(-5));
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(LineupClipRenderer.MapsFile("x", clock, _ => old)).IsEqualTo(!OperatingSystem.IsBrowser());
-            await Assert.That(LineupClipRenderer.MapsFile("x", clock, _ => fresh)).IsFalse().Because("it may still be copying");
-            await Assert.That(LineupClipRenderer.MapsFile("x", clock, Growing)).IsFalse().Because("it changed between the two stats");
-        }
-    }
-
-    private sealed class FixedClock(DateTimeOffset now) : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => now;
-    }
 
     [Test]
     public async Task Merge_FoldsSameTitledSections_AndReplacesInPlace()
@@ -805,17 +788,22 @@ public class LineupClipTests
     public async Task WithAProcessingQueue_EachDemosBatch_IsALineupClipsItem_OneAtATime()
     {
         using DemoViewer.NET.Services.HeavyJobGate gate = new();
+        int parses = 0;
         using DemoProcessingQueue processing = new(gate, a => a(), _ => throw new NotSupportedException(),
-            _ => throw new NotSupportedException(), () => Task.CompletedTask);
+            _ => throw new NotSupportedException(), () => Task.CompletedTask, parseFileWithPlan: (_, plan) =>
+            {
+                Interlocked.Increment(ref parses);
+                return SyntheticParsedDemo.Create(plan: plan);
+            });
         processing.Pause();
         FakeRenderer renderer = new();
         GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5));
         using LineupClipService service = new(() => [cluster], Directory, () => true, renderer,
-            _ => false, (_, _) => { }, processing: processing);
+            _ => false, (_, _) => { }, jobs: Jobs(processing));
 
         await Assert.That(service.Plan()).IsEqualTo(2);
-        DemoQueueItemSnapshot first = processing.Snapshot().Single(i => i.ExtensionKind == StratBookJobKinds.LineupClips);
-        await Assert.That(first.ExtensionKind).IsEqualTo(StratBookJobKinds.LineupClips);
+        DemoQueueItemSnapshot first = processing.Snapshot().Single(i => i.Kind == QueueJobKind.DemoProcessing);
+        await Assert.That(first.Path).IsEqualTo("/d/five.dem").Because("each demo's batch joins that demo's visit");
         await Assert.That(first.DisplayName).IsEqualTo("Lineup clips: de_mirage, 1 clip from five.dem");
         await Assert.That(first.State).IsEqualTo(DemoQueueItemState.Queued).Because("a paused queue starts nothing");
         await Assert.That(renderer.Calls).IsEmpty();
@@ -823,10 +811,12 @@ public class LineupClipTests
         processing.Resume();
         await service.WorkerTask.WaitAsync(TimeSpan.FromSeconds(10));
 
-        List<DemoQueueItemSnapshot> items = processing.Snapshot().Where(i => i.ExtensionKind == StratBookJobKinds.LineupClips).ToList();
+        List<DemoQueueItemSnapshot> items = processing.Snapshot().Where(i => i.Kind == QueueJobKind.DemoProcessing).ToList();
         await Assert.That(items.Count).IsEqualTo(2);
         await Assert.That(items.All(i => i.State == DemoQueueItemState.Completed)).IsTrue();
         await Assert.That(string.Join(",", renderer.Calls.Select(c => c.Demo))).IsEqualTo("/d/five.dem,/d/two.dem");
+        await Assert.That(parses).IsEqualTo(2).Because("one read per demo serves all of its clips");
+        await Assert.That(renderer.Calls.All(c => c.Parsed is not null)).IsTrue();
     }
 
     [Test]
@@ -834,15 +824,16 @@ public class LineupClipTests
     {
         using DemoViewer.NET.Services.HeavyJobGate gate = new();
         using DemoProcessingQueue processing = new(gate, a => a(), _ => throw new NotSupportedException(),
-            _ => throw new NotSupportedException(), () => Task.CompletedTask);
+            _ => throw new NotSupportedException(), () => Task.CompletedTask,
+            parseFileWithPlan: (_, plan) => SyntheticParsedDemo.Create(plan: plan));
         processing.Pause();
         FakeRenderer renderer = new();
         GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5));
         using LineupClipService service = new(() => [cluster], Directory, () => true, renderer,
-            _ => false, (_, _) => { }, processing: processing);
+            _ => false, (_, _) => { }, jobs: Jobs(processing));
 
         service.Plan();
-        processing.RemoveByUser(processing.Snapshot().Single(i => i.ExtensionKind == StratBookJobKinds.LineupClips).Id);
+        processing.RemoveByUser(processing.Snapshot().Single(i => i.Kind == QueueJobKind.DemoProcessing).Id);
         processing.Resume();
         await service.WorkerTask.WaitAsync(TimeSpan.FromSeconds(10));
 
@@ -854,7 +845,7 @@ public class LineupClipTests
     public async Task TheRenderer_WritesAside_AndRenamesOnlyAFinishedGif()
     {
         string clips = TempClips();
-        string source = Path.Combine(clips, "source.bin"); // RenderAsync only checks that the demo exists
+        string source = Path.Combine(clips, "source.bin");
         File.WriteAllBytes(source, [0]);
         try
         {
@@ -863,7 +854,7 @@ public class LineupClipTests
             ParsedDemo demo = SyntheticParsedDemo.Create(Frames(0, 2000));
             string? seenOutput = null;
 
-            LineupClipRenderer Renderer(Func<CancellationToken, Task> after) => new(_ => demo, _ => null,
+            LineupClipRenderer Renderer(Func<CancellationToken, Task> after) => new(_ => null,
                 render: async (request, _, ct) =>
                 {
                     seenOutput = request.OutputPath;
@@ -880,7 +871,7 @@ public class LineupClipTests
                     cts.Cancel();
                     cts.Token.ThrowIfCancellationRequested();
                     return Task.CompletedTask;
-                }).RenderAsync(source, [job], cts.Token);
+                }).RenderAsync(source, demo, [job], cts.Token);
             }
             catch (OperationCanceledException)
             {
@@ -896,13 +887,13 @@ public class LineupClipTests
             }
 
             IReadOnlyList<LineupClipJob> failed = await Renderer(_ => throw new IOException("disk full"))
-                .RenderAsync(source, [job], CancellationToken.None);
+                .RenderAsync(source, demo, [job], CancellationToken.None);
             await Assert.That(failed).IsEmpty();
             await Assert.That(File.Exists(job.GifPath)).IsFalse();
             await Assert.That(File.Exists(partial)).IsFalse();
 
             IReadOnlyList<LineupClipJob> done = await Renderer(_ => Task.CompletedTask)
-                .RenderAsync(source, [job], CancellationToken.None);
+                .RenderAsync(source, demo, [job], CancellationToken.None);
             await Assert.That(done.Single()).IsEqualTo(job);
             await Assert.That(new FileInfo(job.GifPath).Length).IsEqualTo(64);
             await Assert.That(File.Exists(partial)).IsFalse();
@@ -922,7 +913,7 @@ public class LineupClipTests
 
         public int Bytes { get; init; } = 100;
 
-        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
             CancellationToken ct)
         {
             lock (Calls)
@@ -941,18 +932,18 @@ public class LineupClipTests
 
     private sealed class FakeRenderer : ILineupClipRenderer
     {
-        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs)> Calls { get; } = [];
+        public List<(string Demo, IReadOnlyList<LineupClipJob> Jobs, ParsedDemo? Parsed)> Calls { get; } = [];
 
         public TaskCompletionSource? Hold { get; init; }
 
         public bool Fail { get; set; }
 
-        public async Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
+        public async Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
             CancellationToken ct)
         {
             lock (Calls)
             {
-                Calls.Add((demoPath, jobs));
+                Calls.Add((demoPath, jobs, demo));
             }
 
             if (Hold is not null)

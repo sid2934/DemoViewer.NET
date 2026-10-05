@@ -873,6 +873,8 @@ public class App : Application
             return queue;
         });
         services.AddSingleton<IDemoProcessingQueue>(sp => sp.GetRequiredService<DemoProcessingQueue>());
+        services.AddSingleton(sp => new FirstPartyExports(sp.GetRequiredService<HeavyJobGate>(),
+            sp.GetRequiredService<IDemoProcessingQueue>()));
 
         // The demo-library indexer: the one internally-new'd store routed through the container, because
         // it now reads its folders from AppSettings.Library.Folders and writes them back via SettingsService.

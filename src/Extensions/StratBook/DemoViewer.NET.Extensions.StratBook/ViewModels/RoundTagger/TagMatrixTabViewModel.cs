@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
@@ -244,7 +243,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
         _active = true;
         if (_dirty)
         {
-            using (QueueWork.UserAction())
+            using (JobScope.UserAction())
             {
                 Refresh();
             }
@@ -414,7 +413,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     {
         if (!_applying && value is not null)
         {
-            using (QueueWork.UserAction())
+            using (JobScope.UserAction())
             {
                 Refresh();
             }
@@ -425,7 +424,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     {
         if (!_applying)
         {
-            using (QueueWork.UserAction())
+            using (JobScope.UserAction())
             {
                 Refresh();
             }
@@ -506,12 +505,12 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
             Exception? failure = null;
             await _run(() =>
             {
-                QueueWork.ThrowIfStopped();
+                JobScope.ThrowIfStopped();
                 try
                 {
                     result = Compute(inputs);
                 }
-                catch (Exception ex) when (!QueueWork.IsStop(ex))
+                catch (Exception ex) when (!JobScope.IsStop(ex))
                 {
                     failure = ex;
                 }

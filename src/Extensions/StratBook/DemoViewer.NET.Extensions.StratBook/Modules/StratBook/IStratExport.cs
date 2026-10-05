@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
@@ -15,8 +15,8 @@ namespace DemoViewer.NET.Modules.StratBook;
 /// </summary>
 public interface IStratExport
 {
-    /// <inheritdoc cref="StratExportHost.Gate" />
-    HeavyJobGate? Gate { get; }
+    /// <inheritdoc cref="StratExportHost.NewJob" />
+    Func<IExportRunner, Action<string>?, ExportJobService>? NewJob { get; }
 
     /// <inheritdoc cref="StratExportHost.IsLiveSyncBusy" />
     Func<bool>? IsLiveSyncBusy { get; }

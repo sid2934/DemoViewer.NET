@@ -23,7 +23,6 @@ using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundIndex;
@@ -526,7 +525,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
         StratLineupChoice? current = step?.Utility?.LineupId is { } id ? Editor.ResolveLineup(id) : null;
         Guid stepId = row.Id;
         LineupPickerViewModel? picker = null;
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             // The canvas holds this map's bundle already: the picker draws it rather than decoding another.
             picker = new LineupPickerViewModel(_lineupMap(document.Map, Canvas.MapAsset), step?.Utility?.Kind ?? StratEditorViewModel.None, current,
@@ -575,8 +574,8 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
                 log: AppendExportLog,
                 encoderProbe: EncoderProbeCache.Shared,
                 locateFfmpeg: null);
-            _exportJob = new ExportJobService(job, host.Gate, host.IsLiveSyncBusy, host.IsReelRunning,
-                AppendExportLog);
+            _exportJob = host.NewJob?.Invoke(job, AppendExportLog)
+                         ?? new ExportJobService(job, null, host.IsLiveSyncBusy, host.IsReelRunning, AppendExportLog);
             ExportStatus = new Playback2DExportStatusViewModel(_exportJob, host.OpenExportFolder);
             host.MountStatusChip?.Invoke(ExportStatus);
         }

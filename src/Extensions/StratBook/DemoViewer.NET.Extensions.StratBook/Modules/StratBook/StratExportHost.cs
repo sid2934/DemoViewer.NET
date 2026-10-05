@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Modules.StratBook;
 ///         the tab's Export button stays hidden.
 ///     </para>
 /// </summary>
-/// <param name="Gate">The heavy-job gate; the export takes its export-session kind on it.</param>
+/// <param name="NewJob">Builds the export job over the app's export session for a runner and a log; null exports without one.</param>
 /// <param name="IsLiveSyncBusy">True while a Live Sync session is active.</param>
 /// <param name="IsReelRunning">True while a highlight reel is rendering.</param>
 /// <param name="Settings">Reads the current settings, for the dialog's output folder.</param>
@@ -33,7 +33,7 @@ namespace DemoViewer.NET.Modules.StratBook;
 /// </param>
 /// <param name="OpenExportFolder">Reveals a finished file in the OS file manager. Null on the browser head.</param>
 public sealed record StratExportHost(
-    HeavyJobGate? Gate,
+    Func<IExportRunner, Action<string>?, ExportJobService>? NewJob,
     Func<bool>? IsLiveSyncBusy,
     Func<bool>? IsReelRunning,
     Func<AppSettings> Settings,

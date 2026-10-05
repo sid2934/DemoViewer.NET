@@ -308,7 +308,8 @@ public class PackResidentTests
 
     private sealed class NoRenderer : ILineupClipRenderer
     {
-        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs, CancellationToken ct) =>
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, CS2DemoKit.Parser.ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
+            CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<LineupClipJob>>([]);
     }
 }

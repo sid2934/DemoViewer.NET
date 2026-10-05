@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
@@ -391,7 +390,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     public void OnActivated(IModuleContext context)
     {
         _shown = true;
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             Refresh();
         }
@@ -430,7 +429,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     partial void OnSelectedTeamChanged(DossierTeamRow? value)
     {
         NewVetoMap = "";
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             Project();
         }

@@ -7,7 +7,6 @@ using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
@@ -109,7 +108,8 @@ internal sealed class StratBookDataRemoval : IExtensionDataRemoval
     }
 
     private PackDataRemover Remover() =>
-        new(_sp.GetRequiredService<DemoCacheStore>(), AppPaths.ConfigRoot, AppPaths.DemoCacheDir, _sp.GetService<IDemoProcessingQueue>());
+        new(_sp.GetRequiredService<DemoCacheStore>(), AppPaths.ConfigRoot, AppPaths.DemoCacheDir,
+            _sp.GetExtensionContext(StratBookPack.PackId).Jobs);
 
     // None of these are released on disable (the pack's small user-truth stores are
     // "not released" because they are cheap and the user's own). Without this, re-enabling in the same

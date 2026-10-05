@@ -8,8 +8,8 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Generated;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Services.Teams;
@@ -73,7 +73,9 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     private readonly GrenadeIndex? _grenadeIndex;
     private readonly RoundIndexStore _positions;
     private readonly Action<Action> _post;
-    private readonly IDemoProcessingQueue? _queue;
+    private readonly IExtensionJobs? _jobs;
+    private readonly IExtensionPasses? _passes;
+    private int _minesInFlight;
     private readonly Func<Action, Task> _run;
     private readonly RoundSignatureBuilder _signatures;
     private readonly string? _statePath;
@@ -104,9 +106,10 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     /// <param name="configRoot">The config root; null keeps dismissals and promotions in memory.</param>
     /// <param name="post">UI-thread marshal for <see cref="Changed" />.</param>
     /// <param name="run">Runs a mine off the UI thread; defaults to <see cref="Task.Run(Action)" />.</param>
-    /// <param name="queue">
-    ///     The processing queue a mine runs in, and whose pending demo parses hold back the quiet re-mine; null mines
-    ///     on <paramref name="run" /> directly.
+    /// <param name="jobs">The processing queue a mine runs in; null mines on <paramref name="run" /> directly.</param>
+    /// <param name="passes">
+    ///     The pack's passes, whose demos in flight hold back the quiet re-mine (it reads what they write); null
+    ///     holds nothing back.
     /// </param>
     /// <param name="enabled">
     ///     The owning pack's gate for the cache-quiet re-mine only; a user-requested <see cref="MineAsync()" />
@@ -115,7 +118,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     public StratMiningService(DemoCacheStore demoCache, RoundIndexStore positions, Func<string?, string> fingerprintFor,
         GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags, string? cacheRoot,
         string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null,
-        IDemoProcessingQueue? queue = null, Func<bool>? enabled = null)
+        IExtensionJobs? jobs = null, Func<bool>? enabled = null, IExtensionPasses? passes = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(positions);
@@ -132,7 +135,8 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         _statePath = configRoot is null ? null : Path.Combine(configRoot, "strat-mining.json");
         _post = post ?? (action => action());
         _run = run ?? Task.Run;
-        _queue = queue;
+        _jobs = jobs;
+        _passes = passes;
         _enabled = enabled ?? (() => true);
         _signatures = new RoundSignatureBuilder(demoCache, positions, fingerprintFor,
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
@@ -214,9 +218,9 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             _grenadeIndex.Changed += OnSourceChanged;
         }
 
-        if (_queue is not null)
+        if (_passes is not null)
         {
-            _queue.Changed += OnQueueChanged;
+            _passes.Changed += OnQueueChanged;
         }
     }
 
@@ -296,9 +300,9 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             _grenadeIndex.Changed -= OnSourceChanged;
         }
 
-        if (_queue is not null)
+        if (_passes is not null)
         {
-            _queue.Changed -= OnQueueChanged;
+            _passes.Changed -= OnQueueChanged;
         }
 
         return true;
@@ -325,7 +329,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
                 StateUsable();
             }
 
-            if (_queue is null && _running)
+            if (_jobs is null && _running)
             {
                 _rerun = true;
                 return Task.CompletedTask;
@@ -334,7 +338,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             _running = true;
         }
 
-        if (_queue is null)
+        if (_jobs is null)
         {
             Task loop = _run(MineLoop);
             lock (_gate)
@@ -345,14 +349,14 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             return loop;
         }
 
-        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "Strat mining: library",
-            "strat-mining", user ? DemoJobPriority.UserRequested : DemoJobPriority.Background, MineQueuedAsync,
-            Key: "strat-mining", ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.Mining));
+        Interlocked.Increment(ref _minesInFlight);
+        IJobHandle handle = _jobs.Enqueue(new JobRequest("Strat mining: library", MineQueuedAsync,
+            new JobOptions(StratBookJobKinds.Mining, user ? JobPriority.UserRequested : JobPriority.Background, "strat-mining")));
         Task mine = handle.Completion.ContinueWith(_ =>
         {
             lock (_gate)
             {
-                _running = _queue.ActiveCount(DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.Mining) > 0;
+                _running = Interlocked.Decrement(ref _minesInFlight) > 0;
             }
 
             _post(() => Changed?.Invoke());
@@ -366,7 +370,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     }
 
     // One pass as a queue item. Steps aside between batches, so a demo open waits for one batch at most.
-    private async Task MineQueuedAsync(IQueueJobContext job)
+    private async Task MineQueuedAsync(IJobContext job)
     {
         IReadOnlyList<RoundSignature> signatures = [];
         IReadOnlyList<MinedPattern> patterns = [];
@@ -589,7 +593,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         ArgumentNullException.ThrowIfNull(pattern);
         ArgumentNullException.ThrowIfNull(owner);
         StratDocument? built = null;
-        if (_queue is null)
+        if (_jobs is null)
         {
             try
             {
@@ -603,13 +607,12 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             return cancellationToken.IsCancellationRequested ? null : built;
         }
 
-        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension,
-            $"Strat preview: {MinedStratBuilder.Name(pattern)}", "strat-mining", DemoJobPriority.UserRequested,
+        IJobHandle handle = _jobs.Enqueue(new JobRequest($"Strat preview: {MinedStratBuilder.Name(pattern)}",
             async job =>
             {
                 job.CancellationToken.ThrowIfCancellationRequested();
                 await _run(() => built = Build(pattern, owner, nowUtc, job.CancellationToken)).ConfigureAwait(false);
-            }, ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.Preview));
+            }, new JobOptions(StratBookJobKinds.Preview, JobPriority.UserRequested)));
         await using (cancellationToken.Register(handle.Cancel))
         {
             await handle.Completion.ConfigureAwait(false);
@@ -718,14 +721,13 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         }
 
         Mutate(state => state.Promoted.Remove(key));
-        LastRunRemoval = _queue is null
+        LastRunRemoval = _jobs is null
             ? _run(() => RemoveRuns(id))
-            : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension, "Strat mining: remove a deleted strat's runs",
-                "strat-mining", DemoJobPriority.UserRequested, _ =>
-                {
-                    RemoveRuns(id);
-                    return Task.CompletedTask;
-                }, Key: "strat-runs:" + id.ToString("N"), ExtensionKind: DemoViewer.NET.Extensions.StratBook.StratBookJobKinds.Mining)).Completion;
+            : _jobs.Enqueue(new JobRequest("Strat mining: remove a deleted strat's runs", _ =>
+            {
+                RemoveRuns(id);
+                return Task.CompletedTask;
+            }, new JobOptions(StratBookJobKinds.Mining, JobPriority.UserRequested, "strat-runs:" + id.ToString("N")))).Completion;
     }
 
     /// <summary>
@@ -859,8 +861,10 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         }
     }
 
-    // Demo parses only: the queue's other jobs (clips, this mine) must not hold the re-mine back forever.
-    private bool QueueBusy => _queue is { } queue && queue.ActiveCount(QueueJobKind.DemoProcessing) > 0;
+    // The passes whose writes a mine reads: while one has a demo in flight, the library is still changing under it.
+    private bool QueueBusy => _passes is { } passes
+                              && (passes.IsBusy(RoundFactsEvaluator.EvaluatorId) || passes.IsBusy(RoundIndexEvaluator.EvaluatorId)
+                                  || passes.IsBusy(GrenadeIndexEvaluator.EvaluatorId));
 
     /// <summary>
     ///     The quiet timer: re-mines unless the processing queue has work, in which case it waits for the

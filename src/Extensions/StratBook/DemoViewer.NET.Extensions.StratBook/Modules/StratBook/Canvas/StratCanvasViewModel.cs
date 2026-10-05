@@ -22,7 +22,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.Playback2D;
@@ -141,7 +141,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         _session = session;
         _spawnsFor = spawnsFor;
         _lineupOrigins = lineupOrigins;
-        _placesFor = placesFor ?? (map => QueuedPlaces(map, lookups?.Places));
+        _placesFor = placesFor ?? (map => QueuedPlaces(map, lookups?.Places, lookups?.Jobs));
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
         // No gate injected (a headless test, a designer instance): routing stays off.
         _gate = routing is null ? lookups?.Gate : null;
@@ -2473,7 +2473,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     // opened the strat or clicked for a place.
     // One read in flight per (map, source) across every canvas (the editor's and a Detected preview's) that
     // shares the same source, so the queue shows one; a different source never waits on another's read.
-    private static Task<IZonePlaceResolver?> QueuedPlaces(string map, IZonePlaceResolverSource? resolverSource)
+    private static Task<IZonePlaceResolver?> QueuedPlaces(string map, IZonePlaceResolverSource? resolverSource, IExtensionJobs? jobs)
     {
         (string Map, IZonePlaceResolverSource? Source) key = (map.ToLowerInvariant(), resolverSource);
         lock (_placesGate)
@@ -2483,10 +2483,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
                 return running;
             }
 
-            Task<IZonePlaceResolver?> read = QueueWork.RunAsync(QueueWork.Ambient, QueueJobKind.SectionCompute,
-                "Strat places: " + map, "Strat Book",
+            Task<IZonePlaceResolver?> read = StratBookJobs.RunAsync(jobs, "Strat places: " + map,
                 () => (resolverSource ?? NoZonePlaceResolverSource.Instance).TryGet(map),
-                null, DemoJobPriority.UserRequested);
+                null, new JobOptions(Priority: JobPriority.UserRequested));
             _placesInFlight[key] = read;
             return read;
         }

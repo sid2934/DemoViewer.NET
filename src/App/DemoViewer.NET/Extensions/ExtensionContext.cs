@@ -64,7 +64,7 @@ internal sealed class ExtensionContext : IExtensionContext
         Features = new GateView(services.GetService<IFeatureGate>(), _guard);
         Jobs = new ExtensionJobs(extension.Id, () => services.GetService<IDemoProcessingQueue>(),
             () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default, _guard, Post);
-        Passes = new ExtensionPasses(extension.Id, () => services.GetService<DemoScheduler>());
+        Passes = new ExtensionPasses(extension.Id, () => services.GetService<DemoScheduler>(), Post);
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
     }
@@ -276,7 +276,7 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
     {
         ArgumentNullException.ThrowIfNull(request);
         (QueueJobKind kind, string? extensionKind) = Resolve(request.Options.Kind);
-        JobPriority priority = QueueWork.InUserAction ? JobPriority.UserRequested : request.Options.Priority;
+        JobPriority priority = JobScope.IsUserAction ? JobPriority.UserRequested : request.Options.Priority;
         JobHandle handle = new(_post);
         if (request.DemoPath is { } path)
         {
@@ -377,16 +377,6 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
 
     public void CancelAll() => queue()?.CancelOwned(extensionId);
 
-    public IDisposable UserAction() => QueueWork.UserAction();
-
-    public void ThrowIfStopped() => QueueWork.ThrowIfStopped();
-
-    public bool IsStop(Exception exception)
-    {
-        ArgumentNullException.ThrowIfNull(exception);
-        return QueueWork.IsStop(exception);
-    }
-
     private static DemoJobPriority PriorityOf(JobPriority priority) =>
         priority == JobPriority.UserRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
 
@@ -442,6 +432,8 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
         public CancellationToken CancellationToken => inner.CancellationToken;
 
         public void Report(int done, int total, string? detail = null) => inner.Report(done, total, detail);
+
+        public Task StepAsideAsync() => inner.StepAsideAsync();
     }
 
     private sealed class PoolContext : IQueueJobContext
@@ -580,8 +572,53 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
 }
 
 /// <summary>The scheduler as one extension sees it: re-checks for everyone, busy reads for its own passes only.</summary>
-internal sealed class ExtensionPasses(string extensionId, Func<DemoScheduler?> scheduler) : IExtensionPasses
+internal sealed class ExtensionPasses(string extensionId, Func<DemoScheduler?> scheduler, Action<Action>? post = null)
+    : IExtensionPasses
 {
+    private readonly object _gate = new();
+    private readonly Action<Action> _post = post ?? (static a => a());
+    private Action? _changed;
+    private DemoScheduler? _subscribed;
+
+    public event Action? Changed
+    {
+        add
+        {
+            lock (_gate)
+            {
+                _changed += value;
+                if (_subscribed is null && scheduler() is { } source)
+                {
+                    _subscribed = source;
+                    source.OutstandingChanged += OnOutstandingChanged;
+                }
+            }
+        }
+        remove
+        {
+            lock (_gate)
+            {
+                _changed -= value;
+            }
+        }
+    }
+
+    // Only the extension's own passes reach its handlers, on the UI thread.
+    private void OnOutstandingChanged(string passId)
+    {
+        Action? handlers;
+        lock (_gate)
+        {
+            handlers = _changed;
+        }
+
+        if (handlers is not null && _subscribed is { } source
+                                  && string.Equals(source.OwnerOf(passId), extensionId, StringComparison.Ordinal))
+        {
+            _post(handlers);
+        }
+    }
+
     public void Request(string demoPath)
     {
         ArgumentException.ThrowIfNullOrEmpty(demoPath);

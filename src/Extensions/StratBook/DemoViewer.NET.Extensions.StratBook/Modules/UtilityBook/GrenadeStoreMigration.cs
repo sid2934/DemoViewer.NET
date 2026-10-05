@@ -4,7 +4,6 @@ using System.Text.Json;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -44,10 +43,10 @@ public static class GrenadeStoreMigration
     private static ILogger? _diagLog;
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
 
-    /// <summary>Queues the pass as a processing queue item, unless the marker says it is done. Null when nothing was queued.</summary>
-    public static IDemoQueueHandle? Submit(IDemoProcessingQueue queue, DemoCacheStore cache, GrenadeIndex index)
+    /// <summary>Queues the pass as a processing queue job, unless the marker says it is done. Null when nothing was queued.</summary>
+    public static IJobHandle? Submit(IExtensionJobs jobs, DemoCacheStore cache, GrenadeIndex index)
     {
-        ArgumentNullException.ThrowIfNull(queue);
+        ArgumentNullException.ThrowIfNull(jobs);
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(index);
         if (cache.CacheRoot is not { } root || File.Exists(Path.Combine(root, MarkerFileName)))
@@ -55,8 +54,7 @@ public static class GrenadeStoreMigration
             return null;
         }
 
-        return queue.SubmitJob(new QueueJobRequest(QueueJobKind.SidecarMigration, "Grenades: compact stored throws",
-            "demo-cache", DemoJobPriority.Background,
+        return jobs.Enqueue(new JobRequest("Grenades: compact stored throws",
             async job =>
             {
                 await RunAsync(cache, index, job.StepAsideAsync,
@@ -64,7 +62,7 @@ public static class GrenadeStoreMigration
                     .ConfigureAwait(false);
                 job.CancellationToken.ThrowIfCancellationRequested();
             },
-            Key: "grenade-store"));
+            new JobOptions(StratBookJobKinds.Migration, Key: "grenade-store", Preemptible: true)));
     }
 
     /// <summary>Runs the pass. Waits for the index's first load, since the harvest needs its lineups.</summary>

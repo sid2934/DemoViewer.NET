@@ -91,4 +91,7 @@ public interface IExtensionPasses
 
     /// <summary>True while one of the extension's own passes named <paramref name="passId" /> has a demo queued or running.</summary>
     bool IsBusy(string passId);
+
+    /// <summary>Raised on the UI thread when one of the extension's own passes takes a demo or finishes one.</summary>
+    event Action? Changed;
 }

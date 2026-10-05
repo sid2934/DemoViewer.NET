@@ -1207,6 +1207,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         // An open runs on its caller, not a worker; counting it would respawn idle workers forever.
         int running = _entries.Count(e => e.State == DemoQueueItemState.Running && !IsLight(e)
                                           && e.Kind != QueueJobKind.DemoOpen);
+        // A job that gave its slot up keeps its worker busy without holding a slot: its own reads need another.
+        int yielded = _entries.Count(e => e.State == DemoQueueItemState.Running && !IsLight(e) && e.SlotReleased);
+        running -= yielded;
         int want = running;
         if (NextStartableLocked(false) is { } next)
         {
@@ -1214,6 +1217,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 ? Math.Min(_maxConcurrency, running + _entries.Count(e => e.Kind == QueueJobKind.DemoProcessing && IsStartableLocked(e)))
                 : 1;
         }
+
+        want += yielded;
         while (_activeWorkers < want)
         {
             _activeWorkers++;
@@ -1912,6 +1917,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         Entry? best = null;
         bool anyRunning = false, jobRunning = false, opening = false;
         int userRunning = 0;
+        HashSet<string>? yielding = null;
         foreach (Entry e in _entries)
         {
             if (IsLight(e) != light)
@@ -1930,6 +1936,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 anyRunning = true;
                 userRunning += e.Priority >= DemoJobPriority.UserRequested ? 1 : 0;
                 jobRunning |= e.Kind != QueueJobKind.DemoProcessing;
+                if (e.SlotReleased && e.JobOwner is { } owner)
+                {
+                    (yielding ??= new HashSet<string>(StringComparer.Ordinal)).Add(owner);
+                }
             }
             else if (IsStartableLocked(e) && (best is null || Compare(e, best, resident) < 0))
             {
@@ -1944,7 +1954,34 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return !anyRunning || best is { Priority: >= DemoJobPriority.UserRequested } && userRunning < MaxUserLight ? best : null;
         }
 
+        if (jobRunning && !opening && yielding is not null)
+        {
+            return OwnReadLocked(yielding, resident);
+        }
+
         return best is null || opening || jobRunning || (best.Kind != QueueJobKind.DemoProcessing && anyRunning) ? null : best;
+    }
+
+    // Under _sync. A job that gave its slot up still holds the lane, except for the demos it reads itself: its
+    // own visits (a pack export's clips) start beside it, one heavy read at a time as ever.
+    private Entry? OwnReadLocked(HashSet<string> owners, string? resident)
+    {
+        if (_entries.Any(e => e.State == DemoQueueItemState.Running && e.Kind == QueueJobKind.DemoProcessing && !IsLight(e)))
+        {
+            return null;
+        }
+
+        Entry? best = null;
+        foreach (Entry e in _entries)
+        {
+            if (e.Kind == QueueJobKind.DemoProcessing && IsStartableLocked(e)
+                && e.Visit!.HasJobOwnedBy(owners) && (best is null || Compare(e, best, resident) < 0))
+            {
+                best = e;
+            }
+        }
+
+        return best;
     }
 
     // Marks the next startable item Running under the lock.
@@ -2413,6 +2450,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    private void NoteSlotReleased(Entry entry)
+    {
+        lock (_sync)
+        {
+            entry.SlotReleased = true;
+            PumpLocked();
+        }
+    }
+
     private void NoteDemoParsed(Entry entry)
     {
         lock (_sync)
@@ -2469,6 +2515,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         {
             _released = true;
             slot.Release();
+            queue.NoteSlotReleased(entry);
         }
 
         public void NoteDemoParsed() => queue.NoteDemoParsed(entry);
@@ -2537,6 +2584,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         // A job body reported a demo parse through its context.
         public bool ParsedDemo { get; set; }
+
+        // A running job handed its heavy slot back; its own demo reads may start beside it.
+        public bool SlotReleased { get; set; }
 
         // Set under _sync the instant FinishEntry captures its waiter/pass snapshot, BEFORE it
         // releases the lock to run the (multi-second) passes. The entry stays Running across that

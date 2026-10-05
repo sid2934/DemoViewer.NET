@@ -20,7 +20,6 @@ using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Services.Provenance;
@@ -409,39 +408,18 @@ public sealed class StratBookPack : IExtension
 
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
         // through the same seek seam the Result Cards use.
-        // Export pack renders the queue as one video (Pack Export): a private parse per demo, each demo's
-        // saved ink, one encode for the whole pack. A user-requested processing queue item that marks an export
-        // session on the heavy-job gate for its run, as a 2D export does; the browser has no ffmpeg and no
-        // files, so it gets no pack row.
+        // Export pack renders the queue as one video (Pack Export), through the app's export seam: each demo's
+        // parse from its visit, each demo's saved ink, one encode for the whole pack. The browser has no ffmpeg
+        // and no files, so it gets no pack row.
         services.AddSingleton(sp =>
         {
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            HeavyJobGate gate = sp.GetRequiredService<HeavyJobGate>();
-            IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
             TeamIdentityService teams = sp.GetRequiredService<TeamIdentityService>();
-            Func<PackPlan, IProgress<PackProgress>, CancellationToken, Task<PackResult>>? exportPack = null;
-            if (!OperatingSystem.IsBrowser())
-            {
-                ILogger log = DiagnosticsLog.CreateLogger(PackExportLog.Category);
-                exportPack = (plan, progress, ct) => PackExportQueue.RunAsync(queue,
-                    string.Create(CultureInfo.InvariantCulture,
-                        $"Pack export: {plan.Segments.Count} segments to {Path.GetFileName(plan.Settings.OutputPath)}"),
-                    plan.Settings.OutputPath, async (relay, token) =>
-                    {
-                        using IDisposable session = await gate.EnterExportSessionAsync(token).ConfigureAwait(false);
-                        using PackClipRenderer clips = new(gate, new AnnotationStore(AppPaths.ConfigRoot),
-                            log: line => PackExportLog.Line(log, line));
-                        PackExporter exporter = new(clips, new PackEncoder(log: line => PackExportLog.Encoder(log, line)),
-                            log: line => PackExportLog.Line(log, line));
-                        return await exporter.ExportAsync(plan, relay, token).ConfigureAwait(false);
-                    }, progress, ct);
-            }
-
             return new ReviewQueueTabViewModel(
                 sp.GetRequiredService<ReviewQueue>(),
                 () => sp.GetService<ISituationPlayback>(),
-                exportPack: exportPack,
+                exportPack: sp.GetService<FirstPartyExports>()?.PackExport,
                 packDirectory: monitor?.CurrentValue.Playback2D.ExportOutputDirectory,
                 mapOf: clip => (clip.Sha256 is { } sha ? cache.TryGetIndexBySha256(sha) : null)?.Map
                                ?? cache.TryGetIndex(clip.DemoPath)?.Map,
@@ -452,7 +430,7 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton(sp => new SuggestedInboxService(
             sp.GetRequiredService<SuggestedTagsService>(),
             sp.GetRequiredService<DemoCacheStore>(),
-            sp.GetRequiredService<IDemoProcessingQueue>(),
+            Host(sp).Jobs,
             run: work => Job(sp, "Suggested: read a demo", work, new JobOptions()),
             post: Host(sp).Post));
         services.AddSingleton(sp => new SuggestedInboxViewModel(
@@ -550,7 +528,8 @@ public sealed class StratBookPack : IExtension
         // strat's record agree on what "run / won / aborted" means.
         services.AddSingleton(sp => new StratEvidenceService(
             sp.GetRequiredService<TagStore>(),
-            sp.GetRequiredService<IDemoProvenanceSource>()));
+            sp.GetRequiredService<IDemoProvenanceSource>(),
+            Host(sp).Jobs));
         // Strat Mining: repeated setups and executes found from cached files, offered in the Strats
         // section's Detected inbox and written to a book only when the user adds one.
         services.AddSingleton(sp =>
@@ -567,8 +546,9 @@ public sealed class StratBookPack : IExtension
                 AppPaths.DemoCacheDir,
                 AppPaths.ConfigRoot,
                 Host(sp).Post,
-                queue: sp.GetRequiredService<IDemoProcessingQueue>(),
-                enabled: () => features.IsEnabled(PackFeatureId));
+                jobs: Host(sp).Jobs,
+                enabled: () => features.IsEnabled(PackFeatureId),
+                passes: Host(sp).Passes);
             sp.GetRequiredService<StratBookPackInstances>().Record(mining);
             return mining;
         });
@@ -579,7 +559,8 @@ public sealed class StratBookPack : IExtension
             // The canvas (and the Detected preview's) fallback when nobody passes placesFor/routing
             // explicitly: the real gate and zone source, not App.Services.
             StratCanvasServices canvasServices = new(
-                sp.GetService<IFeatureGate>(), sp.GetService<IZonePlaceResolverSource>(), sp.GetRequiredService<SettingsService>());
+                sp.GetService<IFeatureGate>(), sp.GetService<IZonePlaceResolverSource>(), sp.GetRequiredService<SettingsService>(),
+                Host(sp).Jobs);
             return new StratBookTabViewModel(
                 sp.GetRequiredService<StratStore>(),
                 sp.GetRequiredService<TeamIdentityService>(),
@@ -629,10 +610,13 @@ public sealed class StratBookPack : IExtension
             }
 
             SettingsService settings = sp.GetRequiredService<SettingsService>();
+            Func<bool> liveSyncBusy = () => sp.GetService<MainViewModel>()?.LiveSync?.State.IsSessionActive == true;
+            Func<bool> reelRunning = () => sp.GetService<MainViewModel>()?.ReelJob?.Status.IsRunning == true;
+            FirstPartyExports? exports = sp.GetService<FirstPartyExports>();
             return new StratExportHost(
-                sp.GetRequiredService<HeavyJobGate>(),
-                () => sp.GetService<MainViewModel>()?.LiveSync?.State.IsSessionActive == true,
-                () => sp.GetService<MainViewModel>()?.ReelJob?.Status.IsRunning == true,
+                exports is null ? null : (runner, log) => exports.NewJob(runner, liveSyncBusy, reelRunning, log),
+                liveSyncBusy,
+                reelRunning,
                 () => settings.Current,
                 settings.Write,
                 sp.GetRequiredService<StratBookExportChipSlot>().Mount,
@@ -752,7 +736,7 @@ public sealed class StratBookPack : IExtension
                 log: line => GrenadeIndexLog.LineupClip(log, line),
                 complete: () => index.IsReady,
                 maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
-                processing: sp.GetRequiredService<IDemoProcessingQueue>());
+                jobs: Host(sp).Jobs);
             index.Changed += () => clips.PlanSoon();
             sp.GetRequiredService<StratBookPackInstances>().Record(clips);
             return clips;
@@ -903,7 +887,7 @@ public sealed class StratBookPack : IExtension
         // Create Strat From Round in 2D Playback: the round band's entry and the review pane, one
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
         // gate above decides what the band offers; nothing is constructed here.
-        contributions.Playback(new CreateStratPlaybackContribution(contributions.Context.Post));
+        contributions.Playback(new CreateStratPlaybackContribution(contributions.Context.Post, contributions.Context.Jobs));
         firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post));
         firstParty.FirstPartyPlayback(new Modules.Situations.SituationsPlaybackContribution());
 
