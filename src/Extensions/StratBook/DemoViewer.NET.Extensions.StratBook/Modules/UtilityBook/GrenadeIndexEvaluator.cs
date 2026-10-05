@@ -90,6 +90,12 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     /// <summary>A demo's grenades were written and stamped. Raised through the post delegate with its path.</summary>
     public event Action<string>? Indexed;
 
+    /// <summary>
+    ///     A demo's grenades were written and stamped. Raised on the walking thread, inside the demo's visit, before
+    ///     <see cref="Indexed" />, so a later pass on the same visit sees what a handler did with them.
+    /// </summary>
+    public event Action<string>? Walked;
+
     /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     From the index row alone: the owning pack's gate on, a parsed demo whose grenades are missing,
@@ -285,6 +291,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
             }
             _demoCache.SaveIndex();
             GrenadeIndexLog.Walked(Log, fileName, rows.Grenades.Count, rows.Source.InputCoverage);
+            RaiseWalked(path);
             _post(() => Indexed?.Invoke(path));
         }
         catch (Exception ex)
@@ -312,6 +319,20 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         lock (_gate)
         {
             return _flights.Remove(path, out Dictionary<string, List<TrajectoryPoint>>? flights) ? flights : null;
+        }
+    }
+
+    // A handler's throw must not mark a walk that was written as failed.
+    private void RaiseWalked(string path)
+    {
+        try
+        {
+            Walked?.Invoke(path);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            string fileName = Path.GetFileName(path);
+            GrenadeIndexLog.WalkedHandlerFailed(Log, fileName, ex);
         }
     }
 
@@ -357,4 +378,7 @@ internal static partial class GrenadeIndexLog
 
     [LoggerMessage(EventId = 8, Level = LogLevel.Warning, Message = "the lineup store was not saved")]
     public static partial void LineupsNotSaved(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 9, Level = LogLevel.Warning, Message = "{fileName}: a handler of the walked grenades failed")]
+    public static partial void WalkedHandlerFailed(ILogger logger, string fileName, Exception exception);
 }

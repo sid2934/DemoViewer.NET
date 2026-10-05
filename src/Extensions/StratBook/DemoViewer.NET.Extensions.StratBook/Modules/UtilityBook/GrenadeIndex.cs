@@ -280,7 +280,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
 
         if (_evaluator is not null)
         {
-            _evaluator.Indexed += OnIndexed;
+            _evaluator.Walked += OnIndexed;
         }
 
         _demoCache.Changed += OnCacheChanged;
@@ -326,7 +326,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
 
         if (_evaluator is not null)
         {
-            _evaluator.Indexed -= OnIndexed;
+            _evaluator.Walked -= OnIndexed;
         }
 
         _demoCache.Changed -= OnCacheChanged;
@@ -1166,7 +1166,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
         }
     }
 
-    // Removals only: new rows arrive through the evaluator's Indexed, so no sibling is read here.
+    // Removals only: new rows arrive through the evaluator's Walked, so no sibling is read here.
     private void OnCacheChanged(string? path)
     {
         bool changed = false;

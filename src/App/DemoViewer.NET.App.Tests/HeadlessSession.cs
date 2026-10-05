@@ -132,7 +132,7 @@ public static class HeadlessSession
     {
         try
         {
-            await RunOnUi(() => Task.CompletedTask, "<assembly warm-up>");
+            await RunOnUi(() => Task.CompletedTask, "<assembly warm-up>", DefaultBudget);
             Volatile.Write(ref _warmUpBuiltAnApplication, true);
         }
         catch (Exception ex)
@@ -256,9 +256,18 @@ public static class HeadlessSession
     ///     </para>
     /// </remarks>
     public static Task RunOnUi(Func<Task> work) =>
-        RunOnUi(work, TestContext.Current?.TestDetails.TestName ?? "unknown test");
+        RunOnUi(work, TestContext.Current?.TestDetails.TestName ?? "unknown test", DefaultBudget);
 
-    private static async Task RunOnUi(Func<Task> work, string caller)
+    /// <summary>
+    ///     <see cref="RunOnUi(Func{Task})" /> with a longer budget than four minutes, for a real-corpus body
+    ///     that reads several full demos.
+    /// </summary>
+    public static Task RunOnUi(Func<Task> work, TimeSpan budget) =>
+        RunOnUi(work, TestContext.Current?.TestDetails.TestName ?? "unknown test", budget);
+
+    private static readonly TimeSpan DefaultBudget = TimeSpan.FromMinutes(4);
+
+    private static async Task RunOnUi(Func<Task> work, string caller, TimeSpan budget)
     {
         if (Volatile.Read(ref _wedgedBy) is { } culprit)
         {
@@ -277,7 +286,7 @@ public static class HeadlessSession
 
         try
         {
-            await DispatchWatched(work, caller);
+            await DispatchWatched(work, caller, budget);
         }
         catch (HeadlessSetupFaultException firstFault)
         {
@@ -290,7 +299,7 @@ public static class HeadlessSession
 
             try
             {
-                await DispatchWatched(work, caller);
+                await DispatchWatched(work, caller, budget);
             }
             catch (HeadlessSetupFaultException secondFault)
             {
@@ -342,7 +351,7 @@ public static class HeadlessSession
     ///     <see cref="HeadlessSetupFaultException" /> when the dispatch faulted before the body was
     ///     entered; any other fault is the body's own and propagates unchanged.
     /// </summary>
-    private static async Task DispatchWatched(Func<Task> work, string caller)
+    private static async Task DispatchWatched(Func<Task> work, string caller, TimeSpan budget)
     {
         // Avalonia invokes the body only after EnsureIsolatedApplication has returned, so this
         // flag cleanly separates "the harness could not build an application" from "the test
@@ -404,7 +413,8 @@ public static class HeadlessSession
         // WaitAsync (not WhenAny + Task.Delay) so the interval timer dies with the fast path
         // instead of lingering ~30s per call.
         bool completed = false;
-        for (int interval = 1; interval <= 8 && !completed; interval++)
+        int intervals = Math.Max(1, (int)Math.Ceiling(budget.TotalSeconds / 30));
+        for (int interval = 1; interval <= intervals && !completed; interval++)
         {
             try
             {
@@ -469,7 +479,7 @@ public static class HeadlessSession
             }
 
             throw new TimeoutException(
-                "RunOnUi body did not complete within 4 minutes — the test is hung (deadlocked "
+                $"RunOnUi body did not complete within {(int)budget.TotalMinutes} minutes: the test is hung (deadlocked "
                 + "await, nested RunOnUi, or an await whose completion source never fires) and "
                 + "has permanently wedged the shared UI session; later UI tests will fail fast. "
                 + $"Dispatcher responsive during the hang: {dispatcherAlive}; thread pool "

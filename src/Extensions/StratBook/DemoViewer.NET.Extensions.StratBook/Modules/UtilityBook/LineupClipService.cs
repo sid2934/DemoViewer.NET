@@ -335,7 +335,44 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         }
 
         IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(_clusters(), _directory);
-        HashSet<string> listing = Listing(_directory);
+        List<LineupClipJob> jobs = ChooseLocked(every, _directory);
+        if (_complete())
+        {
+            Prune(every);
+        }
+
+        if (jobs.Count == 0)
+        {
+            return 0;
+        }
+
+        HashSet<string> replanned = new(jobs.Select(j => j.Stem), StringComparer.OrdinalIgnoreCase);
+        lock (_gate)
+        {
+            _pending.RemoveAll(p => replanned.Contains(p.Stem));
+            _pending.AddRange(jobs);
+        }
+
+        StartWorker();
+        return jobs.Count;
+    }
+
+    // The jobs to render out of every planned one: no finished pair, not evicted or adopted, not planned already
+    // with the same throw, and within the cap. Marks them planned. With `only`, a job still waiting for its own
+    // read counts as unplanned, so a visit that can show it takes it over. Under _planLock.
+    private List<LineupClipJob> ChooseLocked(IReadOnlyList<LineupClipJob> every, string directory,
+        Func<LineupClipJob, bool>? only = null)
+    {
+        HashSet<string> waiting = new(StringComparer.OrdinalIgnoreCase);
+        if (only is not null)
+        {
+            lock (_gate)
+            {
+                waiting.UnionWith(_pending.Select(p => p.Stem));
+            }
+        }
+
+        HashSet<string> listing = Listing(directory);
         Func<string, bool> exists = _fileExists ?? listing.Contains;
         HashSet<string> evicted;
         lock (_gate)
@@ -363,7 +400,8 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
             bool gif = exists(job.GifPath);
             bool setpos = exists(job.SetposPath);
             if ((gif && setpos) || IsEvicted(job, evicted) || Adopt(job)
-                || (_planned.TryGetValue(job.Stem, out string? key) && string.Equals(key, job.Key, StringComparison.Ordinal)))
+                || (_planned.TryGetValue(job.Stem, out string? key) && string.Equals(key, job.Key, StringComparison.Ordinal)
+                    && !waiting.Contains(job.Stem)))
             {
                 continue;
             }
@@ -371,7 +409,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
             candidates.Add(job);
         }
 
-        List<LineupClipJob> jobs = [.. WithinCap(candidates, requested)];
+        List<LineupClipJob> jobs = [.. WithinCap(candidates, requested).Where(j => only?.Invoke(j) ?? true)];
         foreach (LineupClipJob job in jobs)
         {
             if (exists(job.GifPath) || exists(job.SetposPath))
@@ -382,9 +420,57 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
             _planned[job.Stem] = job.Key;
         }
 
-        if (_complete())
+        return jobs;
+    }
+
+    /// <summary>True while clips are wanted: the setting is on, there is a directory and the pack is attached.</summary>
+    public bool Renders
+    {
+        get
         {
-            Prune(every);
+            lock (_gate)
+            {
+                if (_released || _disposed)
+                {
+                    return false;
+                }
+            }
+
+            return _directory is not null && _enabled();
+        }
+    }
+
+    /// <summary>
+    ///     Renders, on the parse of a demo's visit, every missing clip a throw in that demo can show, so the read
+    ///     the visit already paid for serves them. A lineup the demo just made repeated always has a throw in it.
+    ///     Runs on the visit's queue thread, after the demo's grenades are in the index.
+    /// </summary>
+    /// <param name="demoPath">The demo.</param>
+    /// <param name="parsed">Its parse, held by the visit.</param>
+    /// <param name="ct">Stops the renders; a GIF cut short does not survive.</param>
+    /// <returns>How many pairs were written.</returns>
+    public int RenderOn(string demoPath, ParsedDemo parsed, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(demoPath);
+        ArgumentNullException.ThrowIfNull(parsed);
+        List<LineupClipJob> jobs;
+        lock (_planLock)
+        {
+            lock (_gate)
+            {
+                if (_released || _disposed)
+                {
+                    return 0;
+                }
+            }
+
+            if (_directory is null || !_enabled())
+            {
+                return 0;
+            }
+
+            jobs = ChooseLocked(LineupClipPlanner.PlanEvery(_clusters(), _directory, demoPath), _directory,
+                j => string.Equals(j.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase));
         }
 
         if (jobs.Count == 0)
@@ -392,15 +478,54 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
             return 0;
         }
 
-        HashSet<string> replanned = new(jobs.Select(j => j.Stem), StringComparer.OrdinalIgnoreCase);
+        HashSet<string> taken = new(jobs.Select(j => j.Stem), StringComparer.OrdinalIgnoreCase);
         lock (_gate)
         {
-            _pending.RemoveAll(p => replanned.Contains(p.Stem));
-            _pending.AddRange(jobs);
+            _pending.RemoveAll(p => taken.Contains(p.Stem));
         }
 
-        StartWorker();
-        return jobs.Count;
+        IReadOnlyList<LineupClipJob> rendered;
+        try
+        {
+            // The renderer never touches the UI thread, so blocking this queue thread on it cannot deadlock.
+            rendered = _renderer.RenderAsync(demoPath, parsed, jobs, ct).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log?.Invoke($"lineup clips: {demoPath}: {ex.Message}");
+            return 0;
+        }
+
+        return Finish(rendered);
+    }
+
+    // Writes the sidecars of the rendered GIFs, drops pairs left under older names, and holds the cap.
+    private int Finish(IReadOnlyList<LineupClipJob> rendered)
+    {
+        lock (_gate)
+        {
+            // Released meanwhile: the GIFs on disk are adopted by the next plan; nothing else is touched.
+            if (_released || _disposed)
+            {
+                return 0;
+            }
+        }
+
+        foreach (LineupClipJob done in rendered)
+        {
+            WriteSidecar(done);
+            if (File.Exists(done.SetposPath))
+            {
+                DeleteFormerPairs(done);
+            }
+        }
+
+        if (rendered.Count > 0)
+        {
+            EnforceCap(_directory!);
+        }
+
+        return rendered.Count;
     }
 
     /// <summary>
@@ -997,29 +1122,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
             return;
         }
 
-        lock (_gate)
-        {
-            // Released meanwhile: the GIFs on disk are adopted by the next plan; nothing else is touched.
-            if (_released || _disposed)
-            {
-                return;
-            }
-        }
-
-        foreach (LineupClipJob done in rendered)
-        {
-            WriteSidecar(done);
-            if (File.Exists(done.SetposPath))
-            {
-                DeleteFormerPairs(done);
-            }
-        }
-
-        if (rendered.Count > 0)
-        {
-            EnforceCap(_directory!);
-        }
-
+        Finish(rendered);
         job?.Report(batch.Count, batch.Count, string.Create(CultureInfo.InvariantCulture, $"{rendered.Count} written"));
     }
 

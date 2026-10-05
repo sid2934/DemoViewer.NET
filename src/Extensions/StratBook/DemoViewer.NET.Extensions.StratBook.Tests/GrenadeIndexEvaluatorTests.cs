@@ -54,6 +54,56 @@ public class GrenadeIndexEvaluatorTests
     }
 
     [Test]
+    public async Task TheClipPass_FollowsTheWalk_RunsOnceOnItsVisit_AndThenWantsNothing()
+    {
+        (_, GrenadeIndexEvaluator evaluator) = Wire(background: true);
+        using LineupClipService clips = new(() => [], "/clips", () => true, new NoRender());
+        using LineupClipPass pass = new(evaluator, clips);
+        ParsedDemo parsed = Parse();
+
+        DemoInterest beforeWalk = pass.Interest(Demo);
+        evaluator.Evaluate(Demo, parsed);
+        DemoInterest afterWalk = pass.Interest(Demo);
+        pass.Run(new Context(Demo, parsed));
+        DemoInterest afterRun = pass.Interest(Demo);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(beforeWalk).IsEqualTo(DemoInterest.AfterUpstream).Because("it joins the visit the walk is on");
+            await Assert.That(afterWalk).IsEqualTo(DemoInterest.Yes);
+            await Assert.That(afterRun).IsEqualTo(DemoInterest.No)
+                .Because("a re-check after the visit must not read the demo again for its clips");
+        }
+    }
+
+    [Test]
+    public async Task TheClipPass_WithClipsOff_IsNeverOnAVisit()
+    {
+        (_, GrenadeIndexEvaluator evaluator) = Wire(background: true);
+        using LineupClipService clips = new(() => [], "/clips", () => false, new NoRender());
+        using LineupClipPass pass = new(evaluator, clips);
+
+        evaluator.Evaluate(Demo, Parse());
+
+        await Assert.That(pass.Interest(Demo)).IsEqualTo(DemoInterest.No);
+    }
+
+    private sealed class NoRender : ILineupClipRenderer
+    {
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo,
+            IReadOnlyList<LineupClipJob> jobs, CancellationToken ct) => Task.FromResult(jobs);
+    }
+
+    private sealed class Context(string path, ParsedDemo parsed) : IPassContext
+    {
+        public string DemoPath => path;
+
+        public ParsedDemo Parsed => parsed;
+
+        public CancellationToken CancellationToken => CancellationToken.None;
+    }
+
+    [Test]
     public async Task Wanted_OnlyWithTheOptIn_AndNeverWithoutAParse()
     {
         (DemoCacheStore cache, GrenadeIndexEvaluator off) = Wire();

@@ -115,6 +115,80 @@ public class LineupClipTests
     }
 
     [Test]
+    public async Task Plan_FromASourceDemo_ShowsItsThrow_UnderTheRepresentativesKey()
+    {
+        GrenadeLineup lineup = Lineup(Throw("/d/a.dem", Row("a1")), Throw("/d/b.dem", Row("b1", 3000, 3100)));
+
+        LineupClipJob job = LineupClipPlanner.Plan(lineup, null, "t", Directory, "/d/b.dem")!;
+        LineupClipJob elsewhere = LineupClipPlanner.Plan(lineup, null, "t", Directory, "/d/c.dem")!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(job.DemoPath).IsEqualTo("/d/b.dem");
+            await Assert.That(job.FromTick).IsEqualTo(3000 - 64);
+            await Assert.That(job.Key).IsEqualTo("sha-a/a1").Because("the pair is still the representative's to plan");
+            await Assert.That(job.GifPath).IsEqualTo(LineupClipPlanner.Plan(lineup, "t", Directory)!.GifPath);
+            await Assert.That(elsewhere.DemoPath).IsEqualTo("/d/a.dem").Because("a demo with no throw of it falls back");
+        }
+    }
+
+    [Test]
+    public async Task AVisit_RendersTheClipsItsDemoCanShow_OnItsParse_AndTheNextPlanReadsNothing()
+    {
+        string clips = TempClips();
+        try
+        {
+            FileRenderer renderer = new();
+            using LineupClipService service = new(() => [TwoLineups()], clips, () => true, renderer);
+            ParsedDemo parsed = SyntheticParsedDemo.Create();
+
+            int written = service.RenderOn("/d/b.dem", parsed, CancellationToken.None);
+            int planned = service.Plan();
+            await service.WorkerTask;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(written).IsEqualTo(2).Because("both repeated lineups have a throw in b");
+                await Assert.That(renderer.Calls.Select(c => c.Demo)).IsEquivalentTo(["/d/b.dem"]);
+                await Assert.That(renderer.Calls[0].Jobs.All(j => j.DemoPath == "/d/b.dem")).IsTrue();
+                await Assert.That(planned).IsEqualTo(0).Because("a demo the visit already served is not read for its clips");
+                await Assert.That(System.IO.Directory.GetFiles(clips, "*" + LineupClipPlanner.SetposExtension).Length).IsEqualTo(2);
+            }
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
+    public async Task AVisit_TakesOverAClipStillWaitingForItsOwnRead()
+    {
+        string clips = TempClips();
+        try
+        {
+            FakeRenderer queued = new() { Hold = new TaskCompletionSource() };
+            FileRenderer renderer = new();
+            ILineupClipRenderer current = queued;
+            using LineupClipService service = new(() => [TwoLineups()], clips, () => true, new Switch(() => current));
+
+            // Planned for a's and b's own reads; a's read is held, so b's clips still wait.
+            service.Plan();
+            current = renderer;
+            int written = service.RenderOn("/d/b.dem", SyntheticParsedDemo.Create(), CancellationToken.None);
+            queued.Hold!.SetResult();
+            await service.WorkerTask;
+
+            await Assert.That(written).IsGreaterThanOrEqualTo(1);
+            await Assert.That(service.Pending.Count).IsEqualTo(0);
+        }
+        finally
+        {
+            System.IO.Directory.Delete(clips, true);
+        }
+    }
+
+    [Test]
     public async Task Plan_SkipsAOneOffThrow_AndAThrowWithNoConsoleLine()
     {
         await Assert.That(LineupClipPlanner.Plan(Lineup(Throw("/d/a.dem", Row("a1"))), "t", Directory)).IsNull();
@@ -928,6 +1002,12 @@ public class LineupClipTests
 
             return Task.FromResult(jobs);
         }
+    }
+
+    private sealed class Switch(Func<ILineupClipRenderer> current) : ILineupClipRenderer
+    {
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
+            CancellationToken ct) => current().RenderAsync(demoPath, demo, jobs, ct);
     }
 
     private sealed class FakeRenderer : ILineupClipRenderer

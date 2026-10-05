@@ -44,6 +44,27 @@ public class ParseOncePerDemoTests
     }
 
     [Test]
+    public async Task AnImportWithLineupClipsOn_RendersTheClipsOnTheImportsReads()
+    {
+        string folder = Corpus("benchmarks");
+        string? clips = null;
+        await WithApp(folder, async provider =>
+        {
+            DemoProcessingQueue queue = provider.GetRequiredService<DemoProcessingQueue>();
+            clips = Path.Combine(AppPaths.ConfigRoot!, App.LineupClipDirectoryName);
+            await provider.GetRequiredService<DemoLibraryService>().RescanAsync();
+            await SettleAsync(queue);
+            provider.GetRequiredService<DemoScheduler>().RecheckAll();
+            await SettleAsync(queue);
+
+            string[] gifs = Directory.Exists(clips) ? Directory.GetFiles(clips, "*.gif") : [];
+            Console.WriteLine($"lineup clips written: {gifs.Length}");
+            await Assert.That(gifs.Length).IsGreaterThan(0).Because("repeated lineups in the corpus get their clips");
+            await AssertEachReadOnce(provider, queue, folder);
+        }, renderClips: true);
+    }
+
+    [Test]
     public async Task ADemoOpenWhileTheLibraryFindsIt_IsReadOnce_ByTheOpen()
     {
         string folder = Corpus("trimmed");
@@ -155,25 +176,24 @@ public class ParseOncePerDemoTests
     private static List<string> Demos(string folder) =>
         [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)];
 
-    // Every Strat Book pass and the highlights backlog on; lineup clips off, since they render after the index
-    // changes, which is a feature of its own and not indexing.
-    private static string Settings(string folder) =>
+    // Every Strat Book pass and the highlights backlog on; lineup clips only where a test asks for them.
+    private static string Settings(string folder, bool renderClips) =>
         $$"""
           {
             "FirstRunCompleted": true,
             "Library": { "Folders": [ {{System.Text.Json.JsonSerializer.Serialize(folder)}} ] },
             "Highlights": { "BackgroundScan": true },
             "Situations": { "BackgroundIndex": true },
-            "Grenades": { "BackgroundIndex": true, "RenderLineupClips": false },
+            "Grenades": { "BackgroundIndex": true, "RenderLineupClips": {{(renderClips ? "true" : "false")}} },
             "Playback2D": { "SuggestedTagsBackground": true }
           }
           """;
 
-    private static async Task WithApp(string folder, Func<ServiceProvider, Task> body)
+    private static async Task WithApp(string folder, Func<ServiceProvider, Task> body, bool renderClips = false)
     {
         string dir = Path.Combine(Path.GetTempPath(), "dvparseonce_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "settings.json"), Settings(folder));
+        File.WriteAllText(Path.Combine(dir, "settings.json"), Settings(folder, renderClips));
         string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
         Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
         try
@@ -189,7 +209,7 @@ public class ParseOncePerDemoTests
                 {
                     provider.Dispose();
                 }
-            });
+            }, TimeSpan.FromMinutes(20));
         }
         finally
         {

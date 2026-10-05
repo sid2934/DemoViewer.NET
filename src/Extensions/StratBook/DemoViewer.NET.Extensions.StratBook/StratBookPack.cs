@@ -742,6 +742,10 @@ public sealed class StratBookPack : IExtension
             return clips;
         });
 
+        // The clips a walked demo can show render on that demo's visit, so a new repeated lineup costs no read.
+        services.AddSingleton(sp => new LineupClipPass(sp.GetRequiredService<GrenadeIndexEvaluator>(),
+            sp.GetRequiredService<LineupClipService>()));
+
         // The pack's lifecycle: resolved by the app only while pack.stratbook resolves on,
         // keyed by the pack's own id so a future second pack's lifecycle never collides with this one.
         services.AddKeyedSingleton<IExtensionLifecycle, StratBookLifecycle>(Id);
@@ -858,9 +862,9 @@ public sealed class StratBookPack : IExtension
         // the user overlay and the Workbench keep working on it.
         firstParty.Ruleset(RoundFactsFingerprint.RulesetId);
 
-        // The four pack passes on the demo's visit, ordered to match the dependency chain each one reads: Round Facts after the library write, Round Index after Round Facts' rows,
+        // The pack passes on the demo's visit, ordered to match the dependency chain each one reads: Round Facts after the library write, Round Index after Round Facts' rows,
         // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing
-        // the others write). The registry resolves this only while the pack is on, so these factories are
+        // the others write), and Lineup Clips after the grenades it renders. The registry resolves this only while the pack is on, so these factories are
         // never invoked, and these services never constructed, with the pack off.
         contributions.Pass(RoundFactsEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundFactsEvaluator>(),
             HostIds.LibraryPass);
@@ -870,6 +874,8 @@ public sealed class StratBookPack : IExtension
             RoundIndexEvaluator.EvaluatorId);
         contributions.Pass(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             HostIds.LibraryPass);
+        contributions.Pass(LineupClipPass.PassId, () => sp.GetRequiredService<LineupClipPass>(),
+            GrenadeIndexEvaluator.EvaluatorId);
 
 
         // Every store and cache path the pack owns, and the "delete extension data" action over

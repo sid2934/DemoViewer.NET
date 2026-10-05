@@ -83,7 +83,7 @@ public class StratBookCompositionRootTests
     // The pass order is a contract: a pass may read what the one before it wrote on the same visit, so the
     // round index, when it lands, goes after round facts and reads them.
     [Test]
-    public async Task PassOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTagsThenGrenades()
+    public async Task PassOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTagsThenGrenadesThenClips()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
@@ -95,7 +95,8 @@ public class StratBookCompositionRootTests
                     "library", "highlights", Services.RoundFacts.RoundFactsEvaluator.EvaluatorId,
                     Services.RoundIndex.RoundIndexEvaluator.EvaluatorId,
                     Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
-                    Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId
+                    Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId,
+                    Modules.UtilityBook.LineupClipPass.PassId
                 });
             await Assert.That(coordinator.PassIds[2]).IsEqualTo("roundfacts");
             // The index reads the rows Round Facts wrote in the same pass, so it must come after it.
@@ -104,6 +105,8 @@ public class StratBookCompositionRootTests
             await Assert.That(coordinator.PassIds[4]).IsEqualTo("suggestedtags");
             // The grenade walk reads nothing the others write; last so it never delays one that does.
             await Assert.That(coordinator.PassIds[5]).IsEqualTo("grenades");
+            // Clips render from the grenades the walk just put in the index, on the same parse.
+            await Assert.That(coordinator.PassIds[6]).IsEqualTo("lineupclips");
 
             // The order came from the registry's resolve: confirm it actually built the four pack
             // evaluators, not merely listed their ids.
