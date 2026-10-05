@@ -27,8 +27,11 @@ public interface IExtensionContributions
     /// <summary>Commands for the keymap, in addition to <see cref="IExtension.Commands" />.</summary>
     void Commands(IEnumerable<CommandDescriptor> commands);
 
-    /// <summary>A page in Settings.</summary>
+    /// <summary>A page in Settings with controls of the extension's own.</summary>
     void SettingsPage(SettingsPageContribution page);
+
+    /// <summary>A page in Settings the host renders from a list of settings, stored in <see cref="IExtensionContext.Settings" />.</summary>
+    void SettingsSchema(SettingsSchema schema);
 
     /// <summary>Lanes, panes, panels, toolbar items and handlers in every 2D Playback tab.</summary>
     void Playback(IPlaybackContribution contribution);

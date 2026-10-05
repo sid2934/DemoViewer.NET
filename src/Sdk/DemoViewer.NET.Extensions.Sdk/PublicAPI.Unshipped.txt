@@ -156,6 +156,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Pass(string! id, System.Fu
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Playback(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution! contribution) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer.NET.Extensions.Sdk.IReindexEstimate! estimate) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsSchema(DemoViewer.NET.Extensions.Sdk.SettingsSchema! schema) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Store(DemoViewer.NET.Extensions.Sdk.StoreDescriptor! store) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Tabs(DemoViewer.NET.Modules.Abstractions.IWorkspaceModule! workspaceModule) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval
@@ -504,6 +505,44 @@ DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Run.get -> System.Func<DemoVi
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.ToolbarItem(string! id, string! label, string! tooltip, System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment!, bool>! run, string? actionId = null, int order = 0, string? icon = null, string? menuHeader = null) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Tooltip.get -> string!
 DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem.Tooltip.set -> void
+DemoViewer.NET.Extensions.Sdk.SettingChoice
+DemoViewer.NET.Extensions.Sdk.SettingChoice.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.SettingChoice!
+DemoViewer.NET.Extensions.Sdk.SettingChoice.Deconstruct(out string! Value, out string! Label) -> void
+DemoViewer.NET.Extensions.Sdk.SettingChoice.Equals(DemoViewer.NET.Extensions.Sdk.SettingChoice? other) -> bool
+DemoViewer.NET.Extensions.Sdk.SettingChoice.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingChoice.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingChoice.SettingChoice(string! Value, string! Label) -> void
+DemoViewer.NET.Extensions.Sdk.SettingChoice.Value.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingChoice.Value.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.SettingDescriptor!
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Choices.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingChoice!>!
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Choices.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Deconstruct(out string! Key, out string! Label, out DemoViewer.NET.Extensions.Sdk.SettingKind Kind, out object? Default) -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Default.get -> object?
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Default.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Equals(DemoViewer.NET.Extensions.Sdk.SettingDescriptor? other) -> bool
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Help.get -> string?
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Help.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Key.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Key.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Kind.get -> DemoViewer.NET.Extensions.Sdk.SettingKind
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Kind.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Maximum.get -> double?
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Maximum.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Minimum.get -> double?
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Minimum.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.SettingDescriptor(string! Key, string! Label, DemoViewer.NET.Extensions.Sdk.SettingKind Kind, object? Default) -> void
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Step.get -> double
+DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Step.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingKind
+DemoViewer.NET.Extensions.Sdk.SettingKind.Choice = 2 -> DemoViewer.NET.Extensions.Sdk.SettingKind
+DemoViewer.NET.Extensions.Sdk.SettingKind.Folder = 4 -> DemoViewer.NET.Extensions.Sdk.SettingKind
+DemoViewer.NET.Extensions.Sdk.SettingKind.Number = 1 -> DemoViewer.NET.Extensions.Sdk.SettingKind
+DemoViewer.NET.Extensions.Sdk.SettingKind.Text = 3 -> DemoViewer.NET.Extensions.Sdk.SettingKind
+DemoViewer.NET.Extensions.Sdk.SettingKind.Toggle = 0 -> DemoViewer.NET.Extensions.Sdk.SettingKind
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.SettingsPageContribution!
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Deconstruct(out string! Id, out string! Header, out int Order, out string! Keywords, out System.Func<object!>! ViewModelFactory, out System.Func<Avalonia.Controls.Control!>! ViewFactory, out string? FeatureId) -> void
@@ -523,6 +562,23 @@ DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewFactory.get -> System
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewFactory.init -> void
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewModelFactory.get -> System.Func<object!>!
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewModelFactory.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsSchema
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.SettingsSchema!
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Deconstruct(out string! Id, out string! Header, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingDescriptor!>! Settings) -> void
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Equals(DemoViewer.NET.Extensions.Sdk.SettingsSchema? other) -> bool
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.FeatureId.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Header.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Header.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Keywords.get -> string!
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Keywords.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Order.get -> int
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Order.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Settings.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingDescriptor!>!
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.Settings.init -> void
+DemoViewer.NET.Extensions.Sdk.SettingsSchema.SettingsSchema(string! Id, string! Header, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingDescriptor!>! Settings) -> void
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.StoreDescriptor!
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Deconstruct(out string! Id, out string! Label, out DemoViewer.NET.Extensions.Sdk.StoreRoot Root, out System.Collections.Generic.IReadOnlyList<string!>! Paths, out bool IsUserWork) -> void
@@ -667,9 +723,18 @@ override DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.ToString() -> strin
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.SettingChoice.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.SettingChoice.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.SettingChoice.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.SettingDescriptor.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.SettingDescriptor.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.SettingsSchema.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.SettingsSchema.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.SettingsSchema.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.ToString() -> string!
@@ -728,8 +793,19 @@ static DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.operator !=(DemoViewe
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.SettingChoice.operator !=(DemoViewer.NET.Extensions.Sdk.SettingChoice? left, DemoViewer.NET.Extensions.Sdk.SettingChoice? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.SettingChoice.operator ==(DemoViewer.NET.Extensions.Sdk.SettingChoice? left, DemoViewer.NET.Extensions.Sdk.SettingChoice? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Choice(string! key, string! label, string! defaultValue, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingChoice!>! choices, string? help = null) -> DemoViewer.NET.Extensions.Sdk.SettingDescriptor!
+static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Folder(string! key, string! label, string? help = null) -> DemoViewer.NET.Extensions.Sdk.SettingDescriptor!
+static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Number(string! key, string! label, double defaultValue, double minimum, double maximum, double step = 1, string? help = null) -> DemoViewer.NET.Extensions.Sdk.SettingDescriptor!
+static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Text(string! key, string! label, string! defaultValue = "", string? help = null) -> DemoViewer.NET.Extensions.Sdk.SettingDescriptor!
+static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Toggle(string! key, string! label, bool defaultValue, string? help = null) -> DemoViewer.NET.Extensions.Sdk.SettingDescriptor!
+static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.operator !=(DemoViewer.NET.Extensions.Sdk.SettingDescriptor? left, DemoViewer.NET.Extensions.Sdk.SettingDescriptor? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.operator ==(DemoViewer.NET.Extensions.Sdk.SettingDescriptor? left, DemoViewer.NET.Extensions.Sdk.SettingDescriptor? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.operator !=(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? left, DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.operator ==(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? left, DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.SettingsSchema.operator !=(DemoViewer.NET.Extensions.Sdk.SettingsSchema? left, DemoViewer.NET.Extensions.Sdk.SettingsSchema? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.SettingsSchema.operator ==(DemoViewer.NET.Extensions.Sdk.SettingsSchema? left, DemoViewer.NET.Extensions.Sdk.SettingsSchema? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StoreDescriptor.operator !=(DemoViewer.NET.Extensions.Sdk.StoreDescriptor? left, DemoViewer.NET.Extensions.Sdk.StoreDescriptor? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StoreDescriptor.operator ==(DemoViewer.NET.Extensions.Sdk.StoreDescriptor? left, DemoViewer.NET.Extensions.Sdk.StoreDescriptor? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.operator !=(DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? left, DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? right) -> bool

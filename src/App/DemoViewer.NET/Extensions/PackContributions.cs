@@ -3,7 +3,9 @@
 using Avalonia.Controls;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Shell;
+using DemoViewer.NET.Views.Settings;
 using SdkPlayback = DemoViewer.NET.Extensions.Sdk.Playback;
 
 #endregion
@@ -203,6 +205,23 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
                 ? ExtensionPlaceholder.View(_guard.Scope, "this page")
                 : _guard.Run("settings page view", view, ExtensionPlaceholder.View(_guard.Scope, "this page"))
         });
+    }
+
+    /// <inheritdoc />
+    public void SettingsSchema(SettingsSchema schema)
+    {
+        ArgumentNullException.ThrowIfNull(schema);
+        ArgumentException.ThrowIfNullOrWhiteSpace(schema.Id);
+        ArgumentNullException.ThrowIfNull(schema.Settings);
+        foreach (SettingDescriptor setting in schema.Settings)
+        {
+            ArgumentNullException.ThrowIfNull(setting);
+            ArgumentException.ThrowIfNullOrWhiteSpace(setting.Key);
+        }
+
+        string keywords = string.Join(' ', schema.Settings.Select(s => s.Label).Prepend(schema.Keywords).Prepend(schema.Header));
+        SettingsPage(new SettingsPageContribution(schema.Id, schema.Header, schema.Order, keywords,
+            () => new SchemaSettingsPageViewModel(schema, Context.Settings), () => new SchemaSettingsPageView(), schema.FeatureId));
     }
 
     /// <inheritdoc />
