@@ -118,7 +118,7 @@ public static partial class Variants
             {
                 new GameIcon { Key = "equipment/ak47", IconHeight = 16, Foreground = Tok(ThemeTokens.AccentInteractive) },
                 new GameIcon { Key = "modifier/headshot", IconHeight = 16, Foreground = Tok(ThemeTokens.AccentError) },
-                new GameIcon { Key = "no/such/icon", IconHeight = 16, Fallback = "?", Foreground = Tok(ThemeTokens.TextDim) },
+                new GameIcon { Key = "ui/missing_on_purpose", IconHeight = 16, Fallback = "?", Foreground = Tok(ThemeTokens.TextDim) },
                 new GifView { Source = gif, Width = 24, Height = 24 }
             }
         }));

@@ -935,7 +935,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   a text box, combo box or edit tool: it must not read as editable, and it runs on a throwaway in-memory store.
 
 ### KeyValueTable
-- **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`). **Bindable props on `Root`:** `Rows`
+- **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`) in the SDK UI kit (`src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui`). **Bindable props on `Root`:** `Rows`
   (`IReadOnlyList<KvpRow>`), `ShowDeltaOnly` (filters to changed rows → `VisibleRows`).
 - **Purpose:** generic two-column key/value grid. Delta rows render `prev → curr` (strikethrough prev)
   with a tinted key. Virtualized via the default `ListBox` `VirtualizingStackPanel`.
@@ -1166,7 +1166,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   its `Close` to `Surface.CloseSidePaneCommand`. An extension pack adds a pane through
   `IPlaybackSurface.AddPane(PanePlacement.Side, order, factory)` and opens it from its own entry point (a
   band-menu entry, a toolbar item); the view comes from the `ViewLocator` convention, so the pane's view
-  model derives from `ViewModelBase` and has a `…View`. The Create Strat From Round review is the first
+  model derives from `ViewModelBase` (an extension's from the UI kit's `ExtensionViewModel`) and has a
+  matching View. The Create Strat From Round review is the first
   such pane; it used to be a second hardcoded `Border` bound to a pack-typed property on the tab. The tab
   closes any open side pane on deactivation and on a demo reset, and the view model of a closed pane is
   disposed. Variant `playback2d-create-strat-pane` (1280x800) renders the host with that review open.
@@ -1379,7 +1380,8 @@ spectating has no readback. Gated by `playback2d.follow`.
 
 <a id="statuschip"></a>
 ### StatusChip + StatusStrip chip region (CSVG integration, `the design notes in git history` §4.1)
-- **Files (as-built):** `Controls/StatusChip.axaml(.cs)` (DataContext = `ViewModels/StatusChipViewModel`);
+- **Files (as-built):** `Controls/StatusChip.axaml(.cs)` (DataContext = `StatusChipViewModel`), both in the SDK UI kit
+  (`src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/Controls`);
   `Controls/StatusStrip.axaml(.cs)` gained a right-aligned `ItemsControl` chip region (spacing 12) bound to a
   new `IEnumerable? Chips` styled property (between the perf ticker and `RightText`); the shared status-dot
   styles live in **`Styles/Primitives.axaml`** (`Ellipse.dot.*`, see the class table). First consumer:
@@ -1704,9 +1706,18 @@ model. `UiCapture` variants: `stats-components`, `stats-components-edge`, `stats
   rather than hosting a `TextBlock` a screen reader could find.
 
 ### Other Controls/ (not full shared-design components, but shared)
-`CommandPalette` (Ctrl+P overlay), `OutputPanel` (bottom drawer), `StatusStrip` (bottom status),
-`ParseLinkChip` (source-link chip). `OpenExternal.cs` = VS Code / browser launch helper (desktop only,
-WASM-guard needed).
+`CommandPalette` (Ctrl+P overlay), `OutputPanel` (bottom drawer), `StatusStrip` (bottom status).
+`ParseLinkChip` (source-link chip) and `OpenExternal.cs` (VS Code / browser launch helper, desktop only,
+WASM-guard needed) live in the SDK UI kit with the other controls extensions share; see below.
+
+### The SDK UI kit (`src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui`)
+The controls an extension can use as-is live in the `DemoViewer.NET.Extensions.Sdk.Ui` package, which the app
+references too: `GifView`, `MarkdownBlock`, `ParseLinkChip` with `OpenExternal`, `KeyValueTable`, `GameIcon`,
+`StatusChip` with `StatusChipViewModel`, plus `DisplayText`, `BulkObservableCollection` and `ThemeColors`. The
+package also publishes `ThemeTokens` (every palette key) and `StyleClasses` (every class the four files below
+select on), generated at build from `Styles/DarkPalette.axaml` and those files; `ThemeNamesDriftTests` holds
+them to what the app loads. Renaming a key or class therefore changes the SDK's public API. The UiCapture
+variants `uikit-status-chips`, `uikit-controls` and `uikit-third-party-fake` render the kit in both themes.
 
 ### Shared style classes (P1.3, `Styles/Primitives|Cards|Tables|Chrome.axaml`)
 Apply with `Classes="…"` (XAML) or `Classes.Add("…")` (code). All colors are DarkPalette tokens.

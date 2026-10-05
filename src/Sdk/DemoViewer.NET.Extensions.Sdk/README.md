@@ -6,6 +6,9 @@ this package and nothing else of the app's.
 
 `samples/Extensions/HelloExtension` in the DemoViewer.NET repository is a complete, minimal extension.
 
+Views that should look like the app take `DemoViewer.NET.Extensions.Sdk.Ui` as well: the app's shared controls,
+the palette token and style class names, and the view-model base the host resolves views for.
+
 ## Project
 
 ```xml
