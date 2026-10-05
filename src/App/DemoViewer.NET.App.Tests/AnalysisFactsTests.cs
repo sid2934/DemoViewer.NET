@@ -239,4 +239,37 @@ public class AnalysisFactsTests
             Directory.Delete(fixture, true);
         }
     }
+
+    [Test]
+    public async Task ALibraryRow_NeverReadsTheStampedRulesets_ItselfFirst()
+    {
+        int reads = 0;
+        string empty = WriteFixture();
+        MergedRulesBuild rules = new(() => WithFixture(empty),
+            () =>
+            {
+                reads++;
+                return [new StampedRuleset(FactsRuleset, "dev.example.x", () => false)];
+            });
+        DemoCacheStore cache = new(null);
+        const string path = "/demos/a.dem";
+        string stampId = StampedFacts.StampId(FactsRuleset);
+        cache.Upsert(new DemoCacheRecord { Path = path, Size = 1, Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 } });
+        cache.UpdateExisting(path, r => r.SetStamp(new PackStamp(stampId, StampedFacts.Schema, "fp")));
+        AnalysisFacts facts = new(cache, new StampedFacts(rules), new RoundFactsSource(cache));
+        HostLibrary library = HostLibrary.For(cache, null, () => facts);
+
+        LibraryFactState? before = library.Find(path)?.Fact(stampId);
+        int readsBefore = reads;
+        _ = rules.StampedRulesets;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(readsBefore).IsEqualTo(0).Because("reading the stamped rulesets can resolve the extensions' contributions");
+            await Assert.That(before).IsNotNull();
+            await Assert.That(library.Find(path)?.Fact(stampId)).IsNull().Because("once read, an off ruleset's stamp leaves the row");
+        }
+
+        Directory.Delete(empty, true);
+    }
 }

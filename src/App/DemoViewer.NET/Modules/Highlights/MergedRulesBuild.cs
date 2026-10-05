@@ -80,6 +80,9 @@ public sealed class MergedRulesBuild
     /// <summary>The stamped rulesets this build knows, with their owners and gates. One entry per id, the first registered.</summary>
     public IReadOnlyList<StampedRuleset> StampedRulesets => _stamped.Value;
 
+    /// <summary>True once the stamped rulesets were read; reading them resolves the extensions' contributions.</summary>
+    public bool StampedRulesetsRead => _stamped.IsValueCreated;
+
     /// <summary>
     ///     Every ruleset the background passes run now: the highlight rulesets plus the stamped ones that are
     ///     on, in the order the directories were read. Re-derived when a gate answer changes.
