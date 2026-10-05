@@ -162,6 +162,103 @@ public class PackSwitchTests
         }
     }
 
+    [Test]
+    [NotInParallel]
+    public async Task ALifecycleThatCannotBeBuiltAtStartup_KeepsTheExtensionOffForTheSession()
+    {
+        FaultRig rig = new();
+        SuspendingGate gate = new() { On = true };
+        rig.Faults.AttachSwitch(gate);
+        FakePack pack = new();
+        using PackSwitch packs = new([pack], gate, _ => throw new InvalidOperationException("lifecycle ctor"), null, () => { },
+            faults: rig.Faults);
+
+        packs.Start();
+        rig.Posts.Drain();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rig.Faults.StateOf("pack.fake").StartupFailed).IsTrue();
+            await Assert.That(gate.IsSuspended("pack.fake")).IsTrue();
+            await Assert.That(packs.IsOn(pack)).IsFalse().Because("the suspension reached the switch through the gate");
+        }
+    }
+
+    [Test]
+    [NotInParallel]
+    public async Task AnEnableThatKeepsThrowing_TripsTheThreshold_AndTheSuspensionRunsTheDisable()
+    {
+        FaultRig rig = new();
+        SuspendingGate gate = new() { On = true };
+        rig.Faults.AttachSwitch(gate);
+        ThrowingEnable lifecycle = new();
+        FakePack pack = new();
+        using PackSwitch packs = new([pack], gate, _ => lifecycle, null, () => { }, faults: rig.Faults);
+
+        packs.Start();
+        for (int i = 0; i < 2; i++)
+        {
+            gate.On = false;
+            gate.Raise();
+            gate.On = true;
+            gate.Raise();
+        }
+
+        int disabledBefore = lifecycle.Disabled;
+        rig.Posts.Drain();
+        await packs.Pending;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rig.Faults.StateOf("pack.fake").Suspended).IsTrue();
+            await Assert.That(lifecycle.Disabled).IsEqualTo(disabledBefore + 1).Because("the suspension ran the release");
+            await Assert.That(packs.IsOn(pack)).IsFalse();
+        }
+    }
+
+    private sealed class SuspendingGate : IFeatureGate, IFeatureSuspension
+    {
+        private readonly HashSet<string> _suspended = [];
+        public bool On { get; set; }
+        public UserCategory Category => UserCategory.PowerUser;
+        public int HiddenCount => 0;
+        public bool IsEnabled(string featureId) => On && !_suspended.Contains(featureId);
+        public event EventHandler? Changed;
+        public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+
+        public void SuspendForSession(string packFeatureId)
+        {
+            _suspended.Add(packFeatureId);
+            Raise();
+        }
+
+        public void ResumeForSession(string packFeatureId)
+        {
+            _suspended.Remove(packFeatureId);
+            Raise();
+        }
+
+        public bool IsSuspended(string packFeatureId) => _suspended.Contains(packFeatureId);
+    }
+
+    private sealed class ThrowingEnable : IExtensionLifecycle
+    {
+        public int Disabled { get; private set; }
+
+        public Task OnEnabledAsync(ExtensionStartReason reason, CancellationToken ct) =>
+            throw new InvalidOperationException("enable");
+
+        public Task OnDisabledAsync()
+        {
+            Disabled++;
+            return Task.CompletedTask;
+        }
+
+        public void OnShutdown(TimeSpan budget)
+        {
+        }
+    }
+
     private sealed class CapturingLoggerProvider : ILoggerProvider, ILogger
     {
         private readonly List<string> _errors = [];

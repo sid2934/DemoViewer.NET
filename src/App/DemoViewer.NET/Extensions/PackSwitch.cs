@@ -27,6 +27,7 @@ namespace DemoViewer.NET.Extensions;
 public sealed class PackSwitch : IDisposable
 {
     private readonly IFeatureGate _gate;
+    private readonly ExtensionFaults? _faults;
     private readonly Func<IExtension, IExtensionLifecycle?> _lifecycleFor;
     private readonly IReadOnlyList<IExtension> _packs;
     private readonly IDemoProcessingQueue? _queue;
@@ -42,8 +43,12 @@ public sealed class PackSwitch : IDisposable
     /// <param name="queue">The processing queue the re-poll runs in; null runs it on the pool.</param>
     /// <param name="reconsider">Re-polls every evaluator over the library (the coordinator's capacity re-feed).</param>
     /// <param name="waitForFirstRun">True while the first-run wizard has still to ask about the packs.</param>
+    /// <param name="faults">
+    ///     Where a lifecycle that throws is reported. A lifecycle that cannot be built at startup keeps its
+    ///     extension off for the session. Null only logs.
+    /// </param>
     public PackSwitch(IReadOnlyList<IExtension> packs, IFeatureGate gate, Func<IExtension, IExtensionLifecycle?> lifecycleFor,
-        IDemoProcessingQueue? queue, Action reconsider, Func<bool>? waitForFirstRun = null)
+        IDemoProcessingQueue? queue, Action reconsider, Func<bool>? waitForFirstRun = null, ExtensionFaults? faults = null)
     {
         ArgumentNullException.ThrowIfNull(packs);
         ArgumentNullException.ThrowIfNull(gate);
@@ -55,6 +60,7 @@ public sealed class PackSwitch : IDisposable
         _queue = queue;
         _reconsider = reconsider;
         _waitForFirstRun = waitForFirstRun ?? (static () => false);
+        _faults = faults;
     }
 
     /// <summary>The last enable or disable requested of every pack, for a caller that needs the loads or the release done.</summary>
@@ -139,7 +145,7 @@ public sealed class PackSwitch : IDisposable
 
     private void Enable(IExtension pack, PackState state, ExtensionStartReason reason)
     {
-        if (_lifecycleFor(pack) is not { } lifecycle)
+        if (LifecycleOf(pack, reason == ExtensionStartReason.Startup) is not { } lifecycle)
         {
             return;
         }
@@ -151,13 +157,13 @@ public sealed class PackSwitch : IDisposable
         {
             loads = lifecycle.OnEnabledAsync(reason, enabling.Token);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            AppLog.OperationFailed(Log, "enable pack " + pack.Id, ex);
+            Fault(pack, "enable", "enable pack " + pack.Id, ex);
             return;
         }
 
-        loads = Observed(loads, "enable pack " + pack.Id);
+        loads = Observed(pack, loads, "enable", "enable pack " + pack.Id, enabling.Token);
         if (reason != ExtensionStartReason.EnabledInSession)
         {
             state.Pending = loads;
@@ -189,41 +195,84 @@ public sealed class PackSwitch : IDisposable
 
         // Jobs submitted through the extension's context carry its id as their owner.
         _queue?.CancelOwned(pack.Id);
-        if (_lifecycleFor(pack) is not { } lifecycle)
+        if (LifecycleOf(pack, false) is not { } lifecycle)
         {
             return;
         }
 
         try
         {
-            state.Pending = Observed(lifecycle.OnDisabledAsync(), "disable pack " + pack.Id);
+            state.Pending = Observed(pack, lifecycle.OnDisabledAsync(), "disable", "disable pack " + pack.Id, default);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            AppLog.OperationFailed(Log, "disable pack " + pack.Id, ex);
+            Fault(pack, "disable", "disable pack " + pack.Id, ex);
         }
     }
 
+    // The keyed lifecycle's DI factory is the extension's constructor. One that throws while the app starts
+    // keeps the extension off for the session; later it is an ordinary fault.
+    private IExtensionLifecycle? LifecycleOf(IExtension pack, bool starting)
+    {
+        try
+        {
+            return _lifecycleFor(pack);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            AppLog.OperationFailed(Log, "build lifecycle of pack " + pack.Id, ex);
+            if (_faults?.GuardFor(pack) is { } guard)
+            {
+                if (starting)
+                {
+                    _faults.FailStartup(guard.Scope, "lifecycle", ex);
+                }
+                else
+                {
+                    guard.Report("lifecycle", ex);
+                }
+            }
+
+            return null;
+        }
+    }
+
+    private void Fault(IExtension pack, string site, string operation, Exception ex)
+    {
+        AppLog.OperationFailed(Log, operation, ex);
+        _faults?.GuardFor(pack).Report(site, ex);
+    }
+
     // Logs a faulted enable or disable. Nothing else awaits these tasks, and Pending must complete for
-    // callers waiting on a release rather than rethrow an extension's exception into them.
-    private static async Task Observed(Task task, string operation)
+    // callers waiting on a release rather than rethrow an extension's exception into them. A cancellation
+    // by the enable's own token (a switch-off) is not a fault.
+    private async Task Observed(IExtension pack, Task task, string site, string operation, CancellationToken own)
     {
         try
         {
             await task.ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (own.IsCancellationRequested || _faults is null)
         {
-            // A switch-off cancels the enable in flight.
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            AppLog.OperationFailed(Log, operation, ex);
+            Fault(pack, site, operation, ex);
         }
     }
 
-    private static string LabelOf(IExtension pack) =>
-        pack.Features.FirstOrDefault(d => d.Id == pack.FeatureId)?.Label ?? pack.Id;
+    private string LabelOf(IExtension pack)
+    {
+        try
+        {
+            return pack.Features.FirstOrDefault(d => d.Id == pack.FeatureId)?.Label ?? pack.Id;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _faults?.GuardFor(pack).Report("features", ex);
+            return pack.Id;
+        }
+    }
 
     private static ILogger Log => DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
 

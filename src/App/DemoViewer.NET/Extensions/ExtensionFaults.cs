@@ -175,11 +175,11 @@ public sealed class ExtensionFaults
     /// <summary>A guard that runs code as <paramref name="scope" />'s.</summary>
     public ExtensionGuard GuardFor(ExtensionScope scope) => new(this, scope);
 
-    /// <summary>The guard for the extension with this id, or a guard over a scope built from the pack.</summary>
+    /// <summary>The guard for the extension with this id or master switch, or a guard over a scope built from the pack.</summary>
     public ExtensionGuard GuardFor(IExtension pack)
     {
         ArgumentNullException.ThrowIfNull(pack);
-        return new ExtensionGuard(this, ScopeOf(pack.Id) ?? ExtensionScope.For(pack));
+        return new ExtensionGuard(this, ScopeOf(pack.Id) ?? ScopeOfFeature(pack.FeatureId) ?? ExtensionScope.For(pack));
     }
 
     /// <summary>The fault record of the extension behind <paramref name="featureId" />.</summary>

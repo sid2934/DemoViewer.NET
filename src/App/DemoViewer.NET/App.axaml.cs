@@ -297,14 +297,10 @@ public class App : Application
                         // decide what, if anything, to touch; one lifecycle's failure must not skip the others.
                         foreach (IExtension pack in FeaturePacks.Compatible)
                         {
-                            if (services.GetKeyedService<IExtensionLifecycle>(pack.Id) is not { } lifecycle)
-                            {
-                                continue;
-                            }
-
                             try
                             {
-                                lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
+                                // Resolving it runs the extension's constructor, which can throw too.
+                                services.GetKeyedService<IExtensionLifecycle>(pack.Id)?.OnShutdown(TimeSpan.FromSeconds(5));
                             }
                             catch (Exception ex)
                             {
@@ -1038,7 +1034,8 @@ public class App : Application
             pack => sp.GetKeyedService<IExtensionLifecycle>(pack.Id),
             sp.GetRequiredService<IDemoProcessingQueue>(),
             () => sp.GetRequiredService<DemoEvaluationCoordinator>().ConsiderAll(),
-            () => !OperatingSystem.IsBrowser() && sp.GetRequiredService<SettingsService>().NeedsFirstRun));
+            () => !OperatingSystem.IsBrowser() && sp.GetRequiredService<SettingsService>().NeedsFirstRun,
+            sp.GetRequiredService<ExtensionFaults>()));
 
         // The first-party module registry, built ONCE by BuildRegistry and held by the container (the
         // reconciliation), injected into the shell so there is no stray second construction. The provider is
