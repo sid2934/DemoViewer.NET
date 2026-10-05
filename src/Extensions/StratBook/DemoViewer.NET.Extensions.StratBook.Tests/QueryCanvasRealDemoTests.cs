@@ -30,7 +30,7 @@ public class QueryCanvasRealDemoTests
         DemoCacheStore cache = new(null);
         RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.Evaluate(path, parsed);
-        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
+        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
 
         RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);

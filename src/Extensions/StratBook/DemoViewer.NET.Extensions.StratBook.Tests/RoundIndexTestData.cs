@@ -46,7 +46,7 @@ internal static class RoundIndexTestData
 
     internal static RoundFactsRows Facts(params RoundFacts[] rounds) => new()
     {
-        Schema = StratBookCache.RoundFactsSchema,
+        Schema = RoundFactsRecords.Schema,
         Clock = new RoundFactsClock
         {
             TickRate = 64,

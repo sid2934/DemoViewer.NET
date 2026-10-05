@@ -531,9 +531,9 @@ public sealed class SuggestedTagsService : IExtensionPass
         // The facts a hand-made tag gets as it is made, so the Matrix can slice an accepted tag at once
         // rather than after the next rows rewrite.
         LibraryDemo? record = _library.Find(path);
-        if (record is not null && _roundFacts.TryGet(path) is { Schema: StratBookCache.RoundFactsSchema } rows)
+        if (record is not null && _roundFacts.TryGet(path) is { Schema: RoundFactsRecords.Schema } rows)
         {
-            TagFactsRefresher.RefreshInstance(instance, rows.Rounds, StratBookCache.RoundFactsSchema, now);
+            TagFactsRefresher.RefreshInstance(instance, rows.Rounds, RoundFactsRecords.Schema, now);
         }
 
         DemoIdentity demo = new(sha, document.Demo.FileName ?? Path.GetFileName(path),
@@ -652,7 +652,7 @@ public sealed class SuggestedTagsService : IExtensionPass
 
         try
         {
-            if (_library.Find(path) is not { } record || _roundFacts.TryGet(path) is not { Schema: StratBookCache.RoundFactsSchema } facts)
+            if (_library.Find(path) is not { } record || _roundFacts.TryGet(path) is not { Schema: RoundFactsRecords.Schema } facts)
             {
                 return; // nothing to bound rounds and seat sides with; Round Facts has not written this demo
             }

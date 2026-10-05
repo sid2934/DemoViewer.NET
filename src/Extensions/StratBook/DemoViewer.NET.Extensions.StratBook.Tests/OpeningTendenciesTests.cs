@@ -69,7 +69,7 @@ public class OpeningTendenciesTests
     // Round 5: contact at 61 s.
     private static RoundFactsRows Rows() => new()
     {
-        Schema = StratBookCache.RoundFactsSchema,
+        Schema = RoundFactsRecords.Schema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [

@@ -285,7 +285,7 @@ public sealed class SuggestedTagsTuningService
     // The row and its Round Facts rows, or null when the demo has none: nothing bounds rounds and seats sides.
     private (LibraryDemo Record, RoundFactsRows Facts)? Inputs(string path) =>
         _library.Find(path) is { } record
-        && _suggestedTags.RoundFacts.TryGet(path) is { Schema: StratBookCache.RoundFactsSchema } facts
+        && _suggestedTags.RoundFacts.TryGet(path) is { Schema: RoundFactsRecords.Schema } facts
             ? (record, facts)
             : null;
 

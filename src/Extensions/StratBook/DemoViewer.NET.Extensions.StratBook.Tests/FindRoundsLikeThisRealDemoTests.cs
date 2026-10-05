@@ -33,7 +33,7 @@ public class FindRoundsLikeThisRealDemoTests
         DemoCacheStore cache = new(null);
         RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.Evaluate(path, parsed);
-        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
+        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
 
         RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
 

@@ -201,7 +201,7 @@ public class StratMiningCalibration
     {
         public int Schema => 0;
 
-        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts();
+        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts;
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) => null;
 

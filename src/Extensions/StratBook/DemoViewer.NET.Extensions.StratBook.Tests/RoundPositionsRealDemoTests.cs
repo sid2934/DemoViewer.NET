@@ -171,7 +171,7 @@ public class RoundPositionsRealDemoTests
         });
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.Evaluate(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("the evaluator wrote no rows");
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("the evaluator wrote no rows");
 
         List<SituationHit> hits =
         [

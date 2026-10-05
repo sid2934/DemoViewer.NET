@@ -51,7 +51,7 @@ public class StratMiningServiceTests
         };
         record.SetRoundFacts(new RoundFactsRows
             {
-                Schema = StratBookCache.RoundFactsSchema,
+                Schema = RoundFactsRecords.Schema,
                 Clock = new RoundFactsClock { TickRate = Rate, FrameCount = 100_000, LastTick = 100_000 },
                 Rounds =
                 [
@@ -257,7 +257,7 @@ public class StratMiningServiceTests
     public async Task ACachedGrenade_BecomesAThrowStep_WithItsLandingAndAnArrow()
     {
         RoundPositionsDocument positions = Positions(1, BombSite.A, 0);
-        RoundFacts facts = Record(1, BombSite.A).RoundFacts()!.Rounds[0];
+        RoundFacts facts = Record(1, BombSite.A).RoundFacts!.Rounds[0];
         GrenadeRow incendiary = new()
         {
             Id = "g1",

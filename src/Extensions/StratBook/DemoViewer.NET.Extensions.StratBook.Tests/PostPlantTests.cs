@@ -70,7 +70,7 @@ public class PostPlantTests
     // Rounds 6 to 8: B plants A at (0, 0); the retake is together, trickled, then nobody. Round 9: no plant.
     private static RoundFactsRows Rows() => new()
     {
-        Schema = StratBookCache.RoundFactsSchema,
+        Schema = RoundFactsRecords.Schema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [

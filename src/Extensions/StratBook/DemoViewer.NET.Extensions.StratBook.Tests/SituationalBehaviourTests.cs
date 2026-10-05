@@ -61,7 +61,7 @@ public class SituationalBehaviourTests
     // Team A (slots 0..4) is T for rounds 1 to 5 and CT for 6 to 7.
     private static RoundFactsRows Rows() => new()
     {
-        Schema = StratBookCache.RoundFactsSchema,
+        Schema = RoundFactsRecords.Schema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [

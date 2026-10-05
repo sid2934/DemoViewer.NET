@@ -18,23 +18,18 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 internal static class CacheRecordTestExtensions
 {
-    // Record-level payload access needs a store's serializer options, not its files.
-    private static readonly DemoCacheStore Memory = new(null);
-
     // ── Round facts ──────────────────────────────────────────────────────────
-
-    public static RoundFactsRows? RoundFacts(this DemoCacheRecord record) => Memory.RoundFactsOf(record);
 
     /// <summary>Rows and stamp together; null rows drop both (a null fingerprint drops the stamp, else it stays at schema 0).</summary>
     public static void SetRoundFacts(this DemoCacheRecord record, RoundFactsRows? rows, string? fingerprint = "rf-A")
     {
         if (rows is not null)
         {
-            Memory.SetRoundFacts(record, rows, fingerprint!);
+            record.WriteRoundFacts(rows, fingerprint!);
             return;
         }
 
-        Memory.UpdatePayload(record, p => p.RoundFacts = null);
+        record.RoundFacts = null;
         record.PackStamps.RemoveAll(s => s.Id == RoundFactsEvaluator.EvaluatorId);
         if (fingerprint is not null)
         {
@@ -42,8 +37,7 @@ internal static class CacheRecordTestExtensions
         }
     }
 
-    public static void UpdateRoundFacts(this DemoCacheRecord record, Action<RoundFactsRows> mutate) =>
-        Memory.UpdatePayload(record, p => mutate(p.RoundFacts!));
+    public static void UpdateRoundFacts(this DemoCacheRecord record, Action<RoundFactsRows> mutate) => mutate(record.RoundFacts!);
 
     public static string? RoundFactsFingerprint(this DemoCacheRecord record) => record.RoundFactsStamp()?.Fingerprint;
 

@@ -274,7 +274,7 @@ public class StratEvidenceTests
         TagInstance first = Instance("A execute", 1_500, 3_000, ("strat", S), ("strat.rev", "1"), ("outcome", "won"));
         TagInstance second = Instance("A execute", 11_000, 13_000, ("strat", S), ("strat.rev", "1"));
         TagDocument document = Document(ShaA, first, second);
-        TagFactsRefresher.Refresh(document, RoundIndexTestData.Facts(one, two), StratBookCache.RoundFactsSchema, Created);
+        TagFactsRefresher.Refresh(document, RoundIndexTestData.Facts(one, two), RoundFactsRecords.Schema, Created);
 
         StratRecord record = StratEvidence.Build(StratId, 1, StratVocabulary.SideT, [document]);
         using (Assert.Multiple())

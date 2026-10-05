@@ -331,7 +331,7 @@ public class ExtensionLoaderTests
         {
             ExtensionCandidate real = StageRealCopy(root, versionOverride: null);
             ExtensionCandidate noSuchType = real with { Manifest = real.Manifest with { EntryType = "DemoViewer.NET.Extensions.StratBook.NoSuchPack" } };
-            ExtensionCandidate notAPack = real with { Manifest = real.Manifest with { EntryType = typeof(StratBookCache).FullName! } };
+            ExtensionCandidate notAPack = real with { Manifest = real.Manifest with { EntryType = typeof(StratBookSettings).FullName! } };
 
             ExtensionLoader.LoadResult missing = ExtensionLoader.Load(noSuchType);
             ExtensionLoader.LoadResult wrongKind = ExtensionLoader.Load(notAPack);
@@ -341,7 +341,7 @@ public class ExtensionLoaderTests
                 await Assert.That(missing.Failure?.Failure).IsEqualTo(LoadFailure.EntryTypeMissing);
                 await Assert.That(missing.Failure!.Detail).Contains("NoSuchPack");
                 await Assert.That(wrongKind.Failure?.Failure).IsEqualTo(LoadFailure.NotAPack);
-                await Assert.That(wrongKind.Failure!.Detail).Contains("StratBookCache");
+                await Assert.That(wrongKind.Failure!.Detail).Contains("StratBookSettings");
             }
         }
         finally

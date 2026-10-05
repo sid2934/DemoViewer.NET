@@ -103,7 +103,7 @@ public class RoundIndexRealDemoTests
         DemoCacheStore store = new(null);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.Evaluate(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
 
         RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
         await Assert.That(document.RowCount).IsGreaterThan(0);
@@ -122,7 +122,7 @@ public class RoundIndexRealDemoTests
         DemoCacheStore store = new(null);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.Evaluate(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
         RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
         EmpiricalPlaceAdjacency graph = new(document.Transitions, 1);
 

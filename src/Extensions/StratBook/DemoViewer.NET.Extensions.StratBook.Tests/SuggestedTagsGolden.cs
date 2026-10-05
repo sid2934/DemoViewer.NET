@@ -271,7 +271,7 @@ internal static class SuggestedTagsRealDemoRows
             list.Add((sample.Tick, sample.Place));
         }
 
-        RoundFactsRows rows = new() { Schema = StratBookCache.RoundFactsSchema };
+        RoundFactsRows rows = new() { Schema = RoundFactsRecords.Schema };
         for (int i = 0; i < clips.Count; i++)
         {
             int start = clips[i].StartTickFrameClock;

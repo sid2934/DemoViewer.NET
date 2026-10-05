@@ -94,7 +94,7 @@ public class SuggestedTagsRealDemoTests
         DemoCacheStore store = new(null);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.Evaluate(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("the evaluator wrote no rows");
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("the evaluator wrote no rows");
 
         List<PositionSample> samples = [.. PositionSampler.Walk(parsed, RoundOccupancyBuilder.FrameStride)];
         OccupancyBuild build = RoundOccupancyBuilder.FromWalk(parsed, rows, samples: samples);

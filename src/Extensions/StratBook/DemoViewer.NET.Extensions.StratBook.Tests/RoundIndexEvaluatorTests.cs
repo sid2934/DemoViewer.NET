@@ -140,7 +140,7 @@ public class RoundIndexEvaluatorTests
             await Assert.That(cache.RoundIndexSchema(Demo)).IsEqualTo(RoundIndexStore.Schema);
             await Assert.That(cache.RoundIndexState(Demo)).IsEqualTo(DemoDataState.Written);
             await Assert.That(cache.RoundIndexFingerprint(Demo)).IsEqualTo(document.Fingerprint);
-            await Assert.That(record.RoundFacts()).IsNotNull().Because("the rows stay");
+            await Assert.That(record.RoundFacts).IsNotNull().Because("the rows stay");
             await Assert.That(written.Count).IsEqualTo(1);
             await Assert.That(indexed.Count).IsEqualTo(1);
             await Assert.That(indexed[0].DemoPath).IsEqualTo(Demo);

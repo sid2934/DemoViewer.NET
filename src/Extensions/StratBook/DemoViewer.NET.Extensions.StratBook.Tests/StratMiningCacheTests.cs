@@ -80,7 +80,7 @@ public class StratMiningCacheTests
 
     private sealed class RecordFacts(DemoCacheStore cache) : IRoundFactsSource
     {
-        public int Schema => StratBookCache.RoundFactsSchema;
+        public int Schema => RoundFactsRecords.Schema;
 
         public event Action<string>? Updated
         {
@@ -88,7 +88,7 @@ public class StratMiningCacheTests
             remove { }
         }
 
-        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts();
+        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts;
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) => null;
 

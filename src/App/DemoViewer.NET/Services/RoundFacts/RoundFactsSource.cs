@@ -33,7 +33,7 @@ public sealed class RoundFactsSource : IRoundFactsSource
     public RoundFactsRows? TryGet(string demoPath) => _demoCache.RoundFactsOf(demoPath);
 
     /// <inheritdoc />
-    public RoundFactsRows? TryGet(DemoCacheRecord record) => _demoCache.RoundFactsOf(record);
+    public RoundFactsRows? TryGet(DemoCacheRecord record) => record.RoundFacts;
 
     /// <inheritdoc />
     public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
@@ -47,7 +47,7 @@ public sealed class RoundFactsSource : IRoundFactsSource
         foreach (DemoCacheRecord record in _demoCache.LoadRecords(e =>
                      e.RoundFactsStamp() is { Schema: > 0 } && (filter.Demos is null || filter.Demos.Contains(e.Path))))
         {
-            if (_demoCache.RoundFactsOf(record) is not { } rows || _demoCache.TryGetIndex(record.Path) is not { } entry)
+            if (record.RoundFacts is not { } rows || _demoCache.TryGetIndex(record.Path) is not { } entry)
             {
                 continue;
             }

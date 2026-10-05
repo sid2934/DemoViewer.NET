@@ -494,10 +494,60 @@ public class PackDataRemoverTests
     }
 
     /// <summary>
+    ///     A record written while the rows rode the Strat Book's payload: deleting the Strat Book's data takes
+    ///     its payload and its passes' stamps, and the Round Facts rows, lifted onto the record on read, stay
+    ///     current under their own stamp, so nothing re-runs.
+    /// </summary>
+    [Test]
+    public async Task Delete_OfTheStratBooksData_LeavesTheCoreRoundFacts()
+    {
+        string cacheRoot = TempRoot("core-facts");
+        try
+        {
+            RoundFactsRows rows = Facts(Round(1, 1000, 2000), Round(2, 3000, 4000));
+            DemoCacheStore store = new(cacheRoot);
+            DemoCacheRecord record = ParsedRecord("/d/a.dem", map: "de_nuke");
+            JsonObject payload = new()
+            {
+                ["RoundFacts"] = JsonSerializer.SerializeToNode(rows),
+                ["GrenadeInputCoverage"] = 0.75
+            };
+            record.Packs[LegacyPackFields.PackId] = JsonSerializer.SerializeToElement(payload);
+            record.SetStamp(new PackStamp(RoundFactsEvaluator.EvaluatorId, rows.Schema, "rf-A"));
+            record.SetStamp(new PackStamp(RoundIndexEvaluator.EvaluatorId, 1, "ri"));
+            // Saved as an older build saved it: the rows inside the payload, the record member empty.
+            store.Upsert(record);
+            store.SaveIndex();
+
+            DemoCacheStore reading = new(cacheRoot);
+            PackDataRemover remover = new(reading, null, null);
+            string[] stratBookPasses = [RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId];
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(LegacyPackFields.PackId, [], stratBookPasses, "fake", "strip");
+
+            DemoCacheStore reopened = new(cacheRoot);
+            DemoCacheRecord reloaded = reopened.TryLoadRecord("/d/a.dem")!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.RecordsUpdated).IsEqualTo(1);
+                await Assert.That(reloaded.Packs).IsEmpty();
+                await Assert.That(reloaded.RoundFacts?.Rounds.Count).IsEqualTo(2);
+                await Assert.That(reloaded.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
+                await Assert.That(reopened.TryGetIndex("/d/a.dem")!.IsRoundFactsCurrent("rf-A")).IsTrue()
+                    .Because("the rows stay current, so no demo is queued again");
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
+        }
+    }
+
+    /// <summary>
     ///     A legacy-shape record (flat pack fields, folded into <see cref="DemoCacheRecord.Packs" /> and
     ///     <see cref="DemoCacheRecord.PackStamps" /> on read) must strip clean in the very read
-    ///     that folds it: no stamp, no payload, and the fold must not resurrect the flat fields on the next
-    ///     load (there is no sidecar write between the fold and the strip to re-derive from if it did).
+    ///     that folds it: no pack stamp, no payload, and the fold must not resurrect the flat fields on the next
+    ///     load (there is no sidecar write between the fold and the strip to re-derive from if it did). The
+    ///     Round Facts rows and their stamp are core and survive.
     /// </summary>
     [Test]
     public async Task Delete_FoldsAndStripsAnOldShapeRecord_InTheSameRead()
@@ -551,11 +601,7 @@ public class PackDataRemoverTests
 
             DemoCacheStore store = new(cacheRoot);
             PackDataRemover remover = new(store, null, null);
-            string[] facetIds =
-            [
-                RoundFactsEvaluator.EvaluatorId, RoundIndexEvaluator.EvaluatorId,
-                SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId
-            ];
+            string[] facetIds = [RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId];
 
             // The legacy fold always writes the payload under LegacyPackFields.PackId: the literal the old
             // Strat Book sidecars carried, not whatever pack id a caller happens to pass.
@@ -569,9 +615,11 @@ public class PackDataRemoverTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(reloaded.PackStamps).IsEmpty();
+                await Assert.That(reloaded.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
                 await Assert.That(reloaded.Packs).IsEmpty().Because("the fold's payload must not come back on the next load");
-                await Assert.That(entry.PackStamps).IsEmpty();
+                await Assert.That(entry.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
+                await Assert.That(reloaded.RoundFacts?.Rounds.Count).IsEqualTo(2).Because("the rows are core, not the pack's");
+                await Assert.That(entry.IsRoundFactsCurrent("rf-A")).IsTrue();
             }
         }
         finally

@@ -57,7 +57,7 @@ public class SetupHeatmapTests
     // first contact at 20 s cuts its window to 15..19 s; round 3's at 5 s leaves it no window at all.
     private static DemoCacheRecord Record() => Record(Demo, "de_nuke", 0, new RoundFactsRows
     {
-        Schema = StratBookCache.RoundFactsSchema,
+        Schema = RoundFactsRecords.Schema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [

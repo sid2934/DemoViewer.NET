@@ -155,7 +155,7 @@ public class ForwardPassRealDemoTests
             ["round facts"] = factsTable.Rows.Count == 0 ? None : WithoutSha(rows),
             ["highlight fingerprint"] = HighlightConfigFingerprint.Compute(
                 HighlightsOnly(rules), parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint,
-            ["round facts fingerprint"] = RoundFactsFingerprint.Combine(StratBookCache.RoundFactsSchema,
+            ["round facts fingerprint"] = RoundFactsFingerprint.Combine(RoundFactsRecords.Schema,
                 HighlightConfigFingerprint.Compute([doc], parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint)
         };
         return (written, old);
@@ -204,7 +204,7 @@ public class ForwardPassRealDemoTests
             return new Dictionary<string, string>
             {
                 ["record"] = recordJson.ToJsonString(),
-                ["round facts"] = WithoutSha(record.RoundFacts()),
+                ["round facts"] = WithoutSha(record.RoundFacts),
                 ["highlight fingerprint"] = record.ConfigFingerprint ?? "",
                 ["round facts fingerprint"] = record.RoundFactsFingerprint() ?? "",
                 ["library"] = JsonSerializer.Serialize(new

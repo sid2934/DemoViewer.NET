@@ -83,7 +83,7 @@ public class SidecarFormatTests
                 await Assert.That(IsGzipFile(file)).IsTrue();
                 await Assert.That(json).DoesNotContain("\n").Because("the record is written compact");
                 await Assert.That(back).IsNotNull();
-                await Assert.That(back!.RoundFacts()!.Rounds.Count).IsEqualTo(24);
+                await Assert.That(back!.RoundFacts!.Rounds.Count).IsEqualTo(24);
                 await Assert.That(back!.Highlights.Count).IsEqualTo(200);
                 await Assert.That(back!.Players[0].SteamId64).IsEqualTo("76561198000000001");
             }
@@ -118,7 +118,7 @@ public class SidecarFormatTests
             using (Assert.Multiple())
             {
                 await Assert.That(read).IsNotNull();
-                await Assert.That(read!.RoundFacts()!.Rounds.Count).IsEqualTo(24);
+                await Assert.That(read!.RoundFacts!.Rounds.Count).IsEqualTo(24);
                 await Assert.That(File.Exists(legacy)).IsTrue().Because("a read never migrates");
                 await Assert.That(File.Exists(file)).IsFalse();
             }

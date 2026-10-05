@@ -167,7 +167,7 @@ public class RoundFactsCacheTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(record.RoundFacts()).IsNull();
+            await Assert.That(record.RoundFacts).IsNull();
             await Assert.That(record.RoundFactsFingerprint()).IsNull();
             await Assert.That(record.Rounds.Count).IsEqualTo(1).Because("the tier-2 rounds are untouched");
             await Assert.That(record.NeedsRoundFacts(Fingerprint)).IsTrue();
@@ -204,7 +204,7 @@ public class RoundFactsCacheTests
                 await Assert.That(cached.NeedsRoundFacts(Fingerprint)).IsEqualTo(entry.NeedsRoundFacts(Fingerprint));
                 await Assert.That(cached.NeedsRoundFacts("rf-B")).IsEqualTo(entry.NeedsRoundFacts("rf-B"));
 
-                RoundFactsRows rows = cached.RoundFacts()!;
+                RoundFactsRows rows = cached.RoundFacts!;
                 await Assert.That(rows.ClockIdentity().TickRate).IsEqualTo(64);
                 await Assert.That(rows.ClockIdentity().LastTick).IsEqualTo(1000);
                 RoundFacts round = rows.Rounds[0];
@@ -234,7 +234,7 @@ public class RoundFactsCacheTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(store.TryLoadRecord("/d/a.dem")?.RoundFacts()?.Rounds.Count).IsEqualTo(1);
+            await Assert.That(store.TryLoadRecord("/d/a.dem")?.RoundFacts?.Rounds.Count).IsEqualTo(1);
             await Assert.That(store.TryGetIndex("/d/a.dem")?.RoundFactsFingerprint()).IsEqualTo(Fingerprint);
         }
     }

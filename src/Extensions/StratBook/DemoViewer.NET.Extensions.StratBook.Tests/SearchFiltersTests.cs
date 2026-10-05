@@ -556,7 +556,7 @@ public class SearchFiltersTests
     {
         public Dictionary<string, RoundFactsRows> Rows { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public int Schema => StratBookCache.RoundFactsSchema;
+        public int Schema => RoundFactsRecords.Schema;
 
         public event Action<string>? Updated
         {

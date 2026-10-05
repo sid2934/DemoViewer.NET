@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
@@ -299,6 +300,16 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     /// <summary>Per-highlight-definition hashes, for finer-grained staleness than the combined fingerprint.</summary>
     public Dictionary<string, string> HighlightHashes { get; set; } = new();
 
+    // ── Round facts ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     The <c>round_facts</c> ruleset's output: one row per round, two sides each, or null when none was
+    ///     written. Stamped in <see cref="PackStamps" /> under facet <c>roundfacts</c> with the ruleset's own
+    ///     identity, so a threshold edit re-runs Round Facts alone and never the highlight scan. Rows an
+    ///     older build kept in the Strat Book's payload are lifted here on read.
+    /// </summary>
+    public RoundFactsRows? RoundFacts { get; set; }
+
     // ── Packs ────────────────────────────────────────────────────────────────
     // A pack's data rides the record as one opaque JSON object under its id, read and written typed by
     // the pack through IPackPayloads and never deserialised by core. What core needs for the backlog and
@@ -383,6 +394,8 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         }
 
         UnknownMembers = null;
+        // After the flat fold, which may have just built the payload the rows ride.
+        LegacyPackFields.LiftRoundFacts(this);
     }
 
     /// <summary>The highest tier actually present.</summary>

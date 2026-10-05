@@ -105,7 +105,7 @@ public class RoundFactsEvaluatorTests
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
             await Assert.That(evaluator.PendingPaths()).IsEmpty();
             await Assert.That(source.Calls).IsEqualTo(0).Because("no ruleset to run means the engine seam is never asked");
-            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts()).IsNull();
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts).IsNull();
             await Assert.That(updates).IsEqualTo(0);
         }
     }
@@ -125,7 +125,7 @@ public class RoundFactsEvaluatorTests
         using (Assert.Multiple())
         {
             await Assert.That(source.Calls).IsEqualTo(1);
-            await Assert.That(record.RoundFacts()).IsNull().Because("an empty payload would mark the demo current and hide that nothing ran");
+            await Assert.That(record.RoundFacts).IsNull().Because("an empty payload would mark the demo current and hide that nothing ran");
             await Assert.That(record.RoundFactsFingerprint()).IsNull();
             await Assert.That(updates).IsEqualTo(0);
             await Assert.That(evaluator.Wants(Demo)).IsFalse()
@@ -159,7 +159,7 @@ public class RoundFactsEvaluatorTests
         {
             await Assert.That(source.Calls).IsEqualTo(1).Because("the second pass sees current rows and stops at the fingerprint compare");
             await Assert.That(updates).IsEquivalentTo([Demo]);
-            RoundFactsRows rows = record.RoundFacts()!;
+            RoundFactsRows rows = record.RoundFacts!;
             await Assert.That(rows).IsNotNull();
             await Assert.That(rows.Rounds.Count).IsEqualTo(2);
             await Assert.That(rows.Rounds[0].FreezeEndTick).IsEqualTo(1000)
@@ -231,7 +231,7 @@ public class RoundFactsEvaluatorTests
         using (Assert.Multiple())
         {
             await Assert.That(source.Calls).IsEqualTo(1);
-            await Assert.That(store.TryLoadRecord(Demo)?.RoundFacts()?.Rounds.Count).IsEqualTo(2);
+            await Assert.That(store.TryLoadRecord(Demo)?.RoundFacts?.Rounds.Count).IsEqualTo(2);
         }
     }
 
@@ -245,7 +245,7 @@ public class RoundFactsEvaluatorTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts()).IsNull();
+            await Assert.That(store.TryLoadRecord(Demo)!.RoundFacts).IsNull();
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
         }
     }

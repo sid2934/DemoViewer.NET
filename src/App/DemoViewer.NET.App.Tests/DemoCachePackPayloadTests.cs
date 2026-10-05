@@ -182,9 +182,11 @@ public class DemoCachePackPayloadTests
                     .IsEquivalentTo(record.PackStamps.Select(s => s with { ComputedAtTicks = 0 }));
                 await Assert.That(record.PackStamps.Select(s => s.Id)).IsEquivalentTo(
                     [RoundFactsEvaluator.EvaluatorId, RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId]);
-                await Assert.That(cache.RoundFactsOf(record)!.Rounds.Count).IsEqualTo(2);
-                await Assert.That(cache.Payload(record)!.GrenadeInputCoverage).IsEqualTo(0.5);
-                await Assert.That(record.RoundFactsStamp()).IsEqualTo(new PackStamp(RoundFactsEvaluator.EvaluatorId, StratBookCache.RoundFactsSchema, "rf-A"));
+                await Assert.That(record.RoundFacts!.Rounds.Count).IsEqualTo(2).Because("the rows are the record's own member");
+                await Assert.That(record.Packs[StratBookPack.PackId].GetProperty("GrenadeInputCoverage").GetDouble()).IsEqualTo(0.5);
+                await Assert.That(record.Packs[StratBookPack.PackId].TryGetProperty("RoundFacts", out _)).IsFalse()
+                    .Because("only the rows leave the payload");
+                await Assert.That(record.RoundFactsStamp()).IsEqualTo(new PackStamp(RoundFactsEvaluator.EvaluatorId, RoundFactsRecords.Schema, "rf-A"));
                 await Assert.That(record.Stamp(RoundIndexEvaluator.EvaluatorId)).IsEqualTo(
                     new PackStamp(RoundIndexEvaluator.EvaluatorId, RoundIndexStore.Schema, roundIndexFingerprint) { ComputedAtTicks = 100, Count = 12 });
                 await Assert.That(record.Stamp(SuggestedTagsService.EvaluatorId)).IsEqualTo(
@@ -220,14 +222,14 @@ public class DemoCachePackPayloadTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(sidecar).Contains("\"Packs\":{\"net.demoviewer.pack.stratbook\":{\"RoundFacts\":{");
+                await Assert.That(sidecar).Contains("\"Packs\":{\"net.demoviewer.pack.stratbook\":{\"GrenadeInputCoverage\":0.5}}");
                 await Assert.That(sidecar).Contains("\"PackStamps\":[");
                 await Assert.That(index).Contains("\"PackStamps\":[");
                 foreach (string legacy in LegacyMembers)
                 {
                     await Assert.That(index).DoesNotContain(legacy);
 
-                    // Rows and coverage are members of the pack payload now; the flat ones sat at the record's top level.
+                    // The rows are the record's own member and the coverage rides the pack payload, so both still appear.
                     if (legacy is not ("\"RoundFacts\":" or "\"GrenadeInputCoverage\":"))
                     {
                         await Assert.That(sidecar).DoesNotContain(legacy);
@@ -236,7 +238,7 @@ public class DemoCachePackPayloadTests
 
                 await Assert.That(sidecar).DoesNotContain("\"RoundFactsFingerprint\"");
                 await Assert.That(sidecar.IndexOf("\"RoundFacts\":", StringComparison.Ordinal))
-                    .IsGreaterThan(sidecar.IndexOf("\"Packs\":", StringComparison.Ordinal)).Because("the rows sit inside the payload");
+                    .IsLessThan(sidecar.IndexOf("\"Packs\":", StringComparison.Ordinal)).Because("the rows sit on the record, outside the payload");
 
                 await Assert.That(reopened.TryGetIndex(Demo)!.PackStamps).IsEquivalentTo(record.PackStamps);
                 await Assert.That(reopened.TryLoadRecord(Demo)!.PackStamps).IsEquivalentTo(record.PackStamps);
@@ -246,6 +248,47 @@ public class DemoCachePackPayloadTests
         finally
         {
             Directory.Delete(root, true);
+        }
+    }
+
+    // Rows a build wrote into the Strat Book's payload lift onto the record on read. Only that member moves:
+    // the coverage beside it stays, the stamp is untouched so the rows stay current, and a payload left empty goes.
+    [Test]
+    public async Task PayloadShape_RoundFactsLiftOntoTheRecord_AndOnlyThatMemberLeavesThePayload()
+    {
+        RoundFactsRows rows = Facts(Round(1, 1000, 2000), Round(2, 3000, 4000));
+        JsonObject Record(string path, bool coverage)
+        {
+            JsonObject payload = new() { ["RoundFacts"] = JsonSerializer.SerializeToNode(rows) };
+            if (coverage)
+            {
+                payload["GrenadeInputCoverage"] = 0.5;
+            }
+
+            return new JsonObject
+            {
+                ["Path"] = path,
+                ["Packs"] = new JsonObject { [StratBookPack.PackId] = payload },
+                ["PackStamps"] = new JsonArray(new JsonObject { ["Id"] = "roundfacts", ["Schema"] = 1, ["Fingerprint"] = "rf-A", ["State"] = 1 })
+            };
+        }
+
+        string withCoverage = Record("/d/a.dem", true).ToJsonString();
+        string rowsOnly = Record("/d/b.dem", false).ToJsonString();
+
+        DemoCacheRecord a = JsonSerializer.Deserialize<DemoCacheRecord>(withCoverage)!;
+        DemoCacheRecord b = JsonSerializer.Deserialize<DemoCacheRecord>(rowsOnly)!;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(a.RoundFacts?.Rounds.Count).IsEqualTo(2);
+            await Assert.That(a.Packs[StratBookPack.PackId].TryGetProperty("RoundFacts", out _)).IsFalse();
+            await Assert.That(a.Packs[StratBookPack.PackId].GetProperty("GrenadeInputCoverage").GetDouble()).IsEqualTo(0.5);
+            await Assert.That(a.IsRoundFactsCurrent("rf-A")).IsTrue().Because("the stamp rides the record, untouched by the lift");
+            await Assert.That(b.RoundFacts?.Rounds.Count).IsEqualTo(2);
+            await Assert.That(b.Packs).IsEmpty().Because("nothing else rode the payload");
+            await Assert.That(JsonSerializer.Serialize(b)).DoesNotContain("net.demoviewer.pack.stratbook")
+                .Because("the next save writes the new shape");
         }
     }
 
@@ -389,7 +432,10 @@ public class DemoCachePackPayloadTests
         }
         else
         {
-            json["RoundFacts"] = payload["RoundFacts"]?.DeepClone();
+            if (payload["RoundFacts"] is { } rows)
+            {
+                json["RoundFacts"] = rows.DeepClone();
+            }
         }
 
         json["RoundFactsFingerprint"] = rf?.Fingerprint;
@@ -437,7 +483,7 @@ public class DemoCachePackPayloadTests
             ComputedAtTicks = 638_000_000_000_000_000 + i,
             Count = 60
         });
-        new DemoCacheStore(null).UpdatePayload(record, p => p.GrenadeInputCoverage = 0.998);
+        record.Packs[StratBookPack.PackId] = JsonSerializer.SerializeToElement(new { GrenadeInputCoverage = 0.998 });
         return record;
     }
 
@@ -445,7 +491,7 @@ public class DemoCachePackPayloadTests
     {
         DemoCacheRecord record = ParsedRecord($"/demos/match-{i:D4}.dem", sha: Convert.ToHexStringLower(SHA256.HashData(BitConverter.GetBytes(i))),
             facts: Facts(Round(1, 1000, 2000), Round(2, 3000, 4000)));
-        record.SetRoundFacts(record.RoundFacts()!, roundFacts);
+        record.SetRoundFacts(record.RoundFacts!, roundFacts);
         record.SetStamp(new PackStamp(RoundIndexEvaluator.EvaluatorId, RoundIndexStore.Schema, roundIndex)
         {
             ComputedAtTicks = 638_000_000_000_000_000 + i,

@@ -17,8 +17,8 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///     The evaluator that writes round facts: a core pass on the demo's visit, so it runs on the parse the
 ///     visit already holds and costs no second parse. It runs the merged rules on that parse and reads the
 ///     <c>round_facts</c> table out of the run through its <see cref="IRoundFactsRowSource" />, projects it
-///     onto the record and stores the rows under <see cref="RoundFactsRecords.PackId" />, stamped under the
-///     <see cref="RoundFactsFingerprint" /> (<see cref="RoundFactsRecords.SetRoundFacts" />).
+///     onto the record's <see cref="DemoCacheRecord.RoundFacts" />, stamped under the
+///     <see cref="RoundFactsFingerprint" /> (<see cref="RoundFactsRecords.WriteRoundFacts" />).
 ///     <para>
 ///         Registered after the highlight scanner; a pass that reads these rows orders after
 ///         <see cref="EvaluatorId" /> and reads them in the same visit.
@@ -195,7 +195,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
             _demoCache.UpdateExisting(path, record =>
             {
                 rows.DemoSha256 = record.Sha256;
-                _demoCache.SetRoundFacts(record, rows, fingerprint);
+                record.WriteRoundFacts(rows, fingerprint);
             });
             _demoCache.SaveIndex();
             _post(() => Updated?.Invoke(path));

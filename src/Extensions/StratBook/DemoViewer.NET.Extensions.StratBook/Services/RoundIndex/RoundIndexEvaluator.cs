@@ -278,7 +278,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         try
         {
             LibraryDemo? record = _library.Find(path);
-            if (record is null || _roundFacts.TryGet(path) is not { Schema: StratBookCache.RoundFactsSchema } facts)
+            if (record is null || _roundFacts.TryGet(path) is not { Schema: RoundFactsRecords.Schema } facts)
             {
                 // The row said Round Facts was written (that is why Wants picked this demo) but the
                 // record has none: index.json was saved before a later write replaced the record. Left

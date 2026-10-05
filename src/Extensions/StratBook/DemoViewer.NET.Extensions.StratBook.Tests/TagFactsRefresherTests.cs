@@ -68,7 +68,7 @@ public class TagFactsRefresherTests
         TagInstance execute = Instance("B execute", 11_000, 13_000, ("outcome", "won"));
         TagDocument document = Document(Sha, execute);
 
-        TagFactsRefresher.Refresh(document, Rows(), StratBookCache.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(document, Rows(), RoundFactsRecords.Schema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -93,7 +93,7 @@ public class TagFactsRefresherTests
             await Assert.That(execute.Facts.Any(f => f.Group is "side" or "buy.us" or "buy.them")).IsFalse()
                 .Because("relative facts are Team Identity's to derive at query time");
             await Assert.That(execute.Facts.Any(f => f.Group.StartsWith("parser.", StringComparison.Ordinal))).IsFalse();
-            await Assert.That(execute.FactsStamp!.Schema).IsEqualTo(StratBookCache.RoundFactsSchema);
+            await Assert.That(execute.FactsStamp!.Schema).IsEqualTo(RoundFactsRecords.Schema);
             await Assert.That(execute.FactsStamp.ComputedUtc).IsEqualTo(Refreshed);
             await Assert.That(execute.FactsStamp.Stale).IsFalse();
         }
@@ -112,7 +112,7 @@ public class TagFactsRefresherTests
         string before = LabelsJson(execute);
         TagDocument document = Document(Sha, execute);
 
-        TagFactsRefresher.Refresh(document, Rows(), StratBookCache.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(document, Rows(), RoundFactsRecords.Schema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -133,7 +133,7 @@ public class TagFactsRefresherTests
         warmup.Facts = [new TagLabel("buy.ct", "full")];
         warmup.FactsStamp = new TagFactsStamp { Schema = 1, ComputedUtc = Created };
 
-        TagFactsRefresher.Refresh(Document(Sha, warmup), Rows(), StratBookCache.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(Document(Sha, warmup), Rows(), RoundFactsRecords.Schema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -371,7 +371,7 @@ public class TagFactsRefresherTests
 
         public int Subscribers => _updated?.GetInvocationList().Length ?? 0;
 
-        public int Schema => StratBookCache.RoundFactsSchema;
+        public int Schema => RoundFactsRecords.Schema;
 
         public event Action<string>? Updated
         {

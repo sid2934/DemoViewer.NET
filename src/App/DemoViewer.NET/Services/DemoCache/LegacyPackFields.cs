@@ -2,6 +2,7 @@
 
 using System.Buffers;
 using System.Text.Json;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
@@ -15,7 +16,7 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///     fields so the evaluators' backlogs come out exactly as they were.
 ///     <para>
 ///         The ids and member names are literals on purpose: they are the pack's as it wrote them, and core
-///         cannot name the pack's types. Nothing here is consulted for a file in the new shape.
+///         cannot name the pack's types. Only <see cref="LiftRoundFacts" /> acts on a file in the payload shape.
 ///     </para>
 /// </summary>
 internal static class LegacyPackFields
@@ -39,16 +40,14 @@ internal static class LegacyPackFields
     /// <param name="members">The members no property claimed.</param>
     public static void Fold(DemoCacheRecord record, Dictionary<string, JsonElement> members)
     {
-        JsonElement? roundFacts = Object(members, "RoundFacts");
+        // The flat rows bind to DemoCacheRecord.RoundFacts directly, so their schema is read from there.
         double coverage = Number(members, "GrenadeInputCoverage");
-        if ((roundFacts is not null || coverage != 0) && !record.Packs.ContainsKey(PackId))
+        if (coverage != 0 && !record.Packs.ContainsKey(PackId))
         {
-            record.Packs[PackId] = Payload(roundFacts, coverage);
+            record.Packs[PackId] = Payload(coverage);
         }
 
-        int roundFactsSchema = roundFacts is { } rows && rows.TryGetProperty("Schema", out JsonElement schema) && schema.TryGetInt32(out int value)
-            ? value
-            : 0;
+        int roundFactsSchema = record.RoundFacts?.Schema ?? 0;
         (int riSchema, long riTicks) = TierStamp(members, "RoundIndex");
         (int gSchema, long gTicks) = TierStamp(members, "Grenades");
 
@@ -57,6 +56,61 @@ internal static class LegacyPackFields
             riSchema, riTicks, State(members, "RoundIndexState"), String(members, "RoundIndexFingerprint"), Int(members, "RoundIndexRowCount"),
             String(members, "SuggestionsFingerprint"), Int(members, "SuggestionCount"),
             gSchema, gTicks, State(members, "GrenadeState"), String(members, "GrenadeWalker"), Int(members, "GrenadeCount"));
+    }
+
+    /// <summary>
+    ///     Moves Round Facts rows an older build kept in the Strat Book's payload onto
+    ///     <see cref="DemoCacheRecord.RoundFacts" />, and drops only that member from the payload: whatever else
+    ///     rides it (the grenade input coverage) stays. Rows already on the record win. The stamp is not
+    ///     touched, so the moved rows stay current. The next save writes the new shape.
+    /// </summary>
+    /// <param name="record">The record being read.</param>
+    public static void LiftRoundFacts(DemoCacheRecord record)
+    {
+        if (!record.Packs.TryGetValue(PackId, out JsonElement payload)
+            || payload.ValueKind != JsonValueKind.Object
+            || !payload.TryGetProperty(RoundFactsMember, out JsonElement rows))
+        {
+            return;
+        }
+
+        if (record.RoundFacts is null && rows.ValueKind == JsonValueKind.Object)
+        {
+            try
+            {
+                record.RoundFacts = rows.Deserialize<RoundFactsRows>();
+            }
+            catch (JsonException)
+            {
+                // Rows that do not read are "not written", the rule every sidecar reader follows.
+            }
+        }
+
+        ArrayBufferWriter<byte> buffer = new();
+        int kept = 0;
+        using (Utf8JsonWriter writer = new(buffer))
+        {
+            writer.WriteStartObject();
+            foreach (JsonProperty member in payload.EnumerateObject())
+            {
+                if (!string.Equals(member.Name, RoundFactsMember, StringComparison.Ordinal))
+                {
+                    member.WriteTo(writer);
+                    kept++;
+                }
+            }
+
+            writer.WriteEndObject();
+        }
+
+        if (kept == 0)
+        {
+            record.Packs.Remove(PackId);
+            return;
+        }
+
+        using JsonDocument document = JsonDocument.Parse(buffer.WrittenMemory);
+        record.Packs[PackId] = document.RootElement.Clone();
     }
 
     /// <summary>Folds the flat fields of an old index row into <paramref name="entry" />'s stamps.</summary>
@@ -126,23 +180,13 @@ internal static class LegacyPackFields
         }
     }
 
-    private static JsonElement Payload(JsonElement? roundFacts, double coverage)
+    private static JsonElement Payload(double coverage)
     {
         ArrayBufferWriter<byte> buffer = new();
         using (Utf8JsonWriter writer = new(buffer))
         {
             writer.WriteStartObject();
-            if (roundFacts is { } rows)
-            {
-                writer.WritePropertyName(RoundFactsMember);
-                rows.WriteTo(writer);
-            }
-
-            if (coverage != 0)
-            {
-                writer.WriteNumber(GrenadeInputCoverageMember, coverage);
-            }
-
+            writer.WriteNumber(GrenadeInputCoverageMember, coverage);
             writer.WriteEndObject();
         }
 
