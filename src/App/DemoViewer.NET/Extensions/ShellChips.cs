@@ -135,13 +135,19 @@ internal sealed class HostStatusChip : IShellChip
     }
 
     // The chip's click runs the extension's command; a throw from it is the extension's fault, not the strip's.
-    private sealed class GuardedCommand(ICommand inner, ExtensionGuard guard) : ICommand
+    private sealed class GuardedCommand : ICommand
     {
-        public event EventHandler? CanExecuteChanged
+        private readonly ICommand inner;
+        private readonly ExtensionGuard guard;
+
+        public GuardedCommand(ICommand inner, ExtensionGuard guard)
         {
-            add => guard.Run("status chip command", () => inner.CanExecuteChanged += value);
-            remove => guard.Run("status chip command", () => inner.CanExecuteChanged -= value);
+            this.inner = inner;
+            this.guard = guard;
+            guard.Run("status chip command", () => inner.CanExecuteChanged += (_, e) => CanExecuteChanged?.Invoke(this, e));
         }
+
+        public event EventHandler? CanExecuteChanged;
 
         public bool CanExecute(object? parameter) => guard.Run("status chip command", () => inner.CanExecute(parameter), false);
 
