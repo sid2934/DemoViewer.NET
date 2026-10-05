@@ -267,4 +267,22 @@ public class ExtensionDemoDataStoreTests
             Directory.Delete(root, true);
         }
     }
+
+    [Test]
+    public async Task TheBrowserBuild_KeepsNoPerDemoData_AndItsSettingsForTheSession()
+    {
+        UnavailableDemoData data = UnavailableDemoData.Instance;
+        DemoDataStamp? written = data.Write(Demo, Rounds("one"));
+        ExtensionSettingsStore settings = new("dev.example.browser", null, a => a());
+        settings.Set("flag", true);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(data.IsAvailable).IsFalse();
+            await Assert.That(written).IsNull();
+            await Assert.That(data.Stamp(Demo, "rounds")).IsNull();
+            await Assert.That(data.Read(Demo, "rounds", 1, "fp-1")).IsNull();
+            await Assert.That(settings.Get("flag", false)).IsTrue().Because("settings live in memory for the session");
+        }
+    }
 }
