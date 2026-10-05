@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Theming;
@@ -83,6 +84,22 @@ public class AppCompositionRootTests
                 /* best-effort cleanup */
             }
         }
+    }
+
+    // The composition root decides which rulesets are core. Whatever it decides, the highlights stamp on
+    // every indexed demo must stay the value the shipped rules have always produced.
+    [Test]
+    public async Task TheComposedRulesBuild_StampsHighlightsWithThePinnedFingerprint()
+    {
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            MergedRulesBuild rules = provider.GetRequiredService<MergedRulesBuild>();
+            using (Assert.Multiple())
+            {
+                await Assert.That(rules.Fingerprint(64).Fingerprint).IsEqualTo(MergedRulesBuildTests.ShippedFingerprint64);
+                await Assert.That(rules.Fingerprint(128).Fingerprint).IsEqualTo(MergedRulesBuildTests.ShippedFingerprint128);
+            }
+        });
     }
 
     // (a) The shell resolves non-null for BOTH host window services, the two production entry points.

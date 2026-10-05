@@ -80,6 +80,23 @@ public class StratBookCompositionRootTests
         });
     }
 
+    // The highlights stamp on every indexed demo, as the shipped rules have always produced it. The Strat
+    // Book's state must not move it: a moved value re-scans every demo's highlights.
+    private const string ShippedFingerprint64 = "b54450c95ee039d26958d9a6da7c757303e87306a182d2b46065471c4309fed7";
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task TheComposedRulesBuild_StampsHighlightsWithThePinnedFingerprint_WithThePackOnOrOff(bool packOn)
+    {
+        string settings = packOn ? "{}" : """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
+        await WithProvider(new DesktopWindowService(() => null), async provider =>
+        {
+            Modules.Highlights.MergedRulesBuild rules = provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>();
+            await Assert.That(rules.Fingerprint(64).Fingerprint).IsEqualTo(ShippedFingerprint64);
+        }, settings);
+    }
+
     // The pass order is a contract: a pass may read what the one before it wrote on the same visit, so the
     // round index, when it lands, goes after round facts and reads them.
     [Test]

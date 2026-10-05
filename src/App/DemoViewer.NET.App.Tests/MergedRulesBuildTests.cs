@@ -24,6 +24,16 @@ public class MergedRulesBuildTests
 {
     private const string RoundFacts = "round_facts";
 
+    /// <summary>
+    ///     The highlights fingerprint of the shipped rules at 64 and 128 tick: what every indexed demo is
+    ///     stamped with. A value that moves re-scans every demo's highlights, so only a deliberate edit to a
+    ///     shipped highlight may change it.
+    /// </summary>
+    public const string ShippedFingerprint64 = "b54450c95ee039d26958d9a6da7c757303e87306a182d2b46065471c4309fed7";
+
+    /// <inheritdoc cref="ShippedFingerprint64" />
+    public const string ShippedFingerprint128 = "0f8078d804fae1a14a584fa4f98a9ed84581ddb255d036798b6929507f7fb346";
+
     private static readonly string Shipped = RuleSetLocator.ResolveShippedRulesDirectory();
 
     private static RuleConfigLoadResult ShippedRules() => YamlConfigLoader.LoadWithOverlay(Shipped, null);
@@ -79,6 +89,23 @@ public class MergedRulesBuildTests
             await Assert.That(none.Fingerprint(64).Fingerprint).IsEqualTo(core)
                 .Because("the ruleset declares no highlights, so the build before the split stamped the same value");
             await Assert.That(on.Fingerprint(128).Fingerprint).IsEqualTo(off.Fingerprint(128).Fingerprint);
+        }
+    }
+
+    [Test]
+    public async Task TheHighlightsFingerprint_IsPinned_WhicheverWayRoundFactsIsOwned()
+    {
+        MergedRulesBuild none = new(ShippedRules);
+        MergedRulesBuild on = new(ShippedRules, () => [new GatedRuleset(RoundFacts, () => true)]);
+        MergedRulesBuild off = new(ShippedRules, () => [new GatedRuleset(RoundFacts, () => false)]);
+
+        using (Assert.Multiple())
+        {
+            foreach (MergedRulesBuild build in new[] { none, on, off })
+            {
+                await Assert.That(build.Fingerprint(64).Fingerprint).IsEqualTo(ShippedFingerprint64);
+                await Assert.That(build.Fingerprint(128).Fingerprint).IsEqualTo(ShippedFingerprint128);
+            }
         }
     }
 
