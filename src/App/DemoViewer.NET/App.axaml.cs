@@ -31,6 +31,7 @@ using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Highlights;
@@ -971,6 +972,35 @@ public class App : Application
                 action => Dispatcher.UIThread.Post(action));
         });
 
+        // Round Facts: the per-round, per-side record 2D Playback tints by and the Strat Book filters on. The
+        // evaluator rides the demo's visit after the highlight scan (no second parse) and writes the rows onto
+        // the record under the round_facts ruleset's own fingerprint; the source is the read API over them.
+        // The row source and the identity share the one merged build, so rows are always stored under the
+        // fingerprint of the doc that produced them. Both are gated on the ruleset's owner: while a pack
+        // claims round_facts, off looks off, and the rows stay on disk for when it comes back.
+        services.AddSingleton(sp => new RulesRoundFactsRulesetIdentity(sp.GetRequiredService<MergedRulesBuild>()));
+        services.AddSingleton<IRoundFactsRulesetIdentity>(sp => sp.GetRequiredService<RulesRoundFactsRulesetIdentity>());
+        services.AddSingleton<IRoundFactsRowSource>(sp =>
+            new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
+        services.AddSingleton(sp =>
+        {
+            MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
+            return new RoundFactsEvaluator(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<IRoundFactsRowSource>(),
+                sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
+                action => Dispatcher.UIThread.Post(action),
+                enabled: () => rules.IsOwnerOn(RoundFactsFingerprint.RulesetId));
+        });
+        services.AddSingleton<IRoundFactsSource>(sp =>
+        {
+            MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
+            return new RoundFactsSource(
+                sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<RoundFactsEvaluator>(),
+                enabled: () => rules.IsOwnerOn(RoundFactsFingerprint.RulesetId));
+        });
+
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
@@ -978,8 +1008,8 @@ public class App : Application
             scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue"),
             scheduleLoad: StartupLoad(sp, "Load: review queue", "review")));
         // The "one parse, many evaluators" scheduler: the single submitter that asks the registered passes
-        // about a demo and submits them together as ONE visit, so the demo is read once. Library and
-        // Highlights are core, always on the visit; a pack's passes come from a PassRegistry built over its
+        // about a demo and submits them together as ONE visit, so the demo is read once. Library,
+        // Highlights and Round Facts are core, always on the visit; a pack's passes come from a PassRegistry built over its
         // Pass contributions, ordered by declared After ids rather than a hand-written array. The registry
         // reads PackContributionSet lazily, on the scheduler's first plan, not here: resolving it during
         // this factory would run every pack's Contribute() during container build, well before anything
@@ -994,10 +1024,12 @@ public class App : Application
             DemoLibraryService library = sp.GetRequiredService<DemoLibraryService>();
             HighlightScanService highlights = sp.GetRequiredService<HighlightScanService>();
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
 
             PassRegistry registry = new();
             registry.AddCoreEvaluator(library.Id, () => library);
             registry.AddCoreEvaluator(highlights.Id, () => highlights);
+            registry.AddCoreEvaluator(roundFacts.Id, () => roundFacts, highlights.Id);
 
             // Each pack pass's extension, so a throw from any call into it counts against that extension.
             // Filled when the registry populates, before anything can fault.

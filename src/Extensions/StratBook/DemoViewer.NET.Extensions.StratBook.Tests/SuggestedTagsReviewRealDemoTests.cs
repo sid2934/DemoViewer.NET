@@ -8,7 +8,6 @@ using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

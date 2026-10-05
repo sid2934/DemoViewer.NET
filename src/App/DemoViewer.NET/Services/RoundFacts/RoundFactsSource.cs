@@ -1,17 +1,15 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
-///     The store-backed <see cref="IRoundFactsSource" />. Gated with the pack like the writer: off, every
-///     read answers "no rows" and nothing is forwarded, so rows written while the pack was on stop
+///     The store-backed <see cref="IRoundFactsSource" />. Gated with the ruleset's owner like the writer: off,
+///     every read answers "no rows" and nothing is forwarded, so rows written while the owner was on stop
 ///     surfacing (tints, joins, labels) the moment it goes off. The rows themselves stay on disk.
 /// </summary>
 public sealed class RoundFactsSource : IRoundFactsSource
@@ -21,7 +19,7 @@ public sealed class RoundFactsSource : IRoundFactsSource
 
     /// <param name="demoCache">The unified demo cache the rows live in.</param>
     /// <param name="evaluator">The writer, whose <see cref="RoundFactsEvaluator.Updated" /> this forwards; null in a read-only host.</param>
-    /// <param name="enabled">The owning pack's live gate; null means always on.</param>
+    /// <param name="enabled">The ruleset owner's live gate; null means always on.</param>
     public RoundFactsSource(DemoCacheStore demoCache, RoundFactsEvaluator? evaluator = null, Func<bool>? enabled = null)
     {
         _demoCache = demoCache;
@@ -39,7 +37,7 @@ public sealed class RoundFactsSource : IRoundFactsSource
     }
 
     /// <inheritdoc />
-    public int Schema => StratBookCache.RoundFactsSchema;
+    public int Schema => RoundFactsRecords.Schema;
 
     /// <inheritdoc />
     public event Action<string>? Updated;

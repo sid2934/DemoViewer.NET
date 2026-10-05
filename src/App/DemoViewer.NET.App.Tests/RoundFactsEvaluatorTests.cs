@@ -1,12 +1,10 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.TestSupport;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
@@ -204,12 +202,12 @@ public class RoundFactsEvaluatorTests
                 .Because("ClipRounds.Derive is the round authority, on the frame clock");
             await Assert.That(rows.Rounds[1].WinnerSide).IsEqualTo(2);
             await Assert.That(rows.DemoSha256).IsEqualTo("abc");
-            await Assert.That(rows.Schema).IsEqualTo(StratBookCache.RoundFactsSchema);
+            await Assert.That(rows.Schema).IsEqualTo(RoundFactsRecords.Schema);
             await Assert.That(record.RoundFactsFingerprint()).IsEqualTo("rf-A");
             await Assert.That(record.Parse.IsPresent).IsTrue().Because("the Library's tier is left as it was");
             await Assert.That(record.Analysis.IsPresent).IsFalse().Because("round facts never claim the highlight scan's stamp");
             await Assert.That(entry.RoundFactsFingerprint()).IsEqualTo("rf-A");
-            await Assert.That(entry.RoundFactsSchema()).IsEqualTo(StratBookCache.RoundFactsSchema);
+            await Assert.That(entry.RoundFactsSchema()).IsEqualTo(RoundFactsRecords.Schema);
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
             await Assert.That(evaluator.PendingPaths()).IsEmpty();
 

@@ -1,9 +1,7 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
@@ -129,7 +127,7 @@ public class RoundFactsSourceTests
         };
         a.SetRoundFacts(new RoundFactsRows
         {
-            Schema = StratBookCache.RoundFactsSchema,
+            Schema = RoundFactsRecords.Schema,
             Rounds =
             [
                 Round(1, 1000, 3, BuyType.Pistol, BuyType.Pistol),
@@ -151,7 +149,7 @@ public class RoundFactsSourceTests
         };
         b.SetRoundFacts(new RoundFactsRows
         {
-            Schema = StratBookCache.RoundFactsSchema,
+            Schema = RoundFactsRecords.Schema,
             Rounds = [Round(1, 1000, 2, BuyType.Pistol, BuyType.Pistol), Round(2, 5000, 3, BuyType.Full, BuyType.Full)]
         }, "rf");
         store.Upsert(b);
@@ -174,7 +172,7 @@ public class RoundFactsSourceTests
             await Assert.That(source.TryGet(DemoA)?.Rounds.Count).IsEqualTo(3);
             await Assert.That(source.TryGet("/d/no-rows.dem")).IsNull();
             await Assert.That(source.TryGet("/d/unknown.dem")).IsNull();
-            await Assert.That(source.Schema).IsEqualTo(StratBookCache.RoundFactsSchema);
+            await Assert.That(source.Schema).IsEqualTo(RoundFactsRecords.Schema);
         }
     }
 

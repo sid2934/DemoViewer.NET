@@ -13,7 +13,6 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using Microsoft.Extensions.Logging;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 using DemoViewer.NET.Modules;
 
 #endregion

@@ -8,7 +8,6 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 using DemoViewer.NET.ViewModels;
 
 #endregion

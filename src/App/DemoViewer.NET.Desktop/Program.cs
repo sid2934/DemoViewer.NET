@@ -16,7 +16,6 @@ using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Options;
 using Velopack;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

@@ -12,7 +12,6 @@ using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

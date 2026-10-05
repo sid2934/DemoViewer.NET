@@ -1427,7 +1427,7 @@ public static partial class Variants
                 () => new SuggestedTagsTuningViewModel(
                     new SuggestedTagsTuningService(
                         DemoViewer.NET.Extensions.HostLibrary.For(cache, null),
-                        new SuggestedTagsService(DemoViewer.NET.Extensions.HostLibrary.For(cache, null), new DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsSource(cache),
+                        new SuggestedTagsService(DemoViewer.NET.Extensions.HostLibrary.For(cache, null), new DemoViewer.NET.Services.RoundFacts.RoundFactsSource(cache),
                             new ProposalStore(MemoryDemoData.For(DemoViewer.NET.Extensions.HostLibrary.For(cache, null))), null, new SiteRegionStore(null),
                             () => new ProfileStore(null).Current, () => true, () => false),
                         null,

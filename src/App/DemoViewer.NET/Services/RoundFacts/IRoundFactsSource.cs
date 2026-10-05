@@ -11,9 +11,9 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///     module precedent); nothing here parses, evaluates or names a team. Values are absolute per side
 ///     (<c>ct</c> / <c>t</c>): Team Identity turns them relative for display.
 ///     <para>
-///         Core, with the row models beside it: the 2D Playback round track tints by
-///         <see cref="RoundFacts.WinnerSide" /> and the tab resolves this source when the pack that
-///         registers it is present. The writer and the implementation are the Strat Book extension's.
+///         Core, with the row models, the writer (<see cref="RoundFactsEvaluator" />) and the implementation
+///         (<see cref="RoundFactsSource" />) beside it: the 2D Playback round track tints by
+///         <see cref="RoundFacts.WinnerSide" />.
 ///     </para>
 /// </summary>
 public interface IRoundFactsSource

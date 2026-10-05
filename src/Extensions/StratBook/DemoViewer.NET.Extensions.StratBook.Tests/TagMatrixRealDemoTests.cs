@@ -9,7 +9,6 @@ using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
 using static DemoViewer.NET.AppTests.TagTestData;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
@@ -19,7 +18,7 @@ namespace DemoViewer.NET.AppTests;
 ///     The Matrix over a real Valve matchmaking demo: a tag in every live round, stamped with its round's
 ///     facts by the production refresher, pivoted code by the T side's buy, and a cell's clips queued
 ///     against the library path. The facts come from the shipped engine ruleset (see
-///     <see cref="RoundFactsRealDemoTests" />).
+///     <c>RoundFactsRealDemoTests</c>).
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]

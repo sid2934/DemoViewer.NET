@@ -5,7 +5,6 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

@@ -18,7 +18,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.Teams;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
@@ -43,7 +42,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
@@ -349,39 +347,6 @@ public sealed class StratBookPack : IExtension
         // just a was-it-constructed field for a test. The other three evaluators below record themselves
         // inline instead.
         TrackBuiltEvaluator<RoundIndexEvaluator>(services, (instances, built) => instances.RoundIndex = built);
-
-        // Round Facts: the per-round, per-side record every Strat Room feature filters on. An evaluator on
-        // the tier-2 fan-out (no second parse) writing into the unified cache's Analysis tier under the
-        // round_facts ruleset's own fingerprint, and the read API over those rows. The row source and the
-        // identity share the composition root's merged build, so the rows are always stored under the
-        // fingerprint of the doc that produced them. The evaluator is gated on the pack; the ruleset
-        // itself leaves the merged set through the Contribute claim below.
-        services.AddSingleton(sp => new RulesRoundFactsRulesetIdentity(sp.GetRequiredService<MergedRulesBuild>()));
-        services.AddSingleton<IRoundFactsRulesetIdentity>(sp => sp.GetRequiredService<RulesRoundFactsRulesetIdentity>());
-        services.AddSingleton<IRoundFactsRowSource>(sp =>
-            new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
-        services.AddSingleton(sp =>
-        {
-            IExtensionFeatures features = Host(sp).Features;
-            RoundFactsEvaluator built = new(
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<IRoundFactsRowSource>(),
-                sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
-                Host(sp).Post,
-                enabled: () => features.IsEnabled(PackFeatureId));
-            sp.GetRequiredService<StratBookPackInstances>().RoundFacts = built;
-            return built;
-        });
-        // The reader is gated too, so off looks off: rows written while on stop surfacing until the pack
-        // comes back. They stay on disk.
-        services.AddSingleton<IRoundFactsSource>(sp =>
-        {
-            IExtensionFeatures features = Host(sp).Features;
-            return new RoundFactsSource(
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<RoundFactsEvaluator>(),
-                enabled: () => features.IsEnabled(PackFeatureId));
-        });
 
         services.AddSingleton(sp =>
         {
@@ -898,14 +863,12 @@ public sealed class StratBookPack : IExtension
         // the user overlay and the Workbench keep working on it.
         firstParty.Ruleset(RoundFactsFingerprint.RulesetId);
 
-        // The pack passes on the demo's visit, ordered to match the dependency chain each one reads: Round Facts after the library write, Round Index after Round Facts' rows,
+        // The pack passes on the demo's visit, ordered to match the dependency chain each one reads: Round Index after the host's Round Facts rows,
         // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing
         // the others write), and Lineup Clips after the grenades it renders. The registry resolves this only while the pack is on, so these factories are
         // never invoked, and these services never constructed, with the pack off.
-        contributions.Pass(RoundFactsEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundFactsEvaluator>(),
-            HostIds.LibraryPass);
         contributions.Pass(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
-            RoundFactsEvaluator.EvaluatorId);
+            HostIds.RoundFactsPass);
         contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
             RoundIndexEvaluator.EvaluatorId);
         contributions.Pass(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),

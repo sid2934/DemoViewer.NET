@@ -3,36 +3,35 @@
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;
-using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
-///     The pass that writes round facts: an <see cref="IExtensionPass" /> on the demo's visit, so it runs on
-///     the parse the visit already holds and costs no second parse. It runs the merged rules on that parse
-///     and reads the <c>round_facts</c> table out of the run through its <see cref="IRoundFactsRowSource" />,
-///     projects it onto the record and stores the rows in the pack's payload, stamped under the
+///     The evaluator that writes round facts: a core pass on the demo's visit, so it runs on the parse the
+///     visit already holds and costs no second parse. It runs the merged rules on that parse and reads the
+///     <c>round_facts</c> table out of the run through its <see cref="IRoundFactsRowSource" />, projects it
+///     onto the record and stores the rows under <see cref="RoundFactsRecords.PackId" />, stamped under the
 ///     <see cref="RoundFactsFingerprint" /> (<see cref="RoundFactsRecords.SetRoundFacts" />).
 ///     <para>
-///         Registered after the highlight scanner and before the round index:
-///         the index reads these rows in the same pass.
+///         Registered after the highlight scanner; a pass that reads these rows orders after
+///         <see cref="EvaluatorId" /> and reads them in the same visit.
 ///     </para>
 ///     <para>
-///         Gated by the pack alone: off, it wants nothing, lists nothing pending and writes nothing. A user who disables the ruleset (a same-id override with
-///         <c>enabled: false</c>) removes it from the effective set; the identity then answers null, and
-///         the evaluator wants nothing either way.
+///         Gated by the ruleset's owner: off, it wants nothing, lists nothing pending and writes nothing. A
+///         user who disables the ruleset (a same-id override with <c>enabled: false</c>) removes it from the
+///         effective set; the identity then answers null, and the evaluator wants nothing either way.
 ///     </para>
 /// </summary>
-public sealed class RoundFactsEvaluator : IExtensionPass
+public sealed class RoundFactsEvaluator : IDemoEvaluator
 {
-    /// <summary>The queue owner tag and the pass id for this evaluator.</summary>
+    /// <summary>The queue owner tag and the pass id for this evaluator: what a later pass names to order after it.</summary>
     public const string EvaluatorId = "roundfacts";
 
     // The rules fingerprint is tick-rate dependent and the backlog spans demos of several rates. 64 is
@@ -54,11 +53,11 @@ public sealed class RoundFactsEvaluator : IExtensionPass
     private readonly HashSet<string> _noRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _noRowsGate = new();
 
-    /// <param name="demoCache">The unified demo cache: the rows live in its Analysis tier.</param>
+    /// <param name="demoCache">The unified demo cache the rows ride.</param>
     /// <param name="rows">The engine seam that evaluates the ruleset on a held parse.</param>
     /// <param name="identity">The effective ruleset's fingerprint, or null when there is none.</param>
     /// <param name="post">UI-thread marshal for <see cref="Updated" />; defaults to synchronous.</param>
-    /// <param name="enabled">The owning pack's live gate; null means always on.</param>
+    /// <param name="enabled">The ruleset owner's live gate; null means always on.</param>
     public RoundFactsEvaluator(
         DemoCacheStore demoCache,
         IRoundFactsRowSource rows,
@@ -108,22 +107,9 @@ public sealed class RoundFactsEvaluator : IExtensionPass
         _enabled() && TryFingerprint(BacklogTickRate) is not null && _demoCache.TryGetIndex(path) is not { ParseSchema: > 0 };
 
     /// <inheritdoc />
-    public long OrderHint(string demoPath) => _demoCache.TryGetIndex(demoPath)?.ModifiedTicks ?? 0;
+    public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
 
     /// <inheritdoc />
-    public DemoInterest Interest(string demoPath) =>
-        Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
-
-    /// <inheritdoc />
-    public void Run(IPassContext context)
-    {
-        ArgumentNullException.ThrowIfNull(context);
-        Evaluate(context.DemoPath, context.Parsed);
-    }
-
-    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
-    /// <param name="path">The demo's path.</param>
-    /// <param name="parsed">The demo's parse.</param>
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <summary>

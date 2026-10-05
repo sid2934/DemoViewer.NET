@@ -92,7 +92,7 @@ public class StratBookCompositionRootTests
             await Assert.That(coordinator.PassIds)
                 .IsEquivalentTo(new[]
                 {
-                    "library", "highlights", DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsEvaluator.EvaluatorId,
+                    "library", "highlights", DemoViewer.NET.Services.RoundFacts.RoundFactsEvaluator.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId,
@@ -108,13 +108,12 @@ public class StratBookCompositionRootTests
             // Clips render from the grenades the walk just put in the index, on the same parse.
             await Assert.That(coordinator.PassIds[6]).IsEqualTo("lineupclips");
 
-            // The order came from the registry's resolve: confirm it actually built the four pack
+            // The order came from the registry's resolve: confirm it actually built the three pack
             // evaluators, not merely listed their ids.
             StratBookPackInstances instances =
                 provider.GetRequiredService<StratBookPackInstances>();
             using (Assert.Multiple())
             {
-                await Assert.That(instances.RoundFacts).IsNotNull();
                 await Assert.That(instances.RoundIndex).IsNotNull();
                 await Assert.That(instances.SuggestedTags).IsNotNull();
                 await Assert.That(instances.GrenadeWalk).IsNotNull();
@@ -133,7 +132,7 @@ public class StratBookCompositionRootTests
         });
     }
 
-    // The converse: with the pack off, the registry's gate keeps the four pack evaluators out of the
+    // The converse: with the pack off, the registry's gate keeps the three pack evaluators out of the
     // resolved order, and their factories are never invoked. Never GetRequiredService a pack evaluator
     // directly here, which would construct it regardless of the gate.
     [Test]
@@ -145,15 +144,13 @@ public class StratBookCompositionRootTests
             Services.DemoProcessing.DemoScheduler coordinator =
                 provider.GetRequiredService<Services.DemoProcessing.DemoScheduler>();
 
-            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights"])
-                .Because("the pack is off: its four evaluators are never in the fan-out");
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts"])
+                .Because("the pack is off: its three evaluators are never in the fan-out");
 
             StratBookPackInstances instances =
                 provider.GetRequiredService<StratBookPackInstances>();
             using (Assert.Multiple())
             {
-                await Assert.That(instances.RoundFacts).IsNull()
-                    .Because("the pack is off: Round Facts evaluator was never constructed, not merely excluded");
                 await Assert.That(instances.RoundIndex).IsNull()
                     .Because("the pack is off: Round Index evaluator was never constructed, not merely excluded");
                 await Assert.That(instances.SuggestedTags).IsNull()
@@ -211,7 +208,7 @@ public class StratBookCompositionRootTests
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
             SeedQualifyingDemo(provider, demo);
-            DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsEvaluator roundFacts = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsEvaluator>();
+            DemoViewer.NET.Services.RoundFacts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<DemoViewer.NET.Services.RoundFacts.RoundFactsEvaluator>();
             DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator>();
             DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService>();
             DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator>();
@@ -242,7 +239,7 @@ public class StratBookCompositionRootTests
             // The ruleset itself leaves the merged set: the Library and Highlights passes run less. Read
             // after the evaluator asserts, since the first rules read collects the pack contributions.
             await Assert.That(provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>().Docs.Select(d => d.Id))
-                .DoesNotContain(DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsFingerprint.RulesetId);
+                .DoesNotContain(DemoViewer.NET.Services.RoundFacts.RoundFactsFingerprint.RulesetId);
         }, packOff);
 
         // Control: the same seed and the same demo, pack on (its default). Without this, the asserts
@@ -250,7 +247,7 @@ public class StratBookCompositionRootTests
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
             SeedQualifyingDemo(provider, demo);
-            DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsEvaluator roundFacts = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsEvaluator>();
+            DemoViewer.NET.Services.RoundFacts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<DemoViewer.NET.Services.RoundFacts.RoundFactsEvaluator>();
             DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator>();
             DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService>();
             DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator>();
@@ -272,7 +269,7 @@ public class StratBookCompositionRootTests
             {
                 await Assert.That(roundFacts.Wants(demo)).IsTrue().Because("the seeded rows carry a stale fingerprint");
                 await Assert.That(provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>().Docs.Select(d => d.Id))
-                    .Contains(DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsFingerprint.RulesetId);
+                    .Contains(DemoViewer.NET.Services.RoundFacts.RoundFactsFingerprint.RulesetId);
             }
         }, packOn);
     }

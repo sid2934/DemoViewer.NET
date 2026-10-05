@@ -1,17 +1,15 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using System.Security.Cryptography;
 using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using DemoViewer.NET.Modules.Highlights;
 using Microsoft.Extensions.Logging;
-using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
 ///     What decides whether cached round facts are current: <see cref="MergedRulesBuild.RulesetIdentity" />
@@ -93,7 +91,7 @@ public sealed class RulesRoundFactsRulesetIdentity : IRoundFactsRulesetIdentity
                 return null;
             }
 
-            return RoundFactsFingerprint.Combine(StratBookCache.RoundFactsSchema,
+            return RoundFactsFingerprint.Combine(RoundFactsRecords.Schema,
                 Rules.RulesetIdentity(RoundFactsFingerprint.RulesetId, tickRate));
         }
         catch (Exception ex)

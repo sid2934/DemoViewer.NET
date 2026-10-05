@@ -11,7 +11,6 @@ using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 using DemoViewer.NET.ViewModels;
 
 #endregion

@@ -10,7 +10,6 @@ using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 using DemoViewer.NET.Modules;
 
 #endregion

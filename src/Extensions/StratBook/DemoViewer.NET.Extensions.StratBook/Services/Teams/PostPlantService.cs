@@ -4,7 +4,6 @@ using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

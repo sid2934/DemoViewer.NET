@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

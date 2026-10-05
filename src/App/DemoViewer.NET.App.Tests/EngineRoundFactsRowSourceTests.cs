@@ -9,7 +9,6 @@ using CS2DemoKit.Analysis.Yaml;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

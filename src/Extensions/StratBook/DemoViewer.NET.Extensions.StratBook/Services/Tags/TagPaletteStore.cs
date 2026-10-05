@@ -7,7 +7,6 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services.RoundFacts;
 using Microsoft.Extensions.Logging;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

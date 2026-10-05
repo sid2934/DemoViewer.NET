@@ -22,7 +22,6 @@ using DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 using DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 using DemoViewer.NET.Modules;
 
 #endregion

@@ -5,7 +5,6 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

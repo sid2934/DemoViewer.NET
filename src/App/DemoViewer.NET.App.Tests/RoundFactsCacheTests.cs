@@ -1,10 +1,8 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
@@ -22,7 +20,7 @@ public class RoundFactsCacheTests
     private static string TempRoot() =>
         Path.Combine(Path.GetTempPath(), $"dv-roundfacts-{Guid.NewGuid():N}");
 
-    private static RoundFactsRows Rows(int schema = StratBookCache.RoundFactsSchema) => new()
+    private static RoundFactsRows Rows(int schema = RoundFactsRecords.Schema) => new()
     {
         Schema = schema,
         Clock = new RoundFactsClock
@@ -198,7 +196,7 @@ public class RoundFactsCacheTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(entry.RoundFactsSchema()).IsEqualTo(StratBookCache.RoundFactsSchema);
+                await Assert.That(entry.RoundFactsSchema()).IsEqualTo(RoundFactsRecords.Schema);
                 await Assert.That(entry.RoundFactsFingerprint()).IsEqualTo(Fingerprint);
                 await Assert.That(entry.NeedsRoundFacts(Fingerprint)).IsFalse();
                 await Assert.That(entry.NeedsRoundFacts("rf-B")).IsTrue();

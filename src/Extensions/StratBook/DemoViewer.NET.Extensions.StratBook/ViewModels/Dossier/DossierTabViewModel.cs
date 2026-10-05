@@ -19,7 +19,6 @@ using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 using DemoViewer.NET.ViewModels;
 
 #endregion

@@ -7,7 +7,6 @@ using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using static DemoViewer.NET.AppTests.TagTestData;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
@@ -16,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Free Labels From Round Facts on a real Valve matchmaking demo: a tag made in every live round carries
 ///     that round's facts. The body runs the production evaluator and the production refresher against the
-///     parse, over the shipped engine ruleset (see <see cref="RoundFactsRealDemoTests" />).
+///     parse, over the shipped engine ruleset (see <c>RoundFactsRealDemoTests</c>).
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]

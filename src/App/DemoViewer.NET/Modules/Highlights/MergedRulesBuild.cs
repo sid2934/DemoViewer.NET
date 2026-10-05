@@ -174,6 +174,14 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
+    ///     Whether the owner of a ruleset is on: true for a ruleset no pack claims, otherwise the claiming
+    ///     pack's gate. Independent of the user's overlay, so a reader can hide an owner's rows while its
+    ///     writer's own gate reads the same answer.
+    /// </summary>
+    public bool IsOwnerOn(string rulesetId) =>
+        PackRulesets.FirstOrDefault(p => string.Equals(p.RulesetId, rulesetId, StringComparison.Ordinal))?.Enabled() ?? true;
+
+    /// <summary>
     ///     The enabled ruleset with this id in the merged set (a user's same-id override wins), or null
     ///     when there is none: not in the directories, disabled by an override, or owned by a pack that is off.
     /// </summary>

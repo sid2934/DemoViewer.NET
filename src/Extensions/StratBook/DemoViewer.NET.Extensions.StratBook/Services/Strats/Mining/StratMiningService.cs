@@ -12,7 +12,6 @@ using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 using DemoViewer.NET.Services;
 
 #endregion
@@ -890,7 +889,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
 
     // The passes whose writes a mine reads: while one has a demo in flight, the library is still changing under it.
     private bool QueueBusy => _passes is { } passes
-                              && (passes.IsBusy(RoundFactsEvaluator.EvaluatorId) || passes.IsBusy(RoundIndexEvaluator.EvaluatorId)
+                              && (passes.IsBusy(HostIds.RoundFactsPass) || passes.IsBusy(RoundIndexEvaluator.EvaluatorId)
                                   || passes.IsBusy(GrenadeIndexEvaluator.EvaluatorId));
 
     /// <summary>

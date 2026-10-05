@@ -1,12 +1,10 @@
 #region
 
 using CS2DemoKit.Analysis.Clips;
-using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
 ///     Turns the <c>round_facts</c> table into the record: pairs the two rows of each round by side,
@@ -38,7 +36,7 @@ public static class RoundFactsProjection
         thresholds ??= ThresholdsFrom(table.Parameters);
         RoundFactsRows result = new()
         {
-            Schema = StratBookCache.RoundFactsSchema
+            Schema = RoundFactsRecords.Schema
         };
 
         Dictionary<int, List<IReadOnlyDictionary<string, object?>>> byRound = new();

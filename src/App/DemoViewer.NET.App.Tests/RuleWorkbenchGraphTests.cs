@@ -17,7 +17,6 @@ using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.Views.RuleWorkbench;
 using DemoViewer.NET.Visualization;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

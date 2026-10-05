@@ -6,11 +6,9 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.TestSupport;
-using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
@@ -429,11 +427,11 @@ public class ForwardQueueTests
 
         RoundFactsEvaluator facts = new(store, new NoRows(), new Identity("after-merge"));
         using HighlightScanService highlights = new(store, new Harvester("fp"), () => [], () => true);
-        // Round facts run on the retained parse; an extension's pass always does.
+        // Round facts run on the retained parse: the evaluator declares no forward needs.
         IDemoPass[] scheduled =
         [
             new EvaluatorPassAdapter(highlights, []),
-            new ExtensionPassHost(facts, [], ExtensionGuard.Standalone(new StratBookPack()), static () => false)
+            new EvaluatorPassAdapter(facts, [])
         ];
         using DemoScheduler coordinator = new(() => scheduled, queue,
             () => [.. highlights.PendingPaths().Concat(facts.PendingPaths()).Distinct()]);
