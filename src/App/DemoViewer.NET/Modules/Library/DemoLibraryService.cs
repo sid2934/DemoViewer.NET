@@ -974,14 +974,24 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             wanted[path] = (size, modified);
         }
 
-        // Drop entries whose file no longer exists, moved out of scope, OR became a SHADOW (a smaller-path
-        // copy appeared and took over as primary: this card collapses into that one).
+        // Drop entries whose file no longer exists, moved out of scope, became a SHADOW (a smaller-path
+        // copy appeared and took over as primary: this card collapses into that one), or changed size or
+        // mtime since it was added. A changed file comes back below as a new entry and is indexed again.
         // One Reset for the lot: every collection change re-runs the Library tab's filters, sort and
         // provenance over the whole library.
-        List<DemoEntry> staying = [.. Entries.Where(e => wanted.ContainsKey(e.FilePath))];
+        bool Unchanged(DemoEntry e) =>
+            wanted.TryGetValue(e.FilePath, out (long Size, DateTime Modified) now)
+            && now.Size == e.FileSizeBytes && now.Modified.Ticks == e.Modified.Ticks;
+
+        List<DemoEntry> staying = [.. Entries.Where(Unchanged)];
+        foreach (DemoEntry changed in Entries.Where(e => wanted.ContainsKey(e.FilePath) && !Unchanged(e)))
+        {
+            Coordinator?.ForgetFaults(changed.FilePath);
+        }
+
         if (staying.Count == Entries.Count - 1)
         {
-            Entries.Remove(Entries.First(e => !wanted.ContainsKey(e.FilePath)));
+            Entries.Remove(Entries.First(e => !Unchanged(e)));
         }
         else if (staying.Count < Entries.Count)
         {
@@ -989,6 +999,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
 
         PruneStaleCacheRows(wanted);
+        DropRekeyedCacheRows(wanted);
 
         Dictionary<string, DemoEntry> byPath = Entries.ToDictionary(e => e.FilePath, StringComparer.OrdinalIgnoreCase);
 
@@ -1560,6 +1571,23 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     // CCSTeam scalars arrive boxed (Int32 on the wire per project_cs2_wire_encoding); coerce defensively.
     // ── Cache (thread-safe) ───────────────────────────────────────────────────
+
+    // A row keyed to an older size or mtime describes bytes that are gone. UpsertCache never re-keys an
+    // existing row, so it must go before the file is indexed again, or the new results land on the old key.
+    private void DropRekeyedCacheRows(Dictionary<string, (long Size, DateTime Modified)> wanted)
+    {
+        lock (_cacheLock)
+        {
+            foreach ((string path, (long size, DateTime modified)) in wanted)
+            {
+                if (_cache.TryGetValue(path, out DemoLibraryCacheEntry? c)
+                    && (c.Size != size || c.ModifiedTicks != modified.Ticks))
+                {
+                    _cache.Remove(path);
+                }
+            }
+        }
+    }
 
     private DemoLibraryCacheEntry? LookupCache(string path, long size, DateTime modified)
     {

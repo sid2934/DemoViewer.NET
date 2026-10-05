@@ -744,6 +744,63 @@ public class DemoLibraryServiceTests
         }
     }
 
+    /// <summary>
+    ///     A demo rewritten in place between rescans is indexed again on the next rescan, without a
+    ///     relaunch. An untouched demo is not.
+    /// </summary>
+    [Test]
+    public async Task Rescan_DemoModifiedInPlace_IsIndexedAgain()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        string demo = Path.Combine(dir, "m.dem");
+        await File.WriteAllBytesAsync(demo, [7, 7, 7, 7]);
+        try
+        {
+            int parses = 0;
+            DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+                _ =>
+                {
+                    Interlocked.Increment(ref parses);
+                    return SyntheticDemo();
+                });
+            using DemoLibraryService svc = new(_inline, Path.Combine(dir, "library.json"));
+            using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Coordinator = coord;
+
+            await svc.AddFoldersAsync([dir]);
+            await WaitForAsync(() => svc.Entries.Count == 1 && svc.Entries[0].State == DemoIndexState.Indexed,
+                "first index");
+
+            await svc.RescanAsync();
+            await Task.Delay(100);
+            await Assert.That(parses).IsEqualTo(1).Because("an unchanged demo is not indexed again");
+
+            await File.WriteAllBytesAsync(demo, [8, 8, 8, 8, 8, 8, 8, 8]);
+            File.SetLastWriteTime(demo, File.GetLastWriteTime(demo).AddMinutes(1));
+            await svc.RescanAsync();
+            await WaitForAsync(
+                () => parses == 2 && svc.Entries.Count == 1 && svc.Entries[0].FileSizeBytes == 8
+                      && svc.Entries[0].State == DemoIndexState.Indexed,
+                "the modified demo indexed again");
+
+            await svc.RescanAsync();
+            await Task.Delay(100);
+            await Assert.That(parses).IsEqualTo(2).Because("the new size and mtime are now the cache key");
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                /* best-effort cleanup */
+            }
+        }
+    }
+
     [Test]
     public async Task PrettifyMap_StripsPrefix_AndTitleCases()
     {
