@@ -1,8 +1,10 @@
 #region
 
+using System.Collections.Concurrent;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.ViewModels.Library;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -119,6 +121,68 @@ public class LibraryContributionTests
         public string? BadgeResetLabel => throw new InvalidOperationException("BadgeResetLabel read while off");
         public string? BadgeResetTooltip => throw new InvalidOperationException("BadgeResetTooltip read while off");
         public void SetLabel(LibraryDemo demo, string? label) => throw new InvalidOperationException("SetLabel called while off");
+    }
+
+    [Test]
+    public async Task AChangedRaisedOffTheUiThread_ReachesTheHostOnlyThroughThePacksMarshal()
+    {
+        DemoLibraryService lib = NewLibrary("/d/keep.dem", "/d/drop.dem");
+        FakeContribution c = new() { FeatureId = "pack.fake" };
+        ConcurrentQueue<Action> posted = new();
+        PackContributions contributions = new(new FakePack(), () => throw new InvalidOperationException(), posted.Enqueue);
+        contributions.Library(c);
+        LibraryTabViewModel vm = NewVm(lib, contributions.LibraryContributions, _ => true);
+        await Assert.That(vm.Filters).IsEmpty();
+
+        c.FilterValue = KeepFilter();
+        await Task.Run(c.RaiseChanged);
+        await Assert.That(vm.Filters).IsEmpty().Because("the raising thread never touches the host's collections");
+        await Assert.That(posted.Count).IsEqualTo(1);
+
+        while (posted.TryDequeue(out Action? run))
+        {
+            run();
+        }
+
+        await Assert.That(vm.Filters.Count).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ThePacksMarshal_UnsubscribesTheHandlerItWasGiven()
+    {
+        FakeContribution c = new() { FeatureId = "pack.fake" };
+        ConcurrentQueue<Action> posted = new();
+        PackContributions contributions = new(new FakePack(), () => throw new InvalidOperationException(), posted.Enqueue);
+        contributions.Library(c);
+        ILibraryContribution host = contributions.LibraryContributions.Single();
+        int calls = 0;
+        Action handler = () => calls++;
+
+        host.Changed += handler;
+        c.RaiseChanged();
+        host.Changed -= handler;
+        c.RaiseChanged();
+        while (posted.TryDequeue(out Action? run))
+        {
+            run();
+        }
+
+        await Assert.That(calls).IsEqualTo(1);
+    }
+
+    private sealed class FakePack : IExtension
+    {
+        public string Id => "net.demoviewer.pack.fake";
+        public string FeatureId => "pack.fake";
+        public IEnumerable<ExtensionFeature> Features => [];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
     }
 
     [Test]

@@ -102,7 +102,14 @@ public sealed record StatusChipContribution(
     string? FeatureId = null);
 
 /// <summary>An extension's Match Overview action and the feature it shows under.</summary>
-public sealed record GatedDemoAction(DemoAction Action, string FeatureId);
+public sealed record GatedDemoAction(DemoAction Action, string FeatureId)
+{
+    /// <summary>
+    ///     Runs a host handler for <see cref="DemoAction.Changed" /> on the UI thread, since an extension may
+    ///     call <see cref="DemoAction.NotifyChanged" /> from any thread. Null runs it on the raising thread.
+    /// </summary>
+    public Action<Action>? ToUiThread { get; init; }
+}
 
 /// <summary>
 ///     What a first-party extension can contribute beyond the SDK: surfaces whose types are the app's own and

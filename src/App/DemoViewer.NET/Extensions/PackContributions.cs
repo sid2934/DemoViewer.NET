@@ -12,8 +12,16 @@ namespace DemoViewer.NET.Extensions;
 ///     The composition root's collector for one pack's contributions, in the order the pack made them.
 ///     Each pack gets its own instance so the shell knows which pack contributed what.
 /// </summary>
-internal sealed class PackContributions(IExtension pack, Func<IExtensionContext> context) : IFirstPartyContributions
+/// <param name="pack">The pack contributing.</param>
+/// <param name="context">The pack's host context, built on first use.</param>
+/// <param name="toUiThread">
+///     Runs a host handler for a <c>Changed</c> the pack raised, on the UI thread. Null runs it inline on
+///     the raising thread.
+/// </param>
+internal sealed class PackContributions(IExtension pack, Func<IExtensionContext> context, Action<Action>? toUiThread = null)
+    : IFirstPartyContributions
 {
+    private readonly Action<Action> _toUiThread = toUiThread ?? (static a => a());
     private IExtensionContext? _context;
     private readonly List<IWorkspaceModule> _modules = [];
     private readonly List<HostTabContribution> _hostTabs = [];
@@ -183,7 +191,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public void Library(ILibraryContribution contribution)
     {
         ArgumentNullException.ThrowIfNull(contribution);
-        _library.Add(contribution.FeatureId is null ? new StampedLibraryContribution(contribution, Pack.FeatureId) : contribution);
+        _library.Add(new HostLibraryContribution(contribution, contribution.FeatureId ?? Pack.FeatureId, _toUiThread));
     }
 
     /// <inheritdoc />
@@ -205,19 +213,54 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public void DemoAction(DemoAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        _demoActions.Add(new GatedDemoAction(action, action.FeatureId ?? Pack.FeatureId));
+        _demoActions.Add(new GatedDemoAction(action, action.FeatureId ?? Pack.FeatureId) { ToUiThread = _toUiThread });
     }
 
     // Stamps the owning pack's id onto a contribution that left FeatureId null, so the host always has a
     // concrete gate id and never has to fall back to "always on" the way a settings page or chip would.
-    private sealed class StampedLibraryContribution(ILibraryContribution inner, string featureId) : ILibraryContribution
+    // Changed may be raised on any thread; the host's handlers run on the UI thread.
+    private sealed class HostLibraryContribution(ILibraryContribution inner, string featureId, Action<Action> toUiThread)
+        : ILibraryContribution
     {
+        private readonly List<(Action Handler, Action Marshaled)> _handlers = [];
+
         public string? FeatureId => featureId;
 
         public event Action? Changed
         {
-            add => inner.Changed += value;
-            remove => inner.Changed -= value;
+            add
+            {
+                if (value is null)
+                {
+                    return;
+                }
+
+                Action marshaled = () => toUiThread(value);
+                lock (_handlers)
+                {
+                    _handlers.Add((value, marshaled));
+                }
+
+                inner.Changed += marshaled;
+            }
+            remove
+            {
+                Action? marshaled = null;
+                lock (_handlers)
+                {
+                    int i = _handlers.FindIndex(h => h.Handler.Equals(value));
+                    if (i >= 0)
+                    {
+                        marshaled = _handlers[i].Marshaled;
+                        _handlers.RemoveAt(i);
+                    }
+                }
+
+                if (marshaled is not null)
+                {
+                    inner.Changed -= marshaled;
+                }
+            }
         }
 
         public LibraryFilter? Filter => inner.Filter;

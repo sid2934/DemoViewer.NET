@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.MatchOverview;
@@ -67,6 +68,30 @@ public class MatchOverviewDemoActionTests
 
         available = true;
         action.NotifyChanged();
+        await Assert.That(row.IsVisible).IsTrue();
+    }
+
+    [Test]
+    public async Task ANotifyFromAnotherThread_RefreshesTheRow_OnlyThroughTheMarshal()
+    {
+        bool available = false;
+        DemoAction action = new("fake.index", "Index", "tip", _ => available, _ => { });
+        ConcurrentQueue<Action> posted = new();
+        MatchOverviewTabViewModel vm = new();
+        vm.AttachDemoActions([new GatedDemoAction(action, Feature) { ToUiThread = posted.Enqueue }], _ => true);
+        vm.SetCachedRecord(Parsed());
+        DemoActionRow row = vm.DemoActions.Single();
+        await Assert.That(row.IsVisible).IsFalse();
+
+        available = true;
+        await Task.Run(action.NotifyChanged);
+        await Assert.That(row.IsVisible).IsFalse().Because("the raising thread never writes the row");
+
+        while (posted.TryDequeue(out Action? run))
+        {
+            run();
+        }
+
         await Assert.That(row.IsVisible).IsTrue();
     }
 

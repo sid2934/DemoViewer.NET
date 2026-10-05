@@ -501,10 +501,11 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     {
         ArgumentNullException.ThrowIfNull(actions);
         ArgumentNullException.ThrowIfNull(isFeatureOn);
-        foreach ((DemoAction action, string featureId) in actions)
+        foreach (GatedDemoAction gated in actions)
         {
+            (DemoAction action, string featureId) = gated;
             DemoActionRow row = new(action, featureId, isFeatureOn);
-            action.Changed += RefreshDemoActions;
+            action.Changed += gated.ToUiThread is { } toUiThread ? () => toUiThread(RefreshDemoActions) : RefreshDemoActions;
             DemoActions.Add(row);
         }
 

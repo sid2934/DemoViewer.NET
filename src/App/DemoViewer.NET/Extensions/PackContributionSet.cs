@@ -24,7 +24,7 @@ internal sealed class PackContributionSet
         List<PackContributions> collected = new(packs.Count);
         foreach (IExtension pack in packs)
         {
-            PackContributions contributions = new(pack, () => sp.GetExtensionContext(pack.Id));
+            PackContributions contributions = new(pack, () => sp.GetExtensionContext(pack.Id), UiThreadMarshal.Run);
             try
             {
                 pack.Contribute(contributions, sp);
@@ -33,7 +33,7 @@ internal sealed class PackContributionSet
             {
                 // One extension failing its Contribute must not stop the app: it contributes nothing.
                 AppLog.OperationFailed(Log, "contribute extension " + pack.Id, ex);
-                contributions = new PackContributions(pack, () => sp.GetExtensionContext(pack.Id));
+                contributions = new PackContributions(pack, () => sp.GetExtensionContext(pack.Id), UiThreadMarshal.Run);
             }
 
             collected.Add(contributions);
