@@ -481,7 +481,9 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         HighlightCount = Highlights.Count,
         PackStamps = [.. PackStamps],
         CtPlayers = Parse.IsPresent ? SidePlayers(3) : null,
-        TPlayers = Parse.IsPresent ? SidePlayers(2) : null
+        TPlayers = Parse.IsPresent ? SidePlayers(2) : null,
+        CtSideWins = CtSideWins,
+        TSideWins = TSideWins
     };
 
     /// <summary>
@@ -587,6 +589,14 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<IndexSidePlayer>? TPlayers { get; set; }
 
+    /// <summary>The record's <see cref="DemoCacheRecord.CtSideWins" />, so a per-team record needs no sidecar read.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CtSideWins { get; set; }
+
+    /// <summary>The record's <see cref="DemoCacheRecord.TSideWins" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TSideWins { get; set; }
+
     /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
@@ -668,8 +678,8 @@ public sealed class DemoCacheIndexFile
     /// <summary>
     ///     Version of the INDEX container itself, independent of the per-tier record schemas. 2: record
     ///     sidecars are gzipped <c>&lt;key&gt;.json.gz</c>; a version-1 <c>&lt;key&gt;.json</c> is still read.
-    ///     3: parsed rows carry each side's players (<see cref="DemoCacheIndexEntry.CtPlayers" />); a row
-    ///     loaded from an older index has none until its record is read again.
+    ///     3: parsed rows carry each side's players (<see cref="DemoCacheIndexEntry.CtPlayers" />) and the
+    ///     rounds each side won; a row loaded from an older index has neither until its record is read again.
     /// </summary>
     public const int CurrentVersion = 3;
 

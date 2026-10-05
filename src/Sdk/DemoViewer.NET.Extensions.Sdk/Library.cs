@@ -54,6 +54,15 @@ public sealed record LibraryDemo(string FilePath, string FileName, string? MapNa
     /// <summary>The players who ended the demo on the T side, by the rule of <see cref="CtPlayers" />.</summary>
     public IReadOnlyList<LibrarySidePlayer>? TPlayers { get; init; }
 
+    /// <summary>
+    ///     Rounds won on the CT side across the match, by either team, from the highlights scan; null until the
+    ///     scan resolved it, or on a row written before the library carried it.
+    /// </summary>
+    public int? CtSideWins { get; init; }
+
+    /// <summary>Rounds won on the T side across the match, by the rule of <see cref="CtSideWins" />.</summary>
+    public int? TSideWins { get; init; }
+
     /// <summary>How far the library has read the demo.</summary>
     public LibraryDemoState State { get; init; }
 

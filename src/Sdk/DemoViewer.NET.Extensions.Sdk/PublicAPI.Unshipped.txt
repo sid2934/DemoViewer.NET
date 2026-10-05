@@ -396,6 +396,8 @@ DemoViewer.NET.Extensions.Sdk.LibraryDemo.CtPlayers.get -> System.Collections.Ge
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.CtPlayers.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.CtScore.get -> int?
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.CtScore.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.CtSideWins.get -> int?
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.CtSideWins.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.Deconstruct(out string! FilePath, out string! FileName, out string? MapName, out System.DateTime Modified, out long FileSizeBytes) -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.DurationSeconds.get -> double
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.DurationSeconds.init -> void
@@ -433,6 +435,8 @@ DemoViewer.NET.Extensions.Sdk.LibraryDemo.TPlayers.get -> System.Collections.Gen
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.TPlayers.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.TScore.get -> int?
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.TScore.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.TSideWins.get -> int?
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.TSideWins.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemoDetail
 DemoViewer.NET.Extensions.Sdk.LibraryDemoDetail.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryDemoDetail!
 DemoViewer.NET.Extensions.Sdk.LibraryDemoDetail.Deconstruct(out DemoViewer.NET.Extensions.Sdk.LibraryDemo! Demo, out int TickRate, out int TickCount, out int ServerStartTick, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryPlayer!>! Players, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryRound!>! Rounds) -> void

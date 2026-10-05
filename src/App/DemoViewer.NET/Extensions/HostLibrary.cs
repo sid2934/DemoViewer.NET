@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Extensions;
 ///     projected once per index row object, which the store replaces on every write, so an unchanged demo is
 ///     the same <see cref="LibraryDemo" /> instance however often it is read.
 /// </summary>
-internal sealed class HostLibrary
+internal sealed class HostLibrary : IExtensionLibrary
 {
     private static readonly ConditionalWeakTable<DemoCacheStore, HostLibrary> Shared = new();
 
@@ -110,7 +110,7 @@ internal sealed class HostLibrary
     ///     The demo's detail from its record. Read before returning off the UI thread and in a host with no
     ///     queue; a light queue job on the UI thread. The read leaves the store's capacity-1 cache alone.
     /// </summary>
-    public Task<LibraryDemoDetail?> GetDetailAsync(string path, CancellationToken cancellationToken)
+    public Task<LibraryDemoDetail?> GetDetailAsync(string path, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         cancellationToken.ThrowIfCancellationRequested();
@@ -158,6 +158,8 @@ internal sealed class HostLibrary
             PlayerNames = [.. entry.PlayerNames],
             CtPlayers = Side(entry.CtPlayers),
             TPlayers = Side(entry.TPlayers),
+            CtSideWins = entry.CtSideWins,
+            TSideWins = entry.TSideWins,
             State = entry.Tier switch
             {
                 DemoCacheTier.Analysis => LibraryDemoState.Analyzed,

@@ -126,8 +126,15 @@ public sealed class RecordPassRunner : IDisposable
         _store.Changed -= OnStoreChanged;
     }
 
+    // No job for a change while no record pass is on: a pass that comes on is handed the library by the
+    // re-check that follows.
     private void OnStoreChanged(string? path)
     {
+        if (!AnyPass())
+        {
+            return;
+        }
+
         if (path is null)
         {
             RecheckAll();
@@ -135,6 +142,18 @@ public sealed class RecordPassRunner : IDisposable
         else
         {
             DemoChanged(path);
+        }
+    }
+
+    private bool AnyPass()
+    {
+        try
+        {
+            return _passes().Count > 0;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return true;
         }
     }
 
