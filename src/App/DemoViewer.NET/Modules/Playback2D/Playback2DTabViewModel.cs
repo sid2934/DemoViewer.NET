@@ -1300,6 +1300,17 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
     public bool TryPointerPreHandler(ScenePointer pointer) => Surface.TryHandlePointerPress(pointer);
 
+    IReadOnlyList<KeyValuePair<string, Func<global::DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer>>> ISceneFrameHost.ContributedLayers =>
+        Surface.Layers;
+
+    IReadOnlyList<global::DemoViewer.NET.Playback2D.Core.Tools.IMapTool> ISceneFrameHost.ContributedTools => Surface.Tools;
+
+    event Action? ISceneFrameHost.ContributedLayersChanged
+    {
+        add => Surface.LayersChanged += value;
+        remove => Surface.LayersChanged -= value;
+    }
+
     private static string[] BuildMyWeaponsPaths()
     {
         string[] paths = new string[MyWeaponsSlots];

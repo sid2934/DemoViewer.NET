@@ -8,8 +8,10 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
@@ -41,6 +43,8 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     private readonly List<Playback2DPanel> _panels = [];
     private readonly List<Action<int>> _playheadHandlers = [];
     private readonly List<Func<ScenePointer, bool>> _pointerPreHandlers = [];
+    private readonly List<KeyValuePair<string, Func<ISceneLayer>>> _layers = [];
+    private readonly List<IMapTool> _tools = [];
     private readonly Playback2DTimelineViewModel _timeline;
     private PaneHandle? _openSide;
 
@@ -66,6 +70,15 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         _frame = frame;
         _zones = zones ?? (() => null);
     }
+
+    /// <summary>A layer was added or removed. The map re-reads <see cref="Layers" />.</summary>
+    public event Action? LayersChanged;
+
+    /// <summary>The contributed scene layers by id, in the order added.</summary>
+    public IReadOnlyList<KeyValuePair<string, Func<ISceneLayer>>> Layers => _layers;
+
+    /// <summary>The contributed pointer tools, in the order added.</summary>
+    public IReadOnlyList<IMapTool> Tools => _tools;
 
     /// <summary>A side pane opened. The tab closes the export pane on it.</summary>
     public event Action? SidePaneOpened;
@@ -219,6 +232,32 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         ArgumentNullException.ThrowIfNull(handler);
         _actionHandlers.Add(handler);
         return new Removal(() => _actionHandlers.Remove(handler));
+    }
+
+    /// <inheritdoc />
+    public IDisposable AddLayer(string layerId, Func<ISceneLayer> layer)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(layerId);
+        ArgumentNullException.ThrowIfNull(layer);
+        _layers.RemoveAll(l => string.Equals(l.Key, layerId, StringComparison.Ordinal));
+        KeyValuePair<string, Func<ISceneLayer>> entry = new(layerId, layer);
+        _layers.Add(entry);
+        LayersChanged?.Invoke();
+        return new Removal(() =>
+        {
+            if (_layers.Remove(entry))
+            {
+                LayersChanged?.Invoke();
+            }
+        });
+    }
+
+    /// <inheritdoc />
+    public IDisposable AddTool(IMapTool tool)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        _tools.Add(tool);
+        return new Removal(() => _tools.Remove(tool));
     }
 
     /// <inheritdoc />

@@ -1,5 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Tools;
 
 namespace DemoViewer.NET.Extensions.Sdk.Playback;
 
@@ -95,6 +98,33 @@ public interface IPlaybackSurface
     IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
         ModeToggle? mode = null);
 
+    /// <summary>
+    ///     A scene layer drawn on the tab's map, among the tab's own layers by <see cref="ISceneLayer.Slot" /> and
+    ///     <see cref="ISceneLayer.Order" />. <paramref name="layer" /> builds a fresh instance whenever the map
+    ///     builds its scene, so it may be called more than once.
+    ///     <para>
+    ///         The layer sees only what it is handed: the frame in <see cref="ISceneLayer.Advance" />, and the
+    ///         canvas and <see cref="SceneRenderContext" /> in <see cref="ISceneLayer.Render" />, which runs on
+    ///         the render thread. The canvas is restored after each call. A layer that throws stops drawing for
+    ///         the session and counts against the extension.
+    ///     </para>
+    /// </summary>
+    /// <param name="id">
+    ///     The layer's id within the extension: letters, digits, '.', '-' and '_'. The host files it as
+    ///     <c>ext.&lt;extension id&gt;.&lt;id&gt;</c>, so it can never collide with the tab's own layers or another
+    ///     extension's; <see cref="ISceneLayer.Id" /> of the built layer is not used. Adding an id again replaces it.
+    /// </param>
+    /// <param name="layer">Builds the layer.</param>
+    IDisposable AddLayer(string id, Func<ISceneLayer> layer);
+
+    /// <summary>
+    ///     A pointer tool on the tab's map. It is offered every primary press the tab does not turn into a pan
+    ///     (Space, Control and the middle button pan), after the pointer pre-handlers and before the drawing
+    ///     tools; a tool that takes the press owns the gesture until the release.
+    /// </summary>
+    /// <param name="tool">The tool.</param>
+    IDisposable AddTool(IMapTool tool);
+
     /// <summary>Sees a key before the tab's keymap. Return true to take it.</summary>
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);
 
@@ -135,14 +165,16 @@ public sealed record MenuEntry(string Header, Action Run);
 /// <param name="Modifiers">Keys held.</param>
 /// <param name="Tick">The tick shown.</param>
 /// <param name="PlaceAt">The map's named place at the press, or null where the map has no zones. Read it only if you need it.</param>
+/// <param name="Frame">The frame on screen. Valid only during the call: the tab refills it for the next one.</param>
 public sealed record PlaybackPointer(
     string? Level, double WorldX, double WorldY, double ScreenX, double ScreenY, KeyModifiers Modifiers, int Tick,
-    Func<string?> PlaceAt);
+    Func<string?> PlaceAt, Scene2DFrame Frame);
 
 /// <summary>The moment a toolbar item ran at.</summary>
 /// <param name="Tick">The tick shown.</param>
 /// <param name="FrameIndex">The frame shown.</param>
-public sealed record PlaybackMoment(int Tick, int FrameIndex);
+/// <param name="Frame">The frame on screen. Valid only during the call: the tab refills it for the next one.</param>
+public sealed record PlaybackMoment(int Tick, int FrameIndex, Scene2DFrame Frame);
 
 /// <summary>Where a pane docks.</summary>
 public enum PanePlacement

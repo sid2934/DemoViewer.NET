@@ -4,6 +4,8 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
@@ -98,4 +100,20 @@ internal interface ISceneFrameHost
     /// </summary>
     /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
     bool TryPointerPreHandler(ScenePointer pointer) => false;
+
+    /// <summary>Scene layers contributions added to this host's map, by id. Re-read on <see cref="ContributedLayersChanged" />.</summary>
+    IReadOnlyList<KeyValuePair<string, Func<ISceneLayer>>> ContributedLayers => [];
+
+    /// <summary>
+    ///     Pointer tools contributions added, offered a primary press not diverted to pan after
+    ///     <see cref="TryPointerPreHandler" /> and before the router. Read at each press.
+    /// </summary>
+    IReadOnlyList<IMapTool> ContributedTools => [];
+
+    /// <summary><see cref="ContributedLayers" /> changed.</summary>
+    event Action? ContributedLayersChanged
+    {
+        add { }
+        remove { }
+    }
 }

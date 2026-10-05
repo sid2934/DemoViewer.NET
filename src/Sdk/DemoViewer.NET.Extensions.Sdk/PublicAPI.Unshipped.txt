@@ -350,10 +350,12 @@ DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddActionHandler(System.
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddBandMenu(System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand!, System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry!>!>! items) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddKeyHandler(System.Func<Avalonia.Input.Key, Avalonia.Input.KeyModifiers, bool>! handler) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddLane(DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack! track, DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour? behaviour = null) -> DemoViewer.NET.Extensions.Sdk.Playback.ILaneHandle!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddModeToggle(DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle! toggle) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddPane(DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement where, int order, System.Func<object!>! viewModel) -> DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddPanel(int order, System.Func<object!>! viewModel, System.Func<Avalonia.Controls.Control!>? view = null, string? featureId = null, DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle? mode = null) -> DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddPointerPreHandler(System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer!, bool>! handler) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddTool(DemoViewer.NET.Playback2D.Core.Tools.IMapTool! tool) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddToolbarItem(DemoViewer.NET.Extensions.Sdk.Playback.ToolbarItem! item) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.Deactivated -> System.Action?
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.GestureHint(string! actionId) -> string!
@@ -430,24 +432,28 @@ DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ZMin.get -> double
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ZMin.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment!
-DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Deconstruct(out int Tick, out int FrameIndex) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Deconstruct(out int Tick, out int FrameIndex, out DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Equals(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Frame.get -> DemoViewer.NET.Playback2D.Core.Scene2DFrame!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Frame.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.FrameIndex.get -> int
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.FrameIndex.init -> void
-DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.PlaybackMoment(int Tick, int FrameIndex) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.PlaybackMoment(int Tick, int FrameIndex, DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Tick.get -> int
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Tick.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer!
-DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Deconstruct(out string? Level, out double WorldX, out double WorldY, out double ScreenX, out double ScreenY, out Avalonia.Input.KeyModifiers Modifiers, out int Tick, out System.Func<string?>! PlaceAt) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Deconstruct(out string? Level, out double WorldX, out double WorldY, out double ScreenX, out double ScreenY, out Avalonia.Input.KeyModifiers Modifiers, out int Tick, out System.Func<string?>! PlaceAt, out DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Equals(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Frame.get -> DemoViewer.NET.Playback2D.Core.Scene2DFrame!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Frame.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Level.get -> string?
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Level.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Modifiers.get -> Avalonia.Input.KeyModifiers
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Modifiers.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaceAt.get -> System.Func<string?>!
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaceAt.init -> void
-DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaybackPointer(string? Level, double WorldX, double WorldY, double ScreenX, double ScreenY, Avalonia.Input.KeyModifiers Modifiers, int Tick, System.Func<string?>! PlaceAt) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaybackPointer(string? Level, double WorldX, double WorldY, double ScreenX, double ScreenY, Avalonia.Input.KeyModifiers Modifiers, int Tick, System.Func<string?>! PlaceAt, DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenX.get -> double
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenX.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenY.get -> double

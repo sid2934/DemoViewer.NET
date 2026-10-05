@@ -4,7 +4,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 public class ExtensionSdkArchitectureTests
 {
     [Test]
-    public async Task TheSdk_ReferencesOnlyTheModuleAbstractions_OfThisRepo()
+    public async Task TheSdk_ReferencesOnlyTheModuleAbstractionsAndTheScene_OfThisRepo()
     {
         string[] ours =
         [
@@ -13,11 +13,11 @@ public class ExtensionSdkArchitectureTests
                 .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal))
         ];
 
-        await Assert.That(ours).IsEquivalentTo(["DemoViewer.NET.Modules.Abstractions"]);
+        await Assert.That(ours).IsEquivalentTo(["DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.Playback2D.Scene"]);
     }
 
     [Test]
-    public async Task TheUiKit_ReferencesOnlyTheSdkAndTheIconCatalogue_OfThisRepo()
+    public async Task TheUiKit_ReferencesOnlyTheSdkTheIconCatalogueAndTheScene_OfThisRepo()
     {
         string[] ours =
         [
@@ -26,7 +26,11 @@ public class ExtensionSdkArchitectureTests
                 .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal))
         ];
 
-        string[] allowed = ["DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.GameIcons"];
+        string[] allowed =
+        [
+            "DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.GameIcons",
+            "DemoViewer.NET.Playback2D.Scene"
+        ];
 
         await Assert.That(ours.Except(allowed)).IsEmpty();
     }

@@ -12,9 +12,11 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
@@ -213,6 +215,78 @@ public class Scene2DHostFrameHostTests
             await Assert.That(host.Router.IsGestureOpen).IsTrue()
                 .Because("a non-consuming pre-handler falls through: the press is the pan tool's");
 
+            window.MouseUp(moved, MouseButton.Left);
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     A frame host's contributed layers join the compositor, follow its changes, never displace the
+    ///     host's own layers, and leave with the frame host.
+    /// </summary>
+    [Test]
+    public async Task ContributedLayers_JoinTheScene_FollowChanges_AndNeverDisplaceAHostLayer()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeSceneFrameHost fake = new();
+            fake.Publish(Frame(1, true, TenTokens()));
+            fake.Layers.Add(new("ext.pack.heat", () => new StubLayer("ext.pack.heat")));
+            fake.Layers.Add(new(SceneLayerIds.Radar, () => new StubLayer(SceneLayerIds.Radar)));
+
+            (Window window, Scene2DHost host) = Mount(fake);
+            Playback2DTimelineHarness.Pump();
+            await Assert.That(host.Compositor.Find("ext.pack.heat")).IsTypeOf<StubLayer>();
+            await Assert.That(host.Compositor.Find(SceneLayerIds.Radar)).IsTypeOf<RadarLayer>()
+                .Because("a contribution under a host id is skipped");
+
+            fake.Layers.Clear();
+            fake.Layers.Add(new("ext.pack.other", () => new StubLayer("ext.pack.other")));
+            fake.RaiseLayersChanged();
+            await Assert.That(host.Compositor.Find("ext.pack.heat")).IsNull();
+            await Assert.That(host.Compositor.Find("ext.pack.other")).IsNotNull();
+
+            host.DataContext = null;
+            await Assert.That(host.Compositor.Find("ext.pack.other")).IsNull();
+            window.Close();
+        });
+    }
+
+    /// <summary>
+    ///     A contributed tool is offered the primary press after the pre-handler: the one that takes it owns
+    ///     the whole gesture and the router never opens one; a refused press is the pan tool's.
+    /// </summary>
+    [Test]
+    public async Task ContributedTool_OwnsTheGestureItTakes_ARefusedPressPans()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeSceneFrameHost fake = new();
+            fake.Publish(Frame(1, true, TenTokens()));
+            RecordingTool tool = new();
+            fake.Tools.Add(tool);
+
+            (Window window, Scene2DHost host) = Mount(fake);
+            host.FitToExtent();
+            Playback2DTimelineHarness.Pump();
+
+            Point down = Playback2DTimelineHarness.ToWindow(host, window, 300, 300);
+            Point moved = Playback2DTimelineHarness.ToWindow(host, window, 320, 320);
+            window.MouseDown(down, MouseButton.Left);
+            window.MouseMove(moved);
+            window.MouseUp(moved, MouseButton.Left);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"]);
+                await Assert.That(tool.PressedOnAPane).IsTrue();
+                await Assert.That(host.Router.IsGestureOpen).IsFalse();
+            }
+
+            tool.Accept = false;
+            window.MouseDown(down, MouseButton.Left);
+            window.MouseMove(moved);
+            await Assert.That(host.Router.IsGestureOpen).IsTrue().Because("a refused press falls through to pan");
             window.MouseUp(moved, MouseButton.Left);
             window.Close();
         });
@@ -485,6 +559,53 @@ public class Scene2DHostFrameHostTests
     ///     level rebuild the host forwarded. Vision is off for the same reason it is on the strat canvas:
     ///     there is no demo to solve against.
     /// </summary>
+    private sealed class StubLayer(string id) : ISceneLayer
+    {
+        public string Id => id;
+
+        public LayerSlot Slot => LayerSlot.Overlay;
+
+        public int Order => 0;
+
+        public LayerCacheHint Cache => LayerCacheHint.Dynamic;
+
+        public bool IsEnabled { get; set; } = true;
+
+        public int ContentVersion => 0;
+
+        public bool Advance(in SceneTime time, Scene2DFrame frame) => false;
+
+        public void Render(SkiaSharp.SKCanvas canvas, SceneRenderContext ctx)
+        {
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
+    private sealed class RecordingTool : IMapTool
+    {
+        public bool Accept { get; set; } = true;
+
+        public List<string> Calls { get; } = [];
+
+        public bool PressedOnAPane { get; private set; }
+
+        public bool OnPressed(in MapToolEvent e, IMapToolContext context)
+        {
+            Calls.Add("press");
+            PressedOnAPane = e.Pane is not null && context.PaneAt(e.Screen) is not null;
+            return Accept;
+        }
+
+        public void OnMoved(in MapToolEvent e, IMapToolContext context) => Calls.Add("move");
+
+        public void OnReleased(in MapToolEvent e, IMapToolContext context) => Calls.Add("release");
+
+        public void OnCancelled(IMapToolContext context) => Calls.Add("cancel");
+    }
+
     private sealed class FakeSceneFrameHost : ISceneFrameHost
     {
         public List<IReadOnlyDictionary<double, double>> Rebuilds { get; } = [];
@@ -510,6 +631,18 @@ public class Scene2DHostFrameHostTests
             Rebuilds.Add(new Dictionary<double, double>(zMinMap));
 
         public bool TryPointerPreHandler(ScenePointer pointer) => PointerPreHandler?.Invoke(pointer) ?? false;
+
+        public List<KeyValuePair<string, Func<ISceneLayer>>> Layers { get; } = [];
+
+        public List<IMapTool> Tools { get; } = [];
+
+        public IReadOnlyList<KeyValuePair<string, Func<ISceneLayer>>> ContributedLayers => Layers;
+
+        public IReadOnlyList<IMapTool> ContributedTools => Tools;
+
+        public event Action? ContributedLayersChanged;
+
+        public void RaiseLayersChanged() => ContributedLayersChanged?.Invoke();
 
         // A fresh frame per publish, never a mutated one: the render thread replays the submitted frame.
         public void Publish(Scene2DFrame frame)

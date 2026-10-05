@@ -8,8 +8,10 @@ using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
@@ -95,6 +97,22 @@ public interface IPlaybackSurface
     /// </summary>
     /// <returns>Removes the handler.</returns>
     IDisposable AddPointerPreHandler(Func<ScenePointer, bool> handler);
+
+    /// <summary>
+    ///     A scene layer on the tab's map, built by <paramref name="layer" /> now and again whenever the map
+    ///     rebuilds its scene. Adding <paramref name="layerId" /> again replaces it.
+    /// </summary>
+    /// <param name="layerId">The id the layer is filed under; never one of the map's own.</param>
+    /// <param name="layer">Builds the layer.</param>
+    /// <returns>Removes the layer.</returns>
+    IDisposable AddLayer(string layerId, Func<ISceneLayer> layer);
+
+    /// <summary>
+    ///     A pointer tool offered every primary press not diverted to pan, after the pointer pre-handlers and
+    ///     before the drawing tools. The tool that takes a press owns the gesture.
+    /// </summary>
+    /// <returns>Removes the tool.</returns>
+    IDisposable AddTool(IMapTool tool);
 
     /// <summary>The gesture text for <paramref name="actionId" /> under <see cref="Keymap" />, parenthesised, or "" unbound.</summary>
     string GestureHint(string actionId);
