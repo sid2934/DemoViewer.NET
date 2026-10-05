@@ -1057,12 +1057,19 @@ public class App : Application
         }
 
         // Each pack's own registrations, unconditional: factories are lazy, and the gate decides what runs,
-        // not what is registered. Each runs into a scratch collection first, so a Register that throws
-        // partway leaves nothing half-registered: the extension does not start this session and the rest
-        // of the app does.
+        // not what is registered. Each runs into a scratch copy of the container first, so a Register that
+        // throws partway leaves nothing half-registered: the extension does not start this session and the
+        // rest of the app does. The copy holds the host's registrations, so TryAdd sees them, and only what
+        // the pack added comes back: a Replace or RemoveAll in Register never reaches the host's own.
         foreach (IExtension pack in packs)
         {
             ServiceCollection scratch = new();
+            foreach (ServiceDescriptor existing in services)
+            {
+                ((IServiceCollection)scratch).Add(existing);
+            }
+
+            HashSet<ServiceDescriptor> before = new(scratch, ReferenceEqualityComparer.Instance);
             try
             {
                 pack.Register(scratch);
@@ -1075,7 +1082,10 @@ public class App : Application
 
             foreach (ServiceDescriptor descriptor in scratch)
             {
-                ((IServiceCollection)services).Add(descriptor);
+                if (!before.Contains(descriptor))
+                {
+                    ((IServiceCollection)services).Add(descriptor);
+                }
             }
         }
 

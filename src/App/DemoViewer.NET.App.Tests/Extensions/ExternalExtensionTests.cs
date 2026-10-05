@@ -339,6 +339,61 @@ public class ExternalExtensionTests
         });
     }
 
+    // A pack's Register sees the host's registrations, so its TryAdd of a host service adds nothing, and a
+    // RemoveAll of one does not reach the container.
+    [Test]
+    public async Task APacksRegister_CannotReplaceOrRemoveAHostService()
+    {
+        Microsoft.Extensions.DependencyInjection.ServiceCollection services =
+            App.ComposeServices(new Services.DesktopWindowService(() => null), [new ReachesForHostServices()]);
+
+        Microsoft.Extensions.DependencyInjection.ServiceDescriptor[] gates =
+            [.. services.Where(d => d.ServiceType == typeof(Features.IFeatureGate))];
+        using (Assert.Multiple())
+        {
+            await Assert.That(gates.Length).IsEqualTo(1);
+            await Assert.That(gates[0].ImplementationType).IsEqualTo(typeof(Features.FeatureGate));
+            await Assert.That(services.Count(d => d.ServiceType == typeof(Theming.ThemeRegistry))).IsEqualTo(1)
+                .Because("RemoveAll inside Register only touched the pack's copy");
+            await Assert.That(services.Any(d => d.ServiceType == typeof(ReachesForHostServices.Own))).IsTrue();
+        }
+    }
+
+    private sealed class ReachesForHostServices : IExtension
+    {
+        public sealed class Own;
+
+        public string Id => "dev.example.reaching";
+        public string FeatureId => "pack.reaching";
+        public IEnumerable<ExtensionFeature> Features => [];
+
+        public void Register(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+        {
+            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions
+                .TryAddSingleton<Features.IFeatureGate, FakeGateForRegister>(services);
+            Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions
+                .RemoveAll<Theming.ThemeRegistry>(services);
+            Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<Own>(services);
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
+    }
+
+    private sealed class FakeGateForRegister : Features.IFeatureGate
+    {
+        public Configuration.UserCategory Category => Configuration.UserCategory.Developer;
+        public int HiddenCount => 0;
+        public bool IsEnabled(string featureId) => true;
+
+        public event EventHandler? Changed
+        {
+            add { }
+            remove { }
+        }
+    }
+
     private sealed class SecondRegisterThrows : IExtension
     {
         private int _registers;

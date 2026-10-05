@@ -152,6 +152,29 @@ public class ExtensionFaultNoticeTests
         }
     }
 
+    // An extension that failed while starting stays off for the session whatever the user does: Keep off
+    // writes the switch off, and turning the switch back on does not lift the suspension.
+    [Test]
+    public async Task AnExtensionThatFailedToStart_StaysSuspended_ThroughKeepOffAndTheMasterSwitch()
+    {
+        using Rig rig = new();
+        rig.Faults.FailStartup(StratBook, "register", new InvalidOperationException("no"));
+        rig.Posts.Drain();
+        using SettingsViewModel vm = Settings(rig);
+        FeatureToggleRow master = Master(vm);
+        await Assert.That(master.Fault!.CanTurnOnAgain).IsFalse();
+
+        master.Fault.KeepOffCommand.Execute(null);
+        master.IsEnabled = true;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rig.Gate.IsSuspended(StratBookPack.PackFeatureId)).IsTrue();
+            await Assert.That(master.IsEnabled).IsFalse();
+            await Assert.That(master.Fault.IsShown).IsTrue();
+        }
+    }
+
     [Test]
     public async Task TheBanner_ShowsOncePerSwitchOff() =>
         await HeadlessSession.RunOnUi(async () =>

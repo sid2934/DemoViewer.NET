@@ -336,7 +336,11 @@ public sealed class ExtensionFaults
         RaiseChanged();
     }
 
-    /// <summary>Forgets the count of an extension the user kept off; its master switch now says off by itself.</summary>
+    /// <summary>
+    ///     Forgets the count of an extension the user kept off; its master switch now says off by itself. One
+    ///     that failed while starting stays suspended: turning its switch on again this session would run an
+    ///     extension that is only half composed.
+    /// </summary>
     public void Acknowledge(string featureId)
     {
         if (ScopeOfFeature(featureId) is not { } scope)
@@ -348,6 +352,11 @@ public sealed class ExtensionFaults
         lock (_lock)
         {
             Tally tally = TallyOf(scope);
+            if (tally.StartupFailed)
+            {
+                return;
+            }
+
             tally.Reset();
             target = _switch;
         }
