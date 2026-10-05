@@ -158,6 +158,29 @@ public class Playback2DKeymapTests
             .IsNotEmpty();
     }
 
+    // The enum is the core vocabulary and nothing more: every member is a row of the core table, and an
+    // extension's action can never be one.
+    [Test]
+    public async Task EveryCoreAction_HasExactlyOneRow_AndEveryRowsIdMapsBackToIt()
+    {
+        foreach (Playback2DAction action in Enum.GetValues<Playback2DAction>().Where(a => a != Playback2DAction.None))
+        {
+            await Assert.That(Playback2DKeymap.Default.Count(b => b.CoreAction == action)).IsEqualTo(1)
+                .Because($"{action} is in the enum, so the core table must bind or reserve it");
+        }
+
+        foreach (Playback2DBinding binding in Playback2DKeymap.Default)
+        {
+            await Assert.That(Playback2DActionIds.TryCore(binding.ActionId, out Playback2DAction action)).IsTrue();
+            await Assert.That(Playback2DActionIds.Of(action)).IsEqualTo(binding.ActionId);
+            await Assert.That(binding.Scope.IsCore).IsTrue();
+        }
+
+        await Assert.That(Playback2DActionIds.TryCore("nextround", out _)).IsFalse().Because("ids are exact at the edge");
+        await Assert.That(Playback2DActionIds.TryCore("None", out _)).IsFalse();
+        await Assert.That(Playback2DActionIds.TryCore("7", out _)).IsFalse();
+    }
+
     private static Playback2DAction Resolve(Key key, KeyModifiers modifiers)
     {
         Playback2DKeymap.TryResolve(key, modifiers, false, out Playback2DAction action);
