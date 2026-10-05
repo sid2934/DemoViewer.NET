@@ -73,6 +73,13 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
         _context.Shell.CurrentDemoChanged += () =>
         {
             _openDemo = _context.Shell.CurrentDemoPath;
+            // The open's visit may have been planned before this ran: ask again, which runs on the parse the
+            // shell holds and reads nothing.
+            if (_openDemo is { } path && !HasFrameCount(path))
+            {
+                _context.Passes.Request(path);
+            }
+
             Changed?.Invoke();
         };
     }

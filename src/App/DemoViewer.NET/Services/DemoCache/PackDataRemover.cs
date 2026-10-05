@@ -93,8 +93,8 @@ public sealed class PackDataRemover
     ///     Deletes every descriptor's files and strips <paramref name="packId" />'s payload and
     ///     <paramref name="facetIds" />'s stamps from the demo cache. Runs through the queue, user priority,
     ///     on serial <paramref name="ownerTag" /> so it never overlaps the pack's own release item; a pack
-    ///     re-enabled before this runs cancels it by owner tag first, so it drops without touching anything
-    ///     (<see cref="ExtensionDataRemovalResult.Ran" /> is false).
+    ///     re-enabled before this runs is caught by <paramref name="stillOff" />, so it drops without touching
+    ///     anything (<see cref="ExtensionDataRemovalResult.Ran" /> is false).
     /// </summary>
     /// <param name="packId">The pack's own id: the key its payload rides <see cref="DemoCacheRecord.Packs" /> under.</param>
     /// <param name="descriptors">The pack's declared stores.</param>
