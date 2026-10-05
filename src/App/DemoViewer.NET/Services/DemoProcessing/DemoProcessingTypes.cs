@@ -318,6 +318,15 @@ public interface IDemoProcessingQueue
     IDemoQueueHandle SubmitBackground(DemoProcessingRequest request);
 
     /// <summary>
+    ///     Submits passes for one demo's visit, coalesced by path: a queued visit of the demo takes them, a
+    ///     running one takes those its read can serve, and the demo is read once in the mode the passes on it
+    ///     need. In the slot the passes run in <see cref="IDemoPass.After" /> order, each asked again first.
+    ///     Rejected under the same size cap as <see cref="SubmitBackground" />.
+    /// </summary>
+    IDemoQueueHandle SubmitVisit(DemoVisitRequest request) =>
+        throw new NotSupportedException("Only the processing queue runs demo visits.");
+
+    /// <summary>
     ///     Submits a job that is not a demo parse. It is never rejected for size, obeys pause and cancel, and runs
     ///     exclusively: never beside another item, even when demo parses may run side by side.
     /// </summary>

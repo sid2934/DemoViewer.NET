@@ -117,6 +117,10 @@ internal static partial class AppLog
         Message = "A demo-queue owner handler threw; the parse and other owners were unaffected")]
     public static partial void QueueOwnerHandlerFailed(ILogger logger, Exception exception);
 
+    [LoggerMessage(EventId = 24, Level = LogLevel.Debug,
+        Message = "Pass {passId} still waits on an upstream pass after {demo} was read; it sat this visit out")]
+    public static partial void PassStillWaitingOnUpstream(ILogger logger, string passId, string demo);
+
     /// <summary>
     ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI
     ///     shows clean text, THIS carries the full exception into the Diagnostics tab + file.
