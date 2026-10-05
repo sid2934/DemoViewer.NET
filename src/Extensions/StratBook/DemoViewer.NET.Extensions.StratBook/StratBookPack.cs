@@ -59,6 +59,9 @@ public sealed class StratBookPack : IExtension, ICommandAliases
     /// <summary>The umbrella gate id. A persisted override key.</summary>
     public const string PackFeatureId = "pack.stratbook";
 
+    /// <summary>The id the "new strats detected" notification is posted under, so a later mine replaces it.</summary>
+    public const string MiningNotificationId = "stratbook.mining.found";
+
     /// <summary>The pack id. A persisted key (<c>DemoCacheRecord.Packs</c>, <c>SessionPayload.Packs</c>).</summary>
     public const string PackId = "net.demoviewer.pack.stratbook";
 
@@ -523,6 +526,16 @@ public sealed class StratBookPack : IExtension, ICommandAliases
                 enabled: () => features.IsEnabled(PackFeatureId),
                 passes: Host(sp).Passes);
             sp.GetRequiredService<StratBookPackInstances>().Record(mining);
+            mining.PatternsFound += fresh => Host(sp).Notifications.Post(new Notification(MiningNotificationId,
+                NotificationSeverity.Info, fresh == 1 ? "1 new strat detected" : $"{fresh} new strats detected",
+                "Strat mining found repeated rounds in the library that are not in a book yet.")
+            {
+                Action = new NotificationAction("Review", () =>
+                {
+                    Host(sp).Shell.SelectTab(StratBookModule.BrowserTabId);
+                    sp.GetRequiredService<StratBookTabViewModel>().IsDetectedView = true;
+                })
+            });
             return mining;
         });
         services.AddSingleton<StratBookLayout>();

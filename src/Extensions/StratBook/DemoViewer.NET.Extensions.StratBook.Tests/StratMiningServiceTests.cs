@@ -317,6 +317,48 @@ public class StratMiningServiceTests
     }
 
     [Test]
+    public async Task Fresh_CountsOnlyUnsettledPatterns_ThePreviousMineDidNotHave()
+    {
+        List<MinedPattern> before = [Pattern("old", 1, 2, 3), Pattern("kept", 7, 8)];
+        List<DetectedPattern> after =
+        [
+            new(Pattern("heir", 2, 3, 4), false, null),
+            new(Pattern("kept", 7, 8, 9), false, null),
+            new(Pattern("brand", 15, 16), false, null),
+            new(Pattern("dismissed", 17, 18), true, null)
+        ];
+
+        await Assert.That(StratMiningService.Fresh(before, after)).IsEqualTo(1)
+            .Because("heir took old's rounds, kept kept its key, and a dismissed one is settled");
+    }
+
+    // A mine nobody asked for tells the pack what it found; one the user asked for does not.
+    [Test]
+    public async Task ABackgroundMine_ReportsItsNewPatterns_AndAUserMineDoesNot()
+    {
+        using Library library = Library.Create();
+        using StratMiningService background = library.Service();
+        List<int> found = [];
+        background.PatternsFound += found.Add;
+        await background.MineAsync(user: false);
+
+        using Library other = Library.Create();
+        using StratMiningService user = other.Service();
+        int userFound = 0;
+        user.PatternsFound += _ => userFound++;
+        await user.MineAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(found).IsEquivalentTo([background.Patterns.Count]);
+            await Assert.That(userFound).IsEqualTo(0);
+        }
+
+        await background.MineAsync(user: false);
+        await Assert.That(found).HasCount().EqualTo(1).Because("the same patterns again are nothing new");
+    }
+
+    [Test]
     public async Task ADismissal_SurvivesARestart_AndARemine()
     {
         using Library library = Library.Create();

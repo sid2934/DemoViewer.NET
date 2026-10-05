@@ -344,7 +344,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
 
         if (_jobs is null)
         {
-            Task loop = _run(MineLoop);
+            Task loop = _run(() => MineLoop(user));
             lock (_gate)
             {
                 _mine = loop;
@@ -354,7 +354,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         }
 
         Interlocked.Increment(ref _minesInFlight);
-        IJobHandle handle = _jobs.Enqueue(new JobRequest("Strat mining: library", MineQueuedAsync,
+        IJobHandle handle = _jobs.Enqueue(new JobRequest("Strat mining: library", job => MineQueuedAsync(job, user),
             new JobOptions(StratBookJobKinds.Mining, user ? JobPriority.UserRequested : JobPriority.Background, "strat-mining")));
         Task mine = handle.Completion.ContinueWith(_ =>
         {
@@ -374,7 +374,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     }
 
     // One pass as a queue item. Steps aside between batches, so a demo open waits for one batch at most.
-    private async Task MineQueuedAsync(IJobContext job)
+    private async Task MineQueuedAsync(IJobContext job, bool user)
     {
         IReadOnlyList<RoundSignature> signatures = [];
         IReadOnlyList<MinedPattern> patterns = [];
@@ -420,7 +420,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             // A file mid-write: the next mine reads it.
         }
 
-        Published(signatures, patterns);
+        Published(signatures, patterns, user);
     }
 
     // One step of a mine, skipped once the pack released this service: nothing it would read is wanted and
@@ -443,7 +443,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         return attached;
     }
 
-    private void MineLoop()
+    private void MineLoop(bool user)
     {
         while (true)
         {
@@ -460,29 +460,55 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
                 // A file mid-write: the next mine reads it.
             }
 
-            if (!Completed(signatures, patterns))
+            if (!Completed(signatures, patterns, user))
             {
                 return;
             }
         }
     }
 
-    private void Published(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns)
+    private void Published(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns, bool user)
     {
         int demos = signatures.Select(s => s.DemoPath).Distinct(StringComparer.Ordinal).Count();
         _post(() =>
         {
             MinedUtc = DateTime.UtcNow;
             LastRead = (demos, signatures.Count);
-            CarryState([.. Patterns.Select(p => p.Pattern)], patterns);
+            IReadOnlyList<MinedPattern> previous = [.. Patterns.Select(p => p.Pattern)];
+            CarryState(previous, patterns);
             Publish(patterns);
+            int fresh = Fresh(previous, Patterns);
+            if (!user && fresh > 0)
+            {
+                PatternsFound?.Invoke(fresh);
+            }
         });
     }
 
-    // Publishes a pass; true when another pass was asked for while it ran.
-    private bool Completed(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns)
+    /// <summary>
+    ///     Raised on the UI thread after a mine nobody asked for publishes patterns the previous one did not
+    ///     have, with how many are new and unsettled. A mine the user asked for raises nothing: they are
+    ///     already looking.
+    /// </summary>
+    public event Action<int>? PatternsFound;
+
+    /// <summary>
+    ///     How many of <paramref name="next" /> are new to the inbox: unsettled, and neither kept from
+    ///     <paramref name="previous" /> nor the heir of a previous pattern whose key moved.
+    /// </summary>
+    public static int Fresh(IReadOnlyList<MinedPattern> previous, IReadOnlyList<DetectedPattern> next)
     {
-        Published(signatures, patterns);
+        ArgumentNullException.ThrowIfNull(previous);
+        ArgumentNullException.ThrowIfNull(next);
+        HashSet<string> known = new(previous.Select(p => p.Key), StringComparer.Ordinal);
+        known.UnionWith(KeyMoves(previous, [.. next.Select(p => p.Pattern)], known.Contains).Values);
+        return next.Count(p => p.State == GeneratedState.New && !known.Contains(p.Pattern.Key));
+    }
+
+    // Publishes a pass; true when another pass was asked for while it ran.
+    private bool Completed(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns, bool user)
+    {
+        Published(signatures, patterns, user);
         lock (_gate)
         {
             if (!_rerun)
