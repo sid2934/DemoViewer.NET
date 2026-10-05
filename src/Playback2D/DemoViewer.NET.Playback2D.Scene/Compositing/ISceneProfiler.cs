@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core.Compositing;
 
 /// <summary>Which half of a layer's frame is being measured.</summary>
-public enum LayerPhase
+internal enum LayerPhase
 {
     /// <summary>The mutating pre-render step: <see cref="ISceneLayer.Advance" />.</summary>
     Advance = 0,
@@ -11,7 +11,7 @@ public enum LayerPhase
 }
 
 /// <summary>What the picture cache did for one layer draw.</summary>
-public enum PictureCacheOutcome
+internal enum PictureCacheOutcome
 {
     /// <summary>
     ///     The layer drew straight to the canvas: <see cref="LayerCacheHint.Dynamic" />, or caching
@@ -49,7 +49,7 @@ public enum PictureCacheOutcome
 ///         <see cref="BeginLayer" />/<see cref="EndLayer" /> pairs in one frame.
 ///     </para>
 /// </summary>
-public interface ISceneProfiler
+internal interface ISceneProfiler
 {
     /// <summary>One layer's phase is starting.</summary>
     /// <param name="index">The layer's position in <see cref="SceneCompositor.Layers" />.</param>

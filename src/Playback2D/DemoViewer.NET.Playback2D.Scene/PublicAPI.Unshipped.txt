@@ -96,26 +96,15 @@ DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.IsEnabled.set -> void
 DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Order.get -> int
 DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Render(SkiaSharp.SKCanvas! canvas, DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext ctx) -> void
 DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Slot.get -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
-DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler
-DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler.BeginLayer(int index, string! layerId, DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase phase) -> void
-DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler.EndLayer(int index, DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase phase) -> void
-DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler.RecordPicture(int index, DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome outcome) -> void
 DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
 DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint.Dynamic = 2 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
 DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint.PerCamera = 1 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
 DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint.Static = 0 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
-DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase
-DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase.Advance = 0 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase
-DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase.Render = 1 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase
 DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
 DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot.Hud = 3 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
 DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot.Overlay = 2 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
 DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot.Underlay = 0 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
 DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot.World = 1 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
-DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome
-DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome.Recorded = 1 -> DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome
-DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome.Replayed = 2 -> DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome
-DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome.Uncached = 0 -> DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Add(DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer! layer) -> void
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.AddOwned(System.IDisposable! resource) -> void
@@ -127,36 +116,11 @@ DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Gate.set -> void
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.InvalidateCaches() -> void
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.InvalidatePaneCaches(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId levelId) -> void
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Layers.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer!>!
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Profiler.get -> DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler?
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Profiler.set -> void
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Remove(string! layerId) -> bool
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Render(SkiaSharp.SKCanvas! canvas, in DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext ctx) -> void
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Render(SkiaSharp.SKCanvas! canvas, in DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission submission) -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.SceneCompositor(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? options = null) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.SceneCompositor() -> void
 DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.SetEnabled(string! layerId, bool enabled) -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Stats.get -> DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.<Clone>$() -> DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions!
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.Deconstruct(out bool EnablePictureCaching, out int MaxCachedPictures) -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.EnablePictureCaching.get -> bool
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.EnablePictureCaching.init -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.Equals(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? other) -> bool
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.MaxCachedPictures.get -> int
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.MaxCachedPictures.init -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.SceneCompositorOptions(bool EnablePictureCaching = true, int MaxCachedPictures = 64) -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.Deconstruct(out int LayersRendered, out int PicturesRecorded, out int PicturesReplayed, out int PanesRendered) -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.Equals(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats other) -> bool
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.LayersRendered.get -> int
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.LayersRendered.init -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PanesRendered.get -> int
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PanesRendered.init -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PicturesRecorded.get -> int
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PicturesRecorded.init -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PicturesReplayed.get -> int
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PicturesReplayed.init -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.SceneCompositorStats() -> void
-DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.SceneCompositorStats(int LayersRendered, int PicturesRecorded, int PicturesReplayed, int PanesRendered) -> void
 DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext
 DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.BelongsHere(double worldZ) -> bool
 DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Deconstruct(out DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame, out DemoViewer.NET.Playback2D.Core.SceneTime Time, out DemoViewer.NET.Playback2D.Core.ViewportTransform Transform, out SkiaSharp.SKRect PaneBounds, out int LevelIndex, out double LevelMinZ, out double LevelMaxZ, out DemoViewer.NET.Playback2D.Core.RenderPurpose Purpose, out DemoViewer.NET.Playback2D.Core.ScenePalette Palette, out float RenderScaling) -> void
@@ -1003,10 +967,6 @@ DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind.HostageRescue = 3 -> DemoVie
 DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind.Place = 0 -> DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind
 override DemoViewer.NET.Playback2D.Core.AreaEffect.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.BombMarker.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.ToString() -> string!
-override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.ConePoint.GetHashCode() -> int
@@ -1046,10 +1006,6 @@ static DemoViewer.NET.Playback2D.Core.AreaEffect.operator !=(DemoViewer.NET.Play
 static DemoViewer.NET.Playback2D.Core.AreaEffect.operator ==(DemoViewer.NET.Playback2D.Core.AreaEffect left, DemoViewer.NET.Playback2D.Core.AreaEffect right) -> bool
 static DemoViewer.NET.Playback2D.Core.BombMarker.operator !=(DemoViewer.NET.Playback2D.Core.BombMarker left, DemoViewer.NET.Playback2D.Core.BombMarker right) -> bool
 static DemoViewer.NET.Playback2D.Core.BombMarker.operator ==(DemoViewer.NET.Playback2D.Core.BombMarker left, DemoViewer.NET.Playback2D.Core.BombMarker right) -> bool
-static DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.operator !=(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? left, DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? right) -> bool
-static DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.operator ==(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? left, DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? right) -> bool
-static DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.operator !=(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats left, DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats right) -> bool
-static DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.operator ==(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats left, DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats right) -> bool
 static DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.operator !=(DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext left, DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext right) -> bool
 static DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.operator ==(DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext left, DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext right) -> bool
 static DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.operator !=(DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission left, DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission right) -> bool
@@ -1129,8 +1085,6 @@ static readonly DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.None -> DemoViewer
 ~override DemoViewer.NET.Playback2D.Core.AreaEffect.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.BombMarker.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Core.BombMarker.ToString() -> string
-~override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.Equals(object obj) -> bool
-~override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Equals(object obj) -> bool

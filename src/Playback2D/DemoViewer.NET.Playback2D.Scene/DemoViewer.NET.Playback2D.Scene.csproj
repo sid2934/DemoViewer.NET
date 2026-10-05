@@ -49,6 +49,10 @@
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Core"/>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Pipeline"/>
         <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
+        <!-- The compositor's profiler hook, stats and caching options are first-party: dv2d prints
+             the per-layer perf report and the app's host tests read the stats. -->
+        <InternalsVisibleTo Include="dv2d"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
         <!-- The strat canvas's frame source writes Scene2DFrame's internal fields directly,
              the same pooled-refill pattern SceneFrameBuilder uses. -->
         <InternalsVisibleTo Include="DemoViewer.NET.Extensions.StratBook"/>

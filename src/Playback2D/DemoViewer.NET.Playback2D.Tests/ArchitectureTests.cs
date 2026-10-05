@@ -3,6 +3,7 @@
 using System.Reflection;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
@@ -44,14 +45,9 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Core.Cameras.ICameraRig",
         "DemoViewer.NET.Playback2D.Core.Cameras.ManualRig",
         "DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer",
-        "DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler",
         "DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint",
-        "DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase",
         "DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot",
-        "DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome",
         "DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor",
-        "DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions",
-        "DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats",
         "DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext",
         "DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderGate",
         "DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission",
@@ -196,6 +192,32 @@ public class ArchitectureTests
         {
             await Assert.That(writableFields).IsEmpty();
             await Assert.That(setters).IsEmpty();
+        }
+    }
+
+    /// <summary>
+    ///     Profiling, render counters and the caching policy are first-party benchmarking hooks. A third
+    ///     party constructs the compositor with defaults and sees none of them.
+    /// </summary>
+    [Test]
+    public async Task SceneCompositor_PublishesNoMeasurementOrCachingHooks()
+    {
+        string[] properties =
+        [
+            .. typeof(SceneCompositor).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Select(p => p.Name)
+                .Where(name => name is nameof(SceneCompositor.Profiler) or nameof(SceneCompositor.Stats))
+        ];
+        int[] constructorArities =
+        [
+            .. typeof(SceneCompositor).GetConstructors(BindingFlags.Public | BindingFlags.Instance)
+                .Select(c => c.GetParameters().Length)
+        ];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(properties).IsEmpty();
+            await Assert.That(constructorArities).IsEquivalentTo([0]);
         }
     }
 

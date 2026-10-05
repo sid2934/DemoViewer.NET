@@ -43,9 +43,13 @@ public sealed class SceneCompositor : IDisposable
     private bool _paletteSeen;
     private int _panesRendered;
 
-    /// <summary>Creates a compositor.</summary>
-    /// <param name="options">Caching policy; the defaults when null.</param>
-    public SceneCompositor(SceneCompositorOptions? options = null)
+    /// <summary>Creates a compositor with picture caching on.</summary>
+    public SceneCompositor() : this(null)
+    {
+    }
+
+    // Caching policy is a first-party tuning knob, not part of the published contract.
+    internal SceneCompositor(SceneCompositorOptions? options)
     {
         _options = options ?? new SceneCompositorOptions();
         _cache = new LayerPictureCache(_options.MaxCachedPictures);
@@ -75,7 +79,7 @@ public sealed class SceneCompositor : IDisposable
     public SceneRenderGate? Gate { get; set; }
 
     /// <summary>Counters from the last completed render. Diagnostics and the bench harness.</summary>
-    public SceneCompositorStats Stats { get; private set; }
+    internal SceneCompositorStats Stats { get; private set; }
 
     /// <summary>
     ///     Optional per-layer measurement. Null on the default path: the whole mechanism is then one
@@ -83,7 +87,7 @@ public sealed class SceneCompositor : IDisposable
     ///     <see cref="ISceneProfiler" /> for why the timestamping lives on the other side of the
     ///     interface rather than here.
     /// </summary>
-    public ISceneProfiler? Profiler { get; set; }
+    internal ISceneProfiler? Profiler { get; set; }
 
     /// <summary>
     ///     Disposes every registered layer, everything handed to <see cref="AddOwned" />, and every
@@ -521,14 +525,14 @@ public sealed class SceneCompositor : IDisposable
 ///     "is this a caching bug or a drawing bug" question, and what the determinism test flips.
 /// </param>
 /// <param name="MaxCachedPictures">Hard cap on live pictures before LRU eviction.</param>
-public sealed record SceneCompositorOptions(bool EnablePictureCaching = true, int MaxCachedPictures = 64);
+internal sealed record SceneCompositorOptions(bool EnablePictureCaching = true, int MaxCachedPictures = 64);
 
 /// <summary>Counters from the last completed render.</summary>
 /// <param name="LayersRendered">Layer draws issued, summed over panes.</param>
 /// <param name="PicturesRecorded">Cumulative picture recordings since construction.</param>
 /// <param name="PicturesReplayed">Cumulative cache hits since construction.</param>
 /// <param name="PanesRendered">Panes drawn this frame.</param>
-public readonly record struct SceneCompositorStats(
+internal readonly record struct SceneCompositorStats(
     int LayersRendered,
     int PicturesRecorded,
     int PicturesReplayed,
