@@ -169,17 +169,6 @@ public class StratBookLibraryTests
         await Assert.That(changes).IsGreaterThan(0);
     }
 
-    // The Round Facts writer and reader still write and walk the cache record; they move to core with
-    // the record member that holds their rows, and their entries here go with them.
-    private static readonly Dictionary<string, string[]> _cacheAccessAllowed = new(StringComparer.Ordinal)
-    {
-        ["Services/RoundFacts/RoundFactsEvaluator.cs"] =
-            ["DemoCacheStore", "DemoCacheIndexEntry", "TryLoadRecord", "Services.DemoCache"],
-        ["Services/RoundFacts/RoundFactsSource.cs"] =
-            ["DemoCacheStore", "DemoCacheIndexEntry", "DemoCacheRecord", "LoadRecords", "Services.DemoCache"],
-        ["StratBookPack.cs"] = ["DemoCacheStore", "Services.DemoCache"]
-    };
-
     private static readonly string[] _cacheTypes =
     [
         "DemoCacheStore", "DemoCacheRecord", "DemoCacheIndexEntry", "TryLoadRecord", "LoadRecords", "CachedRound",
@@ -192,7 +181,6 @@ public class StratBookLibraryTests
         string pack = Path.Combine(DemoTestHelper.FindRepoRoot()!, "src", "Extensions", "StratBook",
             "DemoViewer.NET.Extensions.StratBook");
         List<string> found = [];
-        HashSet<string> stillAllowed = new(StringComparer.Ordinal);
         foreach (string file in Directory.EnumerateFiles(pack, "*.*", SearchOption.AllDirectories))
         {
             string relative = Path.GetRelativePath(pack, file).Replace('\\', '/');
@@ -203,24 +191,12 @@ public class StratBookLibraryTests
             }
 
             string code = WithoutComments(await File.ReadAllTextAsync(file));
-            string[] allowed = _cacheAccessAllowed.GetValueOrDefault(relative, []);
-            if (allowed.Any(name => Regex.IsMatch(code, $@"\b{Regex.Escape(name)}\b")))
-            {
-                stillAllowed.Add(relative);
-            }
-
             found.AddRange(_cacheTypes
-                .Where(name => !allowed.Contains(name) && Regex.IsMatch(code, $@"\b{Regex.Escape(name)}\b"))
+                .Where(name => Regex.IsMatch(code, $@"\b{Regex.Escape(name)}\b"))
                 .Select(name => $"{relative}: {name}"));
         }
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(found).IsEmpty();
-            await Assert.That(stillAllowed.Order(StringComparer.Ordinal).ToList())
-                .IsEquivalentTo(_cacheAccessAllowed.Keys.Order(StringComparer.Ordinal).ToList())
-                .Because("an allowance the code no longer needs is removed with it");
-        }
+        await Assert.That(found).IsEmpty();
     }
 
     private static string WithoutComments(string source)
