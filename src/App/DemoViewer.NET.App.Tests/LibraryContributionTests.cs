@@ -94,6 +94,43 @@ public class LibraryContributionTests
         public void RaiseChanged() => Changed?.Invoke();
     }
 
+    [Test]
+    public async Task AContribution_SeesTheLibrarysRow_WhenTheCacheHasOne()
+    {
+        DemoLibraryService lib = NewLibrary("/demos/a.dem", "/demos/b.dem");
+        Services.DemoCache.DemoCacheStore cache = new(null);
+        Services.DemoCache.DemoCacheRecord record = HostLibraryTests.Parsed("/demos/a.dem");
+        cache.Upsert(record);
+        HostLibrary library = new(cache, null, () => false);
+        List<LibraryDemo> seen = [];
+        FakeContribution c = new()
+        {
+            FilterValue = new LibraryFilter("Clan", [new LibraryFilterItem("", "All"), new LibraryFilterItem("blue", "Blue")],
+                (demo, key) => string.Equals(demo.CtClan, key, StringComparison.OrdinalIgnoreCase)),
+            HasBadgeValue = true,
+            BadgeForFunc = demo =>
+            {
+                seen.Add(demo);
+                return null;
+            }
+        };
+        LibraryTabViewModel vm = new(lib, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]),
+            contributions: [c], findDemo: library.Find);
+
+        LibraryFilterViewModel filter = vm.Filters.Single();
+        filter.Selected = filter.Items.Single(i => i.Key == "blue");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["a.dem"])
+                .Because("the clans come from the cache's row, which the grid entry does not carry");
+            await Assert.That(seen.First(d => d.FilePath == "/demos/a.dem").Sha256).IsEqualTo(record.Sha256);
+            await Assert.That(ReferenceEquals(seen.Last(d => d.FilePath == "/demos/a.dem"), library.Find("/demos/a.dem"))).IsTrue();
+            await Assert.That(seen.First(d => d.FilePath == "/demos/b.dem").Sha256).IsNull()
+                .Because("a demo the cache has no row for falls back to the grid entry");
+        }
+    }
+
     private static LibraryFilter KeepFilter() => new("Keep",
         [new LibraryFilterItem("", "All"), new LibraryFilterItem("keep", "Keep")],
         (entry, key) => key != "keep" || entry.FileName == "keep.dem");
