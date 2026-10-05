@@ -59,7 +59,13 @@ public sealed class CommandRegistry
     /// <summary>Built once from the compatible compiled-in packs (<see cref="FeaturePacks.Compatible" />).</summary>
     // Lazy: the loader builds registries to check a third-party extension before FeaturePacks is set, and
     // reading FeaturePacks then would freeze it empty.
-    private static readonly Lazy<CommandRegistry> _default = new(() => Build(FeaturePacks.Compatible));
+    private static readonly Lazy<CommandRegistry> _default = new(() => Build(FeaturePacks.Compatible, static (pack, ex) =>
+    {
+        if (ExtensionFaults.Current is { } faults)
+        {
+            faults.FailStartup(faults.GuardFor(pack).Scope, "commands", ex);
+        }
+    }));
 
     public static CommandRegistry Default => _default.Value;
 
@@ -74,7 +80,12 @@ public sealed class CommandRegistry
     ///     state, so a test proves the conflict and pack-off paths with its own fake pack instead of
     ///     touching <see cref="Default" />.
     /// </summary>
-    public static CommandRegistry Build(IReadOnlyList<IExtension> packs)
+    /// <param name="packs">The packs, in composition order.</param>
+    /// <param name="onFault">
+    ///     Told when a pack's <c>Features</c> or <c>Commands</c> getter throws; that pack's commands are left
+    ///     out. Null rethrows.
+    /// </param>
+    public static CommandRegistry Build(IReadOnlyList<IExtension> packs, Action<IExtension, Exception>? onFault = null)
     {
         ArgumentNullException.ThrowIfNull(packs);
 
@@ -85,9 +96,21 @@ public sealed class CommandRegistry
 
         foreach (IExtension pack in packs)
         {
-            string label = pack.Features.FirstOrDefault(f => f.Id == pack.FeatureId)?.Label ?? pack.FeatureId;
+            // Both getters are the extension's code; read each once, up front.
+            string label;
+            CommandDescriptor[] commands;
+            try
+            {
+                label = pack.Features.FirstOrDefault(f => f.Id == pack.FeatureId)?.Label ?? pack.FeatureId;
+                commands = [.. pack.Commands];
+            }
+            catch (Exception ex) when (onFault is not null && ex is not OutOfMemoryException)
+            {
+                onFault(pack, ex);
+                continue;
+            }
 
-            foreach (CommandDescriptor command in pack.Commands)
+            foreach (CommandDescriptor command in commands)
             {
                 if (!TryParseAction(command.Id, out Playback2DAction action))
                 {

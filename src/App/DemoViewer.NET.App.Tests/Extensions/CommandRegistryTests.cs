@@ -161,6 +161,40 @@ public class CommandRegistryTests
         }
     }
 
+    // A pack whose Commands getter throws is left out of the keymap and reported; the core table and the
+    // other packs compose as before. With no fault callback the throw still escapes, as the loader expects.
+    [Test]
+    public async Task APackWhoseCommandsGetterThrows_IsLeftOut_AndReported()
+    {
+        List<string> reported = [];
+        CommandRegistry registry = CommandRegistry.Build([new ThrowingCommands()], (pack, _) => reported.Add(pack.Id));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(reported).IsEquivalentTo(["net.demoviewer.test.throwing"]);
+            await Assert.That(registry.PackCommands).IsEmpty();
+            await Assert.That(registry.EffectiveBindings.Count).IsGreaterThan(0);
+        }
+
+        Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build([new ThrowingCommands()]));
+    }
+
+    private sealed class ThrowingCommands : IExtension
+    {
+        public string Id => "net.demoviewer.test.throwing";
+        public string FeatureId => "pack.throwing";
+        public IEnumerable<ExtensionFeature> Features => [];
+        public IEnumerable<CommandDescriptor> Commands => throw new InvalidOperationException("commands");
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
+    }
+
     private sealed class FakePack(string featureId, CommandDescriptor[] commands) : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.test." + featureId;

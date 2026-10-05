@@ -214,6 +214,11 @@ public static class ExternalExtensions
         {
             return Outcome(candidate, LoadFailure.Conflicts, "it collides with an extension already loaded", ex.Message);
         }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The candidate's own Features, Commands or JobKinds getter threw.
+            return Outcome(candidate, LoadFailure.ProbeFailed, "it failed while describing itself", ex.ToString());
+        }
     }
 
     private static LoadOutcome Outcome(ExtensionCandidate candidate, LoadFailure failure, string detail, string? logDetail = null) =>

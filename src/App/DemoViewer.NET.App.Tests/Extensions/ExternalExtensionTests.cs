@@ -304,6 +304,64 @@ public class ExternalExtensionTests
         }
     }
 
+    // The loader's probe registers into a scratch container and passes; the real container's Register then
+    // throws partway. The app still composes, the half-run registration is not in it, and the extension does
+    // not start this session.
+    [Test]
+    [NotInParallel]
+    public async Task ARegisterThatThrowsOnlyOnTheRealContainer_LeavesTheAppComposing_WithoutTheExtension()
+    {
+        SecondRegisterThrows pack = new();
+        Microsoft.Extensions.DependencyInjection.ServiceCollection probe = new();
+        pack.Register(probe);
+        await Assert.That(probe.Count).IsEqualTo(1).Because("the probe's call succeeds");
+
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            Microsoft.Extensions.DependencyInjection.ServiceCollection services =
+                App.ComposeServices(new Services.DesktopWindowService(() => null), [pack]);
+            using Microsoft.Extensions.DependencyInjection.ServiceProvider provider =
+                Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
+            ExtensionFaults faults = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                .GetRequiredService<ExtensionFaults>(provider);
+            PackContributions contributed = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                .GetRequiredService<PackContributionSet>(provider).Packs.Single();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(services.Any(d => d.ServiceType == typeof(SecondRegisterThrows.Partial))).IsFalse()
+                    .Because("nothing from the failed Register reached the container");
+                await Assert.That(faults.StartupFailed(pack.Id)).IsTrue();
+                await Assert.That(faults.StateOf(pack.FeatureId).Suspended).IsTrue();
+                await Assert.That(pack.Contributed).IsFalse().Because("an extension with no services contributes nothing");
+                await Assert.That(contributed.Modules).IsEmpty();
+            }
+        });
+    }
+
+    private sealed class SecondRegisterThrows : IExtension
+    {
+        private int _registers;
+
+        public sealed class Partial;
+
+        public string Id => "dev.example.flaky";
+        public string FeatureId => "pack.flaky";
+        public IEnumerable<ExtensionFeature> Features => [];
+        public bool Contributed { get; private set; }
+
+        public void Register(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+        {
+            Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<Partial>(services);
+            if (++_registers > 1)
+            {
+                throw new InvalidOperationException("only on the real container");
+            }
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services) => Contributed = true;
+    }
+
     private sealed class NoHost : Modules.Abstractions.IModuleHost
     {
         public Modules.Abstractions.IModuleContext Context => null!;

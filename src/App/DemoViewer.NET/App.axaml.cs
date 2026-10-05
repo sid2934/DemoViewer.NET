@@ -728,7 +728,8 @@ public class App : Application
 
         // The fault tracker the desktop head built before Avalonia started, or one over these packs in a
         // host that did not. The gate takes it, so a failing extension is switched off through the gate.
-        services.AddSingleton(_ => ExtensionFaults.Current ?? ExtensionFaults.For(packs));
+        ExtensionFaults faults = ExtensionFaults.Current ?? ExtensionFaults.For(packs);
+        services.AddSingleton(faults);
 
         // The central theme registry: the single source of truth for the
         // available themes: native dark / light / system plus the built-in custom variants (High-Contrast,
@@ -1016,10 +1017,26 @@ public class App : Application
         }
 
         // Each pack's own registrations, unconditional: factories are lazy, and the gate decides what runs,
-        // not what is registered.
+        // not what is registered. Each runs into a scratch collection first, so a Register that throws
+        // partway leaves nothing half-registered: the extension does not start this session and the rest
+        // of the app does.
         foreach (IExtension pack in packs)
         {
-            pack.Register(services);
+            ServiceCollection scratch = new();
+            try
+            {
+                pack.Register(scratch);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                faults.FailStartup(faults.GuardFor(pack).Scope, "register", ex);
+                continue;
+            }
+
+            foreach (ServiceDescriptor descriptor in scratch)
+            {
+                ((IServiceCollection)services).Add(descriptor);
+            }
         }
 
         // Every pack's Contribute, run once on first resolve: the module registry reads the modules, the
@@ -1204,10 +1221,20 @@ public class App : Application
             // view model resolves pack chords in a headless test too). This is the consumer for the
             // IFirstPartyContributions.Commands(...) call: not a second registration, a check that the two
             // channels agree (CommandRegistry.CommandsMatch) so they cannot drift apart.
-            if (!CommandRegistry.CommandsMatch(contributions.ContributedCommands, [.. pack.Commands]))
+            // A mismatch, or a Commands getter that throws, keeps the extension off for the session: its
+            // keymap rows and its modules would disagree.
+            ExtensionGuard guard = contributions.Guard;
+            bool match = guard.Run("commands", () => CommandRegistry.CommandsMatch(contributions.ContributedCommands, [.. pack.Commands]),
+                false);
+            if (!match)
             {
-                throw new InvalidOperationException(
-                    $"Pack '{pack.Id}' contributed different commands through Contribute than its Commands property declares.");
+                if (!guard.Faults.StartupFailed(pack.Id))
+                {
+                    guard.Faults.FailStartup(guard.Scope, "commands", new InvalidOperationException(
+                        $"Pack '{pack.Id}' contributed different commands through Contribute than its Commands property declares."));
+                }
+
+                continue;
             }
 
             foreach (IWorkspaceModule module in contributions.Modules)
