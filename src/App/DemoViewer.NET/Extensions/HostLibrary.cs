@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using Avalonia.Threading;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Facts;
 
 #endregion
 
@@ -21,6 +22,8 @@ internal sealed class HostLibrary : IExtensionLibrary
     private static readonly ConditionalWeakTable<DemoCacheStore, HostLibrary> Shared = new();
 
     private readonly ConditionalWeakTable<DemoCacheIndexEntry, LibraryDemo> _projected = new();
+    private string? _shownKey;
+    private volatile bool _hasFactsStamps;
     private readonly object _gate = new();
     private readonly Func<bool> _onUiThread;
     private readonly IDemoProcessingQueue? _queue;
@@ -40,6 +43,7 @@ internal sealed class HostLibrary : IExtensionLibrary
         foreach (DemoCacheIndexEntry entry in store.Index)
         {
             _seen[entry.Path] = entry;
+            _hasFactsStamps |= HasFactsStamp(entry);
         }
 
         store.Changed += OnStoreChanged;
@@ -65,11 +69,56 @@ internal sealed class HostLibrary : IExtensionLibrary
     /// <summary>The analysis outputs over the same store; empty until the composition root hands them over.</summary>
     public IAnalysisFacts Facts => _factsSource?.Invoke() ?? NoFacts.Instance;
 
+    // Which facts stamps a row shows moves with the rulesets that are on, which no index write signals, so a
+    // move drops every projection and the cached list. The facts are not resolved before a row carries a facts
+    // stamp: resolving them reads the rules, which must not happen inside an early store event.
+    private IFactsVisibility? Shown() => _hasFactsStamps ? _factsSource?.Invoke() as IFactsVisibility : null;
+
+    private static bool HasFactsStamp(DemoCacheIndexEntry entry) =>
+        entry.PackStamps.Any(s => StampedFacts.RulesetOf(s.Id) is not null);
+
+    private IFactsVisibility? Revalidate()
+    {
+        IFactsVisibility? visibility = Shown();
+        string key = visibility?.ShownKey ?? "";
+        lock (_gate)
+        {
+            if (!string.Equals(key, _shownKey, StringComparison.Ordinal))
+            {
+                _shownKey = key;
+                _projected.Clear();
+                _demosVersion = -1;
+            }
+        }
+
+        return visibility;
+    }
+
+    /// <summary>
+    ///     Raises a library-wide change when the rulesets whose facts the rows show moved since the last read, so a
+    ///     reader re-reads rows that drop or regain an extension's facts. Call it when a feature gate changes.
+    /// </summary>
+    internal void RecheckFacts()
+    {
+        string key = Shown()?.ShownKey ?? "";
+        lock (_gate)
+        {
+            if (_shownKey is null || string.Equals(key, _shownKey, StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+
+        Revalidate();
+        Changed?.Invoke(new LibraryChange(null, LibraryChangeKind.Updated));
+    }
+
     /// <summary>The store's index as rows. Rebuilt only when the index moved since the last read.</summary>
     public IReadOnlyList<LibraryDemo> Demos
     {
         get
         {
+            IFactsVisibility? visibility = Revalidate();
             long version = _store.IndexVersion;
             lock (_gate)
             {
@@ -79,7 +128,7 @@ internal sealed class HostLibrary : IExtensionLibrary
                 }
             }
 
-            List<LibraryDemo> demos = [.. _store.Index.Select(Project)];
+            List<LibraryDemo> demos = [.. _store.Index.Select(e => Project(e, visibility))];
             lock (_gate)
             {
                 _demos = demos;
@@ -95,13 +144,13 @@ internal sealed class HostLibrary : IExtensionLibrary
     public LibraryDemo? Find(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
-        return _store.TryGetIndex(path) is { } entry ? Project(entry) : null;
+        return _store.TryGetIndex(path) is { } entry ? Project(entry, Revalidate()) : null;
     }
 
     public LibraryDemo? FindBySha256(string sha256)
     {
         ArgumentNullException.ThrowIfNull(sha256);
-        return _store.TryGetIndexBySha256(sha256) is { } entry ? Project(entry) : null;
+        return _store.TryGetIndexBySha256(sha256) is { } entry ? Project(entry, Revalidate()) : null;
     }
 
     public LibraryPage Query(LibraryQuery query)
@@ -142,10 +191,11 @@ internal sealed class HostLibrary : IExtensionLibrary
     public LibraryDemoDetail DetailOf(DemoCacheRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
+        IFactsVisibility? visibility = Revalidate();
         DemoCacheIndexEntry? entry = _store.TryGetIndex(record.Path);
         LibraryDemo demo = entry is not null && entry.MatchesFile(record.Size, record.ModifiedTicks)
-            ? Project(entry)
-            : ProjectRow(record.ToIndexEntry());
+            ? Project(entry, visibility)
+            : ProjectRow(record.ToIndexEntry(), visibility);
         return new LibraryDemoDetail(demo, record.TickRate, record.TickCount, record.ServerStartTick,
             [.. record.Players.Select(p => new LibraryPlayer(p.Slot, p.Name, SteamIdOf(p.SteamId64), p.Team, p.IsBot, p.IsCoach))],
             [.. record.Rounds.Select(r => new LibraryRound(r.Number, r.StartTickFrameClock))]);
@@ -154,10 +204,13 @@ internal sealed class HostLibrary : IExtensionLibrary
     private LibraryDemoDetail? Detail(string path) =>
         _store.TryLoadRecord(path, false) is { } record ? DetailOf(record) : null;
 
-    /// <summary>The row for an index entry: the same instance for the same entry object.</summary>
-    public LibraryDemo Project(DemoCacheIndexEntry entry) => _projected.GetValue(entry, ProjectRow);
+    /// <summary>The row for an index entry: the same instance for the same entry object while the shown facts hold.</summary>
+    public LibraryDemo Project(DemoCacheIndexEntry entry) => Project(entry, Revalidate());
 
-    private static LibraryDemo ProjectRow(DemoCacheIndexEntry entry) =>
+    private LibraryDemo Project(DemoCacheIndexEntry entry, IFactsVisibility? visibility) =>
+        _projected.GetValue(entry, e => ProjectRow(e, visibility));
+
+    private static LibraryDemo ProjectRow(DemoCacheIndexEntry entry, IFactsVisibility? visibility) =>
         new(entry.Path, Path.GetFileName(entry.Path), entry.Map, new DateTime(entry.ModifiedTicks, DateTimeKind.Local), entry.Size)
         {
             Sha256 = entry.Sha256,
@@ -181,7 +234,7 @@ internal sealed class HostLibrary : IExtensionLibrary
                 DemoCacheTier.Header => LibraryDemoState.HeaderRead,
                 _ => LibraryDemoState.Found
             },
-            Facts = [.. entry.PackStamps.Select(s => new LibraryFactState(s.Id, s.Schema, s.Fingerprint, s.State switch
+            Facts = [.. entry.PackStamps.Where(s => visibility?.Shows(s.Id) ?? true).Select(s => new LibraryFactState(s.Id, s.Schema, s.Fingerprint, s.State switch
             {
                 DemoAnalysisState.Indexed => DemoDataState.Written,
                 DemoAnalysisState.Failed => DemoDataState.Failed,
@@ -215,6 +268,14 @@ internal sealed class HostLibrary : IExtensionLibrary
     // library last saw for the path, so a stamp-only write tells apart from a parse.
     private void OnStoreChanged(string? path)
     {
+        if (!_hasFactsStamps)
+        {
+            _hasFactsStamps = path is null
+                ? _store.Index.Any(HasFactsStamp)
+                : _store.TryGetIndex(path) is { } written && HasFactsStamp(written);
+        }
+
+        IFactsVisibility? visibility = Revalidate();
         LibraryChange change;
         lock (_gate)
         {
@@ -246,7 +307,7 @@ internal sealed class HostLibrary : IExtensionLibrary
                     (null, null) => LibraryChangeKind.Removed,
                     (null, _) => LibraryChangeKind.Added,
                     (_, null) => LibraryChangeKind.Removed,
-                    _ => OnlyFactsMoved(Project(before), Project(after)) ? LibraryChangeKind.FactsUpdated : LibraryChangeKind.Updated
+                    _ => OnlyFactsMoved(Project(before, visibility), Project(after, visibility)) ? LibraryChangeKind.FactsUpdated : LibraryChangeKind.Updated
                 });
             }
         }

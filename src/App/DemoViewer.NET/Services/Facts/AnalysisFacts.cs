@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Services.Facts;
 ///     stamped rulesets' tables in their sidecars. A ruleset whose owner is off is neither declared nor read, so
 ///     its stored facts stay on disk for when the owner comes back. Staleness reads the index row only.
 /// </summary>
-public sealed class AnalysisFacts : IAnalysisFacts
+public sealed class AnalysisFacts : IAnalysisFacts, IFactsVisibility
 {
     // Every supported demo records at 64 ticks; the row's stamp is compared at that rate, as the backlog does.
     private const int ProbeTickRate = 64;
@@ -105,6 +105,11 @@ public sealed class AnalysisFacts : IAnalysisFacts
             : null;
     }
 
+    string IFactsVisibility.ShownKey => _facts is null ? "" : string.Join('\n', _facts.Facets().Select(f => f.RulesetId));
+
+    bool IFactsVisibility.Shows(string stampId) =>
+        StampedFacts.RulesetOf(stampId) is not { } rulesetId || _facts?.Facet(rulesetId) is not null;
+
     /// <inheritdoc />
     public IReadOnlyList<LibraryHighlight> Highlights(string demoPath)
     {
@@ -122,4 +127,15 @@ public sealed class AnalysisFacts : IAnalysisFacts
             ]
             : [];
     }
+}
+
+/// <summary>Which facts stamps the library rows show: a stamped ruleset's only while it is on.</summary>
+internal interface IFactsVisibility
+{
+    /// <summary>Changes whenever the set of shown rulesets does; a projection made under another key is stale.</summary>
+    string ShownKey { get; }
+
+    /// <summary>False for the facts stamp of a ruleset that is off or no longer contributed; true for every other stamp.</summary>
+    /// <param name="stampId">A stamp id on the index row.</param>
+    bool Shows(string stampId);
 }

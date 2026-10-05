@@ -4,6 +4,7 @@ using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
@@ -186,6 +187,52 @@ public class AnalysisFactsTests
 
             on = true;
             await Assert.That(facts.Status(path, new FactKey(FactsRuleset, FactKey.ScoreboardOutput))).IsEqualTo(FactStatus.NeedsFullAnalysis);
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+        }
+    }
+
+    [Test]
+    public async Task AnOwnerThatIsOff_TakesItsFactsOffTheLibraryRows_AndTheirQuery()
+    {
+        string fixture = WriteFixture((FactsRuleset, FactsYaml));
+        try
+        {
+            bool on = true;
+            MergedRulesBuild rules = new(() => WithFixture(fixture),
+                () => [StampedRuleset.Core(RoundFactsFingerprint.RulesetId), new StampedRuleset(FactsRuleset, "dev.example.x", () => on)]);
+            StampedFacts stamped = new(rules);
+            DemoCacheStore cache = new(null);
+            const string path = "/demos/a.dem";
+            cache.Upsert(new DemoCacheRecord { Path = path, Size = 1, Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 } });
+            string stampId = StampedFacts.StampId(FactsRuleset);
+            cache.UpdateExisting(path, r => r.SetStamp(new PackStamp(stampId, StampedFacts.Schema, stamped.Fingerprint(FactsRuleset, 64)!)));
+            AnalysisFacts facts = new(cache, stamped, new RoundFactsSource(cache));
+            HostLibrary library = HostLibrary.For(cache, null, () => facts);
+            LibraryQuery hasFact = new() { HasFact = stampId };
+
+            bool shownOn = library.Find(path)?.Fact(stampId) is { IsWritten: true };
+            int matchedOn = library.Query(hasFact).Total;
+            List<LibraryChange> changes = [];
+            library.Changed += changes.Add;
+            on = false;
+            library.RecheckFacts();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(shownOn).IsTrue();
+                await Assert.That(matchedOn).IsEqualTo(1);
+                await Assert.That(changes).IsEquivalentTo(new[] { new LibraryChange(null, LibraryChangeKind.Updated) });
+                await Assert.That(library.Find(path)?.Fact(stampId)).IsNull().Because("off looks off on the row");
+                await Assert.That(library.Demos.Single().Facts.Select(f => f.Id)).DoesNotContain(stampId);
+                await Assert.That(library.Query(hasFact).Total).IsEqualTo(0);
+                await Assert.That(cache.TryGetIndex(path)?.Stamp(stampId)).IsNotNull().Because("the stamp waits for the owner");
+            }
+
+            on = true;
+            await Assert.That(library.Query(hasFact).Total).IsEqualTo(1);
         }
         finally
         {

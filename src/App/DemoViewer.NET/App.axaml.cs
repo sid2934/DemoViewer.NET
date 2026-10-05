@@ -1100,6 +1100,13 @@ public class App : Application
                     (c.Pack, ExtensionRecordPassHost.Cached(r, () => HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>)))))
             ]);
             IFeatureGate? features = sp.GetService<IFeatureGate>();
+            // An extension switched off takes its rulesets' facts off every library row; readers hear it as one change.
+            if (features is not null)
+            {
+                features.Changed += (_, _) => Dispatcher.UIThread.Post(() =>
+                    HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>).RecheckFacts());
+            }
+
             return new RecordPassRunner(() =>
             {
                 List<IRecordPass> passes = [];
