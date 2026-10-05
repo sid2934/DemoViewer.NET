@@ -50,7 +50,11 @@ public class ProcessingQueueViewTests
         await HeadlessSession.RunOnUi(async () =>
         {
             using HeavyJobGate gate = new();
-            using DemoProcessingQueue queue = new(gate, parseFile: _ => SyntheticDemo(), compactHeap: () => Task.CompletedTask);
+            // Two declared extension kinds, labelled as the Strat Book labels its own, so the flyout shows the chips a
+            // real library shows.
+            DemoViewer.NET.Extensions.JobKindRegistry kinds = DemoViewer.NET.Extensions.JobKindRegistry.Build([new KindsExtension()]);
+            using DemoProcessingQueue queue = new(gate, parseFile: _ => SyntheticDemo(), compactHeap: () => Task.CompletedTask,
+                jobKinds: kinds);
             TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
             TaskCompletionSource reported = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -58,7 +62,8 @@ public class ProcessingQueueViewTests
                 "library", DemoJobPriority.Background, 1, _ => { }, null, "navi-vs-vitality-m2.dem"));
             IDemoQueueHandle failed = queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension,
                 "Lineup clips: de_nuke, 3 clips from g2-vs-mouz-m1.dem", "lineup-clips", DemoJobPriority.Background,
-                _ => Task.FromException(new InvalidOperationException("no map bundle for de_nuke"))));
+                _ => Task.FromException(new InvalidOperationException("no map bundle for de_nuke")),
+                ExtensionKind: KindsExtension.Clips));
             await PumpUntilAsync(() => done.Completion.IsCompleted && failed.Completion.IsCompleted
                                          && queue.QueuedCount + queue.RunningCount == 0, "the finished items and the drain compaction");
 
@@ -68,13 +73,13 @@ public class ProcessingQueueViewTests
                     job.Report(48, 366, "48 of 366 demos");
                     reported.TrySetResult();
                     await release.Task.WaitAsync(job.CancellationToken);
-                }));
+                }, ExtensionKind: KindsExtension.Mining));
             await PumpUntilAsync(() => reported.Task.IsCompleted, "the mine to report");
 
             queue.Pause();
             queue.SubmitJob(new QueueJobRequest(QueueJobKind.Extension,
                 "Lineup clips: de_mirage, 6 clips from faze-vs-spirit-m1.dem", "lineup-clips", DemoJobPriority.Background,
-                _ => Task.CompletedTask, "lineup-clips", "/demos/faze-vs-spirit-m1.dem"));
+                _ => Task.CompletedTask, "lineup-clips", "/demos/faze-vs-spirit-m1.dem", ExtensionKind: KindsExtension.Clips));
             queue.SubmitJob(new QueueJobRequest(QueueJobKind.PackExport, "Pack export: 12 segments to review.mp4",
                 "review", DemoJobPriority.UserRequested, _ => Task.CompletedTask, Target: "/exports/review.mp4"));
             queue.SubmitJob(new QueueJobRequest(QueueJobKind.SidecarMigration, "Sidecar format: compress cached files",
@@ -83,7 +88,7 @@ public class ProcessingQueueViewTests
                 DemoJobPriority.Background, 2, _ => { }, null, "spirit-vs-mongolz-m3.dem"));
             await PumpUntilAsync(() => queue.Items.Count == 7, "the mirror");
 
-            using ProcessingQueueStatusViewModel vm = new(queue, () => { });
+            using ProcessingQueueStatusViewModel vm = new(queue, () => { }, jobKinds: kinds);
             Border host = new()
             {
                 Padding = new Thickness(20),
@@ -189,4 +194,23 @@ public class ProcessingQueueViewTests
                 release.Set();
             }
         });
+
+    private sealed class KindsExtension : IExtension
+    {
+        public const string Clips = "test.clips";
+        public const string Mining = "test.mining";
+
+        public string Id => "net.test.kinds";
+        public string FeatureId => "pack.kinds";
+        public IEnumerable<ExtensionFeature> Features => [];
+        public IEnumerable<ExtensionJobKind> JobKinds => [new(Clips, "clips", false, 3), new(Mining, "mining", false, 2)];
+
+        public void Register(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
+    }
 }
