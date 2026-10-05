@@ -1,0 +1,1170 @@
+#nullable enable
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Annotations = "playback2d.annotations" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.AreaEffects = "playback2d.areaeffects" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Bomb = "playback2d.bomb" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.FloorLabel = "playback2d.floorlabel" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Guides = "playback2d.guides" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudClock = "hud.clock" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudKillFeed = "hud.killfeed" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.HudRoster = "hud.roster" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Markers = "playback2d.markers" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Overlay = "playback2d.overlay" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Query = "playback2d.query" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Radar = "playback2d.radar" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Trails = "playback2d.trails" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Utility = "playback2d.utility" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Vision = "playback2d.vision" -> string!
+const DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.Zones = "playback2d.zones" -> string!
+const DemoViewer.NET.Playback2D.Core.Levels.MapSpace.LevelQuantum = 64 -> double
+const DemoViewer.NET.Playback2D.Core.Levels.MapSpace.MatchThreshold = 0.5 -> double
+const DemoViewer.NET.Playback2D.Core.TextBlobCache.DefaultCapacity = 512 -> int
+const DemoViewer.NET.Playback2D.Core.TextBlobCache.TypefaceResourceName = "DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf" -> string!
+const DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.GridCell = 128 -> double
+const DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.LiftZ = 32 -> double
+const DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.MaxSnap = 128 -> double
+DemoViewer.NET.Playback2D.Core.AreaEffect
+DemoViewer.NET.Playback2D.Core.AreaEffect.Alpha.get -> float
+DemoViewer.NET.Playback2D.Core.AreaEffect.Alpha.init -> void
+DemoViewer.NET.Playback2D.Core.AreaEffect.AreaEffect() -> void
+DemoViewer.NET.Playback2D.Core.AreaEffect.AreaEffect(DemoViewer.NET.Playback2D.Core.AreaEffectKind Kind, float WorldX, float WorldY, float WorldZ, float WorldRadius, float Alpha = 1) -> void
+DemoViewer.NET.Playback2D.Core.AreaEffect.Deconstruct(out DemoViewer.NET.Playback2D.Core.AreaEffectKind Kind, out float WorldX, out float WorldY, out float WorldZ, out float WorldRadius, out float Alpha) -> void
+DemoViewer.NET.Playback2D.Core.AreaEffect.Equals(DemoViewer.NET.Playback2D.Core.AreaEffect other) -> bool
+DemoViewer.NET.Playback2D.Core.AreaEffect.Kind.get -> DemoViewer.NET.Playback2D.Core.AreaEffectKind
+DemoViewer.NET.Playback2D.Core.AreaEffect.Kind.init -> void
+DemoViewer.NET.Playback2D.Core.AreaEffect.WorldRadius.get -> float
+DemoViewer.NET.Playback2D.Core.AreaEffect.WorldRadius.init -> void
+DemoViewer.NET.Playback2D.Core.AreaEffect.WorldX.get -> float
+DemoViewer.NET.Playback2D.Core.AreaEffect.WorldX.init -> void
+DemoViewer.NET.Playback2D.Core.AreaEffect.WorldY.get -> float
+DemoViewer.NET.Playback2D.Core.AreaEffect.WorldY.init -> void
+DemoViewer.NET.Playback2D.Core.AreaEffect.WorldZ.get -> float
+DemoViewer.NET.Playback2D.Core.AreaEffect.WorldZ.init -> void
+DemoViewer.NET.Playback2D.Core.AreaEffectKind
+DemoViewer.NET.Playback2D.Core.AreaEffectKind.Decoy = 4 -> DemoViewer.NET.Playback2D.Core.AreaEffectKind
+DemoViewer.NET.Playback2D.Core.AreaEffectKind.Explosion = 3 -> DemoViewer.NET.Playback2D.Core.AreaEffectKind
+DemoViewer.NET.Playback2D.Core.AreaEffectKind.Fire = 1 -> DemoViewer.NET.Playback2D.Core.AreaEffectKind
+DemoViewer.NET.Playback2D.Core.AreaEffectKind.Flash = 2 -> DemoViewer.NET.Playback2D.Core.AreaEffectKind
+DemoViewer.NET.Playback2D.Core.AreaEffectKind.Smoke = 0 -> DemoViewer.NET.Playback2D.Core.AreaEffectKind
+DemoViewer.NET.Playback2D.Core.BombMarker
+DemoViewer.NET.Playback2D.Core.BombMarker.BeingDefused.get -> bool
+DemoViewer.NET.Playback2D.Core.BombMarker.BeingDefused.init -> void
+DemoViewer.NET.Playback2D.Core.BombMarker.BombMarker() -> void
+DemoViewer.NET.Playback2D.Core.BombMarker.BombMarker(float WorldX, float WorldY, float WorldZ, double DetonationFraction, bool BeingDefused, double DefuseFraction) -> void
+DemoViewer.NET.Playback2D.Core.BombMarker.Deconstruct(out float WorldX, out float WorldY, out float WorldZ, out double DetonationFraction, out bool BeingDefused, out double DefuseFraction) -> void
+DemoViewer.NET.Playback2D.Core.BombMarker.DefuseFraction.get -> double
+DemoViewer.NET.Playback2D.Core.BombMarker.DefuseFraction.init -> void
+DemoViewer.NET.Playback2D.Core.BombMarker.DetonationFraction.get -> double
+DemoViewer.NET.Playback2D.Core.BombMarker.DetonationFraction.init -> void
+DemoViewer.NET.Playback2D.Core.BombMarker.Equals(DemoViewer.NET.Playback2D.Core.BombMarker other) -> bool
+DemoViewer.NET.Playback2D.Core.BombMarker.WorldX.get -> float
+DemoViewer.NET.Playback2D.Core.BombMarker.WorldX.init -> void
+DemoViewer.NET.Playback2D.Core.BombMarker.WorldY.get -> float
+DemoViewer.NET.Playback2D.Core.BombMarker.WorldY.init -> void
+DemoViewer.NET.Playback2D.Core.BombMarker.WorldZ.get -> float
+DemoViewer.NET.Playback2D.Core.BombMarker.WorldZ.init -> void
+DemoViewer.NET.Playback2D.Core.Cameras.FitAliveRig
+DemoViewer.NET.Playback2D.Core.Cameras.FitAliveRig.ComputeTarget(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.Core.ViewportTransform?
+DemoViewer.NET.Playback2D.Core.Cameras.FitAliveRig.FitAliveRig(double padding = 0.18, double minHalfWorld = 900) -> void
+DemoViewer.NET.Playback2D.Core.Cameras.FitAliveRig.Id.get -> string!
+DemoViewer.NET.Playback2D.Core.Cameras.FitMapRig
+DemoViewer.NET.Playback2D.Core.Cameras.FitMapRig.ComputeTarget(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.Core.ViewportTransform?
+DemoViewer.NET.Playback2D.Core.Cameras.FitMapRig.FitMapRig() -> void
+DemoViewer.NET.Playback2D.Core.Cameras.FitMapRig.Id.get -> string!
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig.ComputeTarget(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.Core.ViewportTransform?
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig.DeadzoneHalfWorld.get -> double
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig.DeadzoneHalfWorld.set -> void
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig.FollowPlayerRig(int slot, double halfWorld = 900, double deadzoneHalfWorld = 180) -> void
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig.Id.get -> string!
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig.ResetDeadzone() -> void
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig.Slot.get -> int
+DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig.Slot.set -> void
+DemoViewer.NET.Playback2D.Core.Cameras.ICameraRig
+DemoViewer.NET.Playback2D.Core.Cameras.ICameraRig.ComputeTarget(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.Core.ViewportTransform?
+DemoViewer.NET.Playback2D.Core.Cameras.ICameraRig.Id.get -> string!
+DemoViewer.NET.Playback2D.Core.Cameras.ManualRig
+DemoViewer.NET.Playback2D.Core.Cameras.ManualRig.ComputeTarget(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> DemoViewer.NET.Playback2D.Core.ViewportTransform?
+DemoViewer.NET.Playback2D.Core.Cameras.ManualRig.Id.get -> string!
+DemoViewer.NET.Playback2D.Core.Cameras.ManualRig.ManualRig() -> void
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Advance(in DemoViewer.NET.Playback2D.Core.SceneTime time, DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Cache.get -> DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.ContentVersion.get -> int
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Id.get -> string!
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.IsEnabled.get -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.IsEnabled.set -> void
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Order.get -> int
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Render(SkiaSharp.SKCanvas! canvas, DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext ctx) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer.Slot.get -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler.BeginLayer(int index, string! layerId, DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase phase) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler.EndLayer(int index, DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase phase) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler.RecordPicture(int index, DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome outcome) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
+DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint.Dynamic = 2 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
+DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint.PerCamera = 1 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
+DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint.Static = 0 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
+DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase
+DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase.Advance = 0 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase
+DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase.Render = 1 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase
+DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
+DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot.Hud = 3 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
+DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot.Overlay = 2 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
+DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot.Underlay = 0 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
+DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot.World = 1 -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
+DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome
+DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome.Recorded = 1 -> DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome
+DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome.Replayed = 2 -> DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome
+DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome.Uncached = 0 -> DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Add(DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer! layer) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.AddOwned(System.IDisposable! resource) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Advance(in DemoViewer.NET.Playback2D.Core.SceneTime time, DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Dispose() -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Find(string! layerId) -> DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer?
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Gate.get -> DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderGate?
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Gate.set -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.InvalidateCaches() -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.InvalidatePaneCaches(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId levelId) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Layers.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer!>!
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Profiler.get -> DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler?
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Profiler.set -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Remove(string! layerId) -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Render(SkiaSharp.SKCanvas! canvas, in DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext ctx) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Render(SkiaSharp.SKCanvas! canvas, in DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission submission) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.SceneCompositor(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? options = null) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.SetEnabled(string! layerId, bool enabled) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor.Stats.get -> DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.<Clone>$() -> DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions!
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.Deconstruct(out bool EnablePictureCaching, out int MaxCachedPictures) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.EnablePictureCaching.get -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.EnablePictureCaching.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.Equals(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? other) -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.MaxCachedPictures.get -> int
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.MaxCachedPictures.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.SceneCompositorOptions(bool EnablePictureCaching = true, int MaxCachedPictures = 64) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.Deconstruct(out int LayersRendered, out int PicturesRecorded, out int PicturesReplayed, out int PanesRendered) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.Equals(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats other) -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.LayersRendered.get -> int
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.LayersRendered.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PanesRendered.get -> int
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PanesRendered.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PicturesRecorded.get -> int
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PicturesRecorded.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PicturesReplayed.get -> int
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.PicturesReplayed.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.SceneCompositorStats() -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.SceneCompositorStats(int LayersRendered, int PicturesRecorded, int PicturesReplayed, int PanesRendered) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.BelongsHere(double worldZ) -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Deconstruct(out DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame, out DemoViewer.NET.Playback2D.Core.SceneTime Time, out DemoViewer.NET.Playback2D.Core.ViewportTransform Transform, out SkiaSharp.SKRect PaneBounds, out int LevelIndex, out double LevelMinZ, out double LevelMaxZ, out DemoViewer.NET.Playback2D.Core.RenderPurpose Purpose, out DemoViewer.NET.Playback2D.Core.ScenePalette Palette, out float RenderScaling) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Equals(DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext other) -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Frame.get -> DemoViewer.NET.Playback2D.Core.Scene2DFrame!
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Frame.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.IsSingleLevel.get -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelCrossings.get -> DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker?
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelCrossings.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelIndex.get -> int
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelIndex.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelIndexFor(double worldZ) -> int
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelMaxZ.get -> double
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelMaxZ.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelMinZ.get -> double
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.LevelMinZ.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Levels.get -> DemoViewer.NET.Playback2D.Core.Levels.MapSpace?
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Levels.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Palette.get -> DemoViewer.NET.Playback2D.Core.ScenePalette
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Palette.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Pane.get -> DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Pane.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.PaneBounds.get -> SkiaSharp.SKRect
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.PaneBounds.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Purpose.get -> DemoViewer.NET.Playback2D.Core.RenderPurpose
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Purpose.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.RenderScaling.get -> float
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.RenderScaling.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.SceneRenderContext() -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.SceneRenderContext(DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame, DemoViewer.NET.Playback2D.Core.SceneTime Time, DemoViewer.NET.Playback2D.Core.ViewportTransform Transform, SkiaSharp.SKRect PaneBounds, int LevelIndex, double LevelMinZ, double LevelMaxZ, DemoViewer.NET.Playback2D.Core.RenderPurpose Purpose, DemoViewer.NET.Playback2D.Core.ScenePalette Palette, float RenderScaling) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Time.get -> DemoViewer.NET.Playback2D.Core.SceneTime
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Time.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Transform.get -> DemoViewer.NET.Playback2D.Core.ViewportTransform
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Transform.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderGate
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderGate.Enter() -> System.IDisposable!
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderGate.IsHeld.get -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderGate.SceneRenderGate() -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Deconstruct(out long SubmissionId, out DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame, out DemoViewer.NET.Playback2D.Core.SceneTime Time, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot>! Panes, out DemoViewer.NET.Playback2D.Core.ScenePalette Palette, out DemoViewer.NET.Playback2D.Core.RenderPurpose Purpose, out SkiaSharp.SKRect HostBounds, out float RenderScaling, out DemoViewer.NET.Playback2D.Core.Levels.MapSpace? Levels) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Equals(DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission other) -> bool
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Frame.get -> DemoViewer.NET.Playback2D.Core.Scene2DFrame!
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Frame.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.HostBounds.get -> SkiaSharp.SKRect
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.HostBounds.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Levels.get -> DemoViewer.NET.Playback2D.Core.Levels.MapSpace?
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Levels.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Palette.get -> DemoViewer.NET.Playback2D.Core.ScenePalette
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Palette.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Panes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot>!
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Panes.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Purpose.get -> DemoViewer.NET.Playback2D.Core.RenderPurpose
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Purpose.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.RenderScaling.get -> float
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.RenderScaling.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.SceneSubmission() -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.SceneSubmission(long SubmissionId, DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame, DemoViewer.NET.Playback2D.Core.SceneTime Time, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot>! Panes, DemoViewer.NET.Playback2D.Core.ScenePalette Palette, DemoViewer.NET.Playback2D.Core.RenderPurpose Purpose, SkiaSharp.SKRect HostBounds, float RenderScaling, DemoViewer.NET.Playback2D.Core.Levels.MapSpace? Levels = null) -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.SubmissionId.get -> long
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.SubmissionId.init -> void
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Time.get -> DemoViewer.NET.Playback2D.Core.SceneTime
+DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Time.init -> void
+DemoViewer.NET.Playback2D.Core.ConePoint
+DemoViewer.NET.Playback2D.Core.ConePoint.ConePoint() -> void
+DemoViewer.NET.Playback2D.Core.ConePoint.ConePoint(float X, float Y) -> void
+DemoViewer.NET.Playback2D.Core.ConePoint.Deconstruct(out float X, out float Y) -> void
+DemoViewer.NET.Playback2D.Core.ConePoint.Equals(DemoViewer.NET.Playback2D.Core.ConePoint other) -> bool
+DemoViewer.NET.Playback2D.Core.ConePoint.X.get -> float
+DemoViewer.NET.Playback2D.Core.ConePoint.X.init -> void
+DemoViewer.NET.Playback2D.Core.ConePoint.Y.get -> float
+DemoViewer.NET.Playback2D.Core.ConePoint.Y.init -> void
+DemoViewer.NET.Playback2D.Core.GrenadeKind
+DemoViewer.NET.Playback2D.Core.GrenadeKind.Decoy = 4 -> DemoViewer.NET.Playback2D.Core.GrenadeKind
+DemoViewer.NET.Playback2D.Core.GrenadeKind.Flash = 1 -> DemoViewer.NET.Playback2D.Core.GrenadeKind
+DemoViewer.NET.Playback2D.Core.GrenadeKind.He = 0 -> DemoViewer.NET.Playback2D.Core.GrenadeKind
+DemoViewer.NET.Playback2D.Core.GrenadeKind.Molotov = 3 -> DemoViewer.NET.Playback2D.Core.GrenadeKind
+DemoViewer.NET.Playback2D.Core.GrenadeKind.Smoke = 2 -> DemoViewer.NET.Playback2D.Core.GrenadeKind
+DemoViewer.NET.Playback2D.Core.GrenadeTrail
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.Alpha.get -> double
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.Alpha.set -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.CurrentZ.get -> float
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.GrenadeTrail() -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.Kind.get -> DemoViewer.NET.Playback2D.Core.GrenadeKind
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.Kind.init -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.LastTick.get -> int
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.LastTick.set -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.Points.get -> System.Collections.Generic.List<DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint>!
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.Team.get -> int
+DemoViewer.NET.Playback2D.Core.GrenadeTrail.Team.set -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.Deconstruct(out float X, out float Y, out float Z) -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.Equals(DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint other) -> bool
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.GrenadeTrailPoint() -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.GrenadeTrailPoint(float X, float Y, float Z) -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.X.get -> float
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.X.init -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.Y.get -> float
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.Y.init -> void
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.Z.get -> float
+DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.Z.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow
+DemoViewer.NET.Playback2D.Core.KillFeedRow.AssistedFlash.get -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.AssistedFlash.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Assister.get -> string?
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Assister.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Attacker.get -> string!
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Attacker.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.AttackerBlind.get -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.AttackerBlind.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.AttackerInAir.get -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.AttackerInAir.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.AttackerTeam.get -> int
+DemoViewer.NET.Playback2D.Core.KillFeedRow.AttackerTeam.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Deconstruct(out int Tick, out string! Attacker, out string? Assister, out string! Victim, out string! Weapon, out bool Headshot, out bool Penetrated, out bool NoScope, out bool ThroughSmoke, out bool AttackerBlind, out bool AttackerInAir, out bool AssistedFlash, out int AttackerTeam, out int VictimTeam) -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Equals(DemoViewer.NET.Playback2D.Core.KillFeedRow other) -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.HasAssist.get -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Headshot.get -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Headshot.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.KillFeedRow() -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.KillFeedRow(int Tick, string! Attacker, string? Assister, string! Victim, string! Weapon, bool Headshot, bool Penetrated, bool NoScope, bool ThroughSmoke, bool AttackerBlind, bool AttackerInAir, bool AssistedFlash, int AttackerTeam = 0, int VictimTeam = 0) -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.NoScope.get -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.NoScope.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Penetrated.get -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Penetrated.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.ThroughSmoke.get -> bool
+DemoViewer.NET.Playback2D.Core.KillFeedRow.ThroughSmoke.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Tick.get -> int
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Tick.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Victim.get -> string!
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Victim.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.VictimTeam.get -> int
+DemoViewer.NET.Playback2D.Core.KillFeedRow.VictimTeam.init -> void
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Weapon.get -> string!
+DemoViewer.NET.Playback2D.Core.KillFeedRow.Weapon.init -> void
+DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.Contains(double z) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.Deconstruct(out double MinZ, out double MaxZ) -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.Equals(DemoViewer.NET.Playback2D.Core.Levels.FloorSlice other) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.FloorSlice() -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.FloorSlice(double MinZ, double MaxZ) -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MaxZ.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MaxZ.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MidZ.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MinZ.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MinZ.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.BucketWidth.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.FloorSplitter(double bucketWidth = 64, double gapThreshold = 180) -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.GapThreshold.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.HasAuthoritativeFloors.get -> bool
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.HasSectionHeights.get -> bool
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.Observe(double z) -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.Observe(System.Collections.Generic.IEnumerable<double>! zs) -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.Reset() -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.SetAuthoritativeFloors(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.FloorSlice>? floors) -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.SetSectionHeights(System.Collections.Generic.IReadOnlyList<double>? heights) -> void
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.SliceIndexFor(double z) -> int
+DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.Slices.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.FloorSlice>!
+DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy
+DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy.Arrange(DemoViewer.NET.Playback2D.Core.Levels.MapSpace! space, DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode mode, SkiaSharp.SKSize host) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!>!
+DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy.Revision.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker.Count.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker.Crossed(int slot) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker.CrossedSlots.get -> System.Collections.Generic.IReadOnlyCollection<int>!
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker.EndFrame() -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker.LevelCrossingTracker() -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker.LevelOf(int slot) -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker.Reset() -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker.Update(int slot, double worldZ, DemoViewer.NET.Playback2D.Core.Levels.MapSpace! space) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode
+DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode.SideBySide = 2 -> DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode
+DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode.Single = 1 -> DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode
+DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode.Stacked = 0 -> DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.Current.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.ForceTo(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId id) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.LevelHysteresis(DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions? options = null) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.Options.get -> DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions!
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.Pending.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.PendingSeconds.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.Reset() -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.Update(in DemoViewer.NET.Playback2D.Core.SceneTime time, double worldZ, DemoViewer.NET.Playback2D.Core.Levels.MapSpace! space) -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.<Clone>$() -> DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions!
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.BandFractionOfSpan.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.BandFractionOfSpan.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.Deconstruct(out double MinBand, out double MaxBand, out double BandFractionOfSpan, out double DwellSeconds) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.DwellSeconds.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.DwellSeconds.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.Equals(DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions? other) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.LevelHysteresisOptions(double MinBand = 32, double MaxBand = 128, double BandFractionOfSpan = 0.25, double DwellSeconds = 0.35) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.MaxBand.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.MaxBand.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.MinBand.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.MinBand.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelLayouts
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.Camera -> DemoViewer.NET.Playback2D.Core.SliceCamera
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.CameraEpoch.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.Level.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevel!
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.Level.set -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.LevelId.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.LevelIndex.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.LevelPane(DemoViewer.NET.Playback2D.Core.Levels.MapLevel! level, DemoViewer.NET.Playback2D.Core.SliceCamera camera, DemoViewer.NET.Playback2D.Core.Cameras.ICameraRig! rig) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.PaneCount.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.Rig.get -> DemoViewer.NET.Playback2D.Core.Cameras.ICameraRig!
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.Rig.set -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.Snapshot() -> DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.Space.get -> DemoViewer.NET.Playback2D.Core.Levels.MapSpace?
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.SyncCameraEpoch() -> bool
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.ViewportRect.get -> SkiaSharp.SKRect
+DemoViewer.NET.Playback2D.Core.Levels.LevelPane.ViewportRect.set -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.CameraEpoch.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.CameraEpoch.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.Deconstruct(out DemoViewer.NET.Playback2D.Core.Levels.MapLevelId LevelId, out int LevelIndex, out DemoViewer.NET.Playback2D.Core.Levels.MapLevel! Level, out DemoViewer.NET.Playback2D.Core.ViewportTransform Transform, out SkiaSharp.SKRect ViewportRect, out int CameraEpoch) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.Equals(DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot other) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.Level.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevel!
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.Level.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.LevelId.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.LevelId.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.LevelIndex.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.LevelIndex.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.LevelPaneSnapshot() -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.LevelPaneSnapshot(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId LevelId, int LevelIndex, DemoViewer.NET.Playback2D.Core.Levels.MapLevel! Level, DemoViewer.NET.Playback2D.Core.ViewportTransform Transform, SkiaSharp.SKRect ViewportRect, int CameraEpoch) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.Transform.get -> DemoViewer.NET.Playback2D.Core.ViewportTransform
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.Transform.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.ViewportRect.get -> SkiaSharp.SKRect
+DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.ViewportRect.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.<Clone>$() -> DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange!
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Added.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>!
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Added.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Changed.get -> bool
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Changed.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Deconstruct(out bool Changed, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>! Added, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>! Removed, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>! Retained) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Equals(DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange? other) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.IsEmpty.get -> bool
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.LevelsAfter.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevel!>!
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.LevelsAfter.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.LevelsBefore.get -> System.Collections.Generic.IReadOnlyList<(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId Id, double ZMin)>!
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.LevelsBefore.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.LevelSetChange(bool Changed, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>! Added, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>! Removed, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>! Retained) -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Remapped.get -> System.Collections.Generic.IReadOnlyDictionary<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId, DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>!
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Remapped.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Removed.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>!
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Removed.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Retained.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevelId>!
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Retained.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.TryRemapAnchor(double oldLevelMinZ, out double newLevelMinZ) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.Contains(double z) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.HasRadar.get -> bool
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.Id.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.Id.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.MapLevel() -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.MidZ.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.Name.get -> string!
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.Name.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.Radar.get -> SkiaSharp.SKImage?
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.RadarImageName.get -> string?
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.Span.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.ZMax.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.ZMax.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.ZMin.get -> double
+DemoViewer.NET.Playback2D.Core.Levels.MapLevel.ZMin.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.Deconstruct(out int Key) -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.Equals(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId other) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.IsNone.get -> bool
+DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.Key.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.Key.init -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.MapLevelId() -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.MapLevelId(int Key) -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.ById(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId id) -> DemoViewer.NET.Playback2D.Core.Levels.MapLevel?
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.IdForAnchor(double zMin) -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.IndexOf(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId id) -> int
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.LastChange.get -> DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange!
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.LevelFor(double worldZ) -> DemoViewer.NET.Playback2D.Core.Levels.MapLevel?
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.LevelFor(double worldZ, DemoViewer.NET.Playback2D.Core.Levels.MapLevelId? previous) -> DemoViewer.NET.Playback2D.Core.Levels.MapLevel?
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.LevelIndexFor(double worldZ) -> int
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.Levels.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.MapLevel!>!
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.LevelSetChanged -> System.Action?
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.MapSpace() -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.RadarBinding.get -> DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.Rebuild(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.FloorSlice>! bands, System.Collections.Generic.IReadOnlyList<SkiaSharp.SKImage?>? radarByLevel = null, DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality quality = DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality.None, System.Collections.Generic.IReadOnlyList<string?>? radarNamesByLevel = null) -> DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange!
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.Reset() -> void
+DemoViewer.NET.Playback2D.Core.Levels.MapSpace.Version.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.Clear() -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.ClearManualOverrides() -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.CopySnapshots(System.Collections.Generic.List<DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot>! into) -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.FindById(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId id) -> DemoViewer.NET.Playback2D.Core.Levels.LevelPane?
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.FitAll(DemoViewer.NET.Playback2D.Core.WorldBounds extent) -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.Host.get -> SkiaSharp.SKSize
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.PaneAt(float x, float y) -> DemoViewer.NET.Playback2D.Core.Levels.LevelPane?
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.Panes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!>!
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.PaneSet(DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy! policy) -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.Policy.get -> DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy!
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.Policy.set -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.Reconcile(DemoViewer.NET.Playback2D.Core.Levels.MapSpace! space, DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode mode, SkiaSharp.SKSize host, DemoViewer.NET.Playback2D.Core.WorldBounds extent) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.ResetAll() -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.RetainedCount.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.RetainUnarranged(DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange! change) -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.SetRig(System.Func<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!, DemoViewer.NET.Playback2D.Core.Cameras.ICameraRig!>! factory) -> void
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.SyncCameraEpochs() -> bool
+DemoViewer.NET.Playback2D.Core.Levels.PaneSet.TryGetCamera(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId id, out DemoViewer.NET.Playback2D.Core.SliceCamera camera) -> bool
+DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality
+DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality.Degraded = 2 -> DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality
+DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality.Exact = 1 -> DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality
+DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality.None = 0 -> DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality
+DemoViewer.NET.Playback2D.Core.Levels.SingleLayout
+DemoViewer.NET.Playback2D.Core.Levels.SingleLayout.ActiveLevelId.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+DemoViewer.NET.Playback2D.Core.Levels.SingleLayout.ActiveLevelId.set -> void
+DemoViewer.NET.Playback2D.Core.Levels.SingleLayout.Arrange(DemoViewer.NET.Playback2D.Core.Levels.MapSpace! space, DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode mode, SkiaSharp.SKSize host) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!>!
+DemoViewer.NET.Playback2D.Core.Levels.SingleLayout.ArrangedLevelIndex.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.SingleLayout.Revision.get -> int
+DemoViewer.NET.Playback2D.Core.Levels.SingleLayout.SingleLayout() -> void
+DemoViewer.NET.Playback2D.Core.Levels.StackedLayout
+DemoViewer.NET.Playback2D.Core.Levels.StackedLayout.Arrange(DemoViewer.NET.Playback2D.Core.Levels.MapSpace! space, DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode mode, SkiaSharp.SKSize host) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!>!
+DemoViewer.NET.Playback2D.Core.Levels.StackedLayout.StackedLayout() -> void
+DemoViewer.NET.Playback2D.Core.MapRadarImage
+DemoViewer.NET.Playback2D.Core.MapRadarImage.Bounds.get -> DemoViewer.NET.Playback2D.Core.WorldBounds
+DemoViewer.NET.Playback2D.Core.MapRadarImage.Bounds.init -> void
+DemoViewer.NET.Playback2D.Core.MapRadarImage.Image.get -> SkiaSharp.SKImage?
+DemoViewer.NET.Playback2D.Core.MapRadarImage.Image.init -> void
+DemoViewer.NET.Playback2D.Core.MapRadarImage.MapRadarImage() -> void
+DemoViewer.NET.Playback2D.Core.MapRadarImage.MaxZ.get -> double
+DemoViewer.NET.Playback2D.Core.MapRadarImage.MaxZ.init -> void
+DemoViewer.NET.Playback2D.Core.MapRadarImage.MinZ.get -> double
+DemoViewer.NET.Playback2D.Core.MapRadarImage.MinZ.init -> void
+DemoViewer.NET.Playback2D.Core.MapRadarImage.Name.get -> string!
+DemoViewer.NET.Playback2D.Core.MapRadarImage.Name.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Deconstruct(out int Slot, out int Team, out float WorldX, out float WorldY, out float WorldZ, out float YawDegrees, out DemoViewer.NET.Playback2D.Core.RingState Ring, out double RingAlpha, out string! Label, out bool IsAlive, out float PitchDegrees, out float DuckAmount, out ulong SteamId, out string? Place) -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.DuckAmount.get -> float
+DemoViewer.NET.Playback2D.Core.PlayerMarker.DuckAmount.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Equals(DemoViewer.NET.Playback2D.Core.PlayerMarker other) -> bool
+DemoViewer.NET.Playback2D.Core.PlayerMarker.IsAlive.get -> bool
+DemoViewer.NET.Playback2D.Core.PlayerMarker.IsAlive.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Label.get -> string!
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Label.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.PitchDegrees.get -> float
+DemoViewer.NET.Playback2D.Core.PlayerMarker.PitchDegrees.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Place.get -> string?
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Place.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.PlayerMarker() -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.PlayerMarker(int Slot, int Team, float WorldX, float WorldY, float WorldZ, float YawDegrees, DemoViewer.NET.Playback2D.Core.RingState Ring, double RingAlpha, string! Label, bool IsAlive, float PitchDegrees = 0, float DuckAmount = 0, ulong SteamId = 0, string? Place = null) -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Ring.get -> DemoViewer.NET.Playback2D.Core.RingState
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Ring.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.RingAlpha.get -> double
+DemoViewer.NET.Playback2D.Core.PlayerMarker.RingAlpha.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Slot.get -> int
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Slot.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.SteamId.get -> ulong
+DemoViewer.NET.Playback2D.Core.PlayerMarker.SteamId.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Team.get -> int
+DemoViewer.NET.Playback2D.Core.PlayerMarker.Team.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.WorldX.get -> float
+DemoViewer.NET.Playback2D.Core.PlayerMarker.WorldX.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.WorldY.get -> float
+DemoViewer.NET.Playback2D.Core.PlayerMarker.WorldY.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.WorldZ.get -> float
+DemoViewer.NET.Playback2D.Core.PlayerMarker.WorldZ.init -> void
+DemoViewer.NET.Playback2D.Core.PlayerMarker.YawDegrees.get -> float
+DemoViewer.NET.Playback2D.Core.PlayerMarker.YawDegrees.init -> void
+DemoViewer.NET.Playback2D.Core.RenderPurpose
+DemoViewer.NET.Playback2D.Core.RenderPurpose.Export = 1 -> DemoViewer.NET.Playback2D.Core.RenderPurpose
+DemoViewer.NET.Playback2D.Core.RenderPurpose.Interactive = 0 -> DemoViewer.NET.Playback2D.Core.RenderPurpose
+DemoViewer.NET.Playback2D.Core.RenderPurpose.Thumbnail = 2 -> DemoViewer.NET.Playback2D.Core.RenderPurpose
+DemoViewer.NET.Playback2D.Core.RingState
+DemoViewer.NET.Playback2D.Core.RingState.Blinded = 3 -> DemoViewer.NET.Playback2D.Core.RingState
+DemoViewer.NET.Playback2D.Core.RingState.Dead = 4 -> DemoViewer.NET.Playback2D.Core.RingState
+DemoViewer.NET.Playback2D.Core.RingState.Shooting = 1 -> DemoViewer.NET.Playback2D.Core.RingState
+DemoViewer.NET.Playback2D.Core.RingState.TakingDamage = 2 -> DemoViewer.NET.Playback2D.Core.RingState
+DemoViewer.NET.Playback2D.Core.RingState.Team = 0 -> DemoViewer.NET.Playback2D.Core.RingState
+DemoViewer.NET.Playback2D.Core.Scene2DFrame
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.AreaEffects.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.AreaEffect>!
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.AreaEffects.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Bomb.get -> DemoViewer.NET.Playback2D.Core.BombMarker?
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Bomb.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.FollowSlot.get -> int
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.FollowSlot.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.GameInfo.get -> DemoViewer.NET.Playback2D.Core.SceneGameInfo
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.GameInfo.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.KillFeed.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.KillFeedRow>!
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.KillFeed.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Map.get -> DemoViewer.NET.Playback2D.Core.SceneMapInfo!
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Map.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Markers.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.PlayerMarker>!
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Markers.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Routes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.TokenRouteLine!>!
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Routes.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Scene2DFrame() -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Time.get -> DemoViewer.NET.Playback2D.Core.SceneTime
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Time.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Trails.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.GrenadeTrail!>!
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Trails.init -> void
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Vision.get -> DemoViewer.NET.Playback2D.Core.SceneVision!
+DemoViewer.NET.Playback2D.Core.Scene2DFrame.Vision.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.BombState.get -> string!
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.BombState.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.BombTicking.get -> bool
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.BombTicking.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.CtScore.get -> int
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.CtScore.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.Deconstruct(out string! Phase, out string! BombState, out int RoundNumber, out int RoundsPlayed, out double RoundSeconds, out string! RoundTime, out bool BombTicking, out bool DefuseInProgress, out string! DefuseKitNote, out double DefuseSeconds, out string! DefuseTime, out int TScore, out int CtScore) -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.DefuseInProgress.get -> bool
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.DefuseInProgress.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.DefuseKitNote.get -> string!
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.DefuseKitNote.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.DefuseSeconds.get -> double
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.DefuseSeconds.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.DefuseTime.get -> string!
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.DefuseTime.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.Equals(DemoViewer.NET.Playback2D.Core.SceneGameInfo other) -> bool
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.Phase.get -> string!
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.Phase.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.RoundNumber.get -> int
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.RoundNumber.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.RoundSeconds.get -> double
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.RoundSeconds.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.RoundsPlayed.get -> int
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.RoundsPlayed.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.RoundTime.get -> string!
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.RoundTime.init -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.SceneGameInfo() -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.SceneGameInfo(string! Phase, string! BombState, int RoundNumber, int RoundsPlayed, double RoundSeconds, string! RoundTime, bool BombTicking, bool DefuseInProgress, string! DefuseKitNote, double DefuseSeconds, string! DefuseTime, int TScore, int CtScore) -> void
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.TScore.get -> int
+DemoViewer.NET.Playback2D.Core.SceneGameInfo.TScore.init -> void
+DemoViewer.NET.Playback2D.Core.SceneMapInfo
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.MapName.get -> string!
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.MapName.init -> void
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.NetworkedBounds.get -> DemoViewer.NET.Playback2D.Core.WorldBounds?
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.NetworkedBounds.init -> void
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.ObservedBounds.get -> DemoViewer.NET.Playback2D.Core.WorldBounds
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.ObservedBounds.init -> void
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.Radars.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.MapRadarImage!>!
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.Radars.init -> void
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.SceneMapInfo() -> void
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.SectionHeights.get -> System.Collections.Generic.IReadOnlyList<double>?
+DemoViewer.NET.Playback2D.Core.SceneMapInfo.SectionHeights.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette
+DemoViewer.NET.Playback2D.Core.ScenePalette.Background.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.Background.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.Bomb.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.Bomb.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.BombDefuse.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.BombDefuse.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.BombDetonation.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.BombDetonation.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.BombTrack.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.BombTrack.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.ConeCt.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.ConeCt.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.ConeNeutral.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.ConeNeutral.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.ConeT.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.ConeT.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.Deconstruct(out SkiaSharp.SKColor Background, out SkiaSharp.SKColor MinorGrid, out SkiaSharp.SKColor MajorGrid, out SkiaSharp.SKColor Label, out SkiaSharp.SKColor TeamT, out SkiaSharp.SKColor TeamCt, out SkiaSharp.SKColor Neutral, out SkiaSharp.SKColor SightlineT, out SkiaSharp.SKColor SightlineCt, out SkiaSharp.SKColor ConeT, out SkiaSharp.SKColor ConeCt, out SkiaSharp.SKColor ConeNeutral, out SkiaSharp.SKColor RingShooting, out SkiaSharp.SKColor RingDamage, out SkiaSharp.SKColor RingBlinded, out SkiaSharp.SKColor RingDead, out SkiaSharp.SKColor Bomb, out SkiaSharp.SKColor BombTrack, out SkiaSharp.SKColor BombDetonation, out SkiaSharp.SKColor BombDefuse, out SkiaSharp.SKColor Smoke, out SkiaSharp.SKColor SmokeStroke, out SkiaSharp.SKColor Fire, out SkiaSharp.SKColor TrailHe, out SkiaSharp.SKColor TrailFlash, out SkiaSharp.SKColor TrailSmoke, out SkiaSharp.SKColor TrailMolotov, out SkiaSharp.SKColor TrailDecoy, out SkiaSharp.SKColor MarkerRingT, out SkiaSharp.SKColor MarkerRingCt, out SkiaSharp.SKColor MarkerRingNeutral, out DemoViewer.NET.Playback2D.Core.SceneStrokeWidths Strokes) -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.DropTarget.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.DropTarget.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.Equals(DemoViewer.NET.Playback2D.Core.ScenePalette other) -> bool
+DemoViewer.NET.Playback2D.Core.ScenePalette.Fire.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.Fire.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.Label.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.Label.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.MajorGrid.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.MajorGrid.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.MarkerRingCt.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.MarkerRingCt.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.MarkerRingNeutral.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.MarkerRingNeutral.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.MarkerRingT.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.MarkerRingT.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.MinorGrid.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.MinorGrid.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.Neutral.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.Neutral.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.RingBlinded.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RingBlinded.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.RingDamage.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RingDamage.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.RingDead.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RingDead.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.RingShooting.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RingShooting.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteCt.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteCt.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteFill(int team) -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteGhost(int team) -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteGhostCt.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteGhostCt.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteGhostT.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteGhostT.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteT.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.RouteT.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.ScenePalette() -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.ScenePalette(SkiaSharp.SKColor Background, SkiaSharp.SKColor MinorGrid, SkiaSharp.SKColor MajorGrid, SkiaSharp.SKColor Label, SkiaSharp.SKColor TeamT, SkiaSharp.SKColor TeamCt, SkiaSharp.SKColor Neutral, SkiaSharp.SKColor SightlineT, SkiaSharp.SKColor SightlineCt, SkiaSharp.SKColor ConeT, SkiaSharp.SKColor ConeCt, SkiaSharp.SKColor ConeNeutral, SkiaSharp.SKColor RingShooting, SkiaSharp.SKColor RingDamage, SkiaSharp.SKColor RingBlinded, SkiaSharp.SKColor RingDead, SkiaSharp.SKColor Bomb, SkiaSharp.SKColor BombTrack, SkiaSharp.SKColor BombDetonation, SkiaSharp.SKColor BombDefuse, SkiaSharp.SKColor Smoke, SkiaSharp.SKColor SmokeStroke, SkiaSharp.SKColor Fire, SkiaSharp.SKColor TrailHe, SkiaSharp.SKColor TrailFlash, SkiaSharp.SKColor TrailSmoke, SkiaSharp.SKColor TrailMolotov, SkiaSharp.SKColor TrailDecoy, SkiaSharp.SKColor MarkerRingT, SkiaSharp.SKColor MarkerRingCt, SkiaSharp.SKColor MarkerRingNeutral, DemoViewer.NET.Playback2D.Core.SceneStrokeWidths Strokes) -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.SightlineCt.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.SightlineCt.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.SightlineT.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.SightlineT.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.Smoke.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.Smoke.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.SmokeStroke.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.SmokeStroke.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.Strokes.get -> DemoViewer.NET.Playback2D.Core.SceneStrokeWidths
+DemoViewer.NET.Playback2D.Core.ScenePalette.Strokes.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.TeamCt.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.TeamCt.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.TeamFill(int team) -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.TeamT.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.TeamT.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailDecoy.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailDecoy.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailFlash.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailFlash.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailHe.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailHe.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailMolotov.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailMolotov.init -> void
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailSmoke.get -> SkiaSharp.SKColor
+DemoViewer.NET.Playback2D.Core.ScenePalette.TrailSmoke.init -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.BombDefuse.get -> float
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.BombDefuse.init -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.BombDetonation.get -> float
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.BombDetonation.init -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.BombTrack.get -> float
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.BombTrack.init -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.Deconstruct(out float MinorGrid, out float MajorGrid, out float Sightline, out float BombTrack, out float BombDetonation, out float BombDefuse, out float SmokeStroke) -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.Equals(DemoViewer.NET.Playback2D.Core.SceneStrokeWidths other) -> bool
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.MajorGrid.get -> float
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.MajorGrid.init -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.MinorGrid.get -> float
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.MinorGrid.init -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.SceneStrokeWidths() -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.SceneStrokeWidths(float MinorGrid = 1, float MajorGrid = 1, float Sightline = 1, float BombTrack = 2, float BombDetonation = 3, float BombDefuse = 3, float SmokeStroke = 1) -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.Sightline.get -> float
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.Sightline.init -> void
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.SmokeStroke.get -> float
+DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.SmokeStroke.init -> void
+DemoViewer.NET.Playback2D.Core.SceneTime
+DemoViewer.NET.Playback2D.Core.SceneTime.Deconstruct(out int Tick, out int FrameIndex, out double DemoSeconds, out double DeltaSeconds, out bool IsDiscontinuity) -> void
+DemoViewer.NET.Playback2D.Core.SceneTime.DeltaSeconds.get -> double
+DemoViewer.NET.Playback2D.Core.SceneTime.DeltaSeconds.init -> void
+DemoViewer.NET.Playback2D.Core.SceneTime.DemoSeconds.get -> double
+DemoViewer.NET.Playback2D.Core.SceneTime.DemoSeconds.init -> void
+DemoViewer.NET.Playback2D.Core.SceneTime.Equals(DemoViewer.NET.Playback2D.Core.SceneTime other) -> bool
+DemoViewer.NET.Playback2D.Core.SceneTime.FrameIndex.get -> int
+DemoViewer.NET.Playback2D.Core.SceneTime.FrameIndex.init -> void
+DemoViewer.NET.Playback2D.Core.SceneTime.IsDiscontinuity.get -> bool
+DemoViewer.NET.Playback2D.Core.SceneTime.IsDiscontinuity.init -> void
+DemoViewer.NET.Playback2D.Core.SceneTime.SceneTime() -> void
+DemoViewer.NET.Playback2D.Core.SceneTime.SceneTime(int Tick, int FrameIndex, double DemoSeconds, double DeltaSeconds, bool IsDiscontinuity) -> void
+DemoViewer.NET.Playback2D.Core.SceneTime.Tick.get -> int
+DemoViewer.NET.Playback2D.Core.SceneTime.Tick.init -> void
+DemoViewer.NET.Playback2D.Core.SceneVision
+DemoViewer.NET.Playback2D.Core.SceneVision.Cones.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.VisionCone!>!
+DemoViewer.NET.Playback2D.Core.SceneVision.Cones.init -> void
+DemoViewer.NET.Playback2D.Core.SceneVision.IsAvailable.get -> bool
+DemoViewer.NET.Playback2D.Core.SceneVision.IsAvailable.init -> void
+DemoViewer.NET.Playback2D.Core.SceneVision.SceneVision() -> void
+DemoViewer.NET.Playback2D.Core.SceneVision.Sightlines.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Sightline>!
+DemoViewer.NET.Playback2D.Core.SceneVision.Sightlines.init -> void
+DemoViewer.NET.Playback2D.Core.ShapedText
+DemoViewer.NET.Playback2D.Core.ShapedText.Advance.get -> float
+DemoViewer.NET.Playback2D.Core.ShapedText.Advance.init -> void
+DemoViewer.NET.Playback2D.Core.ShapedText.Ascent.get -> float
+DemoViewer.NET.Playback2D.Core.ShapedText.Ascent.init -> void
+DemoViewer.NET.Playback2D.Core.ShapedText.Blob.get -> SkiaSharp.SKTextBlob!
+DemoViewer.NET.Playback2D.Core.ShapedText.Blob.init -> void
+DemoViewer.NET.Playback2D.Core.ShapedText.Bounds.get -> SkiaSharp.SKRect
+DemoViewer.NET.Playback2D.Core.ShapedText.Bounds.init -> void
+DemoViewer.NET.Playback2D.Core.ShapedText.Deconstruct(out SkiaSharp.SKTextBlob! Blob, out SkiaSharp.SKRect Bounds, out float Advance, out float Ascent, out float Descent) -> void
+DemoViewer.NET.Playback2D.Core.ShapedText.Descent.get -> float
+DemoViewer.NET.Playback2D.Core.ShapedText.Descent.init -> void
+DemoViewer.NET.Playback2D.Core.ShapedText.Equals(DemoViewer.NET.Playback2D.Core.ShapedText other) -> bool
+DemoViewer.NET.Playback2D.Core.ShapedText.Height.get -> float
+DemoViewer.NET.Playback2D.Core.ShapedText.OriginForCentre(float cx, float cy) -> (float X, float Y)
+DemoViewer.NET.Playback2D.Core.ShapedText.OriginForTopLeft(float x, float y) -> (float X, float Y)
+DemoViewer.NET.Playback2D.Core.ShapedText.ShapedText() -> void
+DemoViewer.NET.Playback2D.Core.ShapedText.ShapedText(SkiaSharp.SKTextBlob! Blob, SkiaSharp.SKRect Bounds, float Advance, float Ascent, float Descent) -> void
+DemoViewer.NET.Playback2D.Core.ShapedText.Width.get -> float
+DemoViewer.NET.Playback2D.Core.Sightline
+DemoViewer.NET.Playback2D.Core.Sightline.Deconstruct(out int ViewerSlot, out int ViewerTeam, out float X0, out float Y0, out float Z0, out float X1, out float Y1, out float Z1) -> void
+DemoViewer.NET.Playback2D.Core.Sightline.Equals(DemoViewer.NET.Playback2D.Core.Sightline other) -> bool
+DemoViewer.NET.Playback2D.Core.Sightline.Sightline() -> void
+DemoViewer.NET.Playback2D.Core.Sightline.Sightline(int ViewerSlot, int ViewerTeam, float X0, float Y0, float Z0, float X1, float Y1, float Z1) -> void
+DemoViewer.NET.Playback2D.Core.Sightline.ViewerSlot.get -> int
+DemoViewer.NET.Playback2D.Core.Sightline.ViewerSlot.init -> void
+DemoViewer.NET.Playback2D.Core.Sightline.ViewerTeam.get -> int
+DemoViewer.NET.Playback2D.Core.Sightline.ViewerTeam.init -> void
+DemoViewer.NET.Playback2D.Core.Sightline.X0.get -> float
+DemoViewer.NET.Playback2D.Core.Sightline.X0.init -> void
+DemoViewer.NET.Playback2D.Core.Sightline.X1.get -> float
+DemoViewer.NET.Playback2D.Core.Sightline.X1.init -> void
+DemoViewer.NET.Playback2D.Core.Sightline.Y0.get -> float
+DemoViewer.NET.Playback2D.Core.Sightline.Y0.init -> void
+DemoViewer.NET.Playback2D.Core.Sightline.Y1.get -> float
+DemoViewer.NET.Playback2D.Core.Sightline.Y1.init -> void
+DemoViewer.NET.Playback2D.Core.Sightline.Z0.get -> float
+DemoViewer.NET.Playback2D.Core.Sightline.Z0.init -> void
+DemoViewer.NET.Playback2D.Core.Sightline.Z1.get -> float
+DemoViewer.NET.Playback2D.Core.Sightline.Z1.init -> void
+DemoViewer.NET.Playback2D.Core.SliceCamera
+DemoViewer.NET.Playback2D.Core.SliceCamera.Current.get -> DemoViewer.NET.Playback2D.Core.ViewportTransform
+DemoViewer.NET.Playback2D.Core.SliceCamera.Current.set -> void
+DemoViewer.NET.Playback2D.Core.SliceCamera.IsSettledAt(DemoViewer.NET.Playback2D.Core.ViewportTransform target, double epsilonPixels = 0.75) -> bool
+DemoViewer.NET.Playback2D.Core.SliceCamera.ManualOverride.get -> bool
+DemoViewer.NET.Playback2D.Core.SliceCamera.ManualOverride.set -> void
+DemoViewer.NET.Playback2D.Core.SliceCamera.SliceCamera() -> void
+DemoViewer.NET.Playback2D.Core.SliceCamera.SliceCamera(DemoViewer.NET.Playback2D.Core.ViewportTransform current) -> void
+DemoViewer.NET.Playback2D.Core.SliceCamera.StepToward(DemoViewer.NET.Playback2D.Core.ViewportTransform target, double t) -> DemoViewer.NET.Playback2D.Core.SliceCamera
+DemoViewer.NET.Playback2D.Core.TextBlobCache
+DemoViewer.NET.Playback2D.Core.TextBlobCache.Capacity.get -> int
+DemoViewer.NET.Playback2D.Core.TextBlobCache.Clear() -> void
+DemoViewer.NET.Playback2D.Core.TextBlobCache.Count.get -> int
+DemoViewer.NET.Playback2D.Core.TextBlobCache.Dispose() -> void
+DemoViewer.NET.Playback2D.Core.TextBlobCache.Get(string? text, float sizePx) -> DemoViewer.NET.Playback2D.Core.ShapedText?
+DemoViewer.NET.Playback2D.Core.TextBlobCache.OwnsTypeface.get -> bool
+DemoViewer.NET.Playback2D.Core.TextBlobCache.TextBlobCache(int capacity = 512) -> void
+DemoViewer.NET.Playback2D.Core.TextBlobCache.Typeface.get -> SkiaSharp.SKTypeface!
+DemoViewer.NET.Playback2D.Core.TokenRouteLine
+DemoViewer.NET.Playback2D.Core.TokenRouteLine.Points.get -> System.Collections.Generic.List<DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint>!
+DemoViewer.NET.Playback2D.Core.TokenRouteLine.Team.get -> int
+DemoViewer.NET.Playback2D.Core.TokenRouteLine.Team.set -> void
+DemoViewer.NET.Playback2D.Core.TokenRouteLine.TokenRouteLine() -> void
+DemoViewer.NET.Playback2D.Core.ViewportTransform
+DemoViewer.NET.Playback2D.Core.ViewportTransform.BaseScale.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.CenterX.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.CenterY.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.EffectiveScale.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.PanX.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.PanY.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.ScreenToWorld(double screenX, double screenY) -> (double X, double Y)
+DemoViewer.NET.Playback2D.Core.ViewportTransform.ViewHeight.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.ViewportTransform() -> void
+DemoViewer.NET.Playback2D.Core.ViewportTransform.ViewportTransform(double viewWidth, double viewHeight, double centerX, double centerY, double baseScale, double zoom, double panX, double panY) -> void
+DemoViewer.NET.Playback2D.Core.ViewportTransform.ViewWidth.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.WithPanDelta(double dx, double dy) -> DemoViewer.NET.Playback2D.Core.ViewportTransform
+DemoViewer.NET.Playback2D.Core.ViewportTransform.WithViewport(double viewWidth, double viewHeight) -> DemoViewer.NET.Playback2D.Core.ViewportTransform
+DemoViewer.NET.Playback2D.Core.ViewportTransform.WorldToScreen(double worldX, double worldY) -> (double X, double Y)
+DemoViewer.NET.Playback2D.Core.ViewportTransform.Zoom.get -> double
+DemoViewer.NET.Playback2D.Core.ViewportTransform.ZoomAbout(double anchorScreenX, double anchorScreenY, double factor, double minZoom = 0.05, double maxZoom = 40) -> DemoViewer.NET.Playback2D.Core.ViewportTransform
+DemoViewer.NET.Playback2D.Core.VisionCone
+DemoViewer.NET.Playback2D.Core.VisionCone.ApexX.get -> float
+DemoViewer.NET.Playback2D.Core.VisionCone.ApexX.init -> void
+DemoViewer.NET.Playback2D.Core.VisionCone.ApexY.get -> float
+DemoViewer.NET.Playback2D.Core.VisionCone.ApexY.init -> void
+DemoViewer.NET.Playback2D.Core.VisionCone.ApexZ.get -> float
+DemoViewer.NET.Playback2D.Core.VisionCone.ApexZ.init -> void
+DemoViewer.NET.Playback2D.Core.VisionCone.Fan.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.ConePoint>!
+DemoViewer.NET.Playback2D.Core.VisionCone.Fan.init -> void
+DemoViewer.NET.Playback2D.Core.VisionCone.Slot.get -> int
+DemoViewer.NET.Playback2D.Core.VisionCone.Slot.init -> void
+DemoViewer.NET.Playback2D.Core.VisionCone.Team.get -> int
+DemoViewer.NET.Playback2D.Core.VisionCone.Team.init -> void
+DemoViewer.NET.Playback2D.Core.VisionCone.VisionCone() -> void
+DemoViewer.NET.Playback2D.Core.WorldBounds
+DemoViewer.NET.Playback2D.Core.WorldBounds.Deconstruct(out double MinX, out double MinY, out double MaxX, out double MaxY) -> void
+DemoViewer.NET.Playback2D.Core.WorldBounds.Equals(DemoViewer.NET.Playback2D.Core.WorldBounds other) -> bool
+DemoViewer.NET.Playback2D.Core.WorldBounds.Extend(double worldX, double worldY) -> DemoViewer.NET.Playback2D.Core.WorldBounds
+DemoViewer.NET.Playback2D.Core.WorldBounds.Height.get -> double
+DemoViewer.NET.Playback2D.Core.WorldBounds.MaxX.get -> double
+DemoViewer.NET.Playback2D.Core.WorldBounds.MaxX.init -> void
+DemoViewer.NET.Playback2D.Core.WorldBounds.MaxY.get -> double
+DemoViewer.NET.Playback2D.Core.WorldBounds.MaxY.init -> void
+DemoViewer.NET.Playback2D.Core.WorldBounds.MinX.get -> double
+DemoViewer.NET.Playback2D.Core.WorldBounds.MinX.init -> void
+DemoViewer.NET.Playback2D.Core.WorldBounds.MinY.get -> double
+DemoViewer.NET.Playback2D.Core.WorldBounds.MinY.init -> void
+DemoViewer.NET.Playback2D.Core.WorldBounds.Width.get -> double
+DemoViewer.NET.Playback2D.Core.WorldBounds.WorldBounds() -> void
+DemoViewer.NET.Playback2D.Core.WorldBounds.WorldBounds(double MinX, double MinY, double MaxX, double MaxY) -> void
+DemoViewer.NET.Playback2D.Core.Zones.Bombsite
+DemoViewer.NET.Playback2D.Core.Zones.Bombsite.A = 0 -> DemoViewer.NET.Playback2D.Core.Zones.Bombsite
+DemoViewer.NET.Playback2D.Core.Zones.Bombsite.B = 1 -> DemoViewer.NET.Playback2D.Core.Zones.Bombsite
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.Deconstruct(out int PlaceId, out string? Name, out DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind Kind, out double SnapDistance) -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.Equals(DemoViewer.NET.Playback2D.Core.Zones.PlaceHit other) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.IsHit.get -> bool
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.Kind.get -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.Kind.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.Name.get -> string?
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.Name.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.PlaceHit() -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.PlaceHit(int PlaceId, string? Name, DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind Kind, double SnapDistance) -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.PlaceId.get -> int
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.PlaceId.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.SnapDistance.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.SnapDistance.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind.NearestArea = 1 -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind.None = 2 -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind
+DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind.Volume = 0 -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin.Baked = 0 -> DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin.Custom = 1 -> DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.<Clone>$() -> DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline!
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Deconstruct(out int PlaceId, out string! Name, out DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin Origin, out System.Collections.Generic.IReadOnlyList<(System.Numerics.Vector2 A, System.Numerics.Vector2 B)>! Edges, out System.Numerics.Vector2 LabelAt) -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Edges.get -> System.Collections.Generic.IReadOnlyList<(System.Numerics.Vector2 A, System.Numerics.Vector2 B)>!
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Edges.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Equals(DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? other) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.LabelAt.get -> System.Numerics.Vector2
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.LabelAt.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Name.get -> string!
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Name.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Origin.get -> DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Origin.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.PlaceId.get -> int
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.PlaceId.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.PlaceOutline(int PlaceId, string! Name, DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin Origin, System.Collections.Generic.IReadOnlyList<(System.Numerics.Vector2 A, System.Numerics.Vector2 B)>! Edges, System.Numerics.Vector2 LabelAt) -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.Adjacent(int placeId) -> System.Collections.Generic.IReadOnlyList<int>!
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.AreAdjacent(int a, int b) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.BombsiteAt(System.Numerics.Vector3 world) -> DemoViewer.NET.Playback2D.Core.Zones.Bombsite?
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.FloorKeyFor(double z) -> double
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.IsInside(System.Numerics.Vector3 world, DemoViewer.NET.Playback2D.Core.Zones.Bombsite site) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.OutlinesFor(double floorKey) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline!>!
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.PlaceId(string! name) -> int?
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.PlaceResolver(DemoViewer.NET.Playback2D.Core.Zones.ZoneSet! zones) -> void
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.Resolve(System.Numerics.Vector3 world) -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHit
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.ResolveOnFloor(double x, double y, double floorKey) -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHit
+DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.Zones.get -> DemoViewer.NET.Playback2D.Core.Zones.ZoneSet!
+DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule
+DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule.FirstInLump = 0 -> DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule
+DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule.SmallestVolume = 1 -> DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.Area.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.CentroidX.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.CentroidY.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.ContainsXy(double x, double y) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.CornerCount.get -> int
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.DistanceXy(double x, double y) -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.FloorKey.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.Id.get -> int
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.IsSeed.get -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.MaxX.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.MaxY.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.MinX.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.MinY.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.PlaceId.get -> int
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.WithPlace(int placeId) -> DemoViewer.NET.Playback2D.Core.Zones.ZoneArea!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.Xy.get -> System.Collections.Generic.IReadOnlyList<double>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.Z.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.ZoneArea(int id, int placeId, double floorKey, bool isSeed, double z, System.Collections.Generic.IReadOnlyList<double>! xy) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.<Clone>$() -> DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Code.get -> string!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Code.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Deconstruct(out string! Code, out string! Message, out string? Entry) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Entry.get -> string?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Entry.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Equals(DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? other) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Message.get -> string!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Message.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.ZoneDiagnostic(string! Code, string! Message, string? Entry = null) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.Contains(double z) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.Deconstruct(out double Key, out double MinZ, out double MaxZ) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.Equals(DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor other) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.Key.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.Key.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.MaxZ.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.MaxZ.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.MinZ.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.MinZ.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.ZoneFloor() -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.ZoneFloor(double Key, double MinZ, double MaxZ) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneHull
+DemoViewer.NET.Playback2D.Core.Zones.ZoneHull.Contains(double x, double y, double z) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneHull.Planes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZonePlane>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneHull.ZoneHull(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZonePlane>! planes) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.<Clone>$() -> DemoViewer.NET.Playback2D.Core.Zones.ZonePlace!
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Deconstruct(out int Id, out string! Name, out DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin Origin) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Equals(DemoViewer.NET.Playback2D.Core.Zones.ZonePlace? other) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Id.get -> int
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Id.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Name.get -> string!
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Name.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Origin.get -> DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Origin.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.ZonePlace(int Id, string! Name, DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin Origin) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.D.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.D.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Deconstruct(out double Nx, out double Ny, out double Nz, out double D) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Distance(double x, double y, double z) -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Equals(DemoViewer.NET.Playback2D.Core.Zones.ZonePlane other) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Nx.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Nx.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Ny.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Ny.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Nz.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Nz.init -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.ZonePlane() -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.ZonePlane(double Nx, double Ny, double Nz, double D) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.Adjacency.get -> System.Collections.Generic.IReadOnlyList<(int A, int B)>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.AreaLinks.get -> System.Collections.Generic.IReadOnlyList<(int A, int B)>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.Areas.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneArea!>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.BakerVersion.get -> string?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.BombRadius.get -> double?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.BundleMapVersion.get -> string!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.EffectiveVersion.get -> string!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.FloorQuantum.get -> double
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.Floors.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.HasOverlay.get -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.MapName.get -> string!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.OverlayPath.get -> string?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.PlaceName(int placeId) -> string?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.Places.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZonePlace!>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.Volumes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume!>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.ZoneSet(string! mapName, string! zonesVersion, string! bundleMapVersion, string? bakerVersion, double floorQuantum, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor>! floors, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZonePlace!>! places, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume!>! volumes, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneArea!>! areas, System.Collections.Generic.IReadOnlyList<(int A, int B)>! areaLinks, System.Collections.Generic.IReadOnlyList<(int A, int B)>! adjacency, double? bombRadius, string? effectiveVersion = null, string? overlayPath = null) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneSet.ZonesVersion.get -> string!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Contains(double x, double y, double z) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Contains(in System.Numerics.Vector3 world) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Entity.get -> string?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.HasGeometry.get -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Hulls.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneHull!>!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Kind.get -> DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Max.get -> System.Numerics.Vector3
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.MeetsBand(double minZ, double maxZ) -> bool
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Min.get -> System.Numerics.Vector3
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Origin.get -> DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.PlaceId.get -> int
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Polygon.get -> System.Collections.Generic.IReadOnlyList<double>?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Site.get -> DemoViewer.NET.Playback2D.Core.Zones.Bombsite?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.Team.get -> string?
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.WithPlace(int placeId) -> DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume!
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume.ZoneVolume(DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind kind, int placeId, DemoViewer.NET.Playback2D.Core.Zones.Bombsite? site, string? team, string? entity, System.Numerics.Vector3 min, System.Numerics.Vector3 max, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneHull!>! hulls, DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin origin = DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin.Baked, System.Collections.Generic.IReadOnlyList<double>? polygon = null) -> void
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind.Bombsite = 1 -> DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind.Buyzone = 2 -> DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind.HostageRescue = 3 -> DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind
+DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind.Place = 0 -> DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind
+override DemoViewer.NET.Playback2D.Core.AreaEffect.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.BombMarker.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.Equals(object? obj) -> bool
+override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.ToString() -> string!
+override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.ConePoint.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.KillFeedRow.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.Equals(object? obj) -> bool
+override DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.ToString() -> string!
+override DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.Equals(object? obj) -> bool
+override DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.ToString() -> string!
+override DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.ToString() -> string!
+override DemoViewer.NET.Playback2D.Core.PlayerMarker.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.SceneGameInfo.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.ScenePalette.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.SceneTime.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.ShapedText.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Sightline.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.WorldBounds.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.Equals(object? obj) -> bool
+override DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.ToString() -> string!
+override DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.Equals(object? obj) -> bool
+override DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.ToString() -> string!
+override DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.Equals(object? obj) -> bool
+override DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.GetHashCode() -> int
+override DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.ToString() -> string!
+override DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.GetHashCode() -> int
+static DemoViewer.NET.Playback2D.Core.AreaEffect.operator !=(DemoViewer.NET.Playback2D.Core.AreaEffect left, DemoViewer.NET.Playback2D.Core.AreaEffect right) -> bool
+static DemoViewer.NET.Playback2D.Core.AreaEffect.operator ==(DemoViewer.NET.Playback2D.Core.AreaEffect left, DemoViewer.NET.Playback2D.Core.AreaEffect right) -> bool
+static DemoViewer.NET.Playback2D.Core.BombMarker.operator !=(DemoViewer.NET.Playback2D.Core.BombMarker left, DemoViewer.NET.Playback2D.Core.BombMarker right) -> bool
+static DemoViewer.NET.Playback2D.Core.BombMarker.operator ==(DemoViewer.NET.Playback2D.Core.BombMarker left, DemoViewer.NET.Playback2D.Core.BombMarker right) -> bool
+static DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.operator !=(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? left, DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions.operator ==(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? left, DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.operator !=(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats left, DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats right) -> bool
+static DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.operator ==(DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats left, DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats right) -> bool
+static DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.operator !=(DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext left, DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext right) -> bool
+static DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.operator ==(DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext left, DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext right) -> bool
+static DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.operator !=(DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission left, DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission right) -> bool
+static DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.operator ==(DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission left, DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission right) -> bool
+static DemoViewer.NET.Playback2D.Core.ConePoint.operator !=(DemoViewer.NET.Playback2D.Core.ConePoint left, DemoViewer.NET.Playback2D.Core.ConePoint right) -> bool
+static DemoViewer.NET.Playback2D.Core.ConePoint.operator ==(DemoViewer.NET.Playback2D.Core.ConePoint left, DemoViewer.NET.Playback2D.Core.ConePoint right) -> bool
+static DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.operator !=(DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint left, DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint right) -> bool
+static DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.operator ==(DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint left, DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint right) -> bool
+static DemoViewer.NET.Playback2D.Core.KillFeedRow.operator !=(DemoViewer.NET.Playback2D.Core.KillFeedRow left, DemoViewer.NET.Playback2D.Core.KillFeedRow right) -> bool
+static DemoViewer.NET.Playback2D.Core.KillFeedRow.operator ==(DemoViewer.NET.Playback2D.Core.KillFeedRow left, DemoViewer.NET.Playback2D.Core.KillFeedRow right) -> bool
+static DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds.OptIn.get -> System.Collections.Generic.IReadOnlySet<string!>!
+static DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.operator !=(DemoViewer.NET.Playback2D.Core.Levels.FloorSlice left, DemoViewer.NET.Playback2D.Core.Levels.FloorSlice right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.operator ==(DemoViewer.NET.Playback2D.Core.Levels.FloorSlice left, DemoViewer.NET.Playback2D.Core.Levels.FloorSlice right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis.SpatialBand(DemoViewer.NET.Playback2D.Core.Levels.MapLevel! a, DemoViewer.NET.Playback2D.Core.Levels.MapLevel! b, DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions! options) -> double
+static DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.Default.get -> DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions!
+static DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.operator !=(DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions? left, DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions.operator ==(DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions? left, DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.LevelLayouts.For(DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode mode) -> DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy!
+static DemoViewer.NET.Playback2D.Core.Levels.LevelLayouts.Parse(string? value) -> DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode
+static DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.operator !=(DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot left, DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.operator ==(DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot left, DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.operator !=(DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange? left, DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.operator ==(DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange? left, DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.None.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+static DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.operator !=(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId left, DemoViewer.NET.Playback2D.Core.Levels.MapLevelId right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.operator ==(DemoViewer.NET.Playback2D.Core.Levels.MapLevelId left, DemoViewer.NET.Playback2D.Core.Levels.MapLevelId right) -> bool
+static DemoViewer.NET.Playback2D.Core.Levels.MapSpace.DistanceOutside(DemoViewer.NET.Playback2D.Core.Levels.MapLevel! level, double worldZ) -> double
+static DemoViewer.NET.Playback2D.Core.Levels.MapSpace.IdForZMin(double zMin) -> DemoViewer.NET.Playback2D.Core.Levels.MapLevelId
+static DemoViewer.NET.Playback2D.Core.Levels.MapSpace.OverlapScore(double aMin, double aMax, double bMin, double bMax) -> double
+static DemoViewer.NET.Playback2D.Core.Levels.MapSpace.QuantizeZ(double z) -> double
+static DemoViewer.NET.Playback2D.Core.Levels.StackedLayout.BandRect(int levelIndex, int levelCount, SkiaSharp.SKSize host) -> SkiaSharp.SKRect
+static DemoViewer.NET.Playback2D.Core.PlayerMarker.operator !=(DemoViewer.NET.Playback2D.Core.PlayerMarker left, DemoViewer.NET.Playback2D.Core.PlayerMarker right) -> bool
+static DemoViewer.NET.Playback2D.Core.PlayerMarker.operator ==(DemoViewer.NET.Playback2D.Core.PlayerMarker left, DemoViewer.NET.Playback2D.Core.PlayerMarker right) -> bool
+static DemoViewer.NET.Playback2D.Core.SceneGameInfo.operator !=(DemoViewer.NET.Playback2D.Core.SceneGameInfo left, DemoViewer.NET.Playback2D.Core.SceneGameInfo right) -> bool
+static DemoViewer.NET.Playback2D.Core.SceneGameInfo.operator ==(DemoViewer.NET.Playback2D.Core.SceneGameInfo left, DemoViewer.NET.Playback2D.Core.SceneGameInfo right) -> bool
+static DemoViewer.NET.Playback2D.Core.ScenePalette.operator !=(DemoViewer.NET.Playback2D.Core.ScenePalette left, DemoViewer.NET.Playback2D.Core.ScenePalette right) -> bool
+static DemoViewer.NET.Playback2D.Core.ScenePalette.operator ==(DemoViewer.NET.Playback2D.Core.ScenePalette left, DemoViewer.NET.Playback2D.Core.ScenePalette right) -> bool
+static DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.operator !=(DemoViewer.NET.Playback2D.Core.SceneStrokeWidths left, DemoViewer.NET.Playback2D.Core.SceneStrokeWidths right) -> bool
+static DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.operator ==(DemoViewer.NET.Playback2D.Core.SceneStrokeWidths left, DemoViewer.NET.Playback2D.Core.SceneStrokeWidths right) -> bool
+static DemoViewer.NET.Playback2D.Core.SceneTime.operator !=(DemoViewer.NET.Playback2D.Core.SceneTime left, DemoViewer.NET.Playback2D.Core.SceneTime right) -> bool
+static DemoViewer.NET.Playback2D.Core.SceneTime.operator ==(DemoViewer.NET.Playback2D.Core.SceneTime left, DemoViewer.NET.Playback2D.Core.SceneTime right) -> bool
+static DemoViewer.NET.Playback2D.Core.ShapedText.operator !=(DemoViewer.NET.Playback2D.Core.ShapedText left, DemoViewer.NET.Playback2D.Core.ShapedText right) -> bool
+static DemoViewer.NET.Playback2D.Core.ShapedText.operator ==(DemoViewer.NET.Playback2D.Core.ShapedText left, DemoViewer.NET.Playback2D.Core.ShapedText right) -> bool
+static DemoViewer.NET.Playback2D.Core.Sightline.operator !=(DemoViewer.NET.Playback2D.Core.Sightline left, DemoViewer.NET.Playback2D.Core.Sightline right) -> bool
+static DemoViewer.NET.Playback2D.Core.Sightline.operator ==(DemoViewer.NET.Playback2D.Core.Sightline left, DemoViewer.NET.Playback2D.Core.Sightline right) -> bool
+static DemoViewer.NET.Playback2D.Core.ViewportTransform.Fit(double viewWidth, double viewHeight, double worldMinX, double worldMinY, double worldMaxX, double worldMaxY, double margin = 0.08) -> DemoViewer.NET.Playback2D.Core.ViewportTransform
+static DemoViewer.NET.Playback2D.Core.WorldBounds.operator !=(DemoViewer.NET.Playback2D.Core.WorldBounds left, DemoViewer.NET.Playback2D.Core.WorldBounds right) -> bool
+static DemoViewer.NET.Playback2D.Core.WorldBounds.operator ==(DemoViewer.NET.Playback2D.Core.WorldBounds left, DemoViewer.NET.Playback2D.Core.WorldBounds right) -> bool
+static DemoViewer.NET.Playback2D.Core.WorldBounds.Union(DemoViewer.NET.Playback2D.Core.WorldBounds a, DemoViewer.NET.Playback2D.Core.WorldBounds b) -> DemoViewer.NET.Playback2D.Core.WorldBounds
+static DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.operator !=(DemoViewer.NET.Playback2D.Core.Zones.PlaceHit left, DemoViewer.NET.Playback2D.Core.Zones.PlaceHit right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.operator ==(DemoViewer.NET.Playback2D.Core.Zones.PlaceHit left, DemoViewer.NET.Playback2D.Core.Zones.PlaceHit right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.operator !=(DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? left, DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.operator ==(DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? left, DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.TieRuleFor(string? mapName) -> DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule
+static DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.operator !=(DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? left, DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.operator ==(DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? left, DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.operator !=(DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor left, DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.operator ==(DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor left, DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.operator !=(DemoViewer.NET.Playback2D.Core.Zones.ZonePlace? left, DemoViewer.NET.Playback2D.Core.Zones.ZonePlace? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.ZonePlace.operator ==(DemoViewer.NET.Playback2D.Core.Zones.ZonePlace? left, DemoViewer.NET.Playback2D.Core.Zones.ZonePlace? right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.operator !=(DemoViewer.NET.Playback2D.Core.Zones.ZonePlane left, DemoViewer.NET.Playback2D.Core.Zones.ZonePlane right) -> bool
+static DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.operator ==(DemoViewer.NET.Playback2D.Core.Zones.ZonePlane left, DemoViewer.NET.Playback2D.Core.Zones.ZonePlane right) -> bool
+static readonly DemoViewer.NET.Playback2D.Core.Cameras.FitAliveRig.Instance -> DemoViewer.NET.Playback2D.Core.Cameras.FitAliveRig!
+static readonly DemoViewer.NET.Playback2D.Core.Cameras.FitMapRig.Instance -> DemoViewer.NET.Playback2D.Core.Cameras.FitMapRig!
+static readonly DemoViewer.NET.Playback2D.Core.Cameras.ManualRig.Instance -> DemoViewer.NET.Playback2D.Core.Cameras.ManualRig!
+static readonly DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange.None -> DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange!
+static readonly DemoViewer.NET.Playback2D.Core.Scene2DFrame.Empty -> DemoViewer.NET.Playback2D.Core.Scene2DFrame!
+static readonly DemoViewer.NET.Playback2D.Core.SceneGameInfo.Empty -> DemoViewer.NET.Playback2D.Core.SceneGameInfo
+static readonly DemoViewer.NET.Playback2D.Core.SceneMapInfo.Unknown -> DemoViewer.NET.Playback2D.Core.SceneMapInfo!
+static readonly DemoViewer.NET.Playback2D.Core.ScenePalette.Dark -> DemoViewer.NET.Playback2D.Core.ScenePalette
+static readonly DemoViewer.NET.Playback2D.Core.ScenePalette.Light -> DemoViewer.NET.Playback2D.Core.ScenePalette
+static readonly DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.Default -> DemoViewer.NET.Playback2D.Core.SceneStrokeWidths
+static readonly DemoViewer.NET.Playback2D.Core.SceneVision.Off -> DemoViewer.NET.Playback2D.Core.SceneVision!
+static readonly DemoViewer.NET.Playback2D.Core.WorldBounds.Default -> DemoViewer.NET.Playback2D.Core.WorldBounds
+static readonly DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.None -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHit
+~override DemoViewer.NET.Playback2D.Core.AreaEffect.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.AreaEffect.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.BombMarker.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.BombMarker.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.ConePoint.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.ConePoint.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.KillFeedRow.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.KillFeedRow.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Levels.MapLevelId.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.PlayerMarker.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.PlayerMarker.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.SceneGameInfo.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.SceneGameInfo.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.ScenePalette.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.ScenePalette.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.SceneStrokeWidths.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.SceneTime.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.SceneTime.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.ShapedText.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.ShapedText.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Sightline.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Sightline.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.WorldBounds.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.WorldBounds.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.ToString() -> string
+~override DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.Equals(object obj) -> bool
+~override DemoViewer.NET.Playback2D.Core.Zones.ZonePlane.ToString() -> string

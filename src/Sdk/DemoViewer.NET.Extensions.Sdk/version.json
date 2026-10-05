@@ -11,6 +11,7 @@
     "/src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui",
     "/src/App/DemoViewer.NET.Modules.Abstractions",
     "/src/GameIcons/DemoViewer.NET.GameIcons",
+    "/src/Playback2D/DemoViewer.NET.Playback2D.Scene",
     "/assets/icons",
     "/src/App/DemoViewer.NET/Styles"
   ],

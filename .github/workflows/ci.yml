@@ -71,6 +71,7 @@ jobs:
           dotnet pack src/GameIcons/DemoViewer.NET.GameIcons -c Release --no-build -o artifacts/sdk-packages
           dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk -c Release --no-build -o artifacts/sdk-packages
           dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui -c Release --no-build -o artifacts/sdk-packages
+          dotnet pack src/Playback2D/DemoViewer.NET.Playback2D.Scene -c Release --no-build -o artifacts/sdk-packages
           ls artifacts/sdk-packages
 
   # The WASM regression net. It PUBLISHES rather than builds:
@@ -123,6 +124,7 @@ jobs:
           ls "$FW" | grep -q '^DemoViewer\.NET\.GameIcons\..*\.wasm$' || { echo "DemoViewer.NET.GameIcons did not ship, every icon will throw at runtime"; exit 1; }
           ls "$FW" | grep -q '^DemoViewer\.NET\.Extensions\.Sdk\..*\.wasm$' || { echo "the extension SDK did not ship, the app's own types reference it"; exit 1; }
           ls "$FW" | grep -q '^DemoViewer\.NET\.Extensions\.Sdk\.Ui\..*\.wasm$' || { echo "the SDK's UI kit did not ship, the app's views use its controls"; exit 1; }
+          ls "$FW" | grep -q '^DemoViewer\.NET\.Playback2D\.Scene\..*\.wasm$' || { echo "the 2D scene contract did not ship, the 2D Playback tab is built on it"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
   # The ONE core/pipeline test invocation. Do not add a second.

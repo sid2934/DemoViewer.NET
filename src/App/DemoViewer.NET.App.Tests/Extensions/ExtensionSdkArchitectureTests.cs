@@ -1,6 +1,6 @@
 namespace DemoViewer.NET.AppTests.Extensions;
 
-/// <summary>The SDK is what third parties build against, so it may reference nothing of the app's.</summary>
+/// <summary>The SDK packages are what third parties build against, so they may reference nothing of the app's.</summary>
 public class ExtensionSdkArchitectureTests
 {
     [Test]
@@ -32,12 +32,26 @@ public class ExtensionSdkArchitectureTests
     }
 
     [Test]
-    public async Task TheUiKitAndIconAssemblyVersions_AreTheSdks()
+    public async Task TheUiKitIconAndSceneAssemblyVersions_AreTheSdks()
     {
         Version sdk = typeof(IExtension).Assembly.GetName().Version!;
 
         await Assert.That(typeof(DisplayText).Assembly.GetName().Version).IsEqualTo(sdk);
         await Assert.That(typeof(GameIcons.IconCatalogue).Assembly.GetName().Version).IsEqualTo(sdk);
+        await Assert.That(typeof(Playback2D.Core.Scene2DFrame).Assembly.GetName().Version).IsEqualTo(sdk);
+    }
+
+    [Test]
+    public async Task TheSceneContract_ReferencesNothingOfThisRepo()
+    {
+        string[] ours =
+        [
+            .. typeof(Playback2D.Core.Scene2DFrame).Assembly.GetReferencedAssemblies()
+                .Select(a => a.Name!)
+                .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal) || n.StartsWith("Avalonia", StringComparison.Ordinal))
+        ];
+
+        await Assert.That(ours).IsEmpty();
     }
 
     [Test]

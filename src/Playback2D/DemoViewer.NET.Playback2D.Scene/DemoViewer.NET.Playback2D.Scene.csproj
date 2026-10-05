@@ -12,10 +12,26 @@
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
         <RootNamespace>DemoViewer.NET.Playback2D.Core</RootNamespace>
+        <!-- Published with the extension SDK at the SDK's version: the SDK's version.json path filters
+             include this project. Its public API is pinned by the PublicAPI files. -->
+        <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
+        <IsPackable>true</IsPackable>
+        <PackageId>DemoViewer.NET.Playback2D.Scene</PackageId>
+        <Description>The 2D map scene of DemoViewer.NET: the frame, the layer contract and compositor, floors and panes, place lookup, the viewport transform and the palette. SkiaSharp only.</Description>
+        <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk;skiasharp;map</PackageTags>
+        <!-- Every public member is documented: this package is read by people who cannot see the app. -->
+        <NoWarn>$(NoWarn.Replace('CS1591', ''))</NoWarn>
+        <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="SkiaSharp"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
+        <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
     </ItemGroup>
 
     <ItemGroup>

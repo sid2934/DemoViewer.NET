@@ -9,6 +9,9 @@ this package and nothing else of the app's.
 Views that should look like the app take `DemoViewer.NET.Extensions.Sdk.Ui` as well: the app's shared controls,
 the palette token and style class names, and the view-model base the host resolves views for.
 
+The 2D map's scene types are in `DemoViewer.NET.Playback2D.Scene`: the frame, the layer contract, floors,
+places and the world-to-screen transform, over SkiaSharp.
+
 ## Project
 
 ```xml
