@@ -10,8 +10,8 @@ namespace DemoViewer.NET.AppTests.Extensions;
 
 /// <summary>
 ///     The pack draws through the published scene package. What it still binds in the unpublished Playback2D
-///     assemblies is read from its metadata, not its source: the scene package declares the same namespaces
-///     as Core, so only the assembly reference tells the two apart.
+///     assemblies, and in the app itself, is read from its metadata, not its source: the scene package declares
+///     the same namespaces as Core, so only the assembly reference tells the two apart.
 /// </summary>
 public class PackPlayback2DBindingTests
 {
@@ -19,8 +19,58 @@ public class PackPlayback2DBindingTests
     private const string ReviewQueue = "the review queue stays first-party";
     private const string DemoFrames = "demo-to-frame adaptation stays first-party";
 
+    private const string Seam = "the first-party seam the container hands the pack";
+    private const string StratCanvas = "the strat canvas mounts the 2D tab's scene host, timeline and ink";
+    private const string Aliases = "the pre-prefix command ids the user's overrides were saved under";
+
     private static readonly string[] UnpublishedAssemblies =
         ["DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Pipeline"];
+
+    /// <summary>Every app type the pack may bind, with the reason. Anything else of the app goes through the SDK.</summary>
+    private static readonly (string Type, string Reason)[] AllowedApp =
+    [
+        ("DemoViewer.NET.Configuration.AppSettings", Export),
+        ("DemoViewer.NET.Configuration.Playback2DSettings", Export),
+        ("DemoViewer.NET.Configuration.SettingsService", Export),
+        ("DemoViewer.NET.Extensions.FirstPartyExports", Seam),
+        ("DemoViewer.NET.Extensions.FirstPartyHost", Seam),
+        ("DemoViewer.NET.Extensions.ICommandAliases", Aliases),
+        ("DemoViewer.NET.Extensions.IFirstPartyExportChips", Seam),
+        ("DemoViewer.NET.Extensions.IFirstPartyShellState", Seam),
+        ("DemoViewer.NET.Extensions.ScenePointer", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Annotations.AnnotationSessionController", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.IAnnotationSurface", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.IGuidesHost", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.ISceneFrameHost", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.ITokenEditingHost", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Playback2DBinding", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Playback2DBindingScope", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Playback2DKeymap", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Playback2DKeymapProfile", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Playback2DTabViewModel", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Scene2DHost", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.ScenePaletteFactory", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Timeline.Playback2DTimelineViewModel", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.Timeline.TimelineBandRow", StratCanvas),
+        ("DemoViewer.NET.Services.Dependencies.FfmpegDependency", Export),
+        ("DemoViewer.NET.Services.Export.ExportEncoding", Export),
+        ("DemoViewer.NET.Services.Export.ExportJobService", Export),
+        ("DemoViewer.NET.Services.Export.ExportRefusedException", Export),
+        ("DemoViewer.NET.Services.Export.ExportSceneSetup", Export),
+        ("DemoViewer.NET.Services.Export.IExportJobService", Export),
+        ("DemoViewer.NET.Services.Export.IExportRunner", Export),
+        ("DemoViewer.NET.Services.Export.SceneExportRunner", Export),
+        ("DemoViewer.NET.Services.HeavyJobGate", Export),
+        ("DemoViewer.NET.Services.Review.ReviewQueue", ReviewQueue),
+        ("DemoViewer.NET.ViewModels.Playback2D.AnnotationsPanelViewModel", StratCanvas),
+        ("DemoViewer.NET.ViewModels.Playback2D.ExportDialogScene", Export),
+        ("DemoViewer.NET.ViewModels.Playback2D.ExportRangeOption", Export),
+        ("DemoViewer.NET.ViewModels.Playback2D.ExportSizeOption", Export),
+        ("DemoViewer.NET.ViewModels.Playback2D.FfmpegAcquire", Export),
+        ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportDialogViewModel", Export),
+        ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportStatusViewModel", Export),
+        ("DemoViewer.NET.Views.Playback2D.TimelineControl", StratCanvas),
+    ];
 
     /// <summary>Every type the pack may bind in an unpublished Playback2D assembly, with the reason.</summary>
     private static readonly (string Assembly, string Type, string Reason)[] Allowed =
@@ -64,9 +114,24 @@ public class PackPlayback2DBindingTests
     ];
 
     [Test]
+    public async Task ThePack_BindsOnlyTheAllowedTypes_InTheApp()
+    {
+        SortedSet<string> bound = BoundTypes(typeof(StratBookPack).Assembly.Location, ["DemoViewer.NET"]);
+        SortedSet<string> allowed = new(AllowedApp.Select(a => $"DemoViewer.NET|{a.Type}"), StringComparer.Ordinal);
+
+        string[] unexpected = [.. bound.Except(allowed)];
+        string[] stale = [.. allowed.Except(bound)];
+
+        await Assert.That(unexpected).IsEmpty()
+            .Because("the pack binds these app types outside the first-party seam:\n" + string.Join("\n", unexpected));
+        await Assert.That(stale).IsEmpty()
+            .Because("these allowed app types are no longer bound, so drop them from the list:\n" + string.Join("\n", stale));
+    }
+
+    [Test]
     public async Task ThePack_BindsOnlyTheAllowedTypes_InTheUnpublishedPlayback2DAssemblies()
     {
-        SortedSet<string> bound = BoundTypes(typeof(StratBookPack).Assembly.Location);
+        SortedSet<string> bound = BoundTypes(typeof(StratBookPack).Assembly.Location, UnpublishedAssemblies);
         SortedSet<string> allowed = new(Allowed.Select(a => $"{a.Assembly}|{a.Type}"), StringComparer.Ordinal);
 
         string[] unexpected = [.. bound.Except(allowed)];
@@ -78,9 +143,9 @@ public class PackPlayback2DBindingTests
             .Because("these allowed types are no longer bound, so drop them from the list:\n" + string.Join("\n", stale));
     }
 
-    // "Assembly|Namespace.Type" for each type reference whose outermost scope is an unpublished assembly;
+    // "Assembly|Namespace.Type" for each type reference whose outermost scope is one of the assemblies;
     // nested types read "Outer+Inner".
-    private static SortedSet<string> BoundTypes(string assemblyPath)
+    private static SortedSet<string> BoundTypes(string assemblyPath, string[] assemblies)
     {
         using FileStream stream = File.OpenRead(assemblyPath);
         using PEReader pe = new(stream);
@@ -103,7 +168,7 @@ public class PackPlayback2DBindingTests
             }
 
             string assembly = md.GetString(md.GetAssemblyReference((AssemblyReferenceHandle)type.ResolutionScope).Name);
-            if (UnpublishedAssemblies.Contains(assembly))
+            if (assemblies.Contains(assembly))
             {
                 bound.Add($"{assembly}|{md.GetString(type.Namespace)}.{name}");
             }

@@ -22,10 +22,11 @@ evaluators and background jobs stop at the next poll, and its resident indexes (
 restart. Data on disk is untouched; re-enabling backfills whatever indexing was missed while it was off.
 
 The public contract is the `DemoViewer.NET.Extensions.Sdk` package (`src/Sdk/DemoViewer.NET.Extensions.Sdk`,
-author guide in its README): `IExtension`, `IExtensionContributions`, `IExtensionContext` and the SDK's
-playback types, with the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`, including the embeddable `MapView`) and
-the scene contract (`DemoViewer.NET.Playback2D.Scene`) beside it. Surfaces the SDK does not carry (export, the
-review queue, the user-work folders) stay first-party as `IFirstPartyShellState`, `IFirstPartyExportChips`,
+author guide in its README): `IExtension`, `IExtensionContributions`, `IExtensionContext` (jobs, passes, the
+library and its facts, storage, settings, notifications) and the SDK's playback types, with the UI kit
+(`DemoViewer.NET.Extensions.Sdk.Ui`, including the embeddable `MapView`) and the scene contract
+(`DemoViewer.NET.Playback2D.Scene`) beside it. Surfaces the SDK does not carry (export, the review queue, the
+user-work folders) stay first-party as `IFirstPartyShellState`, `IFirstPartyExportChips`,
 `FirstPartyExports` and `FirstPartyHost`, app types the Strat Book resolves from the container and an
 extension installed from outside the app cannot reference. Third-party extensions load from the same
 extensions folder; unverified ones only with the user's consent, and none at all in safe mode.
@@ -1717,6 +1718,19 @@ Rules as built:
   `PackPlayback2DBindingTests` reads from its metadata against a list with a reason per type; maps, map
   pictures and icons come from the UI kit's `MapAssets` and `MapIcons`. The extension grants
   `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and `DemoViewer.NET.Extensions.StratBook.Tests`.
+- **App types it binds.** Besides the SDK packages, the extension binds four groups of app types, and
+  `PackPlayback2DBindingTests` pins the list from its metadata with a reason per type. The first-party seam:
+  `IFirstPartyShellState`, `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`. Export, which stays
+  first-party: the export dialog and status view models, `ExportJobService` and its runner, `HeavyJobGate`,
+  `FfmpegDependency`, and `AppSettings`/`Playback2DSettings`/`SettingsService` for the dialog's saved choices.
+  The review queue: `ReviewQueue`. The strat canvas, which mounts the 2D tab's own host because the SDK's
+  `MapView` has no transport, timeline or ink yet: `Scene2DHost` and its `ISceneFrameHost`, `IGuidesHost`,
+  `ITokenEditingHost` and `IAnnotationSurface`, `ScenePointer`, the 2D keymap and binding types,
+  `ScenePaletteFactory`, `Playback2DTabViewModel` (one command forwards to it), the timeline view model,
+  control and band row, and the annotation controller and panel. One more, `ICommandAliases`, maps the
+  extension's pre-prefix command ids to its prefixed ones so saved keybind overrides keep working. The
+  generated-items inbox state (`GeneratedState`, `GeneratedInbox`, `GeneratedCounts`) and the atomic file
+  writer live in the extension; it tells the user about new detected strats through the SDK's notifications.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
   assembly, asks each compatible pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 2.4).
