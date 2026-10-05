@@ -362,7 +362,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // player cards while a mode of theirs is on, and their mode toggles and toolbar items sit on the
         // toolbar. The surface reads the gate and the frame live from here.
         Surface = new Playback2DSurface(Timeline, () => CaptureLevelsSource?.Invoke(),
-            id => _features?.IsEnabled(id) ?? true, () => CurrentFrame);
+            id => _features?.IsEnabled(id) ?? true, () => CurrentFrame, () => Zones);
         Surface.SidePaneOpened += CloseExport;
         Surface.PanelsChanged += RaisePanelState;
 

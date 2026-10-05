@@ -113,6 +113,13 @@ A key bound to your command reaches your action handler (`IPlaybackSurface.AddAc
 toolbar item or mode toggle whose action id names it, and only while the extension is on.
 `IPlaybackSurface.ActionIds` lists every id the keymap knows, the other extensions' included.
 
+## The map
+
+`IPlaybackSurface.Levels` lists the shown map's floors, lowest first. `Places` lists its named places, and
+`PlaceAt(level, x, y)` answers the place at a world point on a floor, by the floor's name, or null for the
+map's only floor. Both are empty or null on a map with no zones. A pointer handler's `PlaybackPointer.PlaceAt`
+gives the same answer for the point pressed.
+
 ## The host
 
 `services.GetExtensionContext(Id)` returns the extension's `IExtensionContext`:

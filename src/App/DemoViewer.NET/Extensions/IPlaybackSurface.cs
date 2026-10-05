@@ -10,6 +10,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
@@ -27,6 +28,12 @@ public interface IPlaybackSurface
     ///     no surface with levels is mounted (the legacy viewport, a headless test).
     /// </summary>
     IReadOnlyList<MapLevel> MapLevels { get; }
+
+    /// <summary>
+    ///     The open map's place resolver, or null when the map has no zones or none is open. Read on demand:
+    ///     the first read loads the zones file, and a zones reload replaces the instance, so never cache it.
+    /// </summary>
+    PlaceResolver? Zones { get; }
 
     /// <summary>The tab's resolved keymap: the shipped table under the user's overrides. Replaced whole on a rebind.</summary>
     Playback2DKeymapProfile Keymap { get; }

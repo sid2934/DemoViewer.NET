@@ -10,6 +10,7 @@ using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
@@ -35,6 +36,7 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     private readonly Func<string, bool> _isEnabled;
     private readonly List<Func<Key, KeyModifiers, bool>> _keyHandlers = [];
     private readonly Func<IReadOnlyList<MapLevel>?> _levels;
+    private readonly Func<PlaceResolver?> _zones;
     private readonly List<PaneHandle> _panes = [];
     private readonly List<Playback2DPanel> _panels = [];
     private readonly List<Action<int>> _playheadHandlers = [];
@@ -50,8 +52,9 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     /// <param name="levels">The mounted viewport's levels, read on demand; null for none.</param>
     /// <param name="isEnabled">The tab's feature gate; a tab without one answers true.</param>
     /// <param name="frame">The frame on screen, read on demand (a toolbar item's run gets it at invocation).</param>
+    /// <param name="zones">The open map's place resolver, read on demand; null for a surface with no map.</param>
     internal Playback2DSurface(Playback2DTimelineViewModel timeline, Func<IReadOnlyList<MapLevel>?> levels,
-        Func<string, bool> isEnabled, Func<Scene2DFrame> frame)
+        Func<string, bool> isEnabled, Func<Scene2DFrame> frame, Func<PlaceResolver?>? zones = null)
     {
         ArgumentNullException.ThrowIfNull(timeline);
         ArgumentNullException.ThrowIfNull(levels);
@@ -61,6 +64,7 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         _levels = levels;
         _isEnabled = isEnabled;
         _frame = frame;
+        _zones = zones ?? (() => null);
     }
 
     /// <summary>A side pane opened. The tab closes the export pane on it.</summary>
@@ -95,6 +99,9 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
 
     /// <inheritdoc />
     public IReadOnlyList<MapLevel> MapLevels => _levels() ?? [];
+
+    /// <inheritdoc />
+    public PlaceResolver? Zones => _zones();
 
     /// <inheritdoc />
     public Playback2DKeymapProfile Keymap { get; private set; } = Playback2DKeymapProfile.Default;

@@ -13,6 +13,26 @@ public interface IPlaybackSurface
     IReadOnlyList<PlaybackLevel> Levels { get; }
 
     /// <summary>
+    ///     The named places of the mounted map, distinct and in ordinal order; empty when the map has no zones
+    ///     or no map is shown. The names are the ones <see cref="PlaceAt" /> answers with.
+    /// </summary>
+    IReadOnlyList<string> Places { get; }
+
+    /// <summary>
+    ///     The named place at a world point on one floor: a place volume on that floor, else the nearest area
+    ///     of that floor within snapping distance. Null where the map has no zones, nothing is near, no floor
+    ///     is shown, or <paramref name="level" /> names no floor in <see cref="Levels" />. Cheap enough to call
+    ///     per pointer move; the map's zones file is read once, on the first call.
+    /// </summary>
+    /// <param name="level">
+    ///     A <see cref="PlaybackLevel.Name" />, or null for the map's only floor. Null on a map with several
+    ///     floors answers null, since the point is ambiguous.
+    /// </param>
+    /// <param name="worldX">World X.</param>
+    /// <param name="worldY">World Y.</param>
+    string? PlaceAt(string? level, double worldX, double worldY);
+
+    /// <summary>
     ///     The ids of every action the keymap knows: the tab's own and every extension's commands. What
     ///     <see cref="GestureHint" /> and <see cref="AddActionHandler" /> name.
     /// </summary>

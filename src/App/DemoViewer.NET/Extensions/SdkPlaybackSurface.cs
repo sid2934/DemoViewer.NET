@@ -7,6 +7,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using Core = DemoViewer.NET.Playback2D.Core.Timeline;
 using SdkP = DemoViewer.NET.Extensions.Sdk.Playback;
 
@@ -77,6 +78,12 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public IReadOnlyList<SdkP.PlaybackLevel> Levels =>
         [.. _surface.MapLevels.Select(l => new SdkP.PlaybackLevel(l.Name, l.ZMin, l.ZMax))];
 
+    public IReadOnlyList<string> Places =>
+        _surface.Zones is { } zones
+            ? [.. zones.Zones.Places.Select(p => p.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)]
+            : [];
+
     public IReadOnlyCollection<string> ActionIds => CommandRegistry.Default.ActionIds;
 
     public event Action? KeymapChanged;
@@ -93,6 +100,15 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     {
         ArgumentNullException.ThrowIfNull(handler);
         return Own(_surface.OnPlayheadChanged(_guard.Wrap("playhead handler", handler, FaultKind.Recurring)));
+    }
+
+    public string? PlaceAt(string? level, double worldX, double worldY)
+    {
+        IReadOnlyList<MapLevel> levels = _surface.MapLevels;
+        MapLevel? floor = level is null
+            ? levels.Count == 1 ? levels[0] : null
+            : levels.FirstOrDefault(l => string.Equals(l.Name, level, StringComparison.Ordinal));
+        return floor is null ? null : PlaceOnFloor(_surface.Zones, floor, worldX, worldY);
     }
 
     public string GestureHint(string actionId) => actionId is null ? "" : _surface.GestureHint(actionId);
@@ -242,10 +258,13 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             keys |= KeyModifiers.Alt;
         }
 
-        double floorKey = MapSpace.QuantizeZ(p.Level.ZMin);
         return new SdkP.PlaybackPointer(p.Level.Name, p.WorldX, p.WorldY, p.Screen.X, p.Screen.Y, keys, p.Frame.Time.Tick,
-            () => p.Zones()?.ResolveOnFloor(p.WorldX, p.WorldY, floorKey).Name);
+            () => PlaceOnFloor(p.Zones(), p.Level, p.WorldX, p.WorldY));
     }
+
+    // A floor's key is its quantized lower bound, the same key the zone set's floors are stored under.
+    private static string? PlaceOnFloor(PlaceResolver? zones, MapLevel floor, double worldX, double worldY) =>
+        zones?.ResolveOnFloor(worldX, worldY, MapSpace.QuantizeZ(floor.ZMin)).Name;
 
     private IDisposable Own(IDisposable registration)
     {
