@@ -1126,6 +1126,7 @@ public class App : Application
             if (shell.ModuleContext is ModuleContext moduleContext)
             {
                 moduleContext.SetServices(sp);
+                moduleContext.SetFaults(sp.GetService<ExtensionFaults>());
             }
 
             // The chip slots the packs contribute (the Strat export chip, in a slot the pack

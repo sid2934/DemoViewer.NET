@@ -4,6 +4,7 @@ using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.ViewModels.Playback;
@@ -53,6 +54,9 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     // so a live pack toggle is always reflected.
     private readonly Dictionary<Type, Func<object?>> _serviceLookups = new();
     private IServiceProvider? _services;
+    private ExtensionFaults? _faults;
+    private readonly MulticastGuard<Action<IPlaybackSnapshot>> _advancedGuard = new("playback frame handler", FaultKind.Recurring);
+    private readonly MulticastGuard<Action> _demoResetGuard = new("demo reset handler");
 
     // The demo's pre-decoded flat event list (set once at load, mirroring SetRoster) + a per-name cache of
     // the projected GameEventView timeline. A module pre-builds its own windowed view from a timeline; the
@@ -237,7 +241,24 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     ///     can only OBSERVE this via <see cref="IModuleContext.DemoReset" /> (read-only guardrail); only
     ///     the host raises it. Inactive modules aren't subscribed and resync on their next activation instead.
     /// </summary>
-    public void RaiseDemoReset() => DemoReset?.Invoke();
+    public void RaiseDemoReset()
+    {
+        if (_faults is null)
+        {
+            DemoReset?.Invoke();
+        }
+        else
+        {
+            _demoResetGuard.Invoke(_faults, DemoReset, 0, static (h, _) => h());
+        }
+    }
+
+    /// <summary>
+    ///     Contains extension handlers on <see cref="Advanced" /> and <see cref="DemoReset" />: a handler whose
+    ///     method is an extension's is run as the extension's, so a throw neither stops the frame nor skips the
+    ///     subscribers after it. Host handlers still throw.
+    /// </summary>
+    public void SetFaults(ExtensionFaults? faults) => _faults = faults;
 
     /// <summary>
     ///     Host-side relay for <see cref="IModuleContext.NotifySpectateTarget" /> (csvg-integration
@@ -352,7 +373,14 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
 
         RebuildPlayerJoin();
         AimEntityView();
-        Advanced.Invoke(_snapshot);
+        if (_faults is null)
+        {
+            Advanced.Invoke(_snapshot);
+        }
+        else
+        {
+            _advancedGuard.Invoke(_faults, Advanced, _snapshot, static (h, snapshot) => h(snapshot));
+        }
     }
 
     // Re-aim the pooled entity view at the current authoritative entity set.
