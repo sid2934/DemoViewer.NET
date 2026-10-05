@@ -273,8 +273,8 @@ the mode and the session are the pack's, and the three hooks the panel work left
   to watch.
 
 The contribution (`ReviewPanelsPlaybackContribution`, now `IDisposable` because it owns the track) builds the
-`TagSession` on attach from `context.GetService<T>()`: `TagStore` (null for session-only tags), `DemoCacheStore`
-for the rounds a new tag's `round` is derived from, and `IRoundFactsSource` for its facts. It registers
+`TagSession` on attach: `TagStore` (null for session-only tags) from `context.GetService<T>()`, the SDK library
+for the rounds a new tag's `round` is derived from, and the library's `Facts.RoundFacts` for its facts. It registers
 `TagTrack` and `ProposalTrack` on the lane row in that order with a `TagLaneBehaviour` (Label Mode's pick on a
 press, the edit and delete entries, the new label on an empty-lane click, the editor's span on a handle drag)
 and a `ProposalLaneBehaviour` (the queue's pick on a press, the review entries); the proposal track's
@@ -1457,7 +1457,8 @@ stores are user work and must be called out by name in the confirmation.
 rows for every user. The `round_facts` ruleset is a core stamped ruleset, so it rides every merged run with
 the pack on or off and never enters the highlights fingerprint. The rows are the record's own
 `DemoCacheRecord.RoundFacts` member; rows an older build kept in the pack's payload are lifted onto it on
-read, under the same stamp, so nothing re-runs. "Delete extension data" leaves them.
+read, under the same stamp, so nothing re-runs. "Delete extension data" leaves them. The pack reads them only
+through the SDK's `IAnalysisFacts.RoundFacts` on its library, with the SDK's `RoundFacts` row types.
 
 **Stale cache while off.** Library keeps indexing new demos without pack passes. The pack fields of those
 records are absent, or the `Packs` entry itself is missing. Fields of records indexed
