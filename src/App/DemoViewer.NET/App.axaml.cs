@@ -730,6 +730,10 @@ public class App : Application
         // resolution then fails loudly here rather than at first use in the UI enforcement.
         services.AddSingleton<IFeatureGate, FeatureGate>();
 
+        // The fault tracker the desktop head built before Avalonia started, or one over these packs in a
+        // host that did not. The gate takes it, so a failing extension is switched off through the gate.
+        services.AddSingleton(_ => ExtensionFaults.Current ?? ExtensionFaults.For(packs));
+
         // The central theme registry: the single source of truth for the
         // available themes: native dark / light / system plus the built-in custom variants (High-Contrast,
         // E-Girl) and any user drop-in from <config>/themes/. SINGLETON because it OWNS the one merged

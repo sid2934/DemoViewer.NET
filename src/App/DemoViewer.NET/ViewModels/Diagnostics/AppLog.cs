@@ -60,6 +60,20 @@ internal static partial class AppLog
         Message = "Removed staged extension directory '{directory}' ({reason})")]
     public static partial void ExtensionStagingRemoved(ILogger logger, string directory, string reason);
 
+    /// <summary>
+    ///     Extension code threw at a host call site and the host carried on. <paramref name="count" /> is the
+    ///     extension's counted faults this session; a site that keeps throwing is logged a few times, then
+    ///     rarely. <paramref name="exception" /> is null for a binding error, which has no exception.
+    /// </summary>
+    [LoggerMessage(EventId = 22, Level = LogLevel.Warning,
+        Message = "Extension {name} failed in {site} ({count} counted this session)")]
+    public static partial void ExtensionFaulted(ILogger logger, string name, string site, int count, Exception? exception);
+
+    /// <summary>An extension crossed the fault threshold and was turned off until the app restarts.</summary>
+    [LoggerMessage(EventId = 23, Level = LogLevel.Warning,
+        Message = "Extension {name} turned off for this session after {count} errors (last: {site})")]
+    public static partial void ExtensionSuspended(ILogger logger, string name, int count, string site);
+
     [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "Reel generation failed.\n{diagnostics}")]
     public static partial void ReelGenerationFailed(ILogger logger, string diagnostics);
 
