@@ -26,4 +26,10 @@ public static class HostIds
 
     /// <summary>The library indexer's pass: name it in <c>after</c> to run on a demo once its cache record is written.</summary>
     public const string LibraryPass = "library";
+
+    /// <summary>
+    ///     The Round Facts pass: name it in <c>after</c> to run on a demo once its per-round, per-side rows
+    ///     are written.
+    /// </summary>
+    public const string RoundFactsPass = "roundfacts";
 }

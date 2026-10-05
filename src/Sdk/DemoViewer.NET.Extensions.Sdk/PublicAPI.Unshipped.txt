@@ -907,6 +907,7 @@ const DemoViewer.NET.Extensions.Sdk.HostIds.MatchOverviewFeature = "tab.matchove
 const DemoViewer.NET.Extensions.Sdk.HostIds.MatchOverviewTab = "builtin.matchoverview" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DFeature = "tab.playback2d" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DTab = "playback2d.viewport" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass = "roundfacts" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.StatsTab = "builtin.stats" -> string!
 override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.GetHashCode() -> int

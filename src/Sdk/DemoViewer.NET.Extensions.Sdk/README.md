@@ -137,6 +137,9 @@ time budget is switched off for the session.
 contributions.Pass("dev.example.rounds", () => rounds, HostIds.LibraryPass);
 ```
 
+`after` names the passes whose output yours reads: `HostIds.LibraryPass` for the demo's cache record and
+`HostIds.RoundFactsPass` for its per-round, per-side rows.
+
 A job that names a demo joins that demo's visit: it runs after the passes on the same parse, or on the parse
 the shell already holds when the demo is open, and holds the parse until its task ends.
 
