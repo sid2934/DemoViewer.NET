@@ -1,190 +1,129 @@
 #region
 
-using DemoViewer.NET.Services.DemoCache;
+using System.Text;
 
 #endregion
 
 namespace DemoViewer.NET.Services.RoundIndex;
 
 /// <summary>
-///     The <c>.dvri.json</c> sidecars and their <c>.dvrp.json.gz</c> positions siblings: one pair per
-///     demo under <c>&lt;config&gt;/cache/round-index/</c>, named by <see cref="DemoCacheStore.StableKey" />
-///     like the record sidecars beside them. The stamp that says whether a pair is current lives on the
-///     record; this store only holds the payloads.
+///     Each demo's round index and its positions, kept as the Strat Book's per-demo data: one facet whose main
+///     payload is the <see cref="RoundIndexDocument" /> and whose <see cref="PositionsPart" /> is the
+///     <see cref="RoundPositionsDocument" />, both under one stamp. The stamp says whether a demo's index is
+///     current for its map's fingerprint; it is read from the store's index, so asking opens no file.
 ///     <para>
-///         Same durability rules as the cache it sits beside: atomic writes (temp file and replace) so
-///         a crash mid-write never leaves a half-file that reads as an index, in memory when there is no
-///         cache root (the browser host, tests), and a corrupt file is simply "absent" so its demo
-///         re-indexes. Two things the cache does not do for a sibling directory it does not know about
-///         are done here: a <see cref="DemoCacheStore.Changed" /> subscriber deletes the files of a
-///         demo that left the index, and <see cref="SweepOrphans" /> deletes at startup any file whose
-///         key the index no longer carries. Orphans are harmless, they just cost disk.
-///     </para>
-///     <para>
-///         The positions file is written first and the sidecar second (the evaluator's order), so a
-///         crash between them leaves a positions file with no index, which the sweep or the next build
-///         overwrites, and never an index whose cards have nothing to draw.
+///         The host writes the positions part first, the index second and the stamp last, so a crash between
+///         any two leaves "not indexed", never an index whose cards have nothing to draw. A file that does not
+///         parse reads as absent and its demo is indexed again. A demo that leaves the library loses its data.
 ///     </para>
 /// </summary>
-public sealed class RoundIndexStore : IDisposable
+public sealed class RoundIndexStore
 {
-    /// <summary>The sidecar suffix; the whole file name is <c>&lt;StableKey&gt;.dvri.json</c>.</summary>
-    public const string Suffix = ".dvri.json";
+    /// <summary>The facet's name in the per-demo data.</summary>
+    public const string Facet = "round-index";
 
-    /// <summary>The positions sibling's suffix; the whole file name is <c>&lt;StableKey&gt;.dvrp.json.gz</c>.</summary>
-    public const string PositionsSuffix = ".dvrp.json.gz";
+    /// <summary>The positions part's name.</summary>
+    public const string PositionsPart = "positions";
 
-    private readonly DemoCacheStore _demoCache;
-    private readonly object _gate = new();
+    /// <summary>The index document's shape. Part of the stamp and of the fingerprint, so a bump re-indexes alone.</summary>
+    public const int Schema = 1;
 
-    // In-memory sidecars and positions, keyed by stable key, used when there is no cache root.
-    private readonly Dictionary<string, string> _memory = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, byte[]> _memoryPositions = new(StringComparer.Ordinal);
-    private readonly string? _root;
-
-    private bool _disposed;
-
-    /// <param name="cacheRoot">The cache directory (<c>&lt;config&gt;/cache</c>), or null for an in-memory store.</param>
-    /// <param name="demoCache">The index the sidecars follow: a demo it forgets loses its files here.</param>
-    public RoundIndexStore(string? cacheRoot, DemoCacheStore demoCache)
+    /// <param name="data">The extension's per-demo data.</param>
+    public RoundIndexStore(IExtensionDemoData data)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
-        _root = cacheRoot is null ? null : Path.Combine(cacheRoot, "round-index");
-        _demoCache = demoCache;
-        _demoCache.Changed += OnCacheChanged;
+        ArgumentNullException.ThrowIfNull(data);
+        Data = data;
     }
 
-    /// <summary>The sidecar directory, or null in memory.</summary>
-    public string? Root => _root;
+    /// <summary>The per-demo data the facet lives in.</summary>
+    public IExtensionDemoData Data { get; }
 
-    /// <inheritdoc />
-    public void Dispose()
+    /// <summary>Raised on the UI thread when a demo's stamp moved, with its path, or null for many.</summary>
+    public event Action<string?>? Changed
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        _demoCache.Changed -= OnCacheChanged;
+        add => Data.Changed += value;
+        remove => Data.Changed -= value;
     }
 
-    /// <summary>The sidecar path for a demo, or null in memory.</summary>
-    /// <param name="demoPath">The demo's path as the library knows it.</param>
-    public string? PathFor(string demoPath) =>
-        _root is null ? null : Path.Combine(_root, DemoCacheStore.StableKey(demoPath) + Suffix);
-
-    /// <summary>The positions file path for a demo, or null in memory.</summary>
-    /// <param name="demoPath">The demo's path as the library knows it.</param>
-    public string? PositionsPathFor(string demoPath) =>
-        _root is null ? null : Path.Combine(_root, DemoCacheStore.StableKey(demoPath) + PositionsSuffix);
-
-    /// <summary>Writes a demo's sidecar atomically. Throws on an I/O failure: the evaluator stamps Failed from it.</summary>
+    /// <summary>A demo's stamp, or null when it was never indexed.</summary>
     /// <param name="demoPath">The demo's path.</param>
-    /// <param name="document">The index to write.</param>
-    public void Write(string demoPath, RoundIndexDocument document)
-    {
-        ArgumentNullException.ThrowIfNull(document);
-        string json = document.Serialize();
-        string? file = PathFor(demoPath);
-        if (file is null)
-        {
-            lock (_gate)
-            {
-                _memory[DemoCacheStore.StableKey(demoPath)] = json;
-            }
+    public DemoDataStamp? Stamp(string demoPath) => Data.Stamp(demoPath, Facet);
 
-            return;
-        }
+    /// <summary>Every demo's stamp.</summary>
+    public IReadOnlyList<DemoDataStamp> Stamps() => Data.Stamps(Facet);
 
-        AtomicFile.WriteAllText(file, json);
-    }
-
-    /// <summary>Writes a demo's positions file atomically, gzipped. Throws on an I/O failure like <see cref="Write" />.</summary>
+    /// <summary>Is the demo's index current under <paramref name="fingerprint" />?</summary>
     /// <param name="demoPath">The demo's path.</param>
-    /// <param name="positions">The positions to write.</param>
-    public void WritePositions(string demoPath, RoundPositionsDocument positions)
-    {
-        ArgumentNullException.ThrowIfNull(positions);
-        byte[] bytes = positions.SerializeGzip();
-        string? file = PositionsPathFor(demoPath);
-        if (file is null)
-        {
-            lock (_gate)
-            {
-                _memoryPositions[DemoCacheStore.StableKey(demoPath)] = bytes;
-            }
+    /// <param name="fingerprint">The fingerprint in force for the demo's map.</param>
+    public bool IsCurrent(string demoPath, string fingerprint) => Stamp(demoPath)?.IsCurrent(Schema, fingerprint) ?? false;
 
-            return;
-        }
-
-        AtomicFile.WriteAllBytes(file, bytes);
-    }
-
-    /// <summary>A demo's sidecar, or null when it is missing or does not parse.</summary>
+    /// <summary>Does the demo want indexing? A failed demo does not: retry is the user's call.</summary>
     /// <param name="demoPath">The demo's path.</param>
-    public RoundIndexDocument? TryRead(string demoPath)
-    {
-        string? file = PathFor(demoPath);
-        if (file is null)
-        {
-            string? json = TryReadText(demoPath);
-            return json is null ? null : RoundIndexDocument.TryDeserialize(json);
-        }
+    /// <param name="fingerprint">The fingerprint in force for the demo's map.</param>
+    public bool Needs(string demoPath, string fingerprint) =>
+        Stamp(demoPath) is not { State: DemoDataState.Failed } && !IsCurrent(demoPath, fingerprint);
 
-        try
-        {
-            return File.Exists(file) ? SidecarJson.ReadFile<RoundIndexDocument>(file, RoundIndexDocument.JsonOptions) : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
+    /// <summary>True when the demo's last index failed.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public bool IsFailed(string demoPath) => Stamp(demoPath) is { State: DemoDataState.Failed };
+
+    /// <summary>When the demo's index was written (UTC ticks), or 0: the Watched Situations watermark.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public long ComputedAtTicks(string demoPath) => Stamp(demoPath)?.WrittenAtTicks ?? 0;
 
     /// <summary>
-    ///     A demo's positions file, or null when it is missing, does not inflate or parse, was built
-    ///     under another fingerprint than <paramref name="expectedFingerprint" />, or names another
-    ///     demo's hash than <paramref name="sha256" /> (the sidecar's own rule: a reader with a hash
-    ///     ignores a mismatching file). A stale file is "absent", so a card shows the placeholder rather
-    ///     than positions the current rows were not built from.
+    ///     Writes a demo's index and positions under <paramref name="fingerprint" /> and stamps them, the row count
+    ///     on the stamp. Throws on an I/O failure: the evaluator marks the demo failed from it.
+    /// </summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="document">The index.</param>
+    /// <param name="positions">The positions the cards draw.</param>
+    /// <param name="fingerprint">The fingerprint the index was built under.</param>
+    /// <returns>The new stamp, or null when nothing is kept.</returns>
+    public DemoDataStamp? Write(string demoPath, RoundIndexDocument document, RoundPositionsDocument positions, string fingerprint)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        ArgumentNullException.ThrowIfNull(positions);
+        return Data.Write(demoPath, new DemoDataWrite(Facet, Schema, fingerprint, Encoding.UTF8.GetBytes(document.Serialize()))
+        {
+            Parts = new Dictionary<string, ReadOnlyMemory<byte>> { [PositionsPart] = positions.SerializeUtf8() },
+            Count = document.RowCount
+        });
+    }
+
+    /// <summary>A demo's index whatever fingerprint it was built under, or null when there is none or it does not parse.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public RoundIndexDocument? TryRead(string demoPath) =>
+        TryReadText(demoPath) is { } json ? RoundIndexDocument.TryDeserialize(json) : null;
+
+    /// <summary>A demo's index text, or null when there is none.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public string? TryReadText(string demoPath) =>
+        Data.ReadAny(demoPath, Facet) is { Schema: Schema } record ? Encoding.UTF8.GetString(record.Content) : null;
+
+    /// <summary>
+    ///     A demo's positions, or null when there are none, they do not parse, they were built under another
+    ///     fingerprint than <paramref name="expectedFingerprint" />, or they name another demo's hash than
+    ///     <paramref name="sha256" />. Stale positions read as absent, so a card shows the placeholder rather than
+    ///     positions the current rows were not built from.
     /// </summary>
     /// <param name="demoPath">The demo's path.</param>
     /// <param name="expectedFingerprint">The fingerprint in force, or null to accept any.</param>
     /// <param name="sha256">The record's hash, or null when neither side has one.</param>
-    public RoundPositionsDocument? TryReadPositions(string demoPath, string? expectedFingerprint = null,
-        string? sha256 = null)
+    public RoundPositionsDocument? TryReadPositions(string demoPath, string? expectedFingerprint = null, string? sha256 = null)
     {
-        string? file = PositionsPathFor(demoPath);
-        RoundPositionsDocument? positions;
-        if (file is null)
-        {
-            byte[]? bytes;
-            lock (_gate)
-            {
-                bytes = _memoryPositions.GetValueOrDefault(DemoCacheStore.StableKey(demoPath));
-            }
-
-            positions = bytes is null ? null : RoundPositionsDocument.TryDeserializeGzip(bytes);
-        }
-        else
-        {
-            positions = RoundPositionsDocument.TryReadFile(file);
-        }
-
-        if (positions is null)
+        if (Data.ReadAny(demoPath, Facet, PositionsPart) is not { Schema: Schema } record
+            || RoundPositionsDocument.TryDeserialize(record.Content) is not { } positions)
         {
             return null;
         }
 
-        if (expectedFingerprint is not null
-            && !string.Equals(positions.Fingerprint, expectedFingerprint, StringComparison.Ordinal))
+        if (expectedFingerprint is not null && !string.Equals(positions.Fingerprint, expectedFingerprint, StringComparison.Ordinal))
         {
             return null;
         }
 
-        if (sha256 is not null && positions.Demo.Sha256 is { } written
-            && !string.Equals(written, sha256, StringComparison.OrdinalIgnoreCase))
+        if (sha256 is not null && positions.Demo.Sha256 is { } written && !string.Equals(written, sha256, StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }
@@ -192,142 +131,18 @@ public sealed class RoundIndexStore : IDisposable
         return positions;
     }
 
-    /// <summary>A demo's sidecar text, or null when it is missing or unreadable.</summary>
+    /// <summary>Marks the demo's index failed; it leaves the backlog until the user retries it.</summary>
     /// <param name="demoPath">The demo's path.</param>
-    public string? TryReadText(string demoPath)
-    {
-        string? file = PathFor(demoPath);
-        if (file is null)
-        {
-            lock (_gate)
-            {
-                return _memory.GetValueOrDefault(DemoCacheStore.StableKey(demoPath));
-            }
-        }
+    public void MarkFailed(string demoPath) => Data.MarkFailed(demoPath, Facet);
 
-        try
-        {
-            return File.Exists(file) ? File.ReadAllText(file) : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>Forgets a demo's sidecar and positions file. Best effort: a file that will not delete is an orphan the next sweep takes.</summary>
+    /// <summary>Lifts a failed demo back to pending.</summary>
     /// <param name="demoPath">The demo's path.</param>
-    public void Delete(string demoPath)
-    {
-        string? file = PathFor(demoPath);
-        if (file is null)
-        {
-            lock (_gate)
-            {
-                string key = DemoCacheStore.StableKey(demoPath);
-                _memory.Remove(key);
-                _memoryPositions.Remove(key);
-            }
+    public void ClearFailed(string demoPath) => Data.ClearFailed(demoPath, Facet);
 
-            return;
-        }
+    /// <summary>Marks every demo's index for a rebuild; the old rows keep answering until each is rebuilt.</summary>
+    public void InvalidateAll() => Data.Invalidate(Facet);
 
-        TryDelete(file);
-        TryDelete(PositionsPathFor(demoPath)!);
-    }
-
-    /// <summary>
-    ///     Deletes every sidecar and positions file whose key is not in the index: demos removed while
-    ///     the app was not running, or whose record lost its stamp. Returns how many files went. Call
-    ///     it off the UI thread.
-    /// </summary>
-    public int SweepOrphans()
-    {
-        HashSet<string> live = new(StringComparer.Ordinal);
-        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
-        {
-            live.Add(DemoCacheStore.StableKey(entry.Path));
-        }
-
-        if (_root is null)
-        {
-            lock (_gate)
-            {
-                List<string> gone = [.. _memory.Keys.Where(k => !live.Contains(k))];
-                foreach (string key in gone)
-                {
-                    _memory.Remove(key);
-                }
-
-                List<string> gonePositions = [.. _memoryPositions.Keys.Where(k => !live.Contains(k))];
-                foreach (string key in gonePositions)
-                {
-                    _memoryPositions.Remove(key);
-                }
-
-                return gone.Count + gonePositions.Count;
-            }
-        }
-
-        int removed = 0;
-        try
-        {
-            if (!Directory.Exists(_root))
-            {
-                return 0;
-            }
-
-            foreach ((string pattern, string suffix) in new[] { ("*" + Suffix, Suffix), ("*" + PositionsSuffix, PositionsSuffix) })
-            {
-                foreach (string file in Directory.EnumerateFiles(_root, pattern))
-                {
-                    string name = Path.GetFileName(file);
-                    string key = name[..^suffix.Length];
-                    if (live.Contains(key))
-                    {
-                        continue;
-                    }
-
-                    if (TryDelete(file))
-                    {
-                        removed++;
-                    }
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // A directory that cannot be listed has nothing to sweep.
-        }
-
-        return removed;
-    }
-
-    // A path that changed and is no longer in the index was removed: its files go with it. A null
-    // path is a batch; the startup sweep and the query service's diff cover those.
-    private void OnCacheChanged(string? path)
-    {
-        if (path is not null && _demoCache.TryGetIndex(path) is null)
-        {
-            Delete(path);
-        }
-    }
-
-    private static bool TryDelete(string file)
-    {
-        try
-        {
-            if (!File.Exists(file))
-            {
-                return false;
-            }
-
-            File.Delete(file);
-            return true;
-        }
-        catch (Exception)
-        {
-            return false; // Best effort.
-        }
-    }
+    /// <summary>Forgets a demo's index and positions.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public void Delete(string demoPath) => Data.Delete(demoPath, Facet);
 }

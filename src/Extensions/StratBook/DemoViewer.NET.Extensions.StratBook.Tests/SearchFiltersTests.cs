@@ -458,7 +458,7 @@ public class SearchFiltersTests
         private Harness()
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Facts = new FakeFacts();
             Teams = new TeamIdentityService(null, Cache, Facts, run: _inline);
@@ -539,8 +539,8 @@ public class SearchFiltersTests
 
             DemoCacheStore.StampParse(record);
             record.SetStamp(new PackStamp(RoundFactsEvaluator.EvaluatorId, 0, "rf-A") { State = DemoAnalysisState.Pending });
-            record.StampRoundIndex(document.Fingerprint, 100, document.RowCount);
             Cache.Upsert(record);
+            Cache.StampRoundIndex(path, document.Fingerprint, 100, document.RowCount);
         }
 
         public void Dispose()
@@ -549,7 +549,6 @@ public class SearchFiltersTests
             Index.Dispose();
             Provenance.Dispose();
             Teams.Dispose();
-            Sidecars.Dispose();
         }
     }
 

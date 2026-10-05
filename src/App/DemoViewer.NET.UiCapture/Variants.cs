@@ -1426,7 +1426,7 @@ public static partial class Variants
                 () => new SuggestedTagsTuningViewModel(
                     new SuggestedTagsTuningService(
                         cache,
-                        new SuggestedTagsService(cache, new ProposalStore(null, cache), null, new SiteRegionStore(null),
+                        new SuggestedTagsService(cache, new ProposalStore(MemoryDemoData.For(cache)), null, new SiteRegionStore(null),
                             () => new ProfileStore(null).Current, () => true, () => false),
                         null,
                         new SiteRegionStore(null),

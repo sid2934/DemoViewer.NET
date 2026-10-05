@@ -44,7 +44,6 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
 
     private readonly IServiceProvider _sp;
     private readonly StratBookPackInstances _instances;
-    private readonly TimeSpan _migrationDelay;
     private IJobHandle? _release;
 
     // Bumped by every enable and disable; an item queued under an older value does nothing when it runs.
@@ -52,21 +51,16 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
 
     /// <param name="sp">The composition root, resolved from the same container <see cref="StratBookPack.Register" /> fed.</param>
     /// <param name="instances">The pack's live-state tracker, so shutdown never constructs a store that nothing opened.</param>
-    /// <param name="migrationDelay">
-    ///     How long after enabling the one-off sidecar migrations wait; 30 seconds in production, overridable
-    ///     so a test can pin their labels without waiting.
-    /// </param>
-    public StratBookLifecycle(IServiceProvider sp, StratBookPackInstances instances, TimeSpan? migrationDelay = null)
+    public StratBookLifecycle(IServiceProvider sp, StratBookPackInstances instances)
     {
         ArgumentNullException.ThrowIfNull(sp);
         ArgumentNullException.ThrowIfNull(instances);
         _sp = sp;
         _instances = instances;
-        _migrationDelay = migrationDelay ?? TimeSpan.FromSeconds(30);
     }
 
     /// <inheritdoc />
-    /// <remarks>Completes when the loads and the attach have run (or were dropped). The migrations are not awaited.</remarks>
+    /// <remarks>Completes when the loads and the attach have run (or were dropped).</remarks>
     public Task OnEnabledAsync(ExtensionStartReason reason, CancellationToken ct)
     {
         int epoch = Interlocked.Increment(ref _epoch);
@@ -120,23 +114,6 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
         // The grenade index's startup load: every current rows sibling; the Utility Book says it is reading.
         GrenadeIndex grenadeIndex = _sp.GetRequiredService<GrenadeIndex>();
         Task grenadesLoad = PackItem(jobs, BuiltInJobKinds.Load, "Load: grenade index", epoch, grenadeIndex.Load, ct);
-
-        // One-off re-encode of pre-gzip record and grenade sidecars: no parse, a processing queue job that
-        // steps aside between batches, marker-gated once a pass converts everything it found. Queued after
-        // the delay so startup loads are not competing for the disk.
-        if (!OperatingSystem.IsBrowser())
-        {
-            DemoCacheStore demoCache = _sp.GetRequiredService<DemoCacheStore>();
-            _ = Task.Delay(_migrationDelay, ct).ContinueWith(_ =>
-                {
-                    SubmitSidecarMigration(jobs, demoCache,
-                        [demoCache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(demoCache, path)]);
-
-                    // Grenade rows to throw logs and one flight per lineup position; see GrenadeStoreMigration.
-                    GrenadeStoreMigration.Submit(jobs, demoCache, grenadeIndex);
-                },
-                ct, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
-        }
 
         return Task.WhenAll(attach, situationsLoad, grenadesLoad);
     }
@@ -236,23 +213,4 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
 
             return Task.CompletedTask;
         }, new JobOptions(kind, JobPriority.UserRequested, Serial: Owner));
-
-    // The core re-encode as one of the pack's jobs, unless its marker says it is done.
-    private static void SubmitSidecarMigration(IExtensionJobs jobs, DemoCacheStore cache,
-        IReadOnlyList<Func<string, SidecarConversion>> converters)
-    {
-        if (cache.CacheRoot is not { } root || File.Exists(Path.Combine(root, SidecarFormatMigration.MarkerFileName)))
-        {
-            return;
-        }
-
-        jobs.Enqueue(new JobRequest("Sidecar format: compress cached files", async job =>
-            {
-                await SidecarFormatMigration.RunAsync(cache, converters, job.StepAsideAsync,
-                    (done, total) => job.Report(done, total, $"{done} of {total} demos"),
-                    cancellationToken: job.CancellationToken).ConfigureAwait(false);
-                job.CancellationToken.ThrowIfCancellationRequested();
-            },
-            new JobOptions(StratBookJobKinds.Migration, Key: "sidecar-format", Preemptible: true)));
-    }
 }

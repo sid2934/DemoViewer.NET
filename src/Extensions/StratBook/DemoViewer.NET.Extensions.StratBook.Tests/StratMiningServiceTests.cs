@@ -134,7 +134,6 @@ public class StratMiningServiceTests
 
         public void Dispose()
         {
-            Positions.Dispose();
             try
             {
                 Directory.Delete(Root, true);
@@ -147,7 +146,7 @@ public class StratMiningServiceTests
         public static Library Create()
         {
             DemoCacheStore cache = new(null);
-            RoundIndexStore positions = new(null, cache);
+            RoundIndexStore positions = new(cache.Data());
             using (cache.BeginBatch())
             {
                 for (int n = 1; n <= 4; n++)

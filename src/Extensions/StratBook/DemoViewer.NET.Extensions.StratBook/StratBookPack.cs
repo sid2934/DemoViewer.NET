@@ -223,9 +223,7 @@ public sealed class StratBookPack : IExtension
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             return new RoundIndexPlaceSources(() => settings.TokenSource, sp.GetRequiredService<IZonePlaceResolverSource>());
         });
-        services.AddSingleton(sp => new RoundIndexStore(
-            Paths(sp).CacheRoot,
-            sp.GetRequiredService<DemoCacheStore>()));
+        services.AddSingleton(sp => new RoundIndexStore(Data(sp)));
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
@@ -478,7 +476,7 @@ public sealed class StratBookPack : IExtension
         // come from <config>/suggested-tags/. The library sweep is its own opt-in, off by default;
         // the open demo, resolved at call time, is always built. Null roots (the
         // browser) keep all of it for the session.
-        services.AddSingleton(sp => new ProposalStore(Paths(sp).CacheRoot, sp.GetRequiredService<DemoCacheStore>()));
+        services.AddSingleton(sp => new ProposalStore(Data(sp)));
         services.AddSingleton(sp => new SiteRegionStore(Paths(sp).SuggestedTagsDirectory));
         // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
         // on first read the way a theme drop-in folder is. A singleton so the evaluator's Func
@@ -644,12 +642,14 @@ public sealed class StratBookPack : IExtension
         // write. The library sweep is its own opt-in, off by default; the open demo, resolved at call
         // time, is always walked on the parse its open paid for. Null cache root (the browser) keeps the
         // rows in memory for the session.
+        services.AddSingleton(sp => new GrenadeStore(Data(sp)));
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             IExtensionFeatures features = Host(sp).Features;
             GrenadeIndexEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
+                sp.GetRequiredService<GrenadeStore>(),
                 () => settings.GrenadesBackgroundIndex,
                 () => Host(sp).Shell.CurrentDemoPath,
                 () => settings.TrajectoryStride,
@@ -664,11 +664,13 @@ public sealed class StratBookPack : IExtension
         // uses. It loads once at startup off the UI thread and merges each demo as the evaluator writes it.
         services.AddSingleton(sp =>
         {
+            string? legacyLineups = Paths(sp).CacheRoot is { } cacheRoot ? Path.Combine(cacheRoot, GrenadeLineupStore.FileName) : null;
             GrenadeIndex index = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 sp.GetRequiredService<GrenadeIndexEvaluator>(),
                 Host(sp).Post,
+                lineups: GrenadeLineupStore.In(Host(sp).Storage, legacyLineups),
                 scheduleSave: drain => Job(sp, "Save: grenade lineups", drain,
                     new JobOptions(BuiltInJobKinds.Save, Key: "save:grenade-lineups")));
             sp.GetRequiredService<StratBookPackInstances>().Record(index);
@@ -719,7 +721,8 @@ public sealed class StratBookPack : IExtension
                 notes: sp.GetRequiredService<DossierNotesStore>(),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 runSection: section => work => Job(sp, "Dossier: " + section, work,
-                    new JobOptions(Key: "section:dossier:" + section, Preemptible: true)));
+                    new JobOptions(Key: "section:dossier:" + section, Preemptible: true)),
+                roundIndex: sp.GetRequiredService<RoundIndexStore>());
         });
 
         // Lineup Clip Render: every repeated throw position and technique gets a GIF and its setpos line,
@@ -766,6 +769,10 @@ public sealed class StratBookPack : IExtension
 
     // Where the user's own work already lives, from before extensions had folders of their own.
     private static FirstPartyHost Paths(IServiceProvider sp) => sp.GetRequiredService<FirstPartyHost>();
+
+    // The per-demo data the host keeps, or the session's own where it keeps none (the browser).
+    private static IExtensionDemoData Data(IServiceProvider sp) =>
+        Host(sp).Data is { IsAvailable: true } data ? data : MemoryDemoData.For(sp.GetRequiredService<DemoCacheStore>());
 
     // One processing-queue job through the context, owned by the pack's id.
     private static Task Job(IServiceProvider sp, string title, Action work, JobOptions options) =>
@@ -941,7 +948,7 @@ public sealed class StratBookPack : IExtension
         IExtensionFeatures suggestedGate = contributions.Context.Features;
         contributions.Tabs(new SuggestedInboxModule(sp.GetRequiredService<SuggestedInboxViewModel>,
             () => suggestedGate.IsEnabled(SuggestedInboxModule.TabFeatureId),
-            sp.GetService<DemoCacheStore>(),
+            sp.GetService<ProposalStore>(),
             suggestedGate));
 
         // The Round Tagger's Matrix tab.

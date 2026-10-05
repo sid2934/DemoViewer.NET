@@ -73,13 +73,12 @@ public class GrenadeIndexTests
             Demo = new GrenadeDemoHeader { Sha256 = sha, StableKey = DemoCacheStore.StableKey(path) },
             Grenades = [.. rows]
         };
-        cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-        if (stamp)
-        {
-            record.StampGrenades(document.Grenades.Count);
-        }
-
         cache.Upsert(record);
+        cache.WriteGrenades(path, document);
+        if (!stamp)
+        {
+            cache.Data().Invalidate(GrenadeStore.Facet, path);
+        }
     }
 
     // The nine Mirage demos. Every one: a smoke from A into CT spawn (a few units of jitter, the same
@@ -461,7 +460,7 @@ public class GrenadeIndexTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(RoundIndexTestData.ParsedRecord("/d/new.dem", Mirage, "shaN"));
-        GrenadeIndexEvaluator evaluator = new(cache, () => true,
+        GrenadeIndexEvaluator evaluator = new(cache, cache.Grenades(), () => true,
             walk: _ => new GrenadeWalk(MirageRows(1), 1, ReconstructedInputSource.DecoderName, 4));
         using GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), evaluator);
         index.Load();

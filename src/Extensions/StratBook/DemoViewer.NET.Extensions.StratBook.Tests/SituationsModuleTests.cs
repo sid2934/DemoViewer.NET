@@ -82,7 +82,7 @@ public class SituationsModuleTests
     public async Task TheStrip_CountsFromTheRows_AndOffersRetryOnlyWhenSomethingFailed()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true, walk: _ => []);
         using SituationIndex index = new(cache, sidecars, sources, evaluator: evaluator);
@@ -104,7 +104,7 @@ public class SituationsModuleTests
             await Assert.That(vm.TokenSourceLine).Contains("pawn");
         }
 
-        cache.UpdateExisting("/d/b.dem", r => r.MarkFailed(RoundIndexEvaluator.EvaluatorId));
+        sidecars.MarkFailed("/d/b.dem");
         using (Assert.Multiple())
         {
             await Assert.That(vm.FailedCount).IsEqualTo(1);
@@ -113,7 +113,7 @@ public class SituationsModuleTests
         }
 
         vm.RetryFailedCommand.Execute(null);
-        await Assert.That(cache.TryGetIndex("/d/b.dem")!.RoundIndexState()).IsEqualTo(DemoAnalysisState.Pending);
+        await Assert.That(cache.RoundIndexState("/d/b.dem")).IsEqualTo(DemoDataState.Pending);
         await Assert.That(vm.PendingCount).IsEqualTo(1);
 
         vm.RebuildIndexCommand.Execute(null);
@@ -125,7 +125,7 @@ public class SituationsModuleTests
     public async Task OnTheBrowser_TheStripSaysThereIsNoLibraryIndex()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         using SituationIndex index = new(cache, sidecars, sources);
         index.Load();
@@ -146,7 +146,7 @@ public class SituationsModuleTests
         DemoCacheStore cache = new(null);
         cache.Upsert(ParsedRecord("/d/a.dem", map: "de_nuke"));
         cache.Upsert(ParsedRecord("/d/b.dem", map: "de_dust2"));
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexBuilderTests.FakeZoneResolver nuke = new("zv-1", _ => null);
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Zones,
             new RoundIndexEvaluatorTests.MapZones(("de_nuke", nuke)));

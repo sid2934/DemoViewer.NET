@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///     the parse the visit already holds and costs no second parse. It runs the merged rules on that parse
 ///     and reads the <c>round_facts</c> table out of the run through its <see cref="IRoundFactsRowSource" />,
 ///     projects it onto the record and stores the rows in the pack's payload, stamped under the
-///     <see cref="RoundFactsFingerprint" /> (<see cref="StratBookCache.SetRoundFacts" />).
+///     <see cref="RoundFactsFingerprint" /> (<see cref="RoundFactsRecords.SetRoundFacts" />).
 ///     <para>
 ///         Registered after the highlight scanner and before the round index:
 ///         the index reads these rows in the same pass.

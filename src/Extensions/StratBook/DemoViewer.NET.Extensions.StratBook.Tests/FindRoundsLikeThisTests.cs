@@ -323,7 +323,7 @@ public class FindRoundsLikeThisTests
         public Harness()
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Index = new SituationIndex(Cache, Sidecars, Sources);
             Index.Load();
@@ -341,7 +341,6 @@ public class FindRoundsLikeThisTests
         {
             Vm.Dispose();
             Index.Dispose();
-            Sidecars.Dispose();
         }
     }
 }

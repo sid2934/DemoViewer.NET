@@ -17,8 +17,9 @@ using DemoViewer.NET.Services.RoundIndex;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The gzipped record and grenade sidecars: what is written, that the pre-gzip files still read and are
-///     replaced only by a successful write, and that bad files read as absent.
+///     The gzipped record sidecars: what is written, that the pre-gzip files still read and are replaced only by
+///     a successful write, and that bad files read as absent. Also the grenade rows' text round trip and a cut
+///     positions file reading as absent.
 /// </summary>
 public class SidecarFormatTests
 {
@@ -232,12 +233,12 @@ public class SidecarFormatTests
         try
         {
             DemoCacheStore cache = new(root);
-            using RoundIndexStore store = new(root, cache);
-            RoundPositionsDocument document = new() { Fingerprint = "fp" };
-            store.WritePositions(Demo, document);
-            string file = store.PositionsPathFor(Demo)!;
+            cache.Upsert(RoundIndexTestData.ParsedRecord(Demo, "de_nuke", "shapos"));
+            RoundIndexStore store = new(cache.DiskData(root));
+            store.Write(Demo, new RoundIndexDocument { Map = "de_nuke" }, new RoundPositionsDocument { Fingerprint = "fp" }, "fp");
             await Assert.That(store.TryReadPositions(Demo, "fp")).IsNotNull();
 
+            string file = Directory.GetFiles(root, "*.positions.json.gz", SearchOption.AllDirectories).Single();
             byte[] good = File.ReadAllBytes(file);
             File.WriteAllBytes(file, good[..(good.Length / 2)]);
             await Assert.That(store.TryReadPositions(Demo)).IsNull();
@@ -274,83 +275,10 @@ public class SidecarFormatTests
         return (document, paths);
     }
 
-    private static void Stamp(DemoCacheStore cache)
-    {
-        DemoCacheRecord record = RoundIndexTestData.ParsedRecord(Demo, "de_nuke", "sha-g");
-        record.StampGrenades();
-        cache.Upsert(record);
-    }
-
-    [Test]
-    public async Task Grenades_LegacySiblingsRead_NewOnesWinAndReplaceThem()
-    {
-        string root = TempRoot();
-        try
-        {
-            DemoCacheStore cache = new(root);
-            Stamp(cache);
-            (GrenadeDocument oldRows, GrenadePathsDocument oldPaths) = Documents(Row("g1", "76561198000000001"));
-            cache.WriteSibling(Demo, GrenadeSidecar.LegacySuffix, GrenadeSidecar.Serialize(oldRows));
-            cache.WriteSibling(Demo, GrenadeSidecar.LegacyPathsSuffix, GrenadeSidecar.Serialize(oldPaths));
-
-            GrenadeDocument? legacyRows = GrenadeSidecar.TryReadRows(cache, Demo);
-            GrenadePathsDocument? legacyPaths = GrenadeSidecar.TryReadPaths(cache, Demo);
-            using (Assert.Multiple())
-            {
-                await Assert.That(legacyRows!.Grenades.Single().Id).IsEqualTo("g1");
-                await Assert.That(legacyPaths!.Paths["g1"].Count).IsEqualTo(2);
-            }
-
-            (GrenadeDocument rows, _) = Documents(Row("g2", null), Row("g3", "76561198000000003"));
-            GrenadeSidecar.WriteRows(cache, Demo, rows);
-            Stamp(cache);
-            GrenadeSidecar.DeleteLegacy(cache, Demo);
-
-            GrenadeDocument? newRows = GrenadeSidecar.TryReadRows(cache, Demo);
-            using (Assert.Multiple())
-            {
-                await Assert.That(IsGzipFile(cache.SiblingPathFor(Demo, GrenadeThrowLog.Suffix)!)).IsTrue();
-                await Assert.That(GrenadeSidecar.TryReadPaths(cache, Demo)).IsNull().Because("a walk writes no paths");
-                await Assert.That(File.Exists(cache.SiblingPathFor(Demo, GrenadeSidecar.LegacySuffix)!)).IsFalse();
-                await Assert.That(File.Exists(cache.SiblingPathFor(Demo, GrenadeSidecar.LegacyPathsSuffix)!)).IsFalse();
-                await Assert.That(newRows!.Grenades.Select(g => g.Id)).IsEquivalentTo(["g2", "g3"]);
-                await Assert.That(newRows.Grenades[0].ThrowerSteamId64).IsNull();
-                await Assert.That(newRows.Grenades[1].ThrowerSteamId64).IsEqualTo("76561198000000003");
-                await Assert.That(newRows.Grenades[1].ThrowerSteamId).IsEqualTo(76561198000000003UL);
-                await Assert.That(newRows.Grenades[1].Trajectory).IsEmpty().Because("the throw log carries no paths");
-            }
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
-    }
-
-    [Test]
-    public async Task Grenades_CorruptNewSibling_FallsBackToTheLegacyOne()
-    {
-        DemoCacheStore cache = new(null);
-        Stamp(cache);
-        cache.WriteSiblingBytes(Demo, GrenadeSidecar.Suffix, [0x1F, 0x8B, 9, 9, 9]);
-        await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull().Because("no legacy file to fall back to");
-
-        (GrenadeDocument rows, _) = Documents(Row("g1", "1"));
-        cache.WriteSibling(Demo, GrenadeSidecar.LegacySuffix, GrenadeSidecar.Serialize(rows));
-        await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)!.Grenades.Single().Id).IsEqualTo("g1");
-    }
-
     // ── One-off conversion pass ─────────────────────────────────────────────────────────────────
 
-    private static void StampGrenades(DemoCacheStore cache, string path, string sha)
-    {
-        DemoCacheRecord record = RoundIndexTestData.ParsedRecord(path, "de_nuke", sha);
-        record.StampGrenades();
-        cache.Upsert(record);
-    }
-
     private static Task<SidecarFormatResult> Pass(DemoCacheStore cache) =>
-        SidecarFormatMigration.RunAsync(cache,
-            [cache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(cache, path)], batchSize: 2);
+        SidecarFormatMigration.RunAsync(cache, [cache.ConvertLegacyRecord], batchSize: 2);
 
     [Test]
     public async Task ConversionPass_RunsAsAQueueItem_AndIsNotQueuedOnceDone()
@@ -373,8 +301,7 @@ public class SidecarFormatTests
             using HeavyJobGate gate = new();
             using DemoProcessingQueue queue = new(gate, a => a(), _ => throw new NotSupportedException(),
                 _ => throw new NotSupportedException(), () => Task.CompletedTask);
-            IReadOnlyList<Func<string, SidecarConversion>> converters =
-                [cache.ConvertLegacyRecord, path => GrenadeSidecar.ConvertLegacy(cache, path)];
+            IReadOnlyList<Func<string, SidecarConversion>> converters = [cache.ConvertLegacyRecord];
 
             IDemoQueueHandle? handle = SidecarFormatMigration.Submit(queue, cache, converters, batchSize: 1);
             await Assert.That(handle).IsNotNull();
@@ -399,15 +326,13 @@ public class SidecarFormatTests
         string root = TempRoot();
         try
         {
-            const string a = "/d/a.dem", b = "/d/b.dem", c = "/d/c.dem", d = "/d/d.dem", e = "/d/e.dem", f = "/d/f.dem";
+            const string a = "/d/a.dem", b = "/d/b.dem", c = "/d/c.dem", d = "/d/d.dem";
             DemoCacheStore seed = new(root);
             foreach (string path in (string[])[a, b, c, d])
             {
                 seed.Upsert(BigRecord(path));
             }
 
-            StampGrenades(seed, e, "sha-e");
-            StampGrenades(seed, f, "sha-f");
             seed.SaveIndex();
 
             // a: legacy only, carrying a field no model knows. c: corrupt legacy only. d: new plus a stale legacy.
@@ -418,15 +343,6 @@ public class SidecarFormatTests
             File.WriteAllText(seed.LegacySidecarPathFor(c)!, "{ not json");
             File.Delete(seed.SidecarPathFor(c)!);
             File.WriteAllText(seed.LegacySidecarPathFor(d)!, "{}");
-
-            // e: legacy grenade pair. f: legacy rows naming another demo.
-            (GrenadeDocument eRows, GrenadePathsDocument ePaths) = Documents(Row("g1", "76561198000000001"));
-            eRows.Demo.Sha256 = ePaths.Demo.Sha256 = "sha-e";
-            seed.WriteSibling(e, GrenadeSidecar.LegacySuffix, GrenadeSidecar.Serialize(eRows));
-            seed.WriteSibling(e, GrenadeSidecar.LegacyPathsSuffix, GrenadeSidecar.Serialize(ePaths));
-            (GrenadeDocument fRows, _) = Documents(Row("g9", null));
-            fRows.Demo.Sha256 = "sha-other";
-            seed.WriteSibling(f, GrenadeSidecar.LegacySuffix, GrenadeSidecar.Serialize(fRows));
 
             DemoCacheStore cache = new(root);
             SidecarFormatResult first = await Pass(cache);
@@ -441,8 +357,8 @@ public class SidecarFormatTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(first.Demos).IsEqualTo(6);
-                await Assert.That(first.Failed).IsEqualTo(2).Because("c's record and f's rows do not read as theirs");
+                await Assert.That(first.Demos).IsEqualTo(4);
+                await Assert.That(first.Failed).IsEqualTo(1).Because("c's record does not read");
                 await Assert.That(first.Completed).IsFalse();
                 await Assert.That(File.Exists(marker)).IsFalse();
                 await Assert.That(File.Exists(cache.LegacySidecarPathFor(a)!)).IsFalse();
@@ -451,12 +367,6 @@ public class SidecarFormatTests
                 await Assert.That(File.Exists(cache.SidecarPathFor(c)!)).IsFalse();
                 await Assert.That(File.Exists(cache.LegacySidecarPathFor(d)!)).IsFalse();
                 await Assert.That(cache.TryLoadRecord(d)).IsNotNull();
-                await Assert.That(File.Exists(cache.SiblingPathFor(e, GrenadeSidecar.LegacySuffix)!)).IsFalse();
-                await Assert.That(File.Exists(cache.SiblingPathFor(e, GrenadeSidecar.LegacyPathsSuffix)!)).IsFalse();
-                await Assert.That(IsGzipFile(cache.SiblingPathFor(e, GrenadeSidecar.Suffix)!)).IsTrue();
-                await Assert.That(GrenadeSidecar.TryReadRows(cache, e)!.Grenades.Single().Id).IsEqualTo("g1");
-                await Assert.That(GrenadeSidecar.TryReadPaths(cache, e)!.Paths["g1"].Count).IsEqualTo(2);
-                await Assert.That(File.Exists(cache.SiblingPathFor(f, GrenadeSidecar.LegacySuffix)!)).IsTrue();
             }
 
             // Resumable: the converted demos have nothing left, the bad files are tried again.
@@ -464,11 +374,10 @@ public class SidecarFormatTests
             using (Assert.Multiple())
             {
                 await Assert.That(second.Converted).IsEqualTo(0);
-                await Assert.That(second.Failed).IsEqualTo(2);
+                await Assert.That(second.Failed).IsEqualTo(1);
             }
 
             File.Delete(cache.LegacySidecarPathFor(c)!);
-            File.Delete(cache.SiblingPathFor(f, GrenadeSidecar.LegacySuffix)!);
             SidecarFormatResult third = await Pass(cache);
             SidecarFormatResult fourth = await Pass(cache);
             using (Assert.Multiple())

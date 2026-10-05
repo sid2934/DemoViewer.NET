@@ -208,7 +208,7 @@ public sealed class RoundSignatureBuilder
         Read(path, map) is { } demo ? Attach(path, map, demo, grenades) : [];
 
     // Everything a demo's signatures are read from, so a change to any of them rebuilds it. Grenades are not in
-    // it: throws are attached fresh on every build. The file stamps catch a rewrite the index row does not show.
+    // it: throws are attached fresh on every build. The file stamp catches a record rewrite the index row does not show.
     private string KeyFor(DemoCacheIndexEntry entry, string map)
     {
         string teams = "-";
@@ -219,7 +219,7 @@ public sealed class RoundSignatureBuilder
         }
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"{SignatureVersion}|{entry.Sha256}|{entry.Size}|{entry.ModifiedTicks}|{entry.RoundFactsStamp()?.Schema ?? 0}|{entry.RoundFactsStamp()?.Fingerprint}|{entry.RoundIndexComputedAtTicks()}|{_fingerprintFor(map)}|{FileStamp(_demoCache.SidecarPathFor(entry.Path))}|{FileStamp(_positions.PositionsPathFor(entry.Path))}|{teams}");
+            $"{SignatureVersion}|{entry.Sha256}|{entry.Size}|{entry.ModifiedTicks}|{entry.RoundFactsStamp()?.Schema ?? 0}|{entry.RoundFactsStamp()?.Fingerprint}|{_positions.ComputedAtTicks(entry.Path)}|{_fingerprintFor(map)}|{FileStamp(_demoCache.SidecarPathFor(entry.Path))}|{teams}");
     }
 
     private static string FileStamp(string? file)

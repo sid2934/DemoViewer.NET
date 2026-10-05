@@ -3,7 +3,6 @@
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.Views.SuggestedTags;
 
@@ -14,7 +13,7 @@ namespace DemoViewer.NET.Modules.SuggestedTags;
 /// <summary>
 ///     The Suggested section of the Strat Book's rail: every demo's tag suggestions in one inbox. The ids are
 ///     persisted keys (the per-tab session state and the feature override); the header is display text. The badge
-///     is the library's pending count from the demo index, so it needs no file read.
+///     is the library's pending count from the proposals' stamps, so it needs no file read.
 /// </summary>
 public sealed class SuggestedInboxModule : IWorkspaceModule
 {
@@ -24,28 +23,28 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
     /// <summary>The section's feature id. A persisted key; never renamed.</summary>
     public const string TabFeatureId = "tab.suggested";
 
-    private readonly DemoCacheStore? _cache;
+    private readonly ProposalStore? _proposals;
     private readonly Func<bool> _enabled;
     private readonly IExtensionFeatures? _gate;
     private readonly Func<SuggestedInboxViewModel> _viewModelFactory;
 
     /// <param name="viewModelFactory">Builds the section's VM on first activation.</param>
-    /// <param name="cache">The demo index, for the badge; null shows none.</param>
+    /// <param name="proposals">The proposals, whose stamps carry the badge's count; null shows none.</param>
     /// <param name="enabled">
     ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack.
     /// </param>
     /// <param name="gate">
     ///     The same gate as <paramref name="enabled" />, kept separately only for its <c>Changed</c> event:
     ///     a live toggle clears the badge going off and recomputes it going on, instead of leaving the last
-    ///     value stale until the next unrelated <c>cache.Changed</c>. Null skips that push and keeps the
+    ///     value stale until the next unrelated <c>proposals.Changed</c>. Null skips that push and keeps the
     ///     poll-on-read behaviour.
     /// </param>
-    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, Func<bool> enabled, DemoCacheStore? cache = null,
+    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, Func<bool> enabled, ProposalStore? proposals = null,
         IExtensionFeatures? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
-        _cache = cache;
+        _proposals = proposals;
         _gate = gate;
         ArgumentNullException.ThrowIfNull(enabled);
         _enabled = enabled;
@@ -71,27 +70,27 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
             ViewFactory = () => new SuggestedInboxView()
         };
 
-        if (_cache is { } cache)
+        if (_proposals is { } proposals)
         {
             if (_enabled())
             {
-                tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount()));
+                tab.Badge = BadgeFor(proposals.PendingTotal());
             }
 
             // Read live: a toggle mid-session stops this recompute without a restart.
-            cache.Changed += _ =>
+            proposals.Changed += _ =>
             {
                 if (_enabled())
                 {
-                    tab.Badge = BadgeFor(cache.Index.Sum(e => e.SuggestionCount()));
+                    tab.Badge = BadgeFor(proposals.PendingTotal());
                 }
             };
 
-            // The gate's own Changed, not just cache.Changed: going off clears a stale count rather than
-            // leaving it until the next unrelated cache write; going on recomputes without waiting for one.
+            // The gate's own Changed, not just proposals.Changed: going off clears a stale count rather than
+            // leaving it until the next unrelated stamp; going on recomputes without waiting for one.
             if (_gate is { } gate)
             {
-                gate.Changed += () => tab.Badge = _enabled() ? BadgeFor(cache.Index.Sum(e => e.SuggestionCount())) : null;
+                gate.Changed += () => tab.Badge = _enabled() ? BadgeFor(proposals.PendingTotal()) : null;
             }
         }
 

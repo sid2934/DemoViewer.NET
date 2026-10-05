@@ -212,7 +212,7 @@ public class WatchedSituationsTests
             // Mark as seen: the watermark moves past every counted stamp (the pinned clock is behind
             // them), the badge clears, and the file holds the new watermark.
             service.MarkSeen(watch.Id);
-            long newest = h.Cache.TryGetIndex("/d/e.dem")!.RoundIndexComputedAtTicks();
+            long newest = h.Cache.RoundIndexComputedAtTicks("/d/e.dem");
             using (Assert.Multiple())
             {
                 await Assert.That(service.NewCount).IsEqualTo(0);
@@ -363,7 +363,7 @@ public class WatchedSituationsTests
         public Harness()
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Evaluator = new RoundIndexEvaluator(Cache, Sidecars, Sources, () => true, walk: _ => _samples);
             Index = new SituationIndex(Cache, Sidecars, Sources, evaluator: Evaluator);
@@ -383,7 +383,6 @@ public class WatchedSituationsTests
         public void Dispose()
         {
             Index.Dispose();
-            Sidecars.Dispose();
         }
 
         /// <summary>Indexes a demo with a round per freeze end; null puts every CT in Outside instead of on A.</summary>

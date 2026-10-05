@@ -186,7 +186,7 @@ public class CalloutAliasesTests
         });
 
         DemoCacheStore cache = new(null);
-        RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         using SituationIndex index = new(cache, sidecars, sources);
 
@@ -206,6 +206,5 @@ public class CalloutAliasesTests
             await Assert.That(vm.DisplayPlace("Ramp")).IsEqualTo("popdog");
         }
 
-        sidecars.Dispose();
     }
 }

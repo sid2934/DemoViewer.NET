@@ -36,8 +36,8 @@ public class SuggestedTagsReviewTests
             await Assert.That(document.DetectorSet.Regions).IsEqualTo("learned:1");
             await Assert.That(document.Proposals.Select(p => p.Id)).Contains(ExecuteId);
             await Assert.That(document.Proposals.Single(p => p.Id == ExecuteId).RoundStartTick).IsEqualTo(FreezeEnd);
-            await Assert.That(row!.SuggestionsFingerprint()).IsEqualTo(document.DetectorSet.Fingerprint);
-            await Assert.That(row!.SuggestionCount()).IsEqualTo(document.Proposals.Count)
+            await Assert.That(h.Proposals.Stamp(DemoPath)!.Fingerprint).IsEqualTo(document.DetectorSet.Fingerprint);
+            await Assert.That(h.Proposals.Stamp(DemoPath)!.Count).IsEqualTo(document.Proposals.Count)
                 .Because("nothing has a verdict yet, and the index mirrors the pending count");
             await Assert.That(h.Service.Wants(DemoPath)).IsFalse().Because("the stamp is current");
         }
@@ -133,7 +133,7 @@ public class SuggestedTagsReviewTests
             await Assert.That(verdict.TagInstanceId).IsEqualTo(instance.Id);
             await Assert.That(verdict.FrameCount).IsEqualTo(2);
             await Assert.That(h.Service.Load(DemoPath).Pending.Any(e => e.Proposal.Id == ExecuteId)).IsFalse();
-            await Assert.That(h.Cache.TryGetIndex(DemoPath)!.SuggestionCount()).IsEqualTo(pendingBefore - 1);
+            await Assert.That(h.Proposals.Stamp(DemoPath)!.Count).IsEqualTo(pendingBefore - 1);
             await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsFalse().Because("it is no longer pending");
         }
     }
@@ -193,7 +193,8 @@ public class SuggestedTagsReviewTests
         await Assert.That(h.Service.Reject(DemoPath, ExecuteId)).IsTrue();
 
         // The same round, called round 2 by a parse with another frame count: the key changes, the
-        // trigger does not.
+        // trigger does not. A new parse of the demo is a rebuild of its proposals.
+        h.Proposals.Data.Invalidate(ProposalStore.Facet, DemoPath);
         h.Build(round: 2, frames: 3);
 
         ProposalSet set = h.Service.Load(DemoPath);
@@ -256,13 +257,13 @@ public class SuggestedTagsReviewTests
                 .IsEqualTo(SuggestionVerdicts.Accepted);
             await Assert.That(set.Entries.Single(e => e.Proposal.Id == other).Verdict!.Verdict)
                 .IsEqualTo(SuggestionVerdicts.Rejected);
-            await Assert.That(h.Proposals.PathFor(DemoPath)).IsNull();
+            await Assert.That(h.Proposals.IsPersistent).IsFalse();
             await Assert.That(h.Tags.VerdictsPathFor(Sha)).IsNull();
         }
     }
 
     [Test]
-    public async Task OnDisk_TheFilesLandBesideDemosAndUnderTags_AndLeaveWithTheDemo()
+    public async Task OnDisk_TheProposalsAreTheDemosData_TheVerdictsUnderTags_AndOnlyTheProposalsLeaveWithTheDemo()
     {
         string root = Path.Combine(Path.GetTempPath(), $"dv-st-{Guid.NewGuid():N}");
         try
@@ -271,12 +272,12 @@ public class SuggestedTagsReviewTests
             h.Build();
             await Assert.That(h.Service.Reject(DemoPath, ExecuteId)).IsTrue();
 
-            string proposals = Path.Combine(root, "cache", "suggestions", DemoCacheStore.StableKey(DemoPath) + ".json");
+            string proposals = Directory.GetFiles(Path.Combine(root, "cache"), Sha + ".json.gz", SearchOption.AllDirectories).Single();
             string verdicts = Path.Combine(root, "tags", "verdicts", Sha + ".verdicts.json");
-            await Assert.That(File.Exists(proposals)).IsTrue();
+            await Assert.That(Path.GetFileName(Path.GetDirectoryName(proposals))).IsEqualTo(ProposalStore.Facet)
+                .Because("the proposals are the extension's per-demo data, keyed by the demo's content");
             await Assert.That(File.Exists(verdicts)).IsTrue();
-            await Assert.That(ProposalDocument.TryDeserialize(await File.ReadAllTextAsync(proposals))!.Proposals.Count)
-                .IsEqualTo(h.Service.Load(DemoPath).Entries.Count);
+            await Assert.That(h.Proposals.TryRead(DemoPath)!.Proposals.Count).IsEqualTo(h.Service.Load(DemoPath).Entries.Count);
 
             h.Cache.Remove(DemoPath);
             await Assert.That(File.Exists(proposals)).IsFalse().Because("a derived file follows its demo out of the index");

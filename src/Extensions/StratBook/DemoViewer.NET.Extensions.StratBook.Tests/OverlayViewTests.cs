@@ -184,7 +184,7 @@ public class OverlayViewTests
     public async Task TheTab_PutsTheResultsOverlayOnTheCanvas_AndTheMapClearsIt()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         using SituationIndex index = new(cache, sidecars, sources);
         index.Load();
@@ -243,7 +243,7 @@ public class OverlayViewTests
         }
 
         DemoCacheStore store = new(null);
-        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexStore sidecars = new(store.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         store.Upsert(new DemoCacheRecord
         {
@@ -331,7 +331,7 @@ public class OverlayViewTests
         {
             Cache = cache ?? new DemoCacheStore(null);
             _ownsSidecars = sidecars is null;
-            Sidecars = sidecars ?? new RoundIndexStore(null, Cache);
+            Sidecars = sidecars ?? new RoundIndexStore(Cache.Data());
             Sources = sources ?? new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Vm = new ResultCardsViewModel(Cache, Sidecars, Sources, () => null, new SituationThumbnailCache(),
                 () => new SituationThumbnailRenderer(_ => null), Post.Run, _ => null, Canvas);
@@ -348,7 +348,6 @@ public class OverlayViewTests
         {
             if (_ownsSidecars)
             {
-                Sidecars.Dispose();
             }
         }
     }

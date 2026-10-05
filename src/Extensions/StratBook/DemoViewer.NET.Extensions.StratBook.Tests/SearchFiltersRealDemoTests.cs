@@ -28,7 +28,7 @@ public class SearchFiltersRealDemoTests
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
 
         DemoCacheStore store = new(null);
-        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexStore sidecars = new(store.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         RoundFactsSource factsSource = new(store, facts);

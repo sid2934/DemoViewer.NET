@@ -539,7 +539,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
                     foreach (IGrouping<string, SituationHit> demo in _index.Query(ToQuery(watch, indexedAfter: watch.WatermarkTicks))
                                  .GroupBy(h => h.DemoStableKey, StringComparer.Ordinal))
                     {
-                        long stamp = _demoCache.TryGetIndex(demo.First().DemoPath)?.RoundIndexComputedAtTicks() ?? 0;
+                        long stamp = _index.IndexedAtTicks(demo.First().DemoPath);
                         next[demo.Key] = new NewGroup(stamp, [.. demo]);
                     }
                 }

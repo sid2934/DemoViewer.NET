@@ -45,7 +45,7 @@ public class SuggestedTagsReviewRealDemoTests
         new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity())
             .Evaluate(path, parsed);
 
-        using ProposalStore proposals = new(null, cache);
+        ProposalStore proposals = new(cache.Data());
         TagStore tags = new(null);
         SuggestedTagsService service = new(cache, proposals, tags, new SiteRegionStore(null),
             () => DetectorProfile.Default, () => true, () => true);
@@ -56,6 +56,6 @@ public class SuggestedTagsReviewRealDemoTests
         await Assert.That(service.Accept(path, set.Pending[0].Proposal.Id)).IsTrue();
         await Assert.That(service.Reject(path, set.Pending[1].Proposal.Id)).IsTrue();
         await Assert.That(tags.TryLoad(new string('c', 64))!.Instances.Single().Source).IsEqualTo(TagSources.Suggested);
-        await Assert.That(cache.TryGetIndex(path)!.SuggestionCount()).IsEqualTo(set.Pending.Count - 2);
+        await Assert.That(proposals.Stamp(path)!.Count).IsEqualTo(set.Pending.Count - 2);
     }
 }

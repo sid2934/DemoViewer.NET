@@ -330,9 +330,8 @@ public class StratThrowOriginTests
                 Demo = new GrenadeDemoHeader { Sha256 = $"sha{n}", StableKey = DemoCacheStore.StableKey(path) },
                 Grenades = [row]
             };
-            cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-            record.StampGrenades(1);
             cache.Upsert(record);
+            cache.WriteGrenades(path, document);
         }
 
         GrenadeIndex index = new(cache);

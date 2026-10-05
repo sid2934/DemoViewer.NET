@@ -3,10 +3,13 @@
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -119,10 +122,11 @@ public class ParseOncePerDemoTests
             {
                 DemoCacheIndexEntry? entry = cache.TryGetIndex(demo);
                 Console.WriteLine($"{Path.GetFileName(demo)}: reads {queue.ParseCount(demo)}, parsed {entry?.ParseSchema}, "
-                                  + $"round facts {entry?.HasRoundFacts()}, round index {entry?.RoundIndexStamp()?.State}, "
-                                  + $"grenades {entry?.GrenadesStamp()?.State}, suggestions {entry?.SuggestionsStamp()?.State}");
+                                  + $"round facts {entry?.HasRoundFacts()}, round index {provider.GetRequiredService<RoundIndexStore>().Stamp(demo)?.State}, "
+                                  + $"grenades {provider.GetRequiredService<GrenadeStore>().Stamp(demo)?.State}, "
+                                  + $"suggestions {provider.GetRequiredService<ProposalStore>().Stamp(demo)?.State}");
                 await Assert.That(entry?.ParseSchema ?? 0).IsGreaterThan(0).Because($"the library indexed {demo}");
-                await Assert.That(entry?.GrenadesStamp()).IsNotNull().Because($"the grenade sweep walked {demo}");
+                await Assert.That(provider.GetRequiredService<GrenadeStore>().Stamp(demo)).IsNotNull().Because($"the grenade sweep walked {demo}");
                 await Assert.That(queue.ParseCount(demo)).IsEqualTo(1).Because($"{demo} is read once this session");
             }
         }

@@ -340,7 +340,7 @@ public class ReviewQueueTests
     public async Task ResultCards_SendTheSet_UnderOneTitleCard_OnceOnly()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         ReviewQueue queue = new(null);
         ResultCardsViewModel cards = new(cache, sidecars, sources, () => null, new SituationThumbnailCache(),

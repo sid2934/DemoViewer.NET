@@ -97,9 +97,8 @@ public static partial class Variants
                 Demo = new GrenadeDemoHeader { Sha256 = $"picker{n}", StableKey = DemoCacheStore.StableKey(path) },
                 Grenades = rows
             };
-            cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-            record.SetGrenades(GrenadeWalker.Version, rows.Count);
             cache.Upsert(record);
+            new GrenadeStore(MemoryDemoData.For(cache)).Write(path, document);
         }
 
         GrenadeIndex index = new(cache);

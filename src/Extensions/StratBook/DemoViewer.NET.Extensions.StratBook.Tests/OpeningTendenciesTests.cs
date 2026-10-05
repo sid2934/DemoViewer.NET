@@ -372,7 +372,6 @@ public class OpeningTendenciesTests
         public void Dispose()
         {
             Grenades.Dispose();
-            Store.Dispose();
             Teams.Dispose();
         }
 
@@ -390,8 +389,7 @@ public class OpeningTendenciesTests
                     Demo = new GrenadeDemoHeader { Sha256 = "abc123", StableKey = DemoCacheStore.StableKey(Demo) },
                     Grenades = Grenades()
                 };
-                cache.WriteSibling(Demo, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-                record.StampGrenades(document.Grenades.Count);
+                cache.WriteGrenades(Demo, document);
             }
 
             using (cache.BeginBatch())
@@ -402,7 +400,7 @@ public class OpeningTendenciesTests
 
             await teams.Idle;
 
-            RoundIndexStore store = new(null, cache);
+            RoundIndexStore store = new(cache.Data());
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
             store.WritePositions(Demo, Positions(sources.FingerprintFor("de_nuke")));
 

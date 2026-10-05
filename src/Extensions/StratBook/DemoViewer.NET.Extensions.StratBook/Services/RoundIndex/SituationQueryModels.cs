@@ -291,6 +291,10 @@ public interface ISituationIndex
     /// <param name="map">The map.</param>
     IPlaceAdjacency? Adjacency(string map);
 
+    /// <summary>When the loaded index of <paramref name="demoPath" /> was written (UTC ticks), or 0 when none is loaded.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    long IndexedAtTicks(string demoPath) => 0;
+
     /// <summary>The load finished, or a demo was merged or dropped. Raised through the post delegate.</summary>
     event Action? Changed;
 

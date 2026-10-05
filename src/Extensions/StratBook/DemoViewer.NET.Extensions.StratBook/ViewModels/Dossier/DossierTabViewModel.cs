@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services.RoundIndex;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
@@ -61,6 +62,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
     // The Opening Tendencies read it; its load and merges land after the page may have rendered.
     private readonly GrenadeIndex? _grenades;
+    private readonly RoundIndexStore? _roundIndex;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly SetupHeatmapService? _heatmaps;
     private readonly Action<Action> _post;
@@ -131,6 +133,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="situational">Builds the Situational Behaviour; null hides the section.</param>
     /// <param name="grenades">The grenade index the Opening Tendencies read; its changes re-project the team.</param>
     /// <param name="runSection">Runs a named section's build; the pool when null.</param>
+    /// <param name="roundIndex">The round index stamps the projection key reads; none when null.</param>
     /// <param name="notes">The user's stars, edits and notes; a session-only store when null.</param>
     /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
     public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
@@ -146,9 +149,11 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         DossierNotesStore? notes = null,
         Func<string, string, string, string?>? export = null,
         GrenadeIndex? grenades = null,
-        Func<string, Func<Action, Task>>? runSection = null)
+        Func<string, Func<Action, Task>>? runSection = null,
+        RoundIndexStore? roundIndex = null)
     {
         _grenades = grenades;
+        _roundIndex = roundIndex;
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(vetoes);
@@ -569,8 +574,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             key.Append('|').Append(side).Append(JsonSerializer.Serialize(demo)).Append(JsonSerializer.Serialize(assignment));
             if (_demoCache.TryGetIndex(demo.Path) is { } entry)
             {
+                DemoDataStamp? index = _roundIndex?.Stamp(demo.Path);
+                DemoDataStamp? grenades = _grenades?.Store.Stamp(demo.Path);
                 key.Append(CultureInfo.InvariantCulture,
-                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsStamp()?.Fingerprint}/{entry.RoundIndexStamp()?.Fingerprint}/{entry.RoundIndexComputedAtTicks()}/{entry.GrenadesStamp()?.State ?? DemoAnalysisState.Pending}/{entry.GrenadesStamp()?.Count ?? 0}/{entry.GrenadesStamp()?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
+                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsStamp()?.Fingerprint}/{index?.Fingerprint}/{index?.WrittenAtTicks}/{grenades?.State ?? DemoDataState.Pending}/{grenades?.Count ?? 0}/{grenades?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
             }
         }
 

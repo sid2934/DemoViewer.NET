@@ -339,7 +339,7 @@ public class StratBookLiveToggleTests
             }
 
             // Still live: the lineups the reload minted (their save item is held) reach disk at shutdown.
-            string lineups = Path.Combine(AppPaths.DemoCacheDir!, GrenadeLineupStore.FileName);
+            string lineups = Path.Combine(AppPaths.DemoCacheDir!, ExtensionFolders.DataDirectoryName, StratBookPack.PackId, GrenadeLineupStore.FileName);
             await Assert.That(File.Exists(lineups)).IsFalse().Because("every save item is held; only a flush writes");
             provider.GetRequiredKeyedService<IExtensionLifecycle>(Pack.Id).OnShutdown(TimeSpan.FromSeconds(5));
             await Assert.That(File.Exists(lineups)).IsTrue().Because("shutdown flushed a live index, not a released one");
@@ -440,7 +440,7 @@ public class StratBookLiveToggleTests
             await packs.Pending;
             GrenadeIndex grenades = provider.GetRequiredService<GrenadeIndex>();
             IExtensionLifecycle lifecycle = provider.GetRequiredKeyedService<IExtensionLifecycle>(Pack.Id);
-            string lineups = Path.Combine(AppPaths.DemoCacheDir!, GrenadeLineupStore.FileName);
+            string lineups = Path.Combine(AppPaths.DemoCacheDir!, ExtensionFolders.DataDirectoryName, StratBookPack.PackId, GrenadeLineupStore.FileName);
 
             // The user quits right after switching off: the cancel ran, the release is still queued.
             queue.Defer = true;
@@ -599,12 +599,12 @@ public class StratBookLiveToggleTests
             RoundIndexTestData.Indexed(cache, sidecars, path, document, computedAt: 100 + d, modifiedTicks: 20 + d, sha: sha);
             if (grenadesPerDemo > 0)
             {
-                IndexGrenades(cache, path, sha, grenadesPerDemo, d);
+                IndexGrenades(cache, provider.GetRequiredService<GrenadeStore>(), path, sha, grenadesPerDemo, d);
             }
         }
     }
 
-    private static void IndexGrenades(DemoCacheStore cache, string path, string sha, int count, int seed)
+    private static void IndexGrenades(DemoCacheStore cache, GrenadeStore grenades, string path, string sha, int count, int seed)
     {
         GrenadeDocument document = new()
         {
@@ -624,10 +624,12 @@ public class StratBookLiveToggleTests
                 })
             ]
         };
-        cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-        DemoCacheRecord record = cache.TryLoadRecord(path) ?? RoundIndexTestData.ParsedRecord(path, "de_nuke", sha);
-        record.StampGrenades(document.Grenades.Count);
-        cache.Upsert(record);
+        if (cache.TryLoadRecord(path) is null)
+        {
+            cache.Upsert(RoundIndexTestData.ParsedRecord(path, "de_nuke", sha));
+        }
+
+        grenades.Write(path, document);
     }
 
     // Runs every job on submit, the scheduler's on a worker (so a load has run when OnEnabledAsync returns) unless Defer holds them;

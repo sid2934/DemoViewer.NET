@@ -67,8 +67,8 @@ public sealed class SuggestedInboxService : IDisposable
         }
     }
 
-    /// <summary>Pending proposals across the library, from the index rows alone: the rail badge.</summary>
-    public int PendingCount => _cache.Index.Sum(e => e.SuggestionCount());
+    /// <summary>Pending proposals across the library, from the proposals' stamps alone: the rail badge.</summary>
+    public int PendingCount => _suggestions.Proposals.PendingTotal();
 
     /// <summary>Raised on the UI thread when <see cref="Items" /> changed.</summary>
     public event Action? Changed;
@@ -121,9 +121,12 @@ public sealed class SuggestedInboxService : IDisposable
     private void ReadAll()
     {
         Dictionary<string, IReadOnlyList<SuggestedInboxItem>> all = new(StringComparer.OrdinalIgnoreCase);
-        foreach (DemoCacheIndexEntry row in _cache.Index.Where(r => r.SuggestionsStamp()?.Fingerprint is not null))
+        foreach (DemoDataStamp stamp in _suggestions.Proposals.Stamps().Where(s => s.Fingerprint is not null))
         {
-            all[row.Path] = Read(row);
+            if (_cache.TryGetIndex(stamp.DemoPath) is { } row)
+            {
+                all[row.Path] = Read(row);
+            }
         }
 
         lock (_gate)

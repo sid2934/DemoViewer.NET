@@ -168,7 +168,7 @@ public class SituationIndexEquivalenceTests
     {
         List<(string Path, RoundIndexDocument Document, long Computed, long Modified)> library = Library(90, 7);
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         using SituationIndex index = Build(cache, sidecars, library);
         string full = Battery(index);
 
@@ -181,7 +181,7 @@ public class SituationIndexEquivalenceTests
         string afterRemoval = Battery(index);
 
         DemoCacheStore freshCache = new(null);
-        using RoundIndexStore freshSidecars = new(null, freshCache);
+        RoundIndexStore freshSidecars = new(freshCache.Data());
         using SituationIndex fresh = Build(freshCache, freshSidecars, library.Where((_, n) => !removed.Contains(n)));
         string remaining = Battery(fresh);
         List<int> tokensAfterRemoval = [.. Maps.Select(m => index.TokenTable(m).Tokens)];
@@ -215,7 +215,7 @@ public class SituationIndexEquivalenceTests
     {
         List<(string Path, RoundIndexDocument Document, long Computed, long Modified)> library = Library(30, 3);
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         using SituationIndex index = Build(cache, sidecars, library);
         (int tokens, int slots) before = index.TokenTable("de_nuke");
         foreach ((string path, RoundIndexDocument document, _, _) in library)
@@ -246,7 +246,7 @@ public class SituationIndexEquivalenceTests
         const int demos = 366;
         Random random = new(11);
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         for (int n = 0; n < demos; n++)
         {
             Indexed(cache, sidecars, DemoPath(n), SyntheticDocument(random, Maps[n % Maps.Length], 24, 14, Places.Length), 100, 1000 + n);

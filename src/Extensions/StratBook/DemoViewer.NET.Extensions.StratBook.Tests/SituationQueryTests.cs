@@ -337,8 +337,8 @@ public class SituationQueryTests
             await Assert.That(index.Places("de_nuke")).IsEmpty().Because("A's samples were subtracted");
         }
 
-        // A replaced file: identity drift drops every tier, so the row loses its stamp and the index drops it.
-        h.Cache.Upsert(ParsedRecord(DemoB));
+        // The demo's index goes (a delete, a failed rebuild): the stamp goes and the index drops it.
+        h.Sidecars.Delete(DemoB);
         await Assert.That(index.IndexedDemoCount).IsEqualTo(0);
         h.Dispose();
     }
@@ -446,7 +446,7 @@ public class SituationQueryTests
         public Harness(IZonePlaceResolverSource? zones, IRoundFactsSource? facts)
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Index = new SituationIndex(Cache, Sidecars, Sources, facts, zones);
         }
@@ -462,7 +462,6 @@ public class SituationQueryTests
         public void Dispose()
         {
             Index.Dispose();
-            Sidecars.Dispose();
         }
     }
 

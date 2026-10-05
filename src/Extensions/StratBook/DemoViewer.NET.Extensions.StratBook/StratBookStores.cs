@@ -13,22 +13,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     Every store and cache path the pack owns, read by both <see cref="StratBookPack.Contribute" />
-///     (the loop that reports them) and the pack test's writer-coverage check. Verified against the writer,
-///     kept here as the record of what changed and why:
-///     <list type="bullet">
-///         <item>
-///             <c>grenade-lineups.json.gz</c> and <c>grenades-v3.attempts.json</c> are under the CACHE root:
-///             <c>GrenadeLineupStore</c> and <c>GrenadeStoreMigration</c> both combine with
-///             <c>DemoCacheStore.CacheRoot</c>, never <c>AppPaths.ConfigRoot</c>.
-///         </item>
-///         <item>
-///             <c>review-queue.json</c> is dropped. <c>Services/Review/ReviewQueue.cs</c> is core
-///             ("the Review Queue stays core, since Reels uses it"), registered by the composition
-///             root and live with the pack off; deleting it would take Reels' own queue with it, and its
-///             next save would write it back anyway.
-///         </item>
-///     </list>
+///     Every store and cache path the pack owns outside its own folders, read by both
+///     <see cref="StratBookPack.Contribute" /> (the loop that reports them) and the pack test's writer-coverage
+///     check. The user's own work stays where users have it. The cache entries marked "old layout" are where
+///     older builds kept what the extension's per-demo data holds now; nothing writes them, and "delete
+///     extension data" still removes them. <c>review-queue.json</c> is not here: the Review Queue is core, since
+///     Reels uses it.
 /// </summary>
 internal static class StratBookStores
 {
@@ -47,13 +37,16 @@ internal static class StratBookStores
         new("strat-mining-state", "Strat Mining (dismissed and promoted)", StoreRoot.Config, ["strat-mining.json"], IsUserWork: true),
 
         // ── Cache root: regenerable ──────────────────────────────────────────────
-        new("round-index", "Round Index", StoreRoot.Cache, ["round-index"], IsUserWork: false),
-        new("suggestions", "Suggested Tags proposals", StoreRoot.Cache, ["suggestions"], IsUserWork: false),
         new("strat-mining-cache", "Strat Mining detections", StoreRoot.Cache, ["strat-mining"], IsUserWork: false),
         new("team-index", "Team index", StoreRoot.Cache, ["team-index.json"], IsUserWork: false),
-        new("grenade-lineups", "Grenade lineups", StoreRoot.Cache, ["grenade-lineups.json.gz"], IsUserWork: false),
-        new("grenades-v3-attempts", "Grenade migration attempts", StoreRoot.Cache, ["grenades-v3.attempts.json"], IsUserWork: false),
-        new("grenade-sidecars", "Grenade sidecars", StoreRoot.Cache,
+
+        // ── Cache root: the old layout, read once or not at all ─────────────────
+        new("round-index", "Round Index (old layout)", StoreRoot.Cache, ["round-index"], IsUserWork: false),
+        new("suggestions", "Suggested Tags proposals (old layout)", StoreRoot.Cache, ["suggestions"], IsUserWork: false),
+        new("grenade-lineups", "Grenade lineups (old layout)", StoreRoot.Cache, ["grenade-lineups.json.gz"], IsUserWork: false),
+        new("grenades-v3-attempts", "Grenade migration attempts (old layout)", StoreRoot.Cache, ["grenades-v3.attempts.json"],
+            IsUserWork: false),
+        new("grenade-sidecars", "Grenade sidecars (old layout)", StoreRoot.Cache,
         [
             "demos/*.grenades.json.gz", "demos/*.grenades.paths.json.gz", "demos/*.grenades.log.gz",
             "demos/*.grenades.json", "demos/*.grenades.paths.json"

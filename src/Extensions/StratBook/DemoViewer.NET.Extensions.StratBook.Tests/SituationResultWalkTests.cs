@@ -52,7 +52,7 @@ public class SituationResultWalkTests
         });
 
         DemoViewer.NET.Services.DemoCache.DemoCacheStore cache = new(null);
-        using DemoViewer.NET.Services.RoundIndex.RoundIndexStore store = new(null, cache);
+        DemoViewer.NET.Services.RoundIndex.RoundIndexStore store = new(cache.Data());
         DemoViewer.NET.Services.RoundIndex.RoundIndexPlaceSources sources = new(() => DemoViewer.NET.Services.RoundIndex.RoundIndexTokenSource.Pawn);
         using DemoViewer.NET.Services.RoundIndex.SituationIndex index = new(cache, store, sources);
         index.Load();

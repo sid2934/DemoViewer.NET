@@ -109,40 +109,6 @@ public class GrenadesV2Probe
         await File.WriteAllTextAsync(Path.Combine(HeadlessSession.ArtifactDir, $"gv2-{map}-{name}.txt"), report.ToString());
     }
 
-    [Test]
-    [Category("Probe")]
-    [Category("Integration")]
-    public async Task TheMigration_OnARealCache()
-    {
-        string root = Environment.GetEnvironmentVariable("GV2_CACHE") ?? "";
-        if (root.Length == 0 || !Directory.Exists(root))
-        {
-            throw new SkipTestException("GV2_CACHE is not set to a cache copy");
-        }
-
-        static long Bytes(string dir, string pattern) =>
-            Directory.EnumerateFiles(dir, pattern, SearchOption.AllDirectories).Sum(f => new FileInfo(f).Length);
-
-        string demos = Path.Combine(root, "demos");
-        long rowsBefore = Bytes(demos, "*.grenades.json.gz"), pathsBefore = Bytes(demos, "*.grenades.paths.json.gz");
-        DemoCacheStore cache = new(root);
-        using GrenadeIndex index = new(cache, new AssetZonePlaceResolverSource());
-        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
-        index.Load();
-        long loadMs = watch.ElapsedMilliseconds;
-        GrenadeStoreMigrationResult result = await GrenadeStoreMigration.RunAsync(cache, index);
-        long migrateMs = watch.ElapsedMilliseconds - loadMs;
-        long logs = Bytes(demos, "*.grenades.log.gz");
-        long store = new FileInfo(Path.Combine(root, GrenadeLineupStore.FileName)).Length;
-        int named = index.Rows(new GrenadeQuery(Map)).Count(g => g.Row.ThrowerName is not null);
-        int all = index.Rows(new GrenadeQuery(Map)).Count;
-        string report = string.Create(CultureInfo.InvariantCulture,
-            $"migration: {result}\n  before: rows {rowsBefore / 1e6:0.0} MB + paths {pathsBefore / 1e6:0.0} MB\n  after: logs {logs / 1e6:0.0} MB + lineup store {store / 1e6:0.0} MB, left rows {Bytes(demos, "*.grenades.json.gz") / 1e6:0.0} MB, paths {Bytes(demos, "*.grenades.paths.json.gz") / 1e6:0.0} MB\n  load {loadMs} ms, migration {migrateMs} ms; {Map} throws named {named} of {all}; anchors {index.LineupStore.For(Map).Anchors.Count}, aliases {index.LineupStore.For(Map).Aliases.Count}, flights {index.LineupStore.For(Map).Paths.Count}");
-        Console.WriteLine(report);
-        await File.WriteAllTextAsync(Path.Combine(HeadlessSession.ArtifactDir, "gv2-migration.txt"), report);
-        await Assert.That(result.Completed).IsTrue();
-    }
-
     private static void Capture(Window window, string file)
     {
         Dispatcher.UIThread.RunJobs();

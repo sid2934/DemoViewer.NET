@@ -105,6 +105,16 @@ public class App : Application
             // Drop an unfinished download and the staged versions the running copy supersedes. A
             // background queue item; nothing waits on it.
             _ = services.GetService<ExtensionUpdateService>()?.CleanupOnStartAsync();
+            // One-off re-encode of pre-gzip record sidecars: no parse, a background queue job that steps aside
+            // between batches, marker-gated once a pass converts everything it found. Held back so the startup
+            // loads are not competing for the disk.
+            if (!OperatingSystem.IsBrowser())
+            {
+                DemoCacheStore demoCache = services.GetRequiredService<DemoCacheStore>();
+                IDemoProcessingQueue queue = services.GetRequiredService<IDemoProcessingQueue>();
+                _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(
+                    _ => SidecarFormatMigration.Submit(queue, demoCache, [demoCache.ConvertLegacyRecord]), TaskScheduler.Default);
+            }
             // Careful: host services MUST attach BEFORE RestoreSession. RestoreSession activates the persisted tab,
             // and a restored-active Reels tab builds HighlightsTabViewModel (→ HighlightReelDialogViewModel),
             // which captures Shell().ReelJob / Shell().ReelJobStatus ONCE in its constructor. Attaching after

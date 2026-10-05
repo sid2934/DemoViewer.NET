@@ -158,7 +158,7 @@ public class RoundIndexRealDemoTests
         string folder = Path.GetDirectoryName(reference)!;
         string[] demos = Directory.GetFiles(folder, "*.dem");
         DemoCacheStore store = new(null);
-        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexStore sidecars = new(store.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);

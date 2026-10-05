@@ -12,7 +12,6 @@ internal static class StratBookJobKinds
     public const string SuggestionsInbox = "stratbook.suggestions";
     public const string Teams = "stratbook.teams";
     public const string Tuning = "stratbook.tuning";
-    public const string Migration = "stratbook.migration";
 
     public static readonly ExtensionJobKind[] All =
     [
@@ -21,7 +20,6 @@ internal static class StratBookJobKinds
         new(LineupClips, "clips", false, 3),
         new(SuggestionsInbox, "suggestions", false, 2),
         new(Teams, "teams", true),
-        new(Tuning, "tuning", false, 2),
-        new(Migration, "migration", false, 1)
+        new(Tuning, "tuning", false, 2)
     ];
 }

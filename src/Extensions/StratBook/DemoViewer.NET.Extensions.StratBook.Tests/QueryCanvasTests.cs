@@ -326,7 +326,7 @@ public class QueryCanvasTests
         public Harness(IReadOnlyList<FloorSlice>? floors = null)
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Index = new SituationIndex(Cache, Sidecars, Sources);
 
@@ -369,7 +369,6 @@ public class QueryCanvasTests
         {
             Vm.Dispose();
             Index.Dispose();
-            Sidecars.Dispose();
         }
 
         public void Arm(QuerySide side, int slot) => Vm.Arm(Vm.Slots.Single(s => s.Side == side && s.Slot == slot));

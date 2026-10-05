@@ -65,7 +65,8 @@ public static class AtomicFile
         string temp = TempFor(path);
         try
         {
-            await using (FileStream stream = new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
+            FileStream stream = new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true);
+            await using (stream.ConfigureAwait(false))
             {
                 await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
             }

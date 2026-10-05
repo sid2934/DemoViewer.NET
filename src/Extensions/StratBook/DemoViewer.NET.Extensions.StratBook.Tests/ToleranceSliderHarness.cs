@@ -28,7 +28,7 @@ internal sealed class ToleranceSliderHarness : IDisposable
     public ToleranceSliderHarness(IZonePlaceResolverSource? zones = null)
     {
         Cache = new DemoCacheStore(null);
-        Sidecars = new RoundIndexStore(null, Cache);
+        Sidecars = new RoundIndexStore(Cache.Data());
         Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
         Index = new SituationIndex(Cache, Sidecars, Sources, zones: zones);
 
@@ -69,7 +69,6 @@ internal sealed class ToleranceSliderHarness : IDisposable
     {
         Vm.Dispose();
         Index.Dispose();
-        Sidecars.Dispose();
     }
 
     public void PlaceCt(params string[] places) => Place(QuerySide.Ct, places);

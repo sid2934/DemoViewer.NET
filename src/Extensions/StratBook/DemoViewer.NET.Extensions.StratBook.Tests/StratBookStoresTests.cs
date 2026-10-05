@@ -134,12 +134,11 @@ public class StratBookStoresTests
         // strat-mining.json: StratMiningService's user-truth file; its own doc comment fixes this path.
         File.WriteAllText(Path.Combine(configRoot, "strat-mining.json"), "{}");
 
-        // round-index/: real API.
-        DemoCacheStore demoCache = new(null);
-        new RoundIndexStore(cacheRoot, demoCache).Write("/d/a.dem", new RoundIndexDocument());
-
-        // suggestions/: real API.
-        new ProposalStore(cacheRoot, demoCache).Write("/d/a.dem", new ProposalDocument());
+        // round-index/ and suggestions/: the old layout, written by older builds.
+        Directory.CreateDirectory(Path.Combine(cacheRoot, "round-index"));
+        File.WriteAllText(Path.Combine(cacheRoot, "round-index", "a.dvri.json"), "{}");
+        Directory.CreateDirectory(Path.Combine(cacheRoot, "suggestions"));
+        File.WriteAllText(Path.Combine(cacheRoot, "suggestions", "a.json"), "{}");
 
         // strat-mining/: StratMiningService's derived cache; its own doc comment fixes this path.
         Directory.CreateDirectory(Path.Combine(cacheRoot, "strat-mining"));
@@ -148,19 +147,17 @@ public class StratBookStoresTests
         // team-index.json: TeamIdentityService's derived cache; its own doc comment fixes this path.
         File.WriteAllText(Path.Combine(cacheRoot, "team-index.json"), "{}");
 
-        // grenade-lineups.json.gz: real API.
+        // grenade-lineups.json.gz: the old layout's file, in the format the lineup store reads.
         new GrenadeLineupStore(cacheRoot).Save();
 
-        // grenades-v3.attempts.json: GrenadeStoreMigration.AttemptsFileName is public.
-        File.WriteAllText(Path.Combine(cacheRoot, GrenadeStoreMigration.AttemptsFileName), "{}");
-
-        // demos/*.grenades*.json.gz, *.grenades.log.gz: the grenade walk's sidecar suffixes, all public.
+        // grenades-v3.attempts.json and demos/*.grenades*: the old layout, written by older builds.
+        File.WriteAllText(Path.Combine(cacheRoot, "grenades-v3.attempts.json"), "{}");
         string demos = Path.Combine(cacheRoot, "demos");
         Directory.CreateDirectory(demos);
-        File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.Suffix), "g1");
-        File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.PathsSuffix), "g2");
+        File.WriteAllText(Path.Combine(demos, "a.grenades.json.gz"), "g1");
+        File.WriteAllText(Path.Combine(demos, "a.grenades.paths.json.gz"), "g2");
         File.WriteAllText(Path.Combine(demos, "a" + GrenadeThrowLog.Suffix), "g3");
-        File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.LegacySuffix), "g4");
-        File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.LegacyPathsSuffix), "g5");
+        File.WriteAllText(Path.Combine(demos, "a.grenades.json"), "g4");
+        File.WriteAllText(Path.Combine(demos, "a.grenades.paths.json"), "g5");
     }
 }

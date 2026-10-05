@@ -25,7 +25,7 @@ public class PackResidentTests
     public async Task SituationIndex_ReleaseEmptiesAndUnsubscribes_LoadBringsItBack()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true, walk: _ => []);
         using SituationIndex index = new(cache, sidecars, sources, evaluator: evaluator);
@@ -221,7 +221,7 @@ public class PackResidentTests
     public async Task WatchedSituations_ReleaseDropsTheNewHits_AndStopsFollowingTheIndex_AttachReevaluates()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         using SituationIndex index = new(cache, sidecars, sources);
         Indexed(cache, sidecars, "/d/a.dem", Document("de_nuke", sources.FingerprintFor("de_nuke"),
@@ -301,9 +301,8 @@ public class PackResidentTests
             Demo = new GrenadeDemoHeader { Sha256 = null, StableKey = DemoCacheStore.StableKey(path) },
             Grenades = [row]
         };
-        cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-        record.StampGrenades(document.Grenades.Count);
         cache.Upsert(record);
+        cache.WriteGrenades(path, document);
     }
 
     private sealed class NoRenderer : ILineupClipRenderer

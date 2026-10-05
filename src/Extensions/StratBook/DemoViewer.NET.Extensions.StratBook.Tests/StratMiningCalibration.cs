@@ -35,7 +35,7 @@ public class StratMiningCalibration
 
         string cache = Path.Combine(root, "cache");
         DemoCacheStore demoCache = new(cache);
-        RoundIndexStore positions = new(cache, demoCache);
+        RoundIndexStore positions = new(demoCache.DiskData(cache));
         AssetZonePlaceResolverSource zones = new();
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
         using GrenadeIndex grenades = new(demoCache, zones);
@@ -95,7 +95,7 @@ public class StratMiningCalibration
 
         string cache = Path.Combine(root, "cache");
         DemoCacheStore demoCache = new(cache);
-        RoundIndexStore positions = new(cache, demoCache);
+        RoundIndexStore positions = new(demoCache.DiskData(cache));
         AssetZonePlaceResolverSource zones = new();
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
         using GrenadeIndex grenades = new(demoCache, zones);

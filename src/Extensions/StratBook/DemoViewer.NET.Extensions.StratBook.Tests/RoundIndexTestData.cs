@@ -1,9 +1,9 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -183,13 +183,21 @@ internal static class RoundIndexTestData
         return record;
     }
 
-    /// <summary>Writes a document and stamps its record Indexed, the way the evaluator leaves a demo.</summary>
+    /// <summary>Puts a parsed record in the library and a written index for it, the way the evaluator leaves a demo.</summary>
     internal static void Indexed(DemoCacheStore store, RoundIndexStore sidecars, string path, RoundIndexDocument document,
         long computedAt = 100, long modifiedTicks = 20, string? sha = null)
     {
-        sidecars.Write(path, document);
-        DemoCacheRecord record = ParsedRecord(path, document.Map, sha, modifiedTicks: modifiedTicks);
-        record.StampRoundIndex(document.Fingerprint, computedAt, document.RowCount);
-        store.Upsert(record);
+        store.Upsert(ParsedRecord(path, document.Map, sha, modifiedTicks: modifiedTicks));
+        if (sidecars.Data is MemoryDemoData memory)
+        {
+            Dictionary<string, byte[]>? parts = memory.ReadAny(path, RoundIndexStore.Facet, RoundIndexStore.PositionsPart) is { } positions
+                ? new Dictionary<string, byte[]> { [RoundIndexStore.PositionsPart] = positions.Content }
+                : null;
+            memory.Put(new DemoDataStamp(path, sha, RoundIndexStore.Facet, RoundIndexStore.Schema, document.Fingerprint,
+                DemoDataState.Written, computedAt, document.RowCount), System.Text.Encoding.UTF8.GetBytes(document.Serialize()), parts);
+            return;
+        }
+
+        sidecars.Write(path, document, new RoundPositionsDocument(), document.Fingerprint);
     }
 }

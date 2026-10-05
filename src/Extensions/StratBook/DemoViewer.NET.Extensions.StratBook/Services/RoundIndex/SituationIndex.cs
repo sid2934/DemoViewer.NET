@@ -118,8 +118,17 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
             }
 
             return loaded.Count(d =>
-                !string.Equals(_demoCache.TryGetIndex(d.Path)?.RoundIndexStamp()?.Fingerprint,
+                !string.Equals(_store.Stamp(d.Path)?.Fingerprint,
                     _sources.FingerprintFor(d.Map.Name), StringComparison.Ordinal));
+        }
+    }
+
+    /// <inheritdoc />
+    public long IndexedAtTicks(string demoPath)
+    {
+        lock (_gate)
+        {
+            return _loaded.TryGetValue(demoPath, out LoadedDemo? demo) ? demo.ComputedAtTicks : 0;
         }
     }
 
@@ -160,6 +169,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
         }
 
         _demoCache.Changed += OnCacheChanged;
+        _store.Changed += OnCacheChanged;
     }
 
     /// <inheritdoc />
@@ -200,6 +210,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
         }
 
         _demoCache.Changed -= OnCacheChanged;
+        _store.Changed -= OnCacheChanged;
         return true;
     }
 
@@ -216,7 +227,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
     {
         Attach();
         Stopwatch watch = Stopwatch.StartNew();
-        int orphans = _store.SweepOrphans();
+        const int orphans = 0;
         foreach (DemoCacheIndexEntry entry in _demoCache.Index)
         {
             if (IsLoadable(entry))
@@ -294,9 +305,10 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
 
     // ── Merge and remove ──────────────────────────────────────────────────────
 
-    // Stamped Indexed at the current schema; the fingerprint is not checked here on purpose (see Load).
-    private static bool IsLoadable(DemoCacheIndexEntry? entry) =>
-        entry?.RoundIndexStamp() is { State: DemoAnalysisState.Indexed, Schema: StratBookCache.RoundIndexSchema };
+    // In the library and stamped written at the current schema; the fingerprint is not checked here on
+    // purpose (see Load).
+    private bool IsLoadable(DemoCacheIndexEntry? entry) =>
+        entry is not null && _store.Stamp(entry.Path) is { State: DemoDataState.Written, Schema: RoundIndexStore.Schema };
 
     // Reads one sidecar and replaces whatever the demo contributed before. Returns the merged event, or
     // null when the file is missing, unreadable, or belongs to another demo.
@@ -310,7 +322,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
             return null;
         }
 
-        if (document.SchemaVersion != StratBookCache.RoundIndexSchema)
+        if (document.SchemaVersion != RoundIndexStore.Schema)
         {
             string reason = $"schema {document.SchemaVersion}";
             RoundIndexLog.SidecarIgnored(Log, fileName, reason);
@@ -340,7 +352,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
         }
 
         RoundIndexedEvent indexed = new(entry.Path, DemoCacheStore.StableKey(entry.Path), entry.Sha256,
-            document.Map, entry.RoundIndexComputedAtTicks());
+            document.Map, _store.ComputedAtTicks(entry.Path));
         lock (_gate)
         {
             // A merge posted before a release lands after it: released means empty.
@@ -351,7 +363,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
 
             RemoveLocked(entry.Path);
             MapIndex map = MapFor(document.Map);
-            LoadedDemo demo = map.Add(entry, document);
+            LoadedDemo demo = map.Add(entry, document, indexed.ComputedAtTicks);
             _loaded[entry.Path] = demo;
         }
 
@@ -632,7 +644,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
 
     private readonly record struct TransitionContribution(string A, string B, int Count);
 
-    private sealed class LoadedDemo(MapIndex map, int id, DemoCacheIndexEntry entry, int tickRate, int cadenceTicks)
+    private sealed class LoadedDemo(MapIndex map, int id, DemoCacheIndexEntry entry, int tickRate, int cadenceTicks, long computedAtTicks)
     {
         public MapIndex Map { get; } = map;
 
@@ -646,7 +658,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
 
         public long ModifiedTicks { get; } = entry.ModifiedTicks;
 
-        public long ComputedAtTicks { get; } = entry.RoundIndexComputedAtTicks();
+        public long ComputedAtTicks { get; } = computedAtTicks;
 
         public int TickRate { get; } = tickRate;
 
@@ -708,7 +720,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
 
         public int PostingCount => _postings[0].Sum(p => p.Count) + _postings[1].Sum(p => p.Count);
 
-        public LoadedDemo Add(DemoCacheIndexEntry entry, RoundIndexDocument document)
+        public LoadedDemo Add(DemoCacheIndexEntry entry, RoundIndexDocument document, long computedAtTicks)
         {
             int id;
             if (_freeIds.Count > 0)
@@ -721,7 +733,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
                 _demos.Add(null);
             }
 
-            LoadedDemo demo = new(this, id, entry, document.Clock.TickRate, document.CadenceTicks);
+            LoadedDemo demo = new(this, id, entry, document.Clock.TickRate, document.CadenceTicks, computedAtTicks);
             _demos[id] = demo;
             DemoCount++;
 

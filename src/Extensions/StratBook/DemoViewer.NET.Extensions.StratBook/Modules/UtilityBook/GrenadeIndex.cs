@@ -178,25 +178,32 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
     private bool _attached;
     private bool _disposed;
     private bool _ready;
-    private readonly CoalescedWriter<GrenadeLineupDocument> _lineupWriter;
+    private readonly Func<Action, Task> _scheduleSave;
+    private readonly Lock _saveGate = new();
+    private readonly GrenadeStore _store;
+    private GrenadeLineupDocument? _pendingLineups;
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
 
-    /// <param name="demoCache">The index rows and the siblings.</param>
+    /// <param name="demoCache">The library's index rows.</param>
     /// <param name="zones">Where a map's zone resolver comes from; none when omitted.</param>
     /// <param name="evaluator">The writer, whose <c>Indexed</c> merges a demo; null in a read-only host.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
-    /// <param name="lineups">The lineup store; the one in the cache root when null.</param>
-    /// <param name="scheduleSave">Runs a lineup save later: a processing-queue item in the app, the pool when null.</param>
+    /// <param name="lineups">The lineup store; one in memory when null.</param>
+    /// <param name="scheduleSave">
+    ///     Runs a lineup save later: a keyed processing-queue item in the app, so saves posted while one waits
+    ///     fold into it; the pool when null.
+    /// </param>
+    /// <param name="store">The grenade rows; the evaluator's when null, else rows kept in memory.</param>
     public GrenadeIndex(DemoCacheStore demoCache, IZonePlaceResolverSource? zones = null,
         GrenadeIndexEvaluator? evaluator = null, Action<Action>? post = null, GrenadeLineupStore? lineups = null,
-        Func<Action, Task>? scheduleSave = null)
+        Func<Action, Task>? scheduleSave = null, GrenadeStore? store = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         _demoCache = demoCache;
-        _lineups = lineups ?? GrenadeLineupStore.For(demoCache);
-        _lineupWriter = new CoalescedWriter<GrenadeLineupDocument>(_lineups.Write,
-            ex => GrenadeIndexLog.LineupsNotSaved(Log, ex), scheduleSave ?? (drain => Task.Run(drain)));
+        _store = store ?? evaluator?.Store ?? new GrenadeStore(Extensions.StratBook.MemoryDemoData.For(demoCache));
+        _lineups = lineups ?? new GrenadeLineupStore((string?)null);
+        _scheduleSave = scheduleSave ?? (drain => Task.Run(drain));
         _zones = zones ?? NoZonePlaceResolverSource.Instance;
         _evaluator = evaluator;
         _post = post ?? (a => a());
@@ -284,6 +291,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
         }
 
         _demoCache.Changed += OnCacheChanged;
+        _store.Changed += OnCacheChanged;
     }
 
     /// <inheritdoc />
@@ -330,6 +338,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
         }
 
         _demoCache.Changed -= OnCacheChanged;
+        _store.Changed -= OnCacheChanged;
         return true;
     }
 
@@ -472,6 +481,9 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
     /// <summary>The lineup store this index assigns against.</summary>
     public GrenadeLineupStore LineupStore => _lineups;
 
+    /// <summary>The grenade rows the index loads, and their stamps.</summary>
+    public GrenadeStore Store => _store;
+
     // A map's throw-to-lineup assignment, minting anchors and building the alias map once the library has
     // loaded; cached until a demo on the map comes or goes. Under _gate.
     private Dictionary<string, Guid> EnsureAssignedLocked(string map)
@@ -550,130 +562,60 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
         return changed;
     }
 
-    /// <summary>
-    ///     Fills the store's missing flights from the demos' old paths siblings (the one-off migration), trying
-    ///     each technique's three throws released nearest its mean. Reads every snapshot demo's file once,
-    ///     outside the lock, and saves the store.
-    /// </summary>
-    /// <param name="snapshot">The demos whose paths files are read.</param>
-    /// <param name="readPaths">A demo's paths sibling, or null when it is missing or does not read.</param>
-    /// <returns>How many positions got a flight, and the snapshot demos whose file read.</returns>
-    public (int Filled, HashSet<string> Readable) HarvestStoredPaths(IReadOnlyList<string> snapshot,
-        Func<string, GrenadePathsDocument?> readPaths)
-    {
-        ArgumentNullException.ThrowIfNull(snapshot);
-        ArgumentNullException.ThrowIfNull(readPaths);
-        List<(string Map, string Key, List<IndexedGrenade> Candidates)> needs = [];
-        lock (_gate)
-        {
-            foreach (string map in DistinctDemosLocked().Select(d => d.Map).Where(m => m.Length > 0)
-                         .Distinct(StringComparer.OrdinalIgnoreCase).ToList())
-            {
-                Dictionary<string, Guid> assignment = EnsureAssignedLocked(map);
-                List<IndexedGrenade> all =
-                [
-                    .. DistinctDemosLocked().Where(d => string.Equals(d.Map, map, StringComparison.OrdinalIgnoreCase))
-                        .SelectMany(d => d.Grenades)
-                ];
-                foreach ((string key, WorldPoint origin, List<IndexedGrenade> throws) in Unpathed(all, assignment, _lineups.For(map)))
-                {
-                    needs.Add((map, key, [.. throws.OrderBy(t => Distance(t.Origin, origin)).Take(3)]));
-                }
-            }
-        }
-
-        Dictionary<string, HashSet<string>> wanted = new(StringComparer.OrdinalIgnoreCase);
-        foreach (IndexedGrenade g in needs.SelectMany(n => n.Candidates))
-        {
-            if (!wanted.TryGetValue(g.Demo.Path, out HashSet<string>? ids))
-            {
-                ids = new HashSet<string>(StringComparer.Ordinal);
-                wanted[g.Demo.Path] = ids;
-            }
-
-            ids.Add(g.Row.Id);
-        }
-
-        Dictionary<string, List<TrajectoryPoint>> found = new(StringComparer.Ordinal);
-        HashSet<string> readable = new(StringComparer.OrdinalIgnoreCase);
-        foreach (string demo in snapshot.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            if (readPaths(demo) is not { } document)
-            {
-                continue;
-            }
-
-            readable.Add(demo);
-            if (!wanted.TryGetValue(demo, out HashSet<string>? ids))
-            {
-                continue;
-            }
-
-            foreach (string id in ids)
-            {
-                if (document.Paths.TryGetValue(id, out List<TrajectoryPoint>? points) && points.Count >= 2)
-                {
-                    found[demo + "|" + id] = points;
-                }
-            }
-        }
-
-        int filled = 0;
-        lock (_gate)
-        {
-            foreach ((string map, string key, List<IndexedGrenade> candidates) in needs)
-            {
-                if (candidates.FirstOrDefault(c => found.ContainsKey(c.Demo.Path + "|" + c.Row.Id)) is { } best)
-                {
-                    _lineups.For(map).Paths[key] = new LineupPath(best.Key, found[best.Demo.Path + "|" + best.Row.Id]);
-                    filled++;
-                }
-            }
-
-            SaveLineupsLocked();
-        }
-
-        // The migration reads the file back right after this returns.
-        FlushLineups();
-        return (filled, readable);
-    }
-
-    /// <summary>
-    ///     True when every anchored lineup technique a demo's throws belong to has its flight in the store:
-    ///     the demo's paths file holds nothing the store still needs.
-    /// </summary>
-    /// <param name="demoPath">The demo's path.</param>
-    public bool FlightsCovered(string demoPath)
-    {
-        ArgumentNullException.ThrowIfNull(demoPath);
-        lock (_gate)
-        {
-            if (!_loaded.TryGetValue(demoPath, out LoadedDemo? demo) || demo.Map.Length == 0)
-            {
-                return true;
-            }
-
-            Dictionary<string, Guid> assignment = EnsureAssignedLocked(demo.Map);
-            MapLineups lineups = _lineups.For(demo.Map);
-            HashSet<Guid> anchored = [.. lineups.Anchors.Select(a => a.Id)];
-            return demo.Grenades.All(g => !assignment.TryGetValue(g.Key, out Guid id) || !anchored.Contains(id)
-                                          || lineups.Paths.ContainsKey(PathKey(id, GrenadeLineups.TechniqueKey(g.Row))));
-        }
-    }
-
     private static float Distance(WorldPoint a, WorldPoint b) =>
         MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y) + (a.Z - b.Z) * (a.Z - b.Z));
 
     // Under _gate. Only the copy is taken here; the gzip and write of the whole file (over a second on a
-    // big library) run as the writer's scheduled item, outside the lock.
-    private void SaveLineupsLocked() => _lineupWriter.Post(_lineups.Snapshot());
+    // big library) run as a scheduled item, outside the lock. The newest copy wins.
+    private void SaveLineupsLocked()
+    {
+        Interlocked.Exchange(ref _pendingLineups, _lineups.Snapshot());
+        try
+        {
+            _scheduleSave(() => FlushLineups());
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            GrenadeIndexLog.LineupsNotSaved(Log, ex);
+        }
+    }
 
     /// <summary>
     ///     Writes any pending lineup save on the calling thread, waiting at most <paramref name="timeout" />
     ///     for one in progress. Never throws; false when it could not.
     /// </summary>
     /// <param name="timeout">The wait for a write in progress; infinite when null.</param>
-    public bool FlushLineups(TimeSpan? timeout = null) => _lineupWriter.Flush(timeout);
+    public bool FlushLineups(TimeSpan? timeout = null)
+    {
+        bool entered = false;
+        try
+        {
+            entered = _saveGate.TryEnter(timeout ?? Timeout.InfiniteTimeSpan);
+            if (!entered)
+            {
+                return false;
+            }
+
+            if (Interlocked.Exchange(ref _pendingLineups, null) is { } snapshot)
+            {
+                _lineups.Write(snapshot);
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            GrenadeIndexLog.LineupsNotSaved(Log, ex);
+            return false;
+        }
+        finally
+        {
+            if (entered)
+            {
+                _saveGate.Exit();
+            }
+        }
+    }
 
     // Drops cached assignments: one map's, or every map's when null. Under _gate.
     private void InvalidateLocked(string? map)
@@ -1016,8 +958,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
 
     // ── Merge and remove ──────────────────────────────────────────────────────
 
-    private static bool IsLoadable(DemoCacheIndexEntry? entry) =>
-        entry is not null && entry.IsGrenadesCurrent(GrenadeWalker.Version);
+    private bool IsLoadable(DemoCacheIndexEntry? entry) => entry is not null && _store.IsCurrent(entry.Path);
 
     private static (string? Place, string? Source) Resolve(IZonePlaceResolver? zones, WorldPoint landing) =>
         zones?.Resolve(landing.ToVector()) is { Length: > 0 } place
@@ -1065,15 +1006,14 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
             }
         }
 
-        if (GrenadeSidecar.TryReadRows(_demoCache, entry.Path) is not { } document)
+        if (_store.TryReadRows(entry.Path, entry.Sha256) is not { } document)
         {
             string fileName = Path.GetFileName(entry.Path);
             GrenadeIndexLog.RowsIgnored(Log, fileName);
             return false;
         }
 
-        // Rows written before names were stored (the JSON the grenades migration has not converted yet)
-        // take them from the record, as the migration does.
+        // Rows without a thrower's name take it from the record's players.
         if (document.Grenades.Any(r => r.ThrowerName is null))
         {
             GrenadeSidecar.Name(document, _demoCache.TryLoadRecord(entry.Path)?.Players);
@@ -1166,7 +1106,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
         }
     }
 
-    // Removals only: new rows arrive through the evaluator's Walked, so no sibling is read here.
+    // Removals only: new rows arrive through the evaluator's Walked, so no rows are read here.
     private void OnCacheChanged(string? path)
     {
         bool changed = false;

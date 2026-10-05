@@ -17,6 +17,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     A settings page the host renders from an extension's schema: each row reads and writes the extension's
 ///     own settings, follows a change made elsewhere, and the page renders a control per kind.
 /// </summary>
+[Category("Render")]
 public class SettingsSchemaPageTests
 {
     private static readonly SettingsSchema Schema = new("dev.example.page", "EXAMPLE",

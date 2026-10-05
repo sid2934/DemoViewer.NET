@@ -36,6 +36,7 @@ namespace DemoViewer.NET.ViewModels.Situations;
 public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
     private readonly DemoCacheStore _demoCache;
+    private readonly RoundIndexStore _sidecars;
     private readonly RoundIndexEvaluator? _evaluator;
     private readonly ISituationIndex _index;
 
@@ -141,7 +142,8 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         // the map; a set built without a sidecar store has nothing to draw and says so on every tile.
         // Their overlay is the canvas's own document, so the heatmap lands on the map the query was
         // drawn on.
-        Results = results ?? new ResultCardsViewModel(demoCache, sidecars ?? new RoundIndexStore(null, demoCache),
+        _sidecars = sidecars ?? new RoundIndexStore(MemoryDemoData.For(demoCache));
+        Results = results ?? new ResultCardsViewModel(demoCache, _sidecars,
             sources, playback ?? (() => null), overlay: Canvas.Overlay, review: review, run: run);
         Canvas.Searched += Results.Load;
         Results.SearchTeam ??= () => Canvas.Filters.Opponent.Value;
@@ -152,9 +154,11 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         _ownedWatched = watched is null ? new WatchedSituationsService(null, index, demoCache, teams, provenance) : null;
         Watched = new WatchedSituationsViewModel(watched ?? _ownedWatched!, Canvas, teams);
 
-        // Both sources matter: the cache raises on every stamp, the index on load and merge. Subscribed
-        // for the VM's life rather than per activation so the strip is right the moment the tab opens.
+        // Every source matters: the library on a demo's arrival or departure, the store on every stamp, the
+        // index on load and merge. Subscribed for the VM's life rather than per activation so the strip is
+        // right the moment the tab opens.
         _demoCache.Changed += OnCacheChanged;
+        _sidecars.Changed += OnCacheChanged;
         _index.Changed += Refresh;
         Refresh();
     }
@@ -208,6 +212,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
         _disposed = true;
         _demoCache.Changed -= OnCacheChanged;
+        _sidecars.Changed -= OnCacheChanged;
         _index.Changed -= Refresh;
         Canvas.Searched -= Results.Load;
         Canvas.PropertyChanged -= OnCanvasPropertyChanged;
@@ -255,7 +260,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         LibraryCount = rows.Count;
         IndexedCount = _index.IndexedDemoCount;
         StaleCount = _index.StaleDemoCount;
-        FailedCount = rows.Count(r => r.RoundIndexStamp() is { State: DemoAnalysisState.Failed });
+        FailedCount = rows.Count(r => _sidecars.IsFailed(r.Path));
         PendingCount = pending.Count;
         IsIndexing = _evaluator?.IsIndexing ?? false;
         // PendingPaths is newest-first, the order the queue drains in, so its head is the demo in flight.

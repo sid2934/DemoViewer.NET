@@ -311,7 +311,6 @@ public class SetupHeatmapTests
 
         public void Dispose()
         {
-            Store.Dispose();
             Teams.Dispose();
         }
 
@@ -328,7 +327,7 @@ public class SetupHeatmapTests
 
             await teams.Idle;
 
-            RoundIndexStore store = new(null, cache);
+            RoundIndexStore store = new(cache.Data());
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
             store.WritePositions(Demo, Positions(positionsFingerprint ?? sources.FingerprintFor("de_nuke")));
             SetupHeatmapService service = new(teams, cache, store, sources.FingerprintFor);

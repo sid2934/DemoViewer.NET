@@ -32,7 +32,7 @@ internal sealed class SuggestedTagsReviewHarness : IDisposable
     internal SuggestedTagsReviewHarness(string? cacheRoot = null, string? tagsRoot = null)
     {
         Cache = new DemoCacheStore(cacheRoot);
-        Proposals = new ProposalStore(cacheRoot, Cache);
+        Proposals = new ProposalStore(cacheRoot is null ? Cache.Data() : Cache.DiskData(cacheRoot));
         Tags = new TagStore(tagsRoot);
         Regions = new SiteRegionStore(null);
         Regions.Save(SuggestedTagsTestData.Table);
@@ -49,7 +49,9 @@ internal sealed class SuggestedTagsReviewHarness : IDisposable
     internal bool Enabled { get; set; } = true;
     internal bool Background { get; set; } = true;
 
-    public void Dispose() => Proposals.Dispose();
+    public void Dispose()
+    {
+    }
 
     /// <summary>The parsed record with rows the evaluator wants; <paramref name="round" /> is the first round's number.</summary>
     internal void Seed(int round = 1, string? sha = null) =>
@@ -143,6 +145,6 @@ internal sealed class SuggestedTagsReviewHarness : IDisposable
             Clock = new RoundFactsClock { TickRate = 64, FrameCount = 2, FirstTick = 1, LastTick = 20000 },
             DetectorSet = new ProposalDetectorSet { Fingerprint = "fp", ProfileId = "team-default" },
             Proposals = [.. proposals.Select(p => StoredProposal.From(p, FreezeEnd))]
-        });
+        }, "fp", proposals.Length);
     }
 }

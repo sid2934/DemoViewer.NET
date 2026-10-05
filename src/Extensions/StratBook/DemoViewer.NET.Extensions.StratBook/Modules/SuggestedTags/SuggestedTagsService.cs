@@ -172,6 +172,9 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <summary>The scheduling of the extension's passes, so a forced request can ask for the demo again. Null in tests.</summary>
     public IExtensionPasses? Passes { get; set; }
 
+    /// <summary>The proposals store, whose stamps carry each demo's pending count.</summary>
+    public ProposalStore Proposals => _proposals;
+
     /// <summary>Whether proposals and verdicts outlive the process. False on the browser host.</summary>
     public bool IsPersistent => _proposals.IsPersistent && (_tags?.IsPersistent ?? false);
 
@@ -575,27 +578,20 @@ public sealed class SuggestedTagsService : IExtensionPass
     private void AfterVerdict(string path, string? sha256)
     {
         int pending = LoadCore(path, sha256).Set.Pending.Count;
-        try
-        {
-            _demoCache.UpdateExisting(path, r => r.SetSuggestionCount(pending));
-            _demoCache.SaveIndex();
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // The count is a mirror; the next build or verdict writes it again.
-        }
+        _proposals.SetCount(path, pending);
 
         RaiseChanged(path);
     }
 
-    private (ProposalDocument? Document, ProposalSet Set) LoadCore(string path, string? sha256)
+    private (ProposalDocument? Document, ProposalSet Set) LoadCore(string path, string? sha256) =>
+        _proposals.TryRead(path) is { } document ? Resolve(path, sha256, document) : (null, ProposalSet.Empty(path, IsPersistent));
+
+    private int CountPending(string path, ProposalDocument document) => Resolve(path, null, document).Set.Pending.Count;
+
+    // The document's proposals matched against the demo's verdicts.
+    private (ProposalDocument? Document, ProposalSet Set) Resolve(string path, string? sha256, ProposalDocument document)
     {
         bool persistent = IsPersistent;
-        if (_proposals.TryRead(path) is not { } document)
-        {
-            return (null, ProposalSet.Empty(path, persistent));
-        }
-
         string? sha = Normalize(sha256) ?? Normalize(_demoCache.TryGetIndex(path)?.Sha256)
             ?? Normalize(document.Demo.Sha256);
         if (sha is not null && Normalize(document.Demo.Sha256) is { } written
@@ -657,7 +653,7 @@ public sealed class SuggestedTagsService : IExtensionPass
             DetectorProfile profile = _profile();
             SiteRegionTable? table = TableFor(map);
             string fingerprint = SuggestionsFingerprint.Compose(profile, table);
-            if (!forced && record.IsSuggestionsCurrent(fingerprint)
+            if (!forced && _proposals.IsCurrent(path, fingerprint)
                         && _proposals.TryRead(path) is not null)
             {
                 return; // a queued request the open's visit already satisfied
@@ -695,12 +691,9 @@ public sealed class SuggestedTagsService : IExtensionPass
                 Proposals = [.. proposals.Select(p => StoredProposal.From(p, roundStarts.GetValueOrDefault(p.Round)))]
             };
 
-            // The file first and the stamp last: a crash between them leaves "not built", never a stamp
-            // with nothing behind it.
-            _proposals.Write(path, document);
-            int pending = LoadCore(path, null).Set.Pending.Count;
-            _demoCache.UpdateExisting(path, r => r.SetSuggestions(fingerprint, pending));
-            _demoCache.SaveIndex();
+            // The pending count needs the verdicts matched against these proposals, so it is counted before
+            // the write that stamps it.
+            _proposals.Write(path, document, fingerprint, CountPending(path, document));
             RaiseChanged(path);
         }
         catch (Exception ex)
@@ -749,7 +742,7 @@ public sealed class SuggestedTagsService : IExtensionPass
         DetonationCloud? cloud = null;
         string source;
         if (_index is not null && _indexSources is not null
-                               && record.IsRoundIndexCurrent(_indexSources.FingerprintFor(map))
+                               && _index.IsCurrent(path, _indexSources.FingerprintFor(map))
                                && _index.TryRead(path) is { } indexDocument)
         {
             rounds = RoundOccupancyBuilder.FromIndex(indexDocument, facts, tickRate);
@@ -781,7 +774,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     }
 
     private bool NeedsBuild(DemoCacheIndexEntry? entry) =>
-        entry is not null && HasInputs(entry) && !entry.IsSuggestionsCurrent(FingerprintFor(entry.Map));
+        entry is not null && HasInputs(entry) && !_proposals.IsCurrent(entry.Path, FingerprintFor(entry.Map));
 
     private static bool HasInputs(DemoCacheIndexEntry? entry) =>
         entry is { ParseSchema: > 0 } && entry.HasRoundFacts();

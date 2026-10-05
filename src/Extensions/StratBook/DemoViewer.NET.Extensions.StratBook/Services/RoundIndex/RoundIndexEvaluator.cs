@@ -20,11 +20,10 @@ namespace DemoViewer.NET.Services.RoundIndex;
 ///     index simply follows Round Facts by one pass and never races it.
 ///     <para>
 ///         Per demo the work is one position walk (1 to 3 s on top of the parse the queue already
-///         paid), the positions file and the sidecar written in that order, and one record stamp, the
-///         stamp last so a crash between them leaves "not indexed" and never a stamp without both
-///         files. A throw stamps <see cref="DemoAnalysisState.Failed" />,
-///         which the derived backlog excludes until the user retries; the parse itself failing is not
-///         this evaluator's to mark.
+///         paid) and one write of the demo's round index facet, positions included, stamped last so a
+///         crash leaves "not indexed" and never a stamp without both. A throw marks the facet
+///         <see cref="DemoDataState.Failed" />, which the derived backlog excludes until the user
+///         retries; the parse itself failing is not this evaluator's to mark.
 ///     </para>
 /// </summary>
 public sealed class RoundIndexEvaluator : IExtensionPass
@@ -198,8 +197,8 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <summary>Every row that carries an index built under another fingerprint than its map's current one.</summary>
     public int StaleCount() =>
         _demoCache.Index.Count(e =>
-            e.RoundIndexStamp() is { Schema: > 0, State: DemoAnalysisState.Indexed }
-            && !e.IsRoundIndexCurrent(_sources.FingerprintFor(e.Map)));
+            _store.Stamp(e.Path) is { Schema: > 0, State: DemoDataState.Written }
+            && !_store.IsCurrent(e.Path, _sources.FingerprintFor(e.Map)));
 
     /// <summary>
     ///     Re-queues one demo at user priority regardless of the opt-in: the strip's Retry. A failed
@@ -210,10 +209,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     {
         try
         {
-            if (_demoCache.TryGetIndex(path)?.RoundIndexStamp() is { State: DemoAnalysisState.Failed })
-            {
-                _demoCache.UpdateExisting(path, r => r.ClearFailed(EvaluatorId));
-            }
+            _store.ClearFailed(path);
         }
         catch (Exception)
         {
@@ -233,7 +229,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     {
         List<string> failed =
         [
-            .. _demoCache.Index.Where(e => e.RoundIndexStamp() is { State: DemoAnalysisState.Failed }).Select(e => e.Path)
+            .. _demoCache.Index.Where(e => _store.IsFailed(e.Path)).Select(e => e.Path)
         ];
         foreach (string path in failed)
         {
@@ -243,42 +239,18 @@ public sealed class RoundIndexEvaluator : IExtensionPass
 
     /// <summary>
     ///     Marks every index stale and asks the scheduler to check the library again: the strip's
-    ///     "Rebuild index". The stamp is cleared, not the sidecar, so the old rows keep answering
-    ///     queries until each demo is rebuilt (the derived-backlog rule).
+    ///     "Rebuild index". The stamps lose their fingerprint and the data stays, so the old rows keep
+    ///     answering queries until each demo is rebuilt (the derived-backlog rule).
     /// </summary>
     public void RebuildAll()
     {
-        List<string> indexed =
-        [
-            .. _demoCache.Index
-                .Where(e => e.RoundIndexStamp() is { } s && (s.Schema > 0 || s.State == DemoAnalysisState.Failed))
-                .Select(e => e.Path)
-        ];
-        using (_demoCache.BeginBatch())
-        {
-            foreach (string path in indexed)
-            {
-                _demoCache.UpdateExisting(path, r =>
-                {
-                    if (r.RoundIndexStamp() is { } stamp)
-                    {
-                        r.SetStamp(stamp with
-                        {
-                            Fingerprint = null,
-                            State = stamp.State == DemoAnalysisState.Failed ? DemoAnalysisState.Pending : stamp.State
-                        });
-                    }
-                });
-            }
-        }
-
-        _demoCache.SaveIndex();
+        _store.InvalidateAll();
         Passes?.RecheckAll();
     }
 
     private bool NeedsIndex(DemoCacheIndexEntry? entry) =>
         entry is { ParseSchema: > 0 } && entry.HasRoundFacts()
-        && entry.NeedsRoundIndex(_sources.FingerprintFor(entry.Map));
+        && _store.Needs(entry.Path, _sources.FingerprintFor(entry.Map));
 
     private void Refresh(string path, ParsedDemo parsed)
     {
@@ -310,7 +282,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
 
             IPlaceSource source = _sources.SourceFor(parsed.MapName);
             string fingerprint = RoundIndexFingerprint.Compose(_sources.Options, source);
-            if (!forced && record.IsRoundIndexCurrent(fingerprint))
+            if (!forced && _store.IsCurrent(path, fingerprint))
             {
                 return; // a queued request an earlier visit already satisfied
             }
@@ -337,24 +309,9 @@ public sealed class RoundIndexEvaluator : IExtensionPass
                 StableKey = stableKey
             };
 
-            // Positions first, sidecar second, stamp last: a crash between any two leaves "not indexed"
-            // or a positions file nothing reads, never an index whose cards have nothing to draw.
-            _store.WritePositions(path, build.Positions);
-            _store.Write(path, document);
-
-            // Stamped inside the mutate, under the store's read-modify-write lock, so the time is the persist time.
-            long computedAt = 0;
-            _demoCache.UpdateExisting(path, r =>
-            {
-                PackStamp stamp = new(EvaluatorId, StratBookCache.RoundIndexSchema, fingerprint)
-                {
-                    ComputedAtTicks = DateTime.UtcNow.Ticks,
-                    Count = document.RowCount
-                };
-                r.SetStamp(stamp);
-                computedAt = stamp.ComputedAtTicks;
-            });
-            _demoCache.SaveIndex();
+            // The store writes the positions first, the index second and the stamp last: a crash between any
+            // two leaves "not indexed", never an index whose cards have nothing to draw.
+            long computedAt = _store.Write(path, document, build.Positions, fingerprint)?.WrittenAtTicks ?? DateTime.UtcNow.Ticks;
 
             RoundIndexedEvent indexed = new(path, document.Demo.StableKey, record.Sha256, document.Map, computedAt);
             Written?.Invoke(indexed);
@@ -365,11 +322,11 @@ public sealed class RoundIndexEvaluator : IExtensionPass
             RoundIndexLog.BuildFailed(Log, fileName, ex);
             try
             {
-                _demoCache.UpdateExisting(path, r => r.MarkFailed(EvaluatorId));
+                _store.MarkFailed(path);
             }
             catch (Exception)
             {
-                // The row could not be marked; the next pass will try the demo again.
+                // The stamp could not be marked; the next pass will try the demo again.
             }
         }
         finally

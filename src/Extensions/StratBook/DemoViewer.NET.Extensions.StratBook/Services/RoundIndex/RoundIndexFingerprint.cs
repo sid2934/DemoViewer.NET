@@ -28,7 +28,7 @@ public static class RoundIndexFingerprint
         ArgumentNullException.ThrowIfNull(source);
 
         string fingerprint =
-            $"ri{StratBookCache.RoundIndexSchema};cadence={options.CadenceSeconds.ToString(CultureInfo.InvariantCulture)}"
+            $"ri{RoundIndexStore.Schema};cadence={options.CadenceSeconds.ToString(CultureInfo.InvariantCulture)}"
             + $";token={PlaceCountToken.TokenVersion};rf={StratBookCache.RoundFactsSchema};src={source.SourceId}";
         if (source.ZonesVersion is { } version)
         {

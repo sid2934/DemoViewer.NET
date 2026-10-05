@@ -322,9 +322,8 @@ public class StratBookLifecycleTests
             Demo = new GrenadeDemoHeader { Sha256 = null, StableKey = DemoCacheStore.StableKey(path) },
             Grenades = [row]
         };
-        cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-        record.StampGrenades(document.Grenades.Count);
         cache.Upsert(record);
+        cache.WriteGrenades(path, document);
     }
 
     // Records every queue job's title, in submission order, without running its body: the pack's
