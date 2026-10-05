@@ -172,6 +172,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     public event Action? Changed;
     public event Action? CapacityAvailable;
 
+    /// <inheritdoc />
+    public IShellDemoLease? ShellDemo { get; set; }
+
     public bool IsPaused
     {
         get
@@ -403,6 +406,16 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 Detail = "Reading the file"
             };
             _entries.Insert(0, entry);
+            // A queued visit of this demo waits for the open and runs on its parse instead of reading the file.
+            if (entry.Path.Length > 0)
+            {
+                foreach (Entry visit in _entries.Where(e =>
+                             e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Queued && PathEquals(e.Path, entry.Path)))
+                {
+                    visit.ParkedBehind = entry;
+                }
+            }
+
             preempted = PreemptForLocked(entry);
             PumpLocked();
             ticket = new OpenTicket(this, entry, cancel);
@@ -579,6 +592,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         public void Report(double progress, string stage) =>
             queue.ReportProgress(entry, (int)(Math.Clamp(progress, 0, 1) * 100), 100, stage);
 
+        public Task RunPassesAsync(ParsedDemo parsed, Action? plan = null) =>
+            queue.RunOpenPassesAsync(entry, parsed, plan, _token);
+
         public void Complete() => End(DemoQueueItemState.Completed, null);
 
         public void Fail(Exception failure) => End(DemoQueueItemState.Failed, failure.Message);
@@ -666,7 +682,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 existing.DisplayName ??= displayName;
                 if (existing.State == DemoQueueItemState.Queued)
                 {
-                    supersededCancel = PreemptForLocked(existing);
+                    existing.ParkedBehind ??= OpenForLocked(path);
+                    supersededCancel = existing.ParkedBehind is null ? PreemptForLocked(existing) : null;
                 }
 
                 PumpLocked(); // priority may have changed the pick order
@@ -686,7 +703,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     OrderHint = Math.Max(orderHint, forward.OrderHint),
                     Seq = forward.Seq,
                     Front = true,
-                    Visit = new DemoVisit(demo, level)
+                    Visit = new DemoVisit(demo, level),
+                    ParkedBehind = OpenForLocked(path)
                 };
                 entry.Visit.TakeFrom(forward.Visit!);
                 foreach ((IDemoPass pass, PassNeeds needs) in joining)
@@ -715,7 +733,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     Priority = priority,
                     OrderHint = orderHint,
                     Seq = _seq++,
-                    Visit = new DemoVisit(demo, level)
+                    Visit = new DemoVisit(demo, level),
+                    ParkedBehind = OpenForLocked(path)
                 };
                 foreach ((IDemoPass pass, PassNeeds needs) in joining)
                 {
@@ -723,7 +742,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 }
 
                 _entries.Add(entry);
-                supersededCancel = PreemptForLocked(entry);
+                // A visit that waits for the open stops nothing: the open did that when it began.
+                supersededCancel = entry.ParkedBehind is null ? PreemptForLocked(entry) : null;
                 PumpLocked();
                 handle = new Handle(this, entry.Id, owners, path, entry.Completion.Task);
             }
@@ -733,6 +753,19 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         RaiseChanged();
         return handle;
     }
+
+    // Under _sync. The open of this demo that a queued visit waits for, if one is active and has not yet run
+    // its passes.
+    private Entry? OpenForLocked(string path) =>
+        path.Length == 0
+            ? null
+            : _entries.FirstOrDefault(e =>
+                e.Kind == QueueJobKind.DemoOpen && IsActive(e) && !e.Superseded && !e.PassesStarted && PathEquals(e.Path, path));
+
+    // Under _sync. A visit waits while the open it is parked behind is active and has not run its passes; an
+    // open that ended or was replaced releases it without a separate step.
+    private static bool ParkedLocked(Entry e) =>
+        e.ParkedBehind is { } open && IsActive(open) && !open.Superseded && !open.PassesStarted;
 
     // A pass that cannot say what it needs gets the widest read, which serves whatever it turns out to do.
     private static PassNeeds SafeNeeds(IDemoPass pass, VisitedDemo demo)
@@ -989,7 +1022,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         {
             return _entries.Select(e => e.Kind == QueueJobKind.DemoOpen && e.WaitingForSlot
                 ? ToSnapshot(e) with { Detail = OpenWaitDetailLocked(e) }
-                : ToSnapshot(e)).ToList();
+                : ParkedLocked(e)
+                    ? ToSnapshot(e) with { Detail = "Runs on the open of this demo" }
+                    : ToSnapshot(e)).ToList();
         }
     }
 
@@ -1124,6 +1159,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         entry.Requeued = true;
         entry.Finalizing = false;
         entry.Cancel = null;
+        if (entry.Kind == QueueJobKind.DemoProcessing)
+        {
+            // A forward read the open stopped comes back as the open's visit, not as a second read.
+            entry.ParkedBehind = OpenForLocked(entry.Path);
+        }
+
         PumpLocked();
     }
 
@@ -1192,6 +1233,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // would root the ParsedDemo while the worker waits for the next slot.
     private void RunEntry(Entry entry)
     {
+        if (TryHoldShellDemo(entry.Path) is { } held)
+        {
+            RunOnHeldParse(entry, held);
+            return;
+        }
+
         bool forward;
         lock (_sync)
         {
@@ -1246,6 +1293,114 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 _parsesSinceCompact++;
             }
+        }
+    }
+
+    private IHeldParse? TryHoldShellDemo(string path)
+    {
+        if (ShellDemo is not { } shell || path.Length == 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            return shell.TryHold(path);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            AppLog.QueueOwnerHandlerFailed(DiagLog, ex);
+            return null;
+        }
+    }
+
+    // The shell holds this demo's parse, decoded with every category: the passes read it and no file is
+    // opened. The hold keeps the shell from releasing the parse until they are done. Synchronous like RunEntry.
+    private void RunOnHeldParse(Entry entry, IHeldParse held)
+    {
+        CancellationTokenSource cancel = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken);
+        lock (_sync)
+        {
+            entry.Forward = false;
+            entry.UserCommands = true;
+            entry.Detail = "On the open demo's parse";
+            entry.Cancel = cancel;
+            if (entry.CancelRequested)
+            {
+                cancel.Cancel();
+            }
+        }
+
+        RaiseChanged();
+        try
+        {
+            FinishEntry(entry, held.Parsed, null, cancel.Token);
+        }
+        finally
+        {
+            held.Dispose();
+            lock (_sync)
+            {
+                entry.Cancel = null;
+                _jobsSinceCompact++;
+            }
+
+            cancel.Dispose();
+        }
+    }
+
+    // The open's visit: every pass queued behind the open runs on the parse in hand, from a worker, while
+    // the open item is still active and keeps other heavy starts off. No file is read.
+    private Task RunOpenPassesAsync(Entry open, ParsedDemo parsed, Action? plan, CancellationToken ct) =>
+        Task.Run(() => RunOpenPasses(open, parsed, plan, ct), CancellationToken.None);
+
+    private void RunOpenPasses(Entry open, ParsedDemo parsed, Action? plan, CancellationToken ct)
+    {
+        if (plan is not null)
+        {
+            SafeInvoke(plan);
+        }
+
+        List<Entry> visits;
+        bool cancelled;
+        DemoVisit merged = new(new VisitedDemo(open.Path), PassLevel.OpenDemo);
+        lock (_sync)
+        {
+            open.PassesStarted = true;
+            cancelled = ct.IsCancellationRequested || !IsActive(open);
+            visits = cancelled
+                ? []
+                : _entries.Where(e => e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Queued
+                                      && ReferenceEquals(e.ParkedBehind, open)).ToList();
+            foreach (Entry visit in visits)
+            {
+                visit.State = DemoQueueItemState.Running;
+                visit.Finalizing = true;
+                visit.Detail = "On the open demo's parse";
+                merged.AddAll(visit.Visit!);
+            }
+
+            // An open that ended first leaves its visits to run on their own read.
+            PumpLocked();
+        }
+
+        RaiseChanged();
+        if (!cancelled)
+        {
+            foreach (VisitPass p in merged.Ordered())
+            {
+                RunPass(p, new PassInput(merged.Demo, PassLevel.OpenDemo, parsed, null, ct));
+            }
+        }
+
+        if (_parseReleased is { } released)
+        {
+            SafeInvoke(() => released(parsed));
+        }
+
+        foreach (Entry visit in visits)
+        {
+            SetTerminal(visit, DemoQueueItemState.Completed, null);
         }
     }
 
@@ -1881,6 +2036,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // Pause stops every start; the disable switch stops only Background-priority work.
     private bool IsStartableLocked(Entry e) =>
         e.State == DemoQueueItemState.Queued
+        && !ParkedLocked(e)
         && (!_paused || e.Priority >= DemoJobPriority.UserRequested)
         && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction
             || IsLight(e) || e.Kind == QueueJobKind.LibraryScan)
@@ -2170,6 +2326,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         // The demo's visit: the passes joined so far and the level. Set for every DemoProcessing entry.
         public DemoVisit? Visit { get; init; }
         public List<TaskCompletionSource<ParsedDemo>> ForegroundWaiters { get; } = [];
+
+        // A queued visit of the demo an open is for: it does not start on its own, the open runs its passes
+        // on the shell's parse. Cleared when that open ends without running them.
+        public Entry? ParkedBehind { get; set; }
+
+        // An open whose pass run has taken its parked visits; a visit submitted after this queues normally.
+        public bool PassesStarted { get; set; }
 
         public TaskCompletionSource Completion { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);

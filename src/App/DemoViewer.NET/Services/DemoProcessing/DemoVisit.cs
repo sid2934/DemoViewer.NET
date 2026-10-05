@@ -42,13 +42,19 @@ internal sealed class DemoVisit
     /// <summary>Moves every pass of <paramref name="other" /> onto this visit, preserving their order.</summary>
     public void TakeFrom(DemoVisit other)
     {
+        AddAll(other);
+        other._passes.Clear();
+    }
+
+    /// <summary>Adds every pass of <paramref name="other" /> to this visit; <paramref name="other" /> keeps them.</summary>
+    public void AddAll(DemoVisit other)
+    {
         foreach (VisitPass p in other._passes.OrderBy(p => p.Arrival))
         {
             Add(p.Pass, p.Needs, p.Ended);
         }
 
         Raise(other.Level);
-        other._passes.Clear();
     }
 
     public void Raise(PassLevel level)

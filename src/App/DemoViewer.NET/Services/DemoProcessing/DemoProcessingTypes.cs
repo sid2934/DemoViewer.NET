@@ -235,6 +235,27 @@ public interface IDemoQueueHandle
 }
 
 /// <summary>
+///     The shell's loaded demo, lent to the queue so a visit of that demo runs on the parse the shell already
+///     holds instead of reading the file again. The shell hands out a hold only while the demo is loaded and
+///     waits for every hold to end before it releases the parse.
+/// </summary>
+public interface IShellDemoLease
+{
+    /// <summary>
+    ///     The held parse of <paramref name="path" /> when it is the loaded demo, else null. The caller
+    ///     disposes the hold when its passes are done.
+    /// </summary>
+    IHeldParse? TryHold(string path);
+}
+
+/// <summary>A hold on the shell's parse: the parse stays loaded until this is disposed.</summary>
+public interface IHeldParse : IDisposable
+{
+    /// <summary>The loaded demo's parse, decoded with every message category.</summary>
+    ParsedDemo Parsed { get; }
+}
+
+/// <summary>
 ///     The single global source all background demo parse/analyse work is pulled from
 ///     (demo-processing-queue). Lives in the shared App project and must COMPILE for WASM: no
 ///     ASP.NET, no physical-file assumptions in the abstraction, no blocking waits.
@@ -271,6 +292,18 @@ public interface IDemoProcessingQueue
     /// <summary>True while background processing is transiently paused.</summary>
     bool IsPaused { get; }
 
+    /// <summary>
+    ///     The shell's loaded demo. When set, a visit of that demo runs its passes on the held parse and reads
+    ///     nothing. A stand-in queue ignores it.
+    /// </summary>
+    IShellDemoLease? ShellDemo
+    {
+        get => null;
+        set
+        {
+        }
+    }
+
     // ── Counts (status line) ──────────────────────────────────────────────────
 
     /// <summary>Items waiting for a slot.</summary>
@@ -299,7 +332,9 @@ public interface IDemoProcessingQueue
 
     /// <summary>
     ///     Starts a user's demo open as a <see cref="QueueJobKind.DemoOpen" /> item at the front of the queue.
-    ///     A newer open replaces this one. The caller runs the stages and ends the item through the ticket.
+    ///     A newer open replaces this one. The caller runs the stages and ends the item through the ticket. A
+    ///     queued visit of the same demo, and one submitted while the open is active, waits for the open and
+    ///     runs on its parse through <see cref="IDemoOpenTicket.RunPassesAsync" /> instead of reading the file.
     /// </summary>
     /// <param name="path">The demo's path, the key for joining a running parse of it; null when it has none.</param>
     /// <param name="fileName">The file name the list shows.</param>
@@ -392,6 +427,16 @@ public interface IDemoOpenTicket : IDisposable
     /// <summary>The stage the list shows, and the fraction done.</summary>
     void Report(double progress, string stage);
 
+    /// <summary>
+    ///     Runs the demo's visit on the shell's parse, from a worker: first <paramref name="plan" />, which may
+    ///     submit the demo's passes (they queue behind this open), then every pass queued behind this open, in
+    ///     <see cref="IDemoPass.After" /> order. Those passes read the parse in hand instead of the file. The
+    ///     task completes when they have run; the caller then ends the item.
+    /// </summary>
+    /// <param name="parsed">The parse this open produced or joined.</param>
+    /// <param name="plan">Plans the demo's visit at the open level, or null when nothing plans visits.</param>
+    Task RunPassesAsync(ParsedDemo parsed, Action? plan = null);
+
     /// <summary>Ends the item as completed, or cancelled when it was cancelled.</summary>
     void Complete();
 
@@ -412,6 +457,9 @@ public sealed class PassThroughDemoOpen(Func<ReadOnlyMemory<byte>, CancellationT
     public void Report(double progress, string stage)
     {
     }
+
+    public Task RunPassesAsync(ParsedDemo parsed, Action? plan = null) =>
+        plan is null ? Task.CompletedTask : Task.Run(plan);
 
     public void Complete()
     {
