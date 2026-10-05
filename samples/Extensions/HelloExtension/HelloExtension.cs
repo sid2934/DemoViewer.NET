@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using DemoViewer.NET.Extensions.Sdk;
@@ -7,7 +8,10 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace HelloExtension;
 
-/// <summary>A tab that shows the open demo, a Match Overview action and a 2D Playback toolbar button.</summary>
+/// <summary>
+///     A tab that shows the open demo, a pass that counts the open demo's frames, a Match Overview action that
+///     greets a demo from a job on its parse, and a 2D Playback toolbar button.
+/// </summary>
 public sealed class HelloExtension : IExtension
 {
     public const string ExtensionId = "dev.example.hello";
@@ -32,31 +36,78 @@ public sealed class HelloExtension : IExtension
         ArgumentNullException.ThrowIfNull(contributions);
         IExtensionContext context = contributions.Context;
         contributions.Tabs(new HelloModule(services.GetRequiredService<HelloTabViewModel>));
-        contributions.DemoAction(new DemoAction("hello.greet", "Say hello", "Logs a greeting for this demo",
+
+        // Runs on every visit of a demo, but wants only the one the shell has open, so it rides the open's
+        // parse and never makes the library read a demo for it.
+        contributions.Pass(FrameCountPass.PassId, () => new FrameCountPass(services.GetRequiredService<HelloTabViewModel>()));
+
+        // A job that names the demo runs on that demo's parse: the shell's when the demo is open.
+        contributions.DemoAction(new DemoAction("hello.greet", "Say hello", "Greets this demo with its frame count",
             _ => true,
-            path => _ = context.Jobs.RunAsync("Hello: greet", _ =>
+            path =>
             {
-                context.Post(() => services.GetRequiredService<HelloTabViewModel>().Greeted = Path.GetFileName(path));
-                return Task.CompletedTask;
-            })));
+                int frames = 0;
+                IJobHandle handle = context.Jobs.Enqueue(JobRequest.OnDemo("Hello: greet", path, job =>
+                {
+                    frames = job.Parsed.Frames.Count;
+                    return Task.CompletedTask;
+                }, new JobOptions(Priority: JobPriority.UserRequested)));
+                handle.Completed += result => services.GetRequiredService<HelloTabViewModel>().Greeted =
+                    result.Status == JobStatus.Completed ? $"{Path.GetFileName(path)} ({frames} frames)" : Path.GetFileName(path);
+            }));
         contributions.Playback(new HelloPlayback());
     }
 }
 
-/// <summary>The tab's state: the open demo and the last greeting.</summary>
+/// <summary>The tab's state: the open demo, its frame count and the last greeting.</summary>
 public sealed class HelloTabViewModel : IWorkspaceTabViewModel
 {
     private readonly IExtensionContext _context;
+    private readonly ConcurrentDictionary<string, int> _frames = new(StringComparer.OrdinalIgnoreCase);
+    private volatile string? _openDemo;
+    private string? _greeted;
 
     public HelloTabViewModel(IExtensionContext context)
     {
         _context = context;
-        _context.Shell.CurrentDemoChanged += () => Changed?.Invoke();
+        _context.Shell.CurrentDemoChanged += () =>
+        {
+            _openDemo = _context.Shell.CurrentDemoPath;
+            Changed?.Invoke();
+        };
     }
 
-    public string? Greeted { get; set; }
+    /// <summary>The open demo, kept in memory so a pass can read it off the UI thread.</summary>
+    public string? OpenDemo => _openDemo;
 
-    public string Text => $"Open demo: {_context.Shell.CurrentDemoPath ?? "none"}. Last greeted: {Greeted ?? "nobody"}.";
+    public string? Greeted
+    {
+        get => _greeted;
+        set
+        {
+            _greeted = value;
+            Changed?.Invoke();
+        }
+    }
+
+    public string Text
+    {
+        get
+        {
+            string? open = _context.Shell.CurrentDemoPath;
+            string frames = open is not null && _frames.TryGetValue(open, out int count) ? $" ({count} frames)" : "";
+            return $"Open demo: {open ?? "none"}{frames}. Last greeted: {Greeted ?? "nobody"}.";
+        }
+    }
+
+    public bool HasFrameCount(string path) => _frames.ContainsKey(path);
+
+    // Called from the pass on a queue thread; the tab hears it on the UI thread.
+    public void SetFrameCount(string path, int frames)
+    {
+        _frames[path] = frames;
+        _context.Post(() => Changed?.Invoke());
+    }
 
     public event Action? Changed;
 
@@ -71,6 +122,23 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
     public void RestoreState(object? state)
     {
     }
+}
+
+/// <summary>Counts the frames of the demo the shell has open, on the parse its open already read.</summary>
+internal sealed class FrameCountPass(HelloTabViewModel tab) : IExtensionPass
+{
+    public const string PassId = "dev.example.hello.frames";
+
+    public string Id => PassId;
+
+    public bool ReadsUserCommands => false;
+
+    public DemoInterest Interest(string demoPath) =>
+        string.Equals(demoPath, tab.OpenDemo, StringComparison.OrdinalIgnoreCase) && !tab.HasFrameCount(demoPath)
+            ? DemoInterest.Yes
+            : DemoInterest.No;
+
+    public void Run(IPassContext context) => tab.SetFrameCount(context.DemoPath, context.Parsed.Frames.Count);
 }
 
 internal sealed class HelloModule(Func<HelloTabViewModel> viewModel) : IWorkspaceModule

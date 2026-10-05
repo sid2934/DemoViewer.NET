@@ -1,6 +1,6 @@
 # DemoViewer.NET Extensions SDK
 
-Build extensions for DemoViewer.NET: tabs, demo evaluators, 2D Playback contributions, Library filters and
+Build extensions for DemoViewer.NET: tabs, demo passes and jobs, 2D Playback contributions, Library filters and
 badges, Match Overview actions and Settings pages. An extension is a .NET 10 class library that references
 this package and nothing else of the app's.
 
@@ -75,7 +75,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | Call | Adds |
 |---|---|
 | `Tabs` | An `IWorkspaceModule` whose tabs join the strip. |
-| `Evaluator` | An `IExtensionEvaluator` that reads every demo the Library indexes, on the shared parse. |
+| `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind. |
 | `SettingsPage` | A page under Settings, Extensions. |
 | `Playback` | Lanes, panes, panels, toolbar items, mode toggles and key or action handlers in 2D Playback. |
@@ -94,15 +94,49 @@ when it names one.
 - `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files.
 - `Features`: the feature switches, live.
 - `Jobs`: the processing queue. Run every off-UI-thread job through it, so the user sees it and can pause or
-  remove it. Jobs carry the extension's id, and switching the extension off cancels its queued jobs. Declare
-  your own job kinds in `IExtension.JobKinds`, or use `BuiltInJobKinds`.
+  remove it. `Enqueue` returns an `IJobHandle`: its `Status`, a `Completion` that never faults, a `Completed`
+  event raised on the UI thread, and a `Cancel` that reaches that job only. Jobs carry the extension's id;
+  `CancelAll` and switching the extension off cancel the extension's own jobs and nobody else's. Declare your
+  own job kinds in `IExtension.JobKinds`, or use `BuiltInJobKinds`. `JobPriority.Backlog` runs ahead of
+  background work and behind anything the user asked for.
+- `Passes`: ask for one demo again (`Request`), re-check the library (`RecheckAll`), and see whether one of your
+  passes has a demo in flight (`IsBusy`, `Changed`).
 - `Storage`: a config folder for the user's work and a cache folder for what you can rebuild. Both are null
   in the browser build. Write files with `WriteAtomicAsync` and read them with `ReadAsync`: the path must stay
   inside the folder, and a crash mid-write leaves the previous file instead of a torn one.
 - `CreateLogger` and `Post`.
 
+`JobScope` covers code that has no job context at hand: `JobScope.UserAction()` puts the jobs queued inside it
+at user priority, and `JobScope.ThrowIfStopped()` stops a long loop when the user removes its job.
+
 Register an `IExtensionLifecycle` as a keyed singleton under your id to start loads when the extension is
 switched on and to release memory when it is switched off.
+
+## Reading demos
+
+Never parse a demo yourself. One read of a demo serves the library, the host's passes and every extension's,
+so register work that runs on every demo as a pass, and queue work for one demo as a job that names it.
+
+A pass answers `Interest` for a demo from what it already knows (an index, a stamp), never from the file, and
+never on the UI thread. `DemoInterest.AfterUpstream` says "once a pass I run after has written": the pass
+joins the demo's visit when one of those passes is on it and is asked again right before its turn. `Run` gets
+the parse for its turn only; finish synchronously and do not keep the parse. A pass that throws is skipped for
+that demo for the rest of the session and counted against the extension; one whose runs keep overrunning its
+time budget is switched off for the session.
+
+```csharp
+contributions.Pass("dev.example.rounds", () => rounds, HostIds.LibraryPass);
+```
+
+A job that names a demo joins that demo's visit: it runs after the passes on the same parse, or on the parse
+the shell already holds when the demo is open, and holds the parse until its task ends.
+
+```csharp
+IJobHandle handle = context.Jobs.Enqueue(JobRequest.OnDemo("Count frames", path,
+    job => { frames = job.Parsed.Frames.Count; return Task.CompletedTask; },
+    new JobOptions(Priority: JobPriority.UserRequested)));
+handle.Completed += result => Status = result.Status.ToString();
+```
 
 ## Installing
 

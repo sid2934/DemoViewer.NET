@@ -10,7 +10,7 @@
         <RootNamespace>DemoViewer.NET.Extensions.Sdk</RootNamespace>
         <IsPackable>true</IsPackable>
         <PackageId>DemoViewer.NET.Extensions.Sdk</PackageId>
-        <Description>Build extensions for DemoViewer.NET: tabs, demo evaluators, 2D Playback contributions, library filters and settings pages.</Description>
+        <Description>Build extensions for DemoViewer.NET: tabs, demo passes and jobs, 2D Playback contributions, library filters and settings pages.</Description>
         <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk</PackageTags>
         <!-- NU5104: CS2DemoKit is still prerelease, and an extension must build against exactly the build the
              app ships, so a stable SDK depends on it anyway. -->
