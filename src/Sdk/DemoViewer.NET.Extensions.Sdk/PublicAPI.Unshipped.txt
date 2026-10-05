@@ -128,6 +128,23 @@ DemoViewer.NET.Extensions.Sdk.HostInfo.IsBrowser.get -> bool
 DemoViewer.NET.Extensions.Sdk.HostInfo.IsBrowser.init -> void
 DemoViewer.NET.Extensions.Sdk.HostInfo.SdkVersion.get -> System.Version!
 DemoViewer.NET.Extensions.Sdk.HostInfo.SdkVersion.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.HubTabContribution!
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Deconstruct(out string! Id, out string! Header, out int Order, out string! RailLabel, out string? FeatureId) -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Equals(DemoViewer.NET.Extensions.Sdk.HubTabContribution? other) -> bool
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.FeatureId.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Header.get -> string!
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Header.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.HubTabContribution(string! Id, string! Header, int Order, string! RailLabel, string? FeatureId = null) -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Order.get -> int
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Order.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.RailLabel.get -> string!
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.RailLabel.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Session.get -> DemoViewer.NET.Extensions.Sdk.IExtensionSessionState?
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Session.init -> void
 DemoViewer.NET.Extensions.Sdk.IExtension
 DemoViewer.NET.Extensions.Sdk.IExtension.CommandScopes.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandScope!>!
 DemoViewer.NET.Extensions.Sdk.IExtension.Commands.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandDescriptor!>!
@@ -153,10 +170,12 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Context.get -> DemoViewer.
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DataRemoval(DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval! removal) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DemoAction(DemoViewer.NET.Extensions.Sdk.DemoAction! action) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Evaluator(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator!>! factory, params string![]! after) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.HubTab(DemoViewer.NET.Extensions.Sdk.HubTabContribution! hub) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Library(DemoViewer.NET.Extensions.Sdk.ILibraryContribution! contribution) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Playback(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution! contribution) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer.NET.Extensions.Sdk.IReindexEstimate! estimate) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.StatusChip(DemoViewer.NET.Extensions.Sdk.StatusChipContribution! chip) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Store(DemoViewer.NET.Extensions.Sdk.StoreDescriptor! store) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Tabs(DemoViewer.NET.Modules.Abstractions.IWorkspaceModule! workspaceModule) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval
@@ -185,6 +204,9 @@ DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle.OnShutdown(System.TimeSpan bud
 DemoViewer.NET.Extensions.Sdk.IExtensionResident
 DemoViewer.NET.Extensions.Sdk.IExtensionResident.Attach() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionResident.Release() -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionSessionState
+DemoViewer.NET.Extensions.Sdk.IExtensionSessionState.Restore(System.Text.Json.JsonElement state) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionSessionState.Snapshot() -> System.Text.Json.JsonElement?
 DemoViewer.NET.Extensions.Sdk.IExtensionShell
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemo.get -> CS2DemoKit.Parser.ParsedDemo?
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoChanged -> System.Action?
@@ -220,6 +242,15 @@ DemoViewer.NET.Extensions.Sdk.ILibraryContribution.SetLabel(DemoViewer.NET.Exten
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.CountAsync() -> System.Threading.Tasks.Task<int>!
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.FeatureId.get -> string!
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.DotState.get -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.FlyoutContent.get -> object?
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.IsHollow.get -> bool
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.IsPulsing.get -> bool
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.IsShown.get -> bool
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.PrimaryAction.get -> System.Windows.Input.ICommand?
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.Tooltip.get -> string?
 DemoViewer.NET.Extensions.Sdk.JobOptions
 DemoViewer.NET.Extensions.Sdk.JobOptions.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.JobOptions!
 DemoViewer.NET.Extensions.Sdk.JobOptions.Deconstruct(out string! Kind, out DemoViewer.NET.Extensions.Sdk.JobPriority Priority, out string? Key, out bool Preemptible, out string? Serial) -> void
@@ -484,6 +515,23 @@ DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewFactory.get -> System
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewFactory.init -> void
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewModelFactory.get -> System.Func<object!>!
 DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ViewModelFactory.init -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.StatusChipContribution!
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Deconstruct(out string! Id, out DemoViewer.NET.Extensions.Sdk.IStatusChipSource! Source, out string? FeatureId) -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Equals(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? other) -> bool
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.FeatureId.init -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Source.get -> DemoViewer.NET.Extensions.Sdk.IStatusChipSource!
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Source.init -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.StatusChipContribution(string! Id, DemoViewer.NET.Extensions.Sdk.IStatusChipSource! Source, string? FeatureId = null) -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Degraded = 3 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Error = 4 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Good = 2 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Off = 0 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Working = 1 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.StoreDescriptor!
 DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Deconstruct(out string! Id, out string! Label, out DemoViewer.NET.Extensions.Sdk.StoreRoot Root, out System.Collections.Generic.IReadOnlyList<string!>! Paths, out bool IsUserWork) -> void
@@ -565,6 +613,7 @@ const DemoViewer.NET.Extensions.Sdk.HostIds.MatchOverviewTab = "builtin.matchove
 const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DFeature = "tab.playback2d" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.Playback2DTab = "playback2d.viewport" -> string!
 const DemoViewer.NET.Extensions.Sdk.HostIds.StatsTab = "builtin.stats" -> string!
+const DemoViewer.NET.Extensions.Sdk.HostIds.StratBookHub = "stratbook.hub" -> string!
 override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.AudienceDefaults.ToString() -> string!
@@ -592,6 +641,9 @@ override DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.HostInfo.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.HostInfo.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.HostInfo.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.HubTabContribution.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.HubTabContribution.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.HubTabContribution.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.JobOptions.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.JobOptions.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.JobOptions.ToString() -> string!
@@ -631,6 +683,9 @@ override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.ToString() -> stri
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.StatusChipContribution.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.StatusChipContribution.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.StoreDescriptor.ToString() -> string!
@@ -659,6 +714,8 @@ static DemoViewer.NET.Extensions.Sdk.ExtensionJobKind.operator ==(DemoViewer.NET
 static DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions.GetExtensionContext(this System.IServiceProvider! services, string! extensionId) -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
 static DemoViewer.NET.Extensions.Sdk.HostInfo.operator !=(DemoViewer.NET.Extensions.Sdk.HostInfo? left, DemoViewer.NET.Extensions.Sdk.HostInfo? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.HostInfo.operator ==(DemoViewer.NET.Extensions.Sdk.HostInfo? left, DemoViewer.NET.Extensions.Sdk.HostInfo? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.HubTabContribution.operator !=(DemoViewer.NET.Extensions.Sdk.HubTabContribution? left, DemoViewer.NET.Extensions.Sdk.HubTabContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.HubTabContribution.operator ==(DemoViewer.NET.Extensions.Sdk.HubTabContribution? left, DemoViewer.NET.Extensions.Sdk.HubTabContribution? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.JobOptions.operator !=(DemoViewer.NET.Extensions.Sdk.JobOptions? left, DemoViewer.NET.Extensions.Sdk.JobOptions? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.JobOptions.operator ==(DemoViewer.NET.Extensions.Sdk.JobOptions? left, DemoViewer.NET.Extensions.Sdk.JobOptions? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryBadge.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryBadge? left, DemoViewer.NET.Extensions.Sdk.LibraryBadge? right) -> bool
@@ -685,6 +742,8 @@ static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator !=(DemoView
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.operator !=(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? left, DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingsPageContribution.operator ==(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? left, DemoViewer.NET.Extensions.Sdk.SettingsPageContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.StatusChipContribution.operator !=(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? left, DemoViewer.NET.Extensions.Sdk.StatusChipContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.StatusChipContribution.operator ==(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? left, DemoViewer.NET.Extensions.Sdk.StatusChipContribution? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StoreDescriptor.operator !=(DemoViewer.NET.Extensions.Sdk.StoreDescriptor? left, DemoViewer.NET.Extensions.Sdk.StoreDescriptor? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StoreDescriptor.operator ==(DemoViewer.NET.Extensions.Sdk.StoreDescriptor? left, DemoViewer.NET.Extensions.Sdk.StoreDescriptor? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.operator !=(DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? left, DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? right) -> bool

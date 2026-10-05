@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Views.Shell;
 using DemoViewer.NET.Views.StratBook;
 using SkiaSharp;
 
@@ -27,11 +28,11 @@ public static partial class Variants
         ?? zones?.PlaceNames.FirstOrDefault(n => n.Contains("Long", StringComparison.Ordinal)) ?? "LongDoors";
 
     // E's lurk selected and E dragged to Long Doors: released or not.
-    private static StratBookHubView StratDrag(bool release)
+    private static HubTabView StratDrag(bool release)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        HubTabView view = StratEditor(true, true, true, vm =>
         {
             strats = vm;
             Replace(vm, "Execute B", ExecuteB(zones));
@@ -62,11 +63,11 @@ public static partial class Variants
 
     // The file before this change: E's lurk carries an old drag's departure across the map, and the seed's spawn
     // spots and opponents sit on step 1.
-    private static StratBookHubView StratDragPlaced()
+    private static HubTabView StratDragPlaced()
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        HubTabView view = StratEditor(true, true, true, vm =>
         {
             strats = vm;
             List<StratStep> steps = ExecuteB(zones);

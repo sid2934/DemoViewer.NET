@@ -12,6 +12,7 @@ using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Views.Shell;
 using DemoViewer.NET.Views.StratBook;
 
 #endregion
@@ -24,19 +25,19 @@ namespace DemoViewer.NET.UiCapture;
 /// </summary>
 public static partial class Variants
 {
-    private static StratBookHubView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false,
+    private static HubTabView StratEditor(bool railCollapsed, bool listCollapsed, bool bare = false,
         Action<StratBookTabViewModel>? configure = null, IZonePlaceResolver? places = null, string? template = null, string map = "de_mirage")
     {
-        StratBookLayout layout = new() { IsRailCollapsed = railCollapsed, IsListCollapsed = listCollapsed };
+        StratBookLayout layout = new() { IsListCollapsed = listCollapsed };
         StratBookTabViewModel strats = SeededStratBook(layout, bare, places, template, map);
         configure?.Invoke(strats);
-        StratBookHubViewModel hub = new(layout) { RailLabel = "STRAT BOOK" };
+        HubTabViewModel hub = new(HostIds.StratBookHub, "Strat Book", "STRAT BOOK") { IsRailCollapsed = railCollapsed };
 
         List<WorkspaceTabDescriptor> sections =
         [
             new()
             {
-                TabId = "stratbook.browser", Header = "Strats", Order = 0, HostId = StratBookHubViewModel.HostId,
+                TabId = "stratbook.browser", Header = "Strats", Order = 0, HostId = HostIds.StratBookHub,
                 ViewModelFactory = () => strats, ViewFactory = () => new StratBookTabView()
             }
         ];
@@ -50,21 +51,21 @@ public static partial class Variants
             (string id, string header, string? badge) = others[i];
             sections.Add(new WorkspaceTabDescriptor
             {
-                TabId = id, Header = header, Order = i + 1, HostId = StratBookHubViewModel.HostId, Badge = badge,
+                TabId = id, Header = header, Order = i + 1, HostId = HostIds.StratBookHub, Badge = badge,
                 ViewFactory = () => new TextBlock { Text = header, HorizontalAlignment = HorizontalAlignment.Center }
             });
         }
 
         hub.Sections.Reconcile(sections);
         hub.OnActivated(new StillContext());
-        return new StratBookHubView { DataContext = hub };
+        return new HubTabView { DataContext = hub };
     }
 
     // The step rows' inline checks: a move with no destination (warning beside "to") and a step whose time runs
     // backwards (refusal beside "at"), scrolled into the editor's view.
-    private static StratBookHubView StratEditorChecks()
+    private static HubTabView StratEditorChecks()
     {
-        StratBookHubView hub = StratEditor(true, true, configure: strats =>
+        HubTabView hub = StratEditor(true, true, configure: strats =>
         {
             strats.Editor.AddStepCommand.Execute(strats.Editor.Steps[0]);
             strats.Session.Apply(PatchOp.ReplaceOp("/steps/3/atSeconds", null, JsonValue.Create(112.0)));
@@ -81,10 +82,10 @@ public static partial class Variants
     }
 
     // The hold step selected once the view is up, as a click would, and Set On Map waiting for its click.
-    private static StratBookHubView StratEditorSetPlace()
+    private static HubTabView StratEditorSetPlace()
     {
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, configure: vm => strats = vm);
+        HubTabView view = StratEditor(true, true, configure: vm => strats = vm);
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             strats!.StepSelection.Select(strats.Editor.Steps.First(r => r.Verb == "hold").Id);
@@ -96,10 +97,10 @@ public static partial class Variants
     // A 1:05 push that sends B, C and D to three places, each watching something, D at a set angle: three lines
     // in the row, and three cones on the canvas facing what they watch. Selected once the view is up, C's line with it.
     // listCollapsed false is the narrowest editor, 315 px at 1280.
-    private static StratBookHubView StratEditorLines(bool listCollapsed)
+    private static HubTabView StratEditorLines(bool listCollapsed)
     {
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(false, listCollapsed, configure: vm =>
+        HubTabView view = StratEditor(false, listCollapsed, configure: vm =>
         {
             strats = vm;
             AddLinesStep(vm);
@@ -157,10 +158,10 @@ public static partial class Variants
 
     // Two players holding one place and one watching, shown as one "who"; then a lurk with its areas and rotate.
     // The editor at its narrowest (rail and list open), scrolled to the two rows.
-    private static StratBookHubView StratEditorWhoLurk()
+    private static HubTabView StratEditorWhoLurk()
     {
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(false, false, configure: vm =>
+        HubTabView view = StratEditor(false, false, configure: vm =>
         {
             strats = vm;
             StratDocument document = vm.Session.Document!;
@@ -203,11 +204,11 @@ public static partial class Variants
     // At 0:41, after the plant, A and B stand side by side on the site.
     // The A execute from its template, mid-execute: A and B running from spawn onto the site, the others where their
     // throws left them. The zones are read before the view is up, so the capture has the arrivals.
-    private static StratBookHubView StratEditorExecuteMotion(double atSeconds = 48)
+    private static HubTabView StratEditorExecuteMotion(double atSeconds = 48)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm => strats = vm, zones, "execute-a");
+        HubTabView view = StratEditor(true, true, true, vm => strats = vm, zones, "execute-a");
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             strats!.Canvas.Transport.Pause();
@@ -217,12 +218,12 @@ public static partial class Variants
     }
 
     // The A execute's throws landed on places, mid-execute: the Jungle smoke bloomed, the Connector smoke in flight.
-    private static StratBookHubView StratEditorExecuteThrows()
+    private static HubTabView StratEditorExecuteThrows()
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
         StratBookTabViewModel? strats = null;
         string[] landings = ["Jungle", "Connector", "BombsiteA", "BombsiteA"];
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        HubTabView view = StratEditor(true, true, true, vm =>
         {
             strats = vm;
             StratDocument document = vm.Session.Document!;
@@ -253,10 +254,10 @@ public static partial class Variants
 
     // A lurk whose rotate-to is a point picked outside every callout, and its lurk areas field focused with the
     // callout list open over the editor at its narrowest.
-    private static StratBookHubView StratEditorLocationList()
+    private static HubTabView StratEditorLocationList()
     {
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(false, false, configure: vm =>
+        HubTabView view = StratEditor(false, false, configure: vm =>
         {
             strats = vm;
             StratStep lurk = new()
@@ -293,10 +294,10 @@ public static partial class Variants
 
     // Chips at the editor's narrowest: a two-player push whose lines watch and go via callouts and a point, and a
     // lurk row with watching, via and long areas. With open, the lurk areas add field has "a" typed, its list showing.
-    private static StratBookHubView StratEditorChips(bool open)
+    private static HubTabView StratEditorChips(bool open)
     {
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(false, false, configure: vm =>
+        HubTabView view = StratEditor(false, false, configure: vm =>
         {
             strats = vm;
             double at = vm.Session.Document!.Steps[^1].AtSeconds - 5;

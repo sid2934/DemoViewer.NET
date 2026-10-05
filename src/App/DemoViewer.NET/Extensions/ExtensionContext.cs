@@ -10,6 +10,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Playback;
+using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -22,7 +23,7 @@ namespace DemoViewer.NET.Extensions;
 ///     Carries the shell to extension contexts once the composition root has built it, so nothing an
 ///     extension registers has to resolve the shell while it is being constructed.
 /// </summary>
-internal sealed class ExtensionShellHub : IFirstPartyShellState
+internal sealed class ExtensionShellHub : IFirstPartyShellState, IFirstPartyExportChips
 {
     private MainViewModel? _shell;
     private bool _playheadPending;
@@ -42,6 +43,10 @@ internal sealed class ExtensionShellHub : IFirstPartyShellState
     public bool IsReelJobRunning => _shell?.ReelJob?.Status.IsRunning == true;
 
     public event Action? DemoChanged;
+
+    // An export starts from a tab, so the shell is attached by the time a job mounts its status.
+    public void Mount(string chipId, string featureId, Playback2DExportStatusViewModel status) =>
+        _shell?.MountExportStatus(chipId, featureId, status);
 
     /// <summary>Raised on the UI thread, once per rendered frame at most, after the tick or play state moves.</summary>
     public event Action? PlayheadChanged;

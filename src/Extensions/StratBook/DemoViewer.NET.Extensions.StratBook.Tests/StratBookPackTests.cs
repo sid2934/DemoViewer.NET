@@ -49,11 +49,12 @@ public class StratBookPackTests
         // The process's extension fault tracker, which the gate takes.
         "DemoViewer.NET.Extensions.ExtensionFaults",
         "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
-        // The extension host: the job-kind registry, the shell hub, the first-party shell state it serves
-        // and the pack's own context.
+        // The extension host: the job-kind registry, the shell hub, the first-party shell state and export
+        // chips it serves, and the pack's own context.
         "DemoViewer.NET.Extensions.JobKindRegistry",
         "DemoViewer.NET.Extensions.ExtensionShellHub",
         "DemoViewer.NET.Extensions.IFirstPartyShellState",
+        "DemoViewer.NET.Extensions.IFirstPartyExportChips",
         "DemoViewer.NET.Extensions.Sdk.IExtensionContext",
         // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",
@@ -121,9 +122,6 @@ public class StratBookPackTests
         "DemoViewer.NET.ViewModels.Dossier.DossierTabViewModel",
         "DemoViewer.NET.Modules.UtilityBook.LineupClipService",
         "DemoViewer.NET.Services.DemoProcessing.DemoEvaluationCoordinator",
-        // The Strat Book export chip's mount point, shared by the StatusChip
-        // contribution and the IStratExport factory's mount callback.
-        "DemoViewer.NET.Extensions.StratBook.StratBookExportChipSlot",
         "DemoViewer.NET.Extensions.PackSwitch",
         "DemoViewer.NET.Services.RecentFilesStore",
         "DemoViewer.NET.Modules.ModuleRegistry",
@@ -182,10 +180,10 @@ public class StratBookPackTests
         });
     }
 
-    // The two desktop-only settings pages, the one status-chip slot and the one re-index estimate,
-    // every one stamped with the pack's own feature id by the collector.
+    // The two desktop-only settings pages and the one re-index estimate, every one stamped with the pack's
+    // own feature id by the collector. The export chip is the host's, mounted on the first Export.
     [Test]
-    public async Task ThePack_ContributesTheSettingsPagesTheStatusChipAndTheReindexEstimate()
+    public async Task ThePack_ContributesTheSettingsPagesAndTheReindexEstimate_AndNoChip()
     {
         await WithProvider(null, async provider =>
         {
@@ -198,10 +196,7 @@ public class StratBookPackTests
                     TUnit.Assertions.Enums.CollectionOrdering.Matching);
                 await Assert.That(pack.SettingsPages.All(p => p.FeatureId == StratBookPack.PackFeatureId)).IsTrue();
 
-                StatusChipContribution chip = pack.StatusChips.Single();
-                await Assert.That(chip.Id).IsEqualTo("stratbook.export");
-                await Assert.That(chip.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
-                await Assert.That(chip.Source).IsTypeOf<StratBookExportChipSlot>();
+                await Assert.That(pack.StatusChips).IsEmpty();
 
                 IReindexEstimate estimate = pack.ReindexEstimates.Single();
                 await Assert.That(estimate.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
@@ -442,7 +437,7 @@ public class StratBookPackTests
             MainViewModel vm = provider.GetRequiredService<MainViewModel>();
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(StratBookHubViewModel.TabId)
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(HostIds.StratBookHub)
                     .Because("a rail with nothing on it has no tab");
                 await Assert.That(vm.StratBookHub().Sections.Sections).IsEmpty();
                 await Assert.That(vm.LibraryTab.HasTeamsView).IsFalse();
@@ -459,7 +454,7 @@ public class StratBookPackTests
             MainViewModel vm = provider.GetRequiredService<MainViewModel>();
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId);
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostIds.StratBookHub);
                 await Assert.That(vm.StratBookHub().Sections.Sections.Count).IsEqualTo(7);
                 await Assert.That(vm.LibraryTab.HasTeamsView).IsTrue();
                 await Assert.That(vm.LibraryTab.Filters).IsNotEmpty();
@@ -476,34 +471,35 @@ public class StratBookPackTests
 
     private static readonly string[] _railHeaders = ["Strats", "Situations", "Tags", "Utility", "Review", "Dossier", "Suggested"];
 
-    // The hub is a contribution now, and the rail must read exactly as it did when the shell built it.
+    // The hub is a declaration the host draws, and the rail must read exactly as it did when the pack drew it.
     // The rail's entries are the modules' own descriptors, so the badge a module moves is the badge the rail shows.
     [Test]
-    public async Task TheHub_IsThePacksHostTab_AndTheRailKeepsItsSevenSectionsInOrder()
+    public async Task TheHub_IsThePacksHubTab_AndTheRailKeepsItsSevenSectionsInOrder()
     {
         await WithProvider(null, async provider =>
         {
             PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
             MainViewModel vm = provider.GetRequiredService<MainViewModel>();
-            HostTabContribution host = pack.HostTabs.Single();
+            ContributedHub host = pack.HubTabs.Single();
             IReadOnlyList<WorkspaceTabDescriptor> rail = vm.StratBookHub().Sections.Sections;
-            WorkspaceTabDescriptor hubTab = vm.Tabs.Single(t => t.TabId == StratBookHubViewModel.TabId);
+            WorkspaceTabDescriptor hubTab = vm.Tabs.Single(t => t.TabId == HostIds.StratBookHub);
 
             using (Assert.Multiple())
             {
-                await Assert.That(host.HostId).IsEqualTo(StratBookHubViewModel.HostId);
+                await Assert.That(host.Id).IsEqualTo(HostIds.StratBookHub);
+                await Assert.That(host.PackId).IsEqualTo(StratBookPack.PackId);
                 await Assert.That(host.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
                 await Assert.That(host.RailLabel).IsEqualTo("STRAT BOOK");
                 await Assert.That(vm.StratBookHub().RailLabel).IsEqualTo("STRAT BOOK")
-                    .Because("the shell hands the contribution's label to the VM the view binds");
+                    .Because("the host's hub VM carries the declaration's label");
                 await Assert.That(hubTab.Header).IsEqualTo("Strat Book");
                 await Assert.That(hubTab.Order).IsEqualTo(4).Because("after 2D Playback, before Authoring");
                 await Assert.That(hubTab.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
                 await Assert.That(hubTab.ViewModelFactory!()).IsSameReferenceAs(vm.StratBookHub())
-                    .Because("the strip tab's VM is the one the contribution built, not a second hub");
+                    .Because("the strip tab's VM is the host's one hub VM, not a second hub");
                 await Assert.That(rail.Select(s => s.TabId)).IsEquivalentTo(_railOrder, TUnit.Assertions.Enums.CollectionOrdering.Matching);
                 await Assert.That(rail.Select(s => s.Header)).IsEquivalentTo(_railHeaders, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-                await Assert.That(rail.All(s => s.HostId == StratBookHubViewModel.HostId)).IsTrue()
+                await Assert.That(rail.All(s => s.HostId == HostIds.StratBookHub)).IsTrue()
                     .Because("every rail entry is a pack module's own descriptor, so the badge a module moves is the badge the rail shows");
             }
         });

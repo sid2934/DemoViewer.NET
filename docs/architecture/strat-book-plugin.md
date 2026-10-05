@@ -468,6 +468,11 @@ with `StratBookLayoutState`), whose `RestoreSessionState(JsonElement)` reads `Ra
 independently and accepts only `True`/`False`, so a missing member, a wrong-typed one, or a non-object
 blob leaves that pane as it is instead of throwing or discarding the rest.
 
+Since superseded: the hub is a public `HubTabContribution` the host draws, and `IHostTabViewModel` is gone.
+The pack's session blob rides on the declaration's `Session` (`IExtensionSessionState`, still keyed by pack id
+in `Packs`) and holds `ListCollapsed` only; the rail's collapsed state is the host's, per hub id in
+`SessionPayload.Hubs`, folded once from an older blob's `RailCollapsed`.
+
 The hub's view model is built unconditionally in `BuildWorkspaceTabs` regardless of the gate
 (`StratBookHubAccess`'s own doc comment says so), so "pack off" here is a gate check in the session code,
 not something that falls out of nothing existing, and a live toggle needed its own handling rather than
@@ -632,7 +637,7 @@ when written the same.
   the surface a pack's own assembly references or implements, not every type under
   `DemoViewer.NET.Extensions`: host-side types that no pack touches (`Loading`, `CompatibilityReport`)
   change freely. **Major** on a breaking change to a type a pack does reference or implement, including
-  `IModuleContext`, `IHostTabViewModel` or the `IPlaybackSurface` family: a removed or renamed member, a
+  `IModuleContext`, `IExtensionContributions` or the `IPlaybackSurface` family: a removed or renamed member, a
   changed signature, a new abstract member on an interface a pack implements. **Minor** on an additive
   change: a new contribution kind, a new optional member with a default. Never patch; a contract has no
   behaviour of its own to fix. The pinning rule (section 4) adds a release rule on top: a **major** bump of the

@@ -63,6 +63,9 @@ public sealed class StratBookPack : IExtension, ICommandAliases
     /// <summary>The pack id. A persisted key (<c>DemoCacheRecord.Packs</c>, <c>SessionPayload.Packs</c>).</summary>
     public const string PackId = "net.demoviewer.pack.stratbook";
 
+    /// <summary>The Strat Export chip's id on the status strip.</summary>
+    public const string ExportChipId = "stratbook.export";
+
     /// <inheritdoc />
     public string Id => PackId;
 
@@ -84,18 +87,13 @@ public sealed class StratBookPack : IExtension, ICommandAliases
     public IEnumerable<ExtensionJobKind> JobKinds => StratBookJobKinds.All;
 
     /// <summary>
-    ///     The Strat Book hub as a host tab: one strip tab whose rail lists every section that names
-    ///     <see cref="StratBookHubViewModel.HostId" />. Order 4 sits after 2D Playback and before Authoring.
-    ///     Public so a shell test can host sections on the real hub without the rest of the pack.
+    ///     The Strat Book hub: one strip tab whose rail lists every section that names
+    ///     <see cref="HostIds.StratBookHub" />. Order 4 sits after 2D Playback and before Authoring. Public so
+    ///     a shell test can host sections on the real hub without the rest of the pack.
     /// </summary>
-    /// <param name="layout">Resolves the collapsed panes the hub shares with the Strats section, when the shell builds the hub.</param>
-    public static HostTabContribution HubHostTab(Func<StratBookLayout?> layout)
-    {
-        ArgumentNullException.ThrowIfNull(layout);
-        return new HostTabContribution(
-            StratBookHubViewModel.HostId, StratBookHubViewModel.TabId, "Strat Book", 4, "STRAT BOOK",
-            () => new StratBookHubViewModel(layout()), () => new StratBookHubView(), PackFeatureId);
-    }
+    /// <param name="layout">The Strats section's collapsed panes, kept in the session with the hub; null keeps nothing.</param>
+    public static HubTabContribution HubTab(StratBookLayout? layout) =>
+        new(HostIds.StratBookHub, "Strat Book", 4, "STRAT BOOK", PackFeatureId) { Session = layout };
 
     // Every id is a persisted override key and must never be renamed; labels and descriptions are display
     // text. Tabs are parented to the pack; sub-features keep their tab parent, so the two docked in 2D
@@ -645,7 +643,7 @@ public sealed class StratBookPack : IExtension, ICommandAliases
                 () => shell.IsReelJobRunning,
                 () => settings.Current,
                 settings.Write,
-                sp.GetRequiredService<StratBookExportChipSlot>().Mount,
+                status => sp.GetRequiredService<IFirstPartyExportChips>().Mount(ExportChipId, PackFeatureId, status),
                 path => Host(sp).Shell.RevealInFileManager(path));
         });
 
@@ -774,10 +772,6 @@ public sealed class StratBookPack : IExtension, ICommandAliases
         // The pack's lifecycle: resolved by the app only while pack.stratbook resolves on,
         // keyed by the pack's own id so a future second pack's lifecycle never collides with this one.
         services.AddKeyedSingleton<IExtensionLifecycle, StratBookLifecycle>(Id);
-
-        // The Strat Book export chip's mount point: shared by the StatusChip contribution below
-        // and the IStratExport factory's mount callback, so both sides of the hand-off agree on one slot.
-        services.AddSingleton<StratBookExportChipSlot>();
     }
 
     // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
@@ -834,15 +828,15 @@ public sealed class StratBookPack : IExtension, ICommandAliases
         ArgumentNullException.ThrowIfNull(services);
         IServiceProvider sp = services;
 
-        // The hub tab, the export chip, the round_facts ruleset, the forward-pass evaluators and the playback
-        // contributions that read scene frames and keymap scopes are first-party surfaces the SDK does not carry.
+        // The round_facts ruleset, the forward-pass evaluators and the playback contributions that read scene
+        // frames and keymap scopes are first-party surfaces the SDK does not carry.
         IFirstPartyContributions firstParty = (IFirstPartyContributions)contributions;
 
         contributions.Commands(StratBookCommands.All);
 
-        // The hub every section below sits on. The shell builds the hub VM when it builds the strip, so the
-        // layout singleton resolves then, pack on or off, as it did when the shell took it by constructor.
-        firstParty.HostTab(HubHostTab(sp.GetRequiredService<StratBookLayout>));
+        // The hub every section below sits on. The host draws it; the pack keeps the Strats list's
+        // collapsed state in the session through it.
+        contributions.HubTab(HubTab(sp.GetRequiredService<StratBookLayout>()));
 
         // Settings pages: the Suggested Tags tuning card and the Grenade Index card, both
         // desktop-only (no filesystem on the browser, same gate they had before the move).
@@ -851,11 +845,6 @@ public sealed class StratBookPack : IExtension, ICommandAliases
             contributions.SettingsPage(StratBookSettingsPages.SuggestedTagsTuning(sp));
             contributions.SettingsPage(StratBookSettingsPages.GrenadeIndex(sp));
         }
-
-        // The Strat Book export chip: the shell shows it only while the pack is on, through the
-        // same slot the IStratExport factory mounts into on the first Export.
-        firstParty.StatusChip(new StatusChipContribution(
-            "stratbook.export", 0, sp.GetRequiredService<StratBookExportChipSlot>()));
 
         // The Settings "N demos will be re-indexed" notice's count, over the same evaluators the
         // re-enable backfill polls.

@@ -59,14 +59,14 @@ internal sealed class PackContributionSet
 
     private static Microsoft.Extensions.Logging.ILogger Log => DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
 
-    /// <summary>Every pack's host tabs, in pack order then contribution order. The shell builds its strip from this.</summary>
-    public IReadOnlyList<HostTabContribution> HostTabs => [.. Packs.SelectMany(p => p.HostTabs)];
+    /// <summary>Every pack's hub tabs, in pack order then contribution order. The shell builds its strip from this.</summary>
+    public IReadOnlyList<ContributedHub> HubTabs => [.. Packs.SelectMany(p => p.HubTabs)];
 
     /// <summary>Every pack's settings pages, in pack order then contribution order. Settings renders them under Extensions.</summary>
     public IReadOnlyList<SettingsPageContribution> SettingsPages => [.. Packs.SelectMany(p => p.SettingsPages)];
 
-    /// <summary>Every pack's status-chip slots, in pack order then contribution order. The shell fills its chip strip from this.</summary>
-    public IReadOnlyList<StatusChipContribution> StatusChips => [.. Packs.SelectMany(p => p.StatusChips)];
+    /// <summary>Every pack's status chips, in pack order then contribution order. The shell fills its chip strip from this.</summary>
+    public IReadOnlyList<HostStatusChip> StatusChips => [.. Packs.SelectMany(p => p.StatusChips)];
 
     /// <summary>Every pack's re-index estimate, in pack order. Settings watches only the first for the toggle notice.</summary>
     public IReadOnlyList<IReindexEstimate> ReindexEstimates => [.. Packs.SelectMany(p => p.ReindexEstimates)];

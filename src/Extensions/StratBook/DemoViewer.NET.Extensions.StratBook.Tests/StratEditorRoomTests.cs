@@ -16,6 +16,7 @@ using DemoViewer.NET.ViewModels.UtilityBook;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Views.Shell;
 using DemoViewer.NET.Views.StratBook;
 
 #endregion
@@ -36,24 +37,24 @@ public class StratEditorRoomTests
     public async Task At1280Wide_NoEditorFieldReachesPastTheViewport(bool collapsed) =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            StratBookLayout layout = new() { IsRailCollapsed = collapsed, IsListCollapsed = collapsed };
+            StratBookLayout layout = new() { IsListCollapsed = collapsed };
             using StratBookTabViewModel strats = Seeded(layout);
-            StratBookHubViewModel hub = new(layout) { RailLabel = "STRAT BOOK" };
+            HubTabViewModel hub = new(HostIds.StratBookHub, "Strat Book", "STRAT BOOK") { IsRailCollapsed = collapsed };
             hub.Sections.Reconcile([
                 new WorkspaceTabDescriptor
                 {
-                    TabId = "stratbook.browser", Header = "Strats", Order = 0, HostId = StratBookHubViewModel.HostId,
+                    TabId = "stratbook.browser", Header = "Strats", Order = 0, HostId = HostIds.StratBookHub,
                     ViewModelFactory = () => strats, ViewFactory = () => new StratBookTabView()
                 },
                 new WorkspaceTabDescriptor
                 {
-                    TabId = "review.queue", Header = "Review", Order = 1, HostId = StratBookHubViewModel.HostId, Badge = "12",
+                    TabId = "review.queue", Header = "Review", Order = 1, HostId = HostIds.StratBookHub, Badge = "12",
                     ViewFactory = () => new TextBlock { Text = "Review" }
                 }
             ]);
             hub.OnActivated(new StillContext());
 
-            Window window = new() { Width = 1280, Height = 800, Content = new StratBookHubView { DataContext = hub } };
+            Window window = new() { Width = 1280, Height = 800, Content = new HubTabView { DataContext = hub } };
             window.Show();
             Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();

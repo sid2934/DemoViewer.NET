@@ -1051,6 +1051,7 @@ public class App : Application
         // Each extension's host context, keyed by its id, and the hub that hands them the shell once built.
         services.AddSingleton<ExtensionShellHub>();
         services.AddSingleton<IFirstPartyShellState>(sp => sp.GetRequiredService<ExtensionShellHub>());
+        services.AddSingleton<IFirstPartyExportChips>(sp => sp.GetRequiredService<ExtensionShellHub>());
         foreach (IExtension pack in packs)
         {
             IExtension owner = pack;
@@ -1183,8 +1184,8 @@ public class App : Application
                 sp.GetRequiredService<DemoCacheStore>(),
                 // The Library's filter/badge contributions (the Team filter, the provenance chip).
                 sp.GetRequiredService<PackContributionSet>().LibraryContributions,
-                // The host tabs the packs contribute (the Strat Book hub); the shell builds its strip from them.
-                sp.GetRequiredService<PackContributionSet>().HostTabs);
+                // The hub tabs the packs contribute (the Strat Book hub); the shell builds its strip from them.
+                sp.GetRequiredService<PackContributionSet>().HubTabs);
 
             // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
             // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.
@@ -1194,9 +1195,8 @@ public class App : Application
                 moduleContext.SetFaults(sp.GetService<ExtensionFaults>());
             }
 
-            // The chip slots the packs contribute (the Strat export chip, in a slot the pack
-            // mounts into on the first Export). A post-construction call, not a ctor parameter: the ctor
-            // parameter list is the next thing to edit.
+            // The status chips the packs contribute. A post-construction call, not a ctor parameter: the
+            // ctor parameter list is the next thing to edit.
             shell.AttachStatusChips(sp.GetRequiredService<PackContributionSet>().StatusChips);
 
             sp.GetRequiredService<ExtensionShellHub>().Attach(shell);

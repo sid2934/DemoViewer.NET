@@ -9,6 +9,7 @@ using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Views.Shell;
 using DemoViewer.NET.Views.StratBook;
 
 #endregion
@@ -19,11 +20,11 @@ public static partial class Variants
 {
     // A new de_dust2 strat with its spawn start and a move at 1:55, the Start row opened and selected: the tokens stand
     // in spawn at tick 0 and the move's routes run from there.
-    private static StratBookHubView StratStartRow(bool panesCollapsed)
+    private static HubTabView StratStartRow(bool panesCollapsed)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(panesCollapsed, panesCollapsed, true, vm =>
+        HubTabView view = StratEditor(panesCollapsed, panesCollapsed, true, vm =>
         {
             strats = vm;
             vm.Editor.Name = "Execute B";
@@ -62,11 +63,11 @@ public static partial class Variants
 
     // A strat timed from its trigger: contact at B apps, then a flash, the push and the plant counted up from it, with the
     // playhead five seconds in.
-    private static StratBookHubView StratTriggerClock()
+    private static HubTabView StratTriggerClock()
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_mirage");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        HubTabView view = StratEditor(true, true, true, vm =>
         {
             strats = vm;
             vm.Editor.Name = "B apps hit after contact";

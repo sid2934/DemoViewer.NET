@@ -2,34 +2,11 @@
 
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
 namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
-
-/// <summary>
-///     The dot's semantic state. Each maps onto one palette token through a bound state-to-class selector in
-///     <see cref="StatusChip" />, never a code-held brush, so the dot re-themes live. The word in
-///     <see cref="StatusChipViewModel.Label" /> is the accessible carrier of state; the dot is a redundant
-///     colour cue.
-/// </summary>
-public enum StatusChipDotState
-{
-    /// <summary>Idle / suspended: <c>TextDim</c> solid dot.</summary>
-    Off,
-
-    /// <summary>Bringing a session up: <c>AccentInteractive</c>, pulsing.</summary>
-    Working,
-
-    /// <summary>Believed-good: <c>StatPositive</c>; the only state that pairs with a hollow ring (inferred).</summary>
-    Good,
-
-    /// <summary>Genuinely uncertain: <c>AccentCaution</c> solid.</summary>
-    Degraded,
-
-    /// <summary>Session lost / failed: <c>AccentError</c> solid.</summary>
-    Error
-}
 
 /// <summary>
 ///     The view model behind a <see cref="StatusChip" />: a persistent background-activity indicator, a dot and

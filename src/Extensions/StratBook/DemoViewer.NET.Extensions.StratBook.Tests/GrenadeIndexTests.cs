@@ -559,7 +559,7 @@ public class GrenadeIndexTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.utilitybook");
             await Assert.That(tab.TabId).IsEqualTo("utilitybook.browser");
             await Assert.That(tab.Header).IsEqualTo("Utility");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(3).Because("after Tags on the rail");
             await Assert.That(tab.DataContext).IsNull();
             await Assert.That(feature).IsNotNull();

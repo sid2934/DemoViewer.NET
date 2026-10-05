@@ -3,8 +3,14 @@ namespace DemoViewer.NET.Extensions.Sdk;
 /// <summary>Ids of host tabs, features and evaluators an extension can name.</summary>
 public static class HostIds
 {
-    /// <summary>The Library tab.</summary>
+    /// <summary>
+    ///     The Library tab. Also a hub: a section naming it as its <c>HostId</c> joins the Library's view
+    ///     switch beside the demo browser.
+    /// </summary>
     public const string LibraryTab = "builtin.library";
+
+    /// <summary>The Strat Book tab, a hub: a section naming it as its <c>HostId</c> joins the Strat Book rail.</summary>
+    public const string StratBookHub = "stratbook.hub";
 
     /// <summary>The Match Overview tab.</summary>
     public const string MatchOverviewTab = "builtin.matchoverview";

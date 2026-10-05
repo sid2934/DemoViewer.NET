@@ -65,6 +65,10 @@ public sealed record TabSessionState(
 ///     a live toggle) is restored into once and its live value is trusted from then on, even after the
 ///     pack goes off again, so a value set while it was on is never lost to a later disable.
 /// </param>
+/// <param name="Hubs">
+///     The host's own state of each hub tab, keyed by hub id. An entry for a hub no extension contributes
+///     this session is carried through unread.
+/// </param>
 public sealed record SessionPayload(
     TabSessionState? Parser,
     TabSessionState? Entity,
@@ -74,12 +78,16 @@ public sealed record SessionPayload(
     string? ActiveTabId = null,
     Dictionary<string, JsonElement>? ModuleTabs = null,
     WindowBoundsState? Window = null,
-    Dictionary<string, JsonElement>? Packs = null) : IJsonOnDeserialized
+    Dictionary<string, JsonElement>? Packs = null,
+    Dictionary<string, HubSessionState>? Hubs = null) : IJsonOnDeserialized
 {
     // Redeclares the positional property with a setter: OnDeserialized below needs to fold into it, which
     // an init-only property (the compiler's default for a positional parameter) does not allow. Private:
     // nothing outside this type writes Packs after construction.
     public Dictionary<string, JsonElement>? Packs { get; private set; } = Packs;
+
+    /// <summary>The host's state of each hub tab. Settable for the same reason as <see cref="Packs" />.</summary>
+    public Dictionary<string, HubSessionState>? Hubs { get; private set; } = Hubs;
 
     /// <summary>A pre-<see cref="Packs" /> file's top-level members, held only until <c>OnDeserialized</c> folds them.</summary>
     [JsonExtensionData]
@@ -88,6 +96,9 @@ public sealed record SessionPayload(
     // The Strat Book pack's id (StratBookPack.PackId), literal because Models must not depend on
     // Services or the pack, and because this is the shape the PACK wrote, not a core concept.
     private const string LegacyStratBookPackId = "net.demoviewer.pack.stratbook";
+
+    // The Strat Book hub's id. Its rail state used to live in the pack's blob as "RailCollapsed".
+    private const string LegacyStratBookHubId = "stratbook.hub";
 
     // A file written before Packs existed carried the Strat Book pack's layout flat as "StratBook". Folded
     // once, keyed under LegacyStratBookPackId; an existing Packs entry for that id wins.
@@ -105,6 +116,17 @@ public sealed record SessionPayload(
         }
 
         UnknownMembers = null;
+
+        if (Packs is not null
+            && Packs.TryGetValue(LegacyStratBookPackId, out JsonElement pack)
+            && pack.ValueKind == JsonValueKind.Object
+            && pack.TryGetProperty("RailCollapsed", out JsonElement rail)
+            && rail.ValueKind is JsonValueKind.True or JsonValueKind.False
+            && Hubs?.ContainsKey(LegacyStratBookHubId) != true)
+        {
+            Hubs ??= new(StringComparer.Ordinal);
+            Hubs[LegacyStratBookHubId] = new HubSessionState(rail.GetBoolean());
+        }
     }
 }
 
@@ -130,3 +152,7 @@ public sealed record WindowBoundsState(
     int? X,
     int? Y,
     bool Maximized);
+
+/// <summary>The host's state of one hub tab.</summary>
+/// <param name="RailCollapsed">Whether the section rail was collapsed.</param>
+public sealed record HubSessionState(bool RailCollapsed);

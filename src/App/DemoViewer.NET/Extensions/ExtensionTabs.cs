@@ -54,7 +54,8 @@ public static class ExtensionTabs
             Order = tab.Order,
             Placement = tab.Placement,
             HostId = tab.HostId,
-            FeatureId = tab.FeatureId,
+            // A tab that names no feature follows the extension's own switch, so an extension that is off shows nothing.
+            FeatureId = tab.FeatureId ?? guard.Scope.FeatureId,
             DataContext = tab.DataContext,
             ViewModelFactory = viewModel is null
                 ? null

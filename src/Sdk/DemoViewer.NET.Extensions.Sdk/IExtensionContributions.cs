@@ -41,4 +41,10 @@ public interface IExtensionContributions
 
     /// <summary>An action on Match Overview for the open demo.</summary>
     void DemoAction(DemoAction action);
+
+    /// <summary>A main tab whose sections the extension contributes and whose rail the host draws.</summary>
+    void HubTab(HubTabContribution hub);
+
+    /// <summary>A chip on the status strip.</summary>
+    void StatusChip(StatusChipContribution chip);
 }

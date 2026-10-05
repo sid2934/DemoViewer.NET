@@ -77,12 +77,6 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.WebFallback.set -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip.InitializeComponent(bool loadXaml = true) -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip.StatusChip() -> void
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Degraded = 3 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Error = 4 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Good = 2 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Off = 0 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
-DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Working = 1 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateDegraded.get -> bool
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateError.get -> bool

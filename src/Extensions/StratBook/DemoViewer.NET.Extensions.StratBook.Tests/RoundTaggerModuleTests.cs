@@ -27,7 +27,7 @@ public class RoundTaggerModuleTests
             await Assert.That(tabs.Count).IsEqualTo(1);
             await Assert.That(tabs[0].TabId).IsEqualTo("tagger.matrix");
             await Assert.That(tabs[0].Header).IsEqualTo("Tags");
-            await Assert.That(tabs[0].HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tabs[0].HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tabs[0].Order).IsEqualTo(2).Because("after Situations on the rail");
             await Assert.That(FeatureCatalog.ById("tab.tagger")).IsNotNull();
             await Assert.That(FeatureCatalog.ById("playback2d.tagger")).IsNotNull();

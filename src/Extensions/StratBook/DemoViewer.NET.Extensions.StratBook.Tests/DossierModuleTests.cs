@@ -104,7 +104,7 @@ public class DossierModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.dossier");
             await Assert.That(tab.TabId).IsEqualTo("dossier.browser");
             await Assert.That(tab.Header).IsEqualTo("Dossier");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(5).Because("last on the rail, after Review");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();

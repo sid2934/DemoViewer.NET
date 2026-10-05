@@ -375,20 +375,21 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Used in:** the 4 message-card list surfaces (Parser card list + descendants).
 
 ### Hosted tab sections (the Strat Book rail, the Library's Teams view)
-- **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle) and
-  `ViewModels/Shell/IHostTabViewModel.cs` (what a host tab's VM exposes) in the shell; the Strat Book hub is
-  pack-owned: `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookHubViewModel.cs`,
-  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookHubView.axaml` (the rail) and `StratBookPack.HubHostTab`
-  (the contribution); the Demos / Teams toggle in `Views/Library/LibraryTabView.axaml`.
+- **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle),
+  `ViewModels/Shell/HubTabViewModel.cs` and `Views/Shell/HubTabView.axaml` (every hub tab and its rail, drawn by
+  the host) in the shell; the Strat Book hub is declared by `StratBookPack.HubTab`; the Demos / Teams toggle in
+  `Views/Library/LibraryTabView.axaml`.
 - **Purpose:** a module tab that belongs to a workflow rather than the strip. A descriptor names its host by
   id in `WorkspaceTabDescriptor.HostId`: `"stratbook.hub"` puts it on the Strat Book tab's left rail (164px,
   collapsible to a 32px strip, `PanelHeaderBg`, `sectionHeader` band bound to the host's rail label, "STRAT BOOK",
-  `ListBox.strat-rail` items in the shell tab's monospace 13 with the header's badge on the right);
+  `ListBox.hub-rail` items in the shell tab's monospace 13 with the header's badge on the right);
   `"builtin.library"` puts it behind the Library toolbar's Demos / Teams toggle. The strip went from four
   tabs to eleven when every Strat Room feature took its own; the rail is where such features go now.
-- **Contract:** a host tab is a pack contribution (`IExtensionContributions.HostTab`, a `HostTabContribution`: host
-  id, tab id, header, strip order, rail label, feature id, VM and view factories); the shell builds the host VM
-  with the strip and keys one `TabSectionHost` per host id, the Library being the built-in host. The descriptor
+- **Contract:** a hub tab is a declaration (`IExtensionContributions.HubTab`, a `HubTabContribution`: id, header,
+  strip order, rail label, feature id, optional session state); the host builds its `HubTabViewModel` with the
+  strip, draws the rail itself and keys one `TabSectionHost` per host id, the Library being the built-in host. A
+  hub id already taken by a tab or another hub is left out with a module log line. The rail's collapsed state is
+  the host's, kept per hub id in `SessionPayload.Hubs`. The descriptor
   keeps its `TabId` and feature id, so `TrySelectTab`, the gate and the session file treat a section exactly as
   they treated the strip tab (the shell resolves a section id through its host and persists the section id as
   the active tab; a section of a hidden host answers false). A section is `Activate`d only while it is selected
@@ -400,8 +401,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   member for a new host; contribute a host tab and name it.
 
 ### Collapsible side pane (the Strat Book rail and the strat list)
-- **Files:** `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle
-  commands), `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the
+- **Files:** `ViewModels/Shell/HubTabViewModel.cs` and `Views/Shell/HubTabView.axaml` (the rail and its toggle),
+  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookLayout.cs` (the list flag and its toggle), the list column and the
   `StratPicker` header in `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in
   `Styles/Primitives.axaml`.
 - **Purpose:** give a working surface the room a navigation pane takes. The editor column was about 340 px at
@@ -1401,11 +1402,13 @@ spectating has no readback. Gated by `playback2d.follow`.
   `StatusChip`/`StatusChipViewModel`, zero new tokens, flyout body resolved by the `ViewLocator` like the
   other three. Four consumers now share the control. **The 2D export chip and the Strat Book export chip
   are the fifth and sixth** (`Playback2DExportStatusViewModel`, mounted via `MainViewModel.AttachPlayback2DExportStatus`
-  for the 2D chip, a core, dedicated slot). The Strat Book chip goes through a generic pack `StatusChip`
-  contribution instead (item 14): `MainViewModel.AttachStatusChips(IReadOnlyList<StatusChipContribution>)`
-  watches each contribution's `IContributedStatusChip` (`StratBookExportChipSlot` for this one) via
-  `INotifyPropertyChanged`, keyed by the contribution's own id in a `_shownContributedChips` map. The Strat
-  Book tab's export job mounts into the slot lazily, on the first Export.
+  for the 2D chip, a core, dedicated slot). The Strat Book chip is a host-owned export slot too:
+  `MainViewModel.MountExportStatus(chipId, featureId, status)`, reached by the pack through the first-party
+  `IFirstPartyExportChips` seam when its export job builds on the first Export, and shown only while the
+  pack's feature is on. An extension's own chip is the public `IExtensionContributions.StatusChip`: the
+  extension supplies `IStatusChipSource` state and the host copies it into a `StatusChipViewModel` it owns,
+  reading the source under the extension's guard and on the UI thread. Both kinds are `IShellChip`s keyed by
+  id in a `_shownContributedChips` map.
   - **Flyout contents:** queue depth · outdated count (`Pending && Events.Count > 0`) · failed count ·
     `◐ scanning <name>` · `[Retry all failed]` · `[⟳ Rescan all]`. Counts are neutral `TextMid` labels with
     `TextValue` values, never tinted, per the contrast rule above.

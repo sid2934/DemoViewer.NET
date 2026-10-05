@@ -7,6 +7,7 @@ using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Views.Shell;
 using DemoViewer.NET.Views.StratBook;
 
 #endregion
@@ -19,11 +20,11 @@ public static partial class Variants
 
     // A B execute on de_dust2 in the shape of one written before carried marks: the round-start seed turned into a move
     // with a line per player and the spawn positions still on it, then a lurk on the same tick holding copies of them.
-    private static StratBookHubView StratEditorSeedMove(double atSeconds)
+    private static HubTabView StratEditorSeedMove(double atSeconds)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        HubTabView view = StratEditor(true, true, true, vm =>
         {
             strats = vm;
             vm.SelectedMap = "de_dust2";
@@ -43,11 +44,11 @@ public static partial class Variants
     // The same execute as it was later left: no E line on the seed, and E's lurk a second later via Long Doors,
     // working five areas. Dragged, E's entry on the lurk step sits a few units from Long Doors' centre, else it is the
     // step's unmarked copy of spawn.
-    private static StratBookHubView StratEditorOwnersLurk(double atSeconds, bool dragged)
+    private static HubTabView StratEditorOwnersLurk(double atSeconds, bool dragged)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        HubTabView view = StratEditor(true, true, true, vm =>
         {
             strats = vm;
             vm.SelectedMap = "de_dust2";

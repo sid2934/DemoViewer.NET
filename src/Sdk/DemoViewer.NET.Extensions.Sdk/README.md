@@ -77,7 +77,9 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 
 | Call | Adds |
 |---|---|
-| `Tabs` | An `IWorkspaceModule` whose tabs join the strip. |
+| `Tabs` | An `IWorkspaceModule` whose tabs join the strip, or a hub's rail when a descriptor names a `HostId`. |
+| `HubTab` | A main tab whose body is a rail of sections. The host draws the tab and the rail; sections name its id. |
+| `StatusChip` | A chip on the status strip. You supply its state through `IStatusChipSource`; the host draws it. |
 | `Evaluator` | An `IExtensionEvaluator` that reads every demo the Library indexes, on the shared parse. |
 | `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind, and `IExtension.CommandScopes` for their focus scopes. |
 | `SettingsPage` | A page under Settings, Extensions. |
@@ -89,6 +91,10 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 
 Each contribution shows only while the extension's master switch is on, and while its own feature id is on
 when it names one.
+
+A section can also join a hub the app owns: name `HostIds.LibraryTab` (the Library's view switch) or
+`HostIds.StratBookHub` (the Strat Book rail) as its `HostId`. A hub id you declare must not repeat one the app
+or another extension uses; a second declaration of an id is left out and logged.
 
 ## Keys
 
