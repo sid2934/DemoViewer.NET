@@ -1,11 +1,13 @@
 #region
 
+using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -127,6 +129,79 @@ public class PackSwitchTests
         await Assert.That(lifecycle.Enabled).IsEmpty();
     }
 
+    [Test]
+    [NotInParallel]
+    public async Task AFaultedEnableOrDisable_IsLogged_AndPendingStillCompletes()
+    {
+        CapturingLoggerProvider capture = new();
+        ILoggerFactory previous = DiagnosticsLog.LoggerFactory;
+        try
+        {
+            DiagnosticsLog.LoggerFactory = LoggerFactory.Create(b => b.AddProvider(capture));
+            FakeGate gate = new() { On = true };
+            FakeLifecycle lifecycle = new()
+            {
+                EnableResult = Task.FromException(new InvalidOperationException("enable broke")),
+                DisableResult = Task.FromException(new InvalidOperationException("disable broke"))
+            };
+            FakePack pack = new();
+            using PackSwitch packs = new([pack], gate, _ => lifecycle, null, () => { });
+
+            packs.Start();
+            await packs.Pending;
+            gate.On = false;
+            gate.Raise();
+            await packs.Pending;
+
+            await Assert.That(capture.Errors).Contains(e => e.Contains("enable broke", StringComparison.Ordinal));
+            await Assert.That(capture.Errors).Contains(e => e.Contains("disable broke", StringComparison.Ordinal));
+        }
+        finally
+        {
+            DiagnosticsLog.LoggerFactory = previous;
+        }
+    }
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider, ILogger
+    {
+        private readonly List<string> _errors = [];
+
+        public IReadOnlyList<string> Errors
+        {
+            get
+            {
+                lock (_errors)
+                {
+                    return [.. _errors];
+                }
+            }
+        }
+
+        public ILogger CreateLogger(string categoryName) => this;
+
+        public void Dispose()
+        {
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (exception is null)
+            {
+                return;
+            }
+
+            lock (_errors)
+            {
+                _errors.Add(formatter(state, exception) + " " + exception.Message);
+            }
+        }
+    }
+
     private sealed class FakeGate : IFeatureGate
     {
         public bool On { get; set; }
@@ -142,18 +217,20 @@ public class PackSwitchTests
         public List<ExtensionStartReason> Enabled { get; } = [];
         public int Disabled { get; private set; }
         public CancellationToken LastToken { get; private set; }
+        public Task EnableResult { get; init; } = Task.CompletedTask;
+        public Task DisableResult { get; init; } = Task.CompletedTask;
 
         public Task OnEnabledAsync(ExtensionStartReason reason, CancellationToken ct)
         {
             Enabled.Add(reason);
             LastToken = ct;
-            return Task.CompletedTask;
+            return EnableResult;
         }
 
         public Task OnDisabledAsync()
         {
             Disabled++;
-            return Task.CompletedTask;
+            return DisableResult;
         }
 
         public void OnShutdown(TimeSpan budget)

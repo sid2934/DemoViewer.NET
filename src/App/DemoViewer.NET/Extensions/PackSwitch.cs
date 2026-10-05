@@ -157,6 +157,7 @@ public sealed class PackSwitch : IDisposable
             return;
         }
 
+        loads = Observed(loads, "enable pack " + pack.Id);
         if (reason != ExtensionStartReason.EnabledInSession)
         {
             state.Pending = loads;
@@ -195,11 +196,29 @@ public sealed class PackSwitch : IDisposable
 
         try
         {
-            state.Pending = lifecycle.OnDisabledAsync();
+            state.Pending = Observed(lifecycle.OnDisabledAsync(), "disable pack " + pack.Id);
         }
         catch (Exception ex)
         {
             AppLog.OperationFailed(Log, "disable pack " + pack.Id, ex);
+        }
+    }
+
+    // Logs a faulted enable or disable. Nothing else awaits these tasks, and Pending must complete for
+    // callers waiting on a release rather than rethrow an extension's exception into them.
+    private static async Task Observed(Task task, string operation)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // A switch-off cancels the enable in flight.
+        }
+        catch (Exception ex)
+        {
+            AppLog.OperationFailed(Log, operation, ex);
         }
     }
 
