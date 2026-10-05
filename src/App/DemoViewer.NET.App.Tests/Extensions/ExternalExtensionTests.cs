@@ -60,7 +60,7 @@ public class ExternalExtensionTests
     }
 
     [Test]
-    public async Task TheSample_IsBuiltAgainstTheSdkAlone()
+    public async Task TheSample_IsBuiltAgainstTheSdkPackagesAlone()
     {
         string sample = Path.Combine(SampleOutput(), "HelloExtension.dll");
         string[] references =
@@ -70,7 +70,8 @@ public class ExternalExtensionTests
                 .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal))
         ];
 
-        await Assert.That(references).IsEquivalentTo(["DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Modules.Abstractions"],
+        await Assert.That(references).IsEquivalentTo(["DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Extensions.Sdk.Ui",
+                "DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.Playback2D.Scene"],
             TUnit.Assertions.Enums.CollectionOrdering.Any);
     }
 
@@ -305,9 +306,18 @@ public class ExternalExtensionTests
                 PackContributions contributed = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
                     .GetRequiredService<PackContributionSet>(provider).Packs.Single();
 
-                Modules.Abstractions.WorkspaceTabDescriptor tab =
-                    contributed.Modules.Single(m => m.Id == "dev.example.hello.tabs").CreateTabs(new NoHost()).Single();
+                Modules.Abstractions.WorkspaceTabDescriptor[] tabs =
+                    [.. contributed.Modules.Single(m => m.Id == "dev.example.hello.tabs").CreateTabs(new NoHost())];
+                Modules.Abstractions.WorkspaceTabDescriptor tab = tabs.Single(t => t.TabId == "hello.tab");
                 Avalonia.Controls.Control view = tab.ViewFactory();
+                Avalonia.Controls.Control map = tabs.Single(t => t.TabId == "hello.map").ViewFactory();
+
+                // Its 2D Playback contribution draws on the tab's map under the extension's own id root.
+                (Modules.Playback2D.Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+                IPlaybackContribution playback = contributed.PlaybackContributions.Single();
+                playback.Attach(vm.Surface, ctx);
+                string[] layers = [.. vm.Surface.Layers.Select(l => l.Key)];
+                playback.Detach();
 
                 using (Assert.Multiple())
                 {
@@ -318,9 +328,15 @@ public class ExternalExtensionTests
                     await Assert.That(contributed.DemoActions.Single().FeatureId).IsEqualTo("pack.hello")
                         .Because("an action with no feature of its own shows under the extension's master switch");
                     await Assert.That(contributed.PlaybackContributions.Single()).IsTypeOf<SdkPlaybackContribution>();
+                    await Assert.That(map).IsTypeOf<global::DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView>()
+                        .Because("the UI kit resolves from the app, so the extension embeds the host's own map view");
+                    await Assert.That(layers).IsEquivalentTo(["ext.dev.example.hello.rings"]);
+                    await Assert.That(vm.Surface.Layers).IsEmpty().Because("the detach took the layer with it");
                     await Assert.That(contributed.HubTabs.Single().Id).IsEqualTo("hello.hub");
                     await Assert.That(contributed.StatusChips.Single().FeatureId).IsEqualTo("pack.hello");
                 }
+
+                vm.Dispose();
             });
         }
         finally

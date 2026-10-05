@@ -5,14 +5,18 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.Sdk.Playback;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using Microsoft.Extensions.DependencyInjection;
+using SkiaSharp;
 
 namespace HelloExtension;
 
 /// <summary>
-///     A tab that shows the open demo, a hub tab with two sections, a status chip, a Match Overview action and
-///     a 2D Playback toolbar button.
+///     A tab that shows the open demo, a tab with a map of its own, a hub tab with two sections, a status chip,
+///     a Match Overview action, and a 2D Playback toolbar button and map layer.
 /// </summary>
 public sealed class HelloExtension : IExtension
 {
@@ -128,7 +132,63 @@ internal sealed class HelloModule(Func<HelloTabViewModel> viewModel) : IWorkspac
                 return new StackPanel { Orientation = Orientation.Vertical, Children = { text } };
             }
         };
+
+        // A map of its own: the host loads the map's art, the extension adds a layer by composition.
+        yield return new WorkspaceTabDescriptor
+        {
+            TabId = "hello.map",
+            Header = "Hello map",
+            Order = 52,
+            FeatureId = HelloExtension.TabFeature,
+            ViewFactory = () =>
+            {
+                MapView map = new() { MapName = "de_mirage" };
+                map.AddLayer("hello.origin", () => new HelloLayer("hello.origin"));
+                return map;
+            }
+        };
     }
+}
+
+/// <summary>
+///     Draws a cross at the world origin and a ring round every living player. It reads only what it is handed:
+///     the frame and the transform in the render context.
+/// </summary>
+internal sealed class HelloLayer(string id) : ISceneLayer
+{
+    private readonly SKPaint _paint = new() { Color = new SKColor(0xFF, 0xC8, 0x40), IsAntialias = true, IsStroke = true, StrokeWidth = 2 };
+
+    public string Id => id;
+
+    public LayerSlot Slot => LayerSlot.Overlay;
+
+    public int Order => 0;
+
+    public LayerCacheHint Cache => LayerCacheHint.Dynamic;
+
+    public bool IsEnabled { get; set; } = true;
+
+    public int ContentVersion => 0;
+
+    public bool Advance(in SceneTime time, Scene2DFrame frame) => false;
+
+    public void Render(SKCanvas canvas, SceneRenderContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(canvas);
+        (double x, double y) = ctx.Transform.WorldToScreen(0, 0);
+        canvas.DrawLine((float)x - 8, (float)y, (float)x + 8, (float)y, _paint);
+        canvas.DrawLine((float)x, (float)y - 8, (float)x, (float)y + 8, _paint);
+        foreach (PlayerMarker marker in ctx.Frame.Markers)
+        {
+            if (marker.IsAlive && ctx.BelongsHere(marker.WorldZ))
+            {
+                (double px, double py) = ctx.Transform.WorldToScreen(marker.WorldX, marker.WorldY);
+                canvas.DrawCircle((float)px, (float)py, 14, _paint);
+            }
+        }
+    }
+
+    public void Dispose() => _paint.Dispose();
 }
 
 /// <summary>The hub's two sections. Plain controls, so the sections need nothing from the container.</summary>
@@ -190,6 +250,7 @@ public sealed class HelloChip : IStatusChipSource
 internal sealed class HelloPlayback : IPlaybackContribution
 {
     private IDisposable? _item;
+    private IDisposable? _layer;
 
     public void Attach(IPlaybackSurface surface, IModuleContext context)
     {
@@ -198,11 +259,15 @@ internal sealed class HelloPlayback : IPlaybackContribution
         _item = surface.AddToolbarItem(new ToolbarItem("hello.where", "Where am I?",
             $"Logs the tick shown{surface.GestureHint(HelloExtension.WhereAction)}",
             moment => moment.Tick >= 0, HelloExtension.WhereAction));
+        // Filed by the host as ext.dev.example.hello.rings, beside the tab's own layers.
+        _layer = surface.AddLayer("rings", () => new HelloLayer("rings"));
     }
 
     public void Detach()
     {
         _item?.Dispose();
+        _layer?.Dispose();
         _item = null;
+        _layer = null;
     }
 }

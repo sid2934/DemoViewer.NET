@@ -37,6 +37,27 @@ Namespace `DemoViewer.NET.Extensions.Sdk.Ui.Controls`, in XAML
 | `GameIcon` | A CS2 icon by key (`equipment/ak47`, `modifier/headshot`), sized by `IconHeight` and tinted by `Foreground`. |
 | `GifView` | An animated GIF from a file path. |
 | `ParseLinkChip`, `OpenExternal` | A monospace link that opens a file in the user's editor or a URL in the browser. |
+| `MapView` | A CS2 map with pan and zoom, your layers and your pointer tool. See below. |
+
+### MapView
+
+`MapView` shows a map with no demo behind it: set `MapName` (`de_mirage`) and the app loads the map's radar
+art and floors; `HasMap` is false where it has none, so say so beside the view. You add to it by composition:
+
+```csharp
+MapView map = new() { MapName = "de_nuke" };
+IDisposable heat = map.AddLayer("myext.heat", () => new HeatLayer(document));
+PickTool pick = new(document);
+IDisposable tool = map.AddTool(pick);
+map.SetPrimaryTool(pick);
+```
+
+A layer is an `ISceneLayer` and a tool an `IMapTool`, both from `DemoViewer.NET.Playback2D.Scene`. The primary
+tool gets every press the view does not pan; a left press it refuses pans the map, and Space, Control, the
+middle button and the wheel always pan and zoom. `EscapePressed` fires for Escape with no gesture to cancel.
+`PaneAt(point)`, `Panes` and `Space` give the panes and floors for a hit test of your own, and `Invalidate`
+repaints after something a layer draws changed. The radar's and the floor label's ids are the view's own.
+Layers and tools survive the view leaving and re-entering the tree; the factories run again when it rebuilds.
 
 `DisplayText.Sanitize` strips the invisible Unicode format characters that make Avalonia's line wrapping
 throw on some player names; run every player name through it before showing it.

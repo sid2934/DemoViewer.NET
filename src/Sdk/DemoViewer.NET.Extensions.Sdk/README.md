@@ -86,7 +86,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `Evaluator` | An `IExtensionEvaluator` that reads every demo the Library indexes, on the shared parse. |
 | `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind, and `IExtension.CommandScopes` for their focus scopes. |
 | `SettingsPage` | A page under Settings, Extensions. |
-| `Playback` | Lanes, panes, panels, toolbar items, mode toggles and key or action handlers in 2D Playback. |
+| `Playback` | Lanes, panes, panels, toolbar items, mode toggles, map layers, map tools and key or action handlers in 2D Playback. |
 | `Library` | A Library filter, a per-demo badge, or both. |
 | `DemoAction` | A button on Match Overview for the open demo. |
 | `Store` / `DataRemoval` | The files "Delete extension data" lists and removes. |
@@ -121,7 +121,26 @@ toolbar item or mode toggle whose action id names it, and only while the extensi
 `IPlaybackSurface.Levels` lists the shown map's floors, lowest first. `Places` lists its named places, and
 `PlaceAt(level, x, y)` answers the place at a world point on a floor, by the floor's name, or null for the
 map's only floor. Both are empty or null on a map with no zones. A pointer handler's `PlaybackPointer.PlaceAt`
-gives the same answer for the point pressed.
+gives the same answer for the point pressed. `PlacesVersion` changes when the user edits the map's zones; keep
+it beside a place you store to know when to look the place up again.
+
+A toolbar item's `PlaybackMoment` and a pointer handler's `PlaybackPointer` carry the frame on screen
+(`Frame`, a `Scene2DFrame` from `DemoViewer.NET.Playback2D.Scene`): the players' markers, grenades and clock.
+It is valid only during the call; the tab refills it for the next frame.
+
+`AddLayer(id, factory)` draws an `ISceneLayer` on the tab's map among its own layers. The host files it as
+`ext.<your extension id>.<id>`, so it can never take one of the tab's layers or another extension's, and the
+built layer's own `Id` is not used. The factory runs again whenever the map rebuilds its scene. The layer sees
+only what it is handed: the frame in `Advance`, the canvas and the `SceneRenderContext` in `Render`, which
+runs on the render thread. The canvas is restored after each call, and a layer that throws stops drawing for
+the session. `AddTool(tool)` adds an `IMapTool` that is offered every primary press the tab does not pan
+(Space, Control and the middle button pan), after the pointer handlers; the tool that takes a press owns the
+gesture until the release.
+
+A lane's track can draw marks as well as bands: implement `ITimelineTrack.BuildMarks` to put a glyph on the
+timeline at a frame.
+
+For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`).
 
 ## The host
 

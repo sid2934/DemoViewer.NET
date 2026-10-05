@@ -26,6 +26,7 @@ The types keep the namespaces the app uses for them, under `DemoViewer.NET.Playb
 | `Playback2D.Core.Levels` | `MapSpace`, `MapLevel`, `MapLevelId`, `PaneSet`, `LevelPane`, `StackedLayout`, `SingleLayout` |
 | `Playback2D.Core.Zones` | `PlaceResolver`, `ZoneSet`, `PlaceHit` and the zone geometry |
 | `Playback2D.Core.Cameras` | `ICameraRig` and the built-in rigs |
+| `Playback2D.Core.Tools` | `IMapTool`, `MapToolEvent`, `IMapToolContext`, `MapToolButton`, `MapToolModifiers` |
 
 The concrete layers, the drawing tools, annotations, video export and the render backends are not
 published.
@@ -41,3 +42,12 @@ given, already clipped and translated, using only the `SceneRenderContext`: `Tra
 pixels, `BelongsHere(z)` says whether a world height belongs on the pane's floor, and `Palette` has the
 theme's colours. `Render` runs once per pane and may run on the render thread, so it must not change
 anything. Layer ids beginning `playback2d.` or `hud.` are the app's.
+
+## Tools
+
+An `IMapTool` handles a pointer gesture on a map. `OnPressed` decides: return true to own the gesture, and the
+tool then sees each `OnMoved` and the `OnReleased`, or `OnCancelled` when the gesture is abandoned (Escape, a
+lost capture). A `MapToolEvent` carries the pane under the pointer, the point in the view, in the pane and in
+the world, the button and the keys held. The `IMapToolContext` finds the pane at a point, projects a world
+point through a pane's camera, gives the world units one pixel covers (for hit radii that stay the same size
+on screen) and asks for a repaint.
