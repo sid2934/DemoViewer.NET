@@ -610,7 +610,7 @@ public class Scene2DHostFrameHostTests
     {
         public List<IReadOnlyDictionary<double, double>> Rebuilds { get; } = [];
         public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
-        public LoadedMapAsset? MapAsset => null;
+        public IMapAsset? MapAsset => null;
         public VisibilityEngine? VisionEngine => null;
         public AnnotationSession? AnnotationSession { get; init; }
         public bool IsAnnotationsEnabled => AnnotationSession is not null;

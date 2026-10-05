@@ -8,7 +8,6 @@ using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Utility;
-using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using DemoViewer.NET.ViewModels.UtilityBook;
 using SkiaSharp;
 
@@ -28,7 +27,7 @@ public sealed class UtilityMapHost : Decorator
     private const double ClickSlopPx = 4;
 
     private readonly MapView _map = new();
-    private SkiaIconSource? _icons;
+    private MapIcons? _icons;
     private IDisposable? _layer;
     private Point? _pressAt;
     private UtilityBookTabViewModel? _vm;
@@ -93,7 +92,7 @@ public sealed class UtilityMapHost : Decorator
             return;
         }
 
-        _layer = _map.AddLayer(SceneLayerIds.Utility, () => new UtilityMapLayer(vm.Document, _icons ??= new SkiaIconSource()));
+        _layer = _map.AddLayer(SceneLayerIds.Utility, () => new UtilityMapLayer(vm.Document, _icons ??= new MapIcons()));
         vm.MapChanged += OnMapChanged;
         vm.Document.Changed += OnDocumentChanged;
         OnMapChanged();

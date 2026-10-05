@@ -10,10 +10,10 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Utility;
 using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
 using GrenadeTrailPoint = DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 #endregion
 
@@ -56,7 +56,7 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
 
     private readonly Func<string, DateTime?> _demoDate;
     private readonly GrenadeIndex _index;
-    private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
+    private readonly Func<string, IMapAsset?> _loadMapAsset;
     private readonly Action<Action> _retire;
     private readonly ISituationPlayback? _playback;
     private readonly Dictionary<string, LandingGroup> _groups = new(StringComparer.Ordinal);
@@ -130,7 +130,7 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
     ///     the strat canvas's): it is then never disposed here.
     /// </param>
     public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
-        Func<string, LoadedMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
+        Func<string, IMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
         Action<Action>? retire = null, string? clipDirectory = null, Action<Action>? background = null,
         Action<Action>? post = null, string? lockedMap = null, bool ownsMapAsset = true)
     {
@@ -143,7 +143,7 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
         ArgumentNullException.ThrowIfNull(index);
         _index = index;
         _playback = playback;
-        _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
         _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
         _demoDate = demoDate ?? (_ => null);
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
@@ -183,7 +183,7 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
     public UtilityMapDocument Document { get; } = new();
 
     /// <summary>The selected map's baked bundle, or null when this host has none.</summary>
-    public LoadedMapAsset? MapAsset { get; private set; }
+    public IMapAsset? MapAsset { get; private set; }
 
     /// <summary>The map the document lies on.</summary>
     public string MapName => SelectedMap ?? "";
@@ -504,13 +504,13 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
             return;
         }
 
-        LoadedMapAsset? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
+        IMapAsset? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
         if (sameMap && asset is null)
         {
             return;
         }
 
-        LoadedMapAsset? previous = MapAsset;
+        IMapAsset? previous = MapAsset;
         MapAsset = asset;
         _boundMap = SelectedMap;
         OnPropertyChanged(nameof(MapAsset));

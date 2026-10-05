@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Modules.StratBook.Canvas;
 using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Strats;
@@ -390,7 +391,7 @@ public class StratLineupPickerTests
             await Assert.That(picker.Map.MapAsset).IsSameReferenceAs(h.Tab.Canvas.MapAsset);
         }
 
-        LoadedMapAsset shared = h.Tab.Canvas.MapAsset!;
+        IMapAsset shared = h.Tab.Canvas.MapAsset!;
         picker.CancelCommand.Execute(null);
         h.Pump();
         await Assert.That(h.Tab.Canvas.MapAsset).IsSameReferenceAs(shared).Because("the canvas still owns and draws it");

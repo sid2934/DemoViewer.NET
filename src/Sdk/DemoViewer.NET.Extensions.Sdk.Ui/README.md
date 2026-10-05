@@ -59,6 +59,11 @@ middle button and the wheel always pan and zoom. `EscapePressed` fires for Escap
 repaints after something a layer draws changed. The radar's and the floor label's ids are the view's own.
 Layers and tools survive the view leaving and re-entering the tree; the factories run again when it rebuilds.
 
+To draw a map without a view, `MapAssets.TryLoad("de_mirage")` loads the map's floors, radar images and places
+as an `IMapAsset` you dispose, and `MapAssets.RenderPng` draws a `Scene2DFrame` to a PNG the way the app's
+export does, for a thumbnail. `MapIcons` hands a layer the game's weapon and grenade art. Both work from any
+thread; outside the app nothing loads and a picture throws.
+
 `DisplayText.Sanitize` strips the invisible Unicode format characters that make Avalonia's line wrapping
 throw on some player names; run every player name through it before showing it.
 `BulkObservableCollection<T>` replaces or extends its contents with one `Reset` instead of an event per item.

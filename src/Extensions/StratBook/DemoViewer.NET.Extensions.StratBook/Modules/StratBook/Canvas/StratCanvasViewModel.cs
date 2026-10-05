@@ -22,7 +22,6 @@ using DemoViewer.NET.Playback2D.Core.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
@@ -67,7 +66,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private readonly AnnotationSessionController _ink;
     private readonly AnnotationTrack _inkTrack;
     private readonly Func<Guid, StratDocument?>? _lookup;
-    private readonly Func<string?, LoadedMapAsset?> _mapLoader;
+    private readonly Func<string?, IMapAsset?> _mapLoader;
     private readonly Func<IEnumerable<string>> _keybindOverrides;
     private readonly LineupOriginSource? _lineupOrigins;
     private readonly Func<string, Task<IZonePlaceResolver?>> _placesFor;
@@ -132,7 +131,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     members (and a null bundle) mean the same as before: routing off, the baked-in place resolver, no
     ///     keybind overrides.
     /// </param>
-    public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
+    public StratCanvasViewModel(StratSession session, Func<string?, IMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
         Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null,
         Func<string, Task<IZonePlaceResolver?>>? placesFor = null, Action<Action>? post = null, Func<bool>? routing = null,
@@ -153,7 +152,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         IsReadOnly = readOnly;
-        _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
+        _mapLoader = mapLoader ?? MapAssets.TryLoad;
         _lookup = lookup;
         _keybindOverrides = keybindOverrides ?? (() => lookups?.Settings?.Current.Playback2D.KeybindOverrides ?? []);
 
@@ -387,7 +386,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
 
     /// <inheritdoc />
-    public LoadedMapAsset? MapAsset { get; private set; }
+    public IMapAsset? MapAsset { get; private set; }
 
     /// <inheritdoc />
     /// <remarks>Replaced whole on each publish, never changed in place: the render thread reads it.</remarks>
@@ -805,7 +804,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     /// <summary>The loader the canvas reads its map bundle with; the export loads its own copy through it.</summary>
-    internal Func<string?, LoadedMapAsset?> MapLoader => _mapLoader;
+    internal Func<string?, IMapAsset?> MapLoader => _mapLoader;
 
     /// <summary>
     ///     The open strat on the selected path as it stands now, for an export, or null
@@ -824,7 +823,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         frozen.Reset([.. _ink.Document.Elements]);
         return new StratExportCapture(projection, new TokenTrackSet(Tracks.Tracks), new AnnotationSession(frozen),
             document.Map, document.Name,
-            MapAsset is { } asset ? MapAssetPipeline.RadarBounds(asset) : BoundsFor(projection));
+            MapAsset is { } asset ? asset.RadarBounds : BoundsFor(projection));
     }
 
     /// <summary>
@@ -1628,9 +1627,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         SyncInk(projection.Elements);
 
-        WorldBounds bounds = MapAsset is { } asset ? MapAssetPipeline.RadarBounds(asset) : BoundsFor(projection);
+        WorldBounds bounds = MapAsset is { } asset ? asset.RadarBounds : BoundsFor(projection);
         _source = new StratFrameSource(new StratSceneSpec(Tracks, projection.Schedule, _ink.Session, projection.Labels,
-            document.Map, MapAsset is { } radarAsset ? MapAssetPipeline.DescribeRadars(radarAsset) : [], bounds, null,
+            document.Map, MapAsset is { } radarAsset ? radarAsset.DescribeRadars() : [], bounds, null,
             projection.Utility, projection.RoundSeconds, 0, projection.ContentEndTick, StepSchedule.TicksPerSecond, 1)
         {
             Routes = projection.Routed,
@@ -2537,7 +2536,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         return new WorldBounds(minX - margin, minY - margin, maxX + margin, maxY + margin);
     }
 
-    private LoadedMapAsset? SafeLoad(string map)
+    private IMapAsset? SafeLoad(string map)
     {
         try
         {
@@ -2551,9 +2550,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     // The previous bundle's radar images are native memory; disposed a dispatcher hop later because the
     // render thread may still be replaying a picture that draws one, the 2D tab's rule.
-    private void ReplaceMapAsset(LoadedMapAsset? next)
+    private void ReplaceMapAsset(IMapAsset? next)
     {
-        LoadedMapAsset? previous = MapAsset;
+        IMapAsset? previous = MapAsset;
         MapAsset = next;
         if (previous is not null && !ReferenceEquals(previous, next))
         {

@@ -1,11 +1,8 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Playback2D.Pipeline.Headless;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Services.RoundIndex;
 using SkiaSharp;
 
@@ -15,8 +12,7 @@ namespace DemoViewer.NET.Modules.Situations;
 
 /// <summary>
 ///     Draws a Result Card's mini-radar: the alive players of one sampled step, from the positions
-///     file, through the same headless path <c>dv2d render</c> takes (<see cref="SceneLayerCatalog" />
-///     stack, <see cref="HeadlessSceneRenderer" />, the CPU provider, the dark palette) at
+///     file, through <see cref="MapAssets.RenderPng" />, the headless path <c>dv2d render</c> takes, at
 ///     <see cref="Size" />. The scene is the radar and the marker discs and nothing else: no yaw, no
 ///     ring state, no label, so the picture shows the arrangement the token matched, byte for byte
 ///     consistent with it because both come from the same row.
@@ -37,13 +33,13 @@ public sealed class SituationThumbnailRenderer : IDisposable
     /// <summary>The thumbnail size: sixteen by nine at a card's width. The golden is named for it.</summary>
     public static readonly SKSizeI Size = new(320, 180);
 
-    private readonly Dictionary<string, LoadedMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
+    private readonly Dictionary<string, IMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<string, IMapAsset?> _loadMapAsset;
     private bool _disposed;
 
     /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
-    public SituationThumbnailRenderer(Func<string, LoadedMapAsset?>? loadMapAsset = null) =>
-        _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+    public SituationThumbnailRenderer(Func<string, IMapAsset?>? loadMapAsset = null) =>
+        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
 
     /// <inheritdoc />
     public void Dispose()
@@ -54,7 +50,7 @@ public sealed class SituationThumbnailRenderer : IDisposable
         }
 
         _disposed = true;
-        foreach (LoadedMapAsset? asset in _assets.Values)
+        foreach (IMapAsset? asset in _assets.Values)
         {
             asset?.Dispose();
         }
@@ -90,7 +86,7 @@ public sealed class SituationThumbnailRenderer : IDisposable
     /// <param name="tick">The matched tick, frame clock.</param>
     /// <param name="asset">The map's bundle, or null to draw on the synthetic grid.</param>
     public static Scene2DFrame? BuildFrame(string map, RoundPositionsDocument positions, int roundNumber, int tick,
-        LoadedMapAsset? asset)
+        IMapAsset? asset)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentNullException.ThrowIfNull(positions);
@@ -143,37 +139,24 @@ public sealed class SituationThumbnailRenderer : IDisposable
     /// </summary>
     /// <param name="frame">The frame to draw.</param>
     /// <param name="asset">The map's bundle, or null.</param>
-    public static byte[] RenderFrame(Scene2DFrame frame, LoadedMapAsset? asset)
+    public static byte[] RenderFrame(Scene2DFrame frame, IMapAsset? asset)
     {
         ArgumentNullException.ThrowIfNull(frame);
 
-        using CpuSurfaceProvider provider = new();
-        using SceneCompositor compositor =
-            SceneLayerCatalog.CreateSceneStack([SceneLayerIds.Radar, SceneLayerIds.Markers]);
-        using HeadlessSceneRenderer renderer = new(provider, compositor)
-        {
-            Palette = ScenePalette.Dark,
-            Purpose = RenderPurpose.Export,
-            Camera = CameraFor(frame)
-        };
-        renderer.Levels.SetAuthoritativeFloors(asset?.Floors);
-        renderer.Levels.RadarBinder = asset is null ? null : new MapRadarBinder(asset);
-
-        SceneTime time = frame.Time;
-        return renderer.RenderPng(frame, in time, Size);
+        return MapAssets.RenderPng(frame, asset, [SceneLayerIds.Radar, SceneLayerIds.Markers], CameraFor(frame), Size);
     }
 
-    private static SceneMapInfo MapInfoFor(string map, LoadedMapAsset? asset, IReadOnlyList<PlayerMarker> markers)
+    private static SceneMapInfo MapInfoFor(string map, IMapAsset? asset, IReadOnlyList<PlayerMarker> markers)
     {
         if (asset is not null)
         {
-            WorldBounds bounds = MapAssetPipeline.RadarBounds(asset);
+            WorldBounds bounds = asset.RadarBounds;
             return new SceneMapInfo
             {
                 MapName = map,
                 NetworkedBounds = bounds,
                 ObservedBounds = bounds,
-                Radars = MapAssetPipeline.DescribeRadars(asset)
+                Radars = asset.DescribeRadars()
             };
         }
 
@@ -190,9 +173,9 @@ public sealed class SituationThumbnailRenderer : IDisposable
         };
     }
 
-    private LoadedMapAsset? AssetFor(string map)
+    private IMapAsset? AssetFor(string map)
     {
-        if (!_assets.TryGetValue(map, out LoadedMapAsset? asset))
+        if (!_assets.TryGetValue(map, out IMapAsset? asset))
         {
             asset = _loadMapAsset(map);
             _assets[map] = asset;

@@ -408,3 +408,11 @@ static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalPat
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.SourceBadgeProperty -> Avalonia.StyledProperty<string?>!
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.TooltipProperty -> Avalonia.StyledProperty<string?>!
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.WebFallbackProperty -> Avalonia.StyledProperty<string?>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.Dispose() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.IsBlankByDesign(string! key) -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.Lookup(string! key, float pixelHeight) -> SkiaSharp.SKImage?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.MapIcons() -> void
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.RenderPng(DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame, DemoViewer.NET.Playback2D.Core.Levels.IMapAsset? map, System.Collections.Generic.IReadOnlyList<string!>! layerIds, DemoViewer.NET.Playback2D.Core.ViewportTransform camera, SkiaSharp.SKSizeI size, DemoViewer.NET.Playback2D.Core.Overlay.OverlayDocument? overlay = null) -> byte[]!
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.TryLoad(string? mapName) -> DemoViewer.NET.Playback2D.Core.Levels.IMapAsset?

@@ -9,7 +9,6 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
@@ -58,7 +57,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
     private readonly SituationLiveCount _counter;
     private readonly DemoCacheStore _demoCache;
     private readonly ISituationIndex _index;
-    private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
+    private readonly Func<string, IMapAsset?> _loadMapAsset;
     private readonly Action<Action> _retire;
 
     // Built on a map change, not per drop: a resolver read is a zones-file load behind the seam, and
@@ -93,7 +92,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
 
     /// <summary>The map's bundle, or null when this host has none for it (the canvas then has no pane).</summary>
     [ObservableProperty]
-    private LoadedMapAsset? _mapAsset;
+    private IMapAsset? _mapAsset;
 
     /// <summary>The last search's hit count, or null before a search or after the query changed.</summary>
     [ObservableProperty]
@@ -126,7 +125,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
         ISituationIndex index,
         IQueryPlaceResolver resolver,
         DemoCacheStore demoCache,
-        Func<string, LoadedMapAsset?>? loadMapAsset = null,
+        Func<string, IMapAsset?>? loadMapAsset = null,
         Action<Action>? retire = null,
         SearchFiltersViewModel? filters = null,
         Action<Action>? post = null,
@@ -138,7 +137,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
         ArgumentNullException.ThrowIfNull(demoCache);
         _index = index;
         _demoCache = demoCache;
-        _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
         _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
         _calloutResolverFor = calloutResolverFor;
         _counter = new SituationLiveCount(index, post ?? (action => Dispatcher.UIThread.Post(action)), countDelay);
@@ -612,7 +611,7 @@ public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposab
         // The old bundle is retired one dispatcher hop later, not here: the host rebinds on MapChanged
         // below, and the render thread may still be replaying a picture that references the old radar
         // images. The playback tab's ReplaceMapAsset takes the same hop for the same reason.
-        LoadedMapAsset? previous = MapAsset;
+        IMapAsset? previous = MapAsset;
         MapAsset = value is null ? null : _loadMapAsset(value);
         if (previous is not null)
         {

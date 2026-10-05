@@ -406,6 +406,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <summary>The loaded map-asset bundle (radar bitmaps + transform + layers) for the current map, or null.</summary>
     public LoadedMapAsset? MapAsset { get; private set; }
 
+    /// <inheritdoc />
+    IMapAsset? ISceneFrameHost.MapAsset => MapAsset;
+
     /// <summary>
     ///     Test seam: the map name the viewport last (re)loaded assets for, set unconditionally by
     ///     <see cref="EnsureMapAsset" /> whether or not a baked bundle exists, so a headless test can assert

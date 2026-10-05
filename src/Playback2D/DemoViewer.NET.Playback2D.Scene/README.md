@@ -24,7 +24,7 @@ zone loaders, the sidecar identity records and the content key under `DemoViewer
 | `Playback2D.Core` | `Scene2DFrame` and what it carries (`PlayerMarker`, `GrenadeTrail`, `AreaEffect`, `BombMarker`, `KillFeedRow`, `SceneGameInfo`, `SceneMapInfo`, `SceneVision`), `SceneTime`, `ViewportTransform`, `SliceCamera`, `ScenePalette`, `WorldBounds`, `TextBlobCache` |
 | `Playback2D.Core.Compositing` | `ISceneLayer`, `LayerSlot`, `LayerCacheHint`, `SceneRenderContext`, `SceneSubmission`, `SceneCompositor`, `SceneRenderGate` |
 | `Playback2D.Core.Layers` | `SceneLayerIds`, the ids of the app's own layers |
-| `Playback2D.Core.Levels` | `MapSpace`, `MapLevel`, `MapLevelId`, `PaneSet`, `LevelPane`, `StackedLayout`, `SingleLayout` |
+| `Playback2D.Core.Levels` | `MapSpace`, `MapLevel`, `MapLevelId`, `PaneSet`, `LevelPane`, `StackedLayout`, `SingleLayout`, `IMapAsset` (a loaded map's floors, radar images and places) |
 | `Playback2D.Core.Zones` | `PlaceResolver`, `ZoneSet`, `PlaceHit` and the zone geometry |
 | `Playback2D.Core.Cameras` | `ICameraRig` and the built-in rigs |
 | `Playback2D.Core.Tools` | `IMapTool`, `MapToolEvent`, `IMapToolContext`, `MapToolButton`, `MapToolModifiers` |

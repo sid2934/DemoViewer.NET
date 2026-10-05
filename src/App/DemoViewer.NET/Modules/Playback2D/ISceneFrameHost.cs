@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
@@ -41,7 +41,7 @@ public interface ISceneFrameHost
     ///     The map bundle: authoritative floors and the radar binding. Null falls back to the grid and
     ///     the observed level split.
     /// </summary>
-    LoadedMapAsset? MapAsset { get; }
+    IMapAsset? MapAsset { get; }
 
     /// <summary>The vision engine the cone solve reads at solve time. Null draws no cones.</summary>
     VisibilityEngine? VisionEngine { get; }

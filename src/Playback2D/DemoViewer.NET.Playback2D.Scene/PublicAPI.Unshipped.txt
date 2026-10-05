@@ -2310,3 +2310,9 @@ static DemoViewer.NET.Playback2D.Pipeline.DemoContentHash.Compute(string! path) 
 static DemoViewer.NET.Playback2D.Pipeline.DemoContentHash.TryCompute(string! path) -> string?
 static readonly DemoViewer.NET.Playback2D.Core.Zones.ZoneOverlayDocument.Empty -> DemoViewer.NET.Playback2D.Core.Zones.ZoneOverlayDocument!
 static readonly DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult.Empty -> DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult!
+DemoViewer.NET.Playback2D.Core.Levels.IMapAsset
+DemoViewer.NET.Playback2D.Core.Levels.IMapAsset.CreateRadarBinder() -> DemoViewer.NET.Playback2D.Core.Levels.ILevelRadarBinder!
+DemoViewer.NET.Playback2D.Core.Levels.IMapAsset.DescribeRadars() -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.MapRadarImage!>!
+DemoViewer.NET.Playback2D.Core.Levels.IMapAsset.Floors.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.FloorSlice>!
+DemoViewer.NET.Playback2D.Core.Levels.IMapAsset.RadarBounds.get -> DemoViewer.NET.Playback2D.Core.WorldBounds
+DemoViewer.NET.Playback2D.Core.Levels.IMapAsset.Zones.get -> DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver?

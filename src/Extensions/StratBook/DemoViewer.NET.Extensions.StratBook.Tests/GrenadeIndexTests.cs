@@ -10,6 +10,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Utility;
 using DemoViewer.NET.Views.UtilityBook;
 using DemoViewer.NET.Features;
@@ -640,7 +641,7 @@ public class GrenadeIndexTests
         }, retire: retired.Add);
 
         vm.SelectedMap = Mirage;
-        LoadedMapAsset mirage = vm.MapAsset!;
+        IMapAsset mirage = vm.MapAsset!;
         int mirageLoads = loads.Count;
         int retiredBefore = retired.Count;
         vm.Refresh();

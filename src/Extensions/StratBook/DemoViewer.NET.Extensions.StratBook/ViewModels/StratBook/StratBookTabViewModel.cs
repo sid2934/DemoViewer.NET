@@ -17,8 +17,8 @@ using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.DemoCache;
@@ -65,7 +65,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     private readonly CalloutResolverSource _calloutResolvers;
     private readonly GrenadeIndex? _grenades;
     private readonly LineupOriginSource? _lineupOrigins;
-    private readonly Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? _lineupMap;
+    private readonly Func<string, IMapAsset?, UtilityBookTabViewModel>? _lineupMap;
 
     // What the open lineup picker writes to; it closes when either goes away.
     private (Guid Strat, Guid Step)? _pickerTarget;
@@ -163,12 +163,12 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     ///     canvases nothing to fall back on.
     /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
-        CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
+        CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
         Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
-        StratBookLayout? layout = null, Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
+        StratBookLayout? layout = null, Func<string, IMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
         Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null, Func<bool>? canvasRouting = null,
         StratCanvasServices? canvasServices = null)
     {

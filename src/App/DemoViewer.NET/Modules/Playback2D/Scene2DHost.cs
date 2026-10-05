@@ -75,7 +75,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     // can be put over the label's anchor through the same camera that drew it.
     private Point _lastPress;
 
-    private LoadedMapAsset? _boundAsset;
+    private IMapAsset? _boundAsset;
     private AnnotationSession? _boundSession;
 
     private SceneCompositor _compositor;
@@ -1273,13 +1273,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         BindZones(vm.ShowZones ? vm.Zones : null);
         _compositor.SetEnabled(SceneLayerIds.Zones, vm.ShowZones && _zoneLayer is not null);
 
-        LoadedMapAsset? asset = vm.MapAsset;
+        IMapAsset? asset = vm.MapAsset;
         if (!ReferenceEquals(asset, _boundAsset))
         {
             _boundAsset = asset;
             _levels.SetAuthoritativeFloors(asset?.Floors);
-            _levels.RadarBinder = asset is null ? null : new MapRadarBinder(asset);
-            _radarLayer.RadarBoundsOverride = asset is null ? null : MapAssetPipeline.RadarBounds(asset);
+            _levels.RadarBinder = asset?.CreateRadarBinder();
+            _radarLayer.RadarBoundsOverride = asset?.RadarBounds;
         }
     }
 

@@ -1,11 +1,8 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Playback2D.Pipeline.Headless;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using SkiaSharp;
 
 #endregion
@@ -34,13 +31,13 @@ public sealed class GrenadeLineupThumbnailRenderer : IDisposable
     /// <summary>The card's radar size: small and square, enough to read the spot at a glance.</summary>
     public static readonly SKSizeI Size = new(160, 160);
 
-    private readonly Dictionary<string, LoadedMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
+    private readonly Dictionary<string, IMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<string, IMapAsset?> _loadMapAsset;
     private bool _disposed;
 
     /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
-    public GrenadeLineupThumbnailRenderer(Func<string, LoadedMapAsset?>? loadMapAsset = null) =>
-        _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+    public GrenadeLineupThumbnailRenderer(Func<string, IMapAsset?>? loadMapAsset = null) =>
+        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
 
     /// <inheritdoc />
     public void Dispose()
@@ -51,7 +48,7 @@ public sealed class GrenadeLineupThumbnailRenderer : IDisposable
         }
 
         _disposed = true;
-        foreach (LoadedMapAsset? asset in _assets.Values)
+        foreach (IMapAsset? asset in _assets.Values)
         {
             asset?.Dispose();
         }
@@ -72,7 +69,7 @@ public sealed class GrenadeLineupThumbnailRenderer : IDisposable
             return null;
         }
 
-        WorldBounds bounds = MapAssetPipeline.RadarBounds(asset);
+        WorldBounds bounds = asset.RadarBounds;
         PlayerMarker marker = new(0, throwerTeam is 2 or 3 ? throwerTeam : 0, landing.X, landing.Y, landing.Z,
             0, RingState.Team, 1.0, "", true);
         SceneTime time = new(0, 0, 0, 1.0 / 64, true);
@@ -85,28 +82,17 @@ public sealed class GrenadeLineupThumbnailRenderer : IDisposable
                 MapName = map,
                 NetworkedBounds = bounds,
                 ObservedBounds = bounds,
-                Radars = MapAssetPipeline.DescribeRadars(asset)
+                Radars = asset.DescribeRadars()
             }
         };
 
-        using CpuSurfaceProvider provider = new();
-        using SceneCompositor compositor =
-            SceneLayerCatalog.CreateSceneStack([SceneLayerIds.Radar, SceneLayerIds.Markers]);
-        using HeadlessSceneRenderer renderer = new(provider, compositor)
-        {
-            Palette = ScenePalette.Dark,
-            Purpose = RenderPurpose.Export,
-            Camera = ViewportTransform.Fit(Size.Width, Size.Height, bounds.MinX, bounds.MinY, bounds.MaxX, bounds.MaxY)
-        };
-        renderer.Levels.SetAuthoritativeFloors(asset.Floors);
-        renderer.Levels.RadarBinder = new MapRadarBinder(asset);
-
-        return renderer.RenderPng(frame, in time, Size);
+        return MapAssets.RenderPng(frame, asset, [SceneLayerIds.Radar, SceneLayerIds.Markers],
+            ViewportTransform.Fit(Size.Width, Size.Height, bounds.MinX, bounds.MinY, bounds.MaxX, bounds.MaxY), Size);
     }
 
-    private LoadedMapAsset? AssetFor(string map)
+    private IMapAsset? AssetFor(string map)
     {
-        if (!_assets.TryGetValue(map, out LoadedMapAsset? asset))
+        if (!_assets.TryGetValue(map, out IMapAsset? asset))
         {
             asset = _loadMapAsset(map);
             _assets[map] = asset;

@@ -152,7 +152,7 @@ public class TokenToolHostTests
     private sealed class FakeSceneFrameHost : ISceneFrameHost, ITokenEditingHost
     {
         public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
-        public LoadedMapAsset? MapAsset => null;
+        public IMapAsset? MapAsset => null;
         public VisibilityEngine? VisionEngine => null;
         public AnnotationSession? AnnotationSession => null;
         public bool IsAnnotationsEnabled => false;
