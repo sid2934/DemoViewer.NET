@@ -94,7 +94,10 @@ when it names one.
 
 `services.GetExtensionContext(Id)` returns the extension's `IExtensionContext`:
 
-- `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files.
+- `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files. `CurrentDemo` is the open
+  demo's parse, shared with the shell, so read it and drop it on `CurrentDemoChanged`. `CurrentDemoHash` is the
+  demo's content key (lowercase hex SHA-256 of the file), the one to key per-demo data on. `CurrentTick`,
+  `IsPlaying` and `PlayheadChanged` follow playback; the event fires at most once per rendered frame.
 - `Features`: the feature switches, live.
 - `Jobs`: the processing queue. Run every off-UI-thread job through it, so the user sees it and can pause or
   remove it. Jobs carry the extension's id, and switching the extension off cancels its queued jobs. Declare

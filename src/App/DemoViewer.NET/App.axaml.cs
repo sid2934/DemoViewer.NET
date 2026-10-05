@@ -1050,6 +1050,7 @@ public class App : Application
 
         // Each extension's host context, keyed by its id, and the hub that hands them the shell once built.
         services.AddSingleton<ExtensionShellHub>();
+        services.AddSingleton<IFirstPartyShellState>(sp => sp.GetRequiredService<ExtensionShellHub>());
         foreach (IExtension pack in packs)
         {
             IExtension owner = pack;

@@ -1,11 +1,15 @@
 #region
 
+using System.ComponentModel;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Features;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -18,13 +22,29 @@ namespace DemoViewer.NET.Extensions;
 ///     Carries the shell to extension contexts once the composition root has built it, so nothing an
 ///     extension registers has to resolve the shell while it is being constructed.
 /// </summary>
-internal sealed class ExtensionShellHub
+internal sealed class ExtensionShellHub : IFirstPartyShellState
 {
     private MainViewModel? _shell;
+    private bool _playheadPending;
 
     public MainViewModel? Shell => _shell;
 
+    public ParsedDemo? CurrentDemo => (_shell?.ModuleContext as ModuleContext)?.CurrentDemo;
+
+    public string? CurrentDemoHash => (_shell?.ModuleContext as ModuleContext)?.DemoSha256;
+
+    public int CurrentTick => _shell?.Playback.CurrentTick ?? 0;
+
+    public bool IsPlaying => _shell?.Playback.IsPlaying ?? false;
+
+    public bool IsLiveSyncSessionActive => _shell?.LiveSync?.State.IsSessionActive == true;
+
+    public bool IsReelJobRunning => _shell?.ReelJob?.Status.IsRunning == true;
+
     public event Action? DemoChanged;
+
+    /// <summary>Raised on the UI thread, once per rendered frame at most, after the tick or play state moves.</summary>
+    public event Action? PlayheadChanged;
 
     public void Attach(MainViewModel shell)
     {
@@ -39,6 +59,26 @@ internal sealed class ExtensionShellHub
         {
             context.DemoReset += () => DemoChanged?.Invoke();
         }
+
+        shell.Playback.PropertyChanged += OnPlaybackChanged;
+    }
+
+    // The play loop sets CurrentTick once per stepped frame, several per timer tick at high speed, so the
+    // raise is posted at render priority and coalesced, the same shape as the controller's Advanced push.
+    private void OnPlaybackChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is not (nameof(PlaybackController.CurrentTick) or nameof(PlaybackController.IsPlaying))
+            || PlayheadChanged is null || _playheadPending)
+        {
+            return;
+        }
+
+        _playheadPending = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _playheadPending = false;
+            PlayheadChanged?.Invoke();
+        }, DispatcherPriority.Render);
     }
 }
 
@@ -127,23 +167,59 @@ internal sealed class ExtensionContext : IExtensionContext
     private sealed class ShellView : IExtensionShell
     {
         private readonly ExtensionShellHub _hub;
+        private readonly Action _forwardPlayhead;
+        private Action? _playheadHandlers;
 
-        // Each of the extension's handlers runs even when one before it throws.
+        // Each of the extension's handlers runs even when one before it throws. A playhead handler runs every
+        // rendered frame, so its faults count as recurring: once per exception type per minute.
         public ShellView(ExtensionShellHub hub, ExtensionGuard guard)
         {
             _hub = hub;
-            hub.DemoChanged += () =>
-            {
-                if (CurrentDemoChanged is not { } handlers)
-                {
-                    return;
-                }
+            hub.DemoChanged += () => RunEach(CurrentDemoChanged, guard, "demo change handler", FaultKind.Counted);
+            _forwardPlayhead = () => RunEach(_playheadHandlers, guard, "playhead handler", FaultKind.Recurring);
+        }
 
-                foreach (Action handler in handlers.GetInvocationList().Cast<Action>())
+        private static void RunEach(Action? handlers, ExtensionGuard guard, string site, FaultKind kind)
+        {
+            if (handlers is null)
+            {
+                return;
+            }
+
+            foreach (Action handler in handlers.GetInvocationList().Cast<Action>())
+            {
+                guard.Run(site, handler, kind);
+            }
+        }
+
+        public ParsedDemo? CurrentDemo => _hub.CurrentDemo;
+
+        public string? CurrentDemoHash => _hub.CurrentDemoHash;
+
+        public int CurrentTick => _hub.CurrentTick;
+
+        public bool IsPlaying => _hub.IsPlaying;
+
+        // Joined to the hub only while the extension listens, so the hub posts nothing per frame for nobody.
+        public event Action? PlayheadChanged
+        {
+            add
+            {
+                bool first = _playheadHandlers is null;
+                _playheadHandlers += value;
+                if (first && _playheadHandlers is not null)
                 {
-                    guard.Run("demo change handler", handler);
+                    _hub.PlayheadChanged += _forwardPlayhead;
                 }
-            };
+            }
+            remove
+            {
+                _playheadHandlers -= value;
+                if (_playheadHandlers is null)
+                {
+                    _hub.PlayheadChanged -= _forwardPlayhead;
+                }
+            }
         }
 
         public string? CurrentDemoPath => _hub.Shell?.LoadedDemoPath;

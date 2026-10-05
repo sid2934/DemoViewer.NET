@@ -49,9 +49,11 @@ public class StratBookPackTests
         // The process's extension fault tracker, which the gate takes.
         "DemoViewer.NET.Extensions.ExtensionFaults",
         "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
-        // The extension host: the job-kind registry, the shell hub and the pack's own context.
+        // The extension host: the job-kind registry, the shell hub, the first-party shell state it serves
+        // and the pack's own context.
         "DemoViewer.NET.Extensions.JobKindRegistry",
         "DemoViewer.NET.Extensions.ExtensionShellHub",
+        "DemoViewer.NET.Extensions.IFirstPartyShellState",
         "DemoViewer.NET.Extensions.Sdk.IExtensionContext",
         // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",

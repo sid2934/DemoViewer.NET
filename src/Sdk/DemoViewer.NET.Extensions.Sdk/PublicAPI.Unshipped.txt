@@ -176,9 +176,14 @@ DemoViewer.NET.Extensions.Sdk.IExtensionResident
 DemoViewer.NET.Extensions.Sdk.IExtensionResident.Attach() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionResident.Release() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionShell
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemo.get -> CS2DemoKit.Parser.ParsedDemo?
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoChanged -> System.Action?
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoHash.get -> string?
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoPath.get -> string?
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentTick.get -> int
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.IsPlaying.get -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.OpenDemoAsync(string! path) -> System.Threading.Tasks.Task<bool>!
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.PlayheadChanged -> System.Action?
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.RevealInFileManager(string! path) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.SeekToTick(int tick) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.SelectTab(string! tabId) -> bool

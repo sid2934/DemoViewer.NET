@@ -133,3 +133,16 @@ internal interface IFirstPartyContributions : IExtensionContributions
     /// <summary>A 2D Playback contribution against the app's own surface: keymap scopes, scene frames, core tracks.</summary>
     void FirstPartyPlayback(IPlaybackContribution contribution);
 }
+
+/// <summary>
+///     Shell state a first-party extension reads that the SDK does not publish: whether a Live Sync session or
+///     a reel render holds the machine, which an export must not start beside. Resolved from the container.
+/// </summary>
+internal interface IFirstPartyShellState
+{
+    /// <summary>True while a Live Sync session is connected to the game.</summary>
+    bool IsLiveSyncSessionActive { get; }
+
+    /// <summary>True while a reel render is running.</summary>
+    bool IsReelJobRunning { get; }
+}
