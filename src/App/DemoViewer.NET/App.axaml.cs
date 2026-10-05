@@ -727,6 +727,8 @@ public class App : Application
         // Write()→Reload(). WASM degrades to an in-memory provider (no filesystem) inside the ctor.
         SettingsService settings = new();
         services.AddSingleton(settings);
+        // Before anything can write settings.json: its writes drop the keys a first-party extension moved out.
+        LegacyExtensionSettings.Import(settings, AppPaths.ConfigRoot);
         services.Configure<AppSettings>(settings.Configuration);
 
         // The feature gate resolves per-category show/hide from FeatureCatalog + the live

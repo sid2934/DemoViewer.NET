@@ -67,6 +67,7 @@ internal sealed class ExtensionContext : IExtensionContext
         Passes = new ExtensionPasses(extension.Id, () => services.GetService<DemoScheduler>(), Post);
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
+        Settings = new ExtensionSettingsStore(extension.Id, AppPaths.ConfigRoot, Post);
     }
 
     public string ExtensionId { get; }
@@ -87,6 +88,8 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionShell Shell { get; }
 
     public IExtensionStorage Storage { get; }
+
+    public IExtensionSettings Settings { get; }
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 
@@ -183,11 +186,11 @@ internal sealed class ExtensionContext : IExtensionContext
         private readonly string? _cacheRoot = cacheRoot ?? AppPaths.DemoCacheDir;
 
         public string? ConfigDirectory => Ensure(_configRoot is { } root
-            ? Path.Combine(root, ExtensionDataDirectoryName, extensionId)
+            ? Path.Combine(root, ExtensionFolders.DataDirectoryName, extensionId)
             : null);
 
         public string? CacheDirectory => Ensure(_cacheRoot is { } cache
-            ? Path.Combine(cache, ExtensionDataDirectoryName, extensionId)
+            ? Path.Combine(cache, ExtensionFolders.DataDirectoryName, extensionId)
             : null);
 
         public async Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
@@ -235,9 +238,6 @@ internal sealed class ExtensionContext : IExtensionContext
             return path;
         }
     }
-
-    /// <summary>The folder under the config and cache roots that holds one folder per extension.</summary>
-    public const string ExtensionDataDirectoryName = "extension-data";
 }
 
 /// <summary>

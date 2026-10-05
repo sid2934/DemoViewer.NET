@@ -139,6 +139,16 @@ internal static partial class AppLog
         Message = "Pass {passId} of {extension} was asked about {demo} on the UI thread; answered no")]
     public static partial void PassAskedOnUiThread(ILogger logger, string passId, string extension, string demo);
 
+    /// <summary>An extension's settings or data file could not be read; it reads as empty or absent.</summary>
+    [LoggerMessage(EventId = 28, Level = LogLevel.Warning,
+        Message = "Extension {extension}: {path} is unreadable and reads as absent: {problem}")]
+    public static partial void ExtensionStoreUnreadable(ILogger logger, string extension, string path, string problem);
+
+    /// <summary>An extension's settings or data file could not be written; the change lives for the session only.</summary>
+    [LoggerMessage(EventId = 29, Level = LogLevel.Warning,
+        Message = "Extension {extension}: {path} could not be written: {problem}")]
+    public static partial void ExtensionStoreWriteFailed(ILogger logger, string extension, string path, string problem);
+
     /// <summary>
     ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI
     ///     shows clean text, THIS carries the full exception into the Diagnostics tab + file.

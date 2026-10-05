@@ -33,7 +33,7 @@ public class ExtensionStorageTests
             await storage.WriteAtomicAsync(StoreRoot.Config, "notes/today.json", Encoding.UTF8.GetBytes("two"));
             await storage.WriteAtomicAsync(StoreRoot.Cache, "index.bin", new byte[] { 1, 2, 3 });
 
-            string folder = Path.Combine(root, ExtensionContext.ExtensionDataDirectoryName, "dev.example.store", "notes");
+            string folder = Path.Combine(root, ExtensionFolders.DataDirectoryName, "dev.example.store", "notes");
             using (Assert.Multiple())
             {
                 await Assert.That(Encoding.UTF8.GetString((await storage.ReadAsync(StoreRoot.Config, "notes/today.json"))!))
@@ -64,7 +64,7 @@ public class ExtensionStorageTests
 
             await Assert.ThrowsAsync<ArgumentException>(async () => await storage.WriteAtomicAsync(StoreRoot.Config, path, new byte[] { 1 }));
             await Assert.ThrowsAsync<ArgumentException>(async () => await storage.ReadAsync(StoreRoot.Config, path));
-            await Assert.That(File.Exists(Path.Combine(root, ExtensionContext.ExtensionDataDirectoryName, "escape.json"))).IsFalse();
+            await Assert.That(File.Exists(Path.Combine(root, ExtensionFolders.DataDirectoryName, "escape.json"))).IsFalse();
         }
         finally
         {

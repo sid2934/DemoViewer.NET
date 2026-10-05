@@ -34,6 +34,9 @@ public interface IExtensionContext
     /// <summary>The extension's own folders.</summary>
     IExtensionStorage Storage { get; }
 
+    /// <summary>The extension's own settings.</summary>
+    IExtensionSettings Settings { get; }
+
     /// <summary>A logger whose lines land in the app's diagnostics log, tagged with the extension.</summary>
     ILogger CreateLogger(string category);
 

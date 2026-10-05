@@ -349,6 +349,27 @@ public sealed class SettingsService
         WriteObject(file);
     }
 
+    /// <summary>
+    ///     The value at <paramref name="path" /> (sections joined by ':', matched without regard to case) in the
+    ///     persisted file, or null when the file, a section or the key is missing. Never the env layer.
+    /// </summary>
+    internal JsonNode? ReadPersisted(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        JsonNode? node = ReadFileObject();
+        foreach (string part in path.Split(':'))
+        {
+            if (node is not JsonObject section)
+            {
+                return null;
+            }
+
+            node = section.FirstOrDefault(kv => string.Equals(kv.Key, part, StringComparison.OrdinalIgnoreCase)).Value;
+        }
+
+        return node?.DeepClone();
+    }
+
     // The whole config file as a mutable JSON object (or an empty one when absent / unparseable). This is the
     // basis every write merges into so no section clobbers another: AppSettings does not model Session /
     // Recents, so a whole-AppSettings serialize would drop them; a node merge keeps them.

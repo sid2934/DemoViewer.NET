@@ -143,6 +143,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContext.Host.get -> DemoViewer.NET.Exten
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Jobs.get -> DemoViewer.NET.Extensions.Sdk.IExtensionJobs!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Passes.get -> DemoViewer.NET.Extensions.Sdk.IExtensionPasses!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Post(System.Action! action) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Settings.get -> DemoViewer.NET.Extensions.Sdk.IExtensionSettings!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Shell.get -> DemoViewer.NET.Extensions.Sdk.IExtensionShell!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Storage.get -> DemoViewer.NET.Extensions.Sdk.IExtensionStorage!
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions
@@ -188,6 +189,11 @@ DemoViewer.NET.Extensions.Sdk.IExtensionPasses.Request(string! demoPath) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionResident
 DemoViewer.NET.Extensions.Sdk.IExtensionResident.Attach() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionResident.Release() -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionSettings
+DemoViewer.NET.Extensions.Sdk.IExtensionSettings.Changed -> System.Action<string!>?
+DemoViewer.NET.Extensions.Sdk.IExtensionSettings.Get<T>(string! key, T fallback) -> T
+DemoViewer.NET.Extensions.Sdk.IExtensionSettings.Remove(string! key) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionSettings.Set<T>(string! key, T value) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionShell
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoChanged -> System.Action?
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoPath.get -> string?
