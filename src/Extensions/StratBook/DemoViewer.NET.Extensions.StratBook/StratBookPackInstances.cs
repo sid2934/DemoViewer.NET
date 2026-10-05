@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
@@ -49,6 +50,9 @@ internal sealed class StratBookPackInstances
     // The Tag Store, same rule: set by its factory, never cleared. Shutdown flushes its index only when
     // something built it, so a never-opened pack reads no tags directory at exit.
     public TagStore? Tags { get; set; }
+
+    // The Strat Book tab's module, set by Contribute. Shutdown commits the open strat through it.
+    public StratBookModule? StratBook { get; set; }
 
     /// <summary>Every resident built this session, in build order; survives a release.</summary>
     public IReadOnlyList<IExtensionResident> Residents

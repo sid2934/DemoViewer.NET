@@ -242,23 +242,19 @@ public class StratBookLifecycleTests
         try
         {
             string indexPath = Path.Combine(root, "index.json");
-            StratBookPackInstances instances = new();
             StratStore store = new(root);
             StratBookTabViewModel vm = new(store);
             StratBookModule module = new(() => vm);
-            ServiceCollection services = new();
-            ModuleRegistry registry = new();
-            registry.Register(module);
-            services.AddSingleton(registry);
-            using ServiceProvider sp = services.BuildServiceProvider();
+            StratBookPackInstances instances = new() { StratBook = module };
+            using ServiceProvider sp = new ServiceCollection().BuildServiceProvider();
             StratBookLifecycle lifecycle = new(sp, instances);
 
             // Never activated: Shutdown is StratBookModule's own no-op (StratBookModuleTests' guard, not
-            // this one's). OnShutdown must still reach the registry and the module without throwing.
+            // this one's). OnShutdown must still reach the module without throwing.
             lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
 
             // Activated once (the tab was opened this session): the lifecycle's OnShutdown now reaches
-            // the real VM, whose own Shutdown writes the strat index, proving the registry lookup found it.
+            // the real VM, whose own Shutdown writes the strat index, proving the lifecycle reached the module the pack recorded.
             module.CreateTabs(null!).Single().ViewModelFactory!.Invoke();
             lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
             await Assert.That(File.Exists(indexPath)).IsTrue();

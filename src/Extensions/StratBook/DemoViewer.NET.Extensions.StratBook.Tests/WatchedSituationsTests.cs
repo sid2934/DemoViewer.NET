@@ -153,8 +153,8 @@ public class WatchedSituationsTests
             service.Changed += () => raised++;
 
             // The tab header's badge, before the tab's VM exists: the module drives it from the service.
-            WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), service,
-                    enabled: () => true)
+            WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), () => true,
+                    service)
                 .CreateTabs(null!).Single();
 
             WatchedSituation watch = service.Watch("A hold", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
@@ -255,8 +255,8 @@ public class WatchedSituationsTests
         WatchedSituation watch = service.Watch("A hold", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
         h.Evaluate("/d/b.dem", "de_nuke", 1000); // a matching demo, so NewCount would be nonzero if read
 
-        WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), service,
-                enabled: () => false)
+        WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), () => false,
+                service)
             .CreateTabs(null!).Single();
 
         await Assert.That(service.NewCount).IsGreaterThan(0).Because("the service itself still counts the hit");

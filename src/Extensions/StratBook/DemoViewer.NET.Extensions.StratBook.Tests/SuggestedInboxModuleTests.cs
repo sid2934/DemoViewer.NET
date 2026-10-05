@@ -31,7 +31,7 @@ public class SuggestedInboxModuleTests
     public async Task WithThePackOff_TheBadge_IsNeverRecomputed()
     {
         DemoCacheStore cache = CacheWithPending("/d/a.dem", 3);
-        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), cache, enabled: () => false);
+        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), () => false, cache);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the pack is off");
@@ -44,7 +44,7 @@ public class SuggestedInboxModuleTests
     public async Task WithThePackOn_TheBadge_FollowsTheIndex()
     {
         DemoCacheStore cache = CacheWithPending("/d/a.dem", 0);
-        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), cache, enabled: () => true);
+        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), () => true, cache);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsNull();
@@ -58,8 +58,8 @@ public class SuggestedInboxModuleTests
     {
         DemoCacheStore cache = CacheWithPending("/d/a.dem", 4);
         FakeGate gate = new();
-        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), cache,
-            enabled: () => gate.IsEnabled(SuggestedInboxModule.TabFeatureId), gate: gate);
+        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"),
+            () => gate.IsEnabled(SuggestedInboxModule.TabFeatureId), cache, gate);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsEqualTo("4");

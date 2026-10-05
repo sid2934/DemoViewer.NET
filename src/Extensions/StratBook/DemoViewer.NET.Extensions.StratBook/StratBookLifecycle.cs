@@ -213,10 +213,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
         try
         {
             // StratBookModule.Shutdown is itself a no-op when its tab was never activated.
-            if (_sp.GetService<ModuleRegistry>()?.Modules.OfType<StratBookModule>().FirstOrDefault() is { } stratBook)
-            {
-                stratBook.Shutdown();
-            }
+            _instances.StratBook?.Shutdown();
         }
         catch (Exception ex)
         {

@@ -918,16 +918,15 @@ public sealed class StratBookPack : IExtension
         firstParty.FirstPartyPlayback(new Modules.Situations.SituationsPlaybackContribution());
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
-        // while the section's own id is on: enabled/gate read sp directly, not the App.Services locator
-        // (Contribute runs inside BuildServiceProvider, before App.Services is assigned), and resolving
-        // WatchedSituationsService unconditionally would build it (and, through its own ctor, the
-        // situation index and Team Identity) on every launch regardless of the pack's gate.
+        // while the section's own id is on: resolving WatchedSituationsService unconditionally would build
+        // it (and, through its own ctor, the situation index and Team Identity) on every launch regardless
+        // of the pack's gate.
         IFeatureGate? situationsGate = sp.GetService<IFeatureGate>();
         bool situationsOn = situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false;
         contributions.Tabs(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>,
+            () => situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false,
             situationsOn ? sp.GetRequiredService<WatchedSituationsService>() : null,
-            enabled: () => situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false,
-            gate: situationsGate));
+            situationsGate));
 
         // The Teams tab, hosted inside the Library.
         contributions.Tabs(new TeamsModule(sp.GetRequiredService<TeamsTabViewModel>));
@@ -937,24 +936,24 @@ public sealed class StratBookPack : IExtension
         IFeatureGate? reviewGate = sp.GetService<IFeatureGate>();
         bool reviewOn = reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false;
         contributions.Tabs(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
+            () => reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false,
             reviewOn ? sp.GetRequiredService<ReviewQueue>() : null,
-            enabled: () => reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false,
-            gate: reviewGate));
+            reviewGate));
 
         // The Suggested section. The badge reads the demo index, so it counts before the section opens.
-        // enabled/gate read sp directly, not the App.Services locator: Contribute runs inside
-        // BuildServiceProvider, before App.Services is assigned, so the static fallback would see null here.
         IFeatureGate? suggestedGate = sp.GetService<IFeatureGate>();
         contributions.Tabs(new SuggestedInboxModule(sp.GetRequiredService<SuggestedInboxViewModel>,
+            () => suggestedGate?.IsEnabled(SuggestedInboxModule.TabFeatureId) ?? false,
             sp.GetService<DemoCacheStore>(),
-            enabled: () => suggestedGate?.IsEnabled(SuggestedInboxModule.TabFeatureId) ?? false,
-            gate: suggestedGate));
+            suggestedGate));
 
         // The Round Tagger's Matrix tab.
         contributions.Tabs(new RoundTaggerModule(sp.GetRequiredService<TagMatrixTabViewModel>));
 
         // The Strat Book tab.
-        contributions.Tabs(new StratBookModule(sp.GetRequiredService<StratBookTabViewModel>));
+        StratBookModule stratBook = new(sp.GetRequiredService<StratBookTabViewModel>);
+        sp.GetRequiredService<StratBookPackInstances>().StratBook = stratBook;
+        contributions.Tabs(stratBook);
 
         // The Utility Book tab.
         contributions.Tabs(new UtilityBookModule(sp.GetRequiredService<UtilityBookTabViewModel>));

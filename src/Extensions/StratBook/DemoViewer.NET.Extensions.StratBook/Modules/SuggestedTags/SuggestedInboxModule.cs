@@ -7,7 +7,6 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.SuggestedTags;
 using DemoViewer.NET.Views.SuggestedTags;
-using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -34,11 +33,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
     /// <param name="viewModelFactory">Builds the section's VM on first activation.</param>
     /// <param name="cache">The demo index, for the badge; null shows none.</param>
     /// <param name="enabled">
-    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack
-    ///     (its ParentId is the pack directly); null resolves <see cref="IFeatureGate" /> from
-    ///     <see cref="App.Services" /> live, failing CLOSED (not the usual fail-open default) since this is
-    ///     a pack-owned id: StratBookPack.Contribute always passes its own delegate, so the fallback here
-    ///     only matters when nothing has resolved.
+    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack.
     /// </param>
     /// <param name="gate">
     ///     The same gate as <paramref name="enabled" />, kept separately only for its <c>Changed</c> event:
@@ -46,14 +41,15 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
     ///     value stale until the next unrelated <c>cache.Changed</c>. Null skips that push and keeps the
     ///     poll-on-read behaviour.
     /// </param>
-    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, DemoCacheStore? cache = null, Func<bool>? enabled = null,
+    public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, Func<bool> enabled, DemoCacheStore? cache = null,
         IFeatureGate? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
         _cache = cache;
         _gate = gate;
-        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? false);
+        ArgumentNullException.ThrowIfNull(enabled);
+        _enabled = enabled;
     }
 
     public string Id => "net.demoviewer.suggested";

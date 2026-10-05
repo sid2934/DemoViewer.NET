@@ -5,7 +5,6 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.ViewModels.Situations;
 using DemoViewer.NET.Views.Situations;
-using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -48,24 +47,22 @@ public sealed class SituationsModule : IWorkspaceModule
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
     /// <param name="watched">Watched Situations, for the badge; null when the pack was off at composition.</param>
     /// <param name="enabled">
-    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack;
-    ///     null resolves <see cref="IFeatureGate" /> from <see cref="App.Services" /> live, failing CLOSED
-    ///     (not the usual fail-open default) since this is a pack-owned id: <see cref="StratBookPack.Contribute" />
-    ///     always passes its own delegate, so the fallback here only matters when nothing has resolved.
+    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack.
     /// </param>
     /// <param name="gate">
     ///     The same gate as <paramref name="enabled" />, kept separately only for its <c>Changed</c> event:
     ///     a live toggle clears the badge going off and recomputes it going on, instead of leaving the last
     ///     value stale until the next unrelated <c>watched.Changed</c>. Null skips that push.
     /// </param>
-    public SituationsModule(Func<SituationsTabViewModel> viewModelFactory, WatchedSituationsService? watched = null,
-        Func<bool>? enabled = null, IFeatureGate? gate = null)
+    public SituationsModule(Func<SituationsTabViewModel> viewModelFactory, Func<bool> enabled, WatchedSituationsService? watched = null,
+        IFeatureGate? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
         _watched = watched;
         _gate = gate;
-        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? false);
+        ArgumentNullException.ThrowIfNull(enabled);
+        _enabled = enabled;
     }
 
     /// <summary>"3 new", or null when nothing is new.</summary>

@@ -23,7 +23,7 @@ public class SituationsModuleTests
     [Test]
     public async Task TheModule_ContributesTheSituationsSection_UnderThePersistedIds()
     {
-        SituationsModule module = new(() => throw new InvalidOperationException("never built here"));
+        SituationsModule module = new(() => throw new InvalidOperationException("never built here"), () => true);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         using (Assert.Multiple())

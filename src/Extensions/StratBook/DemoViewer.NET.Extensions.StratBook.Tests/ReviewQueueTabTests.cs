@@ -82,7 +82,7 @@ public class ReviewQueueTabTests
     public async Task TheModule_ContributesTheReviewSection_UnderThePersistedIds_WithTheClipCountAsBadge()
     {
         ReviewQueue queue = new(null);
-        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), queue, enabled: () => true);
+        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), () => true, queue);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
         await Assert.That(tab.Badge).IsNull();
         queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
@@ -110,7 +110,7 @@ public class ReviewQueueTabTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
-        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), queue, enabled: () => false);
+        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), () => false, queue);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the section is off");
