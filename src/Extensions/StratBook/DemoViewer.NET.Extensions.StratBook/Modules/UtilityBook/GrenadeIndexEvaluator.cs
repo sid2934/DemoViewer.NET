@@ -4,7 +4,6 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -12,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
-///     The evaluator that walks a demo's grenades: an <see cref="IDemoEvaluator" />
+///     The evaluator that walks a demo's grenades: an <see cref="IExtensionPass" />
 ///     on the same one-parse fan-out as the others, registered last because it reads nothing they write.
 ///     Per demo the work is one <see cref="GrenadeWalker.Walk" /> on the parse the queue already paid for,
 ///     the rows sibling, then one record stamp, the stamp last so a crash between them leaves "not walked"
@@ -30,7 +29,7 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 ///         user asks again; the parse itself failing is not this evaluator's to mark.
 ///     </para>
 /// </summary>
-public sealed class GrenadeIndexEvaluator : IDemoEvaluator
+public sealed class GrenadeIndexEvaluator : IExtensionPass
 {
     /// <summary>The queue owner tag and the pass id for this evaluator.</summary>
     public const string EvaluatorId = "grenades";
@@ -79,11 +78,11 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
 
-    /// <summary>The scheduler, so a forced request can ask for the demo again. Null in tests.</summary>
-    public DemoScheduler? Scheduler { get; set; }
+    /// <summary>The scheduling of the extension's passes, so a forced request can ask for the demo again. Null in tests.</summary>
+    public IExtensionPasses? Passes { get; set; }
 
     /// <summary>True while the scheduler has a walk in flight.</summary>
-    public bool IsIndexing => Scheduler?.HasOutstanding(EvaluatorId) ?? false;
+    public bool IsIndexing => Passes?.IsBusy(EvaluatorId) ?? false;
 
     /// <inheritdoc />
     public string Id => EvaluatorId;
@@ -91,7 +90,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     /// <summary>A demo's grenades were written and stamped. Raised through the post delegate with its path.</summary>
     public event Action<string>? Indexed;
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     From the index row alone: the owning pack's gate on, a parsed demo whose grenades are missing,
     ///     stale under the walker version or the schema, and not failed, with the sweep on or the demo forced.
@@ -116,7 +115,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
         return NeedsWalk(entry) && (_backgroundIndex() || IsOpen(path));
     }
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
     /// <remarks>
     ///     A demo the Library has not parsed yet, with the sweep on, the demo forced or the demo open: the
     ///     walk follows the parse stamp.
@@ -135,22 +134,35 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     }
 
     /// <inheritdoc />
-    public DemoJobPriority PriorityFor(string path)
+    public JobPriority PriorityFor(string demoPath)
     {
         lock (_gate)
         {
-            return _forcedPaths.Contains(path) ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
+            return _forcedPaths.Contains(demoPath) ? JobPriority.UserRequested : JobPriority.Background;
         }
     }
 
     /// <inheritdoc />
-    public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _demoCache.TryGetIndex(demoPath)?.ModifiedTicks ?? 0;
 
     /// <inheritdoc />
+    public DemoInterest Interest(string demoPath) =>
+        Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
+
+    /// <inheritdoc />
+    public void Run(IPassContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        Evaluate(context.DemoPath, context.Parsed);
+    }
+
+    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="parsed">The demo's parse.</param>
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    public void OnFailed(string path) => ClearForced(path);
+    public void OnFailed(string demoPath) => ClearForced(demoPath);
 
     /// <summary>
     ///     The demos the sweep or a force would submit, newest first, for the pending counts. Derived from
@@ -222,7 +234,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
             _forcedPaths.Add(path);
         }
 
-        Scheduler?.Request(path);
+        Passes?.Request(path);
     }
 
     private static bool NeedsWalk(DemoCacheIndexEntry? entry) =>

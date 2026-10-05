@@ -164,14 +164,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     }
 
     /// <inheritdoc />
-    public void FirstPartyEvaluator(string id, Func<IDemoEvaluator> factory, params string[] after)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        ArgumentNullException.ThrowIfNull(factory);
-        _passes.Add(new PassContribution(id, EvaluatorPassAdapter.Cached(factory, after), [.. after]));
-    }
-
-    /// <inheritdoc />
 
     /// <inheritdoc />
     public void Commands(IEnumerable<CommandDescriptor> commands)

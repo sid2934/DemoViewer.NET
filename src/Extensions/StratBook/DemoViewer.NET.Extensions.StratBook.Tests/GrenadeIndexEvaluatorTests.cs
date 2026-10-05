@@ -70,7 +70,7 @@ public class GrenadeIndexEvaluatorTests
             await Assert.That(on.WantsAfterUpstream(Demo)).IsFalse().Because("a parsed demo is Wants' call");
             await Assert.That(off.WantsAfterUpstream("/d/unparsed.dem")).IsFalse();
             await Assert.That(on.PendingPaths()).IsEquivalentTo(new[] { Demo });
-            await Assert.That(on.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.Background);
+            await Assert.That(on.PriorityFor(Demo)).IsEqualTo(JobPriority.Background);
         }
     }
 
@@ -105,7 +105,7 @@ public class GrenadeIndexEvaluatorTests
         {
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
             await Assert.That(evaluator.PendingPaths()).IsEmpty();
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.Background)
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.Background)
                 .Because("Request must not have added a forced path");
         }
     }
@@ -152,7 +152,7 @@ public class GrenadeIndexEvaluatorTests
         using (Assert.Multiple())
         {
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.UserRequested);
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.UserRequested);
             await Assert.That(evaluator.PendingPaths()).IsEquivalentTo(new[] { Demo });
         }
     }
@@ -213,7 +213,7 @@ public class GrenadeIndexEvaluatorTests
             await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull();
             await Assert.That(cache.TryGetIndex(Demo)!.GrenadeState()).IsNotEqualTo(DemoAnalysisState.Failed);
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
-            await Assert.That(((IDemoEvaluator)evaluator).ReadsUserCommands).IsTrue();
+            await Assert.That(((IExtensionPass)evaluator).ReadsUserCommands).IsTrue();
         }
     }
 
@@ -235,12 +235,12 @@ public class GrenadeIndexEvaluatorTests
             await Assert.That(walks).IsEqualTo(0);
             await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull();
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.UserRequested);
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.UserRequested);
         }
 
         evaluator.Evaluate(Demo, Parse());
         await Assert.That(walks).IsEqualTo(1);
-        await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.Background);
+        await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.Background);
     }
 
     [Test]

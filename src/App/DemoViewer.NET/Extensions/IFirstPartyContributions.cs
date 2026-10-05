@@ -121,9 +121,6 @@ internal interface IFirstPartyContributions : IExtensionContributions
     /// <summary>A strip tab that hosts sections.</summary>
     void HostTab(HostTabContribution host);
 
-    /// <summary>An evaluator with the app's forward-pass and opportunistic hooks.</summary>
-    void FirstPartyEvaluator(string id, Func<IDemoEvaluator> factory, params string[] after);
-
     /// <summary>A ruleset the merged background build runs only while the extension is on.</summary>
     void Ruleset(string rulesetId);
 

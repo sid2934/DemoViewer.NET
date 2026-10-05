@@ -7,7 +7,6 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -15,9 +14,9 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
-///     The evaluator that writes round facts: an <see cref="IDemoEvaluator" /> on the tier-2 fan-out, so
-///     it runs on the Library's pass (retained or forward) and costs no second parse. It reads the
-///     <c>round_facts</c> table out of the merged rules run through its <see cref="IRoundFactsRowSource" />,
+///     The pass that writes round facts: an <see cref="IExtensionPass" /> on the demo's visit, so it runs on
+///     the parse the visit already holds and costs no second parse. It runs the merged rules on that parse
+///     and reads the <c>round_facts</c> table out of the run through its <see cref="IRoundFactsRowSource" />,
 ///     projects it onto the record and stores the rows in the pack's payload, stamped under the
 ///     <see cref="RoundFactsFingerprint" /> (<see cref="StratBookCache.SetRoundFacts" />).
 ///     <para>
@@ -25,13 +24,12 @@ namespace DemoViewer.NET.Services.RoundFacts;
 ///         the index reads these rows in the same pass.
 ///     </para>
 ///     <para>
-///         Gated by the pack alone: off, it wants nothing, lists nothing pending and writes nothing on
-///         the opportunistic hooks. A user who disables the ruleset (a same-id override with
+///         Gated by the pack alone: off, it wants nothing, lists nothing pending and writes nothing. A user who disables the ruleset (a same-id override with
 ///         <c>enabled: false</c>) removes it from the effective set; the identity then answers null, and
 ///         the evaluator wants nothing either way.
 ///     </para>
 /// </summary>
-public sealed class RoundFactsEvaluator : IDemoEvaluator
+public sealed class RoundFactsEvaluator : IExtensionPass
 {
     /// <summary>The queue owner tag and the pass id for this evaluator.</summary>
     public const string EvaluatorId = "roundfacts";
@@ -85,7 +83,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// <inheritdoc />
     public bool ReadsUserCommands => false;
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     Interested in a demo the Library has already parsed whose rows are missing or were written
     ///     under another fingerprint. A demo the cache has never seen is the Library's to parse first; this
@@ -103,22 +101,29 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
         return entry is { ParseSchema: > 0 } && entry.NeedsRoundFacts(fingerprint) && !TriedWithoutRows(path, fingerprint);
     }
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
     /// <remarks>A demo the Library has not parsed yet: its rows can only be written once that parse has landed.</remarks>
     public bool WantsAfterUpstream(string path) =>
         _enabled() && TryFingerprint(BacklogTickRate) is not null && _demoCache.TryGetIndex(path) is not { ParseSchema: > 0 };
 
     /// <inheritdoc />
-    public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _demoCache.TryGetIndex(demoPath)?.ModifiedTicks ?? 0;
 
     /// <inheritdoc />
+    public DemoInterest Interest(string demoPath) =>
+        Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
+
+    /// <inheritdoc />
+    public void Run(IPassContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        Evaluate(context.DemoPath, context.Parsed);
+    }
+
+    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="parsed">The demo's parse.</param>
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
-
-    /// <inheritdoc />
-    public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.Rules;
-
-    /// <inheritdoc />
-    public void EvaluateForward(string path, ForwardDemoResult pass) => Refresh(path, pass);
 
     /// <summary>
     ///     The demos whose rows are missing or stale under the current fingerprint, for the pending counts.
@@ -149,9 +154,6 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     private void Refresh(string path, ParsedDemo parsed) =>
         Refresh(path, parsed.TickRate, () => _rows.Rows(parsed), () => ClipRounds.Derive(parsed),
             () => FrameClock.IdentityFor(parsed));
-
-    private void Refresh(string path, ForwardDemoResult pass) =>
-        Refresh(path, pass.Demo.TickRate, () => _rows.Rows(pass), () => pass.Rounds, () => FrameClock.IdentityFor(pass));
 
     private void Refresh(string path, int tickRate, Func<RoundFactsTable> rowsOf,
         Func<IReadOnlyList<ClipRound>> roundsOf, Func<ClockIdentity> clockOf)

@@ -23,9 +23,10 @@ using DemoViewer.NET.Services.RoundFacts;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Library tier 2, bare highlights and round facts off one forward pass must write what the retained
-///     parse writes, and the merged build must reproduce the two separate builds it replaced. Only the two
-///     fingerprints move. Read in place from the <c>DEMO_PATH</c> folder (its three smallest demos).
+///     Library tier 2 and bare highlights off one forward pass must write what the retained parse writes, and
+///     the merged build must reproduce the two separate builds it replaced. Round facts run on the retained
+///     parse only, so both sides write them from it. Only the two fingerprints move. Read in place from the
+///     <c>DEMO_PATH</c> folder (its three smallest demos).
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -73,7 +74,6 @@ public class ForwardPassRealDemoTests
 
         (Dictionary<string, string> retained, Dictionary<string, string> old) = Retained(path, merged);
         Dictionary<string, string> forward = Forward(path, merged);
-        string rulesOnly = RulesOnlyRoundFacts(path, merged);
 
         using (Assert.Multiple())
         {
@@ -83,7 +83,6 @@ public class ForwardPassRealDemoTests
                 await Assert.That(forward[key]).IsEqualTo(value).Because($"{key}, forward vs retained, {Path.GetFileName(path)}");
             }
 
-            await Assert.That(rulesOnly).IsEqualTo(forward["round facts"]).Because("the first-launch pass reads rules only");
             await Assert.That(forward["firings"]).IsEqualTo(old["firings"]).Because("merged build vs highlights alone");
             await Assert.That(forward["round facts"]).IsEqualTo(old["round facts"]).Because("merged build vs round_facts alone");
             // The engine's fingerprint hashes highlight definitions only, so adding round_facts leaves it as it was.
@@ -166,31 +165,15 @@ public class ForwardPassRealDemoTests
     {
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
         ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, merged.Docs);
+        ParsedDemo parsed = BackgroundPlanRealDemoTests.ParseMapped(path, DemoProcessingQueue.WithoutUserCommands);
         Dictionary<string, string> written = Write(path, merged, (library, entry, highlights, facts) =>
         {
             library.IndexTier2Core(entry, pass);
             highlights.EvaluateForward(path, pass);
-            facts.EvaluateForward(path, pass);
+            facts.Evaluate(path, parsed);
         });
         written["firings"] = JsonSerializer.Serialize(pass.Run!.Highlights, Json);
         return written;
-    }
-
-    // What a round-facts-only entry runs: no final-state tracker, the build's own plan plus the freeze ends.
-    private static string RulesOnlyRoundFacts(string path, MergedRulesBuild merged)
-    {
-        using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
-        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, merged.Docs);
-        DemoCacheStore cache = new(null);
-        cache.Upsert(new DemoCacheRecord
-        {
-            Path = path,
-            Size = new FileInfo(path).Length,
-            Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
-        });
-        RulesRoundFactsRulesetIdentity identity = new(merged);
-        new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(identity), identity).EvaluateForward(path, pass);
-        return WithoutSha(cache.TryLoadRecord(path)?.RoundFacts());
     }
 
     private static Dictionary<string, string> Write(string path, MergedRulesBuild merged,

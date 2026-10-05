@@ -253,7 +253,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
             _writeBackground?.Invoke(value);
             if (value)
             {
-                _service?.Scheduler?.RecheckAll();
+                _service?.Passes?.RecheckAll();
             }
         }
     }

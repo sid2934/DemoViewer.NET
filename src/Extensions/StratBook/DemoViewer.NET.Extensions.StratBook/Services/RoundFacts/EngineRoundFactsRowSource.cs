@@ -6,7 +6,6 @@ using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -61,12 +60,6 @@ public sealed class EngineRoundFactsRowSource : IRoundFactsRowSource
 
     /// <inheritdoc />
     public RoundFactsTable Rows(ParsedDemo parsed) => FromRun(_rules.Rules.BareRun(parsed), ClipRounds.Derive(parsed));
-
-    /// <inheritdoc />
-    public RoundFactsTable Rows(ForwardDemoResult pass) =>
-        pass.Run is { } run
-            ? FromRun(run, pass.Rounds)
-            : RoundFactsTable.Unavailable("round_facts: the forward pass ran no rules");
 
     // The run is the merged build's, so only the round_facts ruleset's own exclusion blanks the rows.
     private RoundFactsTable FromRun(AnalysisRun run, IReadOnlyList<ClipRound> rounds)

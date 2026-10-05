@@ -631,7 +631,7 @@ public class StratBookLiveToggleTests
         cache.Upsert(record);
     }
 
-    // Runs every job inline on submit (so a load has run when OnEnabledAsync returns) unless Defer holds them;
+    // Runs every job on submit, the scheduler's on a worker (so a load has run when OnEnabledAsync returns) unless Defer holds them;
     // records titles, owner-wide cancels and parse submissions. Parses never run: the scheduler's submit is
     // the fact under test.
     private sealed class InlineQueue : IDemoProcessingQueue
@@ -709,7 +709,16 @@ public class StratBookLiveToggleTests
                 return new DoneHandle(done.Task);
             }
 
-            request.RunAsync(new Context()).GetAwaiter().GetResult();
+            // The scheduler asks passes off the UI thread only, as the real queue's light lane does.
+            if (request.Kind == QueueJobKind.Scheduling)
+            {
+                Task.Run(() => request.RunAsync(new Context())).GetAwaiter().GetResult();
+            }
+            else
+            {
+                request.RunAsync(new Context()).GetAwaiter().GetResult();
+            }
+
             return new DoneHandle(Task.CompletedTask);
         }
 

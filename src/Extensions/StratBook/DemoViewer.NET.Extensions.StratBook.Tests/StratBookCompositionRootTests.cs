@@ -117,16 +117,16 @@ public class StratBookCompositionRootTests
                 await Assert.That(instances.GrenadeWalk).IsNotNull();
             }
 
-            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Scheduler)
-                .IsSameReferenceAs(coordinator);
-            await Assert.That(provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>().Scheduler)
-                .IsSameReferenceAs(coordinator);
+            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Passes)
+                .IsSameReferenceAs(provider.GetExtensionContext(StratBookPack.PackId).Passes);
+            await Assert.That(provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>().Passes)
+                .IsSameReferenceAs(provider.GetExtensionContext(StratBookPack.PackId).Passes);
             await Assert.That(provider.GetRequiredService<Services.RoundFacts.IRoundFactsSource>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.RoundIndex.ISituationIndex>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.Provenance.IDemoProvenanceSource>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.Tags.TagFactsRefresher>()).IsNotNull();
-            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Scheduler)
-                .IsSameReferenceAs(coordinator);
+            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Passes)
+                .IsSameReferenceAs(provider.GetExtensionContext(StratBookPack.PackId).Passes);
         });
     }
 
@@ -162,19 +162,19 @@ public class StratBookCompositionRootTests
     }
 
     // RoundIndexEvaluator and GrenadeIndexEvaluator can be built through SituationIndex/GrenadeIndex, at
-    // StartPacks time, before the scheduler has ever planned. Their own factory must set .Scheduler;
-    // the registry's lazy wrapper is too late for this path.
+    // StartPacks time, before the scheduler has ever planned. Their own factory must hand them the
+    // extension's pass scheduling, or a request made before the first plan goes nowhere.
     [Test]
-    public async Task SituationIndexAndGrenadeIndex_SetTheirEvaluatorsScheduler_WithoutEverPlanningAVisit()
+    public async Task SituationIndexAndGrenadeIndex_GiveTheirPassesTheScheduling_WithoutEverPlanningAVisit()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
             Services.RoundIndex.SituationIndex _ = provider.GetRequiredService<Services.RoundIndex.SituationIndex>();
             Modules.UtilityBook.GrenadeIndex __ = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>();
 
-            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Scheduler)
+            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Passes)
                 .IsNotNull();
-            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Scheduler)
+            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Passes)
                 .IsNotNull();
         });
     }
@@ -231,7 +231,7 @@ public class StratBookCompositionRootTests
                 await Assert.That(grenades.PendingPaths()).IsEmpty();
                 // Wants is gated either way (forced or not); PriorityFor is not, so this is the assertion
                 // that actually proves Request did nothing rather than merely agreeing with Wants.
-                await Assert.That(grenades.PriorityFor(demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.Background)
+                await Assert.That(grenades.PriorityFor(demo)).IsEqualTo(JobPriority.Background)
                     .Because("a real forced path reads UserRequested; Request must have been a no-op");
             }
 
@@ -259,7 +259,7 @@ public class StratBookCompositionRootTests
                 await Assert.That(roundIndex.Wants(demo)).IsTrue();
                 await Assert.That(suggestedTags.Wants(demo)).IsTrue();
                 await Assert.That(grenades.Wants(demo)).IsTrue();
-                await Assert.That(grenades.PriorityFor(demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.UserRequested);
+                await Assert.That(grenades.PriorityFor(demo)).IsEqualTo(JobPriority.UserRequested);
             }
 
             await Assert.That(SuggestedBadge(provider)).IsEqualTo("7");

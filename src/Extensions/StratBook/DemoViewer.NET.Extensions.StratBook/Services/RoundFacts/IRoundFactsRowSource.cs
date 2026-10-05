@@ -1,7 +1,6 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -16,10 +15,6 @@ public interface IRoundFactsRowSource
 {
     /// <summary>The <c>round_facts</c> table for a held parse. Never null; a source with nothing says so in the table.</summary>
     RoundFactsTable Rows(ParsedDemo parsed);
-
-    /// <summary>The table out of a forward pass's rules run.</summary>
-    RoundFactsTable Rows(ForwardDemoResult pass) =>
-        RoundFactsTable.Unavailable("round_facts: this source reads only a held parse");
 }
 
 /// <summary>

@@ -9,7 +9,6 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
@@ -63,7 +62,7 @@ public sealed record TagInstanceEdit(
 ///         forced request (the queue's "Detect" button) always runs.
 ///     </para>
 /// </summary>
-public sealed class SuggestedTagsService : IDemoEvaluator
+public sealed class SuggestedTagsService : IExtensionPass
 {
     /// <summary>The queue owner tag and the pass id.</summary>
     public const string EvaluatorId = "suggestedtags";
@@ -170,14 +169,14 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(SuggestedTagsLog.Category);
 
-    /// <summary>The scheduler, so a forced request can ask for the demo again. Null in tests.</summary>
-    public DemoScheduler? Scheduler { get; set; }
+    /// <summary>The scheduling of the extension's passes, so a forced request can ask for the demo again. Null in tests.</summary>
+    public IExtensionPasses? Passes { get; set; }
 
     /// <summary>Whether proposals and verdicts outlive the process. False on the browser host.</summary>
     public bool IsPersistent => _proposals.IsPersistent && (_tags?.IsPersistent ?? false);
 
     /// <summary>True while the scheduler has a build in flight.</summary>
-    public bool IsDetecting => Scheduler?.HasOutstanding(EvaluatorId) ?? false;
+    public bool IsDetecting => Passes?.IsBusy(EvaluatorId) ?? false;
 
     /// <inheritdoc />
     public string Id => EvaluatorId;
@@ -188,7 +187,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     /// <summary>A demo's proposals or verdicts changed. Raised through the post delegate with its path.</summary>
     public event Action<string>? Changed;
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     From the index row alone: the gate on, Round Facts rows present, the proposals missing or built
     ///     under another fingerprint than the map's current one, and the sweep on or the demo forced. The
@@ -217,7 +216,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         return _background() || IsOpen(path);
     }
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
     /// <remarks>
     ///     A demo without Round Facts rows yet, with the sweep on, the demo forced or the demo open: the
     ///     proposals follow the rows.
@@ -246,22 +245,35 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     }
 
     /// <inheritdoc />
-    public DemoJobPriority PriorityFor(string path)
+    public JobPriority PriorityFor(string demoPath)
     {
         lock (_gate)
         {
-            return _forcedPaths.Contains(path) ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
+            return _forcedPaths.Contains(demoPath) ? JobPriority.UserRequested : JobPriority.Background;
         }
     }
 
     /// <inheritdoc />
-    public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _demoCache.TryGetIndex(demoPath)?.ModifiedTicks ?? 0;
 
     /// <inheritdoc />
+    public DemoInterest Interest(string demoPath) =>
+        Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
+
+    /// <inheritdoc />
+    public void Run(IPassContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        Evaluate(context.DemoPath, context.Parsed);
+    }
+
+    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="parsed">The demo's parse.</param>
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    public void OnFailed(string path) => ClearForced(path);
+    public void OnFailed(string demoPath) => ClearForced(demoPath);
 
     /// <summary>
     ///     The demos the sweep or a force would submit, newest first, for the pending counts. Derived from
@@ -306,7 +318,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             _forcedPaths.Add(path);
         }
 
-        Scheduler?.Request(path);
+        Passes?.Request(path);
     }
 
     /// <summary>Whether a demo has what a build needs: a parse and Round Facts rows.</summary>

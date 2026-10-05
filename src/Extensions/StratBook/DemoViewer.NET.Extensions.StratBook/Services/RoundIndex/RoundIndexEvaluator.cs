@@ -5,7 +5,6 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.RoundIndex;
 
 /// <summary>
-///     The evaluator that writes the round index: an <see cref="IDemoEvaluator" /> on the tier-2
+///     The evaluator that writes the round index: an <see cref="IExtensionPass" /> on the tier-2
 ///     fan-out, registered after <see cref="RoundFactsEvaluator" /> so it reads the rows that one wrote
 ///     in the same pass. Round Facts is rules-driven and has no extractor, so there is nothing to fall
 ///     back to: a demo is not wanted until its index row carries a Round Facts fingerprint, and the
@@ -28,7 +27,7 @@ namespace DemoViewer.NET.Services.RoundIndex;
 ///         this evaluator's to mark.
 ///     </para>
 /// </summary>
-public sealed class RoundIndexEvaluator : IDemoEvaluator
+public sealed class RoundIndexEvaluator : IExtensionPass
 {
     /// <summary>The queue owner tag and the pass id for this evaluator.</summary>
     public const string EvaluatorId = "roundindex";
@@ -82,11 +81,11 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(RoundIndexLog.Category);
 
-    /// <summary>The scheduler, so a retry or a rebuild can ask for the demo again. Null in tests.</summary>
-    public DemoScheduler? Scheduler { get; set; }
+    /// <summary>The scheduling of the extension's passes, so a retry or a rebuild can ask for the demo again. Null in tests.</summary>
+    public IExtensionPasses? Passes { get; set; }
 
     /// <summary>True while the scheduler has index work in flight.</summary>
-    public bool IsIndexing => Scheduler?.HasOutstanding(EvaluatorId) ?? false;
+    public bool IsIndexing => Passes?.IsBusy(EvaluatorId) ?? false;
 
     /// <summary>
     ///     A demo's sidecar was written, raised synchronously on the evaluator's thread before the
@@ -104,7 +103,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     /// <inheritdoc />
     public bool ReadsUserCommands => false;
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     From the index row alone: the owning pack's gate on, a parsed demo with Round Facts rows whose
     ///     index is missing or stale under the fingerprint for its map, and either the background sweep is
@@ -123,7 +122,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
         }
     }
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
     /// <remarks>A demo without Round Facts rows yet, with the sweep on or the demo forced: the index follows the rows.</remarks>
     public bool WantsAfterUpstream(string path)
     {
@@ -139,22 +138,35 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     }
 
     /// <inheritdoc />
-    public DemoJobPriority PriorityFor(string path)
+    public JobPriority PriorityFor(string demoPath)
     {
         lock (_gate)
         {
-            return _forcedPaths.Contains(path) ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
+            return _forcedPaths.Contains(demoPath) ? JobPriority.UserRequested : JobPriority.Background;
         }
     }
 
     /// <inheritdoc />
-    public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _demoCache.TryGetIndex(demoPath)?.ModifiedTicks ?? 0;
 
     /// <inheritdoc />
+    public DemoInterest Interest(string demoPath) =>
+        Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
+
+    /// <inheritdoc />
+    public void Run(IPassContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        Evaluate(context.DemoPath, context.Parsed);
+    }
+
+    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="parsed">The demo's parse.</param>
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    public void OnFailed(string path) => ClearForced(path);
+    public void OnFailed(string demoPath) => ClearForced(demoPath);
 
     /// <summary>
     ///     The demos whose index is missing or stale and would be submitted, newest first, for the strip's
@@ -213,7 +225,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             _forcedPaths.Add(path);
         }
 
-        Scheduler?.Request(path);
+        Passes?.Request(path);
     }
 
     /// <summary>Re-queues every failed row: the strip's "Retry failed".</summary>
@@ -261,7 +273,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
         }
 
         _demoCache.SaveIndex();
-        Scheduler?.RecheckAll();
+        Passes?.RecheckAll();
     }
 
     private bool NeedsIndex(DemoCacheIndexEntry? entry) =>

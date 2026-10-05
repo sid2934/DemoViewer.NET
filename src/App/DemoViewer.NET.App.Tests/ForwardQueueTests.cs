@@ -5,6 +5,8 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.TestSupport;
@@ -385,7 +387,7 @@ public class ForwardQueueTests
     }
 
     [Test]
-    public async Task NewRoundFactsFingerprint_ReEvaluatesEveryDemoOnce_ForwardAtBackgroundPriority_ThroughTheCap()
+    public async Task NewRoundFactsFingerprint_ReEvaluatesEveryDemoOnce_AtBackgroundPriority_ThroughTheCap()
     {
         const int demos = 7;
         DemoCacheStore store = new(null);
@@ -409,7 +411,7 @@ public class ForwardQueueTests
         List<DemoJobPriority> priorities = [];
         int maxQueued = 0;
         DemoProcessingQueue? queueRef = null;
-        using DemoProcessingQueue queue = Queue((path, _, _, _) =>
+        using DemoProcessingQueue queue = Queue((_, _, _, _) => throw new InvalidOperationException("forward read"), (path, plan) =>
         {
             lock (passes)
             {
@@ -417,7 +419,7 @@ public class ForwardQueueTests
                 priorities.AddRange(queueRef!.Snapshot().Where(s => s.Path == path).Select(s => s.Priority));
             }
 
-            return Pass();
+            return SyntheticParsedDemo.Create(plan: plan);
         });
         queueRef = queue;
         queue.MaxQueueSize = 3;
@@ -426,7 +428,13 @@ public class ForwardQueueTests
 
         RoundFactsEvaluator facts = new(store, new NoRows(), new Identity("after-merge"));
         using HighlightScanService highlights = new(store, new Harvester("fp"), () => [], () => true);
-        using DemoScheduler coordinator = new([highlights, facts], queue,
+        // Round facts run on the retained parse; an extension's pass always does.
+        IDemoPass[] scheduled =
+        [
+            new EvaluatorPassAdapter(highlights, []),
+            new ExtensionPassHost(facts, [], ExtensionGuard.Standalone(new StratBookPack()), static () => false)
+        ];
+        using DemoScheduler coordinator = new(() => scheduled, queue,
             () => [.. highlights.PendingPaths().Concat(facts.PendingPaths()).Distinct()]);
 
         await Assert.That(facts.PendingPaths().Count).IsEqualTo(demos);

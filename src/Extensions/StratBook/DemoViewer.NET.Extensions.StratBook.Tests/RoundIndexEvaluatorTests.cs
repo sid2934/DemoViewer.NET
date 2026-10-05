@@ -177,11 +177,11 @@ public class RoundIndexEvaluatorTests
         {
             await Assert.That(cache.TryGetIndex(Demo)!.RoundIndexState()).IsEqualTo(DemoAnalysisState.Pending);
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.UserRequested);
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.UserRequested);
         }
 
         evaluator.OnFailed(Demo);
-        await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.Background)
+        await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.Background)
             .Because("a failed parse clears the forced flag and leaves the stamp alone");
     }
 
@@ -217,7 +217,7 @@ public class RoundIndexEvaluatorTests
         {
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
             await Assert.That(evaluator.PendingPaths()).Contains(Demo);
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.UserRequested);
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.UserRequested);
         }
 
         evaluator.Evaluate(Demo, Parse());
@@ -225,7 +225,7 @@ public class RoundIndexEvaluatorTests
         {
             await Assert.That(store.TryRead(Demo)).IsNotNull();
             await Assert.That(cache.TryGetIndex(Demo)!.RoundIndexState()).IsEqualTo(DemoAnalysisState.Indexed);
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.Background)
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.Background)
                 .Because("the forced flag clears once the demo is evaluated");
         }
     }
