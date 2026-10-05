@@ -16,24 +16,18 @@ identity, clock and forward compatibility the same way.
 
 | File | Desktop | Browser build |
 |---|---|---|
-| One document per demo the evaluator has built | `<app cache root>/cache/suggestions/<StableKey of the demo path>.json` | Nowhere. Kept in memory for the session; the queue's header says so. |
+| One document per demo the evaluator has built | The Strat Book's per-demo data: `<app config root>/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/suggestions/<key>.json.gz`, gzipped after a one-line header | Nowhere. Kept in memory for the session; the queue's header says so. |
 
-`StableKey` is a hash of the demo's **path**, not its content (`DemoCacheStore.StableKey`), the same key
-every derived cache sidecar uses. The file is rebuilt wholesale whenever the detector-set fingerprint
-changes (a profile edit, a learned site-region table changing, or a detector-code version bump); nothing
-in it is user truth, and deleting it is always safe: the evaluator writes it again the next time the
-demo is considered.
+`<key>` is the demo's content hash, or a hash of its path prefixed `p-` until the library has hashed it,
+so a moved or renamed demo keeps its proposals. Builds before the per-demo data wrote
+`<app config root>/cache/suggestions/<StableKey>.json`; nothing reads that folder now. The file is
+rebuilt wholesale whenever the detector-set fingerprint changes (a profile edit, a learned site-region
+table changing, or a detector-code version bump); nothing in it is user truth, and deleting it is always
+safe: the evaluator writes it again the next time the demo is considered.
 
-**A citation note.** The Strat Room overview's integrator correction 1 asks Suggested Tags to drop this
-directory and write a sibling of the demo's own record instead
-(`<cache>/demos/<StableKey>.suggestions.json`, through the same `DemoCacheStore.WriteSibling` seam Grenade
-Walk and the Round Index use). The code that ships keeps the dedicated `suggestions/` directory this
-document describes. Where the two disagree, this page follows the code; migrating the directory is future
-work, not part of this document.
-
-The demo cache's index row carries one mirror field, `SuggestionCount` (the file's pending count), the
-way `HighlightCount` mirrors the highlight scan: a surface can show "12 pending" without opening the
-file.
+The file's stamp in the per-demo data's index carries the pending count, the way `HighlightCount`
+mirrors the highlight scan on the demo cache's index row: a surface can show "12 pending" without opening
+the file.
 
 ## Top level
 

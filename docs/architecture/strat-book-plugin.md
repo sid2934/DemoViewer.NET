@@ -495,16 +495,16 @@ cannot widen to match the core record sidecars beside it. Both of `PackDataRemov
 through `QueueWork.Run` on serial `ownerTag` (`QueueWork.RunAsync` has no serial parameter), so a delete
 never overlaps the pack's own release item on the same serial.
 
-`StratBookStores.All` is the pack's descriptor list, corrected against the real writers rather than this
-section's original table: `grenade-lineups.json.gz` and `grenades-v3.attempts.json` are under the CACHE
-root (`GrenadeLineupStore`/`GrenadeStoreMigration` both combine with `DemoCacheStore.CacheRoot`, never
-`AppPaths.ConfigRoot`), and `review-queue.json` is dropped (the boundary rule keeps Review Queue core, shared
-with Reels, live with the pack off; deleting it would take Reels' own queue with it). Facet ids for the
-record strip are the pack's four evaluator ids (`StratBookDataRemoval.FacetIds`), not a separate list: a
-`PackStamp.Id` is a facet, not a pack id, and the convention every writer follows is that a stamp always
-rides with the payload it describes.
+`StratBookStores.All` is the pack's descriptor list of what lives outside its own folders: the user's own
+work where users have it, and the cache entries of the layout older builds used (`round-index/`,
+`suggestions/`, `grenade-lineups.json.gz`, `grenades-v3.attempts.json`, the `demos/*.grenades*` siblings),
+which nothing writes now. `review-queue.json` is not listed (the boundary rule keeps Review Queue core,
+shared with Reels, live with the pack off; deleting it would take Reels' own queue with it). The host's
+delete (`HostDataRemoval`) adds the extension's own folders, its per-demo data included, and strips the
+record payload and the stamps of every pass the pack contributed: a `PackStamp.Id` is a facet, not a pack
+id, and the convention every writer follows is that a stamp always rides with the payload it describes.
 
-**Release path, as decided:** turn the pack off first, delete, leave it off. `StratBookDataRemoval.DeleteAsync`
+**Release path, as decided:** turn the pack off first, delete, leave it off. `HostDataRemoval.DeleteAsync`
 writes the gate override off through `SettingsService.Write` (the same write the Extensions master switch
 makes) and awaits `PackSwitch.Pending`. That wait is never stale: `FeatureGate.RaiseChanged` fires inline,
 synchronously, for a self-write made from the UI thread, so by the time the override write returns,
@@ -524,8 +524,8 @@ actually running aborts cleanly on either side rather than deleting against a li
 `WatchedSituationsService` and `StratMiningService`'s state file are explicitly NOT released on disable
 (section 3: "the pack's small user-truth stores... are not released"), so deleting their files while they stay
 resident in memory would leave the deleted content on screen if the pack were re-enabled in the same
-session, and the next edit would save it straight back. `DeleteAsync` closes this by calling each store's
-own recovery after a successful delete: `StratStore.RebuildIndexFromDisk` and `TagStore.RebuildIndexFromDisk`
+session, and the next edit would save it straight back. The pack's `DataDeleted` callback
+(`StratBookStores.ReloadLiveStores`) closes this by calling each store's own recovery after a successful delete: `StratStore.RebuildIndexFromDisk` and `TagStore.RebuildIndexFromDisk`
 already existed (the lost-index recovery); `DossierNotesStore.Reload`, `VetoHistoryStore.Reload` and
 `WatchedSituationsService.Reload` are new, each clearing exactly what the store's own `Load`/`Refuse` pair
 already touches; `StratMiningService.ResetState` is new for the same reason, and matters more than the

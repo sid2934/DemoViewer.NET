@@ -10,13 +10,15 @@ and is round-trip-pinned by `RoundIndexStoreTests`.
 
 | Condition | Location |
 |---|---|
-| Desktop | `<app config root>/cache/round-index/<StableKey>.dvri.json`, where `StableKey` is the same path hash the cache's `demos/<StableKey>.json` record uses |
+| Desktop | The Strat Book's per-demo data: `<app config root>/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/round-index/<key>.json.gz`, where `<key>` is the demo's content hash (a hash of its path, prefixed `p-`, until the library has hashed it). Builds before the per-demo data wrote `<app config root>/cache/round-index/<StableKey>.dvri.json`; nothing reads that folder now. |
 | Browser build | Nowhere. The index is session-only and the Situations section of the Strat Book tab says so. |
 
-The file is a cache: it is rebuilt from the demo whenever its fingerprint no longer matches, and it is
-never a source of truth. The stamp that says whether it is current (`RoundIndex`, `RoundIndexState`,
-`RoundIndexFingerprint`, `RoundIndexRowCount`) lives on the demo's cache record, not in this file, so
-a crash between the sidecar write and the stamp leaves "not indexed" rather than a stamp with no file.
+The host gzips each file and puts a one-line JSON header (format, facet, schema, fingerprint, the demo's
+hash and path, the extension's version, the write time) before the document described here. The file is
+a cache: it is rebuilt from the demo whenever its fingerprint no longer matches, and it is never a source
+of truth. The stamp that says whether it is current (state, schema, fingerprint, row count, write time)
+lives in the per-demo data's own index, `demo-data/index.json.gz`, so a crash between the file write and
+the stamp leaves "not indexed" rather than a stamp with no file.
 
 ## Top level
 
@@ -131,9 +133,9 @@ The root object accepts unknown fields and a reader should ignore fields it does
 `schemaVersion` is advisory on read: a higher number is read for whatever this build understands.
 The fingerprint, not the schema number, is what decides a rebuild.
 
-## The positions sibling: `.dvrp.json.gz` (schema v1)
+## The positions part (schema v1)
 
-Beside every sidecar sits `<StableKey>.dvrp.json.gz`, the same rows seen the other way round: per live
+Beside every index sits its positions part, `<key>.positions.json.gz` under the same stamp, the same rows seen the other way round: per live
 round, per sampled step, the alive players' positions the tokens were encoded from. A Result Card
 thumbnail is one step of this file rendered through the headless scene path, and Overlay View reads
 every step, so neither ever opens a demo (measured, a seek from the demo is 0.6 to 3.3 s and half a
@@ -171,8 +173,8 @@ and is round-trip-pinned by `RoundPositionsTests`.
 * A reader with the current fingerprint and the record's hash ignores a file under another
   fingerprint or naming another hash, exactly as the sidecar rule says; the card then shows a note
   instead of a picture and "Rebuild index" is the remedy.
-* The evaluator writes this file first, the sidecar second and the stamp last, so a crash leaves
+* The positions part is written first, the index second and the stamp last, so a crash leaves
   "not indexed" or a positions file nothing reads, never an index whose cards have nothing to draw.
-  Deletion and the orphan sweep take both files.
+  A delete, and a demo leaving the library, take both files.
 * Thumbnails themselves are never written to disk: a per-session memory cache keyed by
   `(stableKey, round, tick, fingerprint)` holds the rendered PNGs, dropped on a rebuild.
