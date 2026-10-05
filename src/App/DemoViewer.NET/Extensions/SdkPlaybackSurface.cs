@@ -213,7 +213,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         ArgumentNullException.ThrowIfNull(layer);
         string filed = ExtensionLayerIds.Compose(_guard.Scope.Id, id);
         ISceneLayer Build() =>
-            new GuardedSceneLayer(filed, _guard.Run("scene layer factory", layer, EmptyLayer.Instance), _guard);
+            new GuardedSceneLayer(filed, _guard.Run<ISceneLayer>("scene layer factory", layer, EmptySceneLayer.Instance), _guard);
         return Own(_surface.AddLayer(filed, Build));
     }
 
@@ -304,34 +304,6 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         foreach (Action handler in handlers.GetInvocationList().Cast<Action>())
         {
             _guard.Run(site, handler);
-        }
-    }
-
-    // What a factory that threw builds instead: a layer that draws nothing.
-    private sealed class EmptyLayer : ISceneLayer
-    {
-        public static readonly EmptyLayer Instance = new();
-
-        public string Id => "";
-
-        public LayerSlot Slot => LayerSlot.Overlay;
-
-        public int Order => 0;
-
-        public LayerCacheHint Cache => LayerCacheHint.Dynamic;
-
-        public bool IsEnabled { get; set; }
-
-        public int ContentVersion => 0;
-
-        public bool Advance(in Playback2D.Core.SceneTime time, Playback2D.Core.Scene2DFrame frame) => false;
-
-        public void Render(SkiaSharp.SKCanvas canvas, SceneRenderContext ctx)
-        {
-        }
-
-        public void Dispose()
-        {
         }
     }
 

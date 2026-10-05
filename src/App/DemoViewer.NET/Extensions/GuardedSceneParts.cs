@@ -46,7 +46,6 @@ internal sealed class GuardedSceneLayer : ISceneLayer
     private readonly ExtensionGuard _guard;
     private readonly ISceneLayer _inner;
     private volatile bool _faulted;
-    private bool _enabled = true;
 
     public GuardedSceneLayer(string id, ISceneLayer inner, ExtensionGuard guard)
     {
@@ -72,14 +71,27 @@ internal sealed class GuardedSceneLayer : ISceneLayer
 
     public LayerCacheHint Cache { get; }
 
+    // The inner layer's own flag counts: its owner may switch it off on the instance it holds.
     public bool IsEnabled
     {
-        get => _enabled && !_faulted;
-        set
+        get
         {
-            _enabled = value;
-            _guard.Run("scene layer", () => _inner.IsEnabled = value);
+            if (_faulted)
+            {
+                return false;
+            }
+
+            try
+            {
+                return _inner.IsEnabled;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                Fault("scene layer", ex);
+                return false;
+            }
         }
+        set => _guard.Run("scene layer", () => _inner.IsEnabled = value);
     }
 
     public int ContentVersion => _faulted ? -1 : _guard.Run("scene layer", () => _inner.ContentVersion, 0, FaultKind.Recurring);
@@ -158,4 +170,32 @@ internal sealed class GuardedMapTool(IMapTool inner, ExtensionGuard guard) : IMa
     }
 
     public void OnCancelled(IMapToolContext context) => guard.Run("map tool", () => Inner.OnCancelled(context), FaultKind.Recurring);
+}
+
+/// <summary>A layer that draws nothing: what a layer factory that threw builds instead.</summary>
+internal sealed class EmptySceneLayer : ISceneLayer
+{
+    public static readonly EmptySceneLayer Instance = new();
+
+    public string Id => "";
+
+    public LayerSlot Slot => LayerSlot.Overlay;
+
+    public int Order => 0;
+
+    public LayerCacheHint Cache => LayerCacheHint.Dynamic;
+
+    public bool IsEnabled { get; set; }
+
+    public int ContentVersion => 0;
+
+    public bool Advance(in SceneTime time, Scene2DFrame frame) => false;
+
+    public void Render(SKCanvas canvas, SceneRenderContext ctx)
+    {
+    }
+
+    public void Dispose()
+    {
+    }
 }

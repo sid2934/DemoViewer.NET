@@ -47,6 +47,23 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.PreviousValue.get -> string?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.PreviousValue.init -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Value.get -> string!
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Value.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.AddTool(DemoViewer.NET.Playback2D.Core.Tools.IMapTool! tool) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.CancelGesture() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.EscapePressed -> System.EventHandler?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.Fit() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.HasMap.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.Invalidate() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapBound -> System.EventHandler?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapName.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapName.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapView() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.PaneAt(Avalonia.Point point) -> DemoViewer.NET.Playback2D.Core.Levels.LevelPane?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.Panes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.PrimaryTool.get -> DemoViewer.NET.Playback2D.Core.Tools.IMapTool?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.SetPrimaryTool(DemoViewer.NET.Playback2D.Core.Tools.IMapTool? tool) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.Space.get -> DemoViewer.NET.Playback2D.Core.Levels.MapSpace?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.Markdown.get -> string?
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.Markdown.set -> void
@@ -379,6 +396,7 @@ static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.SourceProperty
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.RowsProperty -> Avalonia.StyledProperty<System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>?>!
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.ShowDeltaOnlyProperty -> Avalonia.StyledProperty<bool>!
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.VisibleRowsProperty -> Avalonia.DirectProperty<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable!, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>!>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapNameProperty -> Avalonia.StyledProperty<string?>!
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.MarkdownProperty -> Avalonia.StyledProperty<string?>!
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.CommandProperty -> Avalonia.StyledProperty<System.Windows.Input.ICommand?>!
 static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.DetailProperty -> Avalonia.StyledProperty<string?>!

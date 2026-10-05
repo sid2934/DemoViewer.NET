@@ -39,6 +39,8 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- The app installs the renderer a MapView draws through. -->
+        <InternalsVisibleTo Include="DemoViewer.NET"/>
         <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
         <InternalsVisibleTo Include="DemoViewer.NET.UiCapture"/>
     </ItemGroup>

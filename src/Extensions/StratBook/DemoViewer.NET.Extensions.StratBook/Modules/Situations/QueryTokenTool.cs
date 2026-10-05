@@ -1,9 +1,9 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using SkiaSharp;
 
 #endregion
@@ -24,7 +24,7 @@ namespace DemoViewer.NET.Modules.Situations;
 ///         finished; a half-placed token must not survive Esc.
 ///     </para>
 /// </summary>
-public sealed class QueryTokenTool : IPointerTool
+public sealed class QueryTokenTool : IMapTool
 {
     /// <summary>How close to a token's centre a press must land, in screen pixels.</summary>
     public const float HitRadiusPx = QueryTokenLayer.Radius + 4f;
@@ -61,22 +61,20 @@ public sealed class QueryTokenTool : IPointerTool
     /// </summary>
     public event Action<QueryPlaceHit?>? Dropped;
 
-    /// <inheritdoc />
-    public ToolKind Kind => ToolKind.Map;
 
     /// <inheritdoc />
-    public bool OnPressed(in ToolPointerEvent e, IToolServices s)
+    public bool OnPressed(in MapToolEvent e, IMapToolContext context)
     {
-        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(context);
 
         if (e.Pane is not { } pane)
         {
             return false;
         }
 
-        QueryToken? under = TokenAt(pane, e.Screen, s);
+        QueryToken? under = TokenAt(pane, e.Screen, context);
 
-        if (e.Button == ToolPointerButton.Right)
+        if (e.Button == MapToolButton.Right)
         {
             // A lift is a whole gesture on its own: the release that follows has nothing to do.
             if (under is not { } lifted)
@@ -87,11 +85,11 @@ public sealed class QueryTokenTool : IPointerTool
             _document.Lift(lifted.Side, lifted.Slot);
             _before = null;
             _dragging = null;
-            s.RequestRender();
+            context.RequestRender();
             return true;
         }
 
-        if (e.Button != ToolPointerButton.Left)
+        if (e.Button != MapToolButton.Left)
         {
             return false;
         }
@@ -105,7 +103,7 @@ public sealed class QueryTokenTool : IPointerTool
             _dragging = armed;
             Armed = null;
             Carry(pane, e.World);
-            s.RequestRender();
+            context.RequestRender();
             return true;
         }
 
@@ -117,14 +115,14 @@ public sealed class QueryTokenTool : IPointerTool
         _before = grabbed;
         _dragging = (grabbed.Side, grabbed.Slot);
         Carry(pane, e.World);
-        s.RequestRender();
+        context.RequestRender();
         return true;
     }
 
     /// <inheritdoc />
-    public void OnMoved(in ToolPointerEvent e, IToolServices s)
+    public void OnMoved(in MapToolEvent e, IMapToolContext context)
     {
-        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(context);
 
         if (_dragging is null || e.Pane is not { } pane)
         {
@@ -132,13 +130,13 @@ public sealed class QueryTokenTool : IPointerTool
         }
 
         Carry(pane, e.World);
-        s.RequestRender();
+        context.RequestRender();
     }
 
     /// <inheritdoc />
-    public void OnReleased(in ToolPointerEvent e, IToolServices s)
+    public void OnReleased(in MapToolEvent e, IMapToolContext context)
     {
-        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(context);
 
         if (_dragging is not { } dragging)
         {
@@ -154,7 +152,7 @@ public sealed class QueryTokenTool : IPointerTool
         {
             _document.Lift(dragging.Side, dragging.Slot);
             LastHit = null;
-            s.RequestRender();
+            context.RequestRender();
             return;
         }
 
@@ -164,13 +162,13 @@ public sealed class QueryTokenTool : IPointerTool
         _document.Place(new QueryToken(dragging.Side, dragging.Slot, e.World.X, e.World.Y,
             MapSpace.QuantizeZ(level.ZMin), hit?.Place));
         Dropped?.Invoke(hit);
-        s.RequestRender();
+        context.RequestRender();
     }
 
     /// <inheritdoc />
-    public void OnCancelled(IToolServices s)
+    public void OnCancelled(IMapToolContext context)
     {
-        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(context);
 
         if (_dragging is not { } dragging)
         {
@@ -188,12 +186,12 @@ public sealed class QueryTokenTool : IPointerTool
 
         _dragging = null;
         _before = null;
-        s.RequestRender();
+        context.RequestRender();
     }
 
     // The token under a host point on this pane: nearest centre within the hit radius, tested on the
     // level the pane shows so a token on the other storey of a stacked map cannot be grabbed through it.
-    private QueryToken? TokenAt(LevelPane pane, SKPoint screen, IToolServices s)
+    private QueryToken? TokenAt(LevelPane pane, SKPoint screen, IMapToolContext context)
     {
         QueryToken? best = null;
         float bestDistance = HitRadiusPx * HitRadiusPx;
@@ -207,7 +205,7 @@ public sealed class QueryTokenTool : IPointerTool
                 continue;
             }
 
-            SKPoint at = s.WorldToScreen(pane, new SKPoint(token.WorldX, token.WorldY));
+            SKPoint at = context.WorldToScreen(pane, new SKPoint(token.WorldX, token.WorldY));
             float dx = at.X - screen.X;
             float dy = at.Y - screen.Y;
             float distance = dx * dx + dy * dy;

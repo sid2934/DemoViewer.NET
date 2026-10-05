@@ -8,12 +8,15 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using SkiaSharp;
 
@@ -22,9 +25,8 @@ using SkiaSharp;
 namespace DemoViewer.NET.Modules.Playback2D;
 
 /// <summary>
-///     A map with no demo behind it: the playback scene's radar, level model and panes, one static frame,
-///     pan and zoom. The Query Canvas and the Utility Book's map derive from it and add their own layers
-///     and clicks.
+///     What draws a <see cref="MapView" />: a map with no demo behind it, the playback scene's radar, level
+///     model and panes, one static frame, pan and zoom, plus the layers and the primary tool the view adds.
 ///     <para>
 ///         <b>A sibling of <see cref="Scene2DHost" />, not a fork of it.</b> Every piece that draws or
 ///         routes is the same Core type the playback surface uses (<see cref="SceneCompositor" />,
@@ -34,12 +36,21 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///         rigs, vision solve or annotation binding; none of those means anything with no tick.
 ///     </para>
 ///     <para>
-///         A left press the <see cref="PrimaryTool" /> refuses becomes a pan; the tool is restored at the
-///         release. The router's own diversions (Space, middle, Ctrl) and the wheel work unchanged.
+///         A left press the primary tool refuses becomes a pan; the tool is restored at the release. The
+///         router's own diversions (Space, middle, Ctrl) and the wheel work unchanged.
+///     </para>
+///     <para>
+///         The map's bundle is held through <see cref="MapBundleLeases" /> while the view is in the tree, so
+///         two views of one map share one decode. A layer or tool an extension built runs under its guard.
 ///     </para>
 /// </summary>
-public abstract class MapSceneHost : Control, IDisposable
+internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
 {
+    private readonly Dictionary<string, Func<ISceneLayer>> _layers = new(StringComparer.Ordinal);
+    private MapToolAdapter? _primary;
+    private string? _mapName;
+    private LoadedMapAsset? _lease;
+
     private readonly SceneRenderGate _gate = new();
     private readonly MapSpaceFactory _levels = new();
     private readonly PaneSet _panes = new(new StackedLayout());
@@ -61,7 +72,7 @@ public abstract class MapSceneHost : Control, IDisposable
     private TextBlobCache _text;
 
     /// <summary>Creates the host and its base layer stack.</summary>
-    protected MapSceneHost()
+    public HostedMapView()
     {
         Focusable = true;
         ClipToBounds = true;
@@ -78,14 +89,45 @@ public abstract class MapSceneHost : Control, IDisposable
     /// <summary>True once the platform refused a Skia lease; every later frame takes the CPU path.</summary>
     internal bool LeaseUnavailable { get; private set; }
 
-    /// <summary>The tool a plain left press goes to. Pan and zoom unless a derived host has its own.</summary>
-    protected virtual ToolKind PrimaryTool => ToolKind.PanZoom;
+    // The tool a plain left press goes to.
+    private ToolKind PrimaryKind => _primary is null ? ToolKind.PanZoom : ToolKind.Map;
 
-    /// <summary>The panes as arranged at the last frame, for a derived host's hit test.</summary>
-    protected PaneSet Panes => _panes;
+    /// <inheritdoc />
+    public Control View => this;
 
-    /// <summary>The level set of the bound map, for a derived host's hit test.</summary>
-    protected MapSpace LevelSpace => _levels.Space;
+    /// <inheritdoc />
+    public string? MapName
+    {
+        get => _mapName;
+        set
+        {
+            if (string.Equals(_mapName, value, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _mapName = value;
+            if (!_released)
+            {
+                Rebind();
+            }
+        }
+    }
+
+    /// <inheritdoc />
+    public bool HasMap => _lease is not null;
+
+    /// <inheritdoc />
+    public MapSpace Space => _levels.Space;
+
+    /// <inheritdoc />
+    public IReadOnlyList<LevelPane> Panes => _panes.Panes;
+
+    /// <inheritdoc />
+    public event Action? EscapePressed;
+
+    /// <inheritdoc />
+    public event Action? MapBound;
 
     /// <inheritdoc />
     public void Dispose()
@@ -94,48 +136,86 @@ public abstract class MapSceneHost : Control, IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>The pane under a host-space point, or null.</summary>
-    /// <param name="x">Host X.</param>
-    /// <param name="y">Host Y.</param>
-    internal LevelPane? PaneAtHostPoint(float x, float y) => _panes.PaneAt(x, y);
-
-    /// <summary>Repaint request from a pointer tool.</summary>
-    internal void RequestToolRender() => InvalidateVisual();
-
-    /// <summary>Adds a derived host's layers after every scene build. Called under the render gate.</summary>
-    /// <param name="compositor">The compositor to add to.</param>
-    protected virtual void AddLayers(SceneCompositor compositor)
+    /// <inheritdoc />
+    public void SetLayer(string id, Func<ISceneLayer> layer)
     {
-    }
+        ArgumentException.ThrowIfNullOrEmpty(id);
+        ArgumentNullException.ThrowIfNull(layer);
+        _layers[id] = layer;
+        if (_released)
+        {
+            return;
+        }
 
-    /// <summary>Re-reads the DataContext: a derived host binds its view model here.</summary>
-    /// <param name="dataContext">The current DataContext, or null when detached.</param>
-    protected virtual void AttachDataContext(object? dataContext)
-    {
-    }
-
-    /// <summary>Escape pressed with no gesture to cancel. The query canvas disarms, the utility map steps back.</summary>
-    protected virtual void OnEscape()
-    {
-    }
-
-    /// <summary>Runs an action on the compositor under the render gate.</summary>
-    /// <param name="action">What to do.</param>
-    protected void WithCompositor(Action<SceneCompositor> action)
-    {
-        ArgumentNullException.ThrowIfNull(action);
         using (_gate.Enter())
         {
-            action(_compositor);
+            _compositor.Remove(id);
+            _compositor.Add(Build(id, layer));
         }
+
+        InvalidateVisual();
     }
 
     /// <inheritdoc />
-    protected override void OnDataContextChanged(EventArgs e)
+    public void RemoveLayer(string id)
     {
-        base.OnDataContextChanged(e);
-        AttachDataContext(DataContext);
+        if (!_layers.Remove(id) || _released)
+        {
+            return;
+        }
+
+        using (_gate.Enter())
+        {
+            _compositor.Remove(id);
+        }
+
+        InvalidateVisual();
     }
+
+    /// <inheritdoc />
+    public void SetPrimaryTool(IMapTool? tool)
+    {
+        if (ReferenceEquals(_primary?.Tool, tool) || (tool is not null && ReferenceEquals(Unwrap(_primary?.Tool), tool)))
+        {
+            return;
+        }
+
+        Router.CancelActive();
+        _panFallback = false;
+        if (tool is null)
+        {
+            _primary = null;
+            Router.SetActive(ToolKind.PanZoom);
+            return;
+        }
+
+        _primary = new MapToolAdapter(Guard(tool));
+        Router.Register(_primary);
+        Router.SetActive(ToolKind.Map);
+    }
+
+    /// <inheritdoc />
+    public LevelPane? PaneAt(double x, double y) => _panes.PaneAt((float)x, (float)y);
+
+    /// <inheritdoc />
+    public void CancelGesture()
+    {
+        Router.CancelActive();
+        RestoreToolAfterPan();
+    }
+
+    /// <inheritdoc />
+    public void Fit()
+    {
+        _panes.Clear();
+        InvalidateVisual();
+    }
+
+    /// <inheritdoc />
+    public void Invalidate() => InvalidateVisual();
+
+    /// <summary>Repaint request from a pointer tool.</summary>
+    internal void RequestToolRender() => InvalidateVisual();
 
     /// <inheritdoc />
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -149,7 +229,7 @@ public abstract class MapSceneHost : Control, IDisposable
 
         RefreshPalette();
         ActualThemeVariantChanged += OnThemeVariantChanged;
-        AttachDataContext(DataContext);
+        Rebind();
     }
 
     /// <inheritdoc />
@@ -157,8 +237,10 @@ public abstract class MapSceneHost : Control, IDisposable
     {
         base.OnDetachedFromVisualTree(e);
         ActualThemeVariantChanged -= OnThemeVariantChanged;
-        AttachDataContext(null);
+        Router.CancelActive();
+        RestoreToolAfterPan();
         ReleaseResources();
+        ReleaseLease();
     }
 
     // ── Pointer input, translated to pane-and-world samples for the router. ──────────────────────────
@@ -180,7 +262,7 @@ public abstract class MapSceneHost : Control, IDisposable
         // The primary tool refused a left press: nothing armed, nothing under the pointer. That drag is a
         // pan, and the router only diverts on Space, middle and Ctrl, so the diversion is made here and
         // undone at the release.
-        if (sample.Button == ToolPointerButton.Left && PrimaryTool != ToolKind.PanZoom && Router.ActiveKind == PrimaryTool)
+        if (sample.Button == ToolPointerButton.Left && PrimaryKind != ToolKind.PanZoom && Router.ActiveKind == PrimaryKind)
         {
             Router.SetActive(ToolKind.PanZoom);
             if (Router.OnPressed(in sample))
@@ -190,7 +272,7 @@ public abstract class MapSceneHost : Control, IDisposable
                 return;
             }
 
-            Router.SetActive(PrimaryTool);
+            Router.SetActive(PrimaryKind);
         }
     }
 
@@ -262,7 +344,7 @@ public abstract class MapSceneHost : Control, IDisposable
             case Key.Escape:
                 Router.CancelActive();
                 RestoreToolAfterPan();
-                OnEscape();
+                EscapePressed?.Invoke();
                 e.Handled = true;
                 break;
             case Key.Space:
@@ -320,7 +402,7 @@ public abstract class MapSceneHost : Control, IDisposable
         }
 
         _panFallback = false;
-        Router.SetActive(PrimaryTool);
+        Router.SetActive(PrimaryKind);
     }
 
     // The UI thread, inside the gate: level derivation from the bundle, pane reconciliation, and the
@@ -418,7 +500,10 @@ public abstract class MapSceneHost : Control, IDisposable
         };
         _compositor.Add(_radarLayer);
         _compositor.Add(new FloorLabelLayer(_text));
-        AddLayers(_compositor);
+        foreach ((string id, Func<ISceneLayer> layer) in _layers)
+        {
+            _compositor.Add(Build(id, layer));
+        }
 
         _boundAsset = null;
         _boundMap = "";
@@ -457,6 +542,59 @@ public abstract class MapSceneHost : Control, IDisposable
         InvalidateVisual();
     }
 
+    // The lease follows the name: a new name or a re-attach takes the bundle again, a detach gives it back.
+    private void Rebind()
+    {
+        string map = _mapName ?? "";
+        if (_lease is not null && string.Equals(_boundMap, map, StringComparison.Ordinal))
+        {
+            BindMap(map, _lease);
+            return;
+        }
+
+        LoadedMapAsset? previous = _lease;
+        string previousMap = _boundMap;
+        _lease = map.Length == 0 ? null : MapBundleLeases.Acquire(map);
+        BindMap(map, _lease);
+        if (previous is not null)
+        {
+            MapBundleLeases.Release(previousMap, previous);
+        }
+
+        MapBound?.Invoke();
+    }
+
+    private void ReleaseLease()
+    {
+        if (_lease is { } lease)
+        {
+            _lease = null;
+            MapBundleLeases.Release(_boundMap, lease);
+        }
+
+        _boundAsset = null;
+    }
+
+    // An extension's layer or tool runs as the extension's; anything else runs as it is.
+    private static ISceneLayer Build(string id, Func<ISceneLayer> factory)
+    {
+        if (ExtensionFaults.Current is not { } faults || faults.Owner(factory) is not { } owner)
+        {
+            return factory();
+        }
+
+        ExtensionGuard guard = faults.GuardFor(owner);
+        ISceneLayer? built = guard.Run("map view layer factory", factory, null);
+        return built is null ? new GuardedSceneLayer(id, EmptySceneLayer.Instance, guard) : new GuardedSceneLayer(id, built, guard);
+    }
+
+    private static IMapTool Guard(IMapTool tool) =>
+        ExtensionFaults.Current is { } faults && faults.Owner(tool.GetType().Assembly) is { } owner
+            ? new GuardedMapTool(tool, faults.GuardFor(owner))
+            : tool;
+
+    private static IMapTool? Unwrap(IMapTool? tool) => tool is GuardedMapTool guarded ? guarded.Inner : tool;
+
     /// <summary>
     ///     Binds a map: the radar art, the nav floors and the bounds. The level set and the panes are rebuilt
     ///     from scratch so the previous map's cameras cannot survive onto this one; the same map and bundle
@@ -464,7 +602,7 @@ public abstract class MapSceneHost : Control, IDisposable
     /// </summary>
     /// <param name="map">The map name.</param>
     /// <param name="asset">The map's baked bundle, or null when this host has none.</param>
-    protected void BindMap(string map, LoadedMapAsset? asset)
+    private void BindMap(string map, LoadedMapAsset? asset)
     {
         if (ReferenceEquals(asset, _boundAsset) && string.Equals(_boundMap, map, StringComparison.Ordinal)
             && _frame.Map.MapName == map)
@@ -521,8 +659,8 @@ public abstract class MapSceneHost : Control, IDisposable
 
     private WorldBounds CurrentExtent() => _frame.Map.NetworkedBounds ?? _frame.Map.ObservedBounds;
 
-    /// <summary>Host point to pane, pane-local point and world point, as the router and a hit test read them.</summary>
-    protected ToolPointerEvent Translate(PointerEventArgs e, ToolPointerButton button)
+    // Host point to pane, pane-local point and world point, as the router reads them.
+    private ToolPointerEvent Translate(PointerEventArgs e, ToolPointerButton button)
     {
         Point position = e.GetPosition(this);
         float x = (float)position.X;
@@ -611,7 +749,7 @@ public abstract class MapSceneHost : Control, IDisposable
     ///     these canvases': there is no ink on them, so the session is a throwaway and the anchor lookups
     ///     answer nothing.
     /// </summary>
-    private sealed class HostToolServices(MapSceneHost host) : IToolServices
+    private sealed class HostToolServices(HostedMapView host) : IToolServices
     {
         private readonly long _origin = Stopwatch.GetTimestamp();
 
@@ -621,7 +759,7 @@ public abstract class MapSceneHost : Control, IDisposable
 
         public long NowMilliseconds => (long)Stopwatch.GetElapsedTime(_origin).TotalMilliseconds;
 
-        public LevelPane? PaneAt(SKPoint screen) => host.PaneAtHostPoint(screen.X, screen.Y);
+        public LevelPane? PaneAt(SKPoint screen) => host._panes.PaneAt(screen.X, screen.Y);
 
         public SKPoint ScreenToWorld(LevelPane pane, SKPoint screen)
         {

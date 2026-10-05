@@ -1,9 +1,10 @@
 #region
 
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Input;
-using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core.Compositing;
+using Avalonia.Interactivity;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Utility;
@@ -16,36 +17,60 @@ using SkiaSharp;
 namespace DemoViewer.NET.Modules.UtilityBook;
 
 /// <summary>
-///     The Utility Book map: a <see cref="MapSceneHost" /> with the <see cref="UtilityMapLayer" /> over the
-///     radar. A drag pans, the wheel zooms, and a left click that did not move hits the same geometry the
-///     layer draws: a throw position of the focused group first, then a landing icon, else empty map, which
-///     steps back one level.
+///     The Utility Book map: a <see cref="MapView" /> with the <see cref="UtilityMapLayer" /> over the radar.
+///     A drag pans, the wheel zooms, and a left click that did not move hits the same geometry the layer
+///     draws: a throw position of the focused group first, then a landing icon, else empty map, which steps
+///     back one level.
 /// </summary>
-public sealed class UtilityMapHost : MapSceneHost
+public sealed class UtilityMapHost : Decorator
 {
     // A press that moves further than this before the release is a pan, not a click.
     private const double ClickSlopPx = 4;
 
+    private readonly MapView _map = new();
     private SkiaIconSource? _icons;
-    private UtilityMapLayer? _layer;
+    private IDisposable? _layer;
     private Point? _pressAt;
     private UtilityBookTabViewModel? _vm;
 
-    /// <inheritdoc />
-    protected override void AddLayers(SceneCompositor compositor)
+    /// <summary>Creates the map.</summary>
+    public UtilityMapHost()
     {
-        // A rebuilt scene has lost the view model's layer; the next attach adds it again.
-        _layer = null;
-        _vm = null;
+        Child = _map;
+        _map.EscapePressed += (_, _) => _vm?.Back();
+        _map.AddHandler(PointerPressedEvent, OnMapPressed, RoutingStrategies.Bubble, true);
+        _map.AddHandler(PointerReleasedEvent, OnMapReleased, RoutingStrategies.Bubble, true);
+    }
+
+    /// <summary>The map view this map is built on. For tests.</summary>
+    internal MapView Map => _map;
+
+    /// <inheritdoc />
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (VisualRoot is not null)
+        {
+            Attach(DataContext as UtilityBookTabViewModel);
+        }
     }
 
     /// <inheritdoc />
-    protected override void OnEscape() => _vm?.Back();
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        Attach(DataContext as UtilityBookTabViewModel);
+    }
 
     /// <inheritdoc />
-    protected override void AttachDataContext(object? dataContext)
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        UtilityBookTabViewModel? vm = dataContext as UtilityBookTabViewModel;
+        base.OnDetachedFromVisualTree(e);
+        Attach(null);
+    }
+
+    private void Attach(UtilityBookTabViewModel? vm)
+    {
         if (ReferenceEquals(_vm, vm))
         {
             return;
@@ -57,23 +82,10 @@ public sealed class UtilityMapHost : MapSceneHost
             _vm.Document.Changed -= OnDocumentChanged;
         }
 
+        // The layer leaves the scene before its icons are released.
+        _layer?.Dispose();
+        _layer = null;
         _vm = vm;
-        WithCompositor(compositor =>
-        {
-            if (_layer is not null)
-            {
-                compositor.Remove(SceneLayerIds.Utility);
-                _layer = null;
-            }
-
-            if (vm is not null)
-            {
-                _icons ??= new SkiaIconSource();
-                _layer = new UtilityMapLayer(vm.Document, _icons);
-                compositor.Add(_layer);
-            }
-        });
-
         if (vm is null)
         {
             _icons?.Dispose();
@@ -81,31 +93,24 @@ public sealed class UtilityMapHost : MapSceneHost
             return;
         }
 
+        _layer = _map.AddLayer(SceneLayerIds.Utility, () => new UtilityMapLayer(vm.Document, _icons ??= new SkiaIconSource()));
         vm.MapChanged += OnMapChanged;
         vm.Document.Changed += OnDocumentChanged;
         OnMapChanged();
     }
 
-    /// <inheritdoc />
-    protected override void OnPointerPressed(PointerPressedEventArgs e)
-    {
-        ArgumentNullException.ThrowIfNull(e);
-        _pressAt = e.GetCurrentPoint(this).Properties.IsLeftButtonPressed ? e.GetPosition(this) : null;
-        base.OnPointerPressed(e);
-    }
+    private void OnMapPressed(object? sender, PointerPressedEventArgs e) =>
+        _pressAt = e.GetCurrentPoint(_map).Properties.IsLeftButtonPressed ? e.GetPosition(_map) : null;
 
-    /// <inheritdoc />
-    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    private void OnMapReleased(object? sender, PointerReleasedEventArgs e)
     {
-        ArgumentNullException.ThrowIfNull(e);
-        base.OnPointerReleased(e);
         if (_pressAt is not { } pressed || e.InitialPressMouseButton != MouseButton.Left)
         {
             return;
         }
 
         _pressAt = null;
-        Point released = e.GetPosition(this);
+        Point released = e.GetPosition(_map);
         if (Math.Abs(released.X - pressed.X) > ClickSlopPx || Math.Abs(released.Y - pressed.Y) > ClickSlopPx)
         {
             return;
@@ -122,13 +127,12 @@ public sealed class UtilityMapHost : MapSceneHost
     /// <param name="y">Host Y.</param>
     internal void Click(float x, float y)
     {
-        if (_vm is null || PaneAtHostPoint(x, y) is not { } pane)
+        if (_vm is null || _map.PaneAt(new Point(x, y)) is not { } pane || _map.Space is not { } space)
         {
             return;
         }
 
         SKPoint local = new(x - pane.ViewportRect.Left, y - pane.ViewportRect.Top);
-        MapSpace space = LevelSpace;
         bool Belongs(double z) => pane.LevelIndex < 0 || space.Levels.Count <= 1 || space.LevelIndexFor(z) == pane.LevelIndex;
 
         IReadOnlyList<UtilityThrow> throws = UtilityMapLayer.ThrowsAt(_vm.Document, pane.Camera.Current, Belongs, local);
@@ -183,8 +187,12 @@ public sealed class UtilityMapHost : MapSceneHost
     /// <param name="worldZ">World Z.</param>
     internal Point? HostPointOf(float worldX, float worldY, float worldZ)
     {
-        MapSpace space = LevelSpace;
-        foreach (LevelPane pane in Panes.Panes)
+        if (_map.Space is not { } space)
+        {
+            return null;
+        }
+
+        foreach (LevelPane pane in _map.Panes)
         {
             if (pane.LevelIndex >= 0 && space.Levels.Count > 1 && space.LevelIndexFor(worldZ) != pane.LevelIndex)
             {
@@ -198,7 +206,7 @@ public sealed class UtilityMapHost : MapSceneHost
         return null;
     }
 
-    private void OnDocumentChanged() => InvalidateVisual();
+    private void OnDocumentChanged() => _map.Invalidate();
 
-    private void OnMapChanged() => BindMap(_vm?.MapName ?? "", _vm?.MapAsset);
+    private void OnMapChanged() => _map.MapName = _vm?.MapName is { Length: > 0 } map ? map : null;
 }

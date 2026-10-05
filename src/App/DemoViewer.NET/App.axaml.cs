@@ -78,6 +78,9 @@ public class App : Application
         // Claiming it here too makes the order explicit instead of incidental.
         AppPaths.ClaimConfigDirectoryName();
 
+        // Before any view is built: a MapView made earlier has no renderer and stays empty.
+        Extensions.Sdk.Ui.Controls.MapViewHost.Factory = static () => new Modules.Playback2D.HostedMapView();
+
         AvaloniaXamlLoader.Load(this);
     }
 

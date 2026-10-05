@@ -1735,7 +1735,7 @@ Rules as built:
   Section 2.11 has the rest.
 
 What stays in the app: generic capabilities the work added to core regardless of the pack (lanes, shape
-tools, `MapSceneHost`, zones, `QueueWork`, the processing queue) and the Review Queue (the boundary rule).
+tools, the map renderer behind the SDK's `MapView`, zones, `QueueWork`, the processing queue) and the Review Queue (the boundary rule).
 Capabilities the Strat Book work added that core features also consume moved with the extension once
 their contribution seams existed. Which `Services/` folders are pack-only versus shared was settled by
 the initial move list, reviewed before the move.
