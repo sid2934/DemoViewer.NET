@@ -349,7 +349,7 @@ public static class Playback2DKeymap
     // survive KeyGesture.Parse). The modifier chain MUST stay shared: a second copy that drops Meta
     // reads a macOS user's captured ⌘+K back as a bare "K" in every Settings row, reset chip, tooltip
     // and refusal, indistinguishable from a DIFFERENT action bound to bare K.
-    internal static string Format(Key key, KeyModifiers modifiers, bool display = true)
+    public static string Format(Key key, KeyModifiers modifiers, bool display = true)
     {
         List<string> parts = new(5);
         if (modifiers.HasFlag(KeyModifiers.Control))

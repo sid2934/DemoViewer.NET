@@ -23,9 +23,10 @@ restart. Data on disk is untouched; re-enabling backfills whatever indexing was 
 
 The public contract is the `DemoViewer.NET.Extensions.Sdk` package (`src/Sdk/DemoViewer.NET.Extensions.Sdk`,
 author guide in its README): `IExtension`, `IExtensionContributions`, `IExtensionContext` and the SDK's
-playback types. Surfaces the SDK does not carry (the hub tab, status chips, rulesets, forward-pass
-evaluators, the scene-frame playback surface) stay first-party behind `IFirstPartyContributions`, which the
-Strat Book reaches by casting. Third-party extensions load from the same extensions folder; unverified ones
+playback types, with the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`, including the embeddable `MapView`) and
+the scene contract (`DemoViewer.NET.Playback2D.Scene`) beside it. Surfaces the SDK does not carry (rulesets and
+forward-pass evaluators) stay first-party behind `IFirstPartyContributions`, which the Strat Book reaches by
+casting and which refuses an extension installed from outside the app. Third-party extensions load from the same extensions folder; unverified ones
 only with the user's consent, and none at all in safe mode.
 
 The extension reaches the shell, 2D Playback and the Library through `IExtensionContributions` (tabs,
@@ -816,8 +817,8 @@ before. The same prototype confirmed the other half of the trap: a method that m
   contract and CS2DemoKit ranges in its manifest cover the first-party ones); a new package reference in an
   extension release needs an app release that carries it, which the packaging and compatibility-matrix
   checks enforce.
-- *Internals.* The app's `InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook")` matches by simple name,
-  so the staged copy sees the same internals the shipped one does.
+- *Internals.* Neither the app nor a Playback2D assembly grants the extension its internals, so a staged
+  copy reaches exactly what the shipped one does: the public types.
 
 **Trust.** `ITrustPolicy.Judge(directory, manifest)` is asked once per candidate, after the compatibility
 check and before the assembly is touched; a policy that throws reads as untrusted. As built (section 2.9),
@@ -1702,16 +1703,14 @@ Rules as built:
   with the same list, a no-op after Main, because the XAML previewer calls that method without running Main.
   The tests that build the composition root are unchanged, and the pack-off tests override the gate rather
   than the list.
-- **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook` (a first-party extension
-  composes over the same internal seams the app's own composition root uses; the loader loads only
-  first-party signed assemblies, so this exposes nothing to third parties) and
-  `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal seams App.Tests reaches). The
-  extension grants `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and
-  `DemoViewer.NET.Extensions.StratBook.Tests`. **The Playback2D Core/Pipeline split** adds a second grantor: `DemoViewer.NET.Playback2D.Core`
-  also grants `DemoViewer.NET.Extensions.StratBook`, because the strat frame source (moved there) writes
-  `Scene2DFrame`'s internal backing fields directly, the pooled-refill pattern `SceneFrameBuilder` itself
-  uses; `Scene2DHost.AddTool`/`AddLayer`/`FrameHost` stay covered by the app's existing grant. No core
-  member was widened to public for the split.
+- **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal
+  seams App.Tests reaches) and nothing to the extension itself; no Playback2D assembly grants it either, which
+  `PackBoundaryTests` pins. The extension builds on public types: the SDK, the UI kit's `MapView` for the
+  Query Canvas and the Utility Book map, the published scene contract, `Scene2DHost.AddTool`/`AddLayer`/
+  `FrameHost` for the strat canvas, and the first-party seam (`IFirstPartyContributions`,
+  `IFirstPartyShellState`, `IFirstPartyExportChips`, export). The strat frame source builds a frame shell per
+  call over its pooled lists instead of refilling `Scene2DFrame`'s internals. The extension grants
+  `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and `DemoViewer.NET.Extensions.StratBook.Tests`.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
   assembly, asks each compatible pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 2.4).

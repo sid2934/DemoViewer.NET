@@ -172,7 +172,7 @@ public sealed class DemoCacheStore
     private string? IndexPath => _cacheRoot is null ? null : Path.Combine(_cacheRoot, "index.json");
 
     /// <summary>The cache directory, or null for an in-memory store.</summary>
-    internal string? CacheRoot => _cacheRoot;
+    public string? CacheRoot => _cacheRoot;
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(SidecarFormatLog.Category);
 
@@ -348,7 +348,7 @@ public sealed class DemoCacheStore
     ///     file goes only after the new one reads back; a legacy file that does not read is kept.
     /// </summary>
     /// <param name="demoPath">An indexed demo.</param>
-    internal SidecarConversion ConvertLegacyRecord(string demoPath)
+    public SidecarConversion ConvertLegacyRecord(string demoPath)
     {
         string? file = SidecarPathFor(demoPath);
         if (file is null)
@@ -401,7 +401,7 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>The lock that orders one demo's sidecar file writes against its legacy conversion.</summary>
-    internal object StripeFor(string demoPath) =>
+    public object StripeFor(string demoPath) =>
         _fileStripes[(int)((uint)StringComparer.OrdinalIgnoreCase.GetHashCode(demoPath) % (uint)_fileStripes.Length)];
 
     /// <summary>
@@ -951,13 +951,13 @@ public sealed class DemoCacheStore
     /// </summary>
     /// <param name="targetPath">The file to write.</param>
     /// <param name="content">Its whole new content.</param>
-    internal static void WriteAtomic(string targetPath, string content) =>
+    public static void WriteAtomic(string targetPath, string content) =>
         WriteAtomicBytes(targetPath, Encoding.UTF8.GetBytes(content));
 
     /// <summary>As <see cref="WriteAtomic(string, string)" />, for bytes.</summary>
     /// <param name="targetPath">The file to write.</param>
     /// <param name="content">Its whole new content.</param>
-    internal static void WriteAtomicBytes(string targetPath, byte[] content)
+    public static void WriteAtomicBytes(string targetPath, byte[] content)
     {
         string directory = Path.GetDirectoryName(targetPath)!;
         Directory.CreateDirectory(directory);

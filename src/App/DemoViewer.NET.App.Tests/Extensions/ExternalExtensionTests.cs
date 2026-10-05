@@ -129,6 +129,29 @@ public class ExternalExtensionTests
     }
 
     [Test]
+    public async Task AnInstalledExtension_IsRefusedTheFirstPartySeam()
+    {
+        string root = NewRoot();
+        try
+        {
+            Install(root);
+            PackStatus status = Resolve(root, allowUnverified: true).Loaded.Single();
+            PackContributions contributions = new(status.Pack, () => null!);
+
+            Assert.Throws<InvalidOperationException>(() => contributions.Ruleset("hello_rules"));
+            Assert.Throws<InvalidOperationException>(() => contributions.FirstPartyEvaluator("hello", () => null!));
+            PackContributions shipped = new(new StubExtension(), () => null!);
+            shipped.Ruleset("stub_rules");
+            await Assert.That(shipped.Rulesets.Select(r => r.RulesetId)).IsEquivalentTo(["stub_rules"])
+                .Because("a pack compiled into the app keeps the seam");
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
+    [Test]
     public async Task AnIdInTheReservedPrefix_IsRefused_EvenWithUnverifiedAllowed()
     {
         string root = NewRoot();

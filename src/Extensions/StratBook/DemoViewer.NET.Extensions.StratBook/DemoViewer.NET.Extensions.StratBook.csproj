@@ -52,8 +52,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- The extension references the app; the app never references the extension.
-             The heads reference both and hand the pack list to FeaturePacks. -->
+        <!-- The SDK and its UI kit, with the scene contract through the SDK, are the packages a third party
+             takes; the projects stand in for them, as for the sample. The app reference is the first-party
+             seam (export, the review queue, the Playback2D layers and tools the canvases draw with), and it
+             grants the extension no internals. The app never references the extension; the heads reference
+             both and hand the pack list to FeaturePacks. -->
         <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
         <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
         <ProjectReference Include="..\..\..\App\DemoViewer.NET\DemoViewer.NET.csproj"/>

@@ -7,7 +7,9 @@ using DemoViewer.NET.Services.DemoProcessing;
 namespace DemoViewer.NET.Services.Export.Pack;
 
 /// <summary>Runs a Pack Export as a user-requested item of the processing queue.</summary>
-internal static class PackExportQueue
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
+    Justification = "It submits pack exports to the processing queue; the name says which queue.")]
+public static class PackExportQueue
 {
     /// <summary>
     ///     Queues <paramref name="export" /> and completes with its result. Cancelling <paramref name="ct" /> cancels

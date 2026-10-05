@@ -1,7 +1,9 @@
 #region
 
+using System.Runtime.Loader;
 using System.Text.Json;
 using Avalonia.Controls;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoProcessing;
 using SdkPlayback = DemoViewer.NET.Extensions.Sdk.Playback;
@@ -145,12 +147,23 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     /// <inheritdoc />
     public void FirstPartyEvaluator(string id, Func<IDemoEvaluator> factory, params string[] after)
     {
+        RequireShipped(nameof(FirstPartyEvaluator));
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
         _evaluators.Add(new EvaluatorContribution(id, factory, [.. after]));
     }
 
     /// <inheritdoc />
+
+    // The first-party seam is the app's own types: an extension installed from outside the app is refused
+    // it, so referencing the app assembly reaches nothing a third party is not offered through the SDK.
+    private void RequireShipped(string member)
+    {
+        if (AssemblyLoadContext.GetLoadContext(Pack.GetType().Assembly) is ExternalLoadContext)
+        {
+            throw new InvalidOperationException($"{member} is only for extensions that ship with the app.");
+        }
+    }
 
     /// <inheritdoc />
     public void Commands(IEnumerable<CommandDescriptor> commands)
@@ -162,6 +175,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     /// <inheritdoc />
     public void Ruleset(string rulesetId)
     {
+        RequireShipped(nameof(Ruleset));
         ArgumentException.ThrowIfNullOrWhiteSpace(rulesetId);
         _rulesets.Add(new RulesetContribution(rulesetId));
     }

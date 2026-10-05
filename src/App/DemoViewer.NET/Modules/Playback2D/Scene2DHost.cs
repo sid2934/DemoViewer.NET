@@ -158,7 +158,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     ///     What the host is bound to: the 2D Playback tab, the strat canvas, or nothing. Read by the tool
     ///     services for the token editor; never retained.
     /// </summary>
-    internal ISceneFrameHost? FrameHost => _vm;
+    public ISceneFrameHost? FrameHost => _vm;
 
     /// <summary>The annotation layer, once a session has been bound. Test hook.</summary>
     internal AnnotationLayer? AnnotationLayerForTest { get; private set; }

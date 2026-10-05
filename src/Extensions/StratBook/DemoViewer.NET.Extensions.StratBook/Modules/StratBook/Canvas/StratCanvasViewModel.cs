@@ -480,8 +480,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     /// <inheritdoc />
-    bool ISceneFrameHost.TryPointerPreHandler(ScenePointer pointer) =>
-        TryTagPositionAt(pointer.Level, pointer.WorldX, pointer.WorldY);
+    bool ISceneFrameHost.TryPointerPreHandler(ScenePointer press) =>
+        TryTagPositionAt(press.Level, press.WorldX, press.WorldY);
 
     /// <summary>
     ///     Makes a step the active one: pauses, moves the playhead to the step's time, and keeps that step active

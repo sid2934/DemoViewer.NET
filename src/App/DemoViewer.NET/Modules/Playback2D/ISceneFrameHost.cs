@@ -29,7 +29,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///         App's panel view-models.
 ///     </para>
 /// </summary>
-internal interface ISceneFrameHost
+public interface ISceneFrameHost
 {
     /// <summary>
     ///     The frame to show. A stable reference until the next <see cref="FrameUpdated" />: the render
@@ -98,8 +98,8 @@ internal interface ISceneFrameHost
     ///     another). False sends the press on to the router, which is what a host with nothing to offer
     ///     always returns.
     /// </summary>
-    /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
-    bool TryPointerPreHandler(ScenePointer pointer) => false;
+    /// <param name="press">The press, resolved to a pane and world coordinates.</param>
+    bool TryPointerPreHandler(ScenePointer press) => false;
 
     /// <summary>Scene layers contributions added to this host's map, by id. Re-read on <see cref="ContributedLayersChanged" />.</summary>
     IReadOnlyList<KeyValuePair<string, Func<ISceneLayer>>> ContributedLayers => [];

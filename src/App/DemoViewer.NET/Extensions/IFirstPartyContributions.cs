@@ -58,7 +58,7 @@ public sealed record GatedDemoAction(DemoAction Action, string FeatureId)
 ///     not part of the public contract. The host's contribution collector implements it; a first-party
 ///     extension reaches it by casting the <see cref="IExtensionContributions" /> it is handed.
 /// </summary>
-internal interface IFirstPartyContributions : IExtensionContributions
+public interface IFirstPartyContributions : IExtensionContributions
 {
     /// <summary>An evaluator with the app's forward-pass and opportunistic hooks.</summary>
     void FirstPartyEvaluator(string id, Func<IDemoEvaluator> factory, params string[] after);
@@ -71,7 +71,7 @@ internal interface IFirstPartyContributions : IExtensionContributions
 ///     Shell state a first-party extension reads that the SDK does not publish: whether a Live Sync session or
 ///     a reel render holds the machine, which an export must not start beside. Resolved from the container.
 /// </summary>
-internal interface IFirstPartyShellState
+public interface IFirstPartyShellState
 {
     /// <summary>True while a Live Sync session is connected to the game.</summary>
     bool IsLiveSyncSessionActive { get; }
@@ -84,7 +84,7 @@ internal interface IFirstPartyShellState
 ///     The status-strip chip of a first-party export job. The host owns the chip: shown while the job runs
 ///     or until the user dismisses its result, and only while <c>featureId</c> is on.
 /// </summary>
-internal interface IFirstPartyExportChips
+public interface IFirstPartyExportChips
 {
     /// <summary>Mounts an export job's status under <paramref name="chipId" />, replacing what was mounted there.</summary>
     /// <param name="chipId">The chip's id. One chip per id.</param>

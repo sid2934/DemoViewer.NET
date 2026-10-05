@@ -21,7 +21,7 @@ public sealed record PackCommand(CommandDescriptor Command, string PackId, strin
 ///     each mapped to the id it has now. Override parsing reads them so a persisted row keyed by the old id
 ///     still applies. Never read from a third-party extension.
 /// </summary>
-internal interface ICommandAliases
+public interface ICommandAliases
 {
     /// <summary>Old id to current id. Each current id must be one of the extension's own commands.</summary>
     IReadOnlyDictionary<string, string> CommandAliases { get; }

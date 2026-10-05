@@ -630,7 +630,7 @@ public class Scene2DHostFrameHostTests
         public void ApplyAnnotationLevelRebuild(IReadOnlyDictionary<double, double> zMinMap) =>
             Rebuilds.Add(new Dictionary<double, double>(zMinMap));
 
-        public bool TryPointerPreHandler(ScenePointer pointer) => PointerPreHandler?.Invoke(pointer) ?? false;
+        public bool TryPointerPreHandler(ScenePointer press) => PointerPreHandler?.Invoke(press) ?? false;
 
         public List<KeyValuePair<string, Func<ISceneLayer>>> Layers { get; } = [];
 

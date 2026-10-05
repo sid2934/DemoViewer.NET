@@ -1297,8 +1297,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     lives in the pack): the pointer pre-handlers' turn. False when none takes it, and the press then
     ///     goes to the pointer tools.
     /// </summary>
-    /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
-    public bool TryPointerPreHandler(ScenePointer pointer) => Surface.TryHandlePointerPress(pointer);
+    /// <param name="press">The press, resolved to a pane and world coordinates.</param>
+    public bool TryPointerPreHandler(ScenePointer press) => Surface.TryHandlePointerPress(press);
 
     IReadOnlyList<KeyValuePair<string, Func<global::DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer>>> ISceneFrameHost.ContributedLayers =>
         Surface.Layers;
