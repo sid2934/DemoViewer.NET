@@ -53,9 +53,6 @@
              the per-layer perf report and the app's host tests read the stats. -->
         <InternalsVisibleTo Include="dv2d"/>
         <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
-        <!-- The strat canvas's frame source writes Scene2DFrame's internal fields directly,
-             the same pooled-refill pattern SceneFrameBuilder uses. -->
-        <InternalsVisibleTo Include="DemoViewer.NET.Extensions.StratBook"/>
     </ItemGroup>
 
 </Project>
