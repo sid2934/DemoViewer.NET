@@ -76,6 +76,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 |---|---|
 | `Tabs` | An `IWorkspaceModule` whose tabs join the strip. |
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
+| `RecordPass` | An `IExtensionRecordPass` that runs over what the library already holds for a demo, without a parse. |
 | `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind. |
 | `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
 | `SettingsPage` | A page under Settings, Extensions with controls of your own. |
@@ -106,6 +107,7 @@ when it names one.
   answers it when nothing usable is stored; `Set` writes only a change; `Changed` names the key on the UI
   thread. The browser build keeps them for the session.
 - `Data`: per-demo data the host keeps for you. See below.
+- `Library`: the demo library, read only. See "Reading the library".
 - `Storage`: files of your own in two folders the host keeps for you, one for the user's work and one for what
   you can rebuild. You name a file by its path under the folder (`StoreRoot.Config` or `StoreRoot.Cache`) and
   never see where the folder is. Write with `WriteAtomicAsync` and read with `ReadAsync`: the path must stay
@@ -144,6 +146,36 @@ IJobHandle handle = context.Jobs.Enqueue(JobRequest.OnDemo("Count frames", path,
     new JobOptions(Priority: JobPriority.UserRequested)));
 handle.Completed += result => Status = result.Status.ToString();
 ```
+
+## Reading the library
+
+`context.Library` is the Library's index as `LibraryDemo` rows: path, map, hash, server, source kind, scores,
+clans, player names, the players on each side, how far the demo has been read (`State`) and the facts written
+for it (`Facts`). `Demos`, `Find`, `FindBySha256` and `Query` read memory only and are safe on any thread; an
+unchanged demo is the same row instance on every read. `Changed` is raised on the UI thread with the demo's
+path, or with a null path when many demos changed at once, and says whether a demo was added, removed or
+updated, or only had its facts rewritten.
+
+`GetDetailAsync` reads one demo's record: the roster with slots and SteamIDs, and where each round starts. It
+reads no demo file. Off the UI thread it reads before it returns; on the UI thread it reads as a job.
+
+Work over many demos is a record pass, not a loop over `GetDetailAsync`. The host asks a record pass about a
+demo whenever the demo's row changes and when it re-checks the library, reads the record once for every pass
+that wants it, and runs it as a light job:
+
+```csharp
+contributions.RecordPass("dev.example.rosters", () => new RosterPass());
+
+sealed class RosterPass : IExtensionRecordPass
+{
+    public string Id => "dev.example.rosters";
+    public bool Wants(LibraryDemo demo) => demo.State >= LibraryDemoState.Parsed && !Seen(demo.FilePath);
+    public void Run(LibraryDemoDetail detail, CancellationToken ct) => Remember(detail.Demo.FilePath, detail.Players);
+}
+```
+
+A record pass runs again on a demo only when its row changes. One that throws is skipped for that demo for the
+rest of the session and counted against the extension.
 
 ## Settings
 
