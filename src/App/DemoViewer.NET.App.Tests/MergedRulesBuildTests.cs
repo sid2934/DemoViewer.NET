@@ -74,7 +74,7 @@ public class MergedRulesBuildTests
     // Order matters: the engine composes in read order, so the merged set must keep it.
     private static string Joined(IEnumerable<string> ids) => string.Join(",", ids);
 
-    private static ParsedDemo TwoFrameDemo() => SyntheticParsedDemo.Create(
+    internal static ParsedDemo TwoFrameDemo() => SyntheticParsedDemo.Create(
         [
             new DemoFrame { CommandKind = EDemoCommands.DemPacket, FrameNumber = 0, ServerTick = 1, HeaderLength = 0, RawLength = 0, RawStart = 0, IsCompressed = false },
             new DemoFrame { CommandKind = EDemoCommands.DemPacket, FrameNumber = 1, ServerTick = 500, HeaderLength = 0, RawLength = 0, RawStart = 0, IsCompressed = false }

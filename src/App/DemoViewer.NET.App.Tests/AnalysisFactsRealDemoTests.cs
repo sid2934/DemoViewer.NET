@@ -56,8 +56,8 @@ public class AnalysisFactsRealDemoTests
                                                 - { stat: no_such_stat, label: dangling }
                                         """;
 
-    // Loads cleanly and names a stat it does not declare in its show block, which the resolver does not
-    // check: the case that reaches the merged build.
+    // Loads cleanly and names a stat its show block does not declare, so it reaches the merged build and
+    // composition drops it there. It does not compose alone either, so it has no fingerprint and no stamp.
     [Test]
     public async Task ARulesetThatLoadsButCannotBuild_LeavesTheHighlightsAndRoundFactsWritten()
     {
@@ -102,7 +102,7 @@ public class AnalysisFactsRealDemoTests
                 await Assert.That(rules.Docs.Select(d => d.Id)).Contains("fixture_dangling").Because("it loads, so it reaches the build");
                 await Assert.That(pass.Run!.Highlights.Count).IsGreaterThan(0);
                 await Assert.That(library.RoundFacts.TryGet(path)?.Rounds.Count ?? 0).IsGreaterThan(0);
-                await Assert.That(library.Status(path, key)).IsNotEqualTo(FactStatus.Current);
+                await Assert.That(library.Status(path, key)).IsEqualTo(FactStatus.Absent).Because("a ruleset with no fingerprint is never stamped");
                 await Assert.That(rules.Fingerprint(64).Fingerprint).IsEqualTo(MergedRulesBuildTests.ShippedFingerprint64);
             }
         }
