@@ -59,6 +59,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private readonly DemoCacheStore? _demoCache;
     private readonly Dictionary<string, DemoEntry> _pendingFull = new(StringComparer.OrdinalIgnoreCase);
 
+    // Demos a reconcile added for indexing that no rescan has handed to tier 2 yet. A newer rescan that
+    // replaces one mid-flight finds them already in Entries, and indexes them from here rather than never.
+    private readonly HashSet<string> _awaitingIndex = new(StringComparer.OrdinalIgnoreCase);
+
     private readonly Action<Action> _post; // marshal to the UI thread (Dispatcher in-app; inline in tests)
 
     // When injected, AppSettings.Library.Folders is the folder source-of-truth (read on
@@ -513,6 +517,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 foreach (DemoEntry entry in needFull)
                 {
                     _pendingFull[entry.FilePath] = entry;
+                    _awaitingIndex.Remove(entry.FilePath);
                 }
 
                 toConsider = [.. _pendingFull.Values];
@@ -551,6 +556,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             {
                 ct.ThrowIfCancellationRequested();
                 await Task.Run(() => IndexTier2Inline(entry), ct);
+                lock (_tier2Lock)
+                {
+                    _awaitingIndex.Remove(entry.FilePath);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -983,6 +992,23 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     kept.DuplicateFolders = dupFolders;
                 }
 
+                // Still owed its indexing: a rescan this one replaced added it, or its tier 2 has not run.
+                bool owed;
+                lock (_tier2Lock)
+                {
+                    owed = _awaitingIndex.Contains(path) || _pendingFull.ContainsKey(path);
+                }
+
+                if (owed)
+                {
+                    if (kept.MapName is null)
+                    {
+                        needMap.Add(kept);
+                    }
+
+                    needFull.Add(kept);
+                }
+
                 continue;
             }
 
@@ -1027,6 +1053,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             if (entry.State != DemoIndexState.Indexed || cached is not { ScoreComputed: true })
             {
                 needFull.Add(entry);
+                lock (_tier2Lock)
+                {
+                    _awaitingIndex.Add(path);
+                }
             }
         }
 
