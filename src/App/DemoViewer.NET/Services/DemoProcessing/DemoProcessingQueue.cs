@@ -88,6 +88,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private bool _paused;
     private long _seq;
 
+    // The demo of the heavy item that started last: its remaining work goes before other demos'.
+    private string? _lastStartedPath;
+
     /// <param name="gate">The machine-wide heavy-parse gate (concurrency backstop + reel/interactive).</param>
     /// <param name="post">Marshals mirror mutations to the UI thread (inline in tests).</param>
     /// <param name="parseFile">
@@ -877,6 +880,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 existing.DisplayName = request.Title;
                 existing.Priority = (DemoJobPriority)Math.Max((int)existing.Priority, (int)request.Priority);
+                existing.JobLevel = (PassLevel)Math.Max((int)existing.JobLevel, (int)JobLevelOf(request));
                 existing.OrderHint = Math.Max(existing.OrderHint, request.OrderHint);
                 if (request.ReplacePending)
                 {
@@ -900,6 +904,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         return handle;
     }
 
+    private static PassLevel JobLevelOf(QueueJobRequest request) =>
+        request.Level ?? (request.Priority >= DemoJobPriority.UserRequested ? PassLevel.UserRequested : PassLevel.Background);
+
     private Entry SubmitJobLocked(QueueJobRequest request)
     {
         Entry entry = new()
@@ -912,6 +919,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             Path = request.Target ?? "",
             DisplayName = request.Title,
             Priority = request.Priority,
+            JobLevel = JobLevelOf(request),
             OrderHint = request.OrderHint,
             Seq = _seq++,
             Preemptible = request.Preemptible,
@@ -1832,6 +1840,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     // while it runs, even after it hands its slot back.
     private Entry? NextStartableLocked(bool light)
     {
+        string? resident = LoadedPathLocked();
         Entry? best = null;
         bool anyRunning = false, jobRunning = false, opening = false;
         int userRunning = 0;
@@ -1854,7 +1863,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 userRunning += e.Priority >= DemoJobPriority.UserRequested ? 1 : 0;
                 jobRunning |= e.Kind != QueueJobKind.DemoProcessing;
             }
-            else if (IsStartableLocked(e) && (best is null || Compare(e, best) < 0))
+            else if (IsStartableLocked(e) && (best is null || Compare(e, best, resident) < 0))
             {
                 best = e;
             }
@@ -1877,6 +1886,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (best is not null)
         {
             best.State = DemoQueueItemState.Running;
+            if (!light && best.Path.Length > 0)
+            {
+                _lastStartedPath = best.Path;
+            }
+
             CancelDeferredCompactLocked();
         }
 
@@ -2137,8 +2151,25 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         return false;
     }
 
-    // Negative when a runs before b. A compaction goes first: it is due now, and it holds _compacting.
-    private int Compare(Entry a, Entry b)
+    // Under _sync. The shell's loaded demo, whose work runs on the parse it already holds.
+    private string? LoadedPathLocked()
+    {
+        try
+        {
+            return ShellDemo?.LoadedPath;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            AppLog.QueueOwnerHandlerFailed(DiagLog, ex);
+            return null;
+        }
+    }
+
+    // Negative when a runs before b. A compaction goes first: it is due now, and it holds _compacting. Then the
+    // level (a user's request, the open demo's passes, the backlog, background), then a demo already in memory,
+    // then the demo the last heavy item was about, so one demo's work runs back to back, then the kind's rank,
+    // the order hint and arrival.
+    private int Compare(Entry a, Entry b, string? resident)
     {
         bool aCompacts = a.Kind == QueueJobKind.HeapCompaction, bCompacts = b.Kind == QueueJobKind.HeapCompaction;
         if (aCompacts != bCompacts)
@@ -2157,10 +2188,27 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return b.Priority.CompareTo(a.Priority);
         }
 
+        if (a.Level != b.Level)
+        {
+            return b.Level.CompareTo(a.Level);
+        }
+
         // A preempted item resumes before anything else of its priority.
         if (a.Requeued != b.Requeued)
         {
             return a.Requeued ? -1 : 1;
+        }
+
+        int byResident = SamePathFirst(a, b, resident);
+        if (byResident != 0)
+        {
+            return byResident;
+        }
+
+        int byGroup = SamePathFirst(a, b, _lastStartedPath);
+        if (byGroup != 0)
+        {
+            return byGroup;
         }
 
         int rank = _jobKinds.Rank(a.Kind, a.ExtensionKind).CompareTo(_jobKinds.Rank(b.Kind, b.ExtensionKind));
@@ -2170,6 +2218,17 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
 
         return a.OrderHint != b.OrderHint ? b.OrderHint.CompareTo(a.OrderHint) : a.Seq.CompareTo(b.Seq);
+    }
+
+    private static int SamePathFirst(Entry a, Entry b, string? path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return 0;
+        }
+
+        bool aMatches = PathEquals(a.Path, path), bMatches = PathEquals(b.Path, path);
+        return aMatches == bMatches ? 0 : aMatches ? -1 : 1;
     }
 
     private static void CancelQuietly(CancellationTokenSource? cancel)
@@ -2344,6 +2403,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         public required string Path { get; init; }
         public string? DisplayName { get; set; }
         public DemoJobPriority Priority { get; set; }
+
+        // A job's place among items of its priority; a visit takes its own level.
+        public PassLevel JobLevel { get; set; }
+
+        public PassLevel Level => Visit?.Level ?? JobLevel;
         public long OrderHint { get; set; }
         public long Seq { get; init; }
         public DemoQueueItemState State { get; set; } = DemoQueueItemState.Queued;

@@ -5130,6 +5130,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             shell._heldDemo is { } held && string.Equals(held.Path, path, StringComparison.OrdinalIgnoreCase)
                 ? shell._holds.Hold(held.Parsed)
                 : null;
+
+        public string? LoadedPath => shell._heldDemo?.Path;
     }
 
     // Counts the queue's holds on the loaded parse; a close awaits the count reaching zero.

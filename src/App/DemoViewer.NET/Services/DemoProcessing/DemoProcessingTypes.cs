@@ -190,6 +190,11 @@ public interface IQueueJobContext
 /// </param>
 /// <param name="Serial">Items sharing it never run at the same time; one runs, the rest wait.</param>
 /// <param name="ExtensionKind">With <see cref="QueueJobKind.Extension" />, the declared kind id that labels and ranks the item.</param>
+/// <param name="Level">
+///     Where it sits among items of its <paramref name="Priority" />: <see cref="PassLevel.Backlog" /> runs ahead of
+///     other background work. Null takes <see cref="PassLevel.UserRequested" /> for a user's item and
+///     <see cref="PassLevel.Background" /> otherwise.
+/// </param>
 public sealed record QueueJobRequest(
     QueueJobKind Kind,
     string Title,
@@ -202,7 +207,8 @@ public sealed record QueueJobRequest(
     bool ReplacePending = false,
     bool Preemptible = true,
     string? Serial = null,
-    string? ExtensionKind = null);
+    string? ExtensionKind = null,
+    PassLevel? Level = null);
 
 /// <summary>
 ///     An immutable, thread-safe snapshot of one queue item (for code/tests that must read state
@@ -249,6 +255,9 @@ public interface IShellDemoLease
     ///     disposes the hold when its passes are done.
     /// </summary>
     IHeldParse? TryHold(string path);
+
+    /// <summary>The loaded demo's path without taking a hold, or null. Read under the queue's lock: no work, no locks.</summary>
+    string? LoadedPath => null;
 }
 
 /// <summary>A hold on the shell's parse: the parse stays loaded until this is disposed.</summary>
