@@ -13,7 +13,6 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
@@ -87,7 +86,7 @@ public sealed class StratExportJob : IExportRunner
     private static readonly ConditionalWeakTable<AnnotationSession, StratExportCapture> _captures = new();
 
     private readonly ExportEncoding _encoding;
-    private readonly Func<string?, LoadedMapAsset?> _mapLoader;
+    private readonly Func<string?, IMapAsset?> _mapLoader;
     private readonly Func<IRenderSurfaceProvider> _surfaces;
 
     /// <summary>Creates the job.</summary>
@@ -101,7 +100,7 @@ public sealed class StratExportJob : IExportRunner
     ///     lets a test take the managed GIF floor on a machine that has ffmpeg on PATH.
     /// </param>
     public StratExportJob(
-        Func<string?, LoadedMapAsset?> mapLoader,
+        Func<string?, IMapAsset?> mapLoader,
         Func<IRenderSurfaceProvider>? surfaces = null,
         Func<string?>? managedFfmpegDirectory = null,
         Action<string>? log = null,
@@ -190,7 +189,7 @@ public sealed class StratExportJob : IExportRunner
     /// <param name="endTick">Last strat tick, inclusive.</param>
     /// <param name="fps">Output frame rate.</param>
     /// <param name="speed">Playback-rate multiplier.</param>
-    public static StratSceneSpec BuildSpec(StratExportCapture capture, LoadedMapAsset? asset, int startTick,
+    public static StratSceneSpec BuildSpec(StratExportCapture capture, IMapAsset? asset, int startTick,
         int endTick, int fps, double speed)
     {
         ArgumentNullException.ThrowIfNull(capture);
@@ -199,8 +198,8 @@ public sealed class StratExportJob : IExportRunner
         // SectionHeights null and the bundle's bounds, the canvas's own spec: the canvas and the file draw the
         // same frames, and the bundle's floors reach the export through AuthoritativeFloors instead.
         return new StratSceneSpec(capture.Tracks, projection.Schedule, capture.Ink, projection.Labels,
-            capture.MapName, asset is null ? [] : MapAssetPipeline.DescribeRadars(asset),
-            asset is null ? capture.FallbackBounds : MapAssetPipeline.RadarBounds(asset), null,
+            capture.MapName, asset is null ? [] : asset.DescribeRadars(),
+            asset is null ? capture.FallbackBounds : asset.RadarBounds, null,
             projection.Utility, projection.RoundSeconds, startTick, endTick, fps, speed)
         {
             Routes = projection.Routed,
@@ -221,7 +220,7 @@ public sealed class StratExportJob : IExportRunner
 
         (FfmpegLocation ffmpeg, EncoderSelection? encoder) = _encoding.Resolve(request, ct);
 
-        using LoadedMapAsset? asset = SafeLoad(capture.MapName);
+        using IMapAsset? asset = SafeLoad(capture.MapName);
 
         // The dialog's range is in strat ticks: DemoStartFrame and DemoEndFrame carry them, and the dialog sized
         // the request with StratFrameSource.OutputFrameCount, the source's own arithmetic.
@@ -245,14 +244,14 @@ public sealed class StratExportJob : IExportRunner
             Palette = request.Palette ?? ScenePalette.Dark,
             DisplayMode = LevelDisplayMode.Stacked,
             AuthoritativeFloors = asset?.Floors,
-            RadarBinder = asset is null ? null : new MapRadarBinder(asset)
+            RadarBinder = asset is null ? null : asset.CreateRadarBinder()
         };
 
         IFrameSink sink = _encoding.BuildSink(request, core, ffmpeg, encoder);
         await session.RunAsync(core, source, sink, surfaces, progress, ct).ConfigureAwait(false);
     }
 
-    private LoadedMapAsset? SafeLoad(string map)
+    private IMapAsset? SafeLoad(string map)
     {
         try
         {

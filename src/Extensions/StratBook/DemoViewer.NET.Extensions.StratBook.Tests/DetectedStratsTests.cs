@@ -5,6 +5,7 @@ using Avalonia.Headless;
 using System.Text.RegularExpressions;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Services.Review;
@@ -190,9 +191,9 @@ public class DetectedStratsTests
         int steps = preview.Document!.Steps.Count;
 
         // What a user can reach on the preview's canvas: keys and step edits are swallowed, not applied.
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.AddStep)).IsTrue();
-        canvas.ExecuteAction(Playback2DAction.DeleteStep);
-        canvas.ExecuteAction(Playback2DAction.Undo);
+        await Assert.That(canvas.ExecuteAction(StratBookActions.AddStep)).IsTrue();
+        canvas.ExecuteAction(StratBookActions.DeleteStep);
+        canvas.ExecuteAction(nameof(Playback2DAction.Undo));
         canvas.PlaceTokensCommand.Execute(null);
 
         using (Assert.Multiple())

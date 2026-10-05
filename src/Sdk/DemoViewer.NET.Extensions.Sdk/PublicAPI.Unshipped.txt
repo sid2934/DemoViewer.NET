@@ -842,16 +842,13 @@ DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ZMin.get -> double
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackLevel.ZMin.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment!
-DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Deconstruct(out int Tick, out int FrameIndex) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Equals(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment? other) -> bool
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.FrameIndex.get -> int
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.FrameIndex.init -> void
-DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.PlaybackMoment(int Tick, int FrameIndex) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Tick.get -> int
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Tick.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer!
-DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Deconstruct(out string? Level, out double WorldX, out double WorldY, out double ScreenX, out double ScreenY, out Avalonia.Input.KeyModifiers Modifiers, out int Tick, out System.Func<string?>! PlaceAt) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Equals(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer? other) -> bool
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Level.get -> string?
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Level.init -> void
@@ -859,7 +856,6 @@ DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Modifiers.get -> Avalonia
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Modifiers.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaceAt.get -> System.Func<string?>!
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaceAt.init -> void
-DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaybackPointer(string? Level, double WorldX, double WorldY, double ScreenX, double ScreenY, Avalonia.Input.KeyModifiers Modifiers, int Tick, System.Func<string?>! PlaceAt) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenX.get -> double
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenX.init -> void
 DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.ScreenY.get -> double
@@ -1532,3 +1528,118 @@ static DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.operator !=(DemoViewer.N
 static DemoViewer.NET.Extensions.Sdk.StoreInventoryItem.operator ==(DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? left, DemoViewer.NET.Extensions.Sdk.StoreInventoryItem? right) -> bool
 static readonly DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Empty -> DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory!
 static readonly DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.NotRun -> DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult!
+DemoViewer.NET.Extensions.Sdk.CommandScope
+DemoViewer.NET.Extensions.Sdk.CommandScope.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.CommandScope!
+DemoViewer.NET.Extensions.Sdk.CommandScope.CommandScope(string! Id, string! Label) -> void
+DemoViewer.NET.Extensions.Sdk.CommandScope.Deconstruct(out string! Id, out string! Label) -> void
+DemoViewer.NET.Extensions.Sdk.CommandScope.Equals(DemoViewer.NET.Extensions.Sdk.CommandScope? other) -> bool
+DemoViewer.NET.Extensions.Sdk.CommandScope.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.CommandScope.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandScope.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.CommandScope.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.HubTabContribution!
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Deconstruct(out string! Id, out string! Header, out int Order, out string! RailLabel, out string? FeatureId) -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Equals(DemoViewer.NET.Extensions.Sdk.HubTabContribution? other) -> bool
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.FeatureId.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Header.get -> string!
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Header.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.HubTabContribution(string! Id, string! Header, int Order, string! RailLabel, string? FeatureId = null) -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Order.get -> int
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Order.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.RailLabel.get -> string!
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.RailLabel.init -> void
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Session.get -> DemoViewer.NET.Extensions.Sdk.IExtensionSessionState?
+DemoViewer.NET.Extensions.Sdk.HubTabContribution.Session.init -> void
+DemoViewer.NET.Extensions.Sdk.IExtension.CommandScopes.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandScope!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.HubTab(DemoViewer.NET.Extensions.Sdk.HubTabContribution! hub) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.StatusChip(DemoViewer.NET.Extensions.Sdk.StatusChipContribution! chip) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionSessionState
+DemoViewer.NET.Extensions.Sdk.IExtensionSessionState.Restore(System.Text.Json.JsonElement state) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionSessionState.Snapshot() -> System.Text.Json.JsonElement?
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemo.get -> CS2DemoKit.Parser.ParsedDemo?
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentDemoHash.get -> string?
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.CurrentTick.get -> int
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.IsPlaying.get -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.PlayheadChanged -> System.Action?
+DemoViewer.NET.Extensions.Sdk.IExtensionViewModel
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.DotState.get -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.FlyoutContent.get -> object?
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.IsHollow.get -> bool
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.IsPulsing.get -> bool
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.IsShown.get -> bool
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.PrimaryAction.get -> System.Windows.Input.ICommand?
+DemoViewer.NET.Extensions.Sdk.IStatusChipSource.Tooltip.get -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.ActionFor(string! scope, Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddTool(DemoViewer.NET.Playback2D.Core.Tools.IMapTool! tool) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.PlaceAt(string? level, double worldX, double worldY) -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.Places.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.PlacesVersion.get -> string?
+DemoViewer.NET.Extensions.Sdk.Playback.ITimelineTrack.BuildMarks(DemoViewer.NET.Extensions.Sdk.Playback.ITimelineData! data) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark!>!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Deconstruct(out int Tick, out int FrameIndex, out DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Frame.get -> DemoViewer.NET.Playback2D.Core.Scene2DFrame!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.Frame.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackMoment.PlaybackMoment(int Tick, int FrameIndex, DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Deconstruct(out string? Level, out double WorldX, out double WorldY, out double ScreenX, out double ScreenY, out Avalonia.Input.KeyModifiers Modifiers, out int Tick, out System.Func<string?>! PlaceAt, out DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Frame.get -> DemoViewer.NET.Playback2D.Core.Scene2DFrame!
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.Frame.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.PlaybackPointer.PlaybackPointer(string? Level, double WorldX, double WorldY, double ScreenX, double ScreenY, Avalonia.Input.KeyModifiers Modifiers, int Tick, System.Func<string?>! PlaceAt, DemoViewer.NET.Playback2D.Core.Scene2DFrame! Frame) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Argb.get -> uint
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Argb.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Deconstruct(out int FrameIndex, out int Tick, out string! Glyph, out string! Tooltip, out uint Argb) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Equals(DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.FrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.FrameIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Glyph.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Glyph.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Tick.get -> int
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Tick.init -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.TimelineMark(int FrameIndex, int Tick, string! Glyph, string! Tooltip, uint Argb) -> void
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Tooltip.get -> string!
+DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Tooltip.init -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.StatusChipContribution!
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Deconstruct(out string! Id, out DemoViewer.NET.Extensions.Sdk.IStatusChipSource! Source, out string? FeatureId) -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Equals(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? other) -> bool
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.FeatureId.init -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Source.get -> DemoViewer.NET.Extensions.Sdk.IStatusChipSource!
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Source.init -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipContribution.StatusChipContribution(string! Id, DemoViewer.NET.Extensions.Sdk.IStatusChipSource! Source, string? FeatureId = null) -> void
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Degraded = 3 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Error = 4 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Good = 2 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Off = 0 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.StatusChipDotState.Working = 1 -> DemoViewer.NET.Extensions.Sdk.StatusChipDotState
+const DemoViewer.NET.Extensions.Sdk.HostIds.StratBookHub = "stratbook.hub" -> string!
+override DemoViewer.NET.Extensions.Sdk.CommandScope.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.CommandScope.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.CommandScope.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.HubTabContribution.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.HubTabContribution.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.HubTabContribution.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.StatusChipContribution.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.StatusChipContribution.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.StatusChipContribution.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.CommandScope.operator !=(DemoViewer.NET.Extensions.Sdk.CommandScope? left, DemoViewer.NET.Extensions.Sdk.CommandScope? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.CommandScope.operator ==(DemoViewer.NET.Extensions.Sdk.CommandScope? left, DemoViewer.NET.Extensions.Sdk.CommandScope? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.HubTabContribution.operator !=(DemoViewer.NET.Extensions.Sdk.HubTabContribution? left, DemoViewer.NET.Extensions.Sdk.HubTabContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.HubTabContribution.operator ==(DemoViewer.NET.Extensions.Sdk.HubTabContribution? left, DemoViewer.NET.Extensions.Sdk.HubTabContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.StatusChipContribution.operator !=(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? left, DemoViewer.NET.Extensions.Sdk.StatusChipContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.StatusChipContribution.operator ==(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? left, DemoViewer.NET.Extensions.Sdk.StatusChipContribution? right) -> bool

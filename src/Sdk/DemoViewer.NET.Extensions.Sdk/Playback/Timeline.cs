@@ -33,7 +33,15 @@ public interface ITimelineData
 /// <param name="Argb">Its colour, 0xAARRGGBB.</param>
 public sealed record TimelineBand(int StartFrameIndex, int EndFrameIndex, string Label, string Tooltip, uint Argb);
 
-/// <summary>What a lane draws. Raise <see cref="Changed" /> when its bands change.</summary>
+/// <summary>A glyph a lane draws on the timeline at one frame.</summary>
+/// <param name="FrameIndex">Its frame.</param>
+/// <param name="Tick">Its tick.</param>
+/// <param name="Glyph">The glyph.</param>
+/// <param name="Tooltip">Its tooltip.</param>
+/// <param name="Argb">Its colour, 0xAARRGGBB.</param>
+public sealed record TimelineMark(int FrameIndex, int Tick, string Glyph, string Tooltip, uint Argb);
+
+/// <summary>What a lane draws. Raise <see cref="Changed" /> when its bands or marks change.</summary>
 public interface ITimelineTrack
 {
     /// <summary>Unique within the tab.</summary>
@@ -47,6 +55,9 @@ public interface ITimelineTrack
 
     /// <summary>The bands for the open demo.</summary>
     IReadOnlyList<TimelineBand> BuildBands(ITimelineData data);
+
+    /// <summary>The marks for the open demo; none unless a track draws them.</summary>
+    IReadOnlyList<TimelineMark> BuildMarks(ITimelineData data) => Array.Empty<TimelineMark>();
 
     /// <summary>Raised when the bands should be built again.</summary>
     event Action? Changed;

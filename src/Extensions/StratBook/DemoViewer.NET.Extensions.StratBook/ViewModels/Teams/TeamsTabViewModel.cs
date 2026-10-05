@@ -6,7 +6,6 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels;
@@ -25,7 +24,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 ///         service and sanitized here, at the render boundary, like every player name.
 ///     </para>
 /// </summary>
-public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     private readonly IExtensionLibrary _library;
     private readonly Func<string, Task>? _openDemo;

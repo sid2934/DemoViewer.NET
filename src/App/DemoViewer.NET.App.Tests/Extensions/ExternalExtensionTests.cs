@@ -60,7 +60,7 @@ public class ExternalExtensionTests
     }
 
     [Test]
-    public async Task TheSample_IsBuiltAgainstTheSdkAlone()
+    public async Task TheSample_IsBuiltAgainstTheSdkPackagesAlone()
     {
         string sample = Path.Combine(SampleOutput(), "HelloExtension.dll");
         string[] references =
@@ -70,7 +70,8 @@ public class ExternalExtensionTests
                 .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal))
         ];
 
-        await Assert.That(references).IsEquivalentTo(["DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Modules.Abstractions"],
+        await Assert.That(references).IsEquivalentTo(["DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Extensions.Sdk.Ui",
+                "DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.Playback2D.Scene"],
             TUnit.Assertions.Enums.CollectionOrdering.Any);
     }
 
@@ -282,8 +283,18 @@ public class ExternalExtensionTests
                 PackContributions contributed = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
                     .GetRequiredService<PackContributionSet>(provider).Packs.Single();
 
-                Modules.Abstractions.WorkspaceTabDescriptor tab = contributed.Modules.Single().CreateTabs(new NoHost()).Single();
+                Modules.Abstractions.WorkspaceTabDescriptor[] tabs =
+                    [.. contributed.Modules.Single(m => m.Id == "dev.example.hello.tabs").CreateTabs(new NoHost())];
+                Modules.Abstractions.WorkspaceTabDescriptor tab = tabs.Single(t => t.TabId == "hello.tab");
                 Avalonia.Controls.Control view = tab.ViewFactory();
+                Avalonia.Controls.Control map = tabs.Single(t => t.TabId == "hello.map").ViewFactory();
+
+                // Its 2D Playback contribution draws on the tab's map under the extension's own id root.
+                (Modules.Playback2D.Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
+                IPlaybackContribution playback = contributed.PlaybackContributions.Single();
+                playback.Attach(vm.Surface, ctx);
+                string[] layers = [.. vm.Surface.Layers.Select(l => l.Key)];
+                playback.Detach();
 
                 using (Assert.Multiple())
                 {
@@ -294,13 +305,104 @@ public class ExternalExtensionTests
                     await Assert.That(contributed.DemoActions.Single().FeatureId).IsEqualTo("pack.hello")
                         .Because("an action with no feature of its own shows under the extension's master switch");
                     await Assert.That(contributed.PlaybackContributions.Single()).IsTypeOf<SdkPlaybackContribution>();
+                    await Assert.That(map).IsTypeOf<global::DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView>()
+                        .Because("the UI kit resolves from the app, so the extension embeds the host's own map view");
+                    await Assert.That(layers).IsEquivalentTo(["ext.dev.example.hello.rings"]);
+                    await Assert.That(vm.Surface.Layers).IsEmpty().Because("the detach took the layer with it");
+                    await Assert.That(contributed.HubTabs.Single().Id).IsEqualTo("hello.hub");
+                    await Assert.That(contributed.StatusChips.Single().FeatureId).IsEqualTo("pack.hello");
                 }
+
+                vm.Dispose();
             });
         }
         finally
         {
             Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, previous);
             Cleanup(root);
+        }
+    }
+
+    // The sample joins the one keymap as a third-party extension: its prefixed command takes a free chord
+    // beside the shipped extension's, the key's id runs its toolbar button, and with the extension off the
+    // chord resolves to nothing and the id reaches no one.
+    [Test]
+    [NotInParallel]
+    public async Task TheSamplesCommand_JoinsTheKeymap_RunsItsButton_AndGoesWhenTheExtensionIsOff()
+    {
+        const string where = HelloId + ".where";
+        string root = NewRoot();
+        string? previous = Environment.GetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar);
+        try
+        {
+            Install(root);
+            IExtension hello = Resolve(root, allowUnverified: true).Loaded.Single().Pack;
+
+            CommandRegistry registry = CommandRegistry.Build([new global::DemoViewer.NET.Extensions.StratBook.StratBookPack(), hello]);
+            using (Assert.Multiple())
+            {
+                await Assert.That(registry.Conflicts).IsEmpty();
+                await Assert.That(Modules.Playback2D.Playback2DKeymap.FindConflicts(registry.EffectiveBindings,
+                    Modules.Playback2D.Playback2DKeymap.ReservedGestures(true))).IsEmpty();
+                await Assert.That(registry.ActionIds).Contains(where);
+                await Assert.That(registry.TryResolve(Avalonia.Input.Key.H, Avalonia.Input.KeyModifiers.Shift, "playback2d",
+                    _ => true, out CommandDescriptor? on)).IsTrue();
+                await Assert.That(on!.Id).IsEqualTo(where);
+                await Assert.That(registry.TryResolve(Avalonia.Input.Key.H, Avalonia.Input.KeyModifiers.Shift, "playback2d",
+                    id => id != "pack.hello", out _)).IsFalse();
+            }
+
+            Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, root);
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                Microsoft.Extensions.DependencyInjection.ServiceCollection services =
+                    App.ComposeServices(new Services.DesktopWindowService(() => null), [hello]);
+                using Microsoft.Extensions.DependencyInjection.ServiceProvider provider =
+                    Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
+                PackContributions contributed = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetRequiredService<PackContributionSet>(provider).Packs.Single();
+
+                SwitchableGate gate = new();
+                PlaybackContributionHost host = new([(hello, contributed.PlaybackContributions)], gate);
+                (Modules.Playback2D.Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab(contributions: host);
+
+                await Assert.That(vm.ExecuteAction(where)).IsTrue().Because("the id runs the button that names it");
+
+                gate.Set("pack.hello", false);
+                await Assert.That(vm.ExecuteAction(where)).IsFalse().Because("off, nothing of the extension answers");
+
+                vm.Dispose();
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, previous);
+            Cleanup(root);
+        }
+    }
+
+    private sealed class SwitchableGate : Features.IFeatureGate
+    {
+        private readonly HashSet<string> _off = [];
+
+        public Configuration.UserCategory Category => Configuration.UserCategory.Developer;
+        public int HiddenCount => 0;
+        public bool IsEnabled(string featureId) => !_off.Contains(featureId);
+
+        public event EventHandler? Changed;
+
+        public void Set(string featureId, bool on)
+        {
+            if (on)
+            {
+                _off.Remove(featureId);
+            }
+            else
+            {
+                _off.Add(featureId);
+            }
+
+            Changed?.Invoke(this, EventArgs.Empty);
         }
     }
 

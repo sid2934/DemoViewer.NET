@@ -6,12 +6,34 @@ using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
 namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
+
+/// <summary>The palette's keys: the action a key is bound to in the palette's scope, and an action's gesture text.</summary>
+/// <param name="ActionFor">The palette-scope action for a key, or null.</param>
+/// <param name="GestureText">An action's gesture, such as <c>"Ctrl+Z"</c>; empty when unbound.</param>
+public sealed record PaletteKeymap(Func<Key, KeyModifiers, string?> ActionFor, Func<string, string> GestureText)
+{
+    /// <summary>The shipped keymap's palette keys.</summary>
+    public static PaletteKeymap Default { get; } = From(Playback2DKeymapProfile.Default);
+
+    /// <summary>The palette keys under a resolved keymap profile.</summary>
+    /// <param name="keymap">The profile.</param>
+    public static PaletteKeymap From(Playback2DKeymapProfile keymap)
+    {
+        ArgumentNullException.ThrowIfNull(keymap);
+        return new PaletteKeymap(
+            (key, modifiers) => keymap.TryResolveInScope(StratBookActions.PaletteScope, key, modifiers, out string? action)
+                ? action
+                : null,
+            keymap.GestureText);
+    }
+}
 
 /// <summary>One palette button as the panel shows it: its hotkey parsed once, its caption and its colour.</summary>
 public sealed class TagPaletteButtonViewModel
@@ -86,7 +108,7 @@ public sealed class TagPaletteButtonViewModel
 ///         the playhead that started last, so with overlapping tags the most recent one is labelled.
 ///         The panels start where the target's code leads (its button's <c>then</c>), else at the first
 ///         labels panel, follow each panel's <c>then</c> and come back to the start when the chain ends;
-///         <see cref="Playback2DAction.TagLabelGroupNext" /> walks every labels panel for a group no chain
+///         <see cref="StratBookActions.TagLabelGroupNext" /> walks every labels panel for a group no chain
 ///         reaches. Each label is its own undoable edit, like a note or a click on a written tag. Sticky
 ///         labels are neither applied nor set: a second pass says exactly what it presses.
 ///     </para>
@@ -109,7 +131,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _isFocused;
 
-    private Playback2DKeymapProfile _keymap = Playback2DKeymapProfile.Default;
+    private PaletteKeymap _keymap = PaletteKeymap.Default;
 
     // Label Mode's target as last shown, so a playhead move that keeps the same tag leaves the panel alone,
     // and its line as last raised, so the per-frame refresh raises nothing while the line stands still.
@@ -219,14 +241,14 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
 
     /// <summary>The palette's keys from the resolved keymap, so a rebind shows the user's gesture.</summary>
     public string HintText => IsLabelMode
-        ? $"{Gesture(Playback2DAction.TagLabelMode)} back to tagging · "
-          + $"{Gesture(Playback2DAction.TagLabelGroupNext)} next group · "
-          + $"{Gesture(Playback2DAction.TagPaletteBack)} drop the pick, then leave · "
-          + $"{Gesture(Playback2DAction.Undo)} undo · click a tag's band: label it, again: the next one there"
-        : $"{Gesture(Playback2DAction.FocusTagPalette)} focus · {Gesture(Playback2DAction.TagPaletteBack)} back · "
-          + $"{Gesture(Playback2DAction.TagNote)} note · {Gesture(Playback2DAction.TagClearSticky)} clear sticky · "
-          + $"{Gesture(Playback2DAction.TagLabelMode)} label mode · "
-          + $"{Gesture(Playback2DAction.Undo)} undo · click map: point, again: movement";
+        ? $"{Gesture(StratBookActions.TagLabelMode)} back to tagging · "
+          + $"{Gesture(StratBookActions.TagLabelGroupNext)} next group · "
+          + $"{Gesture(StratBookActions.TagPaletteBack)} drop the pick, then leave · "
+          + $"{Gesture(nameof(Playback2DAction.Undo))} undo · click a tag's band: label it, again: the next one there"
+        : $"{Gesture(StratBookActions.FocusTagPalette)} focus · {Gesture(StratBookActions.TagPaletteBack)} back · "
+          + $"{Gesture(StratBookActions.TagNote)} note · {Gesture(StratBookActions.TagClearSticky)} clear sticky · "
+          + $"{Gesture(StratBookActions.TagLabelMode)} label mode · "
+          + $"{Gesture(nameof(Playback2DAction.Undo))} undo · click map: point, again: movement";
 
     /// <summary>Raised when the user picks a palette, with its id, so the tab can persist the choice.</summary>
     public event Action<string>? PaletteChosen;
@@ -250,10 +272,10 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Pushes the tab's resolved keymap in, for <see cref="TryHandleKey" /> and the hint line.</summary>
-    /// <param name="keymap">The profile the tab routes through.</param>
-    public void ApplyKeymap(Playback2DKeymapProfile keymap)
+    /// <param name="keymap">The palette's keys under the keymap the tab routes through.</param>
+    public void ApplyKeymap(PaletteKeymap keymap)
     {
-        _keymap = keymap ?? Playback2DKeymapProfile.Default;
+        _keymap = keymap ?? PaletteKeymap.Default;
         OnPropertyChanged(nameof(HintText));
     }
 
@@ -291,8 +313,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
             return false;
         }
 
-        if (_keymap.TryResolveInScope(Playback2DBindingScope.WhenPaletteFocused, key, modifiers,
-                out Playback2DAction action))
+        if (_keymap.ActionFor(key, modifiers) is { } action)
         {
             return Execute(action);
         }
@@ -310,13 +331,13 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
 
     /// <summary>Runs one of the palette-scoped keymap actions. False for any other action.</summary>
     /// <param name="action">The action.</param>
-    public bool Execute(Playback2DAction action) => action switch
+    public bool Execute(string action) => action switch
     {
-        Playback2DAction.TagPaletteBack => Back(),
-        Playback2DAction.TagNote => BeginNote(),
-        Playback2DAction.TagClearSticky => ClearSticky(),
-        Playback2DAction.TagLabelMode => ToggleLabelMode(),
-        Playback2DAction.TagLabelGroupNext => NextLabelGroup(),
+        StratBookActions.TagPaletteBack => Back(),
+        StratBookActions.TagNote => BeginNote(),
+        StratBookActions.TagClearSticky => ClearSticky(),
+        StratBookActions.TagLabelMode => ToggleLabelMode(),
+        StratBookActions.TagLabelGroupNext => NextLabelGroup(),
         _ => false
     };
 
@@ -926,7 +947,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     private TagInstance? LastInstance() =>
         _lastId is { } id ? _session.Document?.Instances.FirstOrDefault(i => i.Id == id) : null;
 
-    private string Gesture(Playback2DAction action) =>
+    private string Gesture(string action) =>
         _keymap.GestureText(action) is { Length: > 0 } text ? text : "unbound";
 
     private static string Describe(TagInstance instance)

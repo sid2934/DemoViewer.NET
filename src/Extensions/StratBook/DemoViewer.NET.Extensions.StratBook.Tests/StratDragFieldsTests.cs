@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
@@ -65,9 +66,9 @@ public class StratDragFieldsTests
     {
         string after = Json(session);
         await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.Undo)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsTrue();
         await Assert.That(Json(session)).IsEqualTo(before);
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.Redo)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Redo))).IsTrue();
         await Assert.That(Json(session)).IsEqualTo(after);
     }
 
@@ -377,7 +378,7 @@ public class StratDragFieldsTests
         // Ctrl+Delete mid-drag: the drag ends unwritten, then the step goes.
         canvas.BeginDrag("A", TokenGrip.Body);
         canvas.MoveTo("A", new SKPoint(20, 80), Floor);
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.DeleteStep)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(StratBookActions.DeleteStep)).IsTrue();
         canvas.MoveTo("A", new SKPoint(30, 80), Floor);
         canvas.EndDrag();
         using (Assert.Multiple())

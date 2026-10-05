@@ -15,8 +15,21 @@
     -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
-        <IsPackable>false</IsPackable>
+        <!-- Published with the extension SDK, whose UI kit's GameIcon control depends on it, at the SDK's
+             version: the SDK's version.json path filters include this project and the icon bake. Its public
+             API is pinned the same way. -->
+        <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
+        <IsPackable>true</IsPackable>
+        <PackageId>DemoViewer.NET.GameIcons</PackageId>
+        <Description>The baked CS2 icon catalogue DemoViewer.NET draws from: weapons, kill modifiers, ranks, Premier emblems and map icons, as embedded PNGs with their manifest.</Description>
+        <PackageTags>demoviewer;cs2;counter-strike;icons</PackageTags>
     </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
+        <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
+        <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
+    </ItemGroup>
 
     <ItemGroup>
         <!--

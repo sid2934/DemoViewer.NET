@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text.Json;
 using Avalonia.Input;
 using CS2DemoKit.Analysis.Diagnostics;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
@@ -403,8 +404,7 @@ public static class TagPaletteValidator
         }
 
         // The full table, core and every pack's commands, not the bare core one: the palette's own rows
-        // (Tag*, Suggestion*, step keys) moved out of Playback2DKeymap's table into StratBookCommands,
-        // and this guard must still catch a button that collides with one of them.
+        // are StratBookCommands', and this guard must still catch a button that collides with one of them.
         foreach (Playback2DBinding binding in Playback2DKeymapProfile.Default.Bindings)
         {
             if (binding.Key != key || binding.Modifiers != modifiers)
@@ -412,7 +412,7 @@ public static class TagPaletteValidator
                 continue;
             }
 
-            if (binding.Scope == Playback2DBindingScope.WhenPaletteFocused)
+            if (binding.Scope == StratBookActions.PaletteScope)
             {
                 errors.Add($"{name}: {gesture} is the palette's own key for \"{binding.Description}\"");
             }

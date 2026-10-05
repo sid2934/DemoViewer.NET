@@ -497,7 +497,7 @@ public sealed class Playback2DSettings
 
     /// <summary>
     ///     Per-user 2D keymap overrides as <c>"Action=Gesture"</c> rows (<c>"NextRound=Shift+R"</c>),
-    ///     where the action is a <c>Playback2DAction</c> name and the gesture is anything
+    ///     where the action is a core <c>Playback2DAction</c> name or an extension command id and the gesture is anything
     ///     <c>KeyGesture.Parse</c> accepts. Only the rows that differ from the shipped table are stored,
     ///     so a later default change reaches everyone who never rebound that action.
     ///     <para>

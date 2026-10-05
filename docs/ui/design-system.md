@@ -375,20 +375,21 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 - **Used in:** the 4 message-card list surfaces (Parser card list + descendants).
 
 ### Hosted tab sections (the Strat Book rail, the Library's Teams view)
-- **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle) and
-  `ViewModels/Shell/IHostTabViewModel.cs` (what a host tab's VM exposes) in the shell; the Strat Book hub is
-  pack-owned: `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookHubViewModel.cs`,
-  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookHubView.axaml` (the rail) and `StratBookPack.HubHostTab`
-  (the contribution); the Demos / Teams toggle in `Views/Library/LibraryTabView.axaml`.
+- **Files:** `ViewModels/Shell/TabSectionHost.cs` (the list + selection + lifecycle),
+  `ViewModels/Shell/HubTabViewModel.cs` and `Views/Shell/HubTabView.axaml` (every hub tab and its rail, drawn by
+  the host) in the shell; the Strat Book hub is declared by `StratBookPack.HubTab`; the Demos / Teams toggle in
+  `Views/Library/LibraryTabView.axaml`.
 - **Purpose:** a module tab that belongs to a workflow rather than the strip. A descriptor names its host by
   id in `WorkspaceTabDescriptor.HostId`: `"stratbook.hub"` puts it on the Strat Book tab's left rail (164px,
   collapsible to a 32px strip, `PanelHeaderBg`, `sectionHeader` band bound to the host's rail label, "STRAT BOOK",
-  `ListBox.strat-rail` items in the shell tab's monospace 13 with the header's badge on the right);
+  `ListBox.hub-rail` items in the shell tab's monospace 13 with the header's badge on the right);
   `"builtin.library"` puts it behind the Library toolbar's Demos / Teams toggle. The strip went from four
   tabs to eleven when every Strat Room feature took its own; the rail is where such features go now.
-- **Contract:** a host tab is a pack contribution (`IExtensionContributions.HostTab`, a `HostTabContribution`: host
-  id, tab id, header, strip order, rail label, feature id, VM and view factories); the shell builds the host VM
-  with the strip and keys one `TabSectionHost` per host id, the Library being the built-in host. The descriptor
+- **Contract:** a hub tab is a declaration (`IExtensionContributions.HubTab`, a `HubTabContribution`: id, header,
+  strip order, rail label, feature id, optional session state); the host builds its `HubTabViewModel` with the
+  strip, draws the rail itself and keys one `TabSectionHost` per host id, the Library being the built-in host. A
+  hub id already taken by a tab or another hub is left out with a module log line. The rail's collapsed state is
+  the host's, kept per hub id in `SessionPayload.Hubs`. The descriptor
   keeps its `TabId` and feature id, so `TrySelectTab`, the gate and the session file treat a section exactly as
   they treated the strip tab (the shell resolves a section id through its host and persists the section id as
   the active tab; a section of a hidden host answers false). A section is `Activate`d only while it is selected
@@ -400,8 +401,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   member for a new host; contribute a host tab and name it.
 
 ### Collapsible side pane (the Strat Book rail and the strat list)
-- **Files:** `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookLayout.cs` (the two flags and their toggle
-  commands), `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookHubView.axaml` (the rail), the list column and the
+- **Files:** `ViewModels/Shell/HubTabViewModel.cs` and `Views/Shell/HubTabView.axaml` (the rail and its toggle),
+  `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/ViewModels/StratBook/StratBookLayout.cs` (the list flag and its toggle), the list column and the
   `StratPicker` header in `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/StratBook/StratBookTabView.axaml`, `Button.pane-toggle` in
   `Styles/Primitives.axaml`.
 - **Purpose:** give a working surface the room a navigation pane takes. The editor column was about 340 px at
@@ -844,7 +845,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 ### Strat routes on the canvas (the Strats canvas, the Detected preview, a strat export)
 - **Files:** `AddRoutes` in `Playback2D.Pipeline/Frames/StratFrameSource.cs`, `DrawRoute` in
-  `Playback2D.Core/Layers/MarkerLayer.cs`, `Playback2D.Core/TokenRouteLine.cs`, `ScenePalette.RouteT`/`RouteCt`.
+  `Playback2D.Core/Layers/MarkerLayer.cs`, `Playback2D.Scene/TokenRouteLine.cs`, `ScenePalette.RouteT`/`RouteCt`.
 - **What:** while a token moves, a line from where it is through each corner of the move to where it stops: its way
   ahead, so a viewer reads which way round a wall it goes. Gone on arrival, at a hold, and before a run starts (a
   step's hold). Only when the tracks are routed (`stratbook.routing` on and the map's nav in memory); off draws
@@ -935,7 +936,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   a text box, combo box or edit tool: it must not read as editable, and it runs on a throwaway in-memory store.
 
 ### KeyValueTable
-- **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`). **Bindable props on `Root`:** `Rows`
+- **File:** `Controls/KeyValueTable.axaml` (+ `.axaml.cs`) in the SDK UI kit (`src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui`). **Bindable props on `Root`:** `Rows`
   (`IReadOnlyList<KvpRow>`), `ShowDeltaOnly` (filters to changed rows → `VisibleRows`).
 - **Purpose:** generic two-column key/value grid. Delta rows render `prev → curr` (strikethrough prev)
   with a tinted key. Virtualized via the default `ListBox` `VirtualizingStackPanel`.
@@ -1166,7 +1167,8 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
   its `Close` to `Surface.CloseSidePaneCommand`. An extension pack adds a pane through
   `IPlaybackSurface.AddPane(PanePlacement.Side, order, factory)` and opens it from its own entry point (a
   band-menu entry, a toolbar item); the view comes from the `ViewLocator` convention, so the pane's view
-  model derives from `ViewModelBase` and has a `…View`. The Create Strat From Round review is the first
+  model derives from `ViewModelBase` (an extension's from the UI kit's `ExtensionViewModel`) and has a
+  matching View. The Create Strat From Round review is the first
   such pane; it used to be a second hardcoded `Border` bound to a pack-typed property on the tab. The tab
   closes any open side pane on deactivation and on a demo reset, and the view model of a closed pane is
   disposed. Variant `playback2d-create-strat-pane` (1280x800) renders the host with that review open.
@@ -1279,8 +1281,10 @@ below are two of them: their chord, scope and description now live in `StratBook
 (DI-free, so a bare-constructed view model resolves them with no composition root), not
 in `Playback2DKeymap.BuildDefault()`. `IExtensionContributions.Commands(...)` is a separate, parallel
 declaration the composition root cross-checks against `IExtension.Commands` so the two cannot drift;
-it is not what the keymap itself reads. `Playback2DAction` keeps every member (every existing switch over
-it is unchanged), and `CommandRegistry` (`Extensions/CommandRegistry.cs`) composes the pack's rows back
+it is not what the keymap itself reads. Those rows are string ids prefixed with the pack id
+(`net.demoviewer.pack.stratbook.FindRoundsLikeThis`), never `Playback2DAction` members: the enum holds the
+core actions only, and an override row saved under an old bare id still applies through the pack's aliases.
+`CommandRegistry` (`Extensions/CommandRegistry.cs`) composes the pack's rows back
 over the core table with no DI, so `Playback2DKeymapProfile` resolves them exactly as before: a bare
 `new Playback2DTabViewModel()` with no container still opens on the full table. The Tag Palette,
 Suggested Tags, Review Mode and Step Authoring rows (`FocusTagPalette`/`TagNote`/`TagClearSticky`/
@@ -1379,7 +1383,8 @@ spectating has no readback. Gated by `playback2d.follow`.
 
 <a id="statuschip"></a>
 ### StatusChip + StatusStrip chip region (CSVG integration, `the design notes in git history` §4.1)
-- **Files (as-built):** `Controls/StatusChip.axaml(.cs)` (DataContext = `ViewModels/StatusChipViewModel`);
+- **Files (as-built):** `Controls/StatusChip.axaml(.cs)` (DataContext = `StatusChipViewModel`), both in the SDK UI kit
+  (`src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/Controls`);
   `Controls/StatusStrip.axaml(.cs)` gained a right-aligned `ItemsControl` chip region (spacing 12) bound to a
   new `IEnumerable? Chips` styled property (between the perf ticker and `RightText`); the shared status-dot
   styles live in **`Styles/Primitives.axaml`** (`Ellipse.dot.*`, see the class table). First consumer:
@@ -1397,11 +1402,13 @@ spectating has no readback. Gated by `playback2d.follow`.
   `StatusChip`/`StatusChipViewModel`, zero new tokens, flyout body resolved by the `ViewLocator` like the
   other three. Four consumers now share the control. **The 2D export chip and the Strat Book export chip
   are the fifth and sixth** (`Playback2DExportStatusViewModel`, mounted via `MainViewModel.AttachPlayback2DExportStatus`
-  for the 2D chip, a core, dedicated slot). The Strat Book chip goes through a generic pack `StatusChip`
-  contribution instead (item 14): `MainViewModel.AttachStatusChips(IReadOnlyList<StatusChipContribution>)`
-  watches each contribution's `IContributedStatusChip` (`StratBookExportChipSlot` for this one) via
-  `INotifyPropertyChanged`, keyed by the contribution's own id in a `_shownContributedChips` map. The Strat
-  Book tab's export job mounts into the slot lazily, on the first Export.
+  for the 2D chip, a core, dedicated slot). The Strat Book chip is a host-owned export slot too:
+  `MainViewModel.MountExportStatus(chipId, featureId, status)`, reached by the pack through the first-party
+  `IFirstPartyExportChips` seam when its export job builds on the first Export, and shown only while the
+  pack's feature is on. An extension's own chip is the public `IExtensionContributions.StatusChip`: the
+  extension supplies `IStatusChipSource` state and the host copies it into a `StatusChipViewModel` it owns,
+  reading the source under the extension's guard and on the UI thread. Both kinds are `IShellChip`s keyed by
+  id in a `_shownContributedChips` map.
   - **Flyout contents:** queue depth · outdated count (`Pending && Events.Count > 0`) · failed count ·
     `◐ scanning <name>` · `[Retry all failed]` · `[⟳ Rescan all]`. Counts are neutral `TextMid` labels with
     `TextValue` values, never tinted, per the contrast rule above.
@@ -1704,9 +1711,18 @@ model. `UiCapture` variants: `stats-components`, `stats-components-edge`, `stats
   rather than hosting a `TextBlock` a screen reader could find.
 
 ### Other Controls/ (not full shared-design components, but shared)
-`CommandPalette` (Ctrl+P overlay), `OutputPanel` (bottom drawer), `StatusStrip` (bottom status),
-`ParseLinkChip` (source-link chip). `OpenExternal.cs` = VS Code / browser launch helper (desktop only,
-WASM-guard needed).
+`CommandPalette` (Ctrl+P overlay), `OutputPanel` (bottom drawer), `StatusStrip` (bottom status).
+`ParseLinkChip` (source-link chip) and `OpenExternal.cs` (VS Code / browser launch helper, desktop only,
+WASM-guard needed) live in the SDK UI kit with the other controls extensions share; see below.
+
+### The SDK UI kit (`src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui`)
+The controls an extension can use as-is live in the `DemoViewer.NET.Extensions.Sdk.Ui` package, which the app
+references too: `GifView`, `MarkdownBlock`, `ParseLinkChip` with `OpenExternal`, `KeyValueTable`, `GameIcon`,
+`StatusChip` with `StatusChipViewModel`, plus `DisplayText`, `BulkObservableCollection` and `ThemeColors`. The
+package also publishes `ThemeTokens` (every palette key) and `StyleClasses` (every class the four files below
+select on), generated at build from `Styles/DarkPalette.axaml` and those files; `ThemeNamesDriftTests` holds
+them to what the app loads. Renaming a key or class therefore changes the SDK's public API. The UiCapture
+variants `uikit-status-chips`, `uikit-controls` and `uikit-third-party-fake` render the kit in both themes.
 
 ### Shared style classes (P1.3, `Styles/Primitives|Cards|Tables|Chrome.axaml`)
 Apply with `Classes="…"` (XAML) or `Classes.Add("…")` (code). All colors are DarkPalette tokens.

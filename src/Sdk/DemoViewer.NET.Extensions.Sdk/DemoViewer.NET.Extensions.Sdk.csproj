@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      The contract an extension builds against. It references no app or Playback2D assembly: everything an
-      extension reaches in the host goes through the interfaces here, which the app implements.
+      The contract an extension builds against. It references no app assembly: everything an extension reaches
+      in the host goes through the interfaces here, which the app implements. Of Playback2D it references only
+      the published scene contract, which a playback contribution draws and points with.
       Its public API is pinned by PublicAPI.Shipped.txt / PublicAPI.Unshipped.txt, and the assembly version
       is Major.0.0.0 (version.json), so an extension built against any 1.x binds to every 1.x host.
     -->
@@ -27,6 +28,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\App\DemoViewer.NET.Modules.Abstractions\DemoViewer.NET.Modules.Abstractions.csproj"/>
+        <ProjectReference Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Scene\DemoViewer.NET.Playback2D.Scene.csproj"/>
     </ItemGroup>
 
     <ItemGroup>

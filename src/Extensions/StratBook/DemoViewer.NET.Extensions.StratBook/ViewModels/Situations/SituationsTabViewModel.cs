@@ -34,7 +34,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 ///         as "nothing matched".
 ///     </para>
 /// </summary>
-public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class SituationsTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     private readonly IExtensionLibrary _library;
     private readonly RoundIndexStore _sidecars;

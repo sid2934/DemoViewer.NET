@@ -3,7 +3,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
@@ -19,7 +18,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 ///     on a host with no config root. Every row is a projection of the service; the service is the
 ///     only state.
 /// </summary>
-public sealed partial class WatchedSituationsViewModel : ViewModelBase, IDisposable
+public sealed partial class WatchedSituationsViewModel : ExtensionViewModel, IDisposable
 {
     /// <summary>The line the panel shows on a host that cannot persist: the annotations panel's words.</summary>
     public const string SessionNote = "session only: watched situations are not saved in the browser";
@@ -185,7 +184,7 @@ public sealed partial class WatchedSituationsViewModel : ViewModelBase, IDisposa
 }
 
 /// <summary>One saved query on the list: its name, its query line, its badge and the three actions.</summary>
-public sealed partial class WatchedSituationRowViewModel : ViewModelBase
+public sealed partial class WatchedSituationRowViewModel : ExtensionViewModel
 {
     private readonly WatchedSituationsViewModel _owner;
 

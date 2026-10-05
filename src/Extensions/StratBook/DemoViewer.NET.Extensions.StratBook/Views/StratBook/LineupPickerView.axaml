@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook"
              xmlns:ub="using:DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook"
              xmlns:utility="using:DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook"
-             xmlns:controls="using:DemoViewer.NET.Controls"
              x:Class="DemoViewer.NET.Extensions.StratBook.Views.StratBook.LineupPickerView"
              x:DataType="vm:LineupPickerViewModel">
 
@@ -81,7 +81,7 @@
                             <TextBlock Text="{Binding UsedLine}" FontSize="12" Foreground="{DynamicResource TextValue}" />
                             <TextBlock Text="{Binding TechniquesLine}" IsVisible="{Binding HasTechniques}" FontSize="11"
                                        TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />
-                            <controls:GifView Source="{Binding ClipPath}" IsVisible="{Binding HasClip}" MaxHeight="200"
+                            <ui:GifView Source="{Binding ClipPath}" IsVisible="{Binding HasClip}" MaxHeight="200"
                                               HorizontalAlignment="Center" />
                             <TextBlock Text="{Binding ClipLine}" IsVisible="{Binding HasClipLine}" FontSize="11"
                                        TextWrapping="Wrap" Foreground="{DynamicResource TextMid}" />

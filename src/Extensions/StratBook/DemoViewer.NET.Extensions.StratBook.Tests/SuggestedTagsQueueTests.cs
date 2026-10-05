@@ -1,12 +1,13 @@
 #region
 
 using Avalonia.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
-using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.Sdk.Playback;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion
@@ -36,8 +37,7 @@ public class SuggestedTagsQueueTests
             return frame >= TotalFrames ? -1 : frame;
         }
 
-        public IReadOnlyList<int> FramesForEvent(string eventName) => [];
-        public IReadOnlyList<TimelineEventRecord> EventsOfType(string eventName) => [];
+        public IReadOnlyList<TimelineEvent> EventsOfType(string eventName) => [];
         public bool HasEvent(string eventName) => false;
     }
 
@@ -58,7 +58,7 @@ public class SuggestedTagsQueueTests
     {
         ProposalTrack track = new();
         int changed = 0;
-        track.MarkersChanged += () => changed++;
+        track.Changed += () => changed++;
         track.SetProposals([Execute, Opener, Default]);
         HalfTickData data = new(20000);
 
@@ -72,8 +72,7 @@ public class SuggestedTagsQueueTests
             await Assert.That(bands[0].StartFrameIndex).IsEqualTo(650);
             await Assert.That(bands[0].EndFrameIndex).IsEqualTo(900);
             await Assert.That(bands[1].Label).IsEqualTo("default").Because("no site: the code alone");
-            await Assert.That(bands.All(b => b.TrackId == ProposalTrack.TrackId)).IsTrue();
-            await Assert.That(track.BuildMarkers(data)).IsEmpty();
+            await Assert.That(((ITimelineTrack)track).BuildMarks(data)).IsEmpty();
             await Assert.That(string.Join(' ', track.ProposalsInRun(data, 650))).IsEqualTo($"{Opener.Id} {Execute.Id}");
             await Assert.That(track.ProposalsInRun(data, 660)).IsEmpty();
         }
@@ -104,11 +103,11 @@ public class SuggestedTagsQueueTests
         (SuggestedTagsReviewHarness h, SuggestionQueueViewModel queue, _, List<int> seeks) = Queue(Execute, Opener, Default);
         using (h)
         {
-            foreach (Playback2DAction action in (Playback2DAction[])
+            foreach (string action in (string[])
                      [
-                         Playback2DAction.SuggestionNext, Playback2DAction.SuggestionPrev,
-                         Playback2DAction.SuggestionAccept, Playback2DAction.SuggestionReject,
-                         Playback2DAction.SuggestionEdit, Playback2DAction.SuggestionAcceptAll
+                         StratBookActions.SuggestionNext, StratBookActions.SuggestionPrev,
+                         StratBookActions.SuggestionAccept, StratBookActions.SuggestionReject,
+                         StratBookActions.SuggestionEdit, StratBookActions.SuggestionAcceptAll
                      ])
             {
                 await Assert.That(queue.Execute(action)).IsFalse().Because($"{action} is inert without a selection");
@@ -146,12 +145,12 @@ public class SuggestedTagsQueueTests
         {
             queue.ReviewCommand.Execute(null);
             await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Opener.Id);
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionPrev)).IsFalse().Because("the ends do not wrap");
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionNext)).IsTrue();
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionNext)).IsTrue();
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionNext)).IsFalse();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsFalse().Because("the ends do not wrap");
+            await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsFalse();
             await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Default.Id);
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionPrev)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsTrue();
             int[] expected = [Opener.FromTick, Execute.FromTick, Default.FromTick, Execute.FromTick];
             await Assert.That(string.Join(',', seeks)).IsEqualTo(string.Join(',', expected));
         }
@@ -165,9 +164,9 @@ public class SuggestedTagsQueueTests
         {
             queue.ReviewCommand.Execute(null);
 
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionAccept)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionAccept)).IsTrue();
             await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Execute.Id).Because("a verdict advances");
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionReject)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionReject)).IsTrue();
 
             TagInstance accepted = h.Tags.TryLoad(Sha)!.Instances.Single();
             Dictionary<string, SuggestionVerdict> verdicts = h.Tags.LoadVerdicts(Sha)!.Verdicts;
@@ -184,7 +183,7 @@ public class SuggestedTagsQueueTests
                     .Because("accepted and rejected proposals leave the track");
             }
 
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionReject)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionReject)).IsTrue();
             await Assert.That(queue.HasSelection).IsFalse().Because("the last verdict empties the queue");
             await Assert.That(queue.Rows).IsEmpty();
         }
@@ -197,7 +196,7 @@ public class SuggestedTagsQueueTests
         using (h)
         {
             queue.ReviewCommand.Execute(null);
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionEdit)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionEdit)).IsTrue();
             TagEditorViewModel editor = queue.Editor!;
             using (Assert.Multiple())
             {
@@ -233,7 +232,7 @@ public class SuggestedTagsQueueTests
         using (h)
         {
             queue.ReviewCommand.Execute(null);
-            queue.Execute(Playback2DAction.SuggestionEdit);
+            queue.Execute(StratBookActions.SuggestionEdit);
             TagEditorViewModel editor = queue.Editor!;
             editor.Codes.Add("fake");
             editor.SelectedCode = "fake";
@@ -258,14 +257,14 @@ public class SuggestedTagsQueueTests
         using (h)
         {
             queue.ReviewCommand.Execute(null);
-            queue.Execute(Playback2DAction.SuggestionEdit);
+            queue.Execute(StratBookActions.SuggestionEdit);
             queue.Editor!.FromText = "7";
             queue.Editor.Note = "check the timing";
 
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionNext)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionNext)).IsTrue();
             await Assert.That(queue.IsEditing).IsFalse().Because("walking closes the editor");
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionPrev)).IsTrue();
-            queue.Execute(Playback2DAction.SuggestionEdit);
+            await Assert.That(queue.Execute(StratBookActions.SuggestionPrev)).IsTrue();
+            queue.Execute(StratBookActions.SuggestionEdit);
 
             using (Assert.Multiple())
             {
@@ -283,7 +282,7 @@ public class SuggestedTagsQueueTests
         using (h)
         {
             queue.ReviewCommand.Execute(null);
-            queue.Execute(Playback2DAction.SuggestionEdit);
+            queue.Execute(StratBookActions.SuggestionEdit);
             queue.Editor!.CancelCommand.Execute(null);
 
             await Assert.That(queue.IsEditing).IsFalse();
@@ -302,11 +301,11 @@ public class SuggestedTagsQueueTests
             await Assert.That(queue.Rows.Count).IsEqualTo(2).Because("the 0.4 default is filtered out");
             queue.ReviewCommand.Execute(null);
 
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionAcceptAll)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionAcceptAll)).IsTrue();
             await Assert.That(queue.IsConfirmingAcceptAll).IsTrue();
             await Assert.That(h.Tags.TryLoad(Sha)).IsNull().Because("nothing is accepted before the confirm");
 
-            await Assert.That(queue.Execute(Playback2DAction.SuggestionAcceptAll)).IsTrue();
+            await Assert.That(queue.Execute(StratBookActions.SuggestionAcceptAll)).IsTrue();
 
             using (Assert.Multiple())
             {
@@ -367,23 +366,23 @@ public class SuggestedTagsQueueTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, false, out Playback2DAction j)).IsTrue();
-            await Assert.That(j).IsEqualTo(Playback2DAction.NextSituationResult).Because("J stays the result walk otherwise");
-            await Assert.That(keymap.TryResolveInScope(Playback2DBindingScope.WhenSuggestionSelected, Key.J,
-                KeyModifiers.None, out Playback2DAction sj)).IsTrue();
-            await Assert.That(sj).IsEqualTo(Playback2DAction.SuggestionNext);
-            await Assert.That(keymap.TryResolveInScope(Playback2DBindingScope.WhenSuggestionSelected, Key.K,
-                KeyModifiers.None, out Playback2DAction sk)).IsTrue();
-            await Assert.That(sk).IsEqualTo(Playback2DAction.SuggestionPrev);
+            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, false, out string? j)).IsTrue();
+            await Assert.That(j).IsEqualTo(StratBookActions.NextSituationResult).Because("J stays the result walk otherwise");
+            await Assert.That(keymap.TryResolveInScope(StratBookActions.SuggestionScope, Key.J,
+                KeyModifiers.None, out string? sj)).IsTrue();
+            await Assert.That(sj).IsEqualTo(StratBookActions.SuggestionNext);
+            await Assert.That(keymap.TryResolveInScope(StratBookActions.SuggestionScope, Key.K,
+                KeyModifiers.None, out string? sk)).IsTrue();
+            await Assert.That(sk).IsEqualTo(StratBookActions.SuggestionPrev);
 
-            await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.None)).IsEqualTo(Playback2DAction.SuggestionAccept);
-            await Assert.That(Resolve(keymap, Key.N, KeyModifiers.None)).IsEqualTo(Playback2DAction.SuggestionReject);
-            await Assert.That(Resolve(keymap, Key.Enter, KeyModifiers.None)).IsEqualTo(Playback2DAction.SuggestionEdit);
-            await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.Control)).IsEqualTo(Playback2DAction.SuggestionAcceptAll);
+            await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionAccept);
+            await Assert.That(Resolve(keymap, Key.N, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionReject);
+            await Assert.That(Resolve(keymap, Key.Enter, KeyModifiers.None)).IsEqualTo(StratBookActions.SuggestionEdit);
+            await Assert.That(Resolve(keymap, Key.Y, KeyModifiers.Control)).IsEqualTo(StratBookActions.SuggestionAcceptAll);
             // These six are Strat Book extension commands, checked against the merged table, not core alone.
             await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ReservedGestures(true)))
                 .IsEmpty().Because("none of the six is a shell or browser gesture");
-            await Assert.That(keymap.GestureText(Playback2DAction.SuggestionEdit)).IsEqualTo("Enter")
+            await Assert.That(keymap.GestureText(StratBookActions.SuggestionEdit)).IsEqualTo("Enter")
                 .Because("SuggestionEdit is a Strat Book extension command now; the profile resolves it, the bare core table does not");
         }
     }
@@ -399,7 +398,7 @@ public class SuggestedTagsQueueTests
         using (Assert.Multiple())
         {
             await Assert.That(review.QueuePanel!.IsShown).IsTrue();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.SuggestionAccept)).IsFalse();
+            await Assert.That(vm.ExecuteAction(StratBookActions.SuggestionAccept)).IsFalse();
             await Assert.That(vm.Surface.TryHandleKey(Key.J, KeyModifiers.None)).IsFalse();
             await Assert.That(vm.Timeline.Tracks.Any(t => t.Id == ProposalTrack.TrackId)).IsTrue();
         }
@@ -410,6 +409,6 @@ public class SuggestedTagsQueueTests
         vm.Dispose();
     }
 
-    private static Playback2DAction Resolve(Playback2DKeymapProfile keymap, Key key, KeyModifiers modifiers) =>
-        keymap.TryResolve(key, modifiers, false, out Playback2DAction action) ? action : Playback2DAction.None;
+    private static string Resolve(Playback2DKeymapProfile keymap, Key key, KeyModifiers modifiers) =>
+        keymap.TryResolve(key, modifiers, false, out string? action) ? action : "";
 }

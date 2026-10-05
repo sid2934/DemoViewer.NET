@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 using DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion
@@ -185,7 +186,7 @@ public class GeneratedInboxTests
         }
 
         queue.Selected = queue.Rows.Single(r => r.Proposal.Id == ExecuteId);
-        await Assert.That(queue.Execute(Modules.Playback2D.Playback2DAction.SuggestionAccept)).IsTrue();
+        await Assert.That(queue.Execute(StratBookActions.SuggestionAccept)).IsTrue();
         await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Count).IsEqualTo(1).Because("a settled row takes no second verdict");
         await Assert.That(queue.StatusText).IsEqualTo("This suggestion is already accepted.");
     }

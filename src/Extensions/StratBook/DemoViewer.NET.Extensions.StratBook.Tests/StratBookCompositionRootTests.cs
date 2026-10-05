@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Shell;
@@ -68,15 +69,17 @@ public class StratBookCompositionRootTests
         }
     }
 
-    // The hub rail and the Strats section's list collapse through one object, the one the session file keeps.
+    // The Strats section's list collapse is the object the hub keeps in the session file.
     [Test]
-    public async Task TheStratBookHub_AndTheStratsSection_ShareOneLayout()
+    public async Task TheStratBookHub_KeepsTheStratsSectionsLayout_InTheSession()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
-            MainViewModel vm = provider.GetRequiredService<MainViewModel>();
+            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
             DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookTabViewModel strats = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookTabViewModel>();
-            await Assert.That(strats.Layout).IsSameReferenceAs(vm.StratBookHub().Layout);
+            strats.Layout.IsListCollapsed = true;
+            System.Text.Json.JsonElement? kept = pack.HubTabs.Single().Session!.Snapshot();
+            await Assert.That(kept!.Value.GetProperty("ListCollapsed").GetBoolean()).IsTrue();
         });
     }
 

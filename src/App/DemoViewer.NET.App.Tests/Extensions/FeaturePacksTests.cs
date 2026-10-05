@@ -151,7 +151,7 @@ public class FeaturePacksTests
                 .Because("the gate then reads the pack id as unknown and resolves it off");
             await Assert.That(catalog.Any(d => d.Id == StratBookPack.PackFeatureId)).IsTrue();
 
-            // Its job kind collides with a core kind and its command names no action, so either registry
+            // Its job kind collides with a core kind and its command repeats a core action id, so either registry
             // built over the declared list throws, and built over the compatible list does not: neither
             // ever saw it.
             Assert.Throws<InvalidOperationException>(() => JobKindRegistry.Build(declared));
@@ -251,7 +251,7 @@ public class FeaturePacksTests
             new(PackFeatureId, ExtensionFeatureKind.Extension, "Incompatible", "d", null, new AudienceDefaults(false, false, false))
         ];
 
-        public IEnumerable<CommandDescriptor> Commands => [new CommandDescriptor("incompatible.cmd", "Cmd", "playback2d", null, _ => true)];
+        public IEnumerable<CommandDescriptor> Commands => [new CommandDescriptor("TogglePlay", "Cmd", "playback2d", null, _ => true)];
 
         public IEnumerable<ExtensionJobKind> JobKinds => [new ExtensionJobKind(BuiltInJobKinds.Save, "collides", false, 9)];
 

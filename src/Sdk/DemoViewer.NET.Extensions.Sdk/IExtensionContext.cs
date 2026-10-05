@@ -1,3 +1,4 @@
+using CS2DemoKit.Parser;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -77,6 +78,31 @@ public interface IExtensionShell
 
     /// <summary>Raised on the UI thread after the open demo changes.</summary>
     event Action? CurrentDemoChanged;
+
+    /// <summary>
+    ///     The open demo's parse, or null when none is open. Read it, never change it: the shell and every
+    ///     tab share this one instance. Drop any reference to it on <see cref="CurrentDemoChanged" />, since a
+    ///     held parse keeps the whole demo in memory after it is closed.
+    /// </summary>
+    ParsedDemo? CurrentDemo { get; }
+
+    /// <summary>
+    ///     The open demo's content key, lowercase hex SHA-256 of the file's bytes, or null when none is open.
+    ///     The same key survives a rename or a move, so it is the one to store per-demo data under.
+    /// </summary>
+    string? CurrentDemoHash { get; }
+
+    /// <summary>The server tick at the playhead, or 0 when no demo is open.</summary>
+    int CurrentTick { get; }
+
+    /// <summary>True while playback is running.</summary>
+    bool IsPlaying { get; }
+
+    /// <summary>
+    ///     Raised on the UI thread after <see cref="CurrentTick" /> or <see cref="IsPlaying" /> moves, at most
+    ///     once per rendered frame. A handler runs during playback, so it must be cheap.
+    /// </summary>
+    event Action? PlayheadChanged;
 
     /// <summary>Opens <paramref name="path" /> through the shell's own load. True when it is open afterwards.</summary>
     Task<bool> OpenDemoAsync(string path);

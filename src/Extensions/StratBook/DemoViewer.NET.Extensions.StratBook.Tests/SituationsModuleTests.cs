@@ -32,7 +32,7 @@ public class SituationsModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.situations");
             await Assert.That(tab.TabId).IsEqualTo("situations.search");
             await Assert.That(tab.Header).IsEqualTo("Situations");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(1).Because("after Strats on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();

@@ -4,9 +4,9 @@ using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
@@ -29,7 +29,7 @@ public sealed partial class StratPreviewViewModel : ObservableObject, IDisposabl
 {
     private readonly StratCanvasServices? _canvasServices;
     private readonly LineupOriginSource? _lineupOrigins;
-    private readonly Func<string?, LoadedMapAsset?>? _mapLoader;
+    private readonly Func<string?, IMapAsset?>? _mapLoader;
     private readonly Action<Action> _post;
     private StratSession? _session;
     private StratStore? _store;
@@ -47,7 +47,7 @@ public sealed partial class StratPreviewViewModel : ObservableObject, IDisposabl
     /// <param name="post">UI-thread marshal for the canvas session.</param>
     /// <param name="lineupOrigins">Puts a throw's actor at its lineup's throw origin; null projects none.</param>
     /// <param name="canvasServices">The canvas's gate, zone resolver and settings fallback; see <see cref="StratCanvasServices" />.</param>
-    public StratPreviewViewModel(MinedPattern pattern, string title, Func<string?, LoadedMapAsset?>? mapLoader, Action<Action> post,
+    public StratPreviewViewModel(MinedPattern pattern, string title, Func<string?, IMapAsset?>? mapLoader, Action<Action> post,
         LineupOriginSource? lineupOrigins = null, StratCanvasServices? canvasServices = null)
     {
         _canvasServices = canvasServices;

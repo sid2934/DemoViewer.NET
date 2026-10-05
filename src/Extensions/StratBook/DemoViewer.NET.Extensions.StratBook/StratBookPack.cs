@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook.Modules;
 using System.Globalization;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
@@ -16,6 +17,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Modules.Teams;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Modules.Highlights;
@@ -31,7 +33,6 @@ using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
-using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
@@ -53,13 +54,16 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///     Review Queue are registered by the composition root, not here: core surfaces read them. Round Facts
 ///     is registered here: its ruleset rides the merged build only while the pack is on.
 /// </summary>
-public sealed class StratBookPack : IExtension
+public sealed class StratBookPack : IExtension, ICommandAliases
 {
     /// <summary>The umbrella gate id. A persisted override key.</summary>
     public const string PackFeatureId = "pack.stratbook";
 
     /// <summary>The pack id. A persisted key (<c>DemoCacheRecord.Packs</c>, <c>SessionPayload.Packs</c>).</summary>
     public const string PackId = "net.demoviewer.pack.stratbook";
+
+    /// <summary>The Strat Export chip's id on the status strip.</summary>
+    public const string ExportChipId = "stratbook.export";
 
     /// <inheritdoc />
     public string Id => PackId;
@@ -74,21 +78,21 @@ public sealed class StratBookPack : IExtension
     public IEnumerable<CommandDescriptor> Commands => StratBookCommands.All;
 
     /// <inheritdoc />
+    public IEnumerable<CommandScope> CommandScopes => StratBookCommands.Scopes;
+
+    IReadOnlyDictionary<string, string> ICommandAliases.CommandAliases => StratBookCommands.Aliases;
+
+    /// <inheritdoc />
     public IEnumerable<ExtensionJobKind> JobKinds => StratBookJobKinds.All;
 
     /// <summary>
-    ///     The Strat Book hub as a host tab: one strip tab whose rail lists every section that names
-    ///     <see cref="StratBookHubViewModel.HostId" />. Order 4 sits after 2D Playback and before Authoring.
-    ///     Public so a shell test can host sections on the real hub without the rest of the pack.
+    ///     The Strat Book hub: one strip tab whose rail lists every section that names
+    ///     <see cref="HostIds.StratBookHub" />. Order 4 sits after 2D Playback and before Authoring. Public so
+    ///     a shell test can host sections on the real hub without the rest of the pack.
     /// </summary>
-    /// <param name="layout">Resolves the collapsed panes the hub shares with the Strats section, when the shell builds the hub.</param>
-    public static HostTabContribution HubHostTab(Func<StratBookLayout?> layout)
-    {
-        ArgumentNullException.ThrowIfNull(layout);
-        return new HostTabContribution(
-            StratBookHubViewModel.HostId, StratBookHubViewModel.TabId, "Strat Book", 4, "STRAT BOOK",
-            () => new StratBookHubViewModel(layout()), () => new StratBookHubView(), PackFeatureId);
-    }
+    /// <param name="layout">The Strats section's collapsed panes, kept in the session with the hub; null keeps nothing.</param>
+    public static HubTabContribution HubTab(StratBookLayout? layout) =>
+        new(HostIds.StratBookHub, "Strat Book", 4, "STRAT BOOK", PackFeatureId) { Session = layout };
 
     // Every id is a persisted override key and must never be renamed; labels and descriptions are display
     // text. Tabs are parented to the pack; sub-features keep their tab parent, so the two docked in 2D
@@ -559,7 +563,7 @@ public sealed class StratBookPack : IExtension
             }
 
             return new StratCaptureHost(
-                () => sp.GetService<MainViewModel>()?.ModuleContext is ICurrentDemoSource source ? source.CurrentDemo : null,
+                () => Host(sp).Shell.CurrentDemo,
                 sp.GetRequiredService<StratStore>(),
                 sp.GetService<TeamIdentityService>(),
                 id =>
@@ -578,8 +582,9 @@ public sealed class StratBookPack : IExtension
                 return null!;
             }
 
-            Func<bool> liveSyncBusy = () => sp.GetService<MainViewModel>()?.LiveSync?.State.IsSessionActive == true;
-            Func<bool> reelRunning = () => sp.GetService<MainViewModel>()?.ReelJob?.Status.IsRunning == true;
+            IFirstPartyShellState shell = sp.GetRequiredService<IFirstPartyShellState>();
+            Func<bool> liveSyncBusy = () => shell.IsLiveSyncSessionActive;
+            Func<bool> reelRunning = () => shell.IsReelJobRunning;
             FirstPartyExports? exports = sp.GetService<FirstPartyExports>();
             return new StratExportHost(
                 exports is null ? null : (runner, log) => exports.NewJob(runner, liveSyncBusy, reelRunning, log),
@@ -587,7 +592,7 @@ public sealed class StratBookPack : IExtension
                 reelRunning,
                 () => exports?.Settings ?? new AppSettings(),
                 mutate => exports?.PersistSettings(mutate),
-                sp.GetRequiredService<StratBookExportChipSlot>().Mount,
+                status => sp.GetRequiredService<IFirstPartyExportChips>().Mount(ExportChipId, PackFeatureId, status),
                 path => Host(sp).Shell.RevealInFileManager(path));
         });
 
@@ -726,10 +731,6 @@ public sealed class StratBookPack : IExtension
         // The pack's lifecycle: resolved by the app only while pack.stratbook resolves on,
         // keyed by the pack's own id so a future second pack's lifecycle never collides with this one.
         services.AddKeyedSingleton<IExtensionLifecycle, StratBookLifecycle>(Id);
-
-        // The Strat Book export chip's mount point: shared by the StatusChip contribution below
-        // and the IStratExport factory's mount callback, so both sides of the hand-off agree on one slot.
-        services.AddSingleton<StratBookExportChipSlot>();
     }
 
     // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
@@ -798,15 +799,11 @@ public sealed class StratBookPack : IExtension
         ArgumentNullException.ThrowIfNull(services);
         IServiceProvider sp = services;
 
-        // The hub tab, the export chip and the playback contributions that read scene frames and keymap
-        // scopes are first-party surfaces the SDK does not carry.
-        IFirstPartyContributions firstParty = (IFirstPartyContributions)contributions;
-
         contributions.Commands(StratBookCommands.All);
 
-        // The hub every section below sits on. The shell builds the hub VM when it builds the strip, so the
-        // layout singleton resolves then, pack on or off, as it did when the shell took it by constructor.
-        firstParty.HostTab(HubHostTab(sp.GetRequiredService<StratBookLayout>));
+        // The hub every section below sits on. The host draws it; the pack keeps the Strats list's
+        // collapsed state in the session through it.
+        contributions.HubTab(HubTab(sp.GetRequiredService<StratBookLayout>()));
 
         // Settings pages: the Suggested Tags tuning card, which needs its own controls, and the Grenade Index
         // card the host draws. Both desktop only: the browser has no filesystem and no queue to sweep with.
@@ -826,11 +823,6 @@ public sealed class StratBookPack : IExtension
                 host.Passes.RecheckAll();
             }
         };
-
-        // The Strat Book export chip: the shell shows it only while the pack is on, through the
-        // same slot the IStratExport factory mounts into on the first Export.
-        firstParty.StatusChip(new StatusChipContribution(
-            "stratbook.export", 0, sp.GetRequiredService<StratBookExportChipSlot>()));
 
         // The Settings "N demos will be re-indexed" notice's count, over the same evaluators the
         // re-enable backfill polls.
@@ -891,8 +883,8 @@ public sealed class StratBookPack : IExtension
         // gate above decides what the band offers; nothing is constructed here.
         contributions.Playback(new CreateStratPlaybackContribution(contributions.Context.Post, contributions.Context.Jobs,
             contributions.Context.Library.Facts.RoundFacts));
-        firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post, library: Library(sp)));
-        firstParty.FirstPartyPlayback(new Modules.Situations.SituationsPlaybackContribution());
+        contributions.Playback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post, library: Library(sp)));
+        contributions.Playback(new Modules.Situations.SituationsPlaybackContribution());
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
         // while the section's own id is on: resolving WatchedSituationsService unconditionally would build
@@ -942,7 +934,7 @@ public sealed class StratBookPack : IExtension
     // The Utility Book tab, and the Strat Book's lineup picker (locked to the strat's map): the same index,
     // clip directory and queue section, so the picker shows what the tab shows. The picker draws the strat
     // canvas's bundle instead of decoding its own; the canvas keeps it.
-    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, global::DemoViewer.NET.Playback2D.Pipeline.Assets.LoadedMapAsset? sharedAsset)
+    private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, IMapAsset? sharedAsset)
     {
         IExtensionLibrary library = Library(sp);
         return new UtilityBookTabViewModel(

@@ -7,7 +7,6 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
@@ -53,7 +52,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 ///         the place sources are the same singletons the strip and the canvas read.
 ///     </para>
 /// </summary>
-public sealed partial class ResultCardsViewModel : ViewModelBase
+public sealed partial class ResultCardsViewModel : ExtensionViewModel
 {
     /// <summary>The note on a card whose demo has no current positions file.</summary>
     public const string NoPositionsNote = "no positions for this demo; rebuild the index";

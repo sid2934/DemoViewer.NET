@@ -2,7 +2,6 @@
 
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
-using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
 
 #endregion
@@ -27,12 +26,12 @@ public sealed class ToolbarItem : ObservableObject
     /// <param name="label">The button's text.</param>
     /// <param name="tooltip">The button's tooltip.</param>
     /// <param name="run">Runs the item against the frame on screen at the moment it is invoked. True when it did something.</param>
-    /// <param name="action">The keymap action that also runs this item, or null for a toolbar/menu-only item.</param>
+    /// <param name="actionId">The id of the keymap action that also runs this item, or null for a toolbar/menu-only item.</param>
     /// <param name="order">Among toolbar items, lower first.</param>
     /// <param name="icon">An icon key, shown before <see cref="Label" /> in the toolbar; null for text alone. Not shown in the menu entry.</param>
     /// <param name="menuHeader">The menu entry's header; null to use <see cref="Label" />.</param>
     public ToolbarItem(string id, string label, string tooltip, Func<Scene2DFrame, bool> run,
-        Playback2DAction? action = null, int order = 0, string? icon = null, string? menuHeader = null)
+        string? actionId = null, int order = 0, string? icon = null, string? menuHeader = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
         ArgumentNullException.ThrowIfNull(label);
@@ -42,7 +41,7 @@ public sealed class ToolbarItem : ObservableObject
         _tooltip = tooltip ?? "";
         _menuHeader = menuHeader;
         Run = run;
-        Action = action;
+        ActionId = actionId;
         Order = order;
         Icon = icon;
     }
@@ -74,8 +73,8 @@ public sealed class ToolbarItem : ObservableObject
     /// <summary>Runs the item against the frame on screen. True when it did something.</summary>
     public Func<Scene2DFrame, bool> Run { get; }
 
-    /// <summary>The keymap action that also runs this item, or null.</summary>
-    public Playback2DAction? Action { get; }
+    /// <summary>The id of the keymap action that also runs this item, or null.</summary>
+    public string? ActionId { get; }
 
     /// <summary>Among toolbar items, lower first.</summary>
     public int Order { get; }

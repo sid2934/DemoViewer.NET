@@ -24,7 +24,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 ///         <see cref="ApplyFacts" /> and <see cref="ApplyThumbnail" />.
 ///     </para>
 /// </summary>
-public sealed partial class ResultCardViewModel : ViewModelBase
+public sealed partial class ResultCardViewModel : ExtensionViewModel
 {
     /// <summary>What a fact reads when the demo has no Round Facts rows.</summary>
     public const string NoData = "no data";

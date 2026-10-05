@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
@@ -20,8 +21,6 @@ using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.ViewModels.Playback2D;
@@ -68,7 +67,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private readonly AnnotationSessionController _ink;
     private readonly AnnotationTrack _inkTrack;
     private readonly Func<Guid, StratDocument?>? _lookup;
-    private readonly Func<string?, LoadedMapAsset?> _mapLoader;
+    private readonly Func<string?, IMapAsset?> _mapLoader;
     private readonly Func<IEnumerable<string>> _keybindOverrides;
     private readonly LineupOriginSource? _lineupOrigins;
     private readonly Func<string, Task<IZonePlaceResolver?>> _placesFor;
@@ -133,7 +132,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     members (and a null bundle) mean the same as before: routing off, the baked-in place resolver, no
     ///     keybind overrides.
     /// </param>
-    public StratCanvasViewModel(StratSession session, Func<string?, LoadedMapAsset?>? mapLoader = null,
+    public StratCanvasViewModel(StratSession session, Func<string?, IMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
         Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null,
         Func<string, Task<IZonePlaceResolver?>>? placesFor = null, Action<Action>? post = null, Func<bool>? routing = null,
@@ -154,7 +153,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         IsReadOnly = readOnly;
-        _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
+        _mapLoader = mapLoader ?? MapAssets.TryLoad;
         _lookup = lookup;
         _keybindOverrides = keybindOverrides ?? (() => lookups?.KeybindOverrides?.Invoke() ?? []);
 
@@ -375,7 +374,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     /// <summary>The token button's hint, with the resolved key.</summary>
     public string TokenToolTip =>
-        "Token tool" + (Keymap.GestureText(Playback2DAction.ToolToken) is { Length: > 0 } key ? $" ({key})" : "")
+        "Token tool" + (Keymap.GestureText(StratBookActions.ToolToken) is { Length: > 0 } key ? $" ({key})" : "")
                      + ": drag a token to place it at the active step; drag its heading stub to turn it";
 
     public string PlayGlyph => Transport.IsPlaying ? "⏸" : "▶";
@@ -388,7 +387,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
 
     /// <inheritdoc />
-    public LoadedMapAsset? MapAsset { get; private set; }
+    public IMapAsset? MapAsset { get; private set; }
 
     /// <inheritdoc />
     /// <remarks>Replaced whole on each publish, never changed in place: the render thread reads it.</remarks>
@@ -481,8 +480,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     /// <inheritdoc />
-    bool ISceneFrameHost.TryPointerPreHandler(ScenePointer pointer) =>
-        TryTagPositionAt(pointer.Level, pointer.WorldX, pointer.WorldY);
+    bool ISceneFrameHost.TryPointerPreHandler(ScenePointer press) =>
+        TryTagPositionAt(press.Level, press.WorldX, press.WorldY);
 
     /// <summary>
     ///     Makes a step the active one: pauses, moves the playhead to the step's time, and keeps that step active
@@ -688,8 +687,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     suggestion actions mean nothing on a strat and are left unhandled, as are hold-pan and cancel,
     ///     which belong to the surface.
     /// </summary>
-    /// <param name="action">The action the keymap resolved.</param>
-    public bool ExecuteAction(Playback2DAction action)
+    /// <param name="action">The id of the action the keymap resolved.</param>
+    public bool ExecuteAction(string action)
     {
         if (_session.Document is null)
         {
@@ -697,69 +696,71 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         // Handled, not ignored: an unhandled Ctrl+Z would bubble to the tab and undo the book's open strat.
-        if (IsReadOnly && action is not (Playback2DAction.TogglePlay or Playback2DAction.StepBack
-                or Playback2DAction.StepForward or Playback2DAction.SpeedUp or Playback2DAction.SpeedDown
-                or Playback2DAction.PrevStep or Playback2DAction.NextStep))
+        if (IsReadOnly && action is not (nameof(Playback2DAction.TogglePlay) or nameof(Playback2DAction.StepBack)
+                or nameof(Playback2DAction.StepForward) or nameof(Playback2DAction.SpeedUp)
+                or nameof(Playback2DAction.SpeedDown) or StratBookActions.PrevStep or StratBookActions.NextStep))
         {
-            return action is Playback2DAction.Undo or Playback2DAction.Redo or Playback2DAction.ClearAnnotations
-                or Playback2DAction.AddStep or Playback2DAction.DuplicateStep or Playback2DAction.DeleteStep
-                or Playback2DAction.ToolDraw or Playback2DAction.ToolErase or Playback2DAction.ToolLine
-                or Playback2DAction.ToolArrow or Playback2DAction.ToolRect or Playback2DAction.ToolEllipse
-                or Playback2DAction.ToolText or Playback2DAction.ToolToken;
+            return action is nameof(Playback2DAction.Undo) or nameof(Playback2DAction.Redo)
+                or nameof(Playback2DAction.ClearAnnotations) or StratBookActions.AddStep
+                or StratBookActions.DuplicateStep or StratBookActions.DeleteStep or nameof(Playback2DAction.ToolDraw)
+                or nameof(Playback2DAction.ToolErase) or nameof(Playback2DAction.ToolLine)
+                or nameof(Playback2DAction.ToolArrow) or nameof(Playback2DAction.ToolRect)
+                or nameof(Playback2DAction.ToolEllipse) or nameof(Playback2DAction.ToolText)
+                or StratBookActions.ToolToken;
         }
 
         switch (action)
         {
-            case Playback2DAction.TogglePlay:
+            case nameof(Playback2DAction.TogglePlay):
                 Transport.TogglePlay();
                 return true;
-            case Playback2DAction.StepBack:
+            case nameof(Playback2DAction.StepBack):
                 return Transport.Step(-1);
-            case Playback2DAction.StepForward:
+            case nameof(Playback2DAction.StepForward):
                 return Transport.Step(1);
-            case Playback2DAction.SpeedUp:
+            case nameof(Playback2DAction.SpeedUp):
                 return Transport.StepSpeed(1);
-            case Playback2DAction.SpeedDown:
+            case nameof(Playback2DAction.SpeedDown):
                 return Transport.StepSpeed(-1);
 
-            case Playback2DAction.ToolDraw:
+            case nameof(Playback2DAction.ToolDraw):
                 return Toggle(ToolKind.Draw);
-            case Playback2DAction.ToolErase:
+            case nameof(Playback2DAction.ToolErase):
                 return Toggle(ToolKind.Erase);
-            case Playback2DAction.ToolLine:
+            case nameof(Playback2DAction.ToolLine):
                 return Toggle(ToolKind.Line);
-            case Playback2DAction.ToolArrow:
+            case nameof(Playback2DAction.ToolArrow):
                 return Toggle(ToolKind.Arrow);
-            case Playback2DAction.ToolRect:
+            case nameof(Playback2DAction.ToolRect):
                 return Toggle(ToolKind.Rect);
-            case Playback2DAction.ToolEllipse:
+            case nameof(Playback2DAction.ToolEllipse):
                 return Toggle(ToolKind.Ellipse);
-            case Playback2DAction.ToolText:
+            case nameof(Playback2DAction.ToolText):
                 return Toggle(ToolKind.Text);
-            case Playback2DAction.ToolToken:
+            case StratBookActions.ToolToken:
                 return Toggle(ToolKind.Token);
 
             // The strat's history, not the annotation document's: there is one, and a gesture in flight
             // finishes first, the rule the annotation document keeps for its own stack.
-            case Playback2DAction.Undo:
+            case nameof(Playback2DAction.Undo):
                 return !IsGestureOpen && _session.Undo();
-            case Playback2DAction.Redo:
+            case nameof(Playback2DAction.Redo):
                 return !IsGestureOpen && _session.Redo();
 
-            case Playback2DAction.ClearAnnotations:
+            case nameof(Playback2DAction.ClearAnnotations):
                 return ClearActiveStepStrokes();
-            case Playback2DAction.AddStep:
+            case StratBookActions.AddStep:
                 CancelOpenDrag();
                 return InsertStep();
-            case Playback2DAction.DuplicateStep:
+            case StratBookActions.DuplicateStep:
                 CancelOpenDrag();
                 return DuplicateActiveStep();
-            case Playback2DAction.DeleteStep:
+            case StratBookActions.DeleteStep:
                 CancelOpenDrag();
                 return DeleteActiveStep();
-            case Playback2DAction.PrevStep:
+            case StratBookActions.PrevStep:
                 return SeekStep(-1);
-            case Playback2DAction.NextStep:
+            case StratBookActions.NextStep:
                 return SeekStep(1);
 
             default:
@@ -768,22 +769,22 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     [RelayCommand]
-    private void TogglePlay() => ExecuteAction(Playback2DAction.TogglePlay);
+    private void TogglePlay() => ExecuteAction(nameof(Playback2DAction.TogglePlay));
 
     [RelayCommand]
-    private void PrevStep() => ExecuteAction(Playback2DAction.PrevStep);
+    private void PrevStep() => ExecuteAction(StratBookActions.PrevStep);
 
     [RelayCommand]
-    private void NextStep() => ExecuteAction(Playback2DAction.NextStep);
+    private void NextStep() => ExecuteAction(StratBookActions.NextStep);
 
     [RelayCommand]
-    private void AddStep() => ExecuteAction(Playback2DAction.AddStep);
+    private void AddStep() => ExecuteAction(StratBookActions.AddStep);
 
     [RelayCommand]
-    private void DuplicateStep() => ExecuteAction(Playback2DAction.DuplicateStep);
+    private void DuplicateStep() => ExecuteAction(StratBookActions.DuplicateStep);
 
     [RelayCommand]
-    private void DeleteStep() => ExecuteAction(Playback2DAction.DeleteStep);
+    private void DeleteStep() => ExecuteAction(StratBookActions.DeleteStep);
 
     [RelayCommand]
     private void ToggleSetPlace()
@@ -804,7 +805,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     /// <summary>The loader the canvas reads its map bundle with; the export loads its own copy through it.</summary>
-    internal Func<string?, LoadedMapAsset?> MapLoader => _mapLoader;
+    internal Func<string?, IMapAsset?> MapLoader => _mapLoader;
 
     /// <summary>
     ///     The open strat on the selected path as it stands now, for an export, or null
@@ -823,7 +824,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         frozen.Reset([.. _ink.Document.Elements]);
         return new StratExportCapture(projection, new TokenTrackSet(Tracks.Tracks), new AnnotationSession(frozen),
             document.Map, document.Name,
-            MapAsset is { } asset ? MapAssetPipeline.RadarBounds(asset) : BoundsFor(projection));
+            MapAsset is { } asset ? asset.RadarBounds : BoundsFor(projection));
     }
 
     /// <summary>
@@ -1627,9 +1628,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
         SyncInk(projection.Elements);
 
-        WorldBounds bounds = MapAsset is { } asset ? MapAssetPipeline.RadarBounds(asset) : BoundsFor(projection);
+        WorldBounds bounds = MapAsset is { } asset ? asset.RadarBounds : BoundsFor(projection);
         _source = new StratFrameSource(new StratSceneSpec(Tracks, projection.Schedule, _ink.Session, projection.Labels,
-            document.Map, MapAsset is { } radarAsset ? MapAssetPipeline.DescribeRadars(radarAsset) : [], bounds, null,
+            document.Map, MapAsset is { } radarAsset ? radarAsset.DescribeRadars() : [], bounds, null,
             projection.Utility, projection.RoundSeconds, 0, projection.ContentEndTick, StepSchedule.TicksPerSecond, 1)
         {
             Routes = projection.Routed,
@@ -2535,7 +2536,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         return new WorldBounds(minX - margin, minY - margin, maxX + margin, maxY + margin);
     }
 
-    private LoadedMapAsset? SafeLoad(string map)
+    private IMapAsset? SafeLoad(string map)
     {
         try
         {
@@ -2549,9 +2550,9 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     // The previous bundle's radar images are native memory; disposed a dispatcher hop later because the
     // render thread may still be replaying a picture that draws one, the 2D tab's rule.
-    private void ReplaceMapAsset(LoadedMapAsset? next)
+    private void ReplaceMapAsset(IMapAsset? next)
     {
-        LoadedMapAsset? previous = MapAsset;
+        IMapAsset? previous = MapAsset;
         MapAsset = next;
         if (previous is not null && !ReferenceEquals(previous, next))
         {

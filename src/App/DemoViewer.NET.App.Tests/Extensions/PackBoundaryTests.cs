@@ -20,6 +20,7 @@ public class PackBoundaryTests
 {
     private const string AppProject = "src/App/DemoViewer.NET";
     private const string PackProject = "src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook";
+    private const string Playback2DSceneProject = "src/Playback2D/DemoViewer.NET.Playback2D.Scene";
     private const string Playback2DCoreProject = "src/Playback2D/DemoViewer.NET.Playback2D.Core";
     private const string Playback2DPipelineProject = "src/Playback2D/DemoViewer.NET.Playback2D.Pipeline";
 
@@ -50,6 +51,7 @@ public class PackBoundaryTests
     ///     pull the extension back in as a dependency of the two assemblies they left.
     /// </summary>
     [Test]
+    [Arguments(Playback2DSceneProject, "DemoViewer.NET.Playback2D.Scene.csproj")]
     [Arguments(Playback2DCoreProject, "DemoViewer.NET.Playback2D.Core.csproj")]
     [Arguments(Playback2DPipelineProject, "DemoViewer.NET.Playback2D.Pipeline.csproj")]
     public async Task Playback2DProject_HasNoProjectReferenceToAnExtension(string projectDir, string csprojName)
@@ -65,6 +67,30 @@ public class PackBoundaryTests
 
         await Assert.That(extensionReferences).IsEmpty()
             .Because($"{csprojName} must not reference an extension; the extension references it, not the other way round");
+    }
+
+    /// <summary>
+    ///     The pack builds on what the app and the scene publish: neither the app nor a Playback2D assembly
+    ///     grants it their internals. Its test project keeps its grants.
+    /// </summary>
+    [Test]
+    public async Task NoAppOrPlayback2DAssembly_GrantsThePackItsInternals()
+    {
+        System.Reflection.Assembly[] granting =
+        [
+            typeof(App).Assembly, typeof(Playback2D.Core.Scene2DFrame).Assembly,
+            typeof(Playback2D.Core.Layers.RadarLayer).Assembly, typeof(Playback2D.Pipeline.Assets.LoadedMapAsset).Assembly
+        ];
+
+        string[] grants =
+        [
+            .. granting.SelectMany(a => a.GetCustomAttributes(typeof(System.Runtime.CompilerServices.InternalsVisibleToAttribute), false)
+                    .Cast<System.Runtime.CompilerServices.InternalsVisibleToAttribute>()
+                    .Where(g => g.AssemblyName == "DemoViewer.NET.Extensions.StratBook")
+                    .Select(_ => a.GetName().Name!))
+        ];
+
+        await Assert.That(grants).IsEmpty();
     }
 
     [Test]

@@ -3,6 +3,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
@@ -275,23 +276,23 @@ public class TagPaletteTests
             (Key.Y, KeyModifiers.None), (Key.N, KeyModifiers.None), (Key.Enter, KeyModifiers.None),
             (Key.Y, KeyModifiers.Control)
         ];
-        Playback2DAction[] palette =
-            [Playback2DAction.FocusTagPalette, Playback2DAction.TagPaletteBack, Playback2DAction.TagNote, Playback2DAction.TagClearSticky];
+        string[] palette =
+            [StratBookActions.FocusTagPalette, StratBookActions.TagPaletteBack, StratBookActions.TagNote, StratBookActions.TagClearSticky];
 
         // These four are Strat Book extension commands, not core rows; the merged table is what has to
         // be checked for them to be checked at all.
-        foreach (Playback2DBinding row in CommandRegistry.Default.EffectiveBindings.Where(b => palette.Contains(b.Action)))
+        foreach (Playback2DBinding row in CommandRegistry.Default.EffectiveBindings.Where(b => palette.Contains(b.ActionId)))
         {
             await Assert.That(claimed.Contains((row.Key, row.Modifiers))).IsFalse()
-                .Because($"{row.Action} must not take a key Ctrl+F or the Suggested Tags queue claimed");
+                .Because($"{row.ActionId} must not take a key Ctrl+F or the Suggested Tags queue claimed");
         }
 
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
-        await Assert.That(profile.TryResolve(Key.Escape, KeyModifiers.None, false, out Playback2DAction outside)).IsTrue();
-        await Assert.That(outside).IsEqualTo(Playback2DAction.ClearFollow).Because("unfocused, Esc is still the tab's");
-        await Assert.That(profile.TryResolveInScope(Playback2DBindingScope.WhenPaletteFocused, Key.Escape,
-            KeyModifiers.None, out Playback2DAction inside)).IsTrue();
-        await Assert.That(inside).IsEqualTo(Playback2DAction.TagPaletteBack);
+        await Assert.That(profile.TryResolve(Key.Escape, KeyModifiers.None, false, out string? outside)).IsTrue();
+        await Assert.That(outside).IsEqualTo(nameof(Playback2DAction.ClearFollow)).Because("unfocused, Esc is still the tab's");
+        await Assert.That(profile.TryResolveInScope(StratBookActions.PaletteScope, Key.Escape,
+            KeyModifiers.None, out string? inside)).IsTrue();
+        await Assert.That(inside).IsEqualTo(StratBookActions.TagPaletteBack);
     }
 
     [Test]
@@ -299,7 +300,7 @@ public class TagPaletteTests
     {
         using TagSession session = await Attached();
         using TagPaletteViewModel palette = Palette(session, () => 15_000);
-        palette.ApplyKeymap(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected));
+        palette.ApplyKeymap(PaletteKeymap.From(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected)));
         await Assert.That(rejected).IsEmpty();
 
         Hit(palette, Key.D3);

@@ -216,6 +216,79 @@ public class Playback2DKeybindSettingsTests
         }
     }
 
+    private const string TagNote = "net.demoviewer.pack.stratbook.TagNote";
+
+    /// <summary>
+    ///     A row persisted under a Strat Book action's old bare id applies to the action, shows as overridden,
+    ///     and goes with the row on a reset, so the user is never left with an override they cannot clear.
+    /// </summary>
+    [Test]
+    public async Task AnOldIdRow_ShowsOnItsAction_AndResetRemovesIt()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService seed = new(dir);
+            seed.Write(s => s.Playback2D.KeybindOverrides = ["TagNote=Ctrl+Shift+M"]);
+
+            (SettingsViewModel vm, SettingsService svc, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                KeybindRow row = vm.Playback2DKeybindRows.Single(r => r.Action == TagNote);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.HasKeybindRejections).IsFalse();
+                    await Assert.That(row.Gesture).IsEqualTo("Ctrl+Shift+M");
+                    await Assert.That(row.IsOverridden).IsTrue();
+                    await Assert.That(row.ScopeLabel).IsEqualTo("while tagging");
+                    await Assert.That(vm.CustomKeybindCount).IsEqualTo(1);
+                }
+
+                vm.ResetKeybind(row);
+
+                await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEmpty();
+                await Assert.That(row.Gesture).IsEqualTo("Ctrl+M");
+                await Assert.That(row.IsOverridden).IsFalse();
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    /// <summary>A rebind of that action replaces the old-id row and writes the current id.</summary>
+    [Test]
+    public async Task RebindingAnOldIdRowsAction_ReplacesTheRow_UnderTheCurrentId()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService seed = new(dir);
+            seed.Write(s => s.Playback2D.KeybindOverrides = ["tagnote=Ctrl+Shift+M", "NextRound=Shift+W"]);
+
+            (SettingsViewModel vm, SettingsService svc, ServiceProvider sp) = NewVm(dir);
+            using (sp)
+            {
+                KeybindRow row = vm.Playback2DKeybindRows.Single(r => r.Action == TagNote);
+                Capture(vm, row, Key.M, KeyModifiers.Control | KeyModifiers.Alt);
+
+                string[] expected = ["NextRound=Shift+W", TagNote + "=Ctrl+Alt+M"];
+                await Assert.That(row.Conflict).IsEqualTo("");
+                await Assert.That(svc.Current.Playback2D.KeybindOverrides).IsEquivalentTo(expected);
+                await Assert.That(row.Gesture).IsEqualTo("Ctrl+Alt+M");
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
     /// <summary>
     ///     An override is a promise to keep that key even if the shipped default moves later. Pressing the
     ///     key that was already there is not that promise, so it clears the row instead of storing it.
@@ -373,7 +446,7 @@ public class Playback2DKeybindSettingsTests
     }
 
     private static KeybindRow Row(SettingsViewModel vm, Playback2DAction action) =>
-        vm.Playback2DKeybindRows.First(r => r.Action == action);
+        vm.Playback2DKeybindRows.First(r => r.Action == Playback2DActionIds.Of(action));
 
     // Mirrors SettingsViewModelTests.NewVm: a real SettingsService over a throwaway dir, an options
     // monitor over its live configuration, and a gate with UI-thread marshaling off so it stays inline.

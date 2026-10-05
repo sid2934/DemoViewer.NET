@@ -22,7 +22,7 @@ namespace DemoViewer.NET.Extensions;
 /// <param name="gate">The heavy-job gate.</param>
 /// <param name="queue">The processing queue.</param>
 /// <param name="settings">The app's settings, which hold the export choices; null where nothing persists them.</param>
-internal sealed class FirstPartyExports(HeavyJobGate gate, IDemoProcessingQueue queue, SettingsService? settings = null)
+public sealed class FirstPartyExports(HeavyJobGate gate, IDemoProcessingQueue queue, SettingsService? settings = null)
 {
     /// <summary>The app's settings as they stand: the export choices the 2D export shares.</summary>
     public AppSettings Settings => settings?.Current ?? new AppSettings();

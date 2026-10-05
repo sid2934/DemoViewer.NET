@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -237,15 +238,15 @@ public class TagLabelModeTests
     public async Task TheLabelModeKeys_ArePaletteScoped_AndRebindable()
     {
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
-        await Assert.That(profile.TryResolveInScope(Playback2DBindingScope.WhenPaletteFocused, Key.L,
-            KeyModifiers.Control, out Playback2DAction mode)).IsTrue();
-        await Assert.That(mode).IsEqualTo(Playback2DAction.TagLabelMode);
+        await Assert.That(profile.TryResolveInScope(StratBookActions.PaletteScope, Key.L,
+            KeyModifiers.Control, out string? mode)).IsTrue();
+        await Assert.That(mode).IsEqualTo(StratBookActions.TagLabelMode);
         await Assert.That(profile.TryResolve(Key.L, KeyModifiers.Control, false, out _)).IsFalse()
             .Because("unfocused, the palette's chords are nobody's");
 
         using TagSession session = await Attached();
         using TagPaletteViewModel palette = Palette(session, () => 12_000);
-        palette.ApplyKeymap(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected));
+        palette.ApplyKeymap(PaletteKeymap.From(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected)));
         await Assert.That(rejected).IsEmpty();
         await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsFalse();
         await Assert.That(Hit(palette, Key.L, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();
@@ -263,7 +264,7 @@ public class TagLabelModeTests
         session.Apply(new TagDelta.Add(early));
         session.Apply(new TagDelta.Add(apart));
         using TagTrack track = new(session, static action => action());
-        FakeTimelineData data = new(1_000);
+        SdkTimeline data = new(new FakeTimelineData(1_000));
 
         using (Assert.Multiple())
         {

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      A stand-in for an out-of-tree extension, built against the SDK and its UI kit alone: its own root namespace,
+      no app assembly, no InternalsVisibleTo. The app tests and UiCapture use it to prove an extension's views
+      resolve and render from its own namespace with the host's look.
+    -->
+    <PropertyGroup>
+        <RootNamespace>ThirdPartyFake</RootNamespace>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <ExtensionManifestVersion>1.0.0</ExtensionManifestVersion>
+    </PropertyGroup>
+
+    <Import Project="..\..\Sdk\DemoViewer.NET.Extensions.Sdk\build\DemoViewer.NET.Extensions.Sdk.targets"/>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="CommunityToolkit.Mvvm"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <ProjectReference Include="..\..\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
+    </ItemGroup>
+
+</Project>

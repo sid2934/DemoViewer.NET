@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Extensions;
 ///     overlay and the keybind overrides are the app's own settings, read only.
 /// </summary>
 /// <param name="settings">The app's settings.</param>
-internal sealed class FirstPartyHost(SettingsService settings)
+public sealed class FirstPartyHost(SettingsService settings)
 {
     private readonly string? _palettes = AppPaths.PalettesDirectory;
 

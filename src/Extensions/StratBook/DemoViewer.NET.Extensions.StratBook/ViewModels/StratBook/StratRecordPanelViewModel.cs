@@ -36,7 +36,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 ///         this strat's evidence.
 ///     </para>
 /// </summary>
-public sealed partial class StratRecordPanelViewModel : ViewModelBase, IDisposable
+public sealed partial class StratRecordPanelViewModel : ExtensionViewModel, IDisposable
 {
     private static readonly TimeSpan _defaultDebounce = TimeSpan.FromMilliseconds(150);
 
@@ -370,7 +370,7 @@ public sealed class StratRecordFailureRow(string failure, int count, StratRecord
 }
 
 /// <summary>One clickable number: the runs behind it, and the command a button binds to send them to Review.</summary>
-public sealed partial class StratRecordCountCell : ViewModelBase
+public sealed partial class StratRecordCountCell : ExtensionViewModel
 {
     private readonly StratRecordPanelViewModel? _owner;
 

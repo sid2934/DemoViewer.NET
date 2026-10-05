@@ -52,6 +52,8 @@
         <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
         <!-- The extension SDK: the public contract the app implements and extensions build against. -->
         <ProjectReference Include="..\..\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <!-- The SDK's UI kit: the shared controls and theme names the app's own views use too. -->
+        <ProjectReference Include="..\..\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
         <ProjectReference
                 Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
         <ProjectReference

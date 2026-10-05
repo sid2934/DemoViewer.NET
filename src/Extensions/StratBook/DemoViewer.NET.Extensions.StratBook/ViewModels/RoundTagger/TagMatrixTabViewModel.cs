@@ -6,7 +6,6 @@ using System.Runtime.ExceptionServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
@@ -44,7 +43,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
 ///         the tab is not showing only marks it stale; the next activation rebuilds.
 ///     </para>
 /// </summary>
-public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class TagMatrixTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     /// <summary>What the browser host says: the documents the Matrix reads are the session's.</summary>
     public const string BrowserNote = "session only: this browser tab forgets tags when it reloads";
@@ -807,7 +806,7 @@ public sealed class TagMatrixRowViewModel(string display, IReadOnlyList<TagMatri
 }
 
 /// <summary>One count of the Matrix and the refs behind it; a click sends those clips to the Review Queue.</summary>
-public sealed partial class TagMatrixCellViewModel : ViewModelBase
+public sealed partial class TagMatrixCellViewModel : ExtensionViewModel
 {
     private readonly TagMatrixTabViewModel _owner;
 

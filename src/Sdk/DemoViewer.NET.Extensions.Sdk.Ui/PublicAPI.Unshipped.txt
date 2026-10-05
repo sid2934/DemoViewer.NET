@@ -1,0 +1,418 @@
+#nullable enable
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>.AddRange(System.Collections.Generic.IEnumerable<T>! items) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>.BulkObservableCollection() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>.ReplaceAll(System.Collections.Generic.IEnumerable<T>! items) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>.SyncTo(System.Collections.Generic.IReadOnlyList<T>! target) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Fallback.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Fallback.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontFamily.get -> Avalonia.Media.FontFamily!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontFamily.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontSize.get -> double
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontSize.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Foreground.get -> Avalonia.Media.IBrush?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Foreground.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.GameIcon() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.IconHeight.get -> double
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.IconHeight.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Key.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Key.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.CurrentFrame.get -> int
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Dispose() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.FrameCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.GifView() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Loading.get -> System.Threading.Tasks.Task!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Source.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Source.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.InitializeComponent(bool loadXaml = true) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.KeyValueTable() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.Rows.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.Rows.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.ShowDeltaOnly.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.ShowDeltaOnly.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.VisibleRows.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Deconstruct(out string! Key, out string! Value, out bool IsDelta, out string? PreviousValue) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Equals(DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.IsDelta.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.IsDelta.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Key.get -> string!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Key.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.KvpRow(string! Key, string! Value, bool IsDelta, string? PreviousValue) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.PreviousValue.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.PreviousValue.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Value.get -> string!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Value.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.AddTool(DemoViewer.NET.Playback2D.Core.Tools.IMapTool! tool) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.CancelGesture() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.EscapePressed -> System.EventHandler?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.Fit() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.HasMap.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.Invalidate() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapBound -> System.EventHandler?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapName.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapName.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapView() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.PaneAt(Avalonia.Point point) -> DemoViewer.NET.Playback2D.Core.Levels.LevelPane?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.Panes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.PrimaryTool.get -> DemoViewer.NET.Playback2D.Core.Tools.IMapTool?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.SetPrimaryTool(DemoViewer.NET.Playback2D.Core.Tools.IMapTool? tool) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.Space.get -> DemoViewer.NET.Playback2D.Core.Levels.MapSpace?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.Markdown.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.Markdown.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.MarkdownBlock() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.OpenExternal
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Command.get -> System.Windows.Input.ICommand?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Command.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Detail.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Detail.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Indent.get -> Avalonia.Thickness
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Indent.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.InitializeComponent(bool loadXaml = true) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.IsClickable.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Label.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalLine.get -> int?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalLine.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalPath.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalPath.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.ParseLinkChip() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.SourceBadge.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.SourceBadge.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Tooltip.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Tooltip.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.WebFallback.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.WebFallback.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip.InitializeComponent(bool loadXaml = true) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip.StatusChip() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateDegraded.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateError.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateGood.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateOff.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateWorking.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.StatusChipViewModel() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.DisplayText
+DemoViewer.NET.Extensions.Sdk.Ui.ExtensionViewModel
+DemoViewer.NET.Extensions.Sdk.Ui.ExtensionViewModel.ExtensionViewModel() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses
+DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeColors
+DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Badge = "badge" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.BpBtn = "bp-btn" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Card = "card" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.CardFlyout = "card-flyout" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.CardGrid = "card-grid" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Chip = "chip" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.ColLabel = "col-label" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.CtxAction = "ctx-action" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.DataList = "data-list" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Divider = "divider" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Dot = "dot" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Field = "field" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Ghost = "ghost" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.GroupLabel = "group-label" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Hollow = "hollow" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.IconBtn = "icon-btn" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Mono = "mono" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.NavBtn = "nav-btn" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.PaneToggle = "pane-toggle" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Primary = "primary" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Pulsing = "pulsing" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.SectionHeader = "sectionHeader" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.SectionLabel = "sectionLabel" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.ShellTab = "shell-tab" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.StateDegraded = "stateDegraded" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.StateError = "stateError" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.StateGood = "stateGood" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.StateOff = "stateOff" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.StateWorking = "stateWorking" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.Strong = "strong" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.AccentAmber = "AccentAmber" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.AccentAmberOpaque = "AccentAmberOpaque" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.AccentCaution = "AccentCaution" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.AccentError = "AccentError" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.AccentErrorSoft = "AccentErrorSoft" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.AccentHighlight = "AccentHighlight" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.AccentInfo = "AccentInfo" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.AccentInteractive = "AccentInteractive" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.BorderAccent = "BorderAccent" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.BorderStrong = "BorderStrong" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.BorderSubtle = "BorderSubtle" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.BorderTranslucent = "BorderTranslucent" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.BreakpointDotDisabled = "BreakpointDotDisabled" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.CardBg = "CardBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ChainSummaryBadgeBg = "ChainSummaryBadgeBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierBlue = "ClassifierBlue" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierBlueDim = "ClassifierBlueDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierGreen = "ClassifierGreen" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierGreenDim = "ClassifierGreenDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierOrange = "ClassifierOrange" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierOrangeDim = "ClassifierOrangeDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierPurple = "ClassifierPurple" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierPurpleDim = "ClassifierPurpleDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierRed = "ClassifierRed" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierRedBright = "ClassifierRedBright" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierRedDim = "ClassifierRedDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierSlate = "ClassifierSlate" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierSlateBlueDim = "ClassifierSlateBlueDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierSlateDim = "ClassifierSlateDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierTeal = "ClassifierTeal" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ClassifierTealDim = "ClassifierTealDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.DebuggerBg = "DebuggerBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.DeltaRowBg = "DeltaRowBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.FrameHeaderStripBg = "FrameHeaderStripBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.FrameMsgBadgeBg = "FrameMsgBadgeBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.FrameRowHoverBg = "FrameRowHoverBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.FrameRowSelectedBg = "FrameRowSelectedBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphCanvasBg = "GraphCanvasBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphEdgeActivate = "GraphEdgeActivate" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphEdgeConjunction = "GraphEdgeConjunction" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphEdgeDeactivate = "GraphEdgeDeactivate" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphEdgeDisjunction = "GraphEdgeDisjunction" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphEdgeLabel = "GraphEdgeLabel" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphEdgeSetValue = "GraphEdgeSetValue" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphGroupBg = "GraphGroupBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphGroupBorder = "GraphGroupBorder" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphGroupLabel = "GraphGroupLabel" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphLabelBg = "GraphLabelBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeActiveBg = "GraphNodeActiveBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeActiveBorder = "GraphNodeActiveBorder" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeActiveFg = "GraphNodeActiveFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeActiveSubFg = "GraphNodeActiveSubFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeInactiveBg = "GraphNodeInactiveBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeInactiveBorder = "GraphNodeInactiveBorder" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeInactiveFg = "GraphNodeInactiveFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeInactiveSubFg = "GraphNodeInactiveSubFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodePerPlayerBorder = "GraphNodePerPlayerBorder" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeRootBg = "GraphNodeRootBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeRootBorder = "GraphNodeRootBorder" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphNodeRootFg = "GraphNodeRootFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphTableActiveCellBg = "GraphTableActiveCellBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphTableBg = "GraphTableBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphTableCellFg = "GraphTableCellFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphTableDimFg = "GraphTableDimFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphTableGridLine = "GraphTableGridLine" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphTableHeaderBg = "GraphTableHeaderBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.GraphTableHeaderFg = "GraphTableHeaderFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.HdrActionHoverBg = "HdrActionHoverBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.HexBannerBg = "HexBannerBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.HexBannerBorder = "HexBannerBorder" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.HexRowSeparator = "HexRowSeparator" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.HexSwatchAncestor = "HexSwatchAncestor" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.HexSwatchAncestorDeep = "HexSwatchAncestorDeep" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.HexSwatchParent = "HexSwatchParent" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.HexSwatchSelected = "HexSwatchSelected" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardBadgeBg = "LibraryCardBadgeBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardBusyTrack = "LibraryCardBusyTrack" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardScoreCt = "LibraryCardScoreCt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardScoreT = "LibraryCardScoreT" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardScrim = "LibraryCardScrim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardTextBright = "LibraryCardTextBright" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardTextDim = "LibraryCardTextDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardTextFaint = "LibraryCardTextFaint" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.LibraryCardTextMid = "LibraryCardTextMid" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MapAccentNeutral = "MapAccentNeutral" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MapAccentRef = "MapAccentRef" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ModalScrim = "ModalScrim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderClc = "MsgHeaderClc" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderCs = "MsgHeaderCs" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderDefault = "MsgHeaderDefault" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderDem = "MsgHeaderDem" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderGameEvent = "MsgHeaderGameEvent" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderNet = "MsgHeaderNet" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderSelected = "MsgHeaderSelected" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderSvc = "MsgHeaderSvc" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.MsgHeaderUnknown = "MsgHeaderUnknown" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.PanelBg = "PanelBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.PanelHeaderBg = "PanelHeaderBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.PanelHeaderHover = "PanelHeaderHover" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.PanelHeaderHoverDeep = "PanelHeaderHoverDeep" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dAdr = "Pb2dAdr" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dArmor = "Pb2dArmor" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dAssist = "Pb2dAssist" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dBomb = "Pb2dBomb" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasBg = "Pb2dCanvasBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasBomb = "Pb2dCanvasBomb" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasBombDefuse = "Pb2dCanvasBombDefuse" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasBombDetonation = "Pb2dCanvasBombDetonation" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasBombTrack = "Pb2dCanvasBombTrack" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasConeCt = "Pb2dCanvasConeCt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasConeNeutral = "Pb2dCanvasConeNeutral" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasConeT = "Pb2dCanvasConeT" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasDropTarget = "Pb2dCanvasDropTarget" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasFire = "Pb2dCanvasFire" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasLabel = "Pb2dCanvasLabel" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasMajorGrid = "Pb2dCanvasMajorGrid" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasMarkerRingCt = "Pb2dCanvasMarkerRingCt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasMarkerRingNeutral = "Pb2dCanvasMarkerRingNeutral" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasMarkerRingT = "Pb2dCanvasMarkerRingT" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasMinorGrid = "Pb2dCanvasMinorGrid" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasNeutral = "Pb2dCanvasNeutral" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasRingBlinded = "Pb2dCanvasRingBlinded" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasRingDamage = "Pb2dCanvasRingDamage" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasRingDead = "Pb2dCanvasRingDead" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasRingShooting = "Pb2dCanvasRingShooting" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasRouteCt = "Pb2dCanvasRouteCt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasRouteGhostCt = "Pb2dCanvasRouteGhostCt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasRouteGhostT = "Pb2dCanvasRouteGhostT" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasRouteT = "Pb2dCanvasRouteT" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasSightlineCt = "Pb2dCanvasSightlineCt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasSightlineT = "Pb2dCanvasSightlineT" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasSmoke = "Pb2dCanvasSmoke" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasSmokeStroke = "Pb2dCanvasSmokeStroke" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasTrailDecoy = "Pb2dCanvasTrailDecoy" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasTrailFlash = "Pb2dCanvasTrailFlash" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasTrailHe = "Pb2dCanvasTrailHe" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasTrailMolotov = "Pb2dCanvasTrailMolotov" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCanvasTrailSmoke = "Pb2dCanvasTrailSmoke" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dCardBg = "Pb2dCardBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dDefuseTime = "Pb2dDefuseTime" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dDefuser = "Pb2dDefuser" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dFlashAssist = "Pb2dFlashAssist" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dGlyphBlind = "Pb2dGlyphBlind" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dGridSplitter = "Pb2dGridSplitter" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dHeadshot = "Pb2dHeadshot" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dHealth = "Pb2dHealth" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dHudDivider = "Pb2dHudDivider" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dInfoBg = "Pb2dInfoBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dKillFeedBg = "Pb2dKillFeedBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dKillFeedBorder = "Pb2dKillFeedBorder" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dMapApprox = "Pb2dMapApprox" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dNoScope = "Pb2dNoScope" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dOverlayBg = "Pb2dOverlayBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dPanelBg = "Pb2dPanelBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dPositive = "Pb2dPositive" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dTeamCt = "Pb2dTeamCt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dTeamT = "Pb2dTeamT" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dTextBright = "Pb2dTextBright" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dTextBrightest = "Pb2dTextBrightest" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dTextDim = "Pb2dTextDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dTextMid = "Pb2dTextMid" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dTextOnTeam = "Pb2dTextOnTeam" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.Pb2dWallbang = "Pb2dWallbang" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.PrimaryButtonBg = "PrimaryButtonBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.PrimaryButtonBorder = "PrimaryButtonBorder" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.PrimaryButtonHover = "PrimaryButtonHover" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.PropRowSelectedBg = "PropRowSelectedBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.ShellBg = "ShellBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatBarFill = "StatBarFill" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatBarTrack = "StatBarTrack" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatNegative = "StatNegative" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatNegativeSoft = "StatNegativeSoft" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatPositive = "StatPositive" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatPositiveSoft = "StatPositiveSoft" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatSlot0 = "StatSlot0" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatSlot1 = "StatSlot1" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatSlot2 = "StatSlot2" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatSlot3 = "StatSlot3" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatSlot4 = "StatSlot4" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.StatSlot5 = "StatSlot5" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxComment = "SyntaxComment" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxEvent = "SyntaxEvent" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxFacet = "SyntaxFacet" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxIdentifier = "SyntaxIdentifier" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxKind = "SyntaxKind" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxLiteral = "SyntaxLiteral" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxModifier = "SyntaxModifier" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxNumber = "SyntaxNumber" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxOperator = "SyntaxOperator" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxPath = "SyntaxPath" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxPlain = "SyntaxPlain" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxSection = "SyntaxSection" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.SyntaxString = "SyntaxString" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextBright = "TextBright" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextCardHeader = "TextCardHeader" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextCardSize = "TextCardSize" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextChainBadge = "TextChainBadge" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextChainSummary = "TextChainSummary" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextDim = "TextDim" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextDimAlt = "TextDimAlt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextDimGray = "TextDimGray" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextDimTeal = "TextDimTeal" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextEntityFieldVal = "TextEntityFieldVal" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextEntityStatus = "TextEntityStatus" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextFieldName = "TextFieldName" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextFrameInfo = "TextFrameInfo" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextFrameType = "TextFrameType" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextHeaderField = "TextHeaderField" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextHeaderHex = "TextHeaderHex" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextHexBanner = "TextHexBanner" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextHexCell = "TextHexCell" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextHexGutter = "TextHexGutter" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextLabel = "TextLabel" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextLabelAlt = "TextLabelAlt" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextMid = "TextMid" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextOnAccent = "TextOnAccent" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextStatusBar = "TextStatusBar" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.TextValue = "TextValue" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtBoolBg = "WtBoolBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtBoolFg = "WtBoolFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtBytesBg = "WtBytesBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtBytesFg = "WtBytesFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtDefaultBg = "WtDefaultBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtDefaultFg = "WtDefaultFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtFixedBg = "WtFixedBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtFixedFg = "WtFixedFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtMessageBg = "WtMessageBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtMessageFg = "WtMessageFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtStringBg = "WtStringBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtStringFg = "WtStringFg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtVarintBg = "WtVarintBg" -> string!
+const DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.WtVarintFg = "WtVarintFg" -> string!
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Render(Avalonia.Media.DrawingContext! context) -> void
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Render(Avalonia.Media.DrawingContext! context) -> void
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs! change) -> void
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs! change) -> void
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.operator !=(DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? left, DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.operator ==(DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? left, DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.OpenExternal.OpenLocalFile(string! localPath, int? line = null, int? column = null) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.OpenExternal.OpenUri(string! uri) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.OpenExternal.TryOpenInVsCode(string! localPath, int? line = null, int? column = null) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.DisplayText.Sanitize(string! text) -> string!
+static DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses.All.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeColors.Get(string! key, Avalonia.Styling.ThemeVariant? variant, Avalonia.Media.Color fallback) -> Avalonia.Media.Color
+static DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeColors.Get(string! key, Avalonia.Styling.ThemeVariant? variant, string! fallbackHex) -> Avalonia.Media.Color
+static DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens.All.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FallbackProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontFamilyProperty -> Avalonia.StyledProperty<Avalonia.Media.FontFamily!>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontSizeProperty -> Avalonia.StyledProperty<double>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.ForegroundProperty -> Avalonia.StyledProperty<Avalonia.Media.IBrush?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.IconHeightProperty -> Avalonia.StyledProperty<double>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.KeyProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.SourceProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.RowsProperty -> Avalonia.StyledProperty<System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.ShowDeltaOnlyProperty -> Avalonia.StyledProperty<bool>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.VisibleRowsProperty -> Avalonia.DirectProperty<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable!, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>!>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView.MapNameProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.MarkdownProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.CommandProperty -> Avalonia.StyledProperty<System.Windows.Input.ICommand?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.DetailProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.IndentProperty -> Avalonia.StyledProperty<Avalonia.Thickness>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.IsClickableProperty -> Avalonia.DirectProperty<DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip!, bool>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LabelProperty -> Avalonia.StyledProperty<string!>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalLineProperty -> Avalonia.StyledProperty<int?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalPathProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.SourceBadgeProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.TooltipProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.WebFallbackProperty -> Avalonia.StyledProperty<string?>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.Dispose() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.IsBlankByDesign(string! key) -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.Lookup(string! key, float pixelHeight) -> SkiaSharp.SKImage?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.MapIcons() -> void
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.RenderPng(DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame, DemoViewer.NET.Playback2D.Core.Levels.IMapAsset? map, System.Collections.Generic.IReadOnlyList<string!>! layerIds, DemoViewer.NET.Playback2D.Core.ViewportTransform camera, SkiaSharp.SKSizeI size, DemoViewer.NET.Playback2D.Core.Overlay.OverlayDocument? overlay = null) -> byte[]!
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.TryLoad(string? mapName) -> DemoViewer.NET.Playback2D.Core.Levels.IMapAsset?

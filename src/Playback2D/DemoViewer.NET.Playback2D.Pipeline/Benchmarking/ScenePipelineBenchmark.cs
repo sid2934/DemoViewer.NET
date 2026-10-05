@@ -81,7 +81,7 @@ public sealed class ScenePipelineBenchmark
     ///         into arrays that already exist. Zero stays zero with capture on.
     ///     </para>
     /// </summary>
-    public ScenePerfRecorder? Perf { get; set; }
+    internal ScenePerfRecorder? Perf { get; set; }
 
     /// <summary>Runs the benchmark.</summary>
     /// <param name="source">Frames to replay; wrapped modulo its length when the request wants more.</param>

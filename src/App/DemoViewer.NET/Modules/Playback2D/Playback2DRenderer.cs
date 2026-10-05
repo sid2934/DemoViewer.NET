@@ -88,7 +88,7 @@ public interface ILevelSurface
 ///         CAPABILITY the mounted surface either satisfies or does not, asked once at bind time.
 ///     </para>
 /// </summary>
-internal interface IAnnotationSurface
+public interface IAnnotationSurface
 {
     /// <summary>Selects the active pointer tool.</summary>
     /// <param name="kind">The tool.</param>

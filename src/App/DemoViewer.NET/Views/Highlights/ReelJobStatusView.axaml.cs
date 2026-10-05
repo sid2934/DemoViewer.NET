@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Views.Highlights;
 /// <summary>
 ///     The Reel job flyout body, resolved by the app
 ///     <c>ViewLocator</c> for a <see cref="ViewModels.Highlights.ReelJobStatusViewModel" /> and hosted inside
-///     the <see cref="Controls.StatusChip" />'s <c>card-flyout</c>. The only code-behind is the failed-state
+///     the <see cref="StatusChip" />'s <c>card-flyout</c>. The only code-behind is the failed-state
 ///     "Copy error" handler: clipboard access needs the visual tree (<c>TopLevel.Clipboard</c>), which a VM
 ///     command cannot reach. The error itself is also a <c>SelectableTextBlock</c>, so keyboard-only users
 ///     retain a copy path if the platform clipboard write is rejected.

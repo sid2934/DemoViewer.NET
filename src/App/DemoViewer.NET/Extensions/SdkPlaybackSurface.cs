@@ -5,8 +5,11 @@ using Avalonia.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Tools;
+using DemoViewer.NET.Playback2D.Core.Zones;
 using Core = DemoViewer.NET.Playback2D.Core.Timeline;
 using SdkP = DemoViewer.NET.Extensions.Sdk.Playback;
 
@@ -44,17 +47,6 @@ internal sealed class SdkPlaybackContribution(SdkP.IPlaybackContribution inner, 
     }
 }
 
-/// <summary>A first-party playback contribution with its attach and detach run as its extension's.</summary>
-internal sealed class GuardedPlaybackContribution(IPlaybackContribution inner, ExtensionGuard guard) : IPlaybackContribution
-{
-    public IPlaybackContribution Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
-
-    public void Attach(IPlaybackSurface surface, IModuleContext context) =>
-        guard.Run("playback attach", () => Inner.Attach(surface, context));
-
-    public void Detach() => guard.Run("playback detach", Inner.Detach);
-}
-
 /// <summary>
 ///     The SDK's view of one 2D Playback tab, over the app's surface. Every handler and factory the extension
 ///     hands in is wrapped once, at registration, so a throw is reported against the extension and the tab
@@ -62,8 +54,6 @@ internal sealed class GuardedPlaybackContribution(IPlaybackContribution inner, E
 /// </summary>
 internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
 {
-    private static readonly IReadOnlyCollection<string> _actionIds = Enum.GetNames<Playback2DAction>();
-
     private readonly IPlaybackSurface _surface;
     private readonly ExtensionGuard _guard;
     private readonly List<IDisposable> _owned = [];
@@ -79,7 +69,15 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public IReadOnlyList<SdkP.PlaybackLevel> Levels =>
         [.. _surface.MapLevels.Select(l => new SdkP.PlaybackLevel(l.Name, l.ZMin, l.ZMax))];
 
-    public IReadOnlyCollection<string> ActionIds => _actionIds;
+    public IReadOnlyList<string> Places =>
+        _surface.Zones is { } zones
+            ? [.. zones.Zones.Places.Select(p => p.Name).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)]
+            : [];
+
+    public string? PlacesVersion => _surface.Zones?.Zones.EffectiveVersion;
+
+    public IReadOnlyCollection<string> ActionIds => CommandRegistry.Default.ActionIds;
 
     public event Action? KeymapChanged;
 
@@ -97,8 +95,22 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         return Own(_surface.OnPlayheadChanged(_guard.Wrap("playhead handler", handler, FaultKind.Recurring)));
     }
 
-    public string GestureHint(string actionId) =>
-        Enum.TryParse(actionId, false, out Playback2DAction action) ? _surface.GestureHint(action) : "";
+    public string? PlaceAt(string? level, double worldX, double worldY)
+    {
+        IReadOnlyList<MapLevel> levels = _surface.MapLevels;
+        MapLevel? floor = level is null
+            ? levels.Count == 1 ? levels[0] : null
+            : levels.FirstOrDefault(l => string.Equals(l.Name, level, StringComparison.Ordinal));
+        return floor is null ? null : PlaceOnFloor(_surface.Zones, floor, worldX, worldY);
+    }
+
+    public string GestureHint(string actionId) => actionId is null ? "" : _surface.GestureHint(actionId);
+
+    public string? ActionFor(string scope, Key key, KeyModifiers modifiers) =>
+        !string.IsNullOrEmpty(scope)
+        && _surface.Keymap.TryResolveInScope(new Playback2DBindingScope(scope), key, modifiers, out string? actionId)
+            ? actionId
+            : null;
 
     public SdkP.ILaneHandle AddLane(SdkP.ITimelineTrack track, SdkP.ILaneBehaviour? behaviour = null)
     {
@@ -129,12 +141,9 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public IDisposable AddToolbarItem(SdkP.ToolbarItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        Playback2DAction? action = item.ActionId is { } id && Enum.TryParse(id, false, out Playback2DAction parsed)
-            ? parsed
-            : null;
         Func<SdkP.PlaybackMoment, bool> run = _guard.Wrap("toolbar item", item.Run, false);
         ToolbarItem mirrored = new(item.Id, item.Label, item.Tooltip,
-            frame => run(new SdkP.PlaybackMoment(frame.Time.Tick, frame.Time.FrameIndex)), action, item.Order,
+            frame => run(new SdkP.PlaybackMoment(frame.Time.Tick, frame.Time.FrameIndex, frame)), item.ActionId, item.Order,
             item.Icon, item.MenuHeader);
 
         void Sync(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
@@ -190,6 +199,21 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         return panel;
     }
 
+    public IDisposable AddLayer(string id, Func<ISceneLayer> layer)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+        string filed = ExtensionLayerIds.Compose(_guard.Scope.Id, id);
+        ISceneLayer Build() =>
+            new GuardedSceneLayer(filed, _guard.Run<ISceneLayer>("scene layer factory", layer, EmptySceneLayer.Instance), _guard);
+        return Own(_surface.AddLayer(filed, Build));
+    }
+
+    public IDisposable AddTool(IMapTool tool)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        return Own(_surface.AddTool(new GuardedMapTool(tool, _guard)));
+    }
+
     public IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
@@ -203,7 +227,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     {
         ArgumentNullException.ThrowIfNull(handler);
         Func<string, bool> guarded = _guard.Wrap("action handler", handler, false, FaultKind.Recurring);
-        return Own(_surface.AddActionHandler(action => guarded(action.ToString())));
+        return Own(_surface.AddActionHandler(guarded));
     }
 
     public void Dispose()
@@ -242,10 +266,13 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
             keys |= KeyModifiers.Alt;
         }
 
-        double floorKey = MapSpace.QuantizeZ(p.Level.ZMin);
         return new SdkP.PlaybackPointer(p.Level.Name, p.WorldX, p.WorldY, p.Screen.X, p.Screen.Y, keys, p.Frame.Time.Tick,
-            () => p.Zones()?.ResolveOnFloor(p.WorldX, p.WorldY, floorKey).Name);
+            () => PlaceOnFloor(p.Zones(), p.Level, p.WorldX, p.WorldY), p.Frame);
     }
+
+    // A floor's key is its quantized lower bound, the same key the zone set's floors are stored under.
+    private static string? PlaceOnFloor(PlaceResolver? zones, MapLevel floor, double worldX, double worldY) =>
+        zones?.ResolveOnFloor(worldX, worldY, MapSpace.QuantizeZ(floor.ZMin)).Name;
 
     private IDisposable Own(IDisposable registration)
     {
@@ -292,7 +319,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         public bool HasEvent(string eventName) => data.HasEvent(eventName);
     }
 
-    private sealed class CoreTrack : Core.ITimelineTrack
+    /// <summary>An SDK track as the timeline reads it, every call into it guarded.</summary>
+    internal sealed class CoreTrack : Core.ITimelineTrack
     {
         private readonly SdkP.ITimelineTrack _track;
         private readonly ExtensionGuard _guard;
@@ -316,7 +344,13 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         public bool IsAvailable(Core.ITimelineData data) =>
             _guard.Run("timeline track", () => _track.IsAvailable(new TimelineData(data)), false);
 
-        public IReadOnlyList<Core.TimelineMarker> BuildMarkers(Core.ITimelineData data) => [];
+        public IReadOnlyList<Core.TimelineMarker> BuildMarkers(Core.ITimelineData data) =>
+            _guard.Run<IReadOnlyList<Core.TimelineMarker>>("timeline track", () =>
+            [
+                .. _track.BuildMarks(new TimelineData(data))
+                    .Select(m => new Core.TimelineMarker(Id, m.FrameIndex, m.Tick, Core.TimelineMarkerKind.Custom, m.Glyph,
+                        m.Tooltip, m.Argb))
+            ], []);
 
         public IReadOnlyList<Core.TimelineBand> BuildBands(Core.ITimelineData data) =>
             _guard.Run<IReadOnlyList<Core.TimelineBand>>("timeline track", () =>

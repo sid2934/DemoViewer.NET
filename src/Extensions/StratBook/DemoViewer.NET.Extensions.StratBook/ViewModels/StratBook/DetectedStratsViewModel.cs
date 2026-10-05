@@ -6,10 +6,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
@@ -27,7 +27,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
     private readonly StratCanvasServices? _canvasServices;
     private readonly LineupOriginSource? _lineupOrigins;
-    private readonly Func<string?, LoadedMapAsset?>? _mapLoader;
+    private readonly Func<string?, IMapAsset?>? _mapLoader;
     private readonly StratMiningService? _mining;
     private readonly Action<Guid> _openStrat;
     private readonly Func<ISituationPlayback?> _playback;
@@ -66,7 +66,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     /// <param name="canvasServices">The preview canvas's gate, zone resolver and settings fallback; see <see cref="StratCanvasServices" />.</param>
     public DetectedStratsViewModel(StratMiningService? mining, Func<ISituationPlayback?> playback, Func<Guid, string?> teamName,
         Func<StratOwner?> targetBook, Action<Guid> openStrat, Action<Action>? post = null,
-        Func<string?, LoadedMapAsset?>? mapLoader = null, LineupOriginSource? lineupOrigins = null,
+        Func<string?, IMapAsset?>? mapLoader = null, LineupOriginSource? lineupOrigins = null,
         StratCanvasServices? canvasServices = null)
     {
         _canvasServices = canvasServices;

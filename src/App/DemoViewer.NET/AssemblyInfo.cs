@@ -11,9 +11,6 @@ using System.Runtime.CompilerServices;
 // UiCapture renders design variants over the same internal test seams (e.g. the Playback2D
 // vision engine's synchronous load hook): headless Avalonia can't pump the async production path.
 [assembly: InternalsVisibleTo("DemoViewer.NET.UiCapture")]
-// First-party extensions compose over the same internal seams the app's own composition root uses.
-// The loader only loads signed first-party assemblies, so this widens nothing to third parties.
-[assembly: InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook")]
 // The pack's own test project, moved out of App.Tests, needs the same internal seams
 // App.Tests uses (the composition-root and Playback2D tests it inherited).
 [assembly: InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook.Tests")]

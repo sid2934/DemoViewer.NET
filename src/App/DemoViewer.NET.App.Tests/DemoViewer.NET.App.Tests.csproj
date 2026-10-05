@@ -37,6 +37,8 @@
         <!-- Built, not referenced: the third-party extension tests install its output under a temp extensions folder. -->
         <ProjectReference Include="..\..\..\samples\Extensions\HelloExtension\HelloExtension.csproj"
                           ReferenceOutputAssembly="false" Private="false"/>
+        <!-- Referenced for its view models, and installed from its own output by the external loading test. -->
+        <ProjectReference Include="..\..\Testing\ThirdPartyFake\ThirdPartyFake.csproj"/>
     </ItemGroup>
 
     <!-- These four files moved to the extension test project along with the rest of
@@ -67,5 +69,7 @@
     <ItemGroup>
         <Using Include="DemoViewer.NET.Extensions.Sdk"/>
     </ItemGroup>
+
+    <Import Project="..\..\Testing\DemoViewer.NET.Extensions.Testing\DemoViewer.NET.Extensions.Testing.props"/>
 
 </Project>

@@ -9,7 +9,6 @@ using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
@@ -17,8 +16,8 @@ using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
@@ -53,7 +52,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 ///         the render boundary, like every player name.
 ///     </para>
 /// </summary>
-public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     /// <summary>The map filter's "no filter" entry.</summary>
     public const string AllMaps = "all maps";
@@ -64,7 +63,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     private readonly CalloutResolverSource _calloutResolvers;
     private readonly GrenadeIndex? _grenades;
     private readonly LineupOriginSource? _lineupOrigins;
-    private readonly Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? _lineupMap;
+    private readonly Func<string, IMapAsset?, UtilityBookTabViewModel>? _lineupMap;
 
     // What the open lineup picker writes to; it closes when either goes away.
     private (Guid Strat, Guid Step)? _pickerTarget;
@@ -162,12 +161,12 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     ///     canvases nothing to fall back on.
     /// </param>
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
-        CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
+        CalloutResolverSource? calloutResolvers = null, Func<string?, IMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
         Func<string, LibraryDemo?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
-        StratBookLayout? layout = null, Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
+        StratBookLayout? layout = null, Func<string, IMapAsset?, UtilityBookTabViewModel>? lineupMap = null,
         Func<string, Task<IZonePlaceResolver?>>? canvasPlaces = null, Func<bool>? canvasRouting = null,
         StratCanvasServices? canvasServices = null)
     {

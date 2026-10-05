@@ -26,6 +26,7 @@
     </Folder>
     <Folder Name="/src/Sdk/">
         <Project Path="src/Sdk/DemoViewer.NET.Extensions.Sdk/DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <Project Path="src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
     </Folder>
     <Folder Name="/src/Extensions/">
         <Project
@@ -41,6 +42,7 @@
         <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Core/DemoViewer.NET.Playback2D.Core.csproj"/>
         <Project
                 Path="src/Playback2D/DemoViewer.NET.Playback2D.Pipeline/DemoViewer.NET.Playback2D.Pipeline.csproj"/>
+        <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Scene/DemoViewer.NET.Playback2D.Scene.csproj"/>
         <Project Path="src/Playback2D/DemoViewer.NET.Playback2D.Tests/DemoViewer.NET.Playback2D.Tests.csproj"/>
     </Folder>
     <Folder Name="/src/RuleAuthoring/">
@@ -51,6 +53,7 @@
     <Folder Name="/src/Testing/">
         <Project Path="src/Testing/DemoViewer.NET.TestSupport/DemoViewer.NET.TestSupport.csproj"/>
         <Project Path="src/Testing/DemoViewer.NET.LiveSync.Tests/DemoViewer.NET.LiveSync.Tests.csproj"/>
+        <Project Path="src/Testing/ThirdPartyFake/ThirdPartyFake.csproj"/>
     </Folder>
     <Folder Name="/src/Visualization/">
         <Project Path="src/Visualization/DemoViewer.NET.Visualization/DemoViewer.NET.Visualization.csproj"/>

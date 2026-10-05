@@ -55,7 +55,7 @@ public sealed class RoundTaggerModule : IWorkspaceModule
             TabId = MatrixTabId,
             Header = "Tags",
             Order = 2, // after Situations (1)
-            HostId = DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new TagMatrixTabView()

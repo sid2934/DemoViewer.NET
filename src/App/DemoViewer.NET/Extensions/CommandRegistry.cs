@@ -1,6 +1,8 @@
 #region
 
+using System.Runtime.Loader;
 using Avalonia.Input;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Modules.Playback2D;
 
 #endregion
@@ -15,10 +17,27 @@ namespace DemoViewer.NET.Extensions;
 public sealed record PackCommand(CommandDescriptor Command, string PackId, string PackFeatureId, string PackLabel);
 
 /// <summary>
-///     The merged command set: the core <see cref="Playback2DKeymap" /> table, whose rows already carry a
-///     command id one to one with their <see cref="Playback2DAction" /> name, union every compiled-in
-///     pack's <see cref="IExtension.Commands" />. Built once, with no DI and no composition root, so a
-///     bare-constructed view model in a headless test resolves pack chords the same as a fully composed app.
+///     Bare command ids a compiled-in extension shipped before command ids carried the extension's prefix,
+///     each mapped to the id it has now. Override parsing reads them so a persisted row keyed by the old id
+///     still applies. Never read from a third-party extension.
+/// </summary>
+public interface ICommandAliases
+{
+    /// <summary>Old id to current id. Each current id must be one of the extension's own commands.</summary>
+    IReadOnlyDictionary<string, string> CommandAliases { get; }
+}
+
+/// <summary>
+///     The merged command set: the core <see cref="Playback2DKeymap" /> table, whose rows carry their
+///     <see cref="Playback2DAction" /> name as their id, union every compiled-in and third-party extension's
+///     <see cref="IExtension.Commands" />. Built once, with no DI and no composition root, so a bare-constructed
+///     view model in a headless test resolves pack chords the same as a fully composed app.
+///     <para>
+///         Ids are unique across the merged set, ignoring case, since override rows are matched that way. A
+///         compiled-in extension that breaks that, or names a scope it does not declare, fails the build of
+///         the registry. A third-party extension's offending command is reported in <see cref="Conflicts" />
+///         and left out, as is one whose id or scope lacks the extension's own prefix.
+///     </para>
 ///     <para>
 ///         A pack row whose default chord collides with an earlier row (core, the shell, or another pack)
 ///         is reported in <see cref="Conflicts" /> and ships with no default chord of its own: the earlier
@@ -27,16 +46,22 @@ public sealed record PackCommand(CommandDescriptor Command, string PackId, strin
 /// </summary>
 public sealed class CommandRegistry
 {
-    private readonly Dictionary<Playback2DAction, PackCommand> _packByAction;
+    private readonly Dictionary<string, string> _aliases;
+    private readonly Dictionary<string, PackCommand> _packByAction;
+    private readonly Dictionary<string, CommandScope> _scopes;
 
     private CommandRegistry(IReadOnlyList<Playback2DBinding> effectiveBindings,
         IReadOnlyList<PackCommand> packCommands, IReadOnlyList<string> conflicts,
-        Dictionary<Playback2DAction, PackCommand> packByAction)
+        Dictionary<string, PackCommand> packByAction, Dictionary<string, string> aliases,
+        Dictionary<string, CommandScope> scopes)
     {
         EffectiveBindings = effectiveBindings;
         PackCommands = packCommands;
         Conflicts = conflicts;
         _packByAction = packByAction;
+        _aliases = aliases;
+        _scopes = scopes;
+        ActionIds = [.. Playback2DActionIds.Core, .. packCommands.Select(c => c.Command.Id)];
     }
 
     /// <summary>
@@ -50,13 +75,15 @@ public sealed class CommandRegistry
     public IReadOnlyList<PackCommand> PackCommands { get; }
 
     /// <summary>
-    ///     One line per default-chord collision found while composing. Empty on the real, shipped table;
-    ///     a fake pack's colliding default proves this is populated rather than throwing or silently
-    ///     preferring one side.
+    ///     One line per default-chord collision found while composing, and per third-party command left out.
+    ///     Empty on the real, shipped table.
     /// </summary>
     public IReadOnlyList<string> Conflicts { get; }
 
-    /// <summary>Built once from the compatible compiled-in packs (<see cref="FeaturePacks.Compatible" />).</summary>
+    /// <summary>Every action id: the core ids, then every pack command's, in composition order.</summary>
+    public IReadOnlyList<string> ActionIds { get; }
+
+    /// <summary>Built once from the compatible packs (<see cref="FeaturePacks.Compatible" />).</summary>
     // Lazy: the loader builds registries to check a third-party extension before FeaturePacks is set, and
     // reading FeaturePacks then would freeze it empty.
     private static readonly Lazy<CommandRegistry> _default = new(() => Build(FeaturePacks.Compatible, static (pack, ex) =>
@@ -67,13 +94,17 @@ public sealed class CommandRegistry
         }
     }));
 
+    /// <summary>The registry over the packs this launch composed.</summary>
     public static CommandRegistry Default => _default.Value;
 
     /// <summary>
-    ///     Looks up a pack command by the <see cref="Playback2DAction" /> its id parses to. Used by the
-    ///     keybind settings list to label and gate a row; absent for every core action.
+    ///     Looks up a pack command by id, ignoring case. Used by the keybind settings list to label and gate a
+    ///     row; absent for every core action.
     /// </summary>
-    public IReadOnlyDictionary<Playback2DAction, PackCommand> PackOwnerByAction => _packByAction;
+    public IReadOnlyDictionary<string, PackCommand> PackOwnerByAction => _packByAction;
+
+    /// <summary>Old command ids a compiled-in extension still answers to, ignoring case, each to its current id.</summary>
+    public IReadOnlyDictionary<string, string> Aliases => _aliases;
 
     /// <summary>
     ///     Composes <paramref name="packs" />' commands over the core table. Pure: no shared or cached
@@ -82,27 +113,44 @@ public sealed class CommandRegistry
     /// </summary>
     /// <param name="packs">The packs, in composition order.</param>
     /// <param name="onFault">
-    ///     Told when a pack's <c>Features</c> or <c>Commands</c> getter throws; that pack's commands are left
-    ///     out. Null rethrows.
+    ///     Told when a pack's <c>Features</c>, <c>Commands</c> or <c>CommandScopes</c> getter throws; that pack's
+    ///     commands are left out. Null rethrows.
     /// </param>
-    public static CommandRegistry Build(IReadOnlyList<IExtension> packs, Action<IExtension, Exception>? onFault = null)
+    /// <param name="isThirdParty">
+    ///     Whether a pack is a third-party extension. Null reads where its assembly was loaded from: a
+    ///     third-party extension loads into its own <see cref="ExternalLoadContext" />.
+    /// </param>
+    /// <exception cref="InvalidOperationException">A compiled-in pack's command id, scope or alias is invalid.</exception>
+    public static CommandRegistry Build(IReadOnlyList<IExtension> packs, Action<IExtension, Exception>? onFault = null,
+        Func<IExtension, bool>? isThirdParty = null)
     {
         ArgumentNullException.ThrowIfNull(packs);
+        isThirdParty ??= IsLoadedExternally;
 
         List<Playback2DBinding> bindings = [.. Playback2DKeymap.Default];
         List<PackCommand> packCommands = [];
         List<string> conflicts = [];
-        Dictionary<Playback2DAction, PackCommand> byAction = new();
+        HashSet<string> taken = new(Playback2DActionIds.Core, StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, PackCommand> byAction = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, string> aliases = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, CommandScope> scopes = new(StringComparer.Ordinal);
+        Dictionary<string, string> scopeOwners = new(StringComparer.Ordinal);
 
         foreach (IExtension pack in packs)
         {
-            // Both getters are the extension's code; read each once, up front.
+            bool thirdParty = isThirdParty(pack);
+
+            // Every getter is the extension's code; read each once, up front.
             string label;
             CommandDescriptor[] commands;
+            CommandScope[] declaredScopes;
+            KeyValuePair<string, string>[] declaredAliases;
             try
             {
                 label = pack.Features.FirstOrDefault(f => f.Id == pack.FeatureId)?.Label ?? pack.FeatureId;
                 commands = [.. pack.Commands];
+                declaredScopes = [.. pack.CommandScopes];
+                declaredAliases = !thirdParty && pack is ICommandAliases legacy ? [.. legacy.CommandAliases] : [];
             }
             catch (Exception ex) when (onFault is not null && ex is not OutOfMemoryException)
             {
@@ -110,22 +158,65 @@ public sealed class CommandRegistry
                 continue;
             }
 
+            string prefix = pack.Id + ".";
+
+            void Refuse(string problem)
+            {
+                if (!thirdParty)
+                {
+                    throw new InvalidOperationException($"Pack '{pack.Id}' {problem}.");
+                }
+
+                conflicts.Add($"{pack.Id}: {problem}; left out");
+            }
+
+            foreach (CommandScope scope in declaredScopes)
+            {
+                if (!IsPrefixed(scope.Id, prefix))
+                {
+                    Refuse($"scope '{scope.Id}' is not prefixed with '{prefix}'");
+                }
+                else if (scopes.TryAdd(scope.Id, scope))
+                {
+                    scopeOwners[scope.Id] = pack.Id;
+                }
+                else
+                {
+                    Refuse($"scope '{scope.Id}' is already declared");
+                }
+            }
+
             foreach (CommandDescriptor command in commands)
             {
-                if (!TryParseAction(command.Id, out Playback2DAction action))
+                if (string.IsNullOrWhiteSpace(command.Id))
                 {
-                    throw new InvalidOperationException(
-                        $"Pack '{pack.Id}' command '{command.Id}' names no Playback2DAction; a command id " +
-                        "must equal the action's enum name.");
+                    Refuse("has a command with no id");
+                    continue;
+                }
+
+                if (thirdParty && !IsPrefixed(command.Id, prefix))
+                {
+                    Refuse($"command '{command.Id}' is not prefixed with '{prefix}'");
+                    continue;
+                }
+
+                if (taken.Contains(command.Id) || aliases.ContainsKey(command.Id))
+                {
+                    Refuse($"command '{command.Id}' duplicates an action id already taken");
+                    continue;
+                }
+
+                Playback2DBindingScope bindingScope = new(command.Scope ?? "");
+                if (!bindingScope.IsCore
+                    && !(scopeOwners.TryGetValue(bindingScope.Name, out string? owner) && owner == pack.Id))
+                {
+                    Refuse($"command '{command.Id}' names scope '{command.Scope}', which it does not declare");
+                    continue;
                 }
 
                 PackCommand entry = new(command, pack.Id, pack.FeatureId, label);
-                if (!byAction.TryAdd(action, entry))
-                {
-                    throw new InvalidOperationException(
-                        $"Pack '{pack.Id}' command '{command.Id}' duplicates an action another pack already owns.");
-                }
-
+                taken.Add(command.Id);
+                byAction[command.Id] = entry;
                 packCommands.Add(entry);
 
                 if (command.DefaultChord is not { } chord)
@@ -133,8 +224,8 @@ public sealed class CommandRegistry
                     continue; // no default to place on the table; the command is still looked up by id
                 }
 
-                Playback2DBinding candidate = new(action, chord.Key, chord.KeyModifiers,
-                    ParseScope(command.Scope), command.Label, false);
+                Playback2DBinding candidate = new(command.Id, chord.Key, chord.KeyModifiers, bindingScope,
+                    command.Label, false);
 
                 // bindings-so-far is already conflict-free (the core table's own static ctor guarantees
                 // that, and every earlier pack row only ever joined after passing this same check), so
@@ -149,9 +240,68 @@ public sealed class CommandRegistry
 
                 bindings.Add(candidate);
             }
+
+            foreach ((string old, string current) in declaredAliases)
+            {
+                if (!byAction.TryGetValue(current, out PackCommand? target) || target.PackId != pack.Id)
+                {
+                    throw new InvalidOperationException(
+                        $"Pack '{pack.Id}' aliases '{old}' to '{current}', which is not one of its commands.");
+                }
+
+                if (taken.Contains(old) || !aliases.TryAdd(old, target.Command.Id))
+                {
+                    throw new InvalidOperationException(
+                        $"Pack '{pack.Id}' alias '{old}' duplicates an action id already taken.");
+                }
+            }
         }
 
-        return new CommandRegistry(bindings, packCommands, conflicts, byAction);
+        return new CommandRegistry(bindings, packCommands, conflicts, byAction, aliases, scopes);
+    }
+
+    /// <summary>
+    ///     The current id <paramref name="name" /> names, ignoring case: a core id, a pack command's id, or an
+    ///     old id through <see cref="Aliases" />. Null when it names no action.
+    /// </summary>
+    /// <param name="name">The id as written, e.g. the left-hand side of an override row.</param>
+    public string? Canonical(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        foreach (string core in Playback2DActionIds.Core)
+        {
+            if (string.Equals(core, name, StringComparison.OrdinalIgnoreCase))
+            {
+                return core;
+            }
+        }
+
+        if (_packByAction.TryGetValue(name, out PackCommand? command))
+        {
+            return command.Command.Id;
+        }
+
+        return _aliases.GetValueOrDefault(name);
+    }
+
+    /// <summary>
+    ///     How the keybind settings list names a scope: "always", "while drawing", or the label the declaring
+    ///     extension gave it.
+    /// </summary>
+    /// <param name="scope">The scope.</param>
+    public string ScopeLabel(Playback2DBindingScope scope)
+    {
+        if (scope == Playback2DBindingScope.Always)
+        {
+            return "always";
+        }
+
+        if (scope == Playback2DBindingScope.WhenToolActive)
+        {
+            return "while drawing";
+        }
+
+        return scope.Name is { } name && _scopes.TryGetValue(name, out CommandScope? declared) ? declared.Label : scope.Name ?? "";
     }
 
     /// <summary>
@@ -172,8 +322,9 @@ public sealed class CommandRegistry
     public bool TryResolve(Key key, KeyModifiers modifiers, string scope, Func<string, bool> isPackEnabled,
         out CommandDescriptor? command)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         ArgumentNullException.ThrowIfNull(isPackEnabled);
-        Playback2DBindingScope parsedScope = ParseScope(scope);
+        Playback2DBindingScope parsedScope = new(scope);
 
         foreach (Playback2DBinding binding in EffectiveBindings)
         {
@@ -183,7 +334,7 @@ public sealed class CommandRegistry
                 continue;
             }
 
-            if (_packByAction.TryGetValue(binding.Action, out PackCommand? owner))
+            if (_packByAction.TryGetValue(binding.ActionId, out PackCommand? owner))
             {
                 if (!isPackEnabled(owner.PackFeatureId))
                 {
@@ -234,32 +385,17 @@ public sealed class CommandRegistry
         return true;
     }
 
-    // A core row has no pack to call back into generically (CommandRegistry is core and may not reference
-    // the Strat canvas VM), so its Run targets the 2D Playback tab VM, the shared surface every core
-    // action already routes through today.
+    // A third-party extension is the only kind loaded into an ExternalLoadContext.
+    private static bool IsLoadedExternally(IExtension pack) =>
+        AssemblyLoadContext.GetLoadContext(pack.GetType().Assembly) is ExternalLoadContext;
+
+    private static bool IsPrefixed(string? id, string prefix) =>
+        id is not null && id.Length > prefix.Length && id.StartsWith(prefix, StringComparison.Ordinal);
+
+    // A core row has no pack to call back into generically, so its Run targets the 2D Playback tab VM, the
+    // shared surface every core action already routes through.
     private static CommandDescriptor CoreCommand(Playback2DBinding binding) => new(
-        binding.Action.ToString(), binding.Description, ScopeName(binding.Scope),
+        binding.ActionId, binding.Description, binding.Scope.Name,
         new KeyGesture(binding.Key, binding.Modifiers),
-        ctx => ctx.Target is Playback2DTabViewModel tab && tab.ExecuteAction(binding.Action));
-
-    internal static Playback2DBindingScope ParseScope(string scope) => scope switch
-    {
-        "playback2d" => Playback2DBindingScope.Always,
-        "playback2d.tool" => Playback2DBindingScope.WhenToolActive,
-        "playback2d.palette" => Playback2DBindingScope.WhenPaletteFocused,
-        "playback2d.suggestion" => Playback2DBindingScope.WhenSuggestionSelected,
-        _ => throw new InvalidOperationException($"Unknown command scope '{scope}'.")
-    };
-
-    internal static string ScopeName(Playback2DBindingScope scope) => scope switch
-    {
-        Playback2DBindingScope.Always => "playback2d",
-        Playback2DBindingScope.WhenToolActive => "playback2d.tool",
-        Playback2DBindingScope.WhenPaletteFocused => "playback2d.palette",
-        Playback2DBindingScope.WhenSuggestionSelected => "playback2d.suggestion",
-        _ => throw new InvalidOperationException($"Unknown binding scope '{scope}'.")
-    };
-
-    private static bool TryParseAction(string id, out Playback2DAction action) =>
-        Enum.TryParse(id, false, out action) && Enum.IsDefined(action);
+        ctx => ctx.Target is Playback2DTabViewModel tab && tab.ExecuteAction(binding.ActionId));
 }

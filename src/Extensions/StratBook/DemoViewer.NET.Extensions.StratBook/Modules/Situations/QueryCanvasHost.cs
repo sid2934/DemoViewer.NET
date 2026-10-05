@@ -1,8 +1,8 @@
 #region
 
-using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core.Compositing;
-using DemoViewer.NET.Playback2D.Core.Input;
+using Avalonia;
+using Avalonia.Controls;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
@@ -11,35 +11,52 @@ using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
-///     The Query Canvas surface: a <see cref="MapSceneHost" /> hosting the query token layer, the Overlay
-///     View heatmap and the query token tool. A left drag on empty map with no rail slot armed pans: the
-///     tool refuses that press and the base re-routes it to pan and zoom.
+///     The Query Canvas surface: a <see cref="MapView" /> with the query token layer, the Overlay View heatmap
+///     and the query token tool as its primary tool. A left drag on empty map with no rail slot armed pans:
+///     the tool refuses that press and the view pans instead.
 /// </summary>
-public sealed class QueryCanvasHost : MapSceneHost
+public sealed class QueryCanvasHost : Decorator
 {
-    private OverlayHeatmapLayer? _overlayLayer;
-    private QueryTokenLayer? _queryLayer;
+    private readonly List<IDisposable> _attached = [];
+    private readonly MapView _map = new();
     private QueryCanvasViewModel? _vm;
 
-    /// <inheritdoc />
-    protected override ToolKind PrimaryTool => _vm is null ? ToolKind.PanZoom : ToolKind.QueryToken;
+    /// <summary>Creates the surface.</summary>
+    public QueryCanvasHost()
+    {
+        Child = _map;
+        _map.EscapePressed += (_, _) => _vm?.Disarm();
+    }
+
+    /// <summary>The map view this surface is built on. For tests.</summary>
+    internal MapView Map => _map;
 
     /// <inheritdoc />
-    protected override void AddLayers(SceneCompositor compositor)
+    protected override void OnDataContextChanged(EventArgs e)
     {
-        // A rebuilt scene has none of the view model's layers; they are re-added at the next attach.
-        _queryLayer = null;
-        _overlayLayer = null;
-        _vm = null;
+        base.OnDataContextChanged(e);
+        if (VisualRoot is not null)
+        {
+            Attach(DataContext as QueryCanvasViewModel);
+        }
     }
 
     /// <inheritdoc />
-    protected override void OnEscape() => _vm?.Disarm();
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        Attach(DataContext as QueryCanvasViewModel);
+    }
 
     /// <inheritdoc />
-    protected override void AttachDataContext(object? dataContext)
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
-        QueryCanvasViewModel? vm = dataContext as QueryCanvasViewModel;
+        base.OnDetachedFromVisualTree(e);
+        Attach(null);
+    }
+
+    private void Attach(QueryCanvasViewModel? vm)
+    {
         if (ReferenceEquals(_vm, vm))
         {
             return;
@@ -52,48 +69,32 @@ public sealed class QueryCanvasHost : MapSceneHost
             _vm.Overlay.Changed -= OnDocumentChanged;
         }
 
-        Router.CancelActive();
-        _vm = vm;
-
-        WithCompositor(compositor =>
+        _map.CancelGesture();
+        _map.SetPrimaryTool(null);
+        foreach (IDisposable added in _attached)
         {
-            if (_queryLayer is not null)
-            {
-                compositor.Remove(SceneLayerIds.Query);
-                _queryLayer = null;
-            }
+            added.Dispose();
+        }
 
-            if (_overlayLayer is not null)
-            {
-                compositor.Remove(SceneLayerIds.Overlay);
-                _overlayLayer = null;
-            }
-
-            if (vm is not null)
-            {
-                _queryLayer = new QueryTokenLayer(vm.Document);
-                compositor.Add(_queryLayer);
-                // Under the tokens: the heat is what a token is being placed on, never what hides it.
-                _overlayLayer = new OverlayHeatmapLayer(vm.Overlay);
-                compositor.Add(_overlayLayer);
-            }
-        });
-
+        _attached.Clear();
+        _vm = vm;
         if (vm is null)
         {
-            Router.SetActive(ToolKind.PanZoom);
             return;
         }
 
-        Router.Register(vm.Tool);
-        Router.SetActive(ToolKind.QueryToken);
+        _attached.Add(_map.AddLayer(SceneLayerIds.Query, () => new QueryTokenLayer(vm.Document)));
+        // Under the tokens: the heat is what a token is being placed on, never what hides it.
+        _attached.Add(_map.AddLayer(SceneLayerIds.Overlay, () => new OverlayHeatmapLayer(vm.Overlay)));
+        _attached.Add(_map.AddTool(vm.Tool));
+        _map.SetPrimaryTool(vm.Tool);
         vm.MapChanged += OnMapChanged;
         vm.Document.Changed += OnDocumentChanged;
         vm.Overlay.Changed += OnDocumentChanged;
         OnMapChanged();
     }
 
-    private void OnDocumentChanged() => InvalidateVisual();
+    private void OnDocumentChanged() => _map.Invalidate();
 
-    private void OnMapChanged() => BindMap(_vm?.Map ?? "", _vm?.MapAsset);
+    private void OnMapChanged() => _map.MapName = _vm?.Map;
 }

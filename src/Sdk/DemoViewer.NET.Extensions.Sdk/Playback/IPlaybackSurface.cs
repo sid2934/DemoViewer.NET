@@ -1,5 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Tools;
 
 namespace DemoViewer.NET.Extensions.Sdk.Playback;
 
@@ -12,7 +15,37 @@ public interface IPlaybackSurface
     /// <summary>The mounted map's floors, lowest first; empty before a map is shown.</summary>
     IReadOnlyList<PlaybackLevel> Levels { get; }
 
-    /// <summary>The ids of the tab's actions, which <see cref="GestureHint" /> and <see cref="AddActionHandler" /> name.</summary>
+    /// <summary>
+    ///     The named places of the mounted map, distinct and in ordinal order; empty when the map has no zones
+    ///     or no map is shown. The names are the ones <see cref="PlaceAt" /> answers with.
+    /// </summary>
+    IReadOnlyList<string> Places { get; }
+
+    /// <summary>
+    ///     The named place at a world point on one floor: a place volume on that floor, else the nearest area
+    ///     of that floor within snapping distance. Null where the map has no zones, nothing is near, no floor
+    ///     is shown, or <paramref name="level" /> names no floor in <see cref="Levels" />. Cheap enough to call
+    ///     per pointer move; the map's zones file is read once, on the first call.
+    /// </summary>
+    /// <param name="level">
+    ///     A <see cref="PlaybackLevel.Name" />, or null for the map's only floor. Null on a map with several
+    ///     floors answers null, since the point is ambiguous.
+    /// </param>
+    /// <param name="worldX">World X.</param>
+    /// <param name="worldY">World Y.</param>
+    string? PlaceAt(string? level, double worldX, double worldY);
+
+    /// <summary>
+    ///     The version of the place data <see cref="PlaceAt" /> answers from, or null where the map has no
+    ///     zones. It changes when the user edits the map's zones: store it beside a resolved place to know
+    ///     when the place should be resolved again.
+    /// </summary>
+    string? PlacesVersion { get; }
+
+    /// <summary>
+    ///     The ids of every action the keymap knows: the tab's own and every extension's commands. What
+    ///     <see cref="GestureHint" /> and <see cref="AddActionHandler" /> name.
+    /// </summary>
     IReadOnlyCollection<string> ActionIds { get; }
 
     /// <summary>Raised after the user rebinds a key. Refresh labels that show gestures.</summary>
@@ -29,6 +62,15 @@ public interface IPlaybackSurface
 
     /// <summary>The bound gesture for an action as <c>" (Ctrl+F)"</c>, or an empty string when unbound.</summary>
     string GestureHint(string actionId);
+
+    /// <summary>
+    ///     The action a key is bound to in <paramref name="scope" /> under the user's keymap, or null. For a
+    ///     key handler resolving the extension's own focus scope while its panel has focus.
+    /// </summary>
+    /// <param name="scope">A <see cref="CommandScope.Id" />, or <c>"playback2d"</c> or <c>"playback2d.tool"</c>.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers held.</param>
+    string? ActionFor(string scope, Key key, KeyModifiers modifiers);
 
     /// <summary>A lane under the rounds row, drawn from <paramref name="track" />'s bands.</summary>
     ILaneHandle AddLane(ITimelineTrack track, ILaneBehaviour? behaviour = null);
@@ -51,17 +93,44 @@ public interface IPlaybackSurface
     /// <summary>A pane. <see cref="PanePlacement.Side" /> panes show one at a time.</summary>
     /// <param name="where">Where it docks.</param>
     /// <param name="order">Position among panes there.</param>
-    /// <param name="viewModel">Builds its view model; the view is found by the <c>ViewModel</c> to <c>View</c> naming rule.</param>
+    /// <param name="viewModel">Builds its view model, an <see cref="IExtensionViewModel" />; the view is found by the <c>ViewModel</c> to <c>View</c> naming rule.</param>
     IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);
 
     /// <summary>A right-column panel. Several can be open at once.</summary>
     /// <param name="order">Position in the column.</param>
     /// <param name="viewModel">Builds its view model.</param>
-    /// <param name="view">Builds its view; null for the naming rule.</param>
+    /// <param name="view">Builds its view; null for the naming rule, which needs an <see cref="IExtensionViewModel" />.</param>
     /// <param name="featureId">Shown only while this feature is on.</param>
     /// <param name="mode">Shown only while this mode is on.</param>
     IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
         ModeToggle? mode = null);
+
+    /// <summary>
+    ///     A scene layer drawn on the tab's map, among the tab's own layers by <see cref="ISceneLayer.Slot" /> and
+    ///     <see cref="ISceneLayer.Order" />. <paramref name="layer" /> builds a fresh instance whenever the map
+    ///     builds its scene, so it may be called more than once.
+    ///     <para>
+    ///         The layer sees only what it is handed: the frame in <see cref="ISceneLayer.Advance" />, and the
+    ///         canvas and <see cref="SceneRenderContext" /> in <see cref="ISceneLayer.Render" />, which runs on
+    ///         the render thread. The canvas is restored after each call. A layer that throws stops drawing for
+    ///         the session and counts against the extension.
+    ///     </para>
+    /// </summary>
+    /// <param name="id">
+    ///     The layer's id within the extension: letters, digits, '.', '-' and '_'. The host files it as
+    ///     <c>ext.&lt;extension id&gt;.&lt;id&gt;</c>, so it can never collide with the tab's own layers or another
+    ///     extension's; <see cref="ISceneLayer.Id" /> of the built layer is not used. Adding an id again replaces it.
+    /// </param>
+    /// <param name="layer">Builds the layer.</param>
+    IDisposable AddLayer(string id, Func<ISceneLayer> layer);
+
+    /// <summary>
+    ///     A pointer tool on the tab's map. It is offered every primary press the tab does not turn into a pan
+    ///     (Space, Control and the middle button pan), after the pointer pre-handlers and before the drawing
+    ///     tools; a tool that takes the press owns the gesture until the release.
+    /// </summary>
+    /// <param name="tool">The tool.</param>
+    IDisposable AddTool(IMapTool tool);
 
     /// <summary>Sees a key before the tab's keymap. Return true to take it.</summary>
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);
@@ -103,14 +172,16 @@ public sealed record MenuEntry(string Header, Action Run);
 /// <param name="Modifiers">Keys held.</param>
 /// <param name="Tick">The tick shown.</param>
 /// <param name="PlaceAt">The map's named place at the press, or null where the map has no zones. Read it only if you need it.</param>
+/// <param name="Frame">The frame on screen. Valid only during the call: the tab refills it for the next one.</param>
 public sealed record PlaybackPointer(
     string? Level, double WorldX, double WorldY, double ScreenX, double ScreenY, KeyModifiers Modifiers, int Tick,
-    Func<string?> PlaceAt);
+    Func<string?> PlaceAt, Scene2DFrame Frame);
 
 /// <summary>The moment a toolbar item ran at.</summary>
 /// <param name="Tick">The tick shown.</param>
 /// <param name="FrameIndex">The frame shown.</param>
-public sealed record PlaybackMoment(int Tick, int FrameIndex);
+/// <param name="Frame">The frame on screen. Valid only during the call: the tab refills it for the next one.</param>
+public sealed record PlaybackMoment(int Tick, int FrameIndex, Scene2DFrame Frame);
 
 /// <summary>Where a pane docks.</summary>
 public enum PanePlacement

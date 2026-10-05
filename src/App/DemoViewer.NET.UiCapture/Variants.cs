@@ -205,6 +205,11 @@ public static partial class Variants
             // pack off so the column shows the core content alone; 1280x900.
             ["playback2d-review-panels"] = Playback2DReviewPanels,
             ["playback2d-review-panels-pack-off"] = Playback2DReviewPanelsPackOff,
+            // The SDK UI kit: every status chip dot state, the moved controls, and the third-party fake's tab
+            // resolved from its own namespace (Extensions/UiKitVariants.cs).
+            ["uikit-status-chips"] = UiKitStatusChips,
+            ["uikit-controls"] = UiKitControls,
+            ["uikit-third-party-fake"] = UiKitThirdPartyFake,
             ["highlights-populated"] = () => Highlights(true, false),
             ["highlights-empty"] = () => Highlights(false, false),
             ["highlights-narrow"] = () => Highlights(true, true),

@@ -93,7 +93,7 @@ public class ReviewQueueTabTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.review");
             await Assert.That(tab.TabId).IsEqualTo("review.queue");
             await Assert.That(tab.Header).IsEqualTo("Review");
-            await Assert.That(tab.HostId).IsEqualTo(StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(4).Because("after Utility on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();

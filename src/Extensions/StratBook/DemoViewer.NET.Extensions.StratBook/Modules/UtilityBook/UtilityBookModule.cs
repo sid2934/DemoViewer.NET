@@ -52,7 +52,7 @@ public sealed class UtilityBookModule : IWorkspaceModule
             TabId = BrowserTabId,
             Header = "Utility",
             Order = 3, // after Tags (2)
-            HostId = DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new UtilityBookTabView()

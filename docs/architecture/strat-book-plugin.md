@@ -23,9 +23,10 @@ restart. Data on disk is untouched; re-enabling backfills whatever indexing was 
 
 The public contract is the `DemoViewer.NET.Extensions.Sdk` package (`src/Sdk/DemoViewer.NET.Extensions.Sdk`,
 author guide in its README): `IExtension`, `IExtensionContributions`, `IExtensionContext` and the SDK's
-playback types. Surfaces the SDK does not carry (the hub tab, status chips, rulesets, forward-pass
-evaluators, the scene-frame playback surface) stay first-party behind `IFirstPartyContributions`, which the
-Strat Book reaches by casting. Third-party extensions load from the same extensions folder; unverified ones
+playback types, with the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`, including the embeddable `MapView`) and
+the scene contract (`DemoViewer.NET.Playback2D.Scene`) beside it. Surfaces the SDK does not carry (rulesets and
+forward-pass evaluators) stay first-party behind `IFirstPartyContributions`, which the Strat Book reaches by
+casting and which refuses an extension installed from outside the app. Third-party extensions load from the same extensions folder; unverified ones
 only with the user's consent, and none at all in safe mode.
 
 The extension reaches the shell, 2D Playback and the Library through `IExtensionContributions` (tabs,
@@ -127,10 +128,10 @@ public interface IPlaybackSurface
     IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
         ModeToggle? mode = null);                                  // shown while open, gate on and the mode on
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);             // before the tab's keymap, in order
-    IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);           // unhandled actions; first while a panel has the keyboard
+    IDisposable AddActionHandler(Func<string, bool> handler);                     // unhandled action ids; first while a panel has the keyboard
     IDisposable AddToolbarItem(ToolbarItem item);                                 // the toolbar and the overflow menu both list it
     IDisposable AddPointerPreHandler(Func<ScenePointer, bool> handler);           // before the tool router, on a primary press not diverted to pan
-    string GestureHint(Playback2DAction action);                                  // " (Ctrl+F)" under Keymap, or "" unbound
+    string GestureHint(string actionId);                                          // " (Ctrl+F)" under Keymap, or "" unbound
     // Not built yet, in the order the items need them:
     void AddLayer(string layerId, Func<ISceneLayer> layer);                                     // later; guides
     void AddTool(IPointerTool tool);                                                            // later; token
@@ -142,7 +143,7 @@ public sealed record ScenePointer(MapLevel Level, double WorldX, double WorldY, 
 public sealed class ToolbarItem   // a button a contribution adds; also an overflow-menu entry
 {
     public ToolbarItem(string id, string label, string tooltip, Func<Scene2DFrame, bool> run,
-        Playback2DAction? action = null, int order = 0, string? icon = null);
+        string? actionId = null, int order = 0, string? icon = null);
     public string Label { get; set; }        // mutable: the owner refreshes it on KeymapChanged
     public string Tooltip { get; set; }
     public ICommand? Command { get; }         // wired by AddToolbarItem; what the view binds
@@ -166,7 +167,7 @@ public interface ILaneHandle : IDisposable   // Dispose unregisters the track an
 
 public sealed class ModeToggle   // a mode of the tab a contribution owns
 {
-    public ModeToggle(string id, string label, string tooltip, Playback2DAction? action = null, string? icon = null);
+    public ModeToggle(string id, string label, string tooltip, string? actionId = null, string? icon = null);
     public bool IsOn { get; set; }           // raises Changed on a flip
     public bool IsAvailable { get; set; }    // off: the toolbar hides the toggle; the action only leaves the mode
     public event Action? Changed;
@@ -225,8 +226,8 @@ cards) keeps its rows; the panels fill the third row as the inline views did, so
 passes unchanged.
 
 Keys and actions route through the surface rather than the tab naming a panel. `AddKeyHandler` is asked by the
-view before the tab's keymap, in registration order, which is how the `WhenPaletteFocused` and
-`WhenSuggestionSelected` rows shadow the always rows (the handler resolves its scope against `Keymap`);
+view before the tab's keymap, in registration order, which is how the Strat Book's palette and suggestion
+scope rows shadow the always rows (the handler resolves its scope against `Keymap`);
 `AddActionHandler` is asked for every action the tab does not handle itself, and for every action first while
 a shown panel `HasKeyboard`, which is how undo and redo are the tags' while the palette has the keyboard. The
 tab's `IsReviewAvailable` is "an open panel whose gate is on", so a tab with no contributed panel offers no
@@ -331,12 +332,12 @@ an eager field would force `LoadedMapAsset.ZoneLoad` on every pan click instead.
 (`Playback2DSurface`, ordered by `ToolbarItem.Order`); `Playback2DView.axaml` renders it in the slot the
 static "Rounds like this" `Button` held, and `Playback2DView.axaml.cs` rebuilds the overflow `MenuItem`s from
 it on every open, after the divider `Separator` (`IsVisible="{Binding Surface.HasToolbarItems}"`, as the toolbar
-row's own divider is). `TryExecute` tries a `ModeToggle` whose `Action` matches first, then a `ToolbarItem`
-whose `Action` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
+row's own divider is). `TryExecute` tries a `ModeToggle` whose `ActionId` matches first, then a `ToolbarItem`
+whose `ActionId` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
 and the keymap action are one funnel. The Situations contribution
 (`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/Situations/SituationsPlaybackContribution.cs`) registers the button's own text,
 "Rounds like this", as `Label` (icon `⌕`, restoring today's button face, which the menu entry does not carry)
-and keeps the tooltip's "Find rounds like this" wording, both with that funnel (`Playback2DAction.FindRoundsLikeThis`);
+and keeps the tooltip's "Find rounds like this" wording, both with that funnel (`StratBookActions.FindRoundsLikeThis`);
 its `Run` resolves `IFindRoundsLikeThis` through `context.GetService<T>()` as `TryFindRoundsLikeThis` used to
 from `App.Services`. The item is added only while `IModuleContext.MapName` is non-empty (checked at attach,
 for a live pack toggle with a demo already open, and on every `OnDemoChanged`) and removed when it closes, so
@@ -468,6 +469,11 @@ with `StratBookLayoutState`), whose `RestoreSessionState(JsonElement)` reads `Ra
 independently and accepts only `True`/`False`, so a missing member, a wrong-typed one, or a non-object
 blob leaves that pane as it is instead of throwing or discarding the rest.
 
+Since superseded: the hub is a public `HubTabContribution` the host draws, and `IHostTabViewModel` is gone.
+The pack's session blob rides on the declaration's `Session` (`IExtensionSessionState`, still keyed by pack id
+in `Packs`) and holds `ListCollapsed` only; the rail's collapsed state is the host's, per hub id in
+`SessionPayload.Hubs`, folded once from an older blob's `RailCollapsed`.
+
 The hub's view model is built unconditionally in `BuildWorkspaceTabs` regardless of the gate
 (`StratBookHubAccess`'s own doc comment says so), so "pack off" here is a gate check in the session code,
 not something that falls out of nothing existing, and a live toggle needed its own handling rather than
@@ -537,9 +543,9 @@ and `ProfileStore.Reload` (both pre-existing) cover `palettes/` and `suggested-t
 
 ```csharp
 public sealed record CommandDescriptor(
-    string Id,                // "stratbook.step.add"; persisted override key
+    string Id,                // "net.demoviewer.pack.stratbook.AddStep"; persisted override key
     string Label,
-    string Scope,             // "playback2d", "playback2d.palette", "stratbook.canvas"
+    string Scope,             // "playback2d", "playback2d.tool", or a scope the extension declares
     KeyGesture? DefaultChord,
     Func<CommandContext, bool> Run,
     Func<CommandContext, bool>? CanRun = null);
@@ -549,11 +555,16 @@ public sealed record CommandDescriptor(
 returning false means unhandled, so the key falls through to whatever else wants it) has to survive
 through a command, or a resolved key that does nothing would read as handled anyway.
 
-Core `Playback2DAction` values map to command ids one to one, so persisted keybind overrides keep working.
-The built ids equal the action's own enum name (not the `stratbook.step.add` style sketched
-above), since that is what keeps a persisted `KeybindOverrides` row readable unchanged; check the actual
-ids before copying the dotted style for a future pack. A command palette, if one
-is ever built, reads the same registry.
+Action ids are strings end to end. Core ids stay bare: a core `Playback2DAction` member's name is its id,
+and the enum is a closed vocabulary the tab maps to at the edge. An extension's ids carry its extension id
+and a dot (`net.demoviewer.pack.stratbook.TagNote`); the registry refuses a third-party command without the
+prefix. The Strat Book's commands shipped under bare ids, so its pack declares an alias map
+(`StratBookCommands.Aliases`, read through the internal `ICommandAliases`) and override parsing resolves an
+old `TagNote=Ctrl+Shift+M` row to the current id. Ids are unique across the merged set ignoring case: a
+compiled-in pack that repeats one fails the registry build, a third-party command that does is reported in
+`CommandRegistry.Conflicts` and left out. Focus scopes beyond `playback2d` and `playback2d.tool` are declared
+by the extension (`IExtension.CommandScopes`, with the label Settings shows) and resolved by its own key
+handler. A command palette, if one is ever built, reads the same registry.
 
 ### 2.6 How the gate folds in
 
@@ -627,7 +638,7 @@ when written the same.
   the surface a pack's own assembly references or implements, not every type under
   `DemoViewer.NET.Extensions`: host-side types that no pack touches (`Loading`, `CompatibilityReport`)
   change freely. **Major** on a breaking change to a type a pack does reference or implement, including
-  `IModuleContext`, `IHostTabViewModel` or the `IPlaybackSurface` family: a removed or renamed member, a
+  `IModuleContext`, `IExtensionContributions` or the `IPlaybackSurface` family: a removed or renamed member, a
   changed signature, a new abstract member on an interface a pack implements. **Minor** on an additive
   change: a new contribution kind, a new optional member with a default. Never patch; a contract has no
   behaviour of its own to fix. The pinning rule (section 4) adds a release rule on top: a **major** bump of the
@@ -806,8 +817,8 @@ before. The same prototype confirmed the other half of the trap: a method that m
   contract and CS2DemoKit ranges in its manifest cover the first-party ones); a new package reference in an
   extension release needs an app release that carries it, which the packaging and compatibility-matrix
   checks enforce.
-- *Internals.* The app's `InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook")` matches by simple name,
-  so the staged copy sees the same internals the shipped one does.
+- *Internals.* Neither the app nor a Playback2D assembly grants the extension its internals, so a staged
+  copy reaches exactly what the shipped one does: the public types.
 
 **Trust.** `ITrustPolicy.Judge(directory, manifest)` is asked once per candidate, after the compatibility
 check and before the assembly is touched; a policy that throws reads as untrusted. As built (section 2.9),
@@ -1694,16 +1705,17 @@ Rules as built:
   with the same list, a no-op after Main, because the XAML previewer calls that method without running Main.
   The tests that build the composition root are unchanged, and the pack-off tests override the gate rather
   than the list.
-- **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook` (a first-party extension
-  composes over the same internal seams the app's own composition root uses; the loader loads only
-  first-party signed assemblies, so this exposes nothing to third parties) and
-  `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal seams App.Tests reaches). The
-  extension grants `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and
-  `DemoViewer.NET.Extensions.StratBook.Tests`. **The Playback2D Core/Pipeline split** adds a second grantor: `DemoViewer.NET.Playback2D.Core`
-  also grants `DemoViewer.NET.Extensions.StratBook`, because the strat frame source (moved there) writes
-  `Scene2DFrame`'s internal backing fields directly, the pooled-refill pattern `SceneFrameBuilder` itself
-  uses; `Scene2DHost.AddTool`/`AddLayer`/`FrameHost` stay covered by the app's existing grant. No core
-  member was widened to public for the split.
+- **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal
+  seams App.Tests reaches) and nothing to the extension itself; no Playback2D assembly grants it either, which
+  `PackBoundaryTests` pins. The extension builds on public types: the SDK, the UI kit's `MapView` for the
+  Query Canvas and the Utility Book map, the published scene contract, `Scene2DHost.AddTool`/`AddLayer`/
+  `FrameHost` for the strat canvas, and the first-party seam (`IFirstPartyContributions`,
+  `IFirstPartyShellState`, `IFirstPartyExportChips`, export). The strat frame source builds a frame shell per
+  call over its pooled lists instead of refilling `Scene2DFrame`'s internals. In the two unpublished
+  Playback2D assemblies it binds only export, clip export and Review Queue types, which
+  `PackPlayback2DBindingTests` reads from its metadata against a list with a reason per type; maps, map
+  pictures and icons come from the UI kit's `MapAssets` and `MapIcons`. The extension grants
+  `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and `DemoViewer.NET.Extensions.StratBook.Tests`.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
   assembly, asks each compatible pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 2.4).
@@ -1726,7 +1738,7 @@ Rules as built:
   Section 2.11 has the rest.
 
 What stays in the app: generic capabilities the work added to core regardless of the pack (lanes, shape
-tools, `MapSceneHost`, zones, `QueueWork`, the processing queue) and the Review Queue (the boundary rule).
+tools, the map renderer behind the SDK's `MapView`, zones, `QueueWork`, the processing queue) and the Review Queue (the boundary rule).
 Capabilities the Strat Book work added that core features also consume moved with the extension once
 their contribution seams existed. Which `Services/` folders are pack-only versus shared was settled by
 the initial move list, reviewed before the move.

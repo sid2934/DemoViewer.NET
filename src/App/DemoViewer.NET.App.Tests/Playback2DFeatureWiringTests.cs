@@ -92,6 +92,7 @@ public class Playback2DFeatureWiringTests
     {
         string[] roots =
         [
+            Path.Combine(RepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Scene"),
             Path.Combine(RepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Core"),
             Path.Combine(RepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Pipeline"),
             Path.Combine(RepoRoot(), "tools", "DemoViewer.NET.Playback2D.Cli")

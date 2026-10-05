@@ -54,7 +54,7 @@ public sealed class StratBookModule : IWorkspaceModule
             TabId = BrowserTabId,
             Header = "Strats",
             Order = 0, // first on the rail
-            HostId = StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = () => _viewModel ??= _viewModelFactory(),
             ViewFactory = () => new StratBookTabView()

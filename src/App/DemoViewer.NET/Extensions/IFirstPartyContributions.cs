@@ -1,11 +1,8 @@
 #region
 
-using System.ComponentModel;
-using Avalonia.Controls;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.ViewModels;
-using DemoViewer.NET.ViewModels.Shell;
+using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
 
@@ -38,61 +35,6 @@ public sealed record PassContribution(string Id, Func<IDemoPass> Factory, IReadO
 /// <param name="Guard">The pack's guard, which the host runs the pass under.</param>
 internal sealed record RecordPassContribution(string Id, Func<IExtensionRecordPass> Factory, ExtensionGuard Guard);
 
-/// <summary>
-///     A strip tab a pack contributes to host sections (the Strat Book hub). Sections name it by
-///     <paramref name="HostId" /> through <see cref="WorkspaceTabDescriptor.HostId" />; the shell shows the
-///     tab only while <paramref name="FeatureId" /> resolves on AND at least one hosted section does, and
-///     lands on Library when the tab the user is on goes away.
-/// </summary>
-/// <param name="HostId">The id sections name, e.g. <c>"stratbook.hub"</c>. A persisted key.</param>
-/// <param name="TabId">The strip tab's own id, the session's active-tab key when no section is selected.</param>
-/// <param name="Header">The strip header.</param>
-/// <param name="Order">The strip position among the Main-placement tabs.</param>
-/// <param name="RailLabel">The band over the host's section rail.</param>
-/// <param name="ViewModelFactory">Builds the host VM once, when the shell builds the strip.</param>
-/// <param name="ViewFactory">Realizes the host's view on each activation.</param>
-/// <param name="FeatureId">The gate id the tab shows under; null takes the owning pack's id.</param>
-public sealed record HostTabContribution(
-    string HostId,
-    string TabId,
-    string Header,
-    int Order,
-    string RailLabel,
-    Func<IHostTabViewModel> ViewModelFactory,
-    Func<Control> ViewFactory,
-    string? FeatureId = null);
-
-/// <summary>
-///     What a contributed status chip shows right now: the built <see cref="StatusChipViewModel" />, or null
-///     before the owner has anything to mount, and whether it belongs on the strip at all (running, or a
-///     finished result not yet dismissed). The shell adds the owning <see cref="StatusChipContribution.FeatureId" />
-///     on top: a slot that answers true while its owning pack is off still shows nothing.
-/// </summary>
-public interface IContributedStatusChip : INotifyPropertyChanged
-{
-    /// <summary>The chip to show, or null before anything is mounted.</summary>
-    StatusChipViewModel? Chip { get; }
-
-    /// <summary>True while <see cref="Chip" /> belongs on the strip.</summary>
-    bool IsShown { get; }
-}
-
-/// <summary>
-///     A status-chip slot a pack reserves on the strip. Unlike <see cref="HostTabContribution" /> the chip
-///     itself may not exist yet (a 2D export job builds lazily, on the first Export), so the contribution
-///     carries the SLOT, not the chip: <paramref name="Source" /> raises <see cref="INotifyPropertyChanged" />
-///     once something mounts into it.
-/// </summary>
-/// <param name="Id">Stable id (e.g. <c>"stratbook.export"</c>). A lookup key, never shown.</param>
-/// <param name="Order">Sort key among contributed chips. Reserved for a future ordered strip; unread today.</param>
-/// <param name="Source">The pack-owned slot the shell watches.</param>
-/// <param name="FeatureId">The gate id the chip shows under; null takes the owning pack's id.</param>
-public sealed record StatusChipContribution(
-    string Id,
-    int Order,
-    IContributedStatusChip Source,
-    string? FeatureId = null);
-
 /// <summary>An extension's Match Overview action and the feature it shows under.</summary>
 public sealed record GatedDemoAction(DemoAction Action, string FeatureId)
 {
@@ -108,14 +50,32 @@ public sealed record GatedDemoAction(DemoAction Action, string FeatureId)
 ///     not part of the public contract. The host's contribution collector implements it; a first-party
 ///     extension reaches it by casting the <see cref="IExtensionContributions" /> it is handed.
 /// </summary>
-internal interface IFirstPartyContributions : IExtensionContributions
+public interface IFirstPartyContributions : IExtensionContributions
 {
-    /// <summary>A strip tab that hosts sections.</summary>
-    void HostTab(HostTabContribution host);
+}
 
-    /// <summary>A status-chip slot on the shell's strip.</summary>
-    void StatusChip(StatusChipContribution chip);
+/// <summary>
+///     Shell state a first-party extension reads that the SDK does not publish: whether a Live Sync session or
+///     a reel render holds the machine, which an export must not start beside. Resolved from the container.
+/// </summary>
+public interface IFirstPartyShellState
+{
+    /// <summary>True while a Live Sync session is connected to the game.</summary>
+    bool IsLiveSyncSessionActive { get; }
 
-    /// <summary>A 2D Playback contribution against the app's own surface: keymap scopes, scene frames, core tracks.</summary>
-    void FirstPartyPlayback(IPlaybackContribution contribution);
+    /// <summary>True while a reel render is running.</summary>
+    bool IsReelJobRunning { get; }
+}
+
+/// <summary>
+///     The status-strip chip of a first-party export job. The host owns the chip: shown while the job runs
+///     or until the user dismisses its result, and only while <c>featureId</c> is on.
+/// </summary>
+public interface IFirstPartyExportChips
+{
+    /// <summary>Mounts an export job's status under <paramref name="chipId" />, replacing what was mounted there.</summary>
+    /// <param name="chipId">The chip's id. One chip per id.</param>
+    /// <param name="featureId">The feature the chip shows under.</param>
+    /// <param name="status">The status the export job publishes.</param>
+    void Mount(string chipId, string featureId, Playback2DExportStatusViewModel status);
 }

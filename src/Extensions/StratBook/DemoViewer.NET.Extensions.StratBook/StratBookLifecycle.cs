@@ -1,6 +1,5 @@
 #region
 
-using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
@@ -8,7 +7,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
-using DemoViewer.NET.ViewModels.Diagnostics;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -140,10 +139,14 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
         return release.Completion;
     }
 
+    // Optional so a lifecycle built over a bare container still releases and flushes.
+    private ILogger Log() =>
+        _sp.GetKeyedService<IExtensionContext>(StratBookPack.PackId)?.CreateLogger("Lifecycle") ?? NullLogger.Instance;
+
     // Dependents first (reverse build order): a watcher leaves the index before the index empties and raises.
     private void Release()
     {
-        ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+        ILogger log = Log();
         foreach (IExtensionResident resident in _instances.Residents.Reverse())
         {
             try
@@ -152,7 +155,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
             }
             catch (Exception ex)
             {
-                AppLog.OperationFailed(log, "strat book release", ex);
+                LifecycleLog.OperationFailed(log, "strat book release", ex);
             }
         }
 
@@ -166,7 +169,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
         // it, which is exactly what a never-opened pack must not do at shutdown. The strat commit runs
         // first (it is the user's own work, written nowhere else) and each flush is isolated so the
         // lineup flush still runs even if committing the open strat throws.
-        ILogger log = DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+        ILogger log = Log();
         try
         {
             // StratBookModule.Shutdown is itself a no-op when its tab was never activated.
@@ -174,7 +177,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
         }
         catch (Exception ex)
         {
-            AppLog.OperationFailed(log, "strat commit on shutdown", ex);
+            LifecycleLog.OperationFailed(log, "strat commit on shutdown", ex);
         }
 
         try
@@ -183,7 +186,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
         }
         catch (Exception ex)
         {
-            AppLog.OperationFailed(log, "grenade lineup flush on shutdown", ex);
+            LifecycleLog.OperationFailed(log, "grenade lineup flush on shutdown", ex);
         }
 
         // The Tag Store defers its index to shutdown; idempotent, so a re-fired request
@@ -194,7 +197,7 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
         }
         catch (Exception ex)
         {
-            AppLog.OperationFailed(log, "tag index flush on shutdown", ex);
+            LifecycleLog.OperationFailed(log, "tag index flush on shutdown", ex);
         }
     }
 
@@ -211,4 +214,10 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
 
             return Task.CompletedTask;
         }, new JobOptions(kind, JobPriority.UserRequested, Serial: Owner));
+}
+
+internal static partial class LifecycleLog
+{
+    [LoggerMessage(EventId = 1, Level = LogLevel.Error, Message = "{operation} failed")]
+    public static partial void OperationFailed(ILogger logger, string operation, Exception exception);
 }

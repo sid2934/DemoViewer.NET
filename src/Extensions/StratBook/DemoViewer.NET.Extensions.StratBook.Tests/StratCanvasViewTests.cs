@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Input;
@@ -201,7 +202,7 @@ public class StratCanvasViewTests
                 await Assert.That(rows.GetVisualDescendants().OfType<Border>().Count(b => b.Classes.Contains("selected"))).IsEqualTo(1);
             }
 
-            tab.Canvas.ExecuteAction(Playback2DAction.NextStep);
+            tab.Canvas.ExecuteAction(StratBookActions.NextStep);
             Playback2DTimelineHarness.Pump();
             using (Assert.Multiple())
             {

@@ -34,7 +34,11 @@ public static partial class Variants
         PaneContext ctx = new();
         ReviewPanelsPlaybackContribution review = new();
         SituationsPlaybackContribution situations = new();
-        PlaybackContributionHost host = new([(new StratBookPack(), [review, situations])], packOn ? null : new OffGate());
+        StratBookPack pack = new();
+        ExtensionGuard guard = ExtensionGuard.Standalone(pack);
+        PlaybackContributionHost host = new(
+            [(pack, [new SdkPlaybackContribution(review, guard), new SdkPlaybackContribution(situations, guard)])],
+            packOn ? null : new OffGate());
         Playback2DTabViewModel vm = new() { Contributions = host };
         vm.OnActivated(ctx);
 

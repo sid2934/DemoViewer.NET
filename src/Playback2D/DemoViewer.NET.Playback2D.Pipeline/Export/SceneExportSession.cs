@@ -100,7 +100,7 @@ public sealed class SceneExportSession
     ///         answer.
     ///     </para>
     /// </summary>
-    public ScenePerfRecorder? Perf { get; set; }
+    internal ScenePerfRecorder? Perf { get; set; }
 
     /// <summary>
     ///     The layers that are off unless <see cref="ExportRequest.LayerIds" /> names them explicitly.

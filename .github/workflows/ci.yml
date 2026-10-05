@@ -64,11 +64,14 @@ jobs:
       - name: Extension packaging dry run (Strat Book)
         run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
 
-      # The SDK packages: both pack, and the SDK's public API matches its PublicAPI files (the build fails otherwise).
+      # The SDK packages: all pack, and each public API matches its PublicAPI files (the build fails otherwise).
       - name: SDK packaging dry run
         run: |
           dotnet pack src/App/DemoViewer.NET.Modules.Abstractions -c Release --no-build -o artifacts/sdk-packages
+          dotnet pack src/GameIcons/DemoViewer.NET.GameIcons -c Release --no-build -o artifacts/sdk-packages
           dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk -c Release --no-build -o artifacts/sdk-packages
+          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui -c Release --no-build -o artifacts/sdk-packages
+          dotnet pack src/Playback2D/DemoViewer.NET.Playback2D.Scene -c Release --no-build -o artifacts/sdk-packages
           ls artifacts/sdk-packages
 
   # The WASM regression net. It PUBLISHES rather than builds:
@@ -120,6 +123,8 @@ jobs:
           # the failure surfaces to a user, not to us.
           ls "$FW" | grep -q '^DemoViewer\.NET\.GameIcons\..*\.wasm$' || { echo "DemoViewer.NET.GameIcons did not ship, every icon will throw at runtime"; exit 1; }
           ls "$FW" | grep -q '^DemoViewer\.NET\.Extensions\.Sdk\..*\.wasm$' || { echo "the extension SDK did not ship, the app's own types reference it"; exit 1; }
+          ls "$FW" | grep -q '^DemoViewer\.NET\.Extensions\.Sdk\.Ui\..*\.wasm$' || { echo "the SDK's UI kit did not ship, the app's views use its controls"; exit 1; }
+          ls "$FW" | grep -q '^DemoViewer\.NET\.Playback2D\.Scene\..*\.wasm$' || { echo "the 2D scene contract did not ship, the 2D Playback tab is built on it"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
   # The ONE core/pipeline test invocation. Do not add a second.

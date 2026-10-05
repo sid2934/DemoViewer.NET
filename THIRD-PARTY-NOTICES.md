@@ -99,10 +99,11 @@ them:
 
 ## d. Inter font (SIL Open Font License 1.1)
 
-`src/Playback2D/DemoViewer.NET.Playback2D.Core/Assets/Inter-Regular.ttf` is the Inter Regular
+`src/Playback2D/DemoViewer.NET.Playback2D.Scene/Assets/Inter-Regular.ttf` is the Inter Regular
 typeface by Rasmus Andersson (<https://rsms.me/inter/>), redistributed under the
 [SIL Open Font License, Version 1.1](https://openfontlicense.org/). It is embedded in the
-Playback2D core assembly and used by `TextBlobCache` to draw scene labels.
+Playback2D scene assembly (and its DemoViewer.NET.Playback2D.Scene package) and used by `TextBlobCache` to draw
+scene labels.
 
 An embedded face is a correctness requirement, not a preference: the golden-image lane must
 rasterise identically on a developer's Windows machine and on the Linux CI runner, and

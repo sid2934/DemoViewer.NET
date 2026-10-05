@@ -60,6 +60,7 @@ using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.ViewModels.Tutorial;
 using DemoViewer.NET.ViewModels.Update;
+using DemoViewer.NET.Views.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -103,24 +104,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly List<WorkspaceTabDescriptor> _allTabDescriptors = [];
 
     // The tabs that host sections, keyed by host id: the Library (built in, always on the strip) and every
-    // host tab a pack contributed. Each entry caches its sections unfiltered, like _allTabDescriptors; they
+    // hub tab a pack contributed. Each entry caches its sections unfiltered, like _allTabDescriptors; they
     // never enter Tabs, their host reconciles them by the same gate on the same events.
     private readonly List<SectionHostEntry> _hosts = [];
-    private readonly IReadOnlyList<HostTabContribution> _hostTabs;
+    private readonly IReadOnlyList<ContributedHub> _hubTabs;
 
-    // One host tab and what it carries. The host VM exists from BuildWorkspaceTabs: the shell reconciles
+    // One host tab and what it carries. The hub VM exists from BuildWorkspaceTabs: the shell reconciles
     // sections and restores the session through it before the tab is ever selected.
     private sealed class SectionHostEntry(
-        string hostId, WorkspaceTabDescriptor tab, TabSectionHost sections, IHostTabViewModel? viewModel, bool contributed)
+        string hostId, WorkspaceTabDescriptor tab, TabSectionHost sections, HubTabViewModel? viewModel, ContributedHub? hub)
     {
         public string HostId { get; } = hostId;
         public WorkspaceTabDescriptor Tab { get; } = tab;
         public TabSectionHost Sections { get; } = sections;
-        public IHostTabViewModel? ViewModel { get; } = viewModel;
+        public HubTabViewModel? ViewModel { get; } = viewModel;
+
+        // The declaration a contributed hub came from; null for the Library.
+        public ContributedHub? Hub { get; } = hub;
 
         // A contributed host shows only while a hosted section does and falls back to Library when it goes;
         // the Library is a strip tab with a body of its own and never hides for want of sections.
-        public bool Contributed { get; } = contributed;
+        public bool Contributed => Hub is not null;
         public List<WorkspaceTabDescriptor> AllSections { get; } = [];
     }
 
@@ -387,6 +391,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private Dictionary<string, JsonElement>? _loadedPackSessions;
 
+    // The hub rail states loaded at startup, carried through for hubs not contributed this session.
+    private Dictionary<string, HubSessionState>? _loadedHubSessions;
+
     /// <summary>
     ///     Pack ids <c>RestorePackState</c> has been called for this session, at startup or on a live
     ///     enable. Once a pack is in here, <c>SnapshotPackSessions</c> trusts its host's current value over
@@ -531,8 +538,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     The packs' Library filter/badge contributions (the Team filter, the provenance chip).
     ///     Null (designer, most tests) hosts none, so the Library offers neither.
     /// </param>
-    /// <param name="hostTabs">
-    ///     The host tabs the packs contribute (the Strat Book hub). Null (most tests) hosts nothing beyond
+    /// <param name="hubTabs">
+    ///     The hub tabs the packs contribute (the Strat Book hub). Null (most tests) hosts nothing beyond
     ///     the Library, so a section naming another host is dropped with a module log line.
     /// </param>
     public MainViewModel(
@@ -546,9 +553,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Func<string?>? tourSampleLocator = null,
         DemoCacheStore? demoCache = null,
         IReadOnlyList<ILibraryContribution>? libraryContributions = null,
-        IReadOnlyList<HostTabContribution>? hostTabs = null)
+        IReadOnlyList<ContributedHub>? hubTabs = null)
     {
-        _hostTabs = hostTabs ?? [];
+        _hubTabs = hubTabs ?? [];
         _demoCache = demoCache;
         _windowService = windowService;
         _settingsService = settingsService;
@@ -1065,11 +1072,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public ObservableCollection<StatusChipViewModel> Chips { get; } = [];
 
-    // The pack-contributed chip slots, set once by AttachStatusChips. Each contribution's own
-    // Source.PropertyChanged subscription is kept so Dispose can detach it; _shownContributedChips tracks
-    // which Chip instance this slot last added to Chips, keyed by the contribution's own id.
-    private IReadOnlyList<StatusChipContribution> _statusChipContributions = [];
-    private readonly List<(IContributedStatusChip Source, PropertyChangedEventHandler Handler)> _statusChipSubscriptions = [];
+    // The chips shown on someone else's behalf: the packs' contributed chips and the first-party export
+    // slots. _shownContributedChips tracks which Chip instance each one last added to Chips, by its id.
+    private readonly List<IShellChip> _shellChips = [];
     private readonly Dictionary<string, StatusChipViewModel> _shownContributedChips = new(StringComparer.Ordinal);
 
     /// <summary>The background reel-generation service, when the host provides one (desktop). Null otherwise.</summary>
@@ -1083,9 +1088,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     it holds stay as lazy as any module tab. Its strip descriptor exists only when a module
     ///     contributed a section.
     /// </summary>
-    /// <summary>The view model of the host tab with this host id, or null when no pack contributed one.</summary>
+    /// <summary>The view model of the hub tab with this id, or null when no pack contributed one.</summary>
     /// <param name="hostId">The id sections name, e.g. <c>"stratbook.hub"</c>.</param>
-    internal IHostTabViewModel? HostViewModel(string hostId) =>
+    internal HubTabViewModel? HostViewModel(string hostId) =>
         _hosts.FirstOrDefault(h => h.HostId == hostId)?.ViewModel;
 
     /// <summary>
@@ -1659,12 +1664,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _gate.Changed -= OnGateChanged;
         }
 
-        foreach ((IContributedStatusChip source, PropertyChangedEventHandler handler) in _statusChipSubscriptions)
+        foreach (IShellChip chip in _shellChips)
         {
-            source.PropertyChanged -= handler;
+            chip.Changed -= ReconcileContributedChips;
+            chip.Detach();
         }
 
-        _statusChipSubscriptions.Clear();
+        _shellChips.Clear();
 
         if (LiveSync is not null)
         {
@@ -2361,63 +2367,86 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Mounts the chip slots the packs contributed: a generic replacement for what used to be
-    ///     a dedicated Strat-export slot. Each slot's own <see cref="IContributedStatusChip.IsShown" />
-    ///     decides presence once its owning pack's gate allows it; a slot may mount its chip long after this
-    ///     runs (the Strat Book builds its export job lazily, on the first Export), so this subscribes to
-    ///     the slot rather than reading it once. Called once by the composition root after the shell is
-    ///     built.
+    ///     Shows the chips the packs contributed. Each chip's own <see cref="IShellChip.IsShown" /> decides
+    ///     presence once its feature id is on; a chip changes long after this runs, so the shell watches it
+    ///     rather than reading it once. Called once by the composition root after the shell is built.
     /// </summary>
-    internal void AttachStatusChips(IReadOnlyList<StatusChipContribution> chips)
+    internal void AttachStatusChips(IReadOnlyList<HostStatusChip> chips)
     {
         ArgumentNullException.ThrowIfNull(chips);
-        _statusChipContributions = chips;
-        foreach (StatusChipContribution contribution in chips)
+        foreach (HostStatusChip chip in chips)
         {
-            PropertyChangedEventHandler handler = (_, _) => ReconcileContributedChip(contribution);
-            contribution.Source.PropertyChanged += handler;
-            _statusChipSubscriptions.Add((contribution.Source, handler));
-            ReconcileContributedChip(contribution);
+            AddShellChip(chip);
         }
     }
 
-    // Re-checks every contributed slot against the gate (a pack toggle may have flipped which ones are
-    // allowed). Called from ApplyGateChange; a slot's OWN mount/dismiss changes reconcile themselves
-    // through the per-contribution subscription AttachStatusChips installs.
+    /// <summary>
+    ///     Mounts a first-party export job's status as a chip under <paramref name="chipId" />, shown while the
+    ///     job runs or until its result is dismissed, and only while <paramref name="featureId" /> is on. The
+    ///     job builds on its tab's first Export, long after the shell, so the slot is made on first mount.
+    /// </summary>
+    internal void MountExportStatus(string chipId, string featureId, Playback2DExportStatusViewModel status)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chipId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(featureId);
+        ArgumentNullException.ThrowIfNull(status);
+        if (_shellChips.OfType<ExportChipSlot>().FirstOrDefault(c => c.Id == chipId) is not { } slot)
+        {
+            slot = new ExportChipSlot(chipId, featureId);
+            AddShellChip(slot);
+        }
+
+        slot.Mount(status);
+    }
+
+    private void AddShellChip(IShellChip chip)
+    {
+        if (_shellChips.Any(c => c.Id == chip.Id))
+        {
+            RouteModuleLog(ModuleLogLevel.Error, $"Status chip '{chip.Id}' is already on the strip; the second one is left out.");
+            return;
+        }
+
+        _shellChips.Add(chip);
+        chip.Changed += ReconcileContributedChips;
+        chip.Attach();
+        ReconcileContributedChip(chip);
+    }
+
+    // Re-checks every chip against the gate. Called from ApplyGateChange and on any chip's Changed.
     private void ReconcileContributedChips()
     {
-        foreach (StatusChipContribution contribution in _statusChipContributions)
+        foreach (IShellChip chip in _shellChips)
         {
-            ReconcileContributedChip(contribution);
+            ReconcileContributedChip(chip);
         }
     }
 
-    // A contributed chip's Chip reference can change identity across a remount (a new job, a new mapper);
-    // _shownContributedChips tracks which instance THIS slot last added, so a stale one is removed rather
-    // than orphaned in Chips forever.
-    private void ReconcileContributedChip(StatusChipContribution contribution)
+    // A chip's Chip reference can change identity across a remount (a new export job); _shownContributedChips
+    // tracks which instance this chip last added, so a stale one is removed rather than orphaned in Chips.
+    private void ReconcileContributedChip(IShellChip chip)
     {
-        bool allowed = contribution.FeatureId is null || (_gate?.IsEnabled(contribution.FeatureId) ?? true);
-        StatusChipViewModel? current = contribution.Source.Chip;
+        bool allowed = _gate?.IsEnabled(chip.FeatureId) ?? true;
+        StatusChipViewModel? current = chip.Chip;
 
-        if (_shownContributedChips.TryGetValue(contribution.Id, out StatusChipViewModel? previous)
+        if (_shownContributedChips.TryGetValue(chip.Id, out StatusChipViewModel? previous)
             && !ReferenceEquals(previous, current))
         {
             Chips.Remove(previous);
-            _shownContributedChips.Remove(contribution.Id);
+            _shownContributedChips.Remove(chip.Id);
         }
 
-        bool shouldShow = allowed && current is not null && contribution.Source.IsShown;
+        bool shouldShow = allowed && current is not null && chip.IsShown;
         bool present = current is not null && Chips.Contains(current);
         if (shouldShow && !present)
         {
             Chips.Add(current!);
-            _shownContributedChips[contribution.Id] = current!;
+            _shownContributedChips[chip.Id] = current!;
         }
         else if (!shouldShow && present)
         {
             Chips.Remove(current!);
-            _shownContributedChips.Remove(contribution.Id);
+            _shownContributedChips.Remove(chip.Id);
         }
     }
 
@@ -2476,42 +2505,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // host, its VM built now so the sections and the session have somewhere to land before activation.
         _hosts.Clear();
         _hosts.Add(new SectionHostEntry(LibraryTabViewModel.HostId, descriptors.First(d => d.TabId == LibraryTabViewModel.HostId),
-            LibraryTab.Sections, null, contributed: false));
-        foreach (HostTabContribution host in _hostTabs)
+            LibraryTab.Sections, null, null));
+        foreach (ContributedHub hub in _hubTabs)
         {
-            // An extension's factory answers null when it threw: the host tab is left out.
-            if (host.ViewModelFactory() is not { } viewModel)
+            // A hub id is a tab id and a host id at once: one already taken would hijack another's sections.
+            if (descriptors.Any(d => d.TabId == hub.Id) || _hosts.Any(h => h.HostId == hub.Id))
             {
-                RouteModuleLog(ModuleLogLevel.Error, $"Host tab '{host.TabId}' could not be built; left out.");
+                RouteModuleLog(ModuleLogLevel.Error, $"Hub tab '{hub.Id}' from '{hub.PackId}' uses an id already taken; left out.");
                 continue;
             }
 
-            ExtensionGuard? hostGuard = ExtensionGuards.For(host);
-            if (hostGuard is null)
-            {
-                viewModel.RailLabel = host.RailLabel;
-            }
-            else
-            {
-                hostGuard.Run("hub view model", () => viewModel.RailLabel = host.RailLabel);
-            }
-
+            HubTabViewModel viewModel = new(hub.Id, hub.Header, hub.RailLabel);
             WorkspaceTabDescriptor tab = new()
             {
-                TabId = host.TabId,
-                Header = host.Header,
-                Order = host.Order,
-                FeatureId = host.FeatureId,
+                TabId = hub.Id,
+                Header = hub.Header,
+                Order = hub.Order,
+                FeatureId = hub.FeatureId,
                 ViewModelFactory = () => viewModel,
-                ViewFactory = host.ViewFactory
+                ViewFactory = () => new HubTabView()
             };
-            if (hostGuard is not null)
-            {
-                ExtensionGuards.Register(tab, hostGuard);
-            }
 
             descriptors.Add(tab);
-            _hosts.Add(new SectionHostEntry(host.HostId, tab, viewModel.Sections, viewModel, contributed: true));
+            _hosts.Add(new SectionHostEntry(hub.Id, tab, viewModel.Sections, viewModel, hub));
         }
 
         // Sections leave the strip here, each to the host it names.
@@ -4719,6 +4735,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         _loadedPackSessions = p.Packs;
+        _loadedHubSessions = p.Hubs;
+        RestoreHubRails(p.Hubs);
         RestorePackSessions(p.Packs);
 
         RestoreActiveTab(p);
@@ -4766,19 +4784,57 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        foreach (SectionHostEntry host in _hosts)
+        foreach (SectionHostEntry host in SessionHubs())
         {
-            if (host.ViewModel?.SessionPackId is not { } packId
-                || _restoredPackIds.Contains(packId)
+            string packId = host.Hub!.PackId;
+            if (_restoredPackIds.Contains(packId)
                 || !IsPackSessionEnabled(host)
                 || !packs.TryGetValue(packId, out JsonElement state))
             {
                 continue;
             }
 
-            host.ViewModel.RestorePackState(state);
+            host.Hub.Session!.Restore(state);
             _restoredPackIds.Add(packId);
         }
+    }
+
+    // The hubs whose pack keeps session state, the first per pack: the state is keyed by pack id.
+    private IEnumerable<SectionHostEntry> SessionHubs() =>
+        _hosts.Where(h => h.Hub?.Session is not null).DistinctBy(h => h.Hub!.PackId, StringComparer.Ordinal);
+
+    // The host's own hub state needs no gate: no extension code runs to restore it.
+    private void RestoreHubRails(Dictionary<string, HubSessionState>? hubs)
+    {
+        if (hubs is null)
+        {
+            return;
+        }
+
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (host.ViewModel is { } hub && hubs.TryGetValue(host.HostId, out HubSessionState? state))
+            {
+                hub.IsRailCollapsed = state.RailCollapsed;
+            }
+        }
+    }
+
+    // Starts from what was loaded, so the state of a hub not contributed this session carries through.
+    private Dictionary<string, HubSessionState>? SnapshotHubRails()
+    {
+        Dictionary<string, HubSessionState> hubs = _loadedHubSessions is { } loaded
+            ? new(loaded, StringComparer.Ordinal)
+            : new(StringComparer.Ordinal);
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (host.ViewModel is { } hub)
+            {
+                hubs[host.HostId] = new HubSessionState(hub.IsRailCollapsed);
+            }
+        }
+
+        return hubs.Count > 0 ? hubs : null;
     }
 
     // Whether the host's own umbrella gate is on; fail-open with no gate or no FeatureId, matching
@@ -4855,7 +4911,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         PersistedActiveTabId, // the durable, name-based key, the only tab identity persisted.
         SnapshotModuleTabs(),
         WindowBounds,
-        SnapshotPackSessions());
+        SnapshotPackSessions(),
+        SnapshotHubRails());
 
     // Snapshots every host's pack session state under its pack id. Starts from what was loaded (so an id
     // with no host today carries through byte for byte) and overwrites a host that is either enabled now
@@ -4867,15 +4924,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ? new(loaded, StringComparer.Ordinal)
             : new(StringComparer.Ordinal);
 
-        foreach (SectionHostEntry host in _hosts)
+        foreach (SectionHostEntry host in SessionHubs())
         {
-            if (host.ViewModel?.SessionPackId is not { } packId
-                || (!IsPackSessionEnabled(host) && !_restoredPackIds.Contains(packId)))
+            string packId = host.Hub!.PackId;
+            if (!IsPackSessionEnabled(host) && !_restoredPackIds.Contains(packId))
             {
                 continue;
             }
 
-            if (host.ViewModel.SnapshotPackState() is { } state)
+            if (host.Hub.Session!.Snapshot() is { } state)
             {
                 packs[packId] = state;
             }

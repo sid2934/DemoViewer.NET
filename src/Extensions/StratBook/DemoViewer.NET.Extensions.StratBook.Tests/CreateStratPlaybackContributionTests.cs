@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook.Modules;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using CS2DemoKit.Parser;

@@ -10,6 +10,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Utility;
 using DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 using DemoViewer.NET.Features;
@@ -558,7 +559,7 @@ public class GrenadeIndexTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.utilitybook");
             await Assert.That(tab.TabId).IsEqualTo("utilitybook.browser");
             await Assert.That(tab.Header).IsEqualTo("Utility");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(3).Because("after Tags on the rail");
             await Assert.That(tab.DataContext).IsNull();
             await Assert.That(feature).IsNotNull();
@@ -639,7 +640,7 @@ public class GrenadeIndexTests
         }, retire: retired.Add);
 
         vm.SelectedMap = Mirage;
-        LoadedMapAsset mirage = vm.MapAsset!;
+        IMapAsset mirage = vm.MapAsset!;
         int mirageLoads = loads.Count;
         int retiredBefore = retired.Count;
         vm.Refresh();

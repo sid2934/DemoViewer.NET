@@ -32,7 +32,7 @@ public class ExtensionTabFaultTests
             registry.Register(module);
         }
 
-        MainViewModel vm = new(null, registry, TestLibraries.Empty(), hostTabs: set.HostTabs);
+        MainViewModel vm = new(null, registry, TestLibraries.Empty(), hubTabs: set.HubTabs);
         vm.RestoreSession();
         return (vm, faults, (ThrowingModule)set.Packs.Single().Modules.First(m => m is ThrowingModule));
     }
@@ -45,7 +45,7 @@ public class ExtensionTabFaultTests
             try
             {
                 await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain("bad.hub")
-                    .Because("a hub whose view model throws is left out");
+                    .Because("a hub with no sections has no tab, and its throwing session state costs nothing else");
 
                 await Assert.That(vm.TrySelectTab("bad.view")).IsTrue();
                 await Assert.That(PlaceholderText(vm)).Contains("could not show this tab");
@@ -106,11 +106,17 @@ public class ExtensionTabFaultTests
 
         public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
-            ((IFirstPartyContributions)contributions).HostTab(new HostTabContribution("bad.hub", "bad.hub", "Bad hub", 9, "BAD",
-                () => throw new InvalidOperationException("hub vm"), () => new TextBlock()));
+            contributions.HubTab(new HubTabContribution("bad.hub", "Bad hub", 9, "BAD") { Session = new ThrowingSession() });
             contributions.Tabs(new ThrowingModule());
             contributions.Tabs(new CreateTabsThrows());
         }
+    }
+
+    private sealed class ThrowingSession : IExtensionSessionState
+    {
+        public System.Text.Json.JsonElement? Snapshot() => throw new InvalidOperationException("hub session");
+
+        public void Restore(System.Text.Json.JsonElement state) => throw new InvalidOperationException("hub session");
     }
 
     private sealed class ThrowingModule : IWorkspaceModule

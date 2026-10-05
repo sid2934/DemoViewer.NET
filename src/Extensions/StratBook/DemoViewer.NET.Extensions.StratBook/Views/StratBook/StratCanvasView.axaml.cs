@@ -148,7 +148,7 @@ public partial class StratCanvasView : UserControl
             return;
         }
 
-        if (!vm.Keymap.TryResolve(e, vm.IsToolActive, out Playback2DAction action))
+        if (!vm.Keymap.TryResolve(e, vm.IsToolActive, out string? action))
         {
             return;
         }
@@ -156,7 +156,7 @@ public partial class StratCanvasView : UserControl
         IAnnotationSurface? surface = _host;
         switch (action)
         {
-            case Playback2DAction.HoldPan:
+            case nameof(Playback2DAction.HoldPan):
                 if (surface is not null)
                 {
                     _holdPanKey = e.Key;
@@ -166,7 +166,7 @@ public partial class StratCanvasView : UserControl
 
                 return;
 
-            case Playback2DAction.CancelGesture:
+            case nameof(Playback2DAction.CancelGesture):
                 if (vm.CancelSetPlace())
                 {
                     e.Handled = true;

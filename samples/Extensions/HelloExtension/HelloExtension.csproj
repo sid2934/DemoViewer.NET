@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <!--
-      A minimal third-party extension, built against the SDK alone: it references no app assembly. A real
-      extension would take the DemoViewer.NET.Extensions.Sdk package, whose build/ targets stamp and embed
-      extension.json; here the SDK project and its targets stand in for the package.
+      A minimal third-party extension, built against the SDK packages alone: it references no app assembly. A
+      real extension would take the DemoViewer.NET.Extensions.Sdk and .Sdk.Ui packages, whose build/ targets
+      stamp and embed extension.json; here the projects and the SDK's targets stand in for the packages.
     -->
     <PropertyGroup>
         <RootNamespace>HelloExtension</RootNamespace>
@@ -23,6 +23,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <ProjectReference Include="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
     </ItemGroup>
 
 </Project>

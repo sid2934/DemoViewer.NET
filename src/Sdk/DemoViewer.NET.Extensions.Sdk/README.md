@@ -6,6 +6,12 @@ this package and nothing else of the app's.
 
 `samples/Extensions/HelloExtension` in the DemoViewer.NET repository is a complete, minimal extension.
 
+Views that should look like the app take `DemoViewer.NET.Extensions.Sdk.Ui` as well: the app's shared controls,
+the palette token and style class names, and the view-model base the host resolves views for.
+
+The 2D map's scene types are in `DemoViewer.NET.Playback2D.Scene`: the frame, the layer contract, floors,
+places and the world-to-screen transform, over SkiaSharp.
+
 ## Project
 
 ```xml
@@ -74,14 +80,16 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 
 | Call | Adds |
 |---|---|
-| `Tabs` | An `IWorkspaceModule` whose tabs join the strip. |
+| `Tabs` | An `IWorkspaceModule` whose tabs join the strip, or a hub's rail when a descriptor names a `HostId`. |
+| `HubTab` | A main tab whose body is a rail of sections. The host draws the tab and the rail; sections name its id. |
+| `StatusChip` | A chip on the status strip. You supply its state through `IStatusChipSource`; the host draws it. |
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `RecordPass` | An `IExtensionRecordPass` that runs over what the library already holds for a demo, without a parse. |
 | `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts. |
-| `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind. |
+| `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind, and `IExtension.CommandScopes` for their focus scopes. |
 | `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
 | `SettingsPage` | A page under Settings, Extensions with controls of your own. |
-| `Playback` | Lanes, panes, panels, toolbar items, mode toggles and key or action handlers in 2D Playback. |
+| `Playback` | Lanes, panes, panels, toolbar items, mode toggles, map layers, map tools and key or action handlers in 2D Playback. |
 | `Library` | A Library filter, a per-demo badge, or both. |
 | `DemoAction` | A button on Match Overview for the open demo. |
 | `Store` / `DataRemoval` / `DataDeleted` | What "Delete extension data" removes beyond your own folders, a removal of your own, and a callback after the delete. |
@@ -90,11 +98,61 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 Each contribution shows only while the extension's master switch is on, and while its own feature id is on
 when it names one.
 
+A section can also join a hub the app owns: name `HostIds.LibraryTab` (the Library's view switch) or
+`HostIds.StratBookHub` (the Strat Book rail) as its `HostId`. A hub id you declare must not repeat one the app
+or another extension uses; a second declaration of an id is left out and logged.
+
+## Keys
+
+The app has one keymap. A command's id starts with your extension's id and a dot (`dev.example.hello.where`);
+core actions keep bare ids such as `TogglePlay`. A command whose id lacks the prefix, or repeats an id already
+taken (ignoring case), is left out and listed in Settings with the reason. The user's rebinding is stored
+against the id, so never rename one.
+
+The scope `playback2d` applies whenever the 2D Playback map has focus, and `playback2d.tool` while a drawing
+tool is active. For a panel of your own that takes the keyboard, declare a `CommandScope` in
+`IExtension.CommandScopes` (its id carries the same prefix, its label is what Settings shows), and from a key
+handler added with `IPlaybackSurface.AddKeyHandler` ask `IPlaybackSurface.ActionFor(scope, key, modifiers)`
+while the panel has focus.
+
+A key bound to your command reaches your action handler (`IPlaybackSurface.AddActionHandler`), or runs the
+toolbar item or mode toggle whose action id names it, and only while the extension is on.
+`IPlaybackSurface.ActionIds` lists every id the keymap knows, the other extensions' included.
+
+## The map
+
+`IPlaybackSurface.Levels` lists the shown map's floors, lowest first. `Places` lists its named places, and
+`PlaceAt(level, x, y)` answers the place at a world point on a floor, by the floor's name, or null for the
+map's only floor. Both are empty or null on a map with no zones. A pointer handler's `PlaybackPointer.PlaceAt`
+gives the same answer for the point pressed. `PlacesVersion` changes when the user edits the map's zones; keep
+it beside a place you store to know when to look the place up again.
+
+A toolbar item's `PlaybackMoment` and a pointer handler's `PlaybackPointer` carry the frame on screen
+(`Frame`, a `Scene2DFrame` from `DemoViewer.NET.Playback2D.Scene`): the players' markers, grenades and clock.
+It is valid only during the call; the tab refills it for the next frame.
+
+`AddLayer(id, factory)` draws an `ISceneLayer` on the tab's map among its own layers. The host files it as
+`ext.<your extension id>.<id>`, so it can never take one of the tab's layers or another extension's, and the
+built layer's own `Id` is not used. The factory runs again whenever the map rebuilds its scene. The layer sees
+only what it is handed: the frame in `Advance`, the canvas and the `SceneRenderContext` in `Render`, which
+runs on the render thread. The canvas is restored after each call, and a layer that throws stops drawing for
+the session. `AddTool(tool)` adds an `IMapTool` that is offered every primary press the tab does not pan
+(Space, Control and the middle button pan), after the pointer handlers; the tool that takes a press owns the
+gesture until the release.
+
+A lane's track can draw marks as well as bands: implement `ITimelineTrack.BuildMarks` to put a glyph on the
+timeline at a frame.
+
+For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`).
+
 ## The host
 
 `services.GetExtensionContext(Id)` returns the extension's `IExtensionContext`:
 
-- `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files.
+- `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files. `CurrentDemo` is the open
+  demo's parse, shared with the shell, so read it and drop it on `CurrentDemoChanged`. `CurrentDemoHash` is the
+  demo's content key (lowercase hex SHA-256 of the file), the one to key per-demo data on. `CurrentTick`,
+  `IsPlaying` and `PlayheadChanged` follow playback; the event fires at most once per rendered frame.
 - `Features`: the feature switches, live.
 - `Jobs`: the processing queue. Run every off-UI-thread job through it, so the user sees it and can pause or
   remove it. `Enqueue` returns an `IJobHandle`: its `Status`, a `Completion` that never faults, a `Completed`

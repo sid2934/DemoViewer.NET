@@ -368,7 +368,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // player cards while a mode of theirs is on, and their mode toggles and toolbar items sit on the
         // toolbar. The surface reads the gate and the frame live from here.
         Surface = new Playback2DSurface(Timeline, () => CaptureLevelsSource?.Invoke(),
-            id => _features?.IsEnabled(id) ?? true, () => CurrentFrame);
+            id => _features?.IsEnabled(id) ?? true, () => CurrentFrame, () => Zones);
         Surface.SidePaneOpened += CloseExport;
         Surface.PanelsChanged += RaisePanelState;
 
@@ -411,6 +411,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>The loaded map-asset bundle (radar bitmaps + transform + layers) for the current map, or null.</summary>
     public LoadedMapAsset? MapAsset { get; private set; }
+
+    /// <inheritdoc />
+    IMapAsset? ISceneFrameHost.MapAsset => MapAsset;
 
     /// <summary>
     ///     Test seam: the map name the viewport last (re)loaded assets for, set unconditionally by
@@ -1291,8 +1294,19 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     ///     lives in the pack): the pointer pre-handlers' turn. False when none takes it, and the press then
     ///     goes to the pointer tools.
     /// </summary>
-    /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
-    public bool TryPointerPreHandler(ScenePointer pointer) => Surface.TryHandlePointerPress(pointer);
+    /// <param name="press">The press, resolved to a pane and world coordinates.</param>
+    public bool TryPointerPreHandler(ScenePointer press) => Surface.TryHandlePointerPress(press);
+
+    IReadOnlyList<KeyValuePair<string, Func<global::DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer>>> ISceneFrameHost.ContributedLayers =>
+        Surface.Layers;
+
+    IReadOnlyList<global::DemoViewer.NET.Playback2D.Core.Tools.IMapTool> ISceneFrameHost.ContributedTools => Surface.Tools;
+
+    event Action? ISceneFrameHost.ContributedLayersChanged
+    {
+        add => Surface.LayersChanged += value;
+        remove => Surface.LayersChanged -= value;
+    }
 
     private static string[] BuildMyWeaponsPaths()
     {
@@ -1546,8 +1560,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // A contributed panel holding the keyboard sees every action first (undo and redo are its
         // document's); otherwise the contributions get what the tab leaves unhandled, in the default arm.
+        string id = Playback2DActionIds.Of(action);
         bool offered = Surface.HasKeyboard;
-        if (offered && Surface.TryExecute(action))
+        if (offered && Surface.TryExecute(id))
         {
             return true;
         }
@@ -1702,12 +1717,26 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 Annotations.ClearAllCommand.Execute(null);
                 return true;
 
-            // The pack actions (FindRoundsLikeThis, NextSituationResult, PrevSituationResult, Tag*,
-            // Suggestion*, FocusTagPalette, ToggleReviewMode) and anything else the tab does not name: the
-            // contributions' turn, unless a focused panel already had it above.
+            // Anything the tab does not name: the contributions' turn, unless a focused panel already had it.
             default:
-                return !offered && Surface.TryExecute(action);
+                return !offered && Surface.TryExecute(id);
         }
+    }
+
+    /// <summary>
+    ///     Dispatches a keymap action by id. A core id runs <see cref="ExecuteAction(Playback2DAction)" />;
+    ///     any other id is an extension's, offered to the contributions' handlers.
+    /// </summary>
+    /// <param name="actionId">The action's id.</param>
+    public bool ExecuteAction(string actionId)
+    {
+        ArgumentNullException.ThrowIfNull(actionId);
+        if (Playback2DActionIds.TryCore(actionId, out Playback2DAction action))
+        {
+            return ExecuteAction(action);
+        }
+
+        return _context is not null && Surface.TryExecute(actionId);
     }
 
     // Steps within the NavStrip's speed ladder from the nearest current value. A Live Sync session without

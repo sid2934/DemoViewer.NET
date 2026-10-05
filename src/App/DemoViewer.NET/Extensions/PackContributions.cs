@@ -1,11 +1,12 @@
 #region
 
+using System.Text.Json;
 using Avalonia.Controls;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Settings;
-using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.Settings;
 using SdkPlayback = DemoViewer.NET.Extensions.Sdk.Playback;
 
@@ -39,12 +40,12 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly ExtensionGuard _guard = guard ?? ExtensionGuard.Standalone(pack);
     private IExtensionContext? _context;
     private readonly List<IWorkspaceModule> _modules = [];
-    private readonly List<HostTabContribution> _hostTabs = [];
+    private readonly List<ContributedHub> _hubTabs = [];
     private readonly List<PassContribution> _passes = [];
     private readonly List<RecordPassContribution> _recordPasses = [];
     private readonly List<CommandDescriptor> _commands = [];
     private readonly List<SettingsPageContribution> _settingsPages = [];
-    private readonly List<StatusChipContribution> _statusChips = [];
+    private readonly List<HostStatusChip> _statusChips = [];
     private readonly List<IReindexEstimate> _reindexEstimates = [];
     private readonly List<IPlaybackContribution> _playback = [];
     private readonly List<ILibraryContribution> _library = [];
@@ -66,8 +67,8 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     /// <summary>Modules, in contribution order.</summary>
     public IReadOnlyList<IWorkspaceModule> Modules => _modules;
 
-    /// <summary>Host tabs, in contribution order, each stamped with a gate id.</summary>
-    public IReadOnlyList<HostTabContribution> HostTabs => _hostTabs;
+    /// <summary>Hub tabs, in contribution order, each stamped with a gate id and the pack's id.</summary>
+    public IReadOnlyList<ContributedHub> HubTabs => _hubTabs;
 
     /// <summary>Passes, in contribution order.</summary>
     public IReadOnlyList<PassContribution> Passes => _passes;
@@ -86,8 +87,8 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     /// <summary>Settings pages, in contribution order, each stamped with a gate id.</summary>
     public IReadOnlyList<SettingsPageContribution> SettingsPages => _settingsPages;
 
-    /// <summary>Status-chip slots, in contribution order, each stamped with a gate id.</summary>
-    public IReadOnlyList<StatusChipContribution> StatusChips => _statusChips;
+    /// <summary>Status chips, in contribution order, each stamped with a gate id.</summary>
+    public IReadOnlyList<HostStatusChip> StatusChips => _statusChips;
 
     /// <summary>Re-index estimates, in contribution order.</summary>
     public IReadOnlyList<IReindexEstimate> ReindexEstimates => _reindexEstimates;
@@ -113,33 +114,13 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     }
 
     /// <inheritdoc />
-    public void HostTab(HostTabContribution host)
+    public void HubTab(HubTabContribution hub)
     {
-        ArgumentNullException.ThrowIfNull(host);
-        ArgumentException.ThrowIfNullOrWhiteSpace(host.HostId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(host.TabId);
-        ArgumentNullException.ThrowIfNull(host.ViewModelFactory);
-        ArgumentNullException.ThrowIfNull(host.ViewFactory);
-        // A failed view model shows the placeholder rather than the extension's view over nothing.
-        bool viewModelFailed = false;
-        Func<IHostTabViewModel> viewModel = host.ViewModelFactory;
-        Func<Control> view = host.ViewFactory;
-        HostTabContribution guarded = host with
-        {
-            FeatureId = host.FeatureId ?? Pack.FeatureId,
-            // Null tells the shell to leave the host tab out.
-            ViewModelFactory = () =>
-            {
-                IHostTabViewModel? built = _guard.Run<IHostTabViewModel?>("hub view model", () => viewModel(), null);
-                viewModelFailed = built is null;
-                return built!;
-            },
-            ViewFactory = () => viewModelFailed
-                ? ExtensionPlaceholder.View(_guard.Scope, "this tab")
-                : _guard.Run("hub view", view, ExtensionPlaceholder.View(_guard.Scope, "this tab"))
-        };
-        ExtensionGuards.Register(guarded, _guard);
-        _hostTabs.Add(guarded);
+        ArgumentNullException.ThrowIfNull(hub);
+        ArgumentException.ThrowIfNullOrWhiteSpace(hub.Id);
+        ArgumentNullException.ThrowIfNull(hub.Header);
+        ArgumentNullException.ThrowIfNull(hub.RailLabel);
+        _hubTabs.Add(ContributedHub.For(hub, Pack.Id, Pack.FeatureId, _guard));
     }
 
     /// <inheritdoc />
@@ -179,8 +160,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             }
         };
     }
-
-    /// <inheritdoc />
 
     /// <inheritdoc />
     public void Ruleset(RulesetContribution ruleset)
@@ -260,7 +239,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentNullException.ThrowIfNull(chip);
         ArgumentException.ThrowIfNullOrWhiteSpace(chip.Id);
         ArgumentNullException.ThrowIfNull(chip.Source);
-        _statusChips.Add(chip.FeatureId is null ? chip with { FeatureId = Pack.FeatureId } : chip);
+        _statusChips.Add(new HostStatusChip(chip, chip.FeatureId ?? Pack.FeatureId, _guard, _toUiThread));
     }
 
     /// <inheritdoc />
@@ -275,13 +254,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     {
         ArgumentNullException.ThrowIfNull(contribution);
         _playback.Add(new SdkPlaybackContribution(contribution, _guard));
-    }
-
-    /// <inheritdoc />
-    public void FirstPartyPlayback(IPlaybackContribution contribution)
-    {
-        ArgumentNullException.ThrowIfNull(contribution);
-        _playback.Add(new GuardedPlaybackContribution(contribution, _guard));
     }
 
     /// <inheritdoc />
@@ -468,4 +440,39 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         public Task<ExtensionDataRemovalResult> DeleteAsync() =>
             guard.RunAsync("data removal", inner.DeleteAsync, ExtensionDataRemovalResult.NotRun);
     }
+}
+
+/// <summary>
+///     A hub tab as the shell builds it: the extension's declaration, the gate id it shows under and the id
+///     of the pack it belongs to, which keys its session state.
+/// </summary>
+/// <param name="Id">The id sections name as their host, and the strip tab's id.</param>
+/// <param name="Header">The strip header.</param>
+/// <param name="Order">The strip position.</param>
+/// <param name="RailLabel">The band over the rail.</param>
+/// <param name="FeatureId">The gate id the tab shows under.</param>
+/// <param name="PackId">The owning pack's id; the key of its session state.</param>
+/// <param name="Session">The pack's session state, guarded, or null.</param>
+public sealed record ContributedHub(
+    string Id, string Header, int Order, string RailLabel, string FeatureId, string PackId, IExtensionSessionState? Session)
+{
+    /// <summary>The hub as the shell builds it from a pack's declaration.</summary>
+    /// <param name="hub">The declaration.</param>
+    /// <param name="packId">The owning pack's id.</param>
+    /// <param name="packFeatureId">The owning pack's master switch, for a declaration that names no feature.</param>
+    /// <param name="guard">The owning pack's guard; null runs the session state unguarded.</param>
+    public static ContributedHub For(HubTabContribution hub, string packId, string packFeatureId, ExtensionGuard? guard = null)
+    {
+        ArgumentNullException.ThrowIfNull(hub);
+        IExtensionSessionState? session = hub.Session is { } state && guard is not null ? new GuardedSessionState(state, guard) : hub.Session;
+        return new ContributedHub(hub.Id, hub.Header, hub.Order, hub.RailLabel, hub.FeatureId ?? packFeatureId, packId, session);
+    }
+}
+
+/// <summary>An extension's session state, run as the extension's: a throw reads as nothing kept.</summary>
+internal sealed class GuardedSessionState(IExtensionSessionState inner, ExtensionGuard guard) : IExtensionSessionState
+{
+    public JsonElement? Snapshot() => guard.Run("session snapshot", inner.Snapshot, null);
+
+    public void Restore(JsonElement state) => guard.Run("session restore", () => inner.Restore(state));
 }

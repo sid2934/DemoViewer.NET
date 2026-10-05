@@ -197,11 +197,11 @@ public class Playback2DLaneHostingTests
     public async Task AModeToggle_IsListed_ItsActionFlipsItWhileAvailableOrOn_AndBoundPanelsFollow()
     {
         (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
-        ModeToggle mode = new("fake.mode", "Mode", "A fake mode", nameof(Playback2DAction.ToggleReviewMode));
+        ModeToggle mode = new("fake.mode", "Mode", "A fake mode", "fake.ToggleMode");
         int flips = 0;
         mode.Changed += () => flips++;
 
-        await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsFalse().Because("no mode owns the action yet");
+        await Assert.That(vm.ExecuteAction("fake.ToggleMode")).IsFalse().Because("no mode owns the action yet");
 
         IDisposable registration = vm.Surface.AddModeToggle(mode);
         IPanelHandle panel = vm.Surface.AddPanel(0, () => new FakePanelViewModel(), mode: mode);
@@ -214,7 +214,7 @@ public class Playback2DLaneHostingTests
             await Assert.That(vm.IsCardStrip).IsFalse();
         }
 
-        await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsTrue();
+        await Assert.That(vm.ExecuteAction("fake.ToggleMode")).IsTrue();
         using (Assert.Multiple())
         {
             await Assert.That(mode.IsOn).IsTrue();
@@ -225,13 +225,13 @@ public class Playback2DLaneHostingTests
 
         // Unavailable and on: the action still leaves the mode. Unavailable and off: the key is nobody's.
         mode.IsAvailable = false;
-        await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsTrue();
+        await Assert.That(vm.ExecuteAction("fake.ToggleMode")).IsTrue();
         using (Assert.Multiple())
         {
             await Assert.That(mode.IsOn).IsFalse();
             await Assert.That(panel.IsShown).IsFalse();
             await Assert.That(vm.IsCardStrip).IsFalse();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsFalse();
+            await Assert.That(vm.ExecuteAction("fake.ToggleMode")).IsFalse();
             await Assert.That(mode.IsOn).IsFalse();
         }
 
@@ -240,7 +240,7 @@ public class Playback2DLaneHostingTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.Surface.ModeToggles).IsEmpty();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsFalse().Because("the toggle left");
+            await Assert.That(vm.ExecuteAction("fake.ToggleMode")).IsFalse().Because("the toggle left");
             await Assert.That(flips).IsEqualTo(2);
         }
 
@@ -300,7 +300,7 @@ public class Playback2DLaneHostingTests
         {
             runs++;
             return true;
-        }, Playback2DAction.FindRoundsLikeThis);
+        }, "fake.FindRounds");
 
         vm.Surface.AddToolbarItem(item);
         vm.Surface.AddActionHandler(_ =>
@@ -309,7 +309,7 @@ public class Playback2DLaneHostingTests
             return true;
         });
 
-        await Assert.That(vm.Surface.TryExecute(Playback2DAction.FindRoundsLikeThis)).IsTrue();
+        await Assert.That(vm.Surface.TryExecute("fake.FindRounds")).IsTrue();
         using (Assert.Multiple())
         {
             await Assert.That(runs).IsEqualTo(1);

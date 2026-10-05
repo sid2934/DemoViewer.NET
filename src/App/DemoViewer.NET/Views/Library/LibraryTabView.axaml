@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:vm="using:DemoViewer.NET.ViewModels.Library"
              xmlns:ext="using:DemoViewer.NET.Extensions.Sdk"
              xmlns:theming="using:DemoViewer.NET.Theming"
@@ -500,7 +501,7 @@
                                              text-carried. The side marks fix that; if the icons ever
                                              go missing the badge degrades to exactly what it was. -->
                                                     <StackPanel Orientation="Horizontal" Spacing="3">
-                                                        <controls:GameIcon Key="ui/ct_logo" IconHeight="10"
+                                                        <ui:GameIcon Key="ui/ct_logo" IconHeight="10"
                                                                            Foreground="{DynamicResource LibraryCardScoreCt}"
                                                                            VerticalAlignment="Center"
                                                                            ToolTip.Tip="Counter-Terrorists" />
@@ -513,7 +514,7 @@
                                                         <TextBlock Text="{Binding TScore}"
                                                                    Foreground="{DynamicResource LibraryCardScoreT}"
                                                                    FontWeight="Bold" FontSize="13" />
-                                                        <controls:GameIcon Key="ui/t_logo" IconHeight="10"
+                                                        <ui:GameIcon Key="ui/t_logo" IconHeight="10"
                                                                            Foreground="{DynamicResource LibraryCardScoreT}"
                                                                            VerticalAlignment="Center"
                                                                            ToolTip.Tip="Terrorists" />
@@ -583,7 +584,7 @@
                                             <!-- CS2's own map icon. The card view paints a full baked radar
                                              behind itself; this row had no map visual at all. A community
                                              map simply leaves the slot empty — the name is right beside it. -->
-                                            <controls:GameIcon Key="{Binding MapName, StringFormat='map/{0}'}"
+                                            <ui:GameIcon Key="{Binding MapName, StringFormat='map/{0}'}"
                                                                IconHeight="14" VerticalAlignment="Center" />
                                             <TextBlock Text="{Binding MapDisplay}" Classes="listCell"
                                                        Foreground="{DynamicResource TextValue}" />

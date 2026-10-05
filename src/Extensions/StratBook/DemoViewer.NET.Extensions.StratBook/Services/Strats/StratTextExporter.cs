@@ -2,8 +2,6 @@
 
 using System.Globalization;
 using System.Text;
-using DemoViewer.NET.Controls;
-using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 

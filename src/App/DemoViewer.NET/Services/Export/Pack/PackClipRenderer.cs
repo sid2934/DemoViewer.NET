@@ -219,7 +219,7 @@ public sealed class PackEncoder : IPackEncoder
 }
 
 /// <summary>Source-generated log lines for Pack Export.</summary>
-internal static partial class PackExportLog
+public static partial class PackExportLog
 {
     /// <summary>Category (the "App" source tag) for pack export lines.</summary>
     public const string Category = "App.PackExport";

@@ -9,7 +9,7 @@ using DemoViewer.NET.ViewModels.Playback2D;
 namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 
 /// <summary>
-///     <see cref="StratExportHost" />'s shape as an interface, so <see cref="DemoViewer.NET.Modules.ModuleContext.GetService{T}" />
+///     <see cref="StratExportHost" />'s shape as an interface, so <see cref="DemoViewer.NET.Modules.Abstractions.IModuleContext.GetService{T}" />
 ///     resolves it by type. Every member is a core type; nothing here is pack-specific beyond the fact
 ///     that the Strat Book pack is what wires it.
 /// </summary>
