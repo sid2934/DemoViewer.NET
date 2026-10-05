@@ -54,11 +54,12 @@ public class StratBookPackTests
         "DemoViewer.NET.Extensions.FirstPartyExports",
         "DemoViewer.NET.Extensions.FirstPartyHost",
         // The extension host: the job-kind registry, the shell hub, the first-party shell state and export
-        // chips it serves, and the pack's own context.
+        // chips it serves, the notification center, and the pack's own context.
         "DemoViewer.NET.Extensions.JobKindRegistry",
         "DemoViewer.NET.Extensions.ExtensionShellHub",
         "DemoViewer.NET.Extensions.IFirstPartyShellState",
         "DemoViewer.NET.Extensions.IFirstPartyExportChips",
+        "DemoViewer.NET.Extensions.NotificationCenter",
         "DemoViewer.NET.Extensions.Sdk.IExtensionContext",
         // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",
