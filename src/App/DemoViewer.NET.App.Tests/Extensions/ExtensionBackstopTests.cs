@@ -18,6 +18,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     constructor throws inside layout is replaced by the placeholder.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class ExtensionBackstopTests
 {
     [Test]

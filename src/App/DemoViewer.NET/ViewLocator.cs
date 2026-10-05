@@ -31,7 +31,9 @@ public class ViewLocator : IDataTemplate
 
         if (type != null)
         {
-            return Create(type, App.Services?.GetService(typeof(ExtensionFaults)) as ExtensionFaults ?? ExtensionFaults.Current);
+            // The process's tracker, not one read from App.Services: that container can be disposed while
+            // views are still being built, and resolving from a disposed container throws.
+            return Create(type, ExtensionFaults.Current);
         }
 
         return new TextBlock

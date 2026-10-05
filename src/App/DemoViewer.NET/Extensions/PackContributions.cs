@@ -305,7 +305,14 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
                     _handlers.Add((value, marshaled));
                 }
 
-                guard.Run("library subscribe", () => inner.Changed += marshaled);
+                try
+                {
+                    inner.Changed += marshaled;
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    guard.Report("library subscribe", ex);
+                }
             }
             remove
             {
@@ -322,7 +329,14 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
                 if (marshaled is not null)
                 {
-                    guard.Run("library unsubscribe", () => inner.Changed -= marshaled);
+                    try
+                    {
+                        inner.Changed -= marshaled;
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        guard.Report("library unsubscribe", ex);
+                    }
                 }
             }
         }
