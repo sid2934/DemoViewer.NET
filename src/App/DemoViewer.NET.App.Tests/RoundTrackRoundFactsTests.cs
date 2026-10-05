@@ -1,7 +1,10 @@
 #region
 
+using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
@@ -69,8 +72,8 @@ public class RoundTrackRoundFactsTests
         }
     }
 
-    // The pack off on a Valve demo: the gated source answers null whether or not rows were ever written,
-    // and the wire carries no round_end. The bands still lay out; they are simply not tinted.
+    // A Valve demo whose rows are not written yet, and the wire carries no round_end. The bands still lay
+    // out; they are simply not tinted.
     [Test]
     public async Task WithoutASource_AndNoRoundEnd_EveryBandIsNeutral()
     {
@@ -119,6 +122,43 @@ public class RoundTrackRoundFactsTests
             await Assert.That(bands.Count).IsEqualTo(2);
             await Assert.That(bands[0].Tooltip).Contains("won by T");
             await Assert.That(bands[1].Argb).IsEqualTo(0u);
+        }
+    }
+
+    // The tab is handed the source by the module, not by a container lookup, and the source answers for
+    // every user: Round Facts has no owner that could be off.
+    [Test]
+    public async Task TheModule_HandsTheTabItsSource_WhichServesTheRows()
+    {
+        DemoCacheStore store = new(null);
+        DemoCacheRecord record = new() { Path = "/d/a.dem", Size = 1, ModifiedTicks = 1 };
+        record.WriteRoundFacts(new RoundFactsRows { Schema = RoundFactsRecords.Schema, Rounds = [Round(1, 3)] }, "rf-A");
+        store.Upsert(record);
+        RoundFactsSource source = new(store);
+        IRoundFactsSource? handed = null;
+
+        await HeadlessSession.RunOnUi(() =>
+        {
+            WorkspaceTabDescriptor tab = new Playback2DModule(() => null, () => source).CreateTabs(new Host()).Single();
+            handed = ((Playback2DTabViewModel)tab.ViewModelFactory!()).RoundFactsSource;
+            return Task.CompletedTask;
+        });
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(handed).IsSameReferenceAs(source);
+            await Assert.That(source.TryGet("/d/a.dem")?.Rounds.Count).IsEqualTo(1);
+        }
+    }
+
+    private sealed class Host : IModuleHost
+    {
+        public IModuleContext Context { get; } = new Playback2DFakeContext();
+
+        public bool HasCapability(string capability) => true;
+
+        public void Log(ModuleLogLevel level, string message)
+        {
         }
     }
 }

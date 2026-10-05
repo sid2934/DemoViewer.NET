@@ -326,12 +326,17 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     private bool _visionEngineLoading;
     private string? _visionEngineMap;
 
+    /// <summary>A tab with no round facts: the designer and tests that do not need the winner tint.</summary>
+    public Playback2DTabViewModel() : this(null)
+    {
+    }
+
     /// <summary>
-    ///     Builds the tab with its timeline and the three default tracks registered. Parameterless by contract:
-    ///     gates arrive through <see cref="IModuleContext.Features" />, never through the constructor, so
-    ///     the module descriptor's <c>ViewModelFactory</c> stays a bare <c>new()</c>.
+    ///     Builds the tab with its timeline and the three default tracks registered. Gates arrive through
+    ///     <see cref="IModuleContext.Features" />, never through the constructor.
     /// </summary>
-    public Playback2DTabViewModel()
+    /// <param name="roundFacts">The round facts the winner tint reads; null leaves the pre-facts tint.</param>
+    public Playback2DTabViewModel(IRoundFactsSource? roundFacts)
     {
         // Every dependency is optional, resolved the way Playback2DRenderer resolves its setting: the
         // descriptor's ViewModelFactory is a bare new(), and a headless test builds this with no
@@ -350,7 +355,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // outlives every demo the tab shows, so a re-assignment would only be a second chance to forget.
         _annotationController.Session.RoundWindowResolver = ResolveRoundWindow;
 
-        _roundFacts = TryResolveRoundFacts();
+        _roundFacts = roundFacts;
 
         Timeline.RegisterTrack(_roundTrack);
         Timeline.RegisterTrack(new KillTrack());
@@ -1197,21 +1202,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         }
     }
 
-    private static IRoundFactsSource? TryResolveRoundFacts()
-    {
-        try
-        {
-            return App.Services?.GetService<IRoundFactsSource>();
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     /// <summary>
-    ///     The round facts the winner tint reads. Resolved from the container in the constructor; a test
-    ///     without one assigns a fake here before activation, or leaves it null for the pre-facts tint.
+    ///     The round facts the winner tint reads, as the constructor was handed them. A test may assign a fake
+    ///     here before activation.
     /// </summary>
     internal IRoundFactsSource? RoundFactsSource
     {

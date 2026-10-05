@@ -1293,7 +1293,7 @@ public class App : Application
         // use this path. The packs' playback contributions (band menus, panes) attach to each tab
         // view-model through the host, gated live by the pack's umbrella id.
         registry.Register(new Playback2DModule(() => PlaybackContributionHost.From(
-            sp.GetRequiredService<PackContributionSet>(), sp.GetService<IFeatureGate>())));
+            sp.GetRequiredService<PackContributionSet>(), sp.GetService<IFeatureGate>()), sp.GetRequiredService<IRoundFactsSource>));
         // The Rulesets v2 authoring Workbench.
         // Registered on both hosts; desktop-only features (editor save, FileSystemWatcher, code --goto)
         // gate at runtime via OperatingSystem.IsBrowser() as they land, so the WASM build compiles
