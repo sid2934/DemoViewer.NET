@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Views.RuleWorkbench;
 using Microsoft.Extensions.Options;
 
@@ -25,7 +26,12 @@ namespace DemoViewer.NET.Modules.RuleWorkbench;
 ///     its DeveloperMode gate is a live read of <c>AppSettings.Features.DeveloperMode</c>. Null → the
 ///     env-only fallback (designer / tests construct the module parameterless).
 /// </param>
-public sealed class RuleWorkbenchModule(IOptionsMonitor<AppSettings>? settings = null) : IWorkspaceModule
+/// <param name="extensionRulesets">The rulesets the loaded extensions contribute, read when the tab opens.</param>
+/// <param name="extensionOn">Whether a contributed ruleset's feature is on.</param>
+public sealed class RuleWorkbenchModule(
+    IOptionsMonitor<AppSettings>? settings = null,
+    Func<IReadOnlyList<ContributedRuleset>>? extensionRulesets = null,
+    Func<ContributedRuleset, bool>? extensionOn = null) : IWorkspaceModule
 {
     public string Id => "net.demoviewer.ruleworkbench";
     public string DisplayName => "Rule Authoring Workbench";
@@ -39,7 +45,7 @@ public sealed class RuleWorkbenchModule(IOptionsMonitor<AppSettings>? settings =
             Header = "Authoring",
             Order = 5, // after the four built-ins (0..3) and 2D Playback (4)
             Placement = TabPlacement.Main,
-            ViewModelFactory = () => new RuleWorkbenchTabViewModel(settings),
+            ViewModelFactory = () => new RuleWorkbenchTabViewModel(settings, extensionRulesets, extensionOn),
             ViewFactory = () => new RuleWorkbenchView()
         };
     }

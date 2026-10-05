@@ -217,6 +217,9 @@ The host reads the YAML between the shipped rules and the user's own rules folde
 id overrides yours, or switches it off with `enabled: false`. A ruleset that does not load, carries another id or
 reuses a table name is left out with a line in the diagnostics log, and nothing else is affected.
 
+The Authoring tab lists your ruleset beside the shipped files, tagged with your extension id. It is read-only
+there, its problems show in the check like any file's, and Save As under its id writes the user's override.
+
 List the names in `extension.json`, so the host keeps them apart from the highlights even when the extension
 does not load:
 

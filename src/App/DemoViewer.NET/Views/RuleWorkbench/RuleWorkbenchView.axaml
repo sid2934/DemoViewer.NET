@@ -66,7 +66,10 @@
             </Button>
             <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
                 <TextBlock Text="🔒 shipped (read-only — use Save As)" Foreground="{DynamicResource AccentCaution}"
-                           IsVisible="{Binding IsReadOnlyFile}" Margin="0,0,10,0" />
+                           IsVisible="{Binding IsShippedReadOnly}" Margin="0,0,10,0" />
+                <TextBlock Text="🔒 extension ruleset (read-only: Save As under its id to override it)"
+                           Foreground="{DynamicResource AccentCaution}"
+                           IsVisible="{Binding IsExtensionFile}" Margin="0,0,10,0" />
                 <TextBlock Text="{Binding Summary}"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Opacity="0.75" />
             </StackPanel>

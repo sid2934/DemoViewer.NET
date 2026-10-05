@@ -1342,7 +1342,10 @@ public class App : Application
         // gate at runtime via OperatingSystem.IsBrowser() as they land, so the WASM build compiles
         // and gets the read-only surface. The live-settings monitor threads through so the
         // Workbench's DeveloperMode gate is a live read of AppSettings.Features.DeveloperMode.
-        registry.Register(new RuleWorkbenchModule(settings));
+        // The extensions' rulesets show beside the files, read-only, so an author can read and override one.
+        IFeatureGate? workbenchGate = sp.GetService<IFeatureGate>();
+        registry.Register(new RuleWorkbenchModule(settings, () => sp.GetRequiredService<PackContributionSet>().Rulesets,
+            c => workbenchGate?.IsEnabled(c.FeatureId) ?? true));
 
         // The Highlights browser. Registered on both hosts (WASM degrades:
         // the cache/scan are absent). The VM is delegate-injected (Library precedent): the
