@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
-using DemoViewer.NET.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 
 #endregion
 

@@ -7,7 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
-using DemoViewer.NET.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion

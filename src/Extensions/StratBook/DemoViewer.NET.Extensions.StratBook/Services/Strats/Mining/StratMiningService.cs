@@ -7,7 +7,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;

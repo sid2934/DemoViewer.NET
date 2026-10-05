@@ -8,6 +8,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
@@ -447,7 +448,7 @@ public class StratMiningServiceTests
         {
             DetectedPattern pattern = service.Patterns.Single(p => p.Pattern.Key == execute.Key);
             await Assert.That(pattern.StratId).IsNull();
-            await Assert.That(pattern.State).IsEqualTo(Services.Generated.GeneratedState.New);
+            await Assert.That(pattern.State).IsEqualTo(GeneratedState.New);
             await Assert.That(Enumerable.Range(1, 3).Sum(n => library.Tags.TryLoad(Sha(n))!.Instances.Count(i => i.Source == TagSources.Suggested)))
                 .IsEqualTo(0).Because("the three runs the promotion wrote are gone");
             await Assert.That(library.Tags.TryLoad(Sha(1))!.Instances.Single().Source).IsEqualTo(TagSources.Human);

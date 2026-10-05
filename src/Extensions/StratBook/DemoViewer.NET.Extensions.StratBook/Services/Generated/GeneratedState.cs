@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Generated;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Generated;
 
 /// <summary>
 ///     What the user has done with one machine-generated item: a proposal, a detected pattern, a suggestion. There is no reviewed state: that belongs to

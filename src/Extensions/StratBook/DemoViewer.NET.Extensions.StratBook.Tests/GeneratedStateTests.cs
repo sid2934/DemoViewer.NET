@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
@@ -9,7 +9,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 namespace DemoViewer.NET.AppTests;
 
-/// <summary>The shared state of machine-generated items.</summary>
+/// <summary>The state every inbox of generated items shares.</summary>
 public class GeneratedStateTests
 {
     [Test]
@@ -45,8 +45,6 @@ public class GeneratedStateTests
     [Test]
     public async Task ADetectedPattern_DismissedWinsOverPromoted()
     {
-        // A minimal MinedPattern, not StratMiningServiceTests.Pattern: that helper lives in the
-        // extension test project and this file tests the core GeneratedState contract only.
         MinedPattern pattern = new()
         {
             Key = "k",
