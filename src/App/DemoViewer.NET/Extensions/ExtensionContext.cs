@@ -1,5 +1,6 @@
 #region
 
+using System.Reflection;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
@@ -50,6 +51,7 @@ internal sealed class ExtensionShellHub
 /// </summary>
 internal sealed class ExtensionContext : IExtensionContext
 {
+    private readonly Lazy<IExtensionDemoData> _data;
     private readonly ExtensionGuard _guard;
     private readonly string _logPrefix;
 
@@ -68,6 +70,11 @@ internal sealed class ExtensionContext : IExtensionContext
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
         Settings = new ExtensionSettingsStore(extension.Id, AppPaths.ConfigRoot, Post);
+        string? version = extension.GetType().Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        _data = new Lazy<IExtensionDemoData>(() => AppPaths.DemoCacheDir is { } cache
+            ? new ExtensionDemoDataStore(extension.Id, Path.Combine(cache, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extension.Id)),
+                services.GetRequiredService<DemoCacheStore>(), Post, version)
+            : UnavailableDemoData.Instance);
     }
 
     public string ExtensionId { get; }
@@ -90,6 +97,8 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionStorage Storage { get; }
 
     public IExtensionSettings Settings { get; }
+
+    public IExtensionDemoData Data => _data.Value;
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 

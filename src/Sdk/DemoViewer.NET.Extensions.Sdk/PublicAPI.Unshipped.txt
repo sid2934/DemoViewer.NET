@@ -45,6 +45,64 @@ DemoViewer.NET.Extensions.Sdk.DemoAction.Label.get -> string!
 DemoViewer.NET.Extensions.Sdk.DemoAction.NotifyChanged() -> void
 DemoViewer.NET.Extensions.Sdk.DemoAction.Run.get -> System.Action<string!>!
 DemoViewer.NET.Extensions.Sdk.DemoAction.Tooltip.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.DemoDataRecord!
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Content.get -> byte[]!
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Content.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Deconstruct(out int Schema, out string? Fingerprint, out string? ExtensionVersion, out long WrittenAtTicks, out byte[]! Content) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.DemoDataRecord(int Schema, string? Fingerprint, string? ExtensionVersion, long WrittenAtTicks, byte[]! Content) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Equals(DemoViewer.NET.Extensions.Sdk.DemoDataRecord? other) -> bool
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.ExtensionVersion.get -> string?
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.ExtensionVersion.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Fingerprint.get -> string?
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Fingerprint.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Schema.get -> int
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Schema.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.WrittenAtTicks.get -> long
+DemoViewer.NET.Extensions.Sdk.DemoDataRecord.WrittenAtTicks.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.DemoDataStamp!
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Count.get -> int
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Count.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Deconstruct(out string! DemoPath, out string? Sha256, out string! Facet, out int Schema, out string? Fingerprint, out DemoViewer.NET.Extensions.Sdk.DemoDataState State, out long WrittenAtTicks, out int Count) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.DemoDataStamp(string! DemoPath, string? Sha256, string! Facet, int Schema, string? Fingerprint, DemoViewer.NET.Extensions.Sdk.DemoDataState State, long WrittenAtTicks, int Count) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.DemoPath.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.DemoPath.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Equals(DemoViewer.NET.Extensions.Sdk.DemoDataStamp? other) -> bool
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Facet.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Facet.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Fingerprint.get -> string?
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Fingerprint.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.IsCurrent(int schema, string? fingerprint) -> bool
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Schema.get -> int
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Schema.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Sha256.get -> string?
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Sha256.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.State.get -> DemoViewer.NET.Extensions.Sdk.DemoDataState
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.State.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.WrittenAtTicks.get -> long
+DemoViewer.NET.Extensions.Sdk.DemoDataStamp.WrittenAtTicks.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataState
+DemoViewer.NET.Extensions.Sdk.DemoDataState.Failed = 2 -> DemoViewer.NET.Extensions.Sdk.DemoDataState
+DemoViewer.NET.Extensions.Sdk.DemoDataState.Pending = 0 -> DemoViewer.NET.Extensions.Sdk.DemoDataState
+DemoViewer.NET.Extensions.Sdk.DemoDataState.Written = 1 -> DemoViewer.NET.Extensions.Sdk.DemoDataState
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.DemoDataWrite!
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Count.get -> int
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Count.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Deconstruct(out string! Facet, out int Schema, out string? Fingerprint, out System.ReadOnlyMemory<byte> Payload) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.DemoDataWrite(string! Facet, int Schema, string? Fingerprint, System.ReadOnlyMemory<byte> Payload) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Equals(DemoViewer.NET.Extensions.Sdk.DemoDataWrite? other) -> bool
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Facet.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Facet.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Fingerprint.get -> string?
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Fingerprint.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Parts.get -> System.Collections.Generic.IReadOnlyDictionary<string!, System.ReadOnlyMemory<byte>>!
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Parts.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Payload.get -> System.ReadOnlyMemory<byte>
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Payload.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Schema.get -> int
+DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Schema.init -> void
 DemoViewer.NET.Extensions.Sdk.DemoInterest
 DemoViewer.NET.Extensions.Sdk.DemoInterest.AfterUpstream = 2 -> DemoViewer.NET.Extensions.Sdk.DemoInterest
 DemoViewer.NET.Extensions.Sdk.DemoInterest.No = 0 -> DemoViewer.NET.Extensions.Sdk.DemoInterest
@@ -136,6 +194,7 @@ DemoViewer.NET.Extensions.Sdk.IExtension.JobKinds.get -> System.Collections.Gene
 DemoViewer.NET.Extensions.Sdk.IExtension.Register(Microsoft.Extensions.DependencyInjection.IServiceCollection! services) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContext
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.CreateLogger(string! category) -> Microsoft.Extensions.Logging.ILogger!
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Data.get -> DemoViewer.NET.Extensions.Sdk.IExtensionDemoData!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.ExtensionId.get -> string!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.FeatureId.get -> string!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Features.get -> DemoViewer.NET.Extensions.Sdk.IExtensionFeatures!
@@ -163,6 +222,19 @@ DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval
 DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval.DeleteAsync() -> System.Threading.Tasks.Task<DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult!>!
 DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval.FeatureId.get -> string!
 DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval.InventoryAsync() -> System.Threading.Tasks.Task<DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.Changed -> System.Action<string?>?
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.ClearFailed(string! demoPath, string! facet) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.Delete(string! demoPath, string! facet) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.Invalidate(string! facet, string? demoPath = null) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.IsAvailable.get -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.MarkFailed(string! demoPath, string! facet) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.Read(string! demoPath, string! facet, int schema, string? fingerprint, string? part = null) -> byte[]?
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.ReadAny(string! demoPath, string! facet, string? part = null) -> DemoViewer.NET.Extensions.Sdk.DemoDataRecord?
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.SetCount(string! demoPath, string! facet, int count) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.Stamp(string! demoPath, string! facet) -> DemoViewer.NET.Extensions.Sdk.DemoDataStamp?
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.Stamps(string! facet) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.DemoDataStamp!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionDemoData.Write(string! demoPath, DemoViewer.NET.Extensions.Sdk.DemoDataWrite! write) -> DemoViewer.NET.Extensions.Sdk.DemoDataStamp?
 DemoViewer.NET.Extensions.Sdk.IExtensionFeatures
 DemoViewer.NET.Extensions.Sdk.IExtensionFeatures.Changed -> System.Action?
 DemoViewer.NET.Extensions.Sdk.IExtensionFeatures.IsEnabled(string! featureId) -> bool
@@ -669,6 +741,15 @@ override DemoViewer.NET.Extensions.Sdk.CommandContext.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.DemoDataRecord.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.DemoDataRecord.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.DemoDataRecord.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.DemoDataStamp.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.DemoDataStamp.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.DemoDataStamp.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.DemoDataWrite.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.DemoDataWrite.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.DemoDataWrite.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.ToString() -> string!
@@ -750,6 +831,12 @@ static DemoViewer.NET.Extensions.Sdk.CommandContext.operator !=(DemoViewer.NET.E
 static DemoViewer.NET.Extensions.Sdk.CommandContext.operator ==(DemoViewer.NET.Extensions.Sdk.CommandContext? left, DemoViewer.NET.Extensions.Sdk.CommandContext? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.CommandDescriptor.operator !=(DemoViewer.NET.Extensions.Sdk.CommandDescriptor? left, DemoViewer.NET.Extensions.Sdk.CommandDescriptor? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.CommandDescriptor.operator ==(DemoViewer.NET.Extensions.Sdk.CommandDescriptor? left, DemoViewer.NET.Extensions.Sdk.CommandDescriptor? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.DemoDataRecord.operator !=(DemoViewer.NET.Extensions.Sdk.DemoDataRecord? left, DemoViewer.NET.Extensions.Sdk.DemoDataRecord? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.DemoDataRecord.operator ==(DemoViewer.NET.Extensions.Sdk.DemoDataRecord? left, DemoViewer.NET.Extensions.Sdk.DemoDataRecord? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.DemoDataStamp.operator !=(DemoViewer.NET.Extensions.Sdk.DemoDataStamp? left, DemoViewer.NET.Extensions.Sdk.DemoDataStamp? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.DemoDataStamp.operator ==(DemoViewer.NET.Extensions.Sdk.DemoDataStamp? left, DemoViewer.NET.Extensions.Sdk.DemoDataStamp? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.DemoDataWrite.operator !=(DemoViewer.NET.Extensions.Sdk.DemoDataWrite? left, DemoViewer.NET.Extensions.Sdk.DemoDataWrite? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.DemoDataWrite.operator ==(DemoViewer.NET.Extensions.Sdk.DemoDataWrite? left, DemoViewer.NET.Extensions.Sdk.DemoDataWrite? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? right) -> bool
