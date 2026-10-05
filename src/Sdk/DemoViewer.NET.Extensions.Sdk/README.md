@@ -79,7 +79,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 |---|---|
 | `Tabs` | An `IWorkspaceModule` whose tabs join the strip. |
 | `Evaluator` | An `IExtensionEvaluator` that reads every demo the Library indexes, on the shared parse. |
-| `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind. |
+| `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind, and `IExtension.CommandScopes` for their focus scopes. |
 | `SettingsPage` | A page under Settings, Extensions. |
 | `Playback` | Lanes, panes, panels, toolbar items, mode toggles and key or action handlers in 2D Playback. |
 | `Library` | A Library filter, a per-demo badge, or both. |
@@ -89,6 +89,23 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 
 Each contribution shows only while the extension's master switch is on, and while its own feature id is on
 when it names one.
+
+## Keys
+
+The app has one keymap. A command's id starts with your extension's id and a dot (`dev.example.hello.where`);
+core actions keep bare ids such as `TogglePlay`. A command whose id lacks the prefix, or repeats an id already
+taken (ignoring case), is left out and listed in Settings with the reason. The user's rebinding is stored
+against the id, so never rename one.
+
+The scope `playback2d` applies whenever the 2D Playback map has focus, and `playback2d.tool` while a drawing
+tool is active. For a panel of your own that takes the keyboard, declare a `CommandScope` in
+`IExtension.CommandScopes` (its id carries the same prefix, its label is what Settings shows), and from a key
+handler added with `IPlaybackSurface.AddKeyHandler` ask `IPlaybackSurface.ActionFor(scope, key, modifiers)`
+while the panel has focus.
+
+A key bound to your command reaches your action handler (`IPlaybackSurface.AddActionHandler`), or runs the
+toolbar item or mode toggle whose action id names it, and only while the extension is on.
+`IPlaybackSurface.ActionIds` lists every id the keymap knows, the other extensions' included.
 
 ## The host
 

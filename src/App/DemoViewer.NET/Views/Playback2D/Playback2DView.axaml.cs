@@ -397,10 +397,12 @@ public partial class Playback2DView : UserControl
 
         // The VM's RESOLVED profile, not the shipped static table: the table is the default this composes
         // over, and routing through it directly would ignore every user override.
-        if (!vm.Keymap.TryResolve(e, toolActive, out Playback2DAction action))
+        if (!vm.Keymap.TryResolve(e, toolActive, out string? actionId))
         {
             return;
         }
+
+        Playback2DActionIds.TryCore(actionId, out Playback2DAction action);
 
         // Two actions belong to the SURFACE, not the view-model: they act on the router's in-flight
         // gesture, which is host state the VM deliberately does not own.
@@ -437,7 +439,7 @@ public partial class Playback2DView : UserControl
                 return;
 
             default:
-                e.Handled = vm.ExecuteAction(action);
+                e.Handled = vm.ExecuteAction(actionId);
                 return;
         }
     }

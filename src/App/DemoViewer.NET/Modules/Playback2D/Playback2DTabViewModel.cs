@@ -1552,8 +1552,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
         // A contributed panel holding the keyboard sees every action first (undo and redo are its
         // document's); otherwise the contributions get what the tab leaves unhandled, in the default arm.
+        string id = Playback2DActionIds.Of(action);
         bool offered = Surface.HasKeyboard;
-        if (offered && Surface.TryExecute(action))
+        if (offered && Surface.TryExecute(id))
         {
             return true;
         }
@@ -1708,12 +1709,26 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
                 Annotations.ClearAllCommand.Execute(null);
                 return true;
 
-            // The pack actions (FindRoundsLikeThis, NextSituationResult, PrevSituationResult, Tag*,
-            // Suggestion*, FocusTagPalette, ToggleReviewMode) and anything else the tab does not name: the
-            // contributions' turn, unless a focused panel already had it above.
+            // Anything the tab does not name: the contributions' turn, unless a focused panel already had it.
             default:
-                return !offered && Surface.TryExecute(action);
+                return !offered && Surface.TryExecute(id);
         }
+    }
+
+    /// <summary>
+    ///     Dispatches a keymap action by id. A core id runs <see cref="ExecuteAction(Playback2DAction)" />;
+    ///     any other id is an extension's, offered to the contributions' handlers.
+    /// </summary>
+    /// <param name="actionId">The action's id.</param>
+    public bool ExecuteAction(string actionId)
+    {
+        ArgumentNullException.ThrowIfNull(actionId);
+        if (Playback2DActionIds.TryCore(actionId, out Playback2DAction action))
+        {
+            return ExecuteAction(action);
+        }
+
+        return _context is not null && Surface.TryExecute(actionId);
     }
 
     // Steps within the NavStrip's speed ladder from the nearest current value. A Live Sync session without

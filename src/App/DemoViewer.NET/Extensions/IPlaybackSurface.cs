@@ -89,8 +89,8 @@ public interface IPlaybackSurface
     /// <returns>Removes the handler.</returns>
     IDisposable AddPointerPreHandler(Func<ScenePointer, bool> handler);
 
-    /// <summary>The gesture text for <paramref name="action" /> under <see cref="Keymap" />, parenthesised, or "" unbound.</summary>
-    string GestureHint(Playback2DAction action);
+    /// <summary>The gesture text for <paramref name="actionId" /> under <see cref="Keymap" />, parenthesised, or "" unbound.</summary>
+    string GestureHint(string actionId);
 
     /// <summary>
     ///     A right-click menu contributor for timeline bands. Asked for every band pressed; returns no
@@ -129,18 +129,17 @@ public interface IPlaybackSurface
 
     /// <summary>
     ///     A key handler asked before the tab's keymap, in registration order, for every key the view gets
-    ///     while no text input has focus. True consumes the key. This is how a focus-scoped keymap row
-    ///     (<see cref="Playback2DBindingScope.WhenPaletteFocused" />, <see cref="Playback2DBindingScope.WhenSuggestionSelected" />)
-    ///     shadows the tab's own; the handler resolves the scope itself against <see cref="Keymap" />.
+    ///     while no text input has focus. True consumes the key. This is how an extension's focus-scoped
+    ///     keymap rows shadow the tab's own; the handler resolves its scope itself against <see cref="Keymap" />.
     /// </summary>
     /// <returns>Removes the handler.</returns>
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);
 
     /// <summary>
-    ///     An action handler for the tab's keymap actions. Asked for every action the tab does not handle
+    ///     An action handler for the keymap's actions, by id. Asked for every action the tab does not handle
     ///     itself, and, while a shown panel <see cref="IPanelHandle.HasKeyboard" />, for every action before
     ///     the tab's own (undo and redo are the focused document's). True consumes the action.
     /// </summary>
     /// <returns>Removes the handler.</returns>
-    IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);
+    IDisposable AddActionHandler(Func<string, bool> handler);
 }

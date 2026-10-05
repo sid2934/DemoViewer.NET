@@ -62,8 +62,6 @@ internal sealed class GuardedPlaybackContribution(IPlaybackContribution inner, E
 /// </summary>
 internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
 {
-    private static readonly IReadOnlyCollection<string> _actionIds = Enum.GetNames<Playback2DAction>();
-
     private readonly IPlaybackSurface _surface;
     private readonly ExtensionGuard _guard;
     private readonly List<IDisposable> _owned = [];
@@ -79,7 +77,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public IReadOnlyList<SdkP.PlaybackLevel> Levels =>
         [.. _surface.MapLevels.Select(l => new SdkP.PlaybackLevel(l.Name, l.ZMin, l.ZMax))];
 
-    public IReadOnlyCollection<string> ActionIds => _actionIds;
+    public IReadOnlyCollection<string> ActionIds => CommandRegistry.Default.ActionIds;
 
     public event Action? KeymapChanged;
 
@@ -97,8 +95,13 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         return Own(_surface.OnPlayheadChanged(_guard.Wrap("playhead handler", handler, FaultKind.Recurring)));
     }
 
-    public string GestureHint(string actionId) =>
-        Enum.TryParse(actionId, false, out Playback2DAction action) ? _surface.GestureHint(action) : "";
+    public string GestureHint(string actionId) => actionId is null ? "" : _surface.GestureHint(actionId);
+
+    public string? ActionFor(string scope, Key key, KeyModifiers modifiers) =>
+        !string.IsNullOrEmpty(scope)
+        && _surface.Keymap.TryResolveInScope(new Playback2DBindingScope(scope), key, modifiers, out string? actionId)
+            ? actionId
+            : null;
 
     public SdkP.ILaneHandle AddLane(SdkP.ITimelineTrack track, SdkP.ILaneBehaviour? behaviour = null)
     {
@@ -129,12 +132,9 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public IDisposable AddToolbarItem(SdkP.ToolbarItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        Playback2DAction? action = item.ActionId is { } id && Enum.TryParse(id, false, out Playback2DAction parsed)
-            ? parsed
-            : null;
         Func<SdkP.PlaybackMoment, bool> run = _guard.Wrap("toolbar item", item.Run, false);
         ToolbarItem mirrored = new(item.Id, item.Label, item.Tooltip,
-            frame => run(new SdkP.PlaybackMoment(frame.Time.Tick, frame.Time.FrameIndex)), action, item.Order,
+            frame => run(new SdkP.PlaybackMoment(frame.Time.Tick, frame.Time.FrameIndex)), item.ActionId, item.Order,
             item.Icon, item.MenuHeader);
 
         void Sync(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
@@ -203,7 +203,7 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     {
         ArgumentNullException.ThrowIfNull(handler);
         Func<string, bool> guarded = _guard.Wrap("action handler", handler, false, FaultKind.Recurring);
-        return Own(_surface.AddActionHandler(action => guarded(action.ToString())));
+        return Own(_surface.AddActionHandler(guarded));
     }
 
     public void Dispose()

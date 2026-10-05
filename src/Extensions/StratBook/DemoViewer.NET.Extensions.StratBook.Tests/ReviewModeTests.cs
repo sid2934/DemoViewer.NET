@@ -29,7 +29,7 @@ namespace DemoViewer.NET.AppTests;
 public class ReviewModeTests
 {
     private static bool Press(Playback2DTabViewModel vm, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
-        vm.Keymap.TryResolve(key, modifiers, false, out Playback2DAction action) && vm.ExecuteAction(action);
+        vm.Keymap.TryResolve(key, modifiers, false, out string? action) && vm.ExecuteAction(action);
 
     [Test]
     public async Task OffByDefault_TheTaggingKeysAreUnhandled_AndShiftRTurnsItOn() =>

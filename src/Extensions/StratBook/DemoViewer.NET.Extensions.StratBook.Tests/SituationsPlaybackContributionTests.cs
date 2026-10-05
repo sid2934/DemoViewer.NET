@@ -51,8 +51,8 @@ public class SituationsPlaybackContributionTests
             await Assert.That(situations.ToolbarItem).IsNull();
             await Assert.That(vm.Surface.ToolbarItems).IsEmpty();
             await Assert.That(vm.Surface.HasToolbarItems).IsFalse();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsFalse();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsFalse();
+            await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
+            await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
         }
 
         gate.On = true;
@@ -69,7 +69,7 @@ public class SituationsPlaybackContributionTests
         {
             await Assert.That(situations.ToolbarItem).IsNull();
             await Assert.That(vm.Surface.ToolbarItems).IsEmpty();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsFalse();
+            await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
         }
 
         vm.Dispose();
@@ -112,7 +112,7 @@ public class SituationsPlaybackContributionTests
         vm.OnActivated(ctx);
 
         // Nothing pushed yet: the scene is empty, so the seam is never asked.
-        await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsFalse();
+        await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsFalse();
         await Assert.That(seam.Calls.Count).IsEqualTo(0);
 
         ctx.PushPlacedMarkers((1, 3, 600, -400, 64, "BombsiteA"), (6, 2, -900, 200, 64, "Lobby"));
@@ -128,7 +128,7 @@ public class SituationsPlaybackContributionTests
         }
 
         // Ctrl+F and the toolbar button run the same funnel.
-        await Assert.That(vm.ExecuteAction(Playback2DAction.FindRoundsLikeThis)).IsTrue();
+        await Assert.That(vm.ExecuteAction(StratBookActions.FindRoundsLikeThis)).IsTrue();
         await Assert.That(seam.Calls.Count).IsEqualTo(2);
 
         vm.Dispose();
@@ -258,20 +258,20 @@ public class SituationsPlaybackContributionTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsTrue();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.PrevSituationResult)).IsTrue();
+            await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsTrue();
+            await Assert.That(vm.ExecuteAction(StratBookActions.PrevSituationResult)).IsTrue();
             await Assert.That(walk.Directions).IsEquivalentTo([1, -1]);
         }
 
         // With nothing to walk to, the seam's own answer leaves the key unhandled.
         walk.Answer = false;
-        await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsFalse();
+        await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
         await Assert.That(walk.Directions.Count).IsEqualTo(3);
 
         // Gated off: the Situations tab's own feature, not the pack's, and the seam is never asked.
         walk.Answer = true;
         ctx.Gate!.SetEnabled(SituationsModule.TabFeatureId, false);
-        await Assert.That(vm.ExecuteAction(Playback2DAction.NextSituationResult)).IsFalse();
+        await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsFalse();
         await Assert.That(walk.Directions.Count).IsEqualTo(3);
 
         vm.Dispose();

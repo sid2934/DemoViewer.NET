@@ -64,7 +64,7 @@ public class ExtensionPlaybackFaultTests
         (Playback2DTabViewModel vm, FaultRig rig, SdkPlaybackContribution hosted, _) = Attach();
 
         bool key = vm.Surface.TryHandleKey(Key.F9, KeyModifiers.None);
-        bool action = vm.Surface.TryExecute(default);
+        bool action = vm.Surface.TryExecute("");
         vm.Surface.NotifyDemoChanged();
 
         using (Assert.Multiple())

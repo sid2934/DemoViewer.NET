@@ -994,10 +994,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // pack owns carries that pack's label and gate id, so IsVisible and the label chip can read it.
     private void BuildKeybindRows()
     {
-        IReadOnlyDictionary<Playback2DAction, PackCommand> packOwners = CommandRegistry.Default.PackOwnerByAction;
+        IReadOnlyDictionary<string, PackCommand> packOwners = CommandRegistry.Default.PackOwnerByAction;
         foreach (Playback2DBinding binding in Playback2DKeymapProfile.Default.Bindings)
         {
-            PackCommand? owner = packOwners.TryGetValue(binding.Action, out PackCommand? found) ? found : null;
+            PackCommand? owner = packOwners.TryGetValue(binding.ActionId, out PackCommand? found) ? found : null;
             Playback2DKeybindRows.Add(new KeybindRow(this, binding, owner?.PackLabel, owner?.PackFeatureId));
         }
     }
@@ -1171,11 +1171,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         RefreshKeybindRows();
     }
 
-    private static string[] WithoutAction(string[] rows, Playback2DAction action)
-    {
-        string prefix = action + "=";
-        return [.. rows.Where(r => !r.TrimStart().StartsWith(prefix, StringComparison.OrdinalIgnoreCase))];
-    }
+    // Matched by current id, so a row written under an action's old id goes with it.
+    private static string[] WithoutAction(string[] rows, string actionId) =>
+        [.. rows.Where(r => !string.Equals(Playback2DKeymapProfile.ActionIdOfRow(r), actionId, StringComparison.OrdinalIgnoreCase))];
 
     // A modifier's own key event carries the modifier in neither Key nor KeyModifiers reliably across
     // platforms, so they are matched by key identity rather than by inspecting the flags.

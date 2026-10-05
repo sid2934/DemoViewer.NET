@@ -55,7 +55,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///     Review Queue are registered by the composition root, not here: core surfaces read them. Round Facts
 ///     is registered here: its ruleset rides the merged build only while the pack is on.
 /// </summary>
-public sealed class StratBookPack : IExtension
+public sealed class StratBookPack : IExtension, ICommandAliases
 {
     /// <summary>The umbrella gate id. A persisted override key.</summary>
     public const string PackFeatureId = "pack.stratbook";
@@ -74,6 +74,11 @@ public sealed class StratBookPack : IExtension
 
     /// <inheritdoc />
     public IEnumerable<CommandDescriptor> Commands => StratBookCommands.All;
+
+    /// <inheritdoc />
+    public IEnumerable<CommandScope> CommandScopes => StratBookCommands.Scopes;
+
+    IReadOnlyDictionary<string, string> ICommandAliases.CommandAliases => StratBookCommands.Aliases;
 
     /// <inheritdoc />
     public IEnumerable<ExtensionJobKind> JobKinds => StratBookJobKinds.All;

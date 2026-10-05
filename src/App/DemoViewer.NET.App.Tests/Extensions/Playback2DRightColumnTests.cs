@@ -240,7 +240,7 @@ public class Playback2DRightColumnTests
         IPanelHandle panel = vm.Surface.AddPanel(0, () => new FakePanelViewModel("keys"), mode: mode);
         panel.Open();
         List<Key> keys = [];
-        List<Playback2DAction> actions = [];
+        List<string> actions = [];
         using IDisposable keyHandler = vm.Surface.AddKeyHandler((k, _) =>
         {
             keys.Add(k);
@@ -249,7 +249,7 @@ public class Playback2DRightColumnTests
         using IDisposable actionHandler = vm.Surface.AddActionHandler(a =>
         {
             actions.Add(a);
-            return a is Playback2DAction.TogglePlay or Playback2DAction.TagNote;
+            return a is nameof(Playback2DAction.TogglePlay) or "fake.TagNote";
         });
 
         using (Assert.Multiple())
@@ -265,8 +265,8 @@ public class Playback2DRightColumnTests
         {
             await Assert.That(ctx.PlayCount).IsEqualTo(1).Because("the tab played; the handler was not asked");
             await Assert.That(actions).IsEmpty();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.TagNote)).IsTrue();
-            await Assert.That(actions).IsEquivalentTo([Playback2DAction.TagNote]);
+            await Assert.That(vm.ExecuteAction("fake.TagNote")).IsTrue();
+            await Assert.That(actions).IsEquivalentTo(["fake.TagNote"]);
             await Assert.That(vm.Surface.HasKeyboard).IsFalse();
         }
 
@@ -279,7 +279,7 @@ public class Playback2DRightColumnTests
             await Assert.That(vm.ExecuteAction(Playback2DAction.TogglePlay)).IsTrue();
             await Assert.That(ctx.PlayCount).IsEqualTo(1).Because("the focused panel took play");
             await Assert.That(vm.ExecuteAction(Playback2DAction.StepForward)).IsTrue().Because("what it declines falls to the tab");
-            await Assert.That(actions).IsEquivalentTo([Playback2DAction.TogglePlay, Playback2DAction.StepForward]);
+            await Assert.That(actions).IsEquivalentTo([nameof(Playback2DAction.TogglePlay), nameof(Playback2DAction.StepForward)]);
         }
 
         mode.IsOn = false;

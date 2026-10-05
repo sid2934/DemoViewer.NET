@@ -2,6 +2,7 @@
 
 using Avalonia.Input;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
@@ -237,9 +238,9 @@ public class TagLabelModeTests
     public async Task TheLabelModeKeys_ArePaletteScoped_AndRebindable()
     {
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
-        await Assert.That(profile.TryResolveInScope(Playback2DBindingScope.WhenPaletteFocused, Key.L,
-            KeyModifiers.Control, out Playback2DAction mode)).IsTrue();
-        await Assert.That(mode).IsEqualTo(Playback2DAction.TagLabelMode);
+        await Assert.That(profile.TryResolveInScope(StratBookActions.PaletteScope, Key.L,
+            KeyModifiers.Control, out string? mode)).IsTrue();
+        await Assert.That(mode).IsEqualTo(StratBookActions.TagLabelMode);
         await Assert.That(profile.TryResolve(Key.L, KeyModifiers.Control, false, out _)).IsFalse()
             .Because("unfocused, the palette's chords are nobody's");
 

@@ -31,21 +31,27 @@ public class CommandRegistryTests
         await Assert.That(registry.PackOwnerByAction).IsEmpty();
     }
 
+    private const string Fake = "net.demoviewer.test.pack.fake.";
+
+    private static readonly Func<IExtension, bool> CompiledIn = _ => false;
+    private static readonly Func<IExtension, bool> ThirdParty = _ => true;
+
     [Test]
     public async Task Build_WithAPack_AddsItsChordToEffectiveBindings_AtTheDeclaredScope()
     {
-        CommandDescriptor command = new("AddStep", "insert a step", "playback2d",
+        CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d",
             new KeyGesture(Key.F9, KeyModifiers.None), _ => true);
         FakePack pack = new("pack.fake", [command]);
 
         CommandRegistry registry = CommandRegistry.Build([pack]);
 
         await Assert.That(registry.Conflicts).IsEmpty();
-        Playback2DBinding added = registry.EffectiveBindings.Single(b => b.Action == Playback2DAction.AddStep);
+        Playback2DBinding added = registry.EffectiveBindings.Single(b => b.ActionId == Fake + "AddStep");
         await Assert.That(added.Key).IsEqualTo(Key.F9);
         await Assert.That(added.Scope).IsEqualTo(Playback2DBindingScope.Always);
+        await Assert.That(added.CoreAction).IsEqualTo(Playback2DAction.None);
 
-        PackCommand owner = registry.PackOwnerByAction[Playback2DAction.AddStep];
+        PackCommand owner = registry.PackOwnerByAction[Fake + "AddStep"];
         await Assert.That(owner.PackId).IsEqualTo("net.demoviewer.test.pack.fake");
         await Assert.That(owner.PackFeatureId).IsEqualTo("pack.fake");
         await Assert.That(owner.PackLabel).IsEqualTo("Fake pack");
@@ -57,7 +63,7 @@ public class CommandRegistryTests
     {
         // NextRound ships on bare E, Always. A pack claiming the same chord for a different action must
         // not silently win OR silently lose: it must show up in Conflicts, and core keeps the chord.
-        CommandDescriptor command = new("AddStep", "insert a step", "playback2d",
+        CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d",
             new KeyGesture(Key.E, KeyModifiers.None), _ => true);
         FakePack pack = new("pack.fake", [command]);
 
@@ -66,42 +72,214 @@ public class CommandRegistryTests
         await Assert.That(registry.Conflicts).IsNotEmpty();
         await Assert.That(registry.Conflicts.Single()).Contains("pack.fake");
         await Assert.That(registry.EffectiveBindings.Single(b => b.Key == Key.E && b.Modifiers == KeyModifiers.None
-            && b.Scope == Playback2DBindingScope.Always).Action).IsEqualTo(Playback2DAction.NextRound);
-        await Assert.That(registry.EffectiveBindings.Any(b => b.Action == Playback2DAction.AddStep)).IsFalse();
+            && b.Scope == Playback2DBindingScope.Always).CoreAction).IsEqualTo(Playback2DAction.NextRound);
+        await Assert.That(registry.EffectiveBindings.Any(b => b.ActionId == Fake + "AddStep")).IsFalse();
 
         // The dropped row is still a known command: PackOwnerByAction does not forget it just because its
         // default chord lost.
-        await Assert.That(registry.PackOwnerByAction.ContainsKey(Playback2DAction.AddStep)).IsTrue();
+        await Assert.That(registry.PackOwnerByAction.ContainsKey(Fake + "AddStep")).IsTrue();
     }
 
     [Test]
     public async Task Build_TwoPacksCollidingWithEachOther_ReportsAgainstTheFirst()
     {
-        CommandDescriptor first = new("AddStep", "a", "playback2d", new KeyGesture(Key.F9, KeyModifiers.None), _ => true);
-        CommandDescriptor second = new("DeleteStep", "b", "playback2d", new KeyGesture(Key.F9, KeyModifiers.None), _ => true);
+        CommandDescriptor first = new("a.AddStep", "a", "playback2d", new KeyGesture(Key.F9, KeyModifiers.None), _ => true);
+        CommandDescriptor second = new("b.DeleteStep", "b", "playback2d", new KeyGesture(Key.F9, KeyModifiers.None), _ => true);
         FakePack packA = new("pack.a", [first]);
         FakePack packB = new("pack.b", [second]);
 
         CommandRegistry registry = CommandRegistry.Build([packA, packB]);
 
         await Assert.That(registry.Conflicts).IsNotEmpty();
-        await Assert.That(registry.EffectiveBindings.Single(b => b.Key == Key.F9).Action)
-            .IsEqualTo(Playback2DAction.AddStep).Because("the earlier pack's row already claimed the chord");
+        await Assert.That(registry.EffectiveBindings.Single(b => b.Key == Key.F9).ActionId)
+            .IsEqualTo("a.AddStep").Because("the earlier pack's row already claimed the chord");
+    }
+
+    // An id outside the core enum is an ordinary action id now; only a collision is refused.
+    [Test]
+    public async Task Build_ACommandIdOutsideTheCoreEnum_JoinsTheKeymap()
+    {
+        CommandDescriptor command = new("NotACoreAction", "x", "playback2d", null, _ => true);
+
+        CommandRegistry registry = CommandRegistry.Build([new FakePack("pack.fake", [command])], isThirdParty: CompiledIn);
+
+        await Assert.That(registry.PackOwnerByAction.ContainsKey("NotACoreAction")).IsTrue();
+        await Assert.That(registry.ActionIds).Contains("NotACoreAction");
     }
 
     [Test]
-    public void Build_CommandIdNotAnAction_Throws()
+    public void Build_CompiledInCommandRepeatingACoreId_Throws_IgnoringCase()
     {
-        CommandDescriptor bad = new("NotARealAction", "x", "playback2d", null, _ => true);
-        FakePack pack = new("pack.fake", [bad]);
+        CommandDescriptor bad = new("nextround", "x", "playback2d", null, _ => true);
 
-        Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build([pack]));
+        Assert.Throws<InvalidOperationException>(() =>
+            CommandRegistry.Build([new FakePack("pack.fake", [bad])], isThirdParty: CompiledIn));
+    }
+
+    [Test]
+    public void Build_TwoCompiledInPacksClaimingOneId_Throws()
+    {
+        CommandDescriptor a = new("shared.Step", "a", "playback2d", null, _ => true);
+        CommandDescriptor b = new("shared.Step", "b", "playback2d", null, _ => true);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            CommandRegistry.Build([new FakePack("pack.a", [a]), new FakePack("pack.b", [b])], isThirdParty: CompiledIn));
+    }
+
+    // A third-party extension cannot take the app down with a bad id: the command is reported and left out,
+    // and its other commands still join.
+    [Test]
+    public async Task Build_AThirdPartyCommandNamingACoreId_IsReportedAndDropped()
+    {
+        CommandDescriptor core = new(Fake + "NextRound", "ok", "playback2d", null, _ => true);
+        CommandDescriptor clash = new("NextRound", "clash", "playback2d", new KeyGesture(Key.F9, KeyModifiers.None), _ => true);
+        CommandDescriptor fine = new(Fake + "Wave", "fine", "playback2d", new KeyGesture(Key.F10, KeyModifiers.None), _ => true);
+        FakePack pack = new("pack.fake", [clash, core, fine]);
+
+        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: ThirdParty);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(registry.Conflicts.Count).IsEqualTo(1);
+            await Assert.That(registry.Conflicts[0]).Contains("'NextRound'");
+            await Assert.That(registry.EffectiveBindings.Any(b => b.Key == Key.F9)).IsFalse();
+            await Assert.That(registry.PackOwnerByAction.Keys).IsEquivalentTo([Fake + "NextRound", Fake + "Wave"]);
+        }
+    }
+
+    [Test]
+    public async Task Build_AThirdPartyCommandWithoutTheExtensionPrefix_IsReportedAndDropped()
+    {
+        CommandDescriptor bare = new("Wave", "bare", "playback2d", new KeyGesture(Key.F9, KeyModifiers.None), _ => true);
+        CommandDescriptor other = new("net.demoviewer.test.pack.other.Wave", "someone else's", "playback2d", null, _ => true);
+
+        CommandRegistry registry = CommandRegistry.Build([new FakePack("pack.fake", [bare, other])], isThirdParty: ThirdParty);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(registry.Conflicts.Count).IsEqualTo(2);
+            await Assert.That(registry.Conflicts.All(c => c.Contains("is not prefixed with 'net.demoviewer.test.pack.fake.'"))).IsTrue();
+            await Assert.That(registry.PackCommands).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task Build_AThirdPartyCommandRepeatingAnIdInAnotherCase_IsDropped()
+    {
+        CommandDescriptor mine = new("net.demoviewer.test.pack.a.Step", "a", "playback2d", null, _ => true);
+        FakePack compiledIn = new("pack.a", [mine]);
+        FakePack thirdParty = new("pack.b", [new CommandDescriptor("net.demoviewer.test.pack.b.Step", "b", "playback2d", null, _ => true),
+            new CommandDescriptor("NET.DEMOVIEWER.TEST.PACK.B.STEP", "b again", "playback2d", null, _ => true)]);
+
+        CommandRegistry registry = CommandRegistry.Build([compiledIn, thirdParty], isThirdParty: p => p == thirdParty);
+
+        await Assert.That(registry.Conflicts.Count).IsEqualTo(1);
+        await Assert.That(registry.PackCommands.Select(c => c.Command.Label)).IsEquivalentTo(["a", "b"]);
+    }
+
+    [Test]
+    public async Task Build_ADeclaredScope_IsTheRowsScope_AndSettingsReadsItsLabel()
+    {
+        CommandScope panel = new(Fake + "panel", "while the fake panel has focus");
+        CommandDescriptor command = new(Fake + "Poke", "poke", panel.Id, new KeyGesture(Key.P, KeyModifiers.None), _ => true);
+
+        CommandRegistry registry = CommandRegistry.Build([new FakePack("pack.fake", [command], [panel])], isThirdParty: ThirdParty);
+
+        Playback2DBinding row = registry.EffectiveBindings.Single(b => b.ActionId == command.Id);
+        using (Assert.Multiple())
+        {
+            await Assert.That(registry.Conflicts).IsEmpty();
+            await Assert.That(row.Scope).IsEqualTo(new Playback2DBindingScope(panel.Id));
+            await Assert.That(row.Scope.IsCore).IsFalse();
+            await Assert.That(registry.ScopeLabel(row.Scope)).IsEqualTo(panel.Label);
+            await Assert.That(registry.ScopeLabel(Playback2DBindingScope.Always)).IsEqualTo("always");
+            await Assert.That(registry.ScopeLabel(Playback2DBindingScope.WhenToolActive)).IsEqualTo("while drawing");
+        }
+    }
+
+    [Test]
+    public async Task Build_AnUndeclaredScope_FailsACompiledInPack_AndDropsAThirdPartyCommand()
+    {
+        CommandDescriptor command = new(Fake + "Poke", "poke", Fake + "panel", null, _ => true);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            CommandRegistry.Build([new FakePack("pack.fake", [command])], isThirdParty: CompiledIn));
+
+        CommandRegistry registry = CommandRegistry.Build([new FakePack("pack.fake", [command])], isThirdParty: ThirdParty);
+        await Assert.That(registry.PackCommands).IsEmpty();
+        await Assert.That(registry.Conflicts.Single()).Contains("which it does not declare");
+    }
+
+    [Test]
+    public void Build_AScopeWithoutTheExtensionPrefix_FailsACompiledInPack()
+    {
+        CommandScope bare = new("palette", "while tagging");
+
+        Assert.Throws<InvalidOperationException>(() =>
+            CommandRegistry.Build([new FakePack("pack.fake", [], [bare])], isThirdParty: CompiledIn));
+    }
+
+    [Test]
+    public async Task Aliases_ResolveAnOldId_IgnoringCase_ToTheCurrentOne()
+    {
+        CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d", null, _ => true);
+        FakePack pack = new("pack.fake", [command], aliases: new Dictionary<string, string> { ["AddStep"] = command.Id });
+
+        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: CompiledIn);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(registry.Canonical("addstep")).IsEqualTo(command.Id);
+            await Assert.That(registry.Canonical(command.Id.ToUpperInvariant())).IsEqualTo(command.Id);
+            await Assert.That(registry.Canonical("nextround")).IsEqualTo("NextRound");
+            await Assert.That(registry.Canonical("Nothing")).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task Aliases_AreNeverReadFromAThirdPartyExtension()
+    {
+        CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d", null, _ => true);
+        FakePack pack = new("pack.fake", [command], aliases: new Dictionary<string, string> { ["AddStep"] = command.Id });
+
+        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: ThirdParty);
+
+        await Assert.That(registry.Aliases).IsEmpty();
+    }
+
+    [Test]
+    public void Aliases_ShadowingACoreId_OrNamingAnotherPacksCommand_Throw()
+    {
+        CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d", null, _ => true);
+        FakePack shadow = new("pack.fake", [command], aliases: new Dictionary<string, string> { ["NextRound"] = command.Id });
+        Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build([shadow], isThirdParty: CompiledIn));
+
+        CommandDescriptor theirs = new("net.demoviewer.test.pack.b.Step", "b", "playback2d", null, _ => true);
+        FakePack other = new("pack.b", [theirs]);
+        FakePack poacher = new("pack.fake", [command], aliases: new Dictionary<string, string> { ["Step"] = theirs.Id });
+        Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build([other, poacher], isThirdParty: CompiledIn));
+    }
+
+    [Test]
+    public async Task ActionIds_AreEveryCoreId_ThenEveryPackCommand_AndNeverNone()
+    {
+        CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d", null, _ => true);
+
+        CommandRegistry registry = CommandRegistry.Build([new FakePack("pack.fake", [command])]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(registry.ActionIds).Contains(nameof(Playback2DAction.TogglePlay));
+            await Assert.That(registry.ActionIds).Contains(Fake + "AddStep");
+            await Assert.That(registry.ActionIds).DoesNotContain(nameof(Playback2DAction.None));
+            await Assert.That(registry.ActionIds[^1]).IsEqualTo(Fake + "AddStep");
+        }
     }
 
     [Test]
     public async Task TryResolve_PackOff_ResolvesToNothing_PackOn_ResolvesTheCommand()
     {
-        CommandDescriptor command = new("AddStep", "insert a step", "playback2d",
+        CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d",
             new KeyGesture(Key.F9, KeyModifiers.None), ctx => ctx.Target is string);
         FakePack pack = new("pack.fake", [command]);
         CommandRegistry registry = CommandRegistry.Build([pack]);
@@ -112,7 +290,7 @@ public class CommandRegistryTests
 
         bool on = registry.TryResolve(Key.F9, KeyModifiers.None, "playback2d", _ => true, out CommandDescriptor? whenOn);
         await Assert.That(on).IsTrue();
-        await Assert.That(whenOn!.Id).IsEqualTo("AddStep");
+        await Assert.That(whenOn!.Id).IsEqualTo(Fake + "AddStep");
     }
 
     [Test]
@@ -152,13 +330,11 @@ public class CommandRegistryTests
     }
 
     [Test]
-    public async Task ScopeRoundTrips_ThroughEveryDeclaredValue()
+    public async Task TheCoreScopes_KeepTheirCommandScopeSpellings()
     {
-        foreach (Playback2DBindingScope scope in Enum.GetValues<Playback2DBindingScope>())
-        {
-            string name = CommandRegistry.ScopeName(scope);
-            await Assert.That(CommandRegistry.ParseScope(name)).IsEqualTo(scope);
-        }
+        await Assert.That(Playback2DBindingScope.Always.Name).IsEqualTo("playback2d");
+        await Assert.That(Playback2DBindingScope.WhenToolActive.Name).IsEqualTo("playback2d.tool");
+        await Assert.That(Playback2DKeymap.Default.All(b => b.Scope.IsCore)).IsTrue();
     }
 
     // A pack whose Commands getter throws is left out of the keymap and reported; the core table and the
@@ -195,7 +371,8 @@ public class CommandRegistryTests
         }
     }
 
-    private sealed class FakePack(string featureId, CommandDescriptor[] commands) : IExtension, IManifestSource
+    private sealed class FakePack(string featureId, CommandDescriptor[] commands, CommandScope[]? scopes = null,
+        Dictionary<string, string>? aliases = null) : IExtension, IManifestSource, ICommandAliases
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
@@ -207,6 +384,10 @@ public class CommandRegistryTests
         ];
 
         public IEnumerable<CommandDescriptor> Commands => commands;
+
+        public IEnumerable<CommandScope> CommandScopes => scopes ?? [];
+
+        public IReadOnlyDictionary<string, string> CommandAliases => aliases ?? [];
 
         public void Register(IServiceCollection services)
         {

@@ -2,6 +2,7 @@
 
 using Avalonia.Input;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RoundTagger;
@@ -61,8 +62,8 @@ public class ReviewPanelsPlaybackContributionTests
             await Assert.That(coreTracks).DoesNotContain(TagTrack.TrackId);
             await Assert.That(coreTracks).DoesNotContain(ProposalTrack.TrackId);
             await Assert.That(vm.IsReviewAvailable).IsFalse();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.FocusTagPalette)).IsFalse();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsFalse();
+            await Assert.That(vm.ExecuteAction(StratBookActions.FocusTagPalette)).IsFalse();
+            await Assert.That(vm.ExecuteAction(StratBookActions.ToggleReviewMode)).IsFalse();
         }
 
         gate.On = true;
@@ -76,7 +77,7 @@ public class ReviewPanelsPlaybackContributionTests
                 .Because("the tag lane comes first, then the suggestions, after the tab's own tracks");
             await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo([TagTrack.TrackId, ProposalTrack.TrackId]);
             await Assert.That(vm.Surface.ModeToggles.Select(t => t.Id)).IsEquivalentTo([ReviewPanelsPlaybackContribution.ReviewModeId]);
-            await Assert.That(review.ReviewMode!.ActionId).IsEqualTo(nameof(Playback2DAction.ToggleReviewMode));
+            await Assert.That(review.ReviewMode!.ActionId).IsEqualTo(StratBookActions.ToggleReviewMode);
             await Assert.That(review.ReviewMode.IsOn).IsFalse();
             await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsTrue().Because("the lanes are the mode's");
             await Assert.That(vm.Surface.Panels.Select(p => p.Content!.GetType()))
@@ -253,9 +254,9 @@ public class ReviewPanelsPlaybackContributionTests
             await Assert.That(vm.Surface.Panels.Count(p => p.IsShown)).IsEqualTo(0);
             await Assert.That(vm.IsReviewAvailable).IsFalse();
             await Assert.That(review.ReviewMode.IsAvailable).IsFalse().Because("the toolbar hides the toggle with nothing to show");
-            await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsTrue().Because("a mode that is on can still be left");
+            await Assert.That(vm.ExecuteAction(StratBookActions.ToggleReviewMode)).IsTrue().Because("a mode that is on can still be left");
             await Assert.That(review.ReviewMode.IsOn).IsFalse();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsFalse().Because("off with nothing to show, Shift+R is nobody's");
+            await Assert.That(vm.ExecuteAction(StratBookActions.ToggleReviewMode)).IsFalse().Because("off with nothing to show, Shift+R is nobody's");
         }
 
         ctx.Gate.SetEnabled(RoundTaggerModule.PaletteFeatureId, true);
@@ -316,8 +317,8 @@ public class ReviewPanelsPlaybackContributionTests
             await Assert.That(lane.Session.Document).IsNull().Because("the session went with the pack");
             await Assert.That(vm.IsReviewAvailable).IsFalse();
             await Assert.That(vm.IsCardStrip).IsFalse();
-            await Assert.That(vm.ExecuteAction(Playback2DAction.FocusTagPalette)).IsFalse().Because("no handler is registered");
-            await Assert.That(vm.ExecuteAction(Playback2DAction.ToggleReviewMode)).IsFalse().Because("no toggle is registered");
+            await Assert.That(vm.ExecuteAction(StratBookActions.FocusTagPalette)).IsFalse().Because("no handler is registered");
+            await Assert.That(vm.ExecuteAction(StratBookActions.ToggleReviewMode)).IsFalse().Because("no toggle is registered");
             await Assert.That(vm.Surface.TryHandleKey(Key.D1, KeyModifiers.None)).IsFalse();
         }
 

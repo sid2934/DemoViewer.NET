@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core;
@@ -50,7 +51,7 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
         _situationResults = context.GetService<ISituationResultWalk>();
 
         _item = new ToolbarItem(ToolbarItemId, Label, ToolTip(surface), RunFindRoundsLikeThis,
-            Playback2DAction.FindRoundsLikeThis, icon: Icon, menuHeader: MenuHeader(surface));
+            StratBookActions.FindRoundsLikeThis, icon: Icon, menuHeader: MenuHeader(surface));
         surface.KeymapChanged += OnKeymapChanged;
         _demoChanged = surface.OnDemoChanged(RefreshAvailability);
         _actionHandler = surface.AddActionHandler(OnAction);
@@ -106,13 +107,13 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
 
     // J/K: the walk seeks through the seam's own funnel, so the shared clock and LiveSync's observer see
     // it as any other seek. Gated by the Situations tab's own feature, which the pack cascades off with.
-    private bool OnAction(Playback2DAction action)
+    private bool OnAction(string action)
     {
         bool situationsOn = _context?.Features?.IsEnabled(SituationsModule.TabFeatureId) ?? true;
         return action switch
         {
-            Playback2DAction.NextSituationResult => situationsOn && (_situationResults?.Walk(+1) ?? false),
-            Playback2DAction.PrevSituationResult => situationsOn && (_situationResults?.Walk(-1) ?? false),
+            StratBookActions.NextSituationResult => situationsOn && (_situationResults?.Walk(+1) ?? false),
+            StratBookActions.PrevSituationResult => situationsOn && (_situationResults?.Walk(-1) ?? false),
             _ => false
         };
     }
@@ -131,9 +132,9 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
     // "Find rounds like this", not "Rounds like this": the menu header's own text today, which the
     // tooltip keeps too.
     private static string MenuHeader(IPlaybackSurface surface) =>
-        $"Find rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}";
+        $"Find rounds like this{surface.GestureHint(StratBookActions.FindRoundsLikeThis)}";
 
     private static string ToolTip(IPlaybackSurface surface) =>
-        $"Find rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}: snapshot the alive players by "
+        $"Find rounds like this{surface.GestureHint(StratBookActions.FindRoundsLikeThis)}: snapshot the alive players by "
         + "side onto the Situations query canvas and search the library's round index for this setup";
 }

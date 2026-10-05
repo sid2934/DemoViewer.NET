@@ -216,7 +216,7 @@ public class Playback2DKeybindConflictTests
         {
             if (Playback2DKeymap.IsBrowserReserved(binding.Key, binding.Modifiers, true))
             {
-                shipped.Add($"{binding.Action}={Playback2DKeymap.Format(binding.Key, binding.Modifiers)}");
+                shipped.Add($"{binding.ActionId}={Playback2DKeymap.Format(binding.Key, binding.Modifiers)}");
             }
         }
 
@@ -225,7 +225,7 @@ public class Playback2DKeybindConflictTests
     }
 
     private static Playback2DBinding Single(Playback2DAction action) =>
-        Playback2DKeymap.Default.Single(b => b.Action == action);
+        Playback2DKeymap.Default.Single(b => b.CoreAction == action);
 
     private static List<(Key Key, KeyModifiers Modifiers)> ParseShellGestures()
     {

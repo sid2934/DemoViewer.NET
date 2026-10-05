@@ -27,6 +27,9 @@ public interface IExtension
     /// <summary>Commands with default key gestures. Read without DI, so the keybind settings can list them.</summary>
     IEnumerable<CommandDescriptor> Commands => Array.Empty<CommandDescriptor>();
 
+    /// <summary>The focus scopes <see cref="Commands" /> name beyond the tab's own two. Read without DI.</summary>
+    IEnumerable<CommandScope> CommandScopes => Array.Empty<CommandScope>();
+
     /// <summary>The processing-queue job kinds the extension submits work under. Read without DI.</summary>
     IEnumerable<ExtensionJobKind> JobKinds => Array.Empty<ExtensionJobKind>();
 

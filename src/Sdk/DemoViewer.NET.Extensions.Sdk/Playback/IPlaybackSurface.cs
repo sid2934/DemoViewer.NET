@@ -12,7 +12,10 @@ public interface IPlaybackSurface
     /// <summary>The mounted map's floors, lowest first; empty before a map is shown.</summary>
     IReadOnlyList<PlaybackLevel> Levels { get; }
 
-    /// <summary>The ids of the tab's actions, which <see cref="GestureHint" /> and <see cref="AddActionHandler" /> name.</summary>
+    /// <summary>
+    ///     The ids of every action the keymap knows: the tab's own and every extension's commands. What
+    ///     <see cref="GestureHint" /> and <see cref="AddActionHandler" /> name.
+    /// </summary>
     IReadOnlyCollection<string> ActionIds { get; }
 
     /// <summary>Raised after the user rebinds a key. Refresh labels that show gestures.</summary>
@@ -29,6 +32,15 @@ public interface IPlaybackSurface
 
     /// <summary>The bound gesture for an action as <c>" (Ctrl+F)"</c>, or an empty string when unbound.</summary>
     string GestureHint(string actionId);
+
+    /// <summary>
+    ///     The action a key is bound to in <paramref name="scope" /> under the user's keymap, or null. For a
+    ///     key handler resolving the extension's own focus scope while its panel has focus.
+    /// </summary>
+    /// <param name="scope">A <see cref="CommandScope.Id" />, or <c>"playback2d"</c> or <c>"playback2d.tool"</c>.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers held.</param>
+    string? ActionFor(string scope, Key key, KeyModifiers modifiers);
 
     /// <summary>A lane under the rounds row, drawn from <paramref name="track" />'s bands.</summary>
     ILaneHandle AddLane(ITimelineTrack track, ILaneBehaviour? behaviour = null);

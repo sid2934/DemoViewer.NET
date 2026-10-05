@@ -2,6 +2,7 @@
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 
 #endregion
@@ -46,31 +47,28 @@ public sealed partial class KeybindRow : ObservableObject
         string? packFeatureId = null)
     {
         _owner = owner;
-        Action = binding.Action;
+        Action = binding.ActionId;
         Label = binding.Description;
         IsReserved = binding.IsReserved;
         PackLabel = packLabel;
         PackFeatureId = packFeatureId;
-        ScopeLabel = binding.Scope switch
-        {
-            Playback2DBindingScope.WhenToolActive => "while drawing",
-            Playback2DBindingScope.WhenPaletteFocused => "while tagging",
-            Playback2DBindingScope.WhenSuggestionSelected => "while reviewing suggestions",
-            _ => "always"
-        };
+        ScopeLabel = CommandRegistry.Default.ScopeLabel(binding.Scope);
 
         // Seeded from the SHIPPED profile and replaced by the first Refresh. Reading the static table
         // here instead would work today and be the wrong door: gesture text is the profile's to answer.
-        _gesture = Playback2DKeymapProfile.Default.GestureText(binding.Action);
+        _gesture = Playback2DKeymapProfile.Default.GestureText(binding.ActionId);
     }
 
-    /// <summary>The action this row binds. The persisted override key: never renamed.</summary>
-    public Playback2DAction Action { get; }
+    /// <summary>The id of the action this row binds. The persisted override key: never renamed.</summary>
+    public string Action { get; }
 
     /// <summary>Human description, straight from the keymap table so the two can never drift.</summary>
     public string Label { get; }
 
-    /// <summary>"always", "while drawing" or "while tagging": the scope chip, and the reason two rows can share a key.</summary>
+    /// <summary>
+    ///     "always", "while drawing", or the label an extension gave its own scope: the scope chip, and the
+    ///     reason two rows can share a key.
+    /// </summary>
     public string ScopeLabel { get; }
 
     /// <summary>Declared but unroutable: listed so the gesture does not look free, but not rebindable.</summary>

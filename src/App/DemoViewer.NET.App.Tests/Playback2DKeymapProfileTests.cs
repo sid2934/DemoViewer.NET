@@ -151,9 +151,9 @@ public class Playback2DKeymapProfileTests
             .Contains("FitCamera")
             .Because("nothing else may claim a reserved gesture — and the report names what holds it");
 
-        await Assert.That(profile.TryResolve(Key.Home, KeyModifiers.None, false, out Playback2DAction fit))
+        await Assert.That(profile.TryResolve(Key.Home, KeyModifiers.None, false, out string? fit))
             .IsFalse();
-        await Assert.That(fit).IsEqualTo(Playback2DAction.None);
+        await Assert.That(fit).IsNull();
         await Assert.That(profile.TryResolve(Key.G, KeyModifiers.None, false, out _)).IsFalse();
         await Assert.That(Resolve(profile, Key.Space, KeyModifiers.None))
             .IsEqualTo(Playback2DAction.TogglePlay);
@@ -172,9 +172,9 @@ public class Playback2DKeymapProfileTests
 
         await Assert.That(rejected).IsEmpty();
 
-        await Assert.That(profile.TryResolve(Key.B, KeyModifiers.None, true, out Playback2DAction drawing))
+        await Assert.That(profile.TryResolve(Key.B, KeyModifiers.None, true, out string? drawing))
             .IsTrue();
-        await Assert.That(drawing).IsEqualTo(Playback2DAction.HoldPan);
+        await Assert.That(drawing).IsEqualTo(nameof(Playback2DAction.HoldPan));
 
         // Tool-scoped means tool-scoped: B does nothing with no tool selected.
         await Assert.That(profile.TryResolve(Key.B, KeyModifiers.None, false, out _)).IsFalse();
@@ -237,7 +237,7 @@ public class Playback2DKeymapProfileTests
     }
 
     /// <summary>
-    ///     <see cref="Playback2DKeymapProfile.Row" /> writes what the loader reads. The display formatter
+    ///     <see cref="Playback2DKeymapProfile.Row(string, Key, KeyModifiers)" /> writes what the loader reads. The display formatter
     ///     is NOT that (it spells arrows "←" and Escape "Esc"), so persisting display text would lose
     ///     every arrow-key rebind on the next launch. Feeding the whole shipped table back through both
     ///     ends proves the writer and the parser agree, for every key shape the table contains.
@@ -250,7 +250,7 @@ public class Playback2DKeymapProfileTests
         string[] rows =
         [
             .. CommandRegistry.Default.EffectiveBindings.Where(b => !b.IsReserved)
-                .Select(b => Playback2DKeymapProfile.Row(b.Action, b.Key, b.Modifiers))
+                .Select(b => Playback2DKeymapProfile.Row(b.ActionId, b.Key, b.Modifiers))
         ];
 
         Playback2DKeymapProfile profile =
@@ -296,6 +296,60 @@ public class Playback2DKeymapProfileTests
             .IsNotEmpty();
     }
 
+    private const string TagNote = "net.demoviewer.pack.stratbook.TagNote";
+
+    /// <summary>
+    ///     A row a user saved before the Strat Book's command ids carried its prefix is keyed by the bare
+    ///     name. It must still rebind the action, in any case, without a word in the rejection report.
+    /// </summary>
+    [Test]
+    [Arguments("TagNote=Ctrl+Shift+M")]
+    [Arguments("tagnote=Ctrl+Shift+M")]
+    public async Task AStratBookRowUnderItsOldId_StillApplies(string row)
+    {
+        Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides([row], out IReadOnlyList<string> rejected);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rejected).IsEmpty();
+            await Assert.That(profile.BindingFor(TagNote)!.Value.Key).IsEqualTo(Key.M);
+            await Assert.That(profile.BindingFor(TagNote)!.Value.Modifiers).IsEqualTo(KeyModifiers.Control | KeyModifiers.Shift);
+            await Assert.That(profile.IsOverridden(TagNote)).IsTrue();
+            await Assert.That(Playback2DKeymapProfile.Default.GestureText(TagNote)).IsEqualTo("Ctrl+M");
+        }
+    }
+
+    [Test]
+    public async Task AnOldIdRowAndACurrentIdRow_ForOneAction_AreOneRebind_TheFirstWins()
+    {
+        Playback2DKeymapProfile profile = Playback2DKeymapProfile.FromOverrides(
+            ["TagNote=Ctrl+Shift+M", TagNote + "=Ctrl+Alt+M"], out IReadOnlyList<string> rejected);
+
+        await Assert.That(rejected.Single()).StartsWith(TagNote + "=Ctrl+Alt+M: ");
+        await Assert.That(profile.GestureText(TagNote)).IsEqualTo("Ctrl+Shift+M");
+    }
+
+    [Test]
+    public async Task ValidateOverride_ReplacesAnOldIdRow_ForTheSameAction()
+    {
+        await Assert.That(Playback2DKeymapProfile.ValidateOverride(["TagNote=Ctrl+Shift+M"], TagNote + "=Ctrl+Shift+M"))
+            .IsEqualTo("");
+        await Assert.That(Playback2DKeymapProfile.ActionIdOfRow("tagnote=Ctrl+M")).IsEqualTo(TagNote);
+        await Assert.That(Playback2DKeymapProfile.ActionIdOfRow("nextround=Q")).IsEqualTo("NextRound");
+    }
+
+    // An id is only ever a core name, a command id or an old command id: anything else is refused by name.
+    [Test]
+    [Arguments("7=Q")]
+    [Arguments("None=Q")]
+    [Arguments("pack.stratbook.TagNote=Q")]
+    public async Task ARowNamingNoAction_IsRefused(string row)
+    {
+        _ = Playback2DKeymapProfile.FromOverrides([row], out IReadOnlyList<string> rejected);
+
+        await Assert.That(rejected.Single()).Contains("is not a 2D playback action");
+    }
+
     [Test]
     public async Task BindingFor_IsTheKeyUpHandlersSource()
     {
@@ -310,7 +364,7 @@ public class Playback2DKeymapProfileTests
     private static Playback2DAction Resolve(Playback2DKeymapProfile profile, Key key,
         KeyModifiers modifiers, bool toolActive = false)
     {
-        profile.TryResolve(key, modifiers, toolActive, out Playback2DAction action);
-        return action;
+        profile.TryResolve(key, modifiers, toolActive, out string? actionId);
+        return Playback2DActionIds.TryCore(actionId, out Playback2DAction action) ? action : Playback2DAction.None;
     }
 }

@@ -3,6 +3,7 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media.Imaging;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Teams;
@@ -185,7 +186,7 @@ public class GeneratedInboxTests
         }
 
         queue.Selected = queue.Rows.Single(r => r.Proposal.Id == ExecuteId);
-        await Assert.That(queue.Execute(Modules.Playback2D.Playback2DAction.SuggestionAccept)).IsTrue();
+        await Assert.That(queue.Execute(StratBookActions.SuggestionAccept)).IsTrue();
         await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Count).IsEqualTo(1).Because("a settled row takes no second verdict");
         await Assert.That(queue.StatusText).IsEqualTo("This suggestion is already accepted.");
     }

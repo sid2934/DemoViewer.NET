@@ -29,7 +29,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// </summary>
 public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurface
 {
-    private readonly List<Func<Playback2DAction, bool>> _actionHandlers = [];
+    private readonly List<Func<string, bool>> _actionHandlers = [];
     private readonly List<Action> _demoChangedHandlers = [];
     private readonly Func<Scene2DFrame> _frame;
     private readonly Func<string, bool> _isEnabled;
@@ -161,8 +161,8 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     }
 
     /// <inheritdoc />
-    public string GestureHint(Playback2DAction action) =>
-        Keymap.GestureText(action) is { Length: > 0 } text ? $" ({text})" : "";
+    public string GestureHint(string actionId) =>
+        Keymap.GestureText(actionId) is { Length: > 0 } text ? $" ({text})" : "";
 
     /// <inheritdoc />
     public IDisposable AddBandMenu(Func<TimelineBandViewModel, IEnumerable<MenuEntry>> items)
@@ -207,7 +207,7 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     }
 
     /// <inheritdoc />
-    public IDisposable AddActionHandler(Func<Playback2DAction, bool> handler)
+    public IDisposable AddActionHandler(Func<string, bool> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
         _actionHandlers.Add(handler);
@@ -241,11 +241,12 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     ///     The contributions' turn at a keymap action: a mode toggle's action flips it, else a toolbar
     ///     item's action runs it, else the handlers. True when one consumed it.
     /// </summary>
-    public bool TryExecute(Playback2DAction action)
+    public bool TryExecute(string actionId)
     {
+        ArgumentNullException.ThrowIfNull(actionId);
         foreach (ModeToggle toggle in ModeToggles.ToArray())
         {
-            if (toggle.ActionId is { } id && id == action.ToString())
+            if (toggle.ActionId is { } id && string.Equals(id, actionId, StringComparison.OrdinalIgnoreCase))
             {
                 // The toggle's Changed handlers are the extension's.
                 return ExtensionGuards.For(toggle) is { } guard
@@ -256,15 +257,15 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
 
         foreach (ToolbarItem item in ToolbarItems.ToArray())
         {
-            if (item.Action == action)
+            if (item.ActionId is { } id && string.Equals(id, actionId, StringComparison.OrdinalIgnoreCase))
             {
                 return item.Run(_frame());
             }
         }
 
-        foreach (Func<Playback2DAction, bool> handler in _actionHandlers.ToArray())
+        foreach (Func<string, bool> handler in _actionHandlers.ToArray())
         {
-            if (handler(action))
+            if (handler(actionId))
             {
                 return true;
             }

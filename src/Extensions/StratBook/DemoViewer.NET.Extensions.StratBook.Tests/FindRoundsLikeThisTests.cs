@@ -55,22 +55,22 @@ public class FindRoundsLikeThisTests
         Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
         using (Assert.Multiple())
         {
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, false, out Playback2DAction find))
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, false, out string? find))
                 .IsTrue();
-            await Assert.That(find).IsEqualTo(Playback2DAction.FindRoundsLikeThis);
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.None, false, out Playback2DAction follow))
+            await Assert.That(find).IsEqualTo(StratBookActions.FindRoundsLikeThis);
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.None, false, out string? follow))
                 .IsTrue();
-            await Assert.That(follow).IsEqualTo(Playback2DAction.CycleFollowNext);
+            await Assert.That(follow).IsEqualTo(nameof(Playback2DAction.CycleFollowNext));
 
             // A drawing tool does not take the chord away: the row is Always-scoped and nothing
             // tool-scoped claims it.
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, true, out Playback2DAction tool))
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, true, out string? tool))
                 .IsTrue();
-            await Assert.That(tool).IsEqualTo(Playback2DAction.FindRoundsLikeThis);
+            await Assert.That(tool).IsEqualTo(StratBookActions.FindRoundsLikeThis);
 
             // Not a shell accelerator and not one the browser eats, so a user may keep it on either head.
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.F, KeyModifiers.Control));
-            await Assert.That(keymap.GestureText(Playback2DAction.FindRoundsLikeThis)).IsEqualTo("Ctrl+F");
+            await Assert.That(keymap.GestureText(StratBookActions.FindRoundsLikeThis)).IsEqualTo("Ctrl+F");
         }
     }
 

@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
@@ -126,7 +127,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
         // Review mode starts as the user left it (off on a first run). The lanes and the panels follow it.
         ModeToggle mode = new(ReviewModeId, "Review", "Review mode (Shift+R): label rounds and review the suggested labels",
-            nameof(Playback2DAction.ToggleReviewMode)) { IsOn = _settings?.Current.Playback2D.ReviewMode ?? false };
+            StratBookActions.ToggleReviewMode) { IsOn = _settings?.Current.Playback2D.ReviewMode ?? false };
         ReviewMode = mode;
         _registrations.Add(surface.AddModeToggle(mode));
         _tagLane = surface.AddLane(_tagTrack, TimelineBandRow.Lane, new TagLaneBehaviour(this));
@@ -488,8 +489,8 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
     }
 
     // The palette's turn at a key while it has focus, then the queue's while a proposal is selected: the
-    // WhenPaletteFocused rows and the panel hotkeys, then the WhenSuggestionSelected rows (J and K walk the
-    // queue there and the Situations result set otherwise).
+    // palette scope's rows and the panel hotkeys, then the suggestion scope's rows (J and K walk the queue
+    // there and the Situations result set otherwise).
     private bool OnKey(Key key, KeyModifiers modifiers)
     {
         if (IsPaletteFocused && Palette!.TryHandleKey(key, modifiers))
@@ -498,44 +499,44 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         }
 
         return QueuePanel is { IsShown: true } && Queue is { HasSelection: true } queue && _surface is { } surface
-               && surface.Keymap.TryResolveInScope(Playback2DBindingScope.WhenSuggestionSelected, key, modifiers,
-                   out Playback2DAction action)
+               && surface.Keymap.TryResolveInScope(StratBookActions.SuggestionScope, key, modifiers,
+                   out string? action)
                && queue.Execute(action);
     }
 
     // The pack's keymap actions. Undo and redo reach here first while the palette has the keyboard, so one
     // history per document kind, resolved by focus. ToggleReviewMode is the mode
     // toggle's, through the surface.
-    private bool OnAction(Playback2DAction action)
+    private bool OnAction(string action)
     {
         bool focused = IsPaletteFocused;
         switch (action)
         {
-            case Playback2DAction.Undo when focused:
+            case nameof(Playback2DAction.Undo) when focused:
                 Palette!.Finish();
                 _session!.Undo();
                 return true;
 
-            case Playback2DAction.Redo when focused:
+            case nameof(Playback2DAction.Redo) when focused:
                 _session!.Redo();
                 return true;
 
-            case Playback2DAction.FocusTagPalette:
+            case StratBookActions.FocusTagPalette:
                 return ToggleFocus();
 
-            case Playback2DAction.TagPaletteBack:
-            case Playback2DAction.TagNote:
-            case Playback2DAction.TagClearSticky:
-            case Playback2DAction.TagLabelMode:
-            case Playback2DAction.TagLabelGroupNext:
+            case StratBookActions.TagPaletteBack:
+            case StratBookActions.TagNote:
+            case StratBookActions.TagClearSticky:
+            case StratBookActions.TagLabelMode:
+            case StratBookActions.TagLabelGroupNext:
                 return focused && Palette!.Execute(action);
 
-            case Playback2DAction.SuggestionNext:
-            case Playback2DAction.SuggestionPrev:
-            case Playback2DAction.SuggestionAccept:
-            case Playback2DAction.SuggestionReject:
-            case Playback2DAction.SuggestionEdit:
-            case Playback2DAction.SuggestionAcceptAll:
+            case StratBookActions.SuggestionNext:
+            case StratBookActions.SuggestionPrev:
+            case StratBookActions.SuggestionAccept:
+            case StratBookActions.SuggestionReject:
+            case StratBookActions.SuggestionEdit:
+            case StratBookActions.SuggestionAcceptAll:
                 return QueuePanel is { IsShown: true } && Queue!.Execute(action);
 
             default:

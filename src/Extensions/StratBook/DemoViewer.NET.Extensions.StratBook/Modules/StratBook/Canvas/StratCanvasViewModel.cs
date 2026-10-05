@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
@@ -373,7 +374,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     /// <summary>The token button's hint, with the resolved key.</summary>
     public string TokenToolTip =>
-        "Token tool" + (Keymap.GestureText(Playback2DAction.ToolToken) is { Length: > 0 } key ? $" ({key})" : "")
+        "Token tool" + (Keymap.GestureText(StratBookActions.ToolToken) is { Length: > 0 } key ? $" ({key})" : "")
                      + ": drag a token to place it at the active step; drag its heading stub to turn it";
 
     public string PlayGlyph => Transport.IsPlaying ? "⏸" : "▶";
@@ -686,8 +687,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     suggestion actions mean nothing on a strat and are left unhandled, as are hold-pan and cancel,
     ///     which belong to the surface.
     /// </summary>
-    /// <param name="action">The action the keymap resolved.</param>
-    public bool ExecuteAction(Playback2DAction action)
+    /// <param name="action">The id of the action the keymap resolved.</param>
+    public bool ExecuteAction(string action)
     {
         if (_session.Document is null)
         {
@@ -695,69 +696,71 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         // Handled, not ignored: an unhandled Ctrl+Z would bubble to the tab and undo the book's open strat.
-        if (IsReadOnly && action is not (Playback2DAction.TogglePlay or Playback2DAction.StepBack
-                or Playback2DAction.StepForward or Playback2DAction.SpeedUp or Playback2DAction.SpeedDown
-                or Playback2DAction.PrevStep or Playback2DAction.NextStep))
+        if (IsReadOnly && action is not (nameof(Playback2DAction.TogglePlay) or nameof(Playback2DAction.StepBack)
+                or nameof(Playback2DAction.StepForward) or nameof(Playback2DAction.SpeedUp)
+                or nameof(Playback2DAction.SpeedDown) or StratBookActions.PrevStep or StratBookActions.NextStep))
         {
-            return action is Playback2DAction.Undo or Playback2DAction.Redo or Playback2DAction.ClearAnnotations
-                or Playback2DAction.AddStep or Playback2DAction.DuplicateStep or Playback2DAction.DeleteStep
-                or Playback2DAction.ToolDraw or Playback2DAction.ToolErase or Playback2DAction.ToolLine
-                or Playback2DAction.ToolArrow or Playback2DAction.ToolRect or Playback2DAction.ToolEllipse
-                or Playback2DAction.ToolText or Playback2DAction.ToolToken;
+            return action is nameof(Playback2DAction.Undo) or nameof(Playback2DAction.Redo)
+                or nameof(Playback2DAction.ClearAnnotations) or StratBookActions.AddStep
+                or StratBookActions.DuplicateStep or StratBookActions.DeleteStep or nameof(Playback2DAction.ToolDraw)
+                or nameof(Playback2DAction.ToolErase) or nameof(Playback2DAction.ToolLine)
+                or nameof(Playback2DAction.ToolArrow) or nameof(Playback2DAction.ToolRect)
+                or nameof(Playback2DAction.ToolEllipse) or nameof(Playback2DAction.ToolText)
+                or StratBookActions.ToolToken;
         }
 
         switch (action)
         {
-            case Playback2DAction.TogglePlay:
+            case nameof(Playback2DAction.TogglePlay):
                 Transport.TogglePlay();
                 return true;
-            case Playback2DAction.StepBack:
+            case nameof(Playback2DAction.StepBack):
                 return Transport.Step(-1);
-            case Playback2DAction.StepForward:
+            case nameof(Playback2DAction.StepForward):
                 return Transport.Step(1);
-            case Playback2DAction.SpeedUp:
+            case nameof(Playback2DAction.SpeedUp):
                 return Transport.StepSpeed(1);
-            case Playback2DAction.SpeedDown:
+            case nameof(Playback2DAction.SpeedDown):
                 return Transport.StepSpeed(-1);
 
-            case Playback2DAction.ToolDraw:
+            case nameof(Playback2DAction.ToolDraw):
                 return Toggle(ToolKind.Draw);
-            case Playback2DAction.ToolErase:
+            case nameof(Playback2DAction.ToolErase):
                 return Toggle(ToolKind.Erase);
-            case Playback2DAction.ToolLine:
+            case nameof(Playback2DAction.ToolLine):
                 return Toggle(ToolKind.Line);
-            case Playback2DAction.ToolArrow:
+            case nameof(Playback2DAction.ToolArrow):
                 return Toggle(ToolKind.Arrow);
-            case Playback2DAction.ToolRect:
+            case nameof(Playback2DAction.ToolRect):
                 return Toggle(ToolKind.Rect);
-            case Playback2DAction.ToolEllipse:
+            case nameof(Playback2DAction.ToolEllipse):
                 return Toggle(ToolKind.Ellipse);
-            case Playback2DAction.ToolText:
+            case nameof(Playback2DAction.ToolText):
                 return Toggle(ToolKind.Text);
-            case Playback2DAction.ToolToken:
+            case StratBookActions.ToolToken:
                 return Toggle(ToolKind.Token);
 
             // The strat's history, not the annotation document's: there is one, and a gesture in flight
             // finishes first, the rule the annotation document keeps for its own stack.
-            case Playback2DAction.Undo:
+            case nameof(Playback2DAction.Undo):
                 return !IsGestureOpen && _session.Undo();
-            case Playback2DAction.Redo:
+            case nameof(Playback2DAction.Redo):
                 return !IsGestureOpen && _session.Redo();
 
-            case Playback2DAction.ClearAnnotations:
+            case nameof(Playback2DAction.ClearAnnotations):
                 return ClearActiveStepStrokes();
-            case Playback2DAction.AddStep:
+            case StratBookActions.AddStep:
                 CancelOpenDrag();
                 return InsertStep();
-            case Playback2DAction.DuplicateStep:
+            case StratBookActions.DuplicateStep:
                 CancelOpenDrag();
                 return DuplicateActiveStep();
-            case Playback2DAction.DeleteStep:
+            case StratBookActions.DeleteStep:
                 CancelOpenDrag();
                 return DeleteActiveStep();
-            case Playback2DAction.PrevStep:
+            case StratBookActions.PrevStep:
                 return SeekStep(-1);
-            case Playback2DAction.NextStep:
+            case StratBookActions.NextStep:
                 return SeekStep(1);
 
             default:
@@ -766,22 +769,22 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     [RelayCommand]
-    private void TogglePlay() => ExecuteAction(Playback2DAction.TogglePlay);
+    private void TogglePlay() => ExecuteAction(nameof(Playback2DAction.TogglePlay));
 
     [RelayCommand]
-    private void PrevStep() => ExecuteAction(Playback2DAction.PrevStep);
+    private void PrevStep() => ExecuteAction(StratBookActions.PrevStep);
 
     [RelayCommand]
-    private void NextStep() => ExecuteAction(Playback2DAction.NextStep);
+    private void NextStep() => ExecuteAction(StratBookActions.NextStep);
 
     [RelayCommand]
-    private void AddStep() => ExecuteAction(Playback2DAction.AddStep);
+    private void AddStep() => ExecuteAction(StratBookActions.AddStep);
 
     [RelayCommand]
-    private void DuplicateStep() => ExecuteAction(Playback2DAction.DuplicateStep);
+    private void DuplicateStep() => ExecuteAction(StratBookActions.DuplicateStep);
 
     [RelayCommand]
-    private void DeleteStep() => ExecuteAction(Playback2DAction.DeleteStep);
+    private void DeleteStep() => ExecuteAction(StratBookActions.DeleteStep);
 
     [RelayCommand]
     private void ToggleSetPlace()

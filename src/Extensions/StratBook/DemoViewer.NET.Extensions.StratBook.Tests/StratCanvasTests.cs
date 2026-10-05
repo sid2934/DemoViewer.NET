@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using Avalonia.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.StratBook.Canvas;
@@ -57,7 +58,7 @@ public class StratCanvasTests
         await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(0);
 
         // ] walks the steps: each lands on its tick, is active, and shows its keyframes and its own strokes.
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.NextStep)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(StratBookActions.NextStep)).IsTrue();
         using (Assert.Multiple())
         {
             await Assert.That(canvas.Transport.Tick).IsEqualTo(Step1);
@@ -73,12 +74,12 @@ public class StratCanvasTests
 
         for (int i = 1; i < 5; i++)
         {
-            await Assert.That(canvas.ExecuteAction(Playback2DAction.NextStep)).IsTrue();
+            await Assert.That(canvas.ExecuteAction(StratBookActions.NextStep)).IsTrue();
             await Assert.That(canvas.ActiveStepIndex).IsEqualTo(i);
             await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(600f * i);
         }
 
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.NextStep)).IsFalse().Because("the last step has no next");
+        await Assert.That(canvas.ExecuteAction(StratBookActions.NextStep)).IsFalse().Because("the last step has no next");
         await Assert.That(Ink(canvas, TextId).Time.OpacityAt(Step3)).IsEqualTo(1.0);
 
         // Scrub back to the middle of step 1's window: A halfway along its move, B and C still where step 1
@@ -100,10 +101,10 @@ public class StratCanvasTests
 
         // Play from step 1: the clock advances at 64 ticks a wall second, frames are continuous, and it stops at
         // the last step with every token where step 5 put it.
-        canvas.ExecuteAction(Playback2DAction.PrevStep);
+        canvas.ExecuteAction(StratBookActions.PrevStep);
         await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2);
         canvas.Timeline.RequestSeekToFrame(Step1);
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.TogglePlay)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.TogglePlay))).IsTrue();
         await Assert.That(canvas.IsPlaying).IsTrue();
 
         ticker.Fire(1.0);
@@ -187,9 +188,9 @@ public class StratCanvasTests
             await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2 + 10);
         }
 
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.Undo)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsTrue();
         await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(before);
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.Redo)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Redo))).IsTrue();
         await Assert.That(StratHistory.ToNode(session.Document!).ToJsonString()).IsEqualTo(after);
     }
 
@@ -335,7 +336,7 @@ public class StratCanvasTests
         canvas.Timeline.RequestSeekToFrame(Step2 + 320);
 
         // Shift+N: a step after the active one, at the playhead's round-clock time, made active.
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.AddStep)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(StratBookActions.AddStep)).IsTrue();
         StratStep inserted = session.Document!.Steps[2];
         using (Assert.Multiple())
         {
@@ -347,7 +348,7 @@ public class StratCanvasTests
 
         // Ctrl+D on step 1: its positions and strokes 5 s later, the strokes under new ids.
         canvas.Timeline.RequestSeekToFrame(Step1);
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.DuplicateStep)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(StratBookActions.DuplicateStep)).IsTrue();
         StratStep copy = session.Document!.Steps[1];
         using (Assert.Multiple())
         {
@@ -358,14 +359,14 @@ public class StratCanvasTests
         }
 
         // Ctrl+X on the copy clears its strokes only.
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.ClearAnnotations)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.ClearAnnotations))).IsTrue();
         await Assert.That(session.Document!.Steps[1].Strokes.Count).IsEqualTo(0);
         await Assert.That(session.Document.Steps[0].Strokes.Count).IsEqualTo(1);
 
         // Ctrl+Delete on step 2 of the original takes the branch that hangs from it too.
         canvas.Timeline.RequestSeekToFrame(canvas.Projection!.Ticks[2]);
         await Assert.That(canvas.ActiveStep!.Id).IsEqualTo(StratTestData.StepId(2));
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.DeleteStep)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(StratBookActions.DeleteStep)).IsTrue();
         using (Assert.Multiple())
         {
             await Assert.That(session.Document!.Steps.Any(s => s.Id == StratTestData.StepId(2))).IsFalse();
@@ -376,12 +377,12 @@ public class StratCanvasTests
         // Ctrl+Z walks them back in order, through the one history.
         for (int i = 0; i < 4; i++)
         {
-            await Assert.That(canvas.ExecuteAction(Playback2DAction.Undo)).IsTrue();
+            await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsTrue();
         }
 
         await Assert.That(session.Document!.Steps.Count).IsEqualTo(5);
         await Assert.That(session.Document.Branches.Count).IsEqualTo(1);
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.Undo)).IsFalse();
+        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsFalse();
     }
 
     [Test]
@@ -426,7 +427,7 @@ public class StratCanvasTests
 
         (StratStore _, StratSession session) = Opened(document);
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.ExecuteAction(Playback2DAction.NextStep);
+        canvas.ExecuteAction(StratBookActions.NextStep);
         await Assert.That(canvas.CurrentFrame.Markers.Count).IsEqualTo(0);
 
         canvas.PlaceTokensCommand.Execute(null);
@@ -439,20 +440,20 @@ public class StratCanvasTests
     }
 
     [Test]
-    [Arguments(Key.V, KeyModifiers.None, Playback2DAction.ToolToken)]
-    [Arguments(Key.N, KeyModifiers.Shift, Playback2DAction.AddStep)]
-    [Arguments(Key.D, KeyModifiers.Control, Playback2DAction.DuplicateStep)]
-    [Arguments(Key.Delete, KeyModifiers.Control, Playback2DAction.DeleteStep)]
-    [Arguments(Key.OemOpenBrackets, KeyModifiers.None, Playback2DAction.PrevStep)]
-    [Arguments(Key.OemCloseBrackets, KeyModifiers.None, Playback2DAction.NextStep)]
-    public async Task TheStepAuthoringRows_Resolve_InBothScopes(Key key, KeyModifiers modifiers, Playback2DAction expected)
+    [Arguments(Key.V, KeyModifiers.None, StratBookActions.ToolToken)]
+    [Arguments(Key.N, KeyModifiers.Shift, StratBookActions.AddStep)]
+    [Arguments(Key.D, KeyModifiers.Control, StratBookActions.DuplicateStep)]
+    [Arguments(Key.Delete, KeyModifiers.Control, StratBookActions.DeleteStep)]
+    [Arguments(Key.OemOpenBrackets, KeyModifiers.None, StratBookActions.PrevStep)]
+    [Arguments(Key.OemCloseBrackets, KeyModifiers.None, StratBookActions.NextStep)]
+    public async Task TheStepAuthoringRows_Resolve_InBothScopes(Key key, KeyModifiers modifiers, string expected)
     {
         // Step Authoring is a Strat Book extension command: the profile a canvas routes through
         // resolves it, the bare core table (Playback2DKeymap) does not.
         Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
-        await Assert.That(keymap.TryResolve(key, modifiers, false, out Playback2DAction idle)).IsTrue();
+        await Assert.That(keymap.TryResolve(key, modifiers, false, out string? idle)).IsTrue();
         await Assert.That(idle).IsEqualTo(expected);
-        await Assert.That(keymap.TryResolve(key, modifiers, true, out Playback2DAction drawing)).IsTrue();
+        await Assert.That(keymap.TryResolve(key, modifiers, true, out string? drawing)).IsTrue();
         await Assert.That(drawing).IsEqualTo(expected);
         await Assert.That(Playback2DKeymap.FindConflicts(CommandRegistry.Default.EffectiveBindings, Playback2DKeymap.ShellReservedGestures)).IsEmpty();
     }
@@ -461,20 +462,20 @@ public class StratCanvasTests
     public async Task TheBracketRows_ReadAsBrackets()
     {
         Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
-        await Assert.That(keymap.GestureText(Playback2DAction.PrevStep)).IsEqualTo("[");
-        await Assert.That(keymap.GestureText(Playback2DAction.NextStep)).IsEqualTo("]");
-        await Assert.That(keymap.GestureText(Playback2DAction.AddStep)).IsEqualTo("Shift+N");
+        await Assert.That(keymap.GestureText(StratBookActions.PrevStep)).IsEqualTo("[");
+        await Assert.That(keymap.GestureText(StratBookActions.NextStep)).IsEqualTo("]");
+        await Assert.That(keymap.GestureText(StratBookActions.AddStep)).IsEqualTo("Shift+N");
     }
 
     /// <summary>The same rows on the 2D Playback tab have nothing to act on and stay unhandled.</summary>
     [Test]
-    [Arguments(Playback2DAction.ToolToken)]
-    [Arguments(Playback2DAction.AddStep)]
-    [Arguments(Playback2DAction.DuplicateStep)]
-    [Arguments(Playback2DAction.DeleteStep)]
-    [Arguments(Playback2DAction.PrevStep)]
-    [Arguments(Playback2DAction.NextStep)]
-    public async Task OnThe2DTab_TheStepAuthoringRows_AreUnhandled(Playback2DAction action)
+    [Arguments(StratBookActions.ToolToken)]
+    [Arguments(StratBookActions.AddStep)]
+    [Arguments(StratBookActions.DuplicateStep)]
+    [Arguments(StratBookActions.DeleteStep)]
+    [Arguments(StratBookActions.PrevStep)]
+    [Arguments(StratBookActions.NextStep)]
+    public async Task OnThe2DTab_TheStepAuthoringRows_AreUnhandled(string action)
     {
         (Playback2DTabViewModel vm, _) = Playback2DActivation.Activated();
         await Assert.That(vm.ExecuteAction(action)).IsFalse();
@@ -486,11 +487,11 @@ public class StratCanvasTests
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null,
-            () => [Playback2DKeymapProfile.Row(Playback2DAction.ToolToken, Key.U, KeyModifiers.None)]);
+            () => [Playback2DKeymapProfile.Row(StratBookActions.ToolToken, Key.U, KeyModifiers.None)]);
 
-        await Assert.That(canvas.Keymap.TryResolve(Key.U, KeyModifiers.None, false, out Playback2DAction action)).IsTrue();
-        await Assert.That(action).IsEqualTo(Playback2DAction.ToolToken);
-        await Assert.That(canvas.ExecuteAction(action)).IsTrue();
+        await Assert.That(canvas.Keymap.TryResolve(Key.U, KeyModifiers.None, false, out string? action)).IsTrue();
+        await Assert.That(action).IsEqualTo(StratBookActions.ToolToken);
+        await Assert.That(canvas.ExecuteAction(action!)).IsTrue();
         await Assert.That(canvas.IsTokenToolSelected).IsTrue();
         await Assert.That(canvas.IsToolActive).IsTrue().Because("the token tool shadows Space and Esc like any tool");
     }
@@ -500,7 +501,7 @@ public class StratCanvasTests
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.ExecuteAction(Playback2DAction.NextStep);
+        canvas.ExecuteAction(StratBookActions.NextStep);
 
         using (Assert.Multiple())
         {

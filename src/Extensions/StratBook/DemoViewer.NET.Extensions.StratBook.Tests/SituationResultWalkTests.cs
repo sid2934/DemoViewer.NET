@@ -1,6 +1,7 @@
 #region
 
 using Avalonia.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.ViewModels.Situations;
@@ -24,17 +25,17 @@ public class SituationResultWalkTests
         Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
         using (Assert.Multiple())
         {
-            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, false, out Playback2DAction next)).IsTrue();
-            await Assert.That(next).IsEqualTo(Playback2DAction.NextSituationResult);
-            await Assert.That(keymap.TryResolve(Key.K, KeyModifiers.None, false, out Playback2DAction prev)).IsTrue();
-            await Assert.That(prev).IsEqualTo(Playback2DAction.PrevSituationResult);
+            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, false, out string? next)).IsTrue();
+            await Assert.That(next).IsEqualTo(StratBookActions.NextSituationResult);
+            await Assert.That(keymap.TryResolve(Key.K, KeyModifiers.None, false, out string? prev)).IsTrue();
+            await Assert.That(prev).IsEqualTo(StratBookActions.PrevSituationResult);
 
             // A drawing tool does not take the keys away: the rows are Always-scoped.
-            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, true, out Playback2DAction tool)).IsTrue();
-            await Assert.That(tool).IsEqualTo(Playback2DAction.NextSituationResult);
+            await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, true, out string? tool)).IsTrue();
+            await Assert.That(tool).IsEqualTo(StratBookActions.NextSituationResult);
 
-            await Assert.That(keymap.GestureText(Playback2DAction.NextSituationResult)).IsEqualTo("J");
-            await Assert.That(keymap.GestureText(Playback2DAction.PrevSituationResult)).IsEqualTo("K");
+            await Assert.That(keymap.GestureText(StratBookActions.NextSituationResult)).IsEqualTo("J");
+            await Assert.That(keymap.GestureText(StratBookActions.PrevSituationResult)).IsEqualTo("K");
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.J, KeyModifiers.None));
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.K, KeyModifiers.None));
         }

@@ -35,6 +35,15 @@ DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Run.get -> System.Func<DemoViewe
 DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Run.init -> void
 DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Scope.get -> string!
 DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Scope.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandScope
+DemoViewer.NET.Extensions.Sdk.CommandScope.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.CommandScope!
+DemoViewer.NET.Extensions.Sdk.CommandScope.CommandScope(string! Id, string! Label) -> void
+DemoViewer.NET.Extensions.Sdk.CommandScope.Deconstruct(out string! Id, out string! Label) -> void
+DemoViewer.NET.Extensions.Sdk.CommandScope.Equals(DemoViewer.NET.Extensions.Sdk.CommandScope? other) -> bool
+DemoViewer.NET.Extensions.Sdk.CommandScope.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.CommandScope.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.CommandScope.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.CommandScope.Label.init -> void
 DemoViewer.NET.Extensions.Sdk.DemoAction
 DemoViewer.NET.Extensions.Sdk.DemoAction.Changed -> System.Action?
 DemoViewer.NET.Extensions.Sdk.DemoAction.DemoAction(string! id, string! label, string! tooltip, System.Func<string!, bool>! isAvailable, System.Action<string!>! run, string? featureId = null) -> void
@@ -120,6 +129,7 @@ DemoViewer.NET.Extensions.Sdk.HostInfo.IsBrowser.init -> void
 DemoViewer.NET.Extensions.Sdk.HostInfo.SdkVersion.get -> System.Version!
 DemoViewer.NET.Extensions.Sdk.HostInfo.SdkVersion.init -> void
 DemoViewer.NET.Extensions.Sdk.IExtension
+DemoViewer.NET.Extensions.Sdk.IExtension.CommandScopes.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandScope!>!
 DemoViewer.NET.Extensions.Sdk.IExtension.Commands.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandDescriptor!>!
 DemoViewer.NET.Extensions.Sdk.IExtension.Contribute(DemoViewer.NET.Extensions.Sdk.IExtensionContributions! contributions, System.IServiceProvider! services) -> void
 DemoViewer.NET.Extensions.Sdk.IExtension.FeatureId.get -> string!
@@ -303,6 +313,7 @@ DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution.Attach(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface! surface, DemoViewer.NET.Modules.Abstractions.IModuleContext! context) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution.Detach() -> void
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface
+DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.ActionFor(string! scope, Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) -> string?
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.ActionIds.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddActionHandler(System.Func<string!, bool>! handler) -> System.IDisposable!
 DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackSurface.AddBandMenu(System.Func<DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand!, System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry!>!>! items) -> System.IDisposable!
@@ -563,6 +574,9 @@ override DemoViewer.NET.Extensions.Sdk.CommandContext.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.CommandDescriptor.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.CommandScope.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.CommandScope.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.CommandScope.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.ToString() -> string!
@@ -632,6 +646,8 @@ static DemoViewer.NET.Extensions.Sdk.CommandContext.operator !=(DemoViewer.NET.E
 static DemoViewer.NET.Extensions.Sdk.CommandContext.operator ==(DemoViewer.NET.Extensions.Sdk.CommandContext? left, DemoViewer.NET.Extensions.Sdk.CommandContext? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.CommandDescriptor.operator !=(DemoViewer.NET.Extensions.Sdk.CommandDescriptor? left, DemoViewer.NET.Extensions.Sdk.CommandDescriptor? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.CommandDescriptor.operator ==(DemoViewer.NET.Extensions.Sdk.CommandDescriptor? left, DemoViewer.NET.Extensions.Sdk.CommandDescriptor? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.CommandScope.operator !=(DemoViewer.NET.Extensions.Sdk.CommandScope? left, DemoViewer.NET.Extensions.Sdk.CommandScope? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.CommandScope.operator ==(DemoViewer.NET.Extensions.Sdk.CommandScope? left, DemoViewer.NET.Extensions.Sdk.CommandScope? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory.operator ==(DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataInventory? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult.operator !=(DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? left, DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult? right) -> bool
