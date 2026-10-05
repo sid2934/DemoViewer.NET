@@ -32,6 +32,9 @@ public interface IExtensionContributions
     /// <param name="factory">Builds or returns the pass.</param>
     void RecordPass(string id, Func<IExtensionRecordPass> factory);
 
+    /// <summary>A ruleset the host runs with the highlights on every demo; its tables become library facts.</summary>
+    void Ruleset(RulesetContribution ruleset);
+
     /// <summary>Commands for the keymap, in addition to <see cref="IExtension.Commands" />.</summary>
     void Commands(IEnumerable<CommandDescriptor> commands);
 

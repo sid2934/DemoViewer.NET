@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Features;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -61,6 +62,9 @@ internal sealed class PackContributionSet
     public IReadOnlyList<PackContributions> Packs { get; }
 
     private static Microsoft.Extensions.Logging.ILogger Log => DiagnosticsLog.CreateLogger(AppLog.ShellCategory);
+
+    /// <summary>Every pack's rulesets, in pack order then contribution order. The merged rules read them as their middle layer.</summary>
+    public IReadOnlyList<ContributedRuleset> Rulesets => [.. Packs.SelectMany(p => p.Rulesets)];
 
     /// <summary>Every pack's host tabs, in pack order then contribution order. The shell builds its strip from this.</summary>
     public IReadOnlyList<HostTabContribution> HostTabs => [.. Packs.SelectMany(p => p.HostTabs)];

@@ -14,6 +14,9 @@ public sealed record StampedRuleset(string RulesetId, string Owner, Func<bool> E
     /// <summary>The owner of a ruleset the app itself runs for every user.</summary>
     public const string CoreOwner = "core";
 
+    /// <summary>The owner of a ruleset an extension's manifest claims that this launch did not contribute.</summary>
+    public const string ClaimedOwner = "claimed";
+
     /// <summary>A core ruleset, always on.</summary>
     /// <param name="rulesetId">The ruleset's id.</param>
     public static StampedRuleset Core(string rulesetId) => new(rulesetId, CoreOwner, static () => true);

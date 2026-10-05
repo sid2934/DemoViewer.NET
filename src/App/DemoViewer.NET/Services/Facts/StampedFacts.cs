@@ -85,9 +85,13 @@ public sealed class StampedFacts
     public static string? RulesetOf(string stampId) =>
         stampId.StartsWith(StampPrefix, StringComparison.Ordinal) ? stampId[StampPrefix.Length..] : null;
 
-    /// <summary>The sibling suffix one output is stored under.</summary>
+    /// <summary>The sibling suffix one output is stored under; it ends with <see cref="RulesetSuffix" />.</summary>
     /// <param name="key">The output.</param>
-    public static string Suffix(FactKey key) => $".facts.{key.RulesetId}.{key.Output}.json.gz";
+    public static string Suffix(FactKey key) => "." + key.Output + RulesetSuffix(key.RulesetId);
+
+    /// <summary>The ending every output sidecar of one ruleset shares, so one pattern finds them all and no other ruleset's.</summary>
+    /// <param name="rulesetId">The ruleset's id.</param>
+    public static string RulesetSuffix(string rulesetId) => $".facts.{rulesetId}.json.gz";
 
     /// <summary>
     ///     The ruleset's identity folded with <see cref="Schema" />, or null when it is not on or does not compose

@@ -73,6 +73,25 @@ public class HostDataRemovalTests
         }
     }
 
+    [Test]
+    public async Task TheHostsDelete_ListsTheFactsOfTheExtensionsRulesets()
+    {
+        string id = "dev.example.remove." + Guid.NewGuid().ToString("N")[..8];
+        Pack pack = new(id);
+        ServiceCollection services = new();
+        services.AddSingleton<ExtensionShellHub>();
+        services.AddSingleton(new DemoCacheStore(null));
+        await using ServiceProvider sp = services.BuildServiceProvider();
+        PackContributions contributions = new(pack, () => new ExtensionContext(pack, sp));
+        contributions.Ruleset(new RulesetContribution("kills", () => new MemoryStream()));
+
+        StoreDescriptor? facts = new HostDataRemoval(contributions, sp).Stores
+            .FirstOrDefault(s => s.Id == "facts:" + RulesetContribution.QualifiedId(id, "kills"));
+
+        await Assert.That(facts).IsNotNull();
+        await Assert.That(facts!.Paths).IsEquivalentTo([$"demos/*.facts.{RulesetContribution.QualifiedId(id, "kills")}.json.gz"]);
+    }
+
     private sealed class Pack(string id) : IExtension
     {
         public string Id => id;

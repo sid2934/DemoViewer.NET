@@ -4,6 +4,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Facts;
 using Microsoft.Extensions.DependencyInjection;
 
 #endregion
@@ -15,9 +16,9 @@ namespace DemoViewer.NET.Extensions;
 ///     so nothing it still holds is deleted from under it; the gate is read again before the delete is queued
 ///     and once more inside the queued job, so a switch back on in between cancels the delete untouched.
 ///     Then it deletes the extension's own folders (config and cache, the per-demo data included), the
-///     stores it declared, its payload and its passes' stamps on the demo cache records, or runs the
-///     extension's own removal when it contributed one. Afterwards the per-demo index is forgotten and the
-///     extension's after-delete callbacks run on the UI thread.
+///     stores it declared, its payload, its passes' stamps on the demo cache records and the analysis facts
+///     of its rulesets, or runs the extension's own removal when it contributed one. Afterwards the per-demo
+///     index is forgotten and the extension's after-delete callbacks run on the UI thread.
 /// </summary>
 internal sealed class HostDataRemoval : IExtensionDataRemoval
 {
@@ -50,6 +51,8 @@ internal sealed class HostDataRemoval : IExtensionDataRemoval
             [
                 new StoreDescriptor("extension-files", "Extension files", StoreRoot.Config, [folder], IsUserWork: true),
                 new StoreDescriptor("extension-cache", "Extension cache", StoreRoot.Cache, [folder], IsUserWork: false),
+                .. _pack.Rulesets.Select(r => new StoreDescriptor(StampedFacts.StampId(r.RulesetId), "Analysis facts of " + r.RulesetId,
+                    StoreRoot.Cache, ["demos/*" + StampedFacts.RulesetSuffix(r.RulesetId)], IsUserWork: false)),
                 .. _pack.Stores
             ];
         }
@@ -83,7 +86,8 @@ internal sealed class HostDataRemoval : IExtensionDataRemoval
 
         ExtensionDataRemovalResult result = _pack.DataRemovalContribution is { } custom
             ? await custom.DeleteAsync().ConfigureAwait(true)
-            : await Remover().DeleteAsync(_pack.Pack.Id, Stores, [.. _pack.Passes.Select(p => p.Id)], featureId,
+            : await Remover().DeleteAsync(_pack.Pack.Id, Stores,
+                [.. _pack.Passes.Select(p => p.Id), .. _pack.Rulesets.Select(r => StampedFacts.StampId(r.RulesetId))], featureId,
                 Label + ": delete extension data", () => gate?.IsEnabled(featureId) != true).ConfigureAwait(true);
         if (result.Ran)
         {

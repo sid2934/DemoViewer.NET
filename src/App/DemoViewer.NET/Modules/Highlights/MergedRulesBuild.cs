@@ -334,12 +334,18 @@ public sealed class MergedRulesBuild
         return [.. rulesets.Where(r => !owned.Contains(r.Id))];
     }
 
-    // The file the effective doc was read from; the doc's JSON where there is no readable file (Browser).
+    // The file the effective doc was read from, the YAML an extension supplied, or the doc's JSON where
+    // there is no readable file (Browser).
     private static string SourceIdentity(RulesetDoc? doc)
     {
         if (doc is null)
         {
             return "";
+        }
+
+        if (RuleLayers.SourceOf(doc) is { } contributed)
+        {
+            return contributed;
         }
 
         try
@@ -362,6 +368,15 @@ public sealed class MergedRulesBuild
         {
             return doc.Id;
         }
+    }
+
+    /// <summary>The shipped rules, then <paramref name="extensions" />, then the user's overlay (<see cref="RuleLayers" />).</summary>
+    /// <param name="extensions">The rulesets the extensions contributed.</param>
+    public static RuleConfigLoadResult LoadShippedExtensionsUser(IReadOnlyList<ContributedRuleset> extensions)
+    {
+        string shippedDir = RuleSetLocator.ResolveShippedRulesDirectory();
+        string? userDir = OperatingSystem.IsBrowser() ? null : RuleSetLocator.EnsureUserRulesDirectory(shippedDir);
+        return RuleLayers.Load(shippedDir, userDir, extensions, Log);
     }
 
     private static RuleConfigLoadResult LoadShippedWithUserOverlay()

@@ -327,6 +327,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Pass(string! id, System.Fu
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Playback(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution! contribution) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.RecordPass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass!>! factory) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer.NET.Extensions.Sdk.IReindexEstimate! estimate) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Ruleset(DemoViewer.NET.Extensions.Sdk.RulesetContribution! ruleset) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsSchema(DemoViewer.NET.Extensions.Sdk.SettingsSchema! schema) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Store(DemoViewer.NET.Extensions.Sdk.StoreDescriptor! store) -> void
@@ -1064,6 +1065,17 @@ DemoViewer.NET.Extensions.Sdk.RoundPhase.PostRound = 7 -> DemoViewer.NET.Extensi
 DemoViewer.NET.Extensions.Sdk.RoundPhase.Retake = 6 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
 DemoViewer.NET.Extensions.Sdk.RoundPhase.Warmup = 1 -> DemoViewer.NET.Extensions.Sdk.RoundPhase
 DemoViewer.NET.Extensions.Sdk.RoundPhases
+DemoViewer.NET.Extensions.Sdk.RulesetContribution
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.RulesetContribution!
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.Deconstruct(out string! Id, out System.Func<System.IO.Stream!>! Yaml, out string? FeatureId) -> void
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.Equals(DemoViewer.NET.Extensions.Sdk.RulesetContribution? other) -> bool
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.FeatureId.get -> string?
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.FeatureId.init -> void
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.RulesetContribution(string! Id, System.Func<System.IO.Stream!>! Yaml, string? FeatureId = null) -> void
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.Yaml.get -> System.Func<System.IO.Stream!>!
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.Yaml.init -> void
 DemoViewer.NET.Extensions.Sdk.ScoreSituation
 DemoViewer.NET.Extensions.Sdk.ScoreSituation.CtLeading = 1 -> DemoViewer.NET.Extensions.Sdk.ScoreSituation
 DemoViewer.NET.Extensions.Sdk.ScoreSituation.MatchPoint = 3 -> DemoViewer.NET.Extensions.Sdk.ScoreSituation
@@ -1373,6 +1385,9 @@ override DemoViewer.NET.Extensions.Sdk.Playback.TimelineBand.ToString() -> strin
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.Playback.TimelineEvent.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.RulesetContribution.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.RulesetContribution.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.RulesetContribution.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.SettingChoice.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.SettingChoice.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.SettingChoice.ToString() -> string!
@@ -1494,6 +1509,10 @@ static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.MatchesAnywhere(DemoViewer.
 static DemoViewer.NET.Extensions.Sdk.RoundFactsRules.MatchesAt(DemoViewer.NET.Extensions.Sdk.RoundFacts! round, DemoViewer.NET.Extensions.Sdk.RoundFactsFilter! filter, int tick, int tickRate) -> bool
 static DemoViewer.NET.Extensions.Sdk.RoundPhases.AliveAt(DemoViewer.NET.Extensions.Sdk.RoundFacts! round, int tick) -> (int Ct, int T)
 static DemoViewer.NET.Extensions.Sdk.RoundPhases.At(DemoViewer.NET.Extensions.Sdk.RoundFacts? round, int tick, int? side = null) -> DemoViewer.NET.Extensions.Sdk.RoundPhase
+static DemoViewer.NET.Extensions.Sdk.RulesetContribution.IsValidId(string? id) -> bool
+static DemoViewer.NET.Extensions.Sdk.RulesetContribution.QualifiedId(string! extensionId, string! id) -> string!
+static DemoViewer.NET.Extensions.Sdk.RulesetContribution.operator !=(DemoViewer.NET.Extensions.Sdk.RulesetContribution? left, DemoViewer.NET.Extensions.Sdk.RulesetContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.RulesetContribution.operator ==(DemoViewer.NET.Extensions.Sdk.RulesetContribution? left, DemoViewer.NET.Extensions.Sdk.RulesetContribution? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingChoice.operator !=(DemoViewer.NET.Extensions.Sdk.SettingChoice? left, DemoViewer.NET.Extensions.Sdk.SettingChoice? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingChoice.operator ==(DemoViewer.NET.Extensions.Sdk.SettingChoice? left, DemoViewer.NET.Extensions.Sdk.SettingChoice? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.SettingDescriptor.Choice(string! key, string! label, string! defaultValue, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.SettingChoice!>! choices, string? help = null) -> DemoViewer.NET.Extensions.Sdk.SettingDescriptor!

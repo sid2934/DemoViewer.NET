@@ -2,6 +2,7 @@
 
 using Avalonia.Controls;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Shell;
@@ -49,6 +50,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly List<ILibraryContribution> _library = [];
     private readonly List<StoreDescriptor> _stores = [];
     private readonly List<GatedDemoAction> _demoActions = [];
+    private readonly List<ContributedRuleset> _rulesets = [];
     private IExtensionDataRemoval? _dataRemoval;
     private readonly List<Action> _dataDeleted = [];
 
@@ -69,6 +71,9 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
     /// <summary>Passes, in contribution order.</summary>
     public IReadOnlyList<PassContribution> Passes => _passes;
+
+    /// <summary>Rulesets, in contribution order, each under its qualified id.</summary>
+    public IReadOnlyList<ContributedRuleset> Rulesets => _rulesets;
 
     /// <summary>Record passes, in contribution order.</summary>
     public IReadOnlyList<RecordPassContribution> RecordPasses => _recordPasses;
@@ -176,6 +181,21 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     }
 
     /// <inheritdoc />
+
+    /// <inheritdoc />
+    public void Ruleset(RulesetContribution ruleset)
+    {
+        ArgumentNullException.ThrowIfNull(ruleset);
+        ArgumentNullException.ThrowIfNull(ruleset.Yaml);
+        string id = RulesetContribution.QualifiedId(Pack.Id, ruleset.Id);
+        Func<Stream> open = ruleset.Yaml;
+        _rulesets.Add(new ContributedRuleset(id, Pack.Id, ruleset.FeatureId ?? Pack.FeatureId, () => _guard.Run<string?>("ruleset " + id, () =>
+        {
+            using Stream stream = open();
+            using StreamReader reader = new(stream);
+            return reader.ReadToEnd();
+        }, null)));
+    }
 
     /// <inheritdoc />
     public void Commands(IEnumerable<CommandDescriptor> commands)

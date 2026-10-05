@@ -11,7 +11,12 @@ namespace DemoViewer.NET.Extensions.Loading;
 /// <summary>What a desktop launch loads.</summary>
 /// <param name="Statuses">The shipped extensions, then the third-party ones that loaded.</param>
 /// <param name="ExternalRejected">Third-party copies that did not load, with the reason.</param>
-public sealed record ExtensionStartupResult(IReadOnlyList<PackStatus> Statuses, IReadOnlyList<LoadOutcome> ExternalRejected);
+/// <param name="ClaimedRulesets">
+///     The qualified ruleset ids every manifest on disk claims, the ones this launch did not load included: the
+///     host keeps them out of the highlights set whatever loaded.
+/// </param>
+public sealed record ExtensionStartupResult(
+    IReadOnlyList<PackStatus> Statuses, IReadOnlyList<LoadOutcome> ExternalRejected, IReadOnlyList<string> ClaimedRulesets);
 
 /// <summary>The desktop head's extension resolution, before Avalonia starts.</summary>
 public static class ExtensionStartup
@@ -31,16 +36,62 @@ public static class ExtensionStartup
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(shippedTrust);
         ArgumentNullException.ThrowIfNull(publisherKeys);
+        IReadOnlyList<string> claimed = ClaimedRulesets(configRoot, shipped);
         if (safeMode)
         {
-            return new ExtensionStartupResult([], []);
+            return new ExtensionStartupResult([], [], claimed);
         }
 
         IReadOnlyList<PackStatus> fromShipped = ExtensionLoader.Resolve(configRoot, shipped, host, shippedTrust);
         ExternalResolution external = ExternalExtensions.Resolve(configRoot,
             [.. fromShipped.Where(s => s.IsCompatible).Select(s => s.Pack)], host,
             new ExternalTrust(publisherKeys, allowUnverified));
-        return new ExtensionStartupResult([.. fromShipped, .. external.Loaded], external.Rejected);
+        return new ExtensionStartupResult([.. fromShipped, .. external.Loaded], external.Rejected, claimed);
+    }
+
+    /// <summary>
+    ///     The rulesets the shipped manifests and every staged manifest under the config root claim, qualified. A
+    ///     manifest that does not read claims nothing.
+    /// </summary>
+    /// <param name="configRoot">The config root; null reads only the shipped manifests.</param>
+    /// <param name="shipped">The extensions this build ships.</param>
+    public static IReadOnlyList<string> ClaimedRulesets(string? configRoot, IReadOnlyList<ShippedPack> shipped)
+    {
+        ArgumentNullException.ThrowIfNull(shipped);
+        List<ExtensionManifest> manifests = [];
+        foreach (ShippedPack pack in shipped)
+        {
+            try
+            {
+                if (File.Exists(pack.ManifestPath))
+                {
+                    manifests.Add(ExtensionManifest.Parse(File.ReadAllText(pack.ManifestPath)));
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ExtensionManifestException)
+            {
+                // An unreadable shipped manifest is the loader's to report.
+            }
+        }
+
+        try
+        {
+            if (ExtensionLoader.ExtensionsDirectory(configRoot) is { } directory)
+            {
+                manifests.AddRange(ExtensionLoader.Discover(directory).Candidates.Select(c => c.Manifest));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Nothing staged can be read, so nothing staged claims.
+        }
+
+        return
+        [
+            .. manifests
+                .SelectMany(m => m.Rulesets.Where(RulesetContribution.IsValidId).Select(id => RulesetContribution.QualifiedId(m.Id, id)))
+                .Distinct(StringComparer.Ordinal)
+        ];
     }
 
     /// <summary>

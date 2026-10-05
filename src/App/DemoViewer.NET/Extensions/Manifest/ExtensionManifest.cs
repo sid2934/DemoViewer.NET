@@ -33,6 +33,22 @@ public sealed partial record ExtensionManifest(
     VersionRange RequiresCs2DemoKit,
     SemVersion? MinAppVersion = null)
 {
+    /// <summary>
+    ///     The rulesets the extension contributes, by its own names (<see cref="RulesetContribution.Id" />). Read
+    ///     without loading the extension, so its rulesets stay apart from the highlights in safe mode too.
+    /// </summary>
+    public IReadOnlyList<string> Rulesets { get; init; } = [];
+
+    /// <summary>Equal when every member is, <see cref="Rulesets" /> compared item by item.</summary>
+    public bool Equals(ExtensionManifest? other) =>
+        other is not null
+        && Id == other.Id && Name == other.Name && Version == other.Version && Assembly == other.Assembly
+        && EntryType == other.EntryType && Equals(RequiresHost, other.RequiresHost) && Equals(RequiresCs2DemoKit, other.RequiresCs2DemoKit)
+        && Equals(MinAppVersion, other.MinAppVersion) && Rulesets.SequenceEqual(other.Rulesets, StringComparer.Ordinal);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Id, Version, Assembly, EntryType, Rulesets.Count);
+
     /// <summary>The resource and file name both copies carry.</summary>
     public const string FileName = "extension.json";
 
@@ -117,7 +133,21 @@ public sealed partial record ExtensionManifest(
             throw new ExtensionManifestException($"'minAppVersion' is not a semantic version: '{minText}'.");
         }
 
-        return new ExtensionManifest(id, Required(dto.Name, "name"), version, assembly, Required(dto.EntryType, "entryType"), host, kit, minApp);
+        List<string> rulesets = [];
+        foreach (string? ruleset in dto.Rulesets ?? [])
+        {
+            if (!RulesetContribution.IsValidId(ruleset))
+            {
+                throw new ExtensionManifestException($"'rulesets' holds '{ruleset}', which is not a ruleset name.");
+            }
+
+            rulesets.Add(ruleset!);
+        }
+
+        return new ExtensionManifest(id, Required(dto.Name, "name"), version, assembly, Required(dto.EntryType, "entryType"), host, kit, minApp)
+        {
+            Rulesets = rulesets
+        };
     }
 
     /// <summary>
@@ -160,6 +190,8 @@ public sealed partial record ExtensionManifest(
         public string? RequiresCs2DemoKit { get; set; }
 
         public string? MinAppVersion { get; set; }
+
+        public List<string?>? Rulesets { get; set; }
     }
 }
 

@@ -834,7 +834,21 @@ public class App : Application
         // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
         // round_facts is a core stamped ruleset: always on, it rides every merged run, and it stays out of
         // the highlights fingerprint because its rows are stamped under its own identity.
-        services.AddSingleton(_ => new MergedRulesBuild(() => [StampedRuleset.Core(RoundFactsFingerprint.RulesetId)]));
+        // An extension's ruleset is a stamped ruleset gated by its feature, read between the shipped rules and the
+        // user's. A ruleset an extension's manifest claims but this launch did not contribute (safe mode, a failed
+        // load) stays stamped and off, so a user override of it never joins the highlights set.
+        services.AddSingleton(sp =>
+        {
+            IFeatureGate? gate = sp.GetService<IFeatureGate>();
+            Lazy<IReadOnlyList<ContributedRuleset>> contributed =
+                new(() => sp.GetRequiredService<PackContributionSet>().Rulesets, LazyThreadSafetyMode.ExecutionAndPublication);
+            return new MergedRulesBuild(() => MergedRulesBuild.LoadShippedExtensionsUser(contributed.Value), () =>
+            [
+                StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
+                .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true)),
+                .. FeaturePacks.ClaimedRulesets.Select(id => new StampedRuleset(id, StampedRuleset.ClaimedOwner, static () => false))
+            ]);
+        });
         services.AddSingleton(sp =>
         {
             // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo.

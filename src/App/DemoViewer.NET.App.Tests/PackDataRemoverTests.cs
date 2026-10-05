@@ -260,6 +260,47 @@ public class PackDataRemoverTests
     }
 
     [Test]
+    public async Task Delete_TheFactsOfARuleset_TakesItsSidecarsAndStamp_AndNoOtherRulesets()
+    {
+        string cacheRoot = TempRoot("facts");
+        try
+        {
+            DemoCacheStore store = new(cacheRoot);
+            const string path = "/demos/facts.dem";
+            store.Update(path, 1, 1, r => r.Sha256 = "ffff");
+            const string mine = "dev_example_x__kills";
+            const string other = "dev_example_y__kills";
+            foreach (string ruleset in new[] { mine, other })
+            {
+                store.WriteSiblingBytes(path, StampedFacts.Suffix(new FactKey(ruleset, "kills_table")), [1]);
+                store.UpdateExisting(path, r => r.SetStamp(new PackStamp(StampedFacts.StampId(ruleset), StampedFacts.Schema, "fp")));
+            }
+
+            store.SaveIndex();
+            StoreDescriptor facts = new(StampedFacts.StampId(mine), "Facts", StoreRoot.Cache, ["demos/*" + StampedFacts.RulesetSuffix(mine)], false);
+
+            ExtensionDataRemovalResult result = await new PackDataRemover(store, null, cacheRoot)
+                .DeleteAsync(PackId, [facts], [StampedFacts.StampId(mine)], "fake", "delete");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Removed.Items.Single().FileCount).IsEqualTo(1);
+                await Assert.That(store.TryReadSiblingBytes(path, StampedFacts.Suffix(new FactKey(mine, "kills_table")))).IsNull();
+                await Assert.That(store.TryReadSiblingBytes(path, StampedFacts.Suffix(new FactKey(other, "kills_table")))).IsNotNull();
+                await Assert.That(store.TryGetIndex(path)!.Stamp(StampedFacts.StampId(mine))).IsNull();
+                await Assert.That(store.TryGetIndex(path)!.Stamp(StampedFacts.StampId(other))).IsNotNull();
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(cacheRoot))
+            {
+                Directory.Delete(cacheRoot, true);
+            }
+        }
+    }
+
+    [Test]
     public async Task Delete_StripsPackPayloadAndStamps_WithoutTouchingOtherPacksOrCoreFields()
     {
         string cacheRoot = TempRoot("strip");

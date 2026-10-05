@@ -47,6 +47,23 @@ public class ExtensionManifestTests
     }
 
     [Test]
+    public async Task Parse_RulesetsAreOptional_AndMustBeRulesetNames()
+    {
+        string with = Good.Replace("\"minAppVersion\": \"0.9.0\"", "\"minAppVersion\": \"0.9.0\", \"rulesets\": [\"kills\", \"economy_2\"]",
+            StringComparison.Ordinal);
+        string bad = Good.Replace("\"minAppVersion\": \"0.9.0\"", "\"minAppVersion\": \"0.9.0\", \"rulesets\": [\"My.Kills\"]",
+            StringComparison.Ordinal);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(ExtensionManifest.Parse(Good).Rulesets).IsEmpty();
+            await Assert.That(ExtensionManifest.Parse(with).Rulesets).IsEquivalentTo(["kills", "economy_2"]);
+        }
+
+        Assert.Throws<ExtensionManifestException>(() => ExtensionManifest.Parse(bad));
+    }
+
+    [Test]
     public async Task Parse_MinAppVersionIsOptional_UnknownMembersAreIgnored_CommentsAndTrailingCommasAllowed()
     {
         ExtensionManifest m = ExtensionManifest.Parse("""
