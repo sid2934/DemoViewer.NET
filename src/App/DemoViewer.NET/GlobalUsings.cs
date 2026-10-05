@@ -18,3 +18,4 @@ global using DemoViewer.NET.Extensions.Sdk;
 // The SDK's UI kit (shared controls, collections and display helpers) is used across the host's views too.
 global using DemoViewer.NET.Extensions.Sdk.Ui;
 global using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
+global using DemoViewer.NET.Extensions.Sdk.Ui.Theming;

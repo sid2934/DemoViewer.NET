@@ -43,6 +43,8 @@
         <InternalsVisibleTo Include="DemoViewer.NET.UiCapture"/>
     </ItemGroup>
 
+    <Import Project="ThemeNames.targets"/>
+
     <!-- Same rule as the app csproj: the Avalonia XAML rewrite re-embeds the .pdb path after Roslyn, which
          undoes ContinuousIntegrationBuild. No debug directory in Release leaves nothing to re-embed. -->
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">

@@ -48,6 +48,7 @@
         <Using Include="DemoViewer.NET.Extensions.Sdk"/>
         <Using Include="DemoViewer.NET.Extensions.Sdk.Ui"/>
         <Using Include="DemoViewer.NET.Extensions.Sdk.Ui.Controls"/>
+        <Using Include="DemoViewer.NET.Extensions.Sdk.Ui.Theming"/>
     </ItemGroup>
 
     <ItemGroup>
