@@ -16,14 +16,15 @@ namespace DemoViewer.NET.Extensions.Sdk;
 ///     never change. It may not be a host id the app or another extension already uses.
 /// </param>
 /// <param name="Header">The strip header.</param>
-/// <param name="Order">The strip position among the main tabs; the host's own tabs use 0 to 9.</param>
+/// <param name="Order">The strip position among the main tabs; the host's own tabs sit below 10.</param>
 /// <param name="RailLabel">The band over the section rail.</param>
 /// <param name="FeatureId">Shown only while this feature is on; null for while the extension is on.</param>
 public sealed record HubTabContribution(string Id, string Header, int Order, string RailLabel, string? FeatureId = null)
 {
     /// <summary>
     ///     State the extension keeps with the hub across launches, or null for none. Restored once, before
-    ///     any section is shown, the first time the hub's feature is on in a session.
+    ///     any section is shown, the first time the hub's feature is on in a session. Kept per extension: when
+    ///     several of an extension's hubs carry one, only the first declared is kept.
     /// </summary>
     public IExtensionSessionState? Session { get; init; }
 }
