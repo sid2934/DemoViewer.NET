@@ -566,6 +566,8 @@ DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.Equals(DemoViewer.NET.Extensions
 DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.LibrarySidePlayer(ulong SteamId64, string! Name) -> void
 DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.Name.get -> string!
 DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.Name.init -> void
+DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.Slots.get -> System.Collections.Generic.IReadOnlyList<int>!
+DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.Slots.init -> void
 DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.SteamId64.get -> ulong
 DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.SteamId64.init -> void
 DemoViewer.NET.Extensions.Sdk.LibrarySort

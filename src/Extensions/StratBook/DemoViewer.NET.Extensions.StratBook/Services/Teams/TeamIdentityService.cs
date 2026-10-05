@@ -960,24 +960,30 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         return join.Value;
     }
 
-    // Rows and slot map of one demo, cached per library row so a rewrite of the demo builds them again.
+    // Rows and slot map of one demo, cached per library row so a rewrite of the demo builds them again. The
+    // slots come off the row, so no record is read; a row written before the library kept sides joins nothing
+    // until the sides pass has read its record.
     private SideJoin? BuildJoin(string demoPath)
     {
-        if (_roundFacts?.TryGet(demoPath) is not { } rows || _library.Detail(demoPath) is not { } detail)
+        if (_roundFacts?.TryGet(demoPath) is not { } rows
+            || _library.Find(demoPath) is not { CtPlayers: { } ct, TPlayers: { } t })
         {
             return null;
+        }
+
+        Dictionary<int, string> bySlot = [];
+        foreach (LibrarySidePlayer player in ct.Concat(t))
+        {
+            foreach (int slot in player.Slots)
+            {
+                bySlot[slot] = DemoKeys.SteamIdText(player.SteamId64);
+            }
         }
 
         Dictionary<int, RoundFacts> rounds = [];
         foreach (RoundFacts row in rows.Rounds)
         {
             rounds.TryAdd(row.Number, row);
-        }
-
-        Dictionary<int, string> bySlot = [];
-        foreach (LibraryPlayer player in detail.Players)
-        {
-            bySlot[player.Slot] = DemoKeys.SteamIdText(player.SteamId64);
         }
 
         return new SideJoin(rounds, bySlot);

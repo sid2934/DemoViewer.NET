@@ -96,6 +96,9 @@ public sealed class IndexSidePlayer
 
     /// <summary>RAW name, as <see cref="CachedPlayerInfo.Name" />.</summary>
     public string Name { get; set; } = "";
+
+    /// <summary>Every slot the account held: one, or more after a reconnect.</summary>
+    public List<int> Slots { get; set; } = [];
 }
 
 /// <summary>A round boundary. Needed by clip lead-in flooring and by the round count.</summary>
@@ -499,7 +502,7 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
 
     /// <summary>
     ///     The side's players by <see cref="IsSidePlayer" />, sorted ordinally by SteamID. One account in two
-    ///     slots (a reconnect) is listed once, under the first slot's name.
+    ///     slots (a reconnect) is listed once, under the first slot's name, with both slots.
     /// </summary>
     /// <param name="side">2 = T, 3 = CT.</param>
     public List<IndexSidePlayer> SidePlayers(int side)
@@ -510,10 +513,11 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         {
             if (players.Count > 0 && string.Equals(players[^1].SteamId64, player.SteamId64, StringComparison.Ordinal))
             {
+                players[^1].Slots.Add(player.Slot);
                 continue;
             }
 
-            players.Add(new IndexSidePlayer { SteamId64 = player.SteamId64, Name = player.Name });
+            players.Add(new IndexSidePlayer { SteamId64 = player.SteamId64, Name = player.Name, Slots = [player.Slot] });
         }
 
         return players;

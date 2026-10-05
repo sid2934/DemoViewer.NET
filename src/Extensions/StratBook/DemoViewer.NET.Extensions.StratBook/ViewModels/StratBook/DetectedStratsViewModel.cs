@@ -231,7 +231,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         }
         else
         {
-            doc = _mining.Promote(row.Key, book);
+            doc = await _mining.PromoteAsync(row.Key, book);
         }
 
         StatusLine = doc is not null ? $"Added \"{doc.Name}\" to the book."

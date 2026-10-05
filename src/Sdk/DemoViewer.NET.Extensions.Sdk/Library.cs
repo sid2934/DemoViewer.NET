@@ -111,7 +111,11 @@ public enum LibraryDemoState
 /// <summary>A player on one side at the end of a demo, as the library's row carries it.</summary>
 /// <param name="SteamId64">The player's SteamID64.</param>
 /// <param name="Name">The name the demo carried, unsanitized.</param>
-public sealed record LibrarySidePlayer(ulong SteamId64, string Name);
+public sealed record LibrarySidePlayer(ulong SteamId64, string Name)
+{
+    /// <summary>Every slot the player held in the demo: one, or more after a reconnect.</summary>
+    public IReadOnlyList<int> Slots { get; init; } = [];
+}
 
 /// <summary>What the library's row says about one fact written for a demo. Reading it opens no file.</summary>
 /// <param name="Id">The facet id, such as <c>"roundfacts"</c>.</param>

@@ -527,6 +527,24 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     }
 
     /// <summary>
+    ///     <see cref="Promote(string, StratOwner, DateTime?)" /> with the build read on the processing queue, for a
+    ///     caller on the UI thread. The save runs back on the caller's context.
+    /// </summary>
+    /// <param name="key"><see cref="MinedPattern.Key" />.</param>
+    /// <param name="owner">The book.</param>
+    public async Task<StratDocument?> PromoteAsync(string key, StratOwner owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (Patterns.FirstOrDefault(p => p.Pattern.Key == key)?.Pattern is not { } pattern
+            || await PreviewAsync(pattern, owner, DateTime.UtcNow) is not { } doc)
+        {
+            return null;
+        }
+
+        return Commit(pattern, doc);
+    }
+
+    /// <summary>
     ///     Saves a previewed strat as it was shown, with a fresh id and stamps, in <paramref name="owner" />'s book.
     ///     Refused with <see cref="PromoteResult.PatternChanged" /> when the pattern under the preview's key no
     ///     longer has the medoid and rounds the preview was built from.

@@ -179,7 +179,8 @@ internal sealed class HostLibrary : IExtensionLibrary
     private static List<LibrarySidePlayer>? Side(List<IndexSidePlayer>? players) =>
         players is null
             ? null
-            : [.. players.Select(p => (Id: SteamIdOf(p.SteamId64), p.Name)).Where(p => p.Id != 0).Select(p => new LibrarySidePlayer(p.Id, p.Name))];
+            : [.. players.Select(p => (Id: SteamIdOf(p.SteamId64), p.Name, p.Slots)).Where(p => p.Id != 0)
+                .Select(p => new LibrarySidePlayer(p.Id, p.Name) { Slots = [.. p.Slots] })];
 
     private static ulong SteamIdOf(string steamId64) =>
         ulong.TryParse(steamId64, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id) ? id : 0;
@@ -247,7 +248,11 @@ internal sealed class HostLibrary : IExtensionLibrary
         && SameSide(before.TPlayers, after.TPlayers);
 
     private static bool SameSide(IReadOnlyList<LibrarySidePlayer>? a, IReadOnlyList<LibrarySidePlayer>? b) =>
-        a is null ? b is null : b is not null && a.SequenceEqual(b);
+        a is null
+            ? b is null
+            : b is not null && a.Count == b.Count && a.Zip(b).All(p => p.First.SteamId64 == p.Second.SteamId64
+                                                                      && string.Equals(p.First.Name, p.Second.Name, StringComparison.Ordinal)
+                                                                      && p.First.Slots.SequenceEqual(p.Second.Slots));
 }
 
 /// <summary>

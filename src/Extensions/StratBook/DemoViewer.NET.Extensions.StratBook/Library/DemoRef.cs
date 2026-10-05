@@ -54,7 +54,8 @@ public static class LibraryReads
 {
     /// <summary>
     ///     The demo's detail, read before returning. Call it from a pass, a job or another queue thread, where
-    ///     <see cref="IExtensionLibrary.GetDetailAsync" /> completes before it returns.
+    ///     <see cref="IExtensionLibrary.GetDetailAsync" /> completes before it returns; on the UI thread, await
+    ///     <see cref="IExtensionLibrary.GetDetailAsync" /> instead.
     /// </summary>
     /// <param name="library">The library.</param>
     /// <param name="path">The demo's path.</param>
