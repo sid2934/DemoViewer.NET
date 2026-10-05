@@ -261,18 +261,18 @@ public sealed class DemoScheduler : IDisposable
                 }
 
                 IReadOnlyList<IDemoPass> passes = _passes();
-                foreach ((string path, PassLevel level) in batch)
+                for (int i = 0; i < batch.Count; i++)
                 {
                     if (token.IsCancellationRequested)
                     {
                         // Stopped by the user: what is left stays dirty for the next event.
                         lock (_lock)
                         {
-                            foreach ((string p, PassLevel l) in batch.Where(b => !ReferenceEquals(b.Key, path)))
+                            foreach ((string path, PassLevel level) in batch.Skip(i))
                             {
-                                if (!_dirty.TryGetValue(p, out PassLevel current) || l > current)
+                                if (!_dirty.TryGetValue(path, out PassLevel current) || level > current)
                                 {
-                                    _dirty[p] = l;
+                                    _dirty[path] = level;
                                 }
                             }
 
@@ -282,7 +282,7 @@ public sealed class DemoScheduler : IDisposable
                         return;
                     }
 
-                    Plan(path, level, passes);
+                    Plan(batch[i].Key, batch[i].Value, passes);
                 }
             }
         }

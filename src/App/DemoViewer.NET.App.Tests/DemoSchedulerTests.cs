@@ -15,8 +15,8 @@ namespace DemoViewer.NET.AppTests;
 ///     changed demo is planned off the caller's thread as a queue item, every interested pass runs on one
 ///     parse, uninterested passes stay off the visit, a throwing pass is skipped for that demo for the
 ///     session, parse failures reach <c>OnFailed</c>, a refused visit is planned again when the queue has
-///     room, and the whole-library re-check plans every known demo once. Pure logic; no filesystem (the fake
-///     parser ignores the path).
+///     room, the whole-library re-check plans every known demo once, and a planning item stopped mid-batch
+///     leaves the unplanned demos dirty. Pure logic; no filesystem (the fake parser ignores the path).
 /// </summary>
 [NotInParallel]
 public class DemoSchedulerTests
@@ -441,8 +441,45 @@ public class DemoSchedulerTests
         }
     }
 
+    // The user stops the planning item part-way through a batch. The demo it was about to plan and every
+    // one after it stay dirty for the next event; the ones it already submitted are not planned again.
+    [Test]
+    public async Task Drain_StoppedMidBatch_KeepsTheUnplannedDemosDirty_AndDoesNotReplanTheSubmittedOnes()
+    {
+        using CancellationTokenSource stop = new();
+        RecordingQueue queue = new() { Defer = true, Token = stop.Token, EndPasses = true };
+        int asked = 0;
+        // The stop lands while the second demo of the batch is being planned: its visit still goes out.
+        Fake a = new("a", _ =>
+        {
+            if (Interlocked.Increment(ref asked) == 2)
+            {
+                stop.Cancel();
+            }
+
+            return true;
+        });
+        using DemoScheduler scheduler = new([a], queue, () => Array.Empty<string>());
+
+        scheduler.DemoChanged("/x/1.dem");
+        scheduler.DemoChanged("/x/2.dem");
+        scheduler.DemoChanged("/x/3.dem");
+        await queue.RunDeferredAsync();
+
+        await Assert.That(queue.Visits).HasCount().EqualTo(2).Because("the stop lands before the third demo is planned");
+
+        queue.Token = CancellationToken.None;
+        scheduler.DemoChanged("/x/4.dem");
+        await queue.RunDeferredAsync();
+
+        await Assert.That(queue.Visits.Select(v => v.Path).Order())
+            .IsEquivalentTo(["/x/1.dem", "/x/2.dem", "/x/3.dem", "/x/4.dem"], TUnit.Assertions.Enums.CollectionOrdering.Matching)
+            .Because("the demo left unplanned is planned on the next event, and no submitted demo is planned twice");
+    }
+
     // A queue that records what the scheduler submits and runs its planning item inline, or holds it when
-    // Defer is set, as the extension test doubles do.
+    // Defer is set, as the extension test doubles do. Token is the planning item's cancellation token;
+    // EndPasses reports every submitted pass as run at once, so a demo can be planned again.
     private sealed class RecordingQueue : IDemoProcessingQueue
     {
         private readonly List<QueueJobRequest> _deferred = [];
@@ -450,6 +487,8 @@ public class DemoSchedulerTests
         public List<QueueJobRequest> Jobs { get; } = [];
         public int Backgrounds { get; private set; }
         public bool Defer { get; init; }
+        public bool EndPasses { get; init; }
+        public CancellationToken Token { get; set; }
 
         public ReadOnlyObservableCollection<DemoQueueItem> Items { get; } = new([]);
         public int MaxConcurrency { get; set; } = 1;
@@ -489,6 +528,14 @@ public class DemoSchedulerTests
                 Visits.Add(request);
             }
 
+            if (EndPasses)
+            {
+                foreach (IDemoPass pass in request.Passes)
+                {
+                    request.PassEnded?.Invoke(pass, PassOutcome.Ran, null);
+                }
+            }
+
             return new RecordedHandle();
         }
 
@@ -509,7 +556,7 @@ public class DemoSchedulerTests
                 return new RecordedHandle();
             }
 
-            request.RunAsync(new InlineContext()).GetAwaiter().GetResult();
+            request.RunAsync(new InlineContext(Token)).GetAwaiter().GetResult();
             return new RecordedHandle(DemoQueueItemState.Completed);
         }
 
@@ -524,7 +571,7 @@ public class DemoSchedulerTests
 
             foreach (QueueJobRequest job in jobs)
             {
-                await job.RunAsync(new InlineContext());
+                await job.RunAsync(new InlineContext(Token));
             }
         }
 
@@ -550,9 +597,9 @@ public class DemoSchedulerTests
         {
         }
 
-        private sealed class InlineContext : IQueueJobContext
+        private sealed class InlineContext(CancellationToken token) : IQueueJobContext
         {
-            public CancellationToken CancellationToken => CancellationToken.None;
+            public CancellationToken CancellationToken => token;
 
             public void Report(int done, int total, string? detail = null)
             {
