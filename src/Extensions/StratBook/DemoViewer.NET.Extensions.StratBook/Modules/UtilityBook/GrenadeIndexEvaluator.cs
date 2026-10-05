@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     The evaluator that walks a demo's grenades: an <see cref="IExtensionPass" />

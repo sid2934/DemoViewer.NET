@@ -7,11 +7,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     Everything the review knows before the walk: the round, the demo, and what Team Identity and Round Facts

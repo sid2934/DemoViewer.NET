@@ -3,8 +3,9 @@
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

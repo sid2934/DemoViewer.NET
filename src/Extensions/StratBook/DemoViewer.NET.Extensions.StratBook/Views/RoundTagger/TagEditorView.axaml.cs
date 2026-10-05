@@ -6,11 +6,11 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 
 #endregion
 
-namespace DemoViewer.NET.Views.RoundTagger;
+namespace DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 
 /// <summary>
 ///     The tag editor's view. Enter in a box saves and Esc cancels; the 2D view's keymap ignores keys while a

@@ -4,7 +4,7 @@ using Avalonia.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Views.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
 
 /// <summary>The Strat Book's Suggested section. Bindings only; every behaviour lives on the VM.</summary>
 public partial class SuggestedInboxView : UserControl

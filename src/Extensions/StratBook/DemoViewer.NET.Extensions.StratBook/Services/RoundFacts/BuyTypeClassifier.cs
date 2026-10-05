@@ -1,4 +1,6 @@
-namespace DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.RoundFacts;
+
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 /// <summary>
 ///     The buy-type rule, over the inputs the <c>round_facts</c> ruleset captures at freeze end. The

@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>Where a team's display name came from. A user name is never overwritten.</summary>
 public enum TeamNameSource

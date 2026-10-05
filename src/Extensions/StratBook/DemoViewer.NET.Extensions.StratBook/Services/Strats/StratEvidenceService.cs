@@ -2,12 +2,12 @@
 
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>How one run of a strat ended, for the record.</summary>
 public enum RunOutcome

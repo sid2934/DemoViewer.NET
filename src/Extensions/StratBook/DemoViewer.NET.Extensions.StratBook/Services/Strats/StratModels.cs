@@ -5,10 +5,11 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 // The on-disk shapes of the Strat Book: a strat, its history line, the
 // owner-level book, the per-map callouts table and the index. Mutable classes serialized directly, the

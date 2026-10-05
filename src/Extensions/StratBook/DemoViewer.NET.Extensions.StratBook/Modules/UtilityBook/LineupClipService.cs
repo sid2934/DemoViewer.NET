@@ -18,7 +18,7 @@ using DemoViewer.NET.Services.Export;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>Renders the GIFs of one demo's planned clips. The seam every Lineup Clip test replaces.</summary>
 public interface ILineupClipRenderer

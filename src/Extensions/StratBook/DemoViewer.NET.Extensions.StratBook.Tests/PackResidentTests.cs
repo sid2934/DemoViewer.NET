@@ -2,12 +2,12 @@
 
 using System.Numerics;
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion

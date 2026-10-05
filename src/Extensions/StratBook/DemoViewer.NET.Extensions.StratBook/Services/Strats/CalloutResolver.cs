@@ -4,11 +4,11 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     A team's words over a map's canonical places. Pure over the canonical list and one

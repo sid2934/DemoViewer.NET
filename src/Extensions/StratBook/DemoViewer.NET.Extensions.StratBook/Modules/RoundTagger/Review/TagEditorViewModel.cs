@@ -4,11 +4,11 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.RoundTagger.Review;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 
 /// <summary>What a tag or a suggestion is while it is being edited: every field the editor can change.</summary>
 public sealed class TagEditorDraft

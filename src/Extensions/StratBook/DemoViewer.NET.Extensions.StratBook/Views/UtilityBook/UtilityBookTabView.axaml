@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels.UtilityBook"
-             xmlns:utility="using:DemoViewer.NET.Modules.UtilityBook"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook"
+             xmlns:utility="using:DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook"
              xmlns:controls="using:DemoViewer.NET.Controls"
-             x:Class="DemoViewer.NET.Views.UtilityBook.UtilityBookTabView"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.UtilityBook.UtilityBookTabView"
              x:DataType="vm:UtilityBookTabViewModel">
 
     <!--

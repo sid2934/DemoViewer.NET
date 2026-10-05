@@ -7,10 +7,10 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.ViewModels.Review;
-using DemoViewer.NET.Views.Review;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions.StratBook.Views.Review;
 
 #endregion
 

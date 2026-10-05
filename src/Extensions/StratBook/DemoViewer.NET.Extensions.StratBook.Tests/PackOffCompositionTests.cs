@@ -161,10 +161,10 @@ public class PackOffCompositionTests
 
             // When the pack is off, these evaluators want nothing because their Wants() predicate
             // gates on the feature flag.
-            Services.RoundFacts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<Services.RoundFacts.RoundFactsEvaluator>();
-            Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>();
-            Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>();
-            Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>();
+            DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsEvaluator roundFacts = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsEvaluator>();
+            DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator>();
+            DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService>();
+            DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator>();
 
             using (Assert.Multiple())
             {

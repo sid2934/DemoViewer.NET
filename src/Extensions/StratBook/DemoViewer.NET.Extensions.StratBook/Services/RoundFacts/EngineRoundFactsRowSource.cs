@@ -6,10 +6,11 @@ using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 /// <summary>
 ///     The engine-backed row source: reads the <c>round_facts</c> table out of the merged rules run (the

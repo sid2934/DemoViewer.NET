@@ -1,11 +1,11 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Which demos clustering may found teams from. Queue groups in Valve matchmaking and FACEIT are too

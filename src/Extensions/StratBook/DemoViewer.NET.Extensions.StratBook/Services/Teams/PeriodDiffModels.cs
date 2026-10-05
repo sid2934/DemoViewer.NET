@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     One of a team's demos as Period Diff counts it: the map, the

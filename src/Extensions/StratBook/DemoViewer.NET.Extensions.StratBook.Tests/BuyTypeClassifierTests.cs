@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

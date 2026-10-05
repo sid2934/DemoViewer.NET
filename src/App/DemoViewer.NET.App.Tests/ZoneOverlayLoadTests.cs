@@ -9,6 +9,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Zones;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 

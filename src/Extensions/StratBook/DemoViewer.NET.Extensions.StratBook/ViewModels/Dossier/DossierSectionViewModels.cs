@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 /// <summary>
 ///     A collapsible part of the Dossier: a title with its count, and whether its body shows. The open state

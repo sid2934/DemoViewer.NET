@@ -4,11 +4,12 @@ using System.Runtime.ExceptionServices;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     The tuning view's harness: builds the stored table for free (file reads

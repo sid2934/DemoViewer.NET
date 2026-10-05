@@ -2,7 +2,7 @@
 
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 using DemoViewer.NET.Extensions.StratBook.Views.Settings;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using Microsoft.Extensions.DependencyInjection;
 
 #endregion

@@ -4,7 +4,7 @@ using System.Text;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     Each demo's round index and its positions, kept as the Strat Book's per-demo data: one facet whose main

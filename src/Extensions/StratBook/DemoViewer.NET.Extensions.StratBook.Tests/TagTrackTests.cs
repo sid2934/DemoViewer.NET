@@ -7,11 +7,11 @@ using Avalonia.Input;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Modules.RoundTagger.Timeline;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 using static DemoViewer.NET.AppTests.TagTestData;
 

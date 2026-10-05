@@ -1,14 +1,15 @@
 #region
 
-using DemoViewer.NET.Modules.StratBook;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats.Mining;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

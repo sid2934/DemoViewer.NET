@@ -6,11 +6,11 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 
 #endregion
 
-namespace DemoViewer.NET.Views.RoundTagger;
+namespace DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 
 /// <summary>
 ///     The Tag Palette's view, docked by the 2D Playback view with the tab's <see cref="TagPaletteViewModel" />

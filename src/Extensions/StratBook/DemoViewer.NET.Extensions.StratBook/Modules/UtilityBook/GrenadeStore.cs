@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     Each demo's grenade rows, kept as the Strat Book's per-demo data: one facet whose payload is the throw

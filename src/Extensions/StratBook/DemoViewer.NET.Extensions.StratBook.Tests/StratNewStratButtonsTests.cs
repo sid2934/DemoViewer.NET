@@ -7,9 +7,9 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Views;
 using Microsoft.Extensions.DependencyInjection;
 

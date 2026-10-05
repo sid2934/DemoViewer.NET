@@ -1,10 +1,11 @@
 #region
 
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>One queried pair: <paramref name="Count" /> players in <paramref name="Place" />.</summary>
 /// <param name="Place">A raw place name as the rows spell it.</param>

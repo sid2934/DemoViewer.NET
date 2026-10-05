@@ -3,11 +3,12 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Threading;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 
@@ -35,7 +36,7 @@ public static partial class Variants
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             strats!.Canvas.Transport.Pause();
-            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(atSeconds, 115));
+            strats.Canvas.Transport.Seek(DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes.StepSchedule.TickFor(atSeconds, 115));
         }, DispatcherPriority.Background);
         return view;
     }
@@ -71,7 +72,7 @@ public static partial class Variants
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             strats!.Canvas.Transport.Pause();
-            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(atSeconds, 115));
+            strats.Canvas.Transport.Seek(DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes.StepSchedule.TickFor(atSeconds, 115));
         }, DispatcherPriority.Background);
         return view;
     }

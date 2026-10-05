@@ -2,11 +2,11 @@
 
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Provenance;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 
 /// <summary>
 ///     The Library card's provenance chip: badge-only, no filter. <see cref="ResolveProvenance" />

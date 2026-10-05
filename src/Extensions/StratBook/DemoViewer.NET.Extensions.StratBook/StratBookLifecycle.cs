@@ -2,17 +2,18 @@
 
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.StratBook;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

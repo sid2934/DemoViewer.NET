@@ -5,13 +5,13 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>One pending proposal as the queue lists it.</summary>
 public sealed partial class SuggestionRowViewModel : ObservableObject

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     What a thumbnail is a picture of: one demo's one round at one matched tick, under the

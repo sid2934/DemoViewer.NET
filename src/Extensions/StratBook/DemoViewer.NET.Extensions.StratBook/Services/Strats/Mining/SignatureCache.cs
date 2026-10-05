@@ -3,10 +3,12 @@
 using System.IO.Compression;
 using System.Text.Json;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.Services;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats.Mining;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 /// <summary>
 ///     A <see cref="RoundSignature" /> without its throws. Throws are attached on every mine from the Grenade Index,

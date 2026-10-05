@@ -6,12 +6,13 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 using SkiaSharp;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 

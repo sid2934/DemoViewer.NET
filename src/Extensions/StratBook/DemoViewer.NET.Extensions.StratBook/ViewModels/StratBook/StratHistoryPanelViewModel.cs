@@ -3,12 +3,13 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     Strat Version History: the append-only diff log as a pane, newest entry

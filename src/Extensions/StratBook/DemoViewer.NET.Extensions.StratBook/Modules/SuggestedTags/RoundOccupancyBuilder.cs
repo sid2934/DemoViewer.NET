@@ -3,11 +3,12 @@
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>What one walk produced: the rounds and the sparse cloud detonations are placed against.</summary>
 /// <param name="Rounds">One occupancy per live round, in round order.</param>

@@ -3,13 +3,13 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 
 #endregion
 

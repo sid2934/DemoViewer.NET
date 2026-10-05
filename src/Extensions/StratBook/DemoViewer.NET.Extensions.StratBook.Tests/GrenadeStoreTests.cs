@@ -2,7 +2,7 @@
 
 using System.Numerics;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion

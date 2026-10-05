@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
-             x:Class="DemoViewer.NET.Views.StratBook.CreateStratDialogView"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.StratBook.CreateStratDialogView"
              x:DataType="vm:CreateStratDialogViewModel">
 
     <!--

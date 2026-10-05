@@ -10,7 +10,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     Draws a Lineup Card's "landing point on the radar": the map's baked radar art with one marker
@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 ///     <para>
 ///         A map with no baked bundle on this host draws nothing (<see langword="null" />): the card
 ///         then shows the landing point as text, the same "never load-bearing" rule the library card's
-///         radar background follows (<see cref="ViewModels.Library.MapRadarConverter" />).
+///         radar background follows (<see cref="DemoViewer.NET.ViewModels.Library.MapRadarConverter" />).
 ///     </para>
 ///     <para>
 ///         One instance serves a batch of cards on the Utility Book tab: map bundles are loaded once

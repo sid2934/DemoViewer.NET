@@ -1,10 +1,11 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 /// <summary>
 ///     The seam between the engine and the record: whatever evaluates the <c>round_facts</c> ruleset

@@ -1,12 +1,12 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.ViewModels.Teams;
-using DemoViewer.NET.Views.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
+using DemoViewer.NET.Extensions.StratBook.Views.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Teams;
 
 /// <summary>
 ///     The Teams module: Team Identity's one home. Contributes the Teams view the Library tab hosts behind

@@ -7,12 +7,13 @@ using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 
@@ -211,7 +212,7 @@ public static partial class Variants
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             strats!.Canvas.Transport.Pause();
-            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(atSeconds, 115));
+            strats.Canvas.Transport.Seek(DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes.StepSchedule.TickFor(atSeconds, 115));
         }, DispatcherPriority.Background);
         return view;
     }
@@ -246,7 +247,7 @@ public static partial class Variants
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             strats!.Canvas.Transport.Pause();
-            strats.Canvas.Transport.Seek(Playback2D.Core.Keyframes.StepSchedule.TickFor(57.8, 115));
+            strats.Canvas.Transport.Seek(DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes.StepSchedule.TickFor(57.8, 115));
         }, DispatcherPriority.Background);
         return view;
     }
@@ -281,7 +282,7 @@ public static partial class Variants
             row.BringIntoView();
             Dispatcher.UIThread.Post(() =>
             {
-                if (row.GetVisualDescendants().OfType<Controls.PlaceField>().FirstOrDefault(f => f.Name == "LurkAreasField")
+                if (row.GetVisualDescendants().OfType<DemoViewer.NET.Extensions.StratBook.Controls.PlaceField>().FirstOrDefault(f => f.Name == "LurkAreasField")
                         ?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is { } box)
                 {
                     box.Focus();
@@ -355,7 +356,7 @@ public static partial class Variants
             }
 
             // Scrolled first and focused once that has settled, so the list opens where the field ends up.
-            if (lurkRow.GetVisualDescendants().OfType<Controls.PlaceField>().FirstOrDefault(f => f.Name == "LurkAreasField")
+            if (lurkRow.GetVisualDescendants().OfType<DemoViewer.NET.Extensions.StratBook.Controls.PlaceField>().FirstOrDefault(f => f.Name == "LurkAreasField")
                     ?.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() is not { } box)
             {
                 return;

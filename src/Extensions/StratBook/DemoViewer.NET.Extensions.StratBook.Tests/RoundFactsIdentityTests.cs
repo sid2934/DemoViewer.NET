@@ -7,6 +7,7 @@ using CS2DemoKit.Analysis.Yaml;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

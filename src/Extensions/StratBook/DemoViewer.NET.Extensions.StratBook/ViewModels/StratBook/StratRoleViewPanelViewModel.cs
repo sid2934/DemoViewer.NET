@@ -4,11 +4,12 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     Role View And LAN Print: one slot's parts on screen,

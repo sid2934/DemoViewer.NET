@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 // The on-disk shape of a tag sidecar (<config>/tags/demos/<sha256>.dvtag.json) and of the index beside
 // it. Mutable classes serialized directly, the DemoCacheRecord idiom, rather than a DTO layer over

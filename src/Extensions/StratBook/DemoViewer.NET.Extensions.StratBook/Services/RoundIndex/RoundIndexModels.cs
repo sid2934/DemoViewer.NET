@@ -3,10 +3,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The parameters that decide what a row means. Every one of them is in the fingerprint, so a

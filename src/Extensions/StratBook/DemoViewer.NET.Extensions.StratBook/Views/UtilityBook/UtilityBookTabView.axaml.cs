@@ -3,11 +3,11 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input.Platform;
-using DemoViewer.NET.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 
 #endregion
 
-namespace DemoViewer.NET.Views.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 
 /// <summary>
 ///     The Utility Book view. Bindings only, except the clipboard: it needs the visual tree

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     Renders a demo's missing lineup clips on the visit that walked its grenades, from that visit's parse.

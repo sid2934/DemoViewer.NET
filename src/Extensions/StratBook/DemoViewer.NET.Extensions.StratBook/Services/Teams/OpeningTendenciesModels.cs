@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     One team's Opening Tendencies: one block per map and side the team played,

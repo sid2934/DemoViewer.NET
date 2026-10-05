@@ -2,13 +2,14 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a team's <see cref="OpeningTendenciesSet" /> over the
@@ -150,7 +151,7 @@ public sealed class OpeningTendenciesService
 
             HashSet<string> roster = new(assignment.Side(endSide).Key, StringComparer.Ordinal);
             DemoContext context = new(demo.Path, record.Sha256, rate, names, grenades.Count > 0 ? grenades : null, positions, roster);
-            foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
+            foreach (RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
             {
                 if (!round.IsLive || _teams.SideAtRound(demo.Path, teamId, round.Number) is not { } side)
                 {
@@ -204,7 +205,7 @@ public sealed class OpeningTendenciesService
     /// </summary>
     /// <param name="round">The round.</param>
     /// <param name="side">The team's side that round.</param>
-    public static (KillStep Kill, int Slot, bool Won)? OpeningDuel(RoundFacts.RoundFacts round, int side)
+    public static (KillStep Kill, int Slot, bool Won)? OpeningDuel(RoundFacts round, int side)
     {
         ArgumentNullException.ThrowIfNull(round);
         HashSet<int> ours = [.. (side == 3 ? round.Ct : round.T).Slots];
@@ -233,7 +234,7 @@ public sealed class OpeningTendenciesService
     /// <param name="round">The round.</param>
     /// <param name="side">The side whose players are read: 2 = T, 3 = CT.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
-    public static (int Slot, int Tick)? Lurk(RoundPositionsDocument positions, RoundFacts.RoundFacts round, int side, int tickRate)
+    public static (int Slot, int Tick)? Lurk(RoundPositionsDocument positions, RoundFacts round, int side, int tickRate)
     {
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(round);
@@ -299,7 +300,7 @@ public sealed class OpeningTendenciesService
     private static string KindLabel(GrenadeKind kind) =>
         kind == GrenadeKind.He ? "HE" : kind.ToString().ToLowerInvariant();
 
-    private static string SiteLabel(RoundFacts.RoundFacts round) =>
+    private static string SiteLabel(RoundFacts round) =>
         round.PlantTick is null ? NoPlant : round.PlantSite == BombSite.Unknown ? "unknown site" : round.PlantSite.ToString();
 
     private static string NameOf(DemoContext demo, int slot) =>
@@ -390,7 +391,7 @@ public sealed class OpeningTendenciesService
 
         public int RoundCount => _rounds.Count;
 
-        public void Add(DemoContext demo, RoundFacts.RoundFacts round, int side)
+        public void Add(DemoContext demo, RoundFacts round, int side)
         {
             int rate = demo.Rate;
             int freezeEnd = round.FreezeEndTick;
@@ -480,7 +481,7 @@ public sealed class OpeningTendenciesService
         };
 
         // The clip for a round, clamped to the live window: never before freeze end, never past the end.
-        private static TendencyRound Clip(DemoContext demo, RoundFacts.RoundFacts round, int from, int to)
+        private static TendencyRound Clip(DemoContext demo, RoundFacts round, int from, int to)
         {
             int start = Math.Max(round.FreezeEndTick, from);
             int end = round.EndTick is { } e ? Math.Min(e, to) : to;

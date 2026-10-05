@@ -2,14 +2,15 @@
 
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats.Mining;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 /// <summary>A grenade with the lineup the Grenade Index put it in.</summary>
 public sealed record MiningGrenade(IndexedGrenade Grenade, Guid? LineupId);
@@ -249,7 +250,7 @@ public sealed class RoundSignatureBuilder
         }
 
         List<CachedSignature> signatures = [];
-        foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
+        foreach (RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
         {
             if (!round.IsLive || positions.Round(round.Number) is not { } stored)
             {
@@ -401,7 +402,7 @@ public sealed class RoundSignatureBuilder
     }
 
     private sealed record Context(
-        RoundFacts.RoundFacts Round,
+        RoundFacts Round,
         int Side,
         int Rate,
         RoundPositionsDocument Positions,

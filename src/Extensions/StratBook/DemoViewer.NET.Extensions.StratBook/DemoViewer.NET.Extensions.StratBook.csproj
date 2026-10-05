@@ -3,10 +3,9 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-        <!-- The pack keeps the app's namespaces (DemoViewer.NET.Services.*, .ViewModels.*, .Views.*), so the
-             root namespace is the app's. The assembly name is what the heads reference and the ViewLocator
-             searches. -->
-        <RootNamespace>DemoViewer.NET</RootNamespace>
+        <!-- Its own namespace, so a type of the app it still uses needs a using and shows up as one. The
+             assembly name is what the heads reference and the ViewLocator searches. -->
+        <RootNamespace>DemoViewer.NET.Extensions.StratBook</RootNamespace>
         <AssemblyName>DemoViewer.NET.Extensions.StratBook</AssemblyName>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     </PropertyGroup>

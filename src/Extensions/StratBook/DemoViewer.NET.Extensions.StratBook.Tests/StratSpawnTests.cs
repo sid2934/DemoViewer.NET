@@ -2,12 +2,12 @@
 
 using System.Collections.Concurrent;
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
 

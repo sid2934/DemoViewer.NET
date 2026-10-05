@@ -11,12 +11,12 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.ViewModels.UtilityBook;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 #endregion
 
@@ -74,8 +74,8 @@ public class StratEditorRoomTests
 
             // Each location field keeps room for its text beside its buttons.
             List<string> narrow = [];
-            List<Controls.PlaceField> fields = [.. content.GetVisualDescendants().OfType<Controls.PlaceField>().Where(f => f.IsEffectivelyVisible)];
-            foreach (Controls.PlaceField field in fields)
+            List<DemoViewer.NET.Extensions.StratBook.Controls.PlaceField> fields = [.. content.GetVisualDescendants().OfType<DemoViewer.NET.Extensions.StratBook.Controls.PlaceField>().Where(f => f.IsEffectivelyVisible)];
+            foreach (DemoViewer.NET.Extensions.StratBook.Controls.PlaceField field in fields)
             {
                 double text = field.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.TextPresenter>().FirstOrDefault()?.Bounds.Width ?? 0;
                 if (text < 45)

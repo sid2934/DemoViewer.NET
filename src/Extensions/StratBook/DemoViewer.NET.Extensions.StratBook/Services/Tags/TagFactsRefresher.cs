@@ -2,10 +2,11 @@
 
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>
 ///     Keeps every tag instance's <see cref="TagInstance.Facts" /> in step with its round's Round Facts:
@@ -158,7 +159,7 @@ public sealed class TagFactsRefresher : IExtensionResident, IDisposable
     /// <param name="rounds">The demo's rounds, in number order.</param>
     /// <param name="schema">The Round Facts schema, for the stamp.</param>
     /// <param name="utcNow">The stamp's time.</param>
-    public static void RefreshInstance(TagInstance instance, IReadOnlyList<RoundFacts.RoundFacts> rounds, int schema,
+    public static void RefreshInstance(TagInstance instance, IReadOnlyList<RoundFacts> rounds, int schema,
         DateTime utcNow)
     {
         ArgumentNullException.ThrowIfNull(instance);
@@ -196,7 +197,7 @@ public sealed class TagFactsRefresher : IExtensionResident, IDisposable
     /// </summary>
     /// <param name="round">The round.</param>
     /// <param name="fromTick">The instance's start, for the tick-anchored facts.</param>
-    public static List<TagLabel> FactsOf(RoundFacts.RoundFacts round, int fromTick) =>
+    public static List<TagLabel> FactsOf(RoundFacts round, int fromTick) =>
         [.. RoundFactsSource.Labels(round, fromTick).Select(f => new TagLabel(f.Key, f.Value))];
 
     private void OnUpdated(string demoPath)

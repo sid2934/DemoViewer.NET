@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     Fake then rotate: an execute at <c>Y</c> preceded, between

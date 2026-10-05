@@ -74,7 +74,7 @@ public class PackBoundaryTests
             ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
 
         // Pack-owned namespaces: declared in the extension project and never in the app project. A namespace
-        // both declare (Services.Zones, Services.RoundFacts, Services.RoundIndex) is shared and
+        // both declare (Services.Zones, Services.RoundFacts, DemoViewer.NET.Extensions.StratBook.Services.RoundIndex) is shared and
         // left to the compiler.
         HashSet<string> packOwnedNamespaces = FindPackOwnedNamespaces(repoRoot);
 

@@ -7,10 +7,11 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services.RoundFacts;
 using Microsoft.Extensions.Logging;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>
 ///     The tag palettes on offer, loaded the way themes are
@@ -478,7 +479,7 @@ public static class TagPaletteValidator
         HashSet<string> groups = new(StratGroups, StringComparer.Ordinal);
 
         // Every optional fact present, so Labels emits every name it can; the values are irrelevant.
-        Services.RoundFacts.RoundFacts probe = new()
+        DemoViewer.NET.Services.RoundFacts.RoundFacts probe = new()
         {
             Number = 1,
             MatchRoundNumber = 1,

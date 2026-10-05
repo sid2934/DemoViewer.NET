@@ -1,8 +1,8 @@
 #region
 
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.Dossier;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 #endregion
 

@@ -2,13 +2,14 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     The filter rail's values as one plain object: what the rail's fields hold, with no options, no

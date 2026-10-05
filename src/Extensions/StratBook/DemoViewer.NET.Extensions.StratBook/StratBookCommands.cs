@@ -3,7 +3,7 @@
 using Avalonia.Input;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 #endregion
 

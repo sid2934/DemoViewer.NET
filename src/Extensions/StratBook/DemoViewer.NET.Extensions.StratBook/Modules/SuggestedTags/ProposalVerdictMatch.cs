@@ -1,11 +1,11 @@
 #region
 
 using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>One proposal with the verdict it already has, if any.</summary>
 /// <param name="Proposal">The proposal as the detectors made it.</param>

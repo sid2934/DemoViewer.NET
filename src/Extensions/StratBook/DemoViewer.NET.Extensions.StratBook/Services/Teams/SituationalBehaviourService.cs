@@ -2,10 +2,11 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a team's <see cref="SituationalBehaviourSet" /> over
@@ -25,7 +26,7 @@ namespace DemoViewer.NET.Services.Teams;
 ///         <b>Anti-eco</b> is any round where the opponent's side bought <see cref="BuyType.Eco" /> or
 ///         <see cref="BuyType.Semi" />, regardless of the team's own buy. <b>Man advantage</b> is read from
 ///         <see cref="KillStep.CtAlive" />/<see cref="KillStep.TAlive" />, which every kill in
-///         <see cref="RoundFacts.RoundFacts.Kills" /> already carries: the largest alive-count edge the team
+///         <see cref="RoundFacts.Kills" /> already carries: the largest alive-count edge the team
 ///         held from freeze end to the round's end, the size of it and the tick it was first reached.
 ///     </para>
 ///     <para>
@@ -95,14 +96,14 @@ public sealed class SituationalBehaviourService
                 rate = FallbackTickRate;
             }
 
-            Dictionary<int, RoundFacts.RoundFacts> byNumber = [];
-            foreach (RoundFacts.RoundFacts row in rows.Rounds)
+            Dictionary<int, RoundFacts> byNumber = [];
+            foreach (RoundFacts row in rows.Rounds)
             {
                 byNumber[row.Number] = row;
             }
 
             DemoContext context = new(demo.Path, record.Sha256, rate);
-            foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
+            foreach (RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
             {
                 if (!round.IsLive || _teams.SideAtRound(demo.Path, teamId, round.Number) is not { } side)
                 {
@@ -115,7 +116,7 @@ public sealed class SituationalBehaviourService
                     cells[(map, side)] = cell;
                 }
 
-                byNumber.TryGetValue(round.Number + 1, out RoundFacts.RoundFacts? next);
+                byNumber.TryGetValue(round.Number + 1, out RoundFacts? next);
                 int? nextSide = next is { IsLive: true } ? _teams.SideAtRound(demo.Path, teamId, next.Number) : null;
                 cell.Add(context, round, side, next, nextSide);
             }
@@ -143,7 +144,7 @@ public sealed class SituationalBehaviourService
     /// <summary>"won"/"lost"/"no result" for the side in the round, the vocabulary <see cref="PistolFollowUpLabel" /> combines.</summary>
     /// <param name="round">The round.</param>
     /// <param name="side">The team's side that round.</param>
-    public static string ResultWord(RoundFacts.RoundFacts round, int side)
+    public static string ResultWord(RoundFacts round, int side)
     {
         ArgumentNullException.ThrowIfNull(round);
         return round.WinnerSide == side ? "won" : round.WinnerSide is 2 or 3 ? "lost" : "no result";
@@ -153,7 +154,7 @@ public sealed class SituationalBehaviourService
     /// <param name="pistol">The pistol round.</param>
     /// <param name="bonus">Round <c>N + 1</c>.</param>
     /// <param name="side">The team's side in both.</param>
-    public static string PistolFollowUpLabel(RoundFacts.RoundFacts pistol, RoundFacts.RoundFacts bonus, int side) =>
+    public static string PistolFollowUpLabel(RoundFacts pistol, RoundFacts bonus, int side) =>
         $"{ResultWord(pistol, side)} pistol, {ResultWord(bonus, side)} the bonus";
 
     /// <summary>The buy vocabulary's own label, lower case: "eco", "semi buy", "force buy", "full buy", "pistol", "unknown buy".</summary>
@@ -168,14 +169,14 @@ public sealed class SituationalBehaviourService
         _ => "unknown buy"
     };
 
-    private static TendencyRound FullRoundClip(DemoContext demo, RoundFacts.RoundFacts round) =>
+    private static TendencyRound FullRoundClip(DemoContext demo, RoundFacts round) =>
         ClipRange(demo, round, round.FreezeEndTick, round.EndTick ?? round.FreezeEndTick + FallbackRoundSeconds * demo.Rate);
 
-    private static TendencyRound MomentClip(DemoContext demo, RoundFacts.RoundFacts round, int tick) =>
+    private static TendencyRound MomentClip(DemoContext demo, RoundFacts round, int tick) =>
         ClipRange(demo, round, tick - ClipLeadSeconds * demo.Rate, tick + ClipTailSeconds * demo.Rate);
 
     // The clip for a round, clamped to the live window: never before freeze end, never past the end.
-    private static TendencyRound ClipRange(DemoContext demo, RoundFacts.RoundFacts round, int from, int to)
+    private static TendencyRound ClipRange(DemoContext demo, RoundFacts round, int from, int to)
     {
         int start = Math.Max(round.FreezeEndTick, from);
         int end = round.EndTick is { } e ? Math.Min(e, to) : to;
@@ -256,7 +257,7 @@ public sealed class SituationalBehaviourService
 
         public int RoundCount => _rounds.Count;
 
-        public void Add(DemoContext demo, RoundFacts.RoundFacts round, int side, RoundFacts.RoundFacts? next, int? nextSide)
+        public void Add(DemoContext demo, RoundFacts round, int side, RoundFacts? next, int? nextSide)
         {
             TendencyRound clip = FullRoundClip(demo, round);
             _rounds.Add(clip);
@@ -286,7 +287,7 @@ public sealed class SituationalBehaviourService
             SaveDiscipline = _saveDiscipline.Ranked()
         };
 
-        private void AddPistol(DemoContext demo, RoundFacts.RoundFacts round, int side, RoundFacts.RoundFacts? next, int? nextSide,
+        private void AddPistol(DemoContext demo, RoundFacts round, int side, RoundFacts? next, int? nextSide,
             TendencyRound clip)
         {
             BuyType ownBuy = side == 3 ? round.Ct.BuyType : round.T.BuyType;
@@ -303,7 +304,7 @@ public sealed class SituationalBehaviourService
             }
         }
 
-        private void AddAntiEco(DemoContext demo, RoundFacts.RoundFacts round, int side, TendencyRound clip)
+        private void AddAntiEco(DemoContext demo, RoundFacts round, int side, TendencyRound clip)
         {
             BuyType enemyBuy = side == 3 ? round.T.BuyType : round.Ct.BuyType;
             if (enemyBuy is not (BuyType.Eco or BuyType.Semi))
@@ -325,7 +326,7 @@ public sealed class SituationalBehaviourService
             }
         }
 
-        private void AddManAdvantage(DemoContext demo, RoundFacts.RoundFacts round, int side)
+        private void AddManAdvantage(DemoContext demo, RoundFacts round, int side)
         {
             int ct = round.Ct.PlayersAtFreezeEnd;
             int t = round.T.PlayersAtFreezeEnd;
@@ -354,7 +355,7 @@ public sealed class SituationalBehaviourService
             _manAdvantageOutcomes.Add(round.WinnerSide == side ? "closed it out" : round.WinnerSide is 2 or 3 ? "lead given back" : "no result", clip);
         }
 
-        private void AddSaveDiscipline(DemoContext demo, RoundFacts.RoundFacts round, int side, RoundFacts.RoundFacts? next, int? nextSide,
+        private void AddSaveDiscipline(DemoContext demo, RoundFacts round, int side, RoundFacts? next, int? nextSide,
             TendencyRound clip)
         {
             if (round.WinnerSide is not (2 or 3) || round.WinnerSide == side)

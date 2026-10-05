@@ -5,10 +5,12 @@ using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
 using System.Text.Json;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.Services;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Teams as data: who played in which demo, which team is us, and who the opponent was.
@@ -903,7 +905,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
 
         if (key is null || key.Count == 0 || JoinFor(demoPath) is not { } join
-            || !join.Rounds.TryGetValue(roundNumber, out RoundFacts.RoundFacts? round))
+            || !join.Rounds.TryGetValue(roundNumber, out RoundFacts? round))
         {
             return null;
         }
@@ -966,8 +968,8 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             return null;
         }
 
-        Dictionary<int, RoundFacts.RoundFacts> rounds = [];
-        foreach (RoundFacts.RoundFacts row in rows.Rounds)
+        Dictionary<int, RoundFacts> rounds = [];
+        foreach (RoundFacts row in rows.Rounds)
         {
             rounds.TryAdd(row.Number, row);
         }
@@ -981,7 +983,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         return new SideJoin(rounds, bySlot);
     }
 
-    private sealed record SideJoin(Dictionary<int, RoundFacts.RoundFacts> Rounds, Dictionary<int, string> BySlot);
+    private sealed record SideJoin(Dictionary<int, RoundFacts> Rounds, Dictionary<int, string> BySlot);
 
     private sealed record JoinSlot(string Path, LibraryDemo Entry, Lazy<SideJoin?> Join);
 

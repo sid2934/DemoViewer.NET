@@ -3,12 +3,12 @@
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.ViewModels.SuggestedTags;
-using DemoViewer.NET.Views.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     The Suggested section of the Strat Book's rail: every demo's tag suggestions in one inbox. The ids are
@@ -64,7 +64,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
             TabId = TabId,
             Header = "Suggested",
             Order = 6, // after Dossier (5)
-            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new SuggestedInboxView()

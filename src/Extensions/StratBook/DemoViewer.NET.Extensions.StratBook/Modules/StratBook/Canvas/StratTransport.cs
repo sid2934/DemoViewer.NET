@@ -2,11 +2,11 @@
 
 using System.Diagnostics;
 using Avalonia.Threading;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook.Canvas;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 /// <summary>A repeating callback with the seconds since the previous one: the transport's clock source.</summary>
 public interface IStratTicker

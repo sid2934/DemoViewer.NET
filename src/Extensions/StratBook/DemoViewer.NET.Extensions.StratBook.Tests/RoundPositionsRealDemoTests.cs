@@ -5,14 +5,15 @@ using System.Diagnostics;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

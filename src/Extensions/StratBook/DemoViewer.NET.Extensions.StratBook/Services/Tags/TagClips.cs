@@ -5,7 +5,7 @@ using DemoViewer.NET.Services.Review;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>Tag instances as Review Queue clips. The queue is core and knows no tag type; this is the join.</summary>
 public static class TagClips

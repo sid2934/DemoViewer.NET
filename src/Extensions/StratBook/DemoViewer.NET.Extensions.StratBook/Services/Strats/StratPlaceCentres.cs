@@ -4,7 +4,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     Where each place of one map is, for a token that watches it: the area-weighted centre of the place's nav

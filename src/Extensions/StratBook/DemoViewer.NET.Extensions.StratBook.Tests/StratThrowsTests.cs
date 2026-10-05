@@ -1,14 +1,14 @@
 #region
 
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.ViewModels.Playback2D;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using GrenadeKind = DemoViewer.NET.Playback2D.Core.GrenadeKind;
 

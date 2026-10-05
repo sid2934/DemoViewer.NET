@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook"
              xmlns:modules="using:DemoViewer.NET.Modules.Abstractions"
-             x:Class="DemoViewer.NET.Views.StratBook.StratBookHubView"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.StratBook.StratBookHubView"
              x:DataType="vm:StratBookHubViewModel">
 
     <!--

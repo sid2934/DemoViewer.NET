@@ -12,7 +12,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Views;
 
 #endregion

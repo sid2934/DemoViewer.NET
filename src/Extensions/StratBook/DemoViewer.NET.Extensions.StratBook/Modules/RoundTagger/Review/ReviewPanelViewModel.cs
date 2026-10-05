@@ -4,14 +4,14 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Services.Strats.Mining;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.RoundTagger.Review;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 
 /// <summary>One written tag, as the Labels list shows it.</summary>
 public sealed partial class TagRowViewModel : ObservableObject

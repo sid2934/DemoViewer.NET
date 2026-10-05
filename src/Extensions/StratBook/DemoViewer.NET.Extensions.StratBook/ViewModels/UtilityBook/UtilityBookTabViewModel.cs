@@ -8,16 +8,17 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Utility;
-using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
+using GrenadeKind = DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeKind;
 using GrenadeTrailPoint = DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 
 /// <summary>A picker entry: the label shown and the value it stands for, null for "any".</summary>
 /// <typeparam name="T">The value type.</typeparam>

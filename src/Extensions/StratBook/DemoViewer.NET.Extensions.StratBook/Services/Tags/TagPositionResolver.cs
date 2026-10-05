@@ -6,7 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>
 ///     Turns a click on a 2D pane into a <see cref="TagPosition" />: the world point, the

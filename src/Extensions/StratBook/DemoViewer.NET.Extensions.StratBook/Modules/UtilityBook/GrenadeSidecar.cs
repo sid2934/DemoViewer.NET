@@ -5,10 +5,12 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.Modules;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>How the rows were made: the header block both grenade siblings carry.</summary>
 public sealed class GrenadeWalkerHeader

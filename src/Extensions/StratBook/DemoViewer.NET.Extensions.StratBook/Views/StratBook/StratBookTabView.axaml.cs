@@ -9,12 +9,12 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.Views.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 /// <summary>
 ///     The Strat Book tab view. Bindings, plus the step rows' focus and keys; behaviour lives on the VM.

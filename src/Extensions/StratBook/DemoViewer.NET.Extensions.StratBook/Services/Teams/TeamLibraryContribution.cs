@@ -5,7 +5,7 @@ using DemoViewer.NET.Modules.Library;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     The Library's Team filter: "All teams", "Us", then every visible team. Offers no badge.

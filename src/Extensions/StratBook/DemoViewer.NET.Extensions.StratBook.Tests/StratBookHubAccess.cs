@@ -3,7 +3,7 @@
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 

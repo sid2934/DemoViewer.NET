@@ -2,7 +2,7 @@
 
 using System.Numerics;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     <see cref="ProjectileThrowerMatch" /> (#56, #59) over hand-built <see cref="ProjectileSample" /> rows: no
 ///     demo, no walk, the synthetic matching tests the wiring calls for. The two consumers
-///     (<see cref="DemoViewer.NET.Services.Strats.RoundCaptureWalker" />, <see cref="DemoViewer.NET.Modules.SuggestedTags.DetonationEvents" />)
+///     (<see cref="DemoViewer.NET.Extensions.StratBook.Services.Strats.RoundCaptureWalker" />, <see cref="DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.DetonationEvents" />)
 ///     are covered where they live.
 /// </summary>
 public class ProjectileThrowerMatchTests

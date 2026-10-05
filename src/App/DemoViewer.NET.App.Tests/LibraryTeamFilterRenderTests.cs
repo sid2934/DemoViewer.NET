@@ -6,7 +6,7 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.Views.Library;
 

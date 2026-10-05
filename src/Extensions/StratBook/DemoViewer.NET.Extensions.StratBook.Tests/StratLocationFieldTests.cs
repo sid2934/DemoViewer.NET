@@ -14,17 +14,18 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Controls;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratMapFirstTests;
 using static DemoViewer.NET.AppTests.StratTestData;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 
@@ -740,7 +741,7 @@ public partial class StratLocationFieldTests
             StratStep lurk = StratStepEditingTests.Step(100, "E", "lurk");
             lurk.Lurk = new StepLurk { Rotate = new LurkRotate { AtSeconds = 60 } };
             StratStepEditingTests.Seed(vm, lurk);
-            Views.StratBook.StratBookTabView view = new() { DataContext = vm };
+            DemoViewer.NET.Extensions.StratBook.Views.StratBook.StratBookTabView view = new() { DataContext = vm };
             Window window = new() { Width = 1280, Height = 800, Content = view };
             window.Show();
             Dispatcher.UIThread.RunJobs();

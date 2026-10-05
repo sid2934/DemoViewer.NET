@@ -7,14 +7,15 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

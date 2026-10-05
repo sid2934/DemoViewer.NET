@@ -3,10 +3,11 @@
 using System.Collections;
 using System.Globalization;
 using System.Text.Json;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 /// <summary>
 ///     Coercions for table cells and cached scalars. A cell arrives as whatever the row source used

@@ -2,15 +2,17 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using System.Diagnostics;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using TUnit.Core.Exceptions;
 using DemoViewer.NET.Services.Zones;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 

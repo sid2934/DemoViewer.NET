@@ -6,7 +6,7 @@ using DemoViewer.NET.Services;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     A lineup's fixed identity: where it is thrown from and where it lands, as first seen. Never moves, so

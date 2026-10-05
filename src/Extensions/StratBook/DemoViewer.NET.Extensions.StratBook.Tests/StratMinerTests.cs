@@ -1,7 +1,7 @@
 #region
 
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 #endregion
 

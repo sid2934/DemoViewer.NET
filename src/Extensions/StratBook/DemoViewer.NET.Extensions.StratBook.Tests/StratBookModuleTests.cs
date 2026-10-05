@@ -3,11 +3,11 @@
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -56,7 +56,7 @@ public class StratBookModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.stratbook");
             await Assert.That(tab.TabId).IsEqualTo("stratbook.browser");
             await Assert.That(tab.Header).IsEqualTo("Strats");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId);
             await Assert.That(tab.Order).IsEqualTo(0).Because("first on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();

@@ -6,13 +6,13 @@ using Avalonia.Input;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Modules.RoundTagger.Timeline;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion

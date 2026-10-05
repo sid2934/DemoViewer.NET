@@ -7,10 +7,11 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.RoundFacts;
 using Microsoft.Extensions.Logging;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The per-session in-memory situation index: the only reader of the sidecars at query time.
@@ -540,7 +541,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
                     factsRows = _facts?.TryGet(factsPath);
                 }
 
-                RoundFacts.RoundFacts? facts = factsRows?.Rounds.FirstOrDefault(r => r.Number == candidate.Round.Number);
+                RoundFacts? facts = factsRows?.Rounds.FirstOrDefault(r => r.Number == candidate.Round.Number);
                 if (facts is null || !RoundFactsSource.Matches(candidate.Demo.Path, facts, filter))
                 {
                     continue;

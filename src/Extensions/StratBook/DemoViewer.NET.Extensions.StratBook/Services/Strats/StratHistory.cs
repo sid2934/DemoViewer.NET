@@ -7,7 +7,7 @@ using System.Text.Json.Nodes;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The history log's pure half: applying ops, materializing a revision from the log,

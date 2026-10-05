@@ -1,10 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
-             xmlns:sb="using:DemoViewer.NET.Views.StratBook"
-             xmlns:canvas="using:DemoViewer.NET.Modules.StratBook.Canvas"
-             xmlns:c="using:DemoViewer.NET.Controls"
-             x:Class="DemoViewer.NET.Views.StratBook.StratBookTabView"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook"
+             xmlns:sb="using:DemoViewer.NET.Extensions.StratBook.Views.StratBook"
+             xmlns:canvas="using:DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas"
+             xmlns:c="using:DemoViewer.NET.Extensions.StratBook.Controls"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.StratBook.StratBookTabView"
              x:DataType="vm:StratBookTabViewModel">
 
     <!--

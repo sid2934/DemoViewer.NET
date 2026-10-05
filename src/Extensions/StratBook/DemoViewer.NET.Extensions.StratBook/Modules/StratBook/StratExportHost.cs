@@ -6,7 +6,7 @@ using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 
 /// <summary>
 ///     What the Strat Book tab needs for a strat export and cannot see through <c>IModuleContext</c>: the

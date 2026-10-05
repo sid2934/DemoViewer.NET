@@ -4,15 +4,16 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Features;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 

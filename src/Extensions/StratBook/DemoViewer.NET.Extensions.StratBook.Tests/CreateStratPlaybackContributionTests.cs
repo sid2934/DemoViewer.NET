@@ -10,9 +10,9 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.StratBook;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 

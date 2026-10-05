@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Keyframes;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 /// <summary>
 ///     The ten tokens' tracks, at most one per slot, kept in <see cref="TokenSlots.All" /> order so a

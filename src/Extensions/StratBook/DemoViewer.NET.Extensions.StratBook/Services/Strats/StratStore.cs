@@ -3,10 +3,11 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Services;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The Strat Book's persisted store: <c>&lt;config&gt;/strats/index.json</c>

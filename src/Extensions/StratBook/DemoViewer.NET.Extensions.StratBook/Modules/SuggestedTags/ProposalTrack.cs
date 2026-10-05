@@ -6,7 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>How sure a proposal is, in the three steps the track tints by.</summary>
 public enum ConfidenceStep

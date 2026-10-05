@@ -3,7 +3,7 @@
 using System.Security.Cryptography;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Services.Dependencies;

@@ -6,7 +6,7 @@ using Avalonia.Input;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 // The on-disk shape of a tag palette (<config>/palettes/<name>.tagpalette.json): the
 // tagging vocabulary as data, so a team authors its own codes and panels without a build. Palettes are

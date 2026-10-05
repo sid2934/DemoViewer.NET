@@ -5,12 +5,13 @@ using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 

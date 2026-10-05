@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Provenance;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 
 /// <summary>
 ///     The read API over demo provenance labels: the one lookup the Strat Record Panel

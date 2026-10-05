@@ -5,7 +5,7 @@ using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     What decides whether a demo's index rows are current. Anything that changes what a row means is

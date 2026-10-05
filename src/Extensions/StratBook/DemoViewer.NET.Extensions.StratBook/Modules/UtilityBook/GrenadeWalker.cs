@@ -10,7 +10,7 @@ using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>What one walk is asked for.</summary>
 /// <param name="TrajectoryStride">Keep every n-th moved sample of each flight; bounce vertices are always kept.</param>

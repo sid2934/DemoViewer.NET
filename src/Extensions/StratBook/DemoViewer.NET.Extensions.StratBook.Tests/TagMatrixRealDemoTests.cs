@@ -5,10 +5,11 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
-using DemoViewer.NET.ViewModels.RoundTagger;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
 using static DemoViewer.NET.AppTests.TagTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

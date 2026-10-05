@@ -19,6 +19,7 @@ using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Tutorial;
 using DemoViewer.NET.Views;
 using Path = System.IO.Path;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 

@@ -7,15 +7,16 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.RoundTagger;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
 
 /// <summary>
 ///     The Matrix: a pivot over every tag instance in scope, codes down the

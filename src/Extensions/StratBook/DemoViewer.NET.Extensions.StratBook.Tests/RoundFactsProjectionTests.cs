@@ -3,6 +3,7 @@
 using System.Text.Json;
 using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

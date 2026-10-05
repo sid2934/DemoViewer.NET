@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     What the user did to one team's Dossier: the findings

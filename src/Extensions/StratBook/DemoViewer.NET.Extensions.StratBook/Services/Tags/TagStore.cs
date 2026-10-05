@@ -2,10 +2,11 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Services;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>
 ///     The Round Tagger's persisted store: <c>&lt;config&gt;/tags/index.json</c> plus one

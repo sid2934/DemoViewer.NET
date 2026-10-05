@@ -6,7 +6,7 @@ using System.Text.Json.Nodes;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The one writer of a step's lines. An edit takes the step's lines as <see cref="StratStepLines.Of" /> reads

@@ -2,13 +2,13 @@
 
 using System.Globalization;
 using System.Text.RegularExpressions;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook.Canvas;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 /// <summary>
 ///     The zip check: an authored departure on a travel or lurk step that the token cannot reach

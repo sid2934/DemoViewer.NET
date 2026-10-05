@@ -7,7 +7,7 @@ using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     The named thresholds and the pure classification steps of the grenade walk.

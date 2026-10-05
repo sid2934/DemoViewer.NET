@@ -1,7 +1,7 @@
 #region
 
 using Avalonia.Input;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 

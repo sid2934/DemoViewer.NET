@@ -2,12 +2,12 @@
 
 using System.Globalization;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>What kind of position entry a <c>placed</c> chip shows.</summary>
 public enum StratPlacedKind

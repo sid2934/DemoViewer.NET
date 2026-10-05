@@ -8,12 +8,12 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Utility;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
-using DemoViewer.NET.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     The Utility Book map: a <see cref="MapSceneHost" /> with the <see cref="UtilityMapLayer" /> over the

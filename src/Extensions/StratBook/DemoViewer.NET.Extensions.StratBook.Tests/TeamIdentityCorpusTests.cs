@@ -2,7 +2,7 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

@@ -8,12 +8,13 @@ using Avalonia.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Controls;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     The strat editor in the Strat Book tab: metadata, the five slots, the step table on

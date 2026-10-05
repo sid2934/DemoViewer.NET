@@ -3,10 +3,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     One demo's proposals, <c>&lt;cache&gt;/suggestions/&lt;StableKey&gt;.json</c> (schema 1). Derived and

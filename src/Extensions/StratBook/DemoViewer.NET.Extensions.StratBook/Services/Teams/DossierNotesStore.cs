@@ -3,10 +3,11 @@
 using System.Globalization;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     The user's edits to each team's Dossier: stars, rewritten

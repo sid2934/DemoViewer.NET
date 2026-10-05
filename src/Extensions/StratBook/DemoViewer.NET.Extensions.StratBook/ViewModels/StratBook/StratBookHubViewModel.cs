@@ -7,7 +7,7 @@ using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     The Strat Book tab: one Main-strip tab whose left rail lists the Strat Room's surfaces as sections

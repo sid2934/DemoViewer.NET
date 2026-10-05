@@ -4,12 +4,13 @@ using DemoViewer.NET.Extensions.StratBook;
 using System.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

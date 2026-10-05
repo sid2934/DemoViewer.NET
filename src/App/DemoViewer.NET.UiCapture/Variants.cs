@@ -31,13 +31,13 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.LiveSync;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Commands;
@@ -69,6 +69,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Path = System.IO.Path;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 
@@ -1426,7 +1427,7 @@ public static partial class Variants
                 () => new SuggestedTagsTuningViewModel(
                     new SuggestedTagsTuningService(
                         DemoViewer.NET.Extensions.HostLibrary.For(cache, null),
-                        new SuggestedTagsService(DemoViewer.NET.Extensions.HostLibrary.For(cache, null), new Services.RoundFacts.RoundFactsSource(cache),
+                        new SuggestedTagsService(DemoViewer.NET.Extensions.HostLibrary.For(cache, null), new DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass.RoundFactsSource(cache),
                             new ProposalStore(MemoryDemoData.For(DemoViewer.NET.Extensions.HostLibrary.For(cache, null))), null, new SiteRegionStore(null),
                             () => new ProfileStore(null).Current, () => true, () => false),
                         null,

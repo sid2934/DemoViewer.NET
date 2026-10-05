@@ -11,7 +11,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 
 /// <summary>
 ///     Draws one Setup Heatmap: the map's radar with the Overlay View's heatmap layer over it, fed an

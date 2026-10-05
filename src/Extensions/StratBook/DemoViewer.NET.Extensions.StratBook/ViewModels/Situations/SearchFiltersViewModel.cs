@@ -4,14 +4,16 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 /// <summary>One choice of a filter field. The base carries the text the ComboBox renders; the typed record carries the value.</summary>
 /// <param name="Display">The label.</param>

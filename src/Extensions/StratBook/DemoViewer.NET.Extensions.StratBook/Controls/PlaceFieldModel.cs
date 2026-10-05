@@ -3,11 +3,12 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Controls;
+namespace DemoViewer.NET.Extensions.StratBook.Controls;
 
 /// <summary>One callout a location list offers: the canonical place stored, the owner's word shown.</summary>
 /// <param name="Place">The canonical place.</param>

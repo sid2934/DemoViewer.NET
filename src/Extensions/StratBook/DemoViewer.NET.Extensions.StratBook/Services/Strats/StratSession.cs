@@ -6,7 +6,7 @@ using System.Text.Json.Nodes;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The live strat in the Strat Book tab: the one undo stack over <see cref="PatchOp" />,

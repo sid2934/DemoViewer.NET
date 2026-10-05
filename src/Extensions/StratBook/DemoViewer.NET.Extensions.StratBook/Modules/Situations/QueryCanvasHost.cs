@@ -4,11 +4,11 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     The Query Canvas surface: a <see cref="MapSceneHost" /> hosting the query token layer, the Overlay

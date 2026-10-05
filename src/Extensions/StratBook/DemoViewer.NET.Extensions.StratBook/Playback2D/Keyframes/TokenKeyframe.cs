@@ -4,7 +4,7 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Keyframes;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 /// <summary>
 ///     One token's position at one tick of the strat frame clock.

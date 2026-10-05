@@ -4,7 +4,7 @@ using Avalonia.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Views.RoundTagger;
+namespace DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 
 /// <summary>The Matrix tab view. Bindings only; every behaviour lives on the VM.</summary>
 public partial class TagMatrixTabView : UserControl

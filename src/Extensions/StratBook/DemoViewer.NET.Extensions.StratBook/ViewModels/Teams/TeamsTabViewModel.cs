@@ -8,11 +8,12 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 
 /// <summary>
 ///     The Teams tab: the team list, the rosters and members of the selected team, its

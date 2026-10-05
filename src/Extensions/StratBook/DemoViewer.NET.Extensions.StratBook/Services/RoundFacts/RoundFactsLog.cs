@@ -1,10 +1,11 @@
 #region
 
 using Microsoft.Extensions.Logging;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 /// <summary>
 ///     The round facts evaluator's log seams, source-generated like <c>AppLog</c>: one line when the

@@ -6,16 +6,16 @@ using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook.Canvas;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 /// <summary>One step on a path, and where it lives: this strat, or the strat a branch continues in.</summary>
 /// <param name="Step">The step as stored.</param>

@@ -4,12 +4,12 @@ using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.ViewModels.Review;
-using DemoViewer.NET.Views.Review;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions.StratBook.Views.Review;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Review;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Review;
 
 /// <summary>
 ///     The Review Queue module: the Review section of the Strat Book tab's rail (<c>"review.queue"</c>,
@@ -82,7 +82,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
             TabId = TabId,
             Header = "Review",
             Order = 4, // after Utility (3)
-            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new ReviewQueueTabView()

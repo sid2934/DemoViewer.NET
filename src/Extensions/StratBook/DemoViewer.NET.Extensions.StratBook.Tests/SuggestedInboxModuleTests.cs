@@ -4,7 +4,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 

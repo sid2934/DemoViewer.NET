@@ -7,9 +7,9 @@ using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 #endregion
 
@@ -83,7 +83,7 @@ public class StratStepKeysTests
             int steps = vm.Session.Document!.Steps.Count;
             int depth = vm.Session.UndoDepth;
 
-            DemoViewer.NET.Controls.PlaceField watching = RowContainer(view, index).GetVisualDescendants().OfType<DemoViewer.NET.Controls.PlaceField>()
+            DemoViewer.NET.Extensions.StratBook.Controls.PlaceField watching = RowContainer(view, index).GetVisualDescendants().OfType<DemoViewer.NET.Extensions.StratBook.Controls.PlaceField>()
                 .Single(a => a.Name == "GroupWatchField");
             watching.GetVisualDescendants().OfType<TextBox>().First().Focus();
             Dispatcher.UIThread.RunJobs();

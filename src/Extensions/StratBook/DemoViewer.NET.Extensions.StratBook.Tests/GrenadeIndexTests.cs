@@ -11,14 +11,14 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Utility;
-using DemoViewer.NET.Views.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 
 #endregion
 
@@ -558,7 +558,7 @@ public class GrenadeIndexTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.utilitybook");
             await Assert.That(tab.TabId).IsEqualTo("utilitybook.browser");
             await Assert.That(tab.Header).IsEqualTo("Utility");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId);
             await Assert.That(tab.Order).IsEqualTo(3).Because("after Tags on the rail");
             await Assert.That(tab.DataContext).IsNull();
             await Assert.That(feature).IsNotNull();

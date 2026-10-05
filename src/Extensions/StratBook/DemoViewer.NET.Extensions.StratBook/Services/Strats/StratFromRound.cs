@@ -3,14 +3,15 @@
 using System.Globalization;
 using System.Numerics;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>What the review settled before anything is written: the side, the slot map and the arrows.</summary>
 /// <param name="OurSide">2 for T, 3 for CT.</param>
@@ -240,7 +241,7 @@ public static class StratFromRound
     /// <param name="facts">The round's Round Facts row, when the demo has one.</param>
     /// <param name="nowUtc">The creation time.</param>
     public static StratDocument Document(RoundCapture capture, StratCaptureOptions options, StratOwner owner, string map, string name,
-        StratOrigin origin, RoundFacts.RoundFacts? facts, DateTime nowUtc)
+        StratOrigin origin, RoundFacts? facts, DateTime nowUtc)
     {
         ArgumentNullException.ThrowIfNull(capture);
         ArgumentNullException.ThrowIfNull(options);
@@ -271,7 +272,7 @@ public static class StratFromRound
 
     // Round Facts' plant site when there are rows; else where the planter stood, since a pawn's place name on a
     // site is BombsiteA or BombsiteB on every competitive map.
-    private static string? SiteOf(RoundFacts.RoundFacts? facts, List<StratStep> steps)
+    private static string? SiteOf(RoundFacts? facts, List<StratStep> steps)
     {
         if (facts is { PlantTick: not null })
         {

@@ -5,12 +5,13 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Services.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Zones;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 /// <summary>
 ///     The app's zone resolver source: the map's baked <c>zones.json</c> plus the user overlay under

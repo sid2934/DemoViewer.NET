@@ -8,7 +8,7 @@ using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The round positions file: the <c>.dvrp.json.gz</c> sibling of a demo's <c>.dvri.json</c>. Per

@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     Runs the detectors over a demo's rounds in the profile's order.
@@ -149,7 +149,7 @@ internal static class DetectorMath
         "event",
         e.Tick,
         e.ThrowerName is { Length: > 0 } name
-            ? string.Create(CultureInfo.InvariantCulture, $"{e.Kind} by {Library.DisplayText.Sanitize(name)} -> {e.Place ?? "unplaced"}")
+            ? string.Create(CultureInfo.InvariantCulture, $"{e.Kind} by {DemoViewer.NET.Modules.Library.DisplayText.Sanitize(name)} -> {e.Place ?? "unplaced"}")
             : e.ThrowerSlot >= 0
             ? string.Create(CultureInfo.InvariantCulture, $"{e.Kind} by slot {e.ThrowerSlot} -> {e.Place ?? "unplaced"}")
             : string.Create(CultureInfo.InvariantCulture, $"{e.Kind} -> {e.Place ?? "unplaced"}"));

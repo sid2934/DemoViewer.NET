@@ -4,13 +4,14 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 /// <summary>
 ///     The saved list of the Situations tab: one row per watched situation with its own "N new", the

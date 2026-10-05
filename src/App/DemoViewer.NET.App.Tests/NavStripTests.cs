@@ -9,6 +9,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.ViewModels.Shell;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 

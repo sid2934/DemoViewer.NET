@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>A slice filter on <see cref="TagInstance.Source" />; the typed face of <see cref="TagSources" />.</summary>
 public enum TagSource

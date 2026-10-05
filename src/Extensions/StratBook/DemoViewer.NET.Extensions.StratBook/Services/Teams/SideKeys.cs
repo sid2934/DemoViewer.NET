@@ -4,7 +4,7 @@ using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>One side's input to clustering: the key, the names behind it and the clan tag.</summary>
 /// <param name="Key">Non-bot, non-coach SteamID64s, sorted ordinally; empty when the side is unclusterable.</param>

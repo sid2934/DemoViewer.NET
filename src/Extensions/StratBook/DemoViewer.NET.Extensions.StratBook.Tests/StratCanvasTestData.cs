@@ -1,8 +1,8 @@
 #region
 
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion

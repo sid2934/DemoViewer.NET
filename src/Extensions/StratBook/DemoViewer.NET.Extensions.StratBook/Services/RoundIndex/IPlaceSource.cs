@@ -5,7 +5,7 @@ using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     Mints the place string for one alive sample. The builder, the row shape, the sidecar and the

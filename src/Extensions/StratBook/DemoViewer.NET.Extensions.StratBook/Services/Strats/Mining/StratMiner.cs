@@ -3,11 +3,11 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats.Mining;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 /// <summary>
 ///     Groups near-identical rounds into patterns: complete-linkage clustering over <see cref="Distance" />,

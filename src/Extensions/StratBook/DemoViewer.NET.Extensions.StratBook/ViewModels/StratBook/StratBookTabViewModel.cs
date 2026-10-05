@@ -12,9 +12,9 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.StratBook;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Export;
@@ -24,19 +24,20 @@ using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels.Playback2D;
-using DemoViewer.NET.ViewModels.UtilityBook;
-using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
+using GrenadeKind = DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeKind;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     The Strat Book tab: the book selector over Team Identity's teams plus <c>me</c>, the

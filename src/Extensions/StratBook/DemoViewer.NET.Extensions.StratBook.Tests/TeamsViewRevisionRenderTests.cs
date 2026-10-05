@@ -8,9 +8,9 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.Teams;
-using DemoViewer.NET.Views.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
+using DemoViewer.NET.Extensions.StratBook.Views.Teams;
 
 #endregion
 

@@ -3,11 +3,11 @@
 using System.Globalization;
 using System.Text;
 using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.RoundTagger.Timeline;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 
 /// <summary>
 ///     The Tag Store's instances on the 2D timeline: one lane of bands plus one

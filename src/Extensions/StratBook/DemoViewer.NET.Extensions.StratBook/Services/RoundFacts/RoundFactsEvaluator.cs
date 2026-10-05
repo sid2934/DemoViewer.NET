@@ -8,10 +8,11 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using Microsoft.Extensions.Logging;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 /// <summary>
 ///     The pass that writes round facts: an <see cref="IExtensionPass" /> on the demo's visit, so it runs on

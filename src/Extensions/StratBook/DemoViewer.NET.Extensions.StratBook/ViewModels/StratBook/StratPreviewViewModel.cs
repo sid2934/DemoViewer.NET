@@ -3,14 +3,14 @@
 using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>Where a Detected preview is: building from cached files, shown, or unbuildable.</summary>
 public enum StratPreviewState

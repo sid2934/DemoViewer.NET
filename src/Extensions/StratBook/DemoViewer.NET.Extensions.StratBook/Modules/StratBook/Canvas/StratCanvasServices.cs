@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook.Canvas;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 /// <summary>
 ///     What <see cref="StratCanvasViewModel" /> needs from outside: the extension's feature switches (token

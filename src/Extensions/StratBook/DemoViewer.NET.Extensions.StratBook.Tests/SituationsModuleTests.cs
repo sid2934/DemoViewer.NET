@@ -5,10 +5,10 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -32,7 +32,7 @@ public class SituationsModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.situations");
             await Assert.That(tab.TabId).IsEqualTo("situations.search");
             await Assert.That(tab.Header).IsEqualTo("Situations");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId);
             await Assert.That(tab.Order).IsEqualTo(1).Because("after Strats on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();

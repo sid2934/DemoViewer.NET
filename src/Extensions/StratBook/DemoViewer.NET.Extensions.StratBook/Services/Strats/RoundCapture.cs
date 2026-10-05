@@ -10,7 +10,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Frames;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>What made Create Strat From Round stop at a tick.</summary>
 public enum CaptureTrigger

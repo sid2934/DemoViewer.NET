@@ -2,12 +2,13 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

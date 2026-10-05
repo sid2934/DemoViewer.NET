@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using Microsoft.Extensions.DependencyInjection;
 
 #endregion

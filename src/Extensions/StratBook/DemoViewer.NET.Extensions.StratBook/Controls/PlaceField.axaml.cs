@@ -10,11 +10,12 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Controls;
+namespace DemoViewer.NET.Extensions.StratBook.Controls;
 
 /// <summary>
 ///     A location field (docs/ui/design-system.md, "Location field"): shows callouts, stores canonical places, accepts

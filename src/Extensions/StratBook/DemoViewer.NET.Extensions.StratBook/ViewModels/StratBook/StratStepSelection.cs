@@ -2,12 +2,12 @@
 
 using System.Collections.Specialized;
 using System.ComponentModel;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     One selected step for the step rows and the canvas: the canvas's active step. Selecting a row makes its step

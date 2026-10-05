@@ -14,7 +14,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     One planned Lineup Clip: the representative throw of a Lineup Card, the tick range its GIF covers,

@@ -2,8 +2,8 @@
 
 using Avalonia.Input;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 #endregion
 
@@ -52,21 +52,21 @@ public class SituationResultWalkTests
         });
 
         DemoViewer.NET.Services.DemoCache.DemoCacheStore cache = new(null);
-        DemoViewer.NET.Services.RoundIndex.RoundIndexStore store = new(cache.Data());
-        DemoViewer.NET.Services.RoundIndex.RoundIndexPlaceSources sources = new(() => DemoViewer.NET.Services.RoundIndex.RoundIndexTokenSource.Pawn);
-        using DemoViewer.NET.Services.RoundIndex.SituationIndex index = new(cache.Library(), store, sources);
+        DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexStore store = new(cache.Data());
+        DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexPlaceSources sources = new(() => DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexTokenSource.Pawn);
+        using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.SituationIndex index = new(cache.Library(), store, sources);
         index.Load();
         ResultCardTests.RecordingPlayback playback = new();
         ResultCardsViewModel results = new(cache.Library(), store, sources, () => playback, post: a => a(), decode: _ => null,
             renderer: () => new SituationThumbnailRenderer(_ => null));
-        using SituationsTabViewModel built = new(index, null, cache.Library(), sources, () => DemoViewer.NET.Services.RoundIndex.RoundIndexTokenSource.Pawn,
+        using SituationsTabViewModel built = new(index, null, cache.Library(), sources, () => DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexTokenSource.Pawn,
             false, results: results);
         tab = built;
 
         await Assert.That(resolved).IsEqualTo(0).Because("lazy: nothing resolved at construction");
         await Assert.That(seam.Walk(+1)).IsFalse().Because("no result set yet");
 
-        results.Load([new DemoViewer.NET.Services.RoundIndex.SituationHit("/d/a.dem", "k", null, "de_nuke", 1, 1000, 4008, 4100, 2)]);
+        results.Load([new DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.SituationHit("/d/a.dem", "k", null, "de_nuke", 1, 1000, 4008, 4100, 2)]);
         await results.BatchTask;
         await Assert.That(seam.Walk(+1)).IsTrue();
         using (Assert.Multiple())

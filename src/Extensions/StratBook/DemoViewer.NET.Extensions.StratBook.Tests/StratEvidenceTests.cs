@@ -2,11 +2,12 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using static DemoViewer.NET.AppTests.TagTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

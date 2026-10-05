@@ -3,11 +3,11 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook.Canvas;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 /// <summary>What a token drag writes.</summary>
 public enum StratDragAction

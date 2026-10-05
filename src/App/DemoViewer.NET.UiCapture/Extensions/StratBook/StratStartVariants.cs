@@ -5,11 +5,12 @@ using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 
@@ -99,7 +100,7 @@ public static partial class Variants
         view.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             strats!.Canvas.Transport.Pause();
-            strats.Canvas.Transport.Seek(5 * Playback2D.Core.Keyframes.StepSchedule.TicksPerSecond);
+            strats.Canvas.Transport.Seek(5 * DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes.StepSchedule.TicksPerSecond);
             if (view.GetVisualDescendants().OfType<ItemsControl>().FirstOrDefault(c => c.Name == "StepRows") is { } rows)
             {
                 rows.BringIntoView();

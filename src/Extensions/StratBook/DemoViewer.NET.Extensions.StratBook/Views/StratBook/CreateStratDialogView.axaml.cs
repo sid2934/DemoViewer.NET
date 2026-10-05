@@ -4,7 +4,7 @@ using Avalonia.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Views.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 /// <summary>
 ///     Create Strat From Round's review pane. Named for the <c>ViewLocator</c>'s <c>…ViewModel</c> → <c>…View</c>

@@ -9,11 +9,11 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Modules.RoundTagger.Timeline;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Views.Playback2D;
-using DemoViewer.NET.Views.RoundTagger;
+using DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 
 #endregion

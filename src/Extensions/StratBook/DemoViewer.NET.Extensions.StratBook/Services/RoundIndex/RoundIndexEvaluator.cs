@@ -6,10 +6,11 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.RoundFacts;
 using Microsoft.Extensions.Logging;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The evaluator that writes the round index: an <see cref="IExtensionPass" /> on the tier-2

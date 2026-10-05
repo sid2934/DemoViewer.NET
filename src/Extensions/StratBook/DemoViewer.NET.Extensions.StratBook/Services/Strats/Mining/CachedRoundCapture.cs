@@ -1,12 +1,13 @@
 #region
 
 using System.Numerics;
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats.Mining;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 /// <summary>
 ///     A <see cref="RoundCapture" /> built from cached files instead of a tracker walk, so a mined pattern
@@ -26,7 +27,7 @@ public static class CachedRoundCapture
     /// <param name="players">Controller slot to SteamID64 and name, from the cache record.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
     /// <param name="windowEndTick">The last tick to capture.</param>
-    public static RoundCapture Build(RoundPositionsDocument positions, RoundPositionsRound stored, RoundFacts.RoundFacts facts,
+    public static RoundCapture Build(RoundPositionsDocument positions, RoundPositionsRound stored, RoundFacts facts,
         IReadOnlyList<GrenadeRow> grenades, IReadOnlyDictionary<int, (ulong SteamId, string Name)> players, int tickRate,
         int windowEndTick)
     {

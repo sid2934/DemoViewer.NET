@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     Which string a row's place comes from. A setting (<see cref="Extensions.StratBook.StratBookSettings.TokenSource" />);

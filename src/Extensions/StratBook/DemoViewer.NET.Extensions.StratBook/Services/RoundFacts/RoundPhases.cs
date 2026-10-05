@@ -1,4 +1,6 @@
-namespace DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.RoundFacts;
+
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 /// <summary>
 ///     Phase boundaries, derived from a round's stored ticks rather than stored themselves. Every

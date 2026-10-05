@@ -5,13 +5,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.Generated;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
 
 /// <summary>One proposal as the Suggested section lists it.</summary>
 public sealed class SuggestedInboxRow(SuggestedInboxItem item)

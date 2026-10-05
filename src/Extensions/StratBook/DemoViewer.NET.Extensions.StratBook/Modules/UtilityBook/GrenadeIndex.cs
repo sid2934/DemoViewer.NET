@@ -10,12 +10,12 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using Microsoft.Extensions.Logging;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     One grenade in the library: a Grenade Walk row with the demo it came from and where it landed.

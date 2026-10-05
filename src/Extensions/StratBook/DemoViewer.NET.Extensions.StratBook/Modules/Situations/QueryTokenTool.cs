@@ -8,7 +8,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     The Query Canvas pointer tool: places the armed rail slot, moves a placed token, lifts one.

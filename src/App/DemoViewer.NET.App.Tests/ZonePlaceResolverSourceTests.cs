@@ -4,9 +4,10 @@ using System.Numerics;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Services.Zones;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 

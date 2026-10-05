@@ -4,7 +4,7 @@ using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a <see cref="MapPoolRecord" /> for one team over <see cref="TeamIdentityService.SidesOf" />

@@ -6,16 +6,16 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.ViewModels.Highlights;
-using DemoViewer.NET.ViewModels.Review;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion

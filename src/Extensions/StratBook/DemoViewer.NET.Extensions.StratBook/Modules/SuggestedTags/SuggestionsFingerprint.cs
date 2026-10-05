@@ -6,7 +6,7 @@ using System.Text;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     The detector-set fingerprint: SHA-256 of the profile's JSON, the site

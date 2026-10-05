@@ -6,15 +6,16 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using Library = DemoViewer.NET.AppTests.StratMiningServiceTests.Library;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

@@ -5,7 +5,7 @@ using System.Text;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     One step or branch phrased into words, shared by <see cref="RoleSheet" /> and

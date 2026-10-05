@@ -7,7 +7,7 @@ using CS2OpenSchema.Events;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>A grenade <c>weapon_fire</c> or <c>grenade_thrown</c>: who released what, when.</summary>
 /// <param name="Slot">The thrower's player slot (<c>UserId</c>).</param>

@@ -5,7 +5,7 @@ using System.Text.Json;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2OpenSchema.Events;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

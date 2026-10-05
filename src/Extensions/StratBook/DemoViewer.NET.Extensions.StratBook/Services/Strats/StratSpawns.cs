@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>A token's spawn spot: world XY, the level key it is drawn on, and the place it is in, when it has one.</summary>
 public readonly record struct SpawnSpot(double X, double Y, double LevelMinZ, string? Place = null);

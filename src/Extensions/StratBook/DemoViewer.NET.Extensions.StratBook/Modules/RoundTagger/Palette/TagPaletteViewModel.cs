@@ -7,11 +7,11 @@ using Avalonia.Media.Immutable;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.RoundTagger.Palette;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 
 /// <summary>One palette button as the panel shows it: its hotkey parsed once, its caption and its colour.</summary>
 public sealed class TagPaletteButtonViewModel

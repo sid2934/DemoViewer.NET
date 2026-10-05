@@ -6,12 +6,12 @@ using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     Draws a Result Card's mini-radar: the alive players of one sampled step, from the positions

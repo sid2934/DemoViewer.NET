@@ -2,10 +2,11 @@
 
 using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundFacts;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 /// <summary>
 ///     Turns the <c>round_facts</c> table into the record: pairs the two rows of each round by side,

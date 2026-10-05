@@ -7,11 +7,11 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 
 #endregion
@@ -81,7 +81,7 @@ public class StratCanvasViewTests
             (StratStore store, StratSession parked) = Opened(document);
             parked.Dispose();
 
-            using ViewModels.StratBook.StratBookTabViewModel tab = new(store, null, null, false, null, _ => null);
+            using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookTabViewModel tab = new(store, null, null, false, null, _ => null);
             tab.SelectedStrat = tab.Strats.Single();
 
             StratBookTabView view = new() { DataContext = tab };
@@ -171,7 +171,7 @@ public class StratCanvasViewTests
             (StratStore store, StratSession parked) = Opened(document);
             parked.Dispose();
 
-            using ViewModels.StratBook.StratBookTabViewModel tab = new(store, null, a => a(), false, null, _ => null);
+            using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookTabViewModel tab = new(store, null, a => a(), false, null, _ => null);
             StratBookTabView view = new() { DataContext = tab };
 
             // Short enough that the first step row is below the fold, and the strat opens with the view up.

@@ -3,10 +3,11 @@
 using System.Globalization;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     The optional, user-entered veto history the Map Pool Record's "Done" line asks for:
@@ -14,7 +15,7 @@ namespace DemoViewer.NET.Services.Teams;
 ///     <para>
 ///         <b>Persistence.</b> <c>veto-history.json</c> beside <c>teams.json</c>, written whole through
 ///         <see cref="AtomicFile" /> after every mutation, the same small-file rule
-///         <see cref="Review.ReviewQueue" /> follows. A null config root (the browser, tests) keeps the
+///         <see cref="DemoViewer.NET.Services.Review.ReviewQueue" /> follows. A null config root (the browser, tests) keeps the
 ///         history for the session; a file that cannot be read, or is at a newer schema, is refused and
 ///         never overwritten.
 ///     </para>

@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
-             x:Class="DemoViewer.NET.Views.Situations.SearchFiltersView"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.ViewModels.Situations"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.Situations.SearchFiltersView"
              x:DataType="vm:SearchFiltersViewModel">
 
     <!--

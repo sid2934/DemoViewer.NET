@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
@@ -11,18 +11,20 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Dossier;
+using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 /// <summary>
 ///     The Opponent Dossier tab: a team picker over Team Identity and its built

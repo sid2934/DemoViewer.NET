@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     A store's one-time load, run by whoever gets there first: normally its startup queue item, but a

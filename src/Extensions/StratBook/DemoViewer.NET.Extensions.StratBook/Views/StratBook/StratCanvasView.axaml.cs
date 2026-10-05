@@ -10,14 +10,14 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 
 #endregion
 
-namespace DemoViewer.NET.Views.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 /// <summary>
 ///     The Step Authoring canvas view. The four wirings the 2D Playback view makes around its host, made here

@@ -3,12 +3,12 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.ViewModels.UtilityBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 #endregion
 

@@ -2,7 +2,7 @@
 
 using System.Diagnostics;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion

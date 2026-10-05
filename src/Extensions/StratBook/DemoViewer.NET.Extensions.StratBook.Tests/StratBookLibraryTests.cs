@@ -3,8 +3,8 @@
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 

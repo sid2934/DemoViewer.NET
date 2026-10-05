@@ -5,10 +5,10 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion

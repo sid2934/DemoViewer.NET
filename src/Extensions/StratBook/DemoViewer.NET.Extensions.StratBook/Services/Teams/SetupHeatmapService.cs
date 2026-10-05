@@ -4,11 +4,12 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a team's <see cref="SetupHeatmapSet" />: for each map
@@ -105,7 +106,7 @@ public sealed class SetupHeatmapService
                 rate = FallbackTickRate;
             }
 
-            foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
+            foreach (RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
             {
                 if (!round.IsLive || _teams.SideAtRound(demo.Path, teamId, round.Number) != 3)
                 {
@@ -146,7 +147,7 @@ public sealed class SetupHeatmapService
     /// <summary>The setup window of a round in frame-clock ticks, inclusive; empty when <c>to &lt; from</c>.</summary>
     /// <param name="round">The round.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
-    public static (int From, int To) SetupWindow(RoundFacts.RoundFacts round, int tickRate)
+    public static (int From, int To) SetupWindow(RoundFacts round, int tickRate)
     {
         ArgumentNullException.ThrowIfNull(round);
         int from = round.FreezeEndTick + SetupFromSeconds * tickRate;
@@ -175,7 +176,7 @@ public sealed class SetupHeatmapService
 
         public List<SetupHeatmapRound> Rounds { get; } = [];
 
-        public void Add(string path, string? sha, RoundFacts.RoundFacts round, RoundPositionsDocument? positions, int rate)
+        public void Add(string path, string? sha, RoundFacts round, RoundPositionsDocument? positions, int rate)
         {
             (int from, int to) = SetupWindow(round, rate);
             bool sampled = false;

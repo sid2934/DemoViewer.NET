@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using static DemoViewer.NET.AppTests.StratAssignmentsTests;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratTestData;

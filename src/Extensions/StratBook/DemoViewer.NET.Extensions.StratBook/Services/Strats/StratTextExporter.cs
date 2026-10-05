@@ -3,10 +3,11 @@
 using System.Globalization;
 using System.Text;
 using DemoViewer.NET.Controls;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The text export shapes: the call sheet (Markdown, for Discord and a text diff) and the

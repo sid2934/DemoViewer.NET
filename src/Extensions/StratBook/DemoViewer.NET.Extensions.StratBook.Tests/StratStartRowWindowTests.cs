@@ -7,9 +7,9 @@ using Avalonia.Headless;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 #endregion
 
@@ -50,7 +50,7 @@ public class StratStartRowWindowTests
 
             Border row = view.FindControl<Border>("StartRow")!;
             TextBlock summary = view.FindControl<TextBlock>("StartSummary")!;
-            int Fields() => row.GetVisualDescendants().OfType<Controls.PlaceField>().Count(f => f.IsEffectivelyVisible);
+            int Fields() => row.GetVisualDescendants().OfType<DemoViewer.NET.Extensions.StratBook.Controls.PlaceField>().Count(f => f.IsEffectivelyVisible);
             using (Assert.Multiple())
             {
                 await Assert.That(row.IsEffectivelyVisible).IsTrue();

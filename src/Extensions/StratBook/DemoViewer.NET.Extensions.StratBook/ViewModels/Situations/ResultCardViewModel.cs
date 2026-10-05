@@ -4,11 +4,13 @@ using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 /// <summary>
 ///     One Result Card: a matching (demo, round) with its mini-radar thumbnail of the matched state,

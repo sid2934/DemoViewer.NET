@@ -5,17 +5,19 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.Services;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats.Mining;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 /// <summary>A pattern as the inbox lists it: whether the user dismissed it, and the strat it became.</summary>
 public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid? StratId)
@@ -683,7 +685,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
                 continue;
             }
 
-            RoundFacts.RoundFactsRows? facts = _roundFacts.TryGet(member.DemoPath);
+            RoundFactsRows? facts = _roundFacts.TryGet(member.DemoPath);
             (int from, int to) = RunSpan(pattern, member, facts?.Rounds.FirstOrDefault(r => r.Number == member.Round));
             TagInstance run = new()
             {
@@ -763,7 +765,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         && instance.Labels.Any(l => l.Group == TagStore.StratGroup && l.Value == stratId);
 
     // The window the strat covers in that round: the setup's opening, or the take from 10 s before to the plant.
-    private static (int From, int To) RunSpan(MinedPattern pattern, MinedMember member, RoundFacts.RoundFacts? facts)
+    private static (int From, int To) RunSpan(MinedPattern pattern, MinedMember member, RoundFacts? facts)
     {
         int rate = Math.Max(1, member.TickRate);
         int end = facts?.EndTick ?? int.MaxValue;

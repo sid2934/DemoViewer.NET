@@ -6,7 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>Which Strat Book panes were collapsed. The session blob's shape: field names are the JSON member names.</summary>
 /// <param name="RailCollapsed">The hub's section rail.</param>

@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     The execute, with the fast-or-rush label on it. At some second

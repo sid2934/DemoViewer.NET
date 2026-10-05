@@ -3,11 +3,12 @@
 using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a team's <see cref="PostPlantSet" /> over Round Facts
@@ -144,7 +145,7 @@ public sealed class PostPlantService
             }
 
             DemoContext context = new(demo.Path, record.Sha256, rate, positions);
-            foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
+            foreach (RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
             {
                 if (!round.IsLive || _teams.SideAtRound(demo.Path, teamId, round.Number) is not { } side)
                 {
@@ -184,7 +185,7 @@ public sealed class PostPlantService
     /// <summary>The alive count at the plant, the team's first: "4v3".</summary>
     /// <param name="round">A round with a plant.</param>
     /// <param name="side">The team's side that round.</param>
-    public static string ManCountLabel(RoundFacts.RoundFacts round, int side)
+    public static string ManCountLabel(RoundFacts round, int side)
     {
         ArgumentNullException.ThrowIfNull(round);
         (int ct, int t) = RoundPhases.AliveAt(round, round.PlantTick ?? round.FreezeEndTick);
@@ -194,7 +195,7 @@ public sealed class PostPlantService
     /// <summary>How a round ended for the side: "won: exploded", "lost: defused", "won: elimination", or "no result".</summary>
     /// <param name="round">The round.</param>
     /// <param name="side">The team's side that round.</param>
-    public static string OutcomeLabel(RoundFacts.RoundFacts round, int side)
+    public static string OutcomeLabel(RoundFacts round, int side)
     {
         ArgumentNullException.ThrowIfNull(round);
         if (round.WinnerSide is not (2 or 3))
@@ -216,7 +217,7 @@ public sealed class PostPlantService
     /// </summary>
     /// <param name="positions">The demo's positions file.</param>
     /// <param name="round">The round.</param>
-    public static RoundPosition? PlantSpot(RoundPositionsDocument positions, RoundFacts.RoundFacts round)
+    public static RoundPosition? PlantSpot(RoundPositionsDocument positions, RoundFacts round)
     {
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(round);
@@ -250,7 +251,7 @@ public sealed class PostPlantService
     /// <param name="round">A round with a plant.</param>
     /// <param name="spot">The plant spot.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
-    public static string? RetakeGroup(RoundPositionsDocument positions, RoundFacts.RoundFacts round, RoundPosition spot, int tickRate)
+    public static string? RetakeGroup(RoundPositionsDocument positions, RoundFacts round, RoundPosition spot, int tickRate)
     {
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(round);
@@ -316,7 +317,7 @@ public sealed class PostPlantService
     /// <param name="positions">The demo's positions file.</param>
     /// <param name="round">A round with a plant.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
-    public static IReadOnlyList<RoundPosition>? Hold(RoundPositionsDocument positions, RoundFacts.RoundFacts round, int tickRate)
+    public static IReadOnlyList<RoundPosition>? Hold(RoundPositionsDocument positions, RoundFacts round, int tickRate)
     {
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(round);
@@ -352,7 +353,7 @@ public sealed class PostPlantService
         return Math.Sqrt(dx * dx + dy * dy);
     }
 
-    private static string SiteLabel(RoundFacts.RoundFacts round) =>
+    private static string SiteLabel(RoundFacts round) =>
         round.PlantSite == BombSite.Unknown ? "unknown site" : round.PlantSite.ToString();
 
     private sealed record DemoContext(string Path, string? Sha256, int Rate, RoundPositionsDocument? Positions);
@@ -428,7 +429,7 @@ public sealed class PostPlantService
 
         public int RoundCount => _rounds.Count;
 
-        public void Add(DemoContext demo, RoundFacts.RoundFacts round, int side)
+        public void Add(DemoContext demo, RoundFacts round, int side)
         {
             int rate = demo.Rate;
             _rounds.Add(Clip(demo, round, round.FreezeEndTick, round.EndTick ?? round.FreezeEndTick + 3 * PostPlantSeconds * rate));
@@ -492,7 +493,7 @@ public sealed class PostPlantService
             RetakeGroups = _retakes.Ranked(SpotUnread)
         };
 
-        private void AddPlant(RoundFacts.RoundFacts round, RoundPosition? spot, TendencyRound clip)
+        private void AddPlant(RoundFacts round, RoundPosition? spot, TendencyRound clip)
         {
             string site = SiteLabel(round);
             if (spot is not { } p)
@@ -539,7 +540,7 @@ public sealed class PostPlantService
         }
 
         // The clip for a round, clamped to the live window: never before freeze end, never past the end.
-        private static TendencyRound Clip(DemoContext demo, RoundFacts.RoundFacts round, int from, int to)
+        private static TendencyRound Clip(DemoContext demo, RoundFacts round, int from, int to)
         {
             int start = Math.Max(round.FreezeEndTick, from);
             int end = round.EndTick is { } e ? Math.Min(e, to) : to;

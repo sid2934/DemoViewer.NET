@@ -10,22 +10,24 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
-using DemoViewer.NET.Modules.RoundTagger.Timeline;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Theming;
-using DemoViewer.NET.Views.RoundTagger;
-using DemoViewer.NET.Views.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
+using DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.Modules;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.RoundTagger.Review;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 
 /// <summary>
 ///     Review mode in 2D Playback as one playback contribution: the mode toggle, the tag

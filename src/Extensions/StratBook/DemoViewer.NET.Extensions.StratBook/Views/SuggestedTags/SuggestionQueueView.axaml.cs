@@ -6,11 +6,11 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 #endregion
 
-namespace DemoViewer.NET.Views.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
 
 /// <summary>
 ///     The Proposal Queue's view, docked by the 2D Playback view with the tab's

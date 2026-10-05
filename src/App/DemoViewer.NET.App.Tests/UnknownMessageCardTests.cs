@@ -15,6 +15,7 @@ using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Parser;
 using DemoViewer.NET.Views;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 

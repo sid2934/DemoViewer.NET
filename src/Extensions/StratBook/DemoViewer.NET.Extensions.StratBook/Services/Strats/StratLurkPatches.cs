@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The one writer of a step's <c>lurk</c>. An edit changes a copy and <see cref="Write" /> turns it into ops in
@@ -92,7 +92,7 @@ public static class StratLurkPatches
     /// <param name="atSeconds">Round clock remaining.</param>
     /// <param name="roundSeconds">The strat's round length.</param>
     public static int TickOf(double atSeconds, double roundSeconds) =>
-        Math.Max(0, Playback2D.Core.Keyframes.StepSchedule.TickFor(atSeconds, roundSeconds));
+        Math.Max(0, Playback2D.Keyframes.StepSchedule.TickFor(atSeconds, roundSeconds));
 
     /// <summary>A copy of a lurk, unknown fields included.</summary>
     /// <param name="lurk">The lurk.</param>

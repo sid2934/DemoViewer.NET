@@ -9,13 +9,14 @@ using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 

@@ -4,7 +4,7 @@ using CS2DemoKit.Parser;
 using CS2OpenSchema.Protos;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Services.DemoCache;

@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>What was thrown. Molotov and incendiary share one projectile class and are told apart here.</summary>
 public enum GrenadeKind

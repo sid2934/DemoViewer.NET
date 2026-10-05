@@ -2,10 +2,10 @@
 
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.ViewModels.Review;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 

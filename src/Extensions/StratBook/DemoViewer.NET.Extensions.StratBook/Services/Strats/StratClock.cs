@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The mapping between a strat's round clock and a demo's frame clock. Pure, both
@@ -58,14 +58,14 @@ public static class StratClock
     /// <param name="clock">The strat's clock block.</param>
     /// <param name="atSeconds">A step's time as stored.</param>
     public static int StratTickOf(StratClockInfo? clock, double atSeconds) =>
-        Math.Max(0, (int)Math.Round(ElapsedOf(clock, atSeconds) * Playback2D.Core.Keyframes.StepSchedule.TicksPerSecond,
+        Math.Max(0, (int)Math.Round(ElapsedOf(clock, atSeconds) * Playback2D.Keyframes.StepSchedule.TicksPerSecond,
             MidpointRounding.AwayFromZero));
 
     /// <summary>The stored time at a strat tick.</summary>
     /// <param name="clock">The strat's clock block.</param>
     /// <param name="tick">A strat tick.</param>
     public static double AtSecondsAtTick(StratClockInfo? clock, int tick) =>
-        AtSecondsOf(clock, tick / (double)Playback2D.Core.Keyframes.StepSchedule.TicksPerSecond);
+        AtSecondsOf(clock, tick / (double)Playback2D.Keyframes.StepSchedule.TicksPerSecond);
 
     /// <summary>Whether <paramref name="a" /> comes after <paramref name="b" /> in the strat: lower on the round clock, higher from a trigger.</summary>
     /// <param name="clock">The strat's clock block.</param>

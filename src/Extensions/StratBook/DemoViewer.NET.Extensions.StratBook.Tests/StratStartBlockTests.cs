@@ -1,21 +1,22 @@
 #region
 
 using System.Text.Json;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.TestSupport;
 using SkiaSharp;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratStepMotionTests;
 using static DemoViewer.NET.AppTests.StratTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 
@@ -387,7 +388,7 @@ public class StratStartBlockTests
         StratDocument document = WithStart(Step(1, 110, "A", "move", to: "Ramp"));
         document.Trigger = new StratTrigger { Text = "on call" };
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
-        ViewModels.StratBook.StratEditorViewModel editor = new(session);
+        DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratEditorViewModel editor = new(session);
         editor.Project();
         using (Assert.Multiple())
         {
@@ -418,11 +419,11 @@ public class StratStartBlockTests
             p.YawDegrees = 90;
         });
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
-        ViewModels.StratBook.StratEditorViewModel editor = new(session);
+        DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratEditorViewModel editor = new(session);
         editor.Project();
         string before = StratHistory.ToNode(session.Document!).ToJsonString();
 
-        foreach (ViewModels.StratBook.StratStartSlotRow row in editor.Start.Own)
+        foreach (DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratStartSlotRow row in editor.Start.Own)
         {
             row.Value = [.. row.Value.Select(StratLocations.Clone)];
         }

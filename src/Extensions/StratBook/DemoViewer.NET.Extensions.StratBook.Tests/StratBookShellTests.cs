@@ -12,12 +12,12 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Export;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 

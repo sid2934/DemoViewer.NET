@@ -1,13 +1,14 @@
 #region
 
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
 
 #endregion
 
@@ -149,7 +150,7 @@ public class ResultCardTests
             {
                 Width = 1280,
                 Height = 900,
-                Content = new Avalonia.Controls.ScrollViewer { Content = new Views.Situations.ResultCardsView { DataContext = h.Vm } }
+                Content = new Avalonia.Controls.ScrollViewer { Content = new DemoViewer.NET.Extensions.StratBook.Views.Situations.ResultCardsView { DataContext = h.Vm } }
             };
             window.Show();
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();

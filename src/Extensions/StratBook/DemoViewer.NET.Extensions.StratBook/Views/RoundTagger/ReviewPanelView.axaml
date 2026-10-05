@@ -1,8 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:rt="using:DemoViewer.NET.Views.RoundTagger"
-             xmlns:rv="using:DemoViewer.NET.Modules.RoundTagger.Review"
-             x:Class="DemoViewer.NET.Views.RoundTagger.ReviewPanelView"
+             xmlns:rt="using:DemoViewer.NET.Extensions.StratBook.Views.RoundTagger"
+             xmlns:rv="using:DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.RoundTagger.ReviewPanelView"
              x:DataType="rv:ReviewPanelViewModel">
 
     <!-- Review mode's panel in the 2D Playback right column: the Suggested / Labels toggle, the one editor

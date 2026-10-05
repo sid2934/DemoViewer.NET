@@ -1,9 +1,9 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion

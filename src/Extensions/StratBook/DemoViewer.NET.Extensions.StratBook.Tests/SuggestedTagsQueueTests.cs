@@ -3,10 +3,10 @@
 using Avalonia.Input;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Core.Timeline;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion

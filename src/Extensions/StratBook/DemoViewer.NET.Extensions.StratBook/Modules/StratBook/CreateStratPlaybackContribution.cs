@@ -7,13 +7,15 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundFactsPass;
+using DemoViewer.NET.Modules;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 
 /// <summary>
 ///     Create Strat From Round in 2D Playback as one playback contribution: the
@@ -23,7 +25,7 @@ namespace DemoViewer.NET.Modules.StratBook;
 /// </summary>
 /// <param name="post">Marshals the walk's result onto the UI thread; synchronous when omitted (tests).</param>
 /// <param name="jobs">The queue the round's walk runs on; the pool when null (tests).</param>
-public sealed class CreateStratPlaybackContribution(Action<Action>? post = null, IExtensionJobs? jobs = null) : IPlaybackContribution
+public sealed class CreateStratPlaybackContribution(Action<Action>? post = null, IExtensionJobs? jobs = null) : Sdk.Playback.IPlaybackContribution
 {
     /// <summary>The round band's menu entry.</summary>
     public const string Label = "Create strat from this round";
@@ -33,10 +35,10 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null,
     private IDisposable? _menu;
     private Func<CreateStratDialogViewModel>? _next;
     private IPaneHandle? _pane;
-    private IPlaybackSurface? _surface;
+    private Sdk.Playback.IPlaybackSurface? _surface;
 
     /// <inheritdoc />
-    public void Attach(IPlaybackSurface surface, IModuleContext context)
+    public void Attach(Sdk.Playback.IPlaybackSurface surface, IModuleContext context)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(context);
@@ -152,7 +154,7 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null,
     }
 
     // The SDK's floors as the capture's level keys read them.
-    private static List<MapLevel> Levels(IPlaybackSurface surface) =>
+    private static List<MapLevel> Levels(Sdk.Playback.IPlaybackSurface surface) =>
     [
         .. surface.Levels.Select(l => new MapLevel { Id = MapSpace.IdForZMin(l.ZMin), Name = l.Name, ZMin = l.ZMin, ZMax = l.ZMax })
     ];

@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     Find Rounds Like This and the Situations result walk in 2D Playback, as one playback contribution:

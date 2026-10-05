@@ -3,13 +3,13 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 /// <summary>
 ///     The Dossier's Situational Behaviour section: per map and side, the pistol

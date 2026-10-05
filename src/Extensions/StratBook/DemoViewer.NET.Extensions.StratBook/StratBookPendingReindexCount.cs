@@ -1,8 +1,8 @@
 #region
 
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using Microsoft.Extensions.DependencyInjection;
 
 #endregion

@@ -9,7 +9,7 @@ using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     The site regions the detectors read for one map: per bombsite,

@@ -2,11 +2,11 @@
 
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Provenance;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 
 /// <summary>
 ///     The store-backed <see cref="IDemoProvenanceSource" />: the override from <c>teams.json</c> when

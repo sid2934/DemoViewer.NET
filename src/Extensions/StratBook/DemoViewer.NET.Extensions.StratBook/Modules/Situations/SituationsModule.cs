@@ -2,12 +2,12 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.ViewModels.Situations;
-using DemoViewer.NET.Views.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Views.Situations;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     The Situations module: Situation Search over the round index. Contributes the Situations section of
@@ -79,7 +79,7 @@ public sealed class SituationsModule : IWorkspaceModule
             TabId = "situations.search",
             Header = "Situations",
             Order = 1, // after Strats (0)
-            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookHubViewModel.HostId,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new SituationsTabView()

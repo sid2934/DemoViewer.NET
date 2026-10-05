@@ -1,9 +1,9 @@
 #region
 
 using System.Text.Json;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratTestData;
 

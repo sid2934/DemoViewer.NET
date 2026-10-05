@@ -2,10 +2,11 @@
 
 using System.Text;
 using DemoViewer.NET.Controls;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>Which of a Dossier's two forms an export prints.</summary>
 public enum DossierForm
