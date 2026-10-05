@@ -484,7 +484,9 @@ public sealed class DemoCacheStore
                 continue;
             }
 
-            if (TryLoadRecord(entry.Path) is { } record)
+            // A walk never takes the capacity-1 slot: it would leave the last demo walked there and evict
+            // the one the user has selected.
+            if (TryLoadRecord(entry.Path, false) is { } record)
             {
                 records.Add(record);
             }

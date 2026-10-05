@@ -394,6 +394,38 @@ public class DemoCacheStoreTests
         }
     }
 
+    /// <summary>
+    ///     A bulk walk leaves the capacity-1 record cache holding the demo the user last read. Served from
+    ///     memory, that demo still reads after its sidecar is gone; a walk that took the slot would lose it.
+    /// </summary>
+    [Test]
+    public async Task LoadRecords_LeavesTheRememberedRecordAlone()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Upsert(Record("/demos/seen.dem"));
+            store.Upsert(Record("/demos/other.dem"));
+
+            await Assert.That(store.TryLoadRecord("/demos/seen.dem")).IsNotNull();
+            File.Delete(store.SidecarPathFor("/demos/seen.dem")!);
+
+            List<DemoCacheRecord> walked = store.LoadRecords();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(walked).HasCount(2);
+                await Assert.That(store.TryLoadRecord("/demos/seen.dem")).IsNotNull()
+                    .Because("the walk read other.dem last and must not have replaced seen.dem in the cache");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     [Test]
     public async Task Remove_DropsTheIndexRowAndTheSidecar()
     {
