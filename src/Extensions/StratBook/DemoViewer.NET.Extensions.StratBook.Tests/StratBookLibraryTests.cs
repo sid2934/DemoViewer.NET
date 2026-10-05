@@ -1,10 +1,12 @@
 #region
 
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.TestSupport;
 
 #endregion
 
@@ -165,5 +167,55 @@ public class StratBookLibraryTests
 
         cache.UpdateExisting("/d/a.dem", r => r.CtClan = "Green");
         await Assert.That(changes).IsGreaterThan(0);
+    }
+
+    // The Round Facts writer and reader still write and walk the cache record; they move to core with
+    // the record member that holds their rows, and their entries here go with them.
+    private static readonly Dictionary<string, string[]> _cacheAccessAllowed = new(StringComparer.Ordinal)
+    {
+        ["Services/RoundFacts/RoundFactsEvaluator.cs"] =
+            ["DemoCacheStore", "DemoCacheIndexEntry", "TryLoadRecord", "Services.DemoCache"],
+        ["Services/RoundFacts/RoundFactsSource.cs"] =
+            ["DemoCacheStore", "DemoCacheIndexEntry", "DemoCacheRecord", "LoadRecords", "Services.DemoCache"],
+        ["StratBookPack.cs"] = ["DemoCacheStore", "Services.DemoCache"]
+    };
+
+    private static readonly string[] _cacheTypes =
+    [
+        "DemoCacheStore", "DemoCacheRecord", "DemoCacheIndexEntry", "TryLoadRecord", "LoadRecords", "CachedRound",
+        "CachedPlayerInfo", "DemoAnalysisState", "DemoLibraryService", "LibraryTabViewModel", "Services.DemoCache"
+    ];
+
+    [Test]
+    public async Task ThePack_ReadsTheLibraryThroughTheSdk_NotTheAppsDemoCache()
+    {
+        string pack = Path.Combine(DemoTestHelper.FindRepoRoot()!, "src", "Extensions", "StratBook",
+            "DemoViewer.NET.Extensions.StratBook");
+        List<string> found = [];
+        foreach (string file in Directory.EnumerateFiles(pack, "*.*", SearchOption.AllDirectories))
+        {
+            string relative = Path.GetRelativePath(pack, file).Replace('\\', '/');
+            if (relative.StartsWith("bin/", StringComparison.Ordinal) || relative.StartsWith("obj/", StringComparison.Ordinal)
+                || !(file.EndsWith(".cs", StringComparison.Ordinal) || file.EndsWith(".axaml", StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            string code = WithoutComments(await File.ReadAllTextAsync(file));
+            string[] allowed = _cacheAccessAllowed.GetValueOrDefault(relative, []);
+            found.AddRange(_cacheTypes
+                .Where(name => !allowed.Contains(name) && Regex.IsMatch(code, $@"\b{Regex.Escape(name)}\b"))
+                .Select(name => $"{relative}: {name}"));
+        }
+
+        await Assert.That(found).IsEmpty();
+    }
+
+    private static string WithoutComments(string source)
+    {
+        string stripped = Regex.Replace(source, @"/\*.*?\*/|<!--.*?-->", "", RegexOptions.Singleline);
+        return string.Join('\n', stripped.Split('\n').Select(line => line.IndexOf("//", StringComparison.Ordinal) is var at and >= 0
+            ? line[..at]
+            : line));
     }
 }
