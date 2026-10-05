@@ -88,6 +88,10 @@ internal sealed class Program
             launch.Decision.IsActive);
         FeaturePacks.ConfigureResolved(extensions.Statuses, extensions.ExternalRejected, extensions.ClaimedRulesets);
 
+        // One fault tracker for the process, before anything runs extension code: the composition root takes
+        // it, and the UI-thread and unobserved-task backstops attribute through it.
+        ExtensionFaults faults = ExtensionFaults.For(FeaturePacks.Statuses).Install();
+
         // Last-chance crash log: an unhandled exception aborts the process, and on macOS the OS
         // report (.ips) carries only unsymbolicated JIT frames. Persist the MANAGED stack, and tell the
         // launch guard which extension it was in, if any.
@@ -96,8 +100,8 @@ internal sealed class Program
             WriteCrashLog(e.ExceptionObject);
             if (e.ExceptionObject is Exception ex)
             {
-                launch.RecordCrash(ex, FeaturePacks.Statuses.Select(st =>
-                    new ExtensionIdentity(st.Pack.GetType().Assembly, st.Manifest?.Name ?? st.Pack.Id, st.Pack.FeatureId)));
+                launch.RecordCrash(ex, faults.Scopes.Select(sc =>
+                    new ExtensionIdentity(sc.Assembly, sc.Name, sc.FeatureId, sc.LoadContext)));
             }
         };
 

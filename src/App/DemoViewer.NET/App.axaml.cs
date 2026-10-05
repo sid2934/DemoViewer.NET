@@ -96,6 +96,7 @@ public class App : Application
             // The DI container is the single composition root: it constructs + HOLDS the
             // ModuleRegistry and resolves the shell.
             ServiceProvider services = BuildServices(windowService);
+            _backstops ??= ExtensionBackstops.Install(services.GetRequiredService<ExtensionFaults>());
             WireTheme(services); // apply persisted theme + keep it live
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab + file
@@ -452,6 +453,7 @@ public class App : Application
             // root; only first-party modules are registered on WASM (no filesystem / assembly probing).
             BrowserWindowService windowService = new();
             ServiceProvider services = BuildServices(windowService);
+            _backstops ??= ExtensionBackstops.Install(services.GetRequiredService<ExtensionFaults>());
             WireTheme(services); // apply persisted theme + keep it live
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab (file no-ops on WASM)
@@ -697,6 +699,9 @@ public class App : Application
     /// </summary>
     // Lives for the process: it watches the UI thread until exit.
     private static UiWatchdog? _watchdog;
+
+    // Lives for the process: the UI-thread, unobserved-task and binding backstops for extensions.
+    private static IDisposable? _backstops;
 
     internal static void StartPacks(IServiceProvider provider) => provider.GetRequiredService<PackSwitch>().Start();
 

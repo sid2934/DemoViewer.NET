@@ -543,21 +543,23 @@ public sealed class ExtensionFaults
 /// <summary>Finds the first stack frame, deepest first, whose assembly a matcher claims.</summary>
 public static class StackAttribution
 {
-    /// <summary>The first match on <paramref name="exception" />'s stack, inner exceptions included.</summary>
+    /// <summary>
+    ///     The first match on <paramref name="exception" />'s stack. The innermost exception is searched first,
+    ///     since it is where the failure started; a wrapper's frames are mostly whoever caught and rethrew it.
+    /// </summary>
     public static T? Find<T>(Exception exception, Func<Assembly, T?> match) where T : class
     {
         ArgumentNullException.ThrowIfNull(exception);
         ArgumentNullException.ThrowIfNull(match);
+        List<Exception> chain = [];
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
-            foreach (StackFrame frame in new StackTrace(current, false).GetFrames())
-            {
-                if (frame.GetMethod()?.DeclaringType?.Assembly is { } assembly && match(assembly) is { } hit)
-                {
-                    return hit;
-                }
-            }
+            chain.Add(current);
+        }
 
+        for (int i = chain.Count - 1; i >= 0; i--)
+        {
+            Exception current = chain[i];
             if (current is AggregateException { InnerExceptions.Count: > 1 } many)
             {
                 foreach (Exception inner in many.InnerExceptions)
@@ -566,6 +568,14 @@ public static class StackAttribution
                     {
                         return hit;
                     }
+                }
+            }
+
+            foreach (StackFrame frame in new StackTrace(current, false).GetFrames())
+            {
+                if (frame.GetMethod()?.DeclaringType?.Assembly is { } assembly && match(assembly) is { } hit)
+                {
+                    return hit;
                 }
             }
         }

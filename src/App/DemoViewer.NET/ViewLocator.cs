@@ -31,13 +31,29 @@ public class ViewLocator : IDataTemplate
 
         if (type != null)
         {
-            return (Control)Activator.CreateInstance(type)!;
+            return Create(type, App.Services?.GetService(typeof(ExtensionFaults)) as ExtensionFaults ?? ExtensionFaults.Current);
         }
 
         return new TextBlock
         {
             Text = "Not Found: " + name
         };
+    }
+
+    /// <summary>
+    ///     Builds <paramref name="viewType" />. An extension's view whose constructor throws is reported against
+    ///     the extension and replaced by the placeholder: this runs inside a layout pass, so a throw here would
+    ///     otherwise rebuild and throw again on every pass until the app went down.
+    /// </summary>
+    internal static Control Create(Type viewType, ExtensionFaults? faults)
+    {
+        if (faults?.Owner(viewType.Assembly) is not { } scope)
+        {
+            return (Control)Activator.CreateInstance(viewType)!;
+        }
+
+        return faults.Run<Control>(scope, "view " + viewType.Name, () => (Control)Activator.CreateInstance(viewType)!,
+            ExtensionPlaceholder.View(scope, "this view"));
     }
 
     // A pack's views live in the pack's assembly under the same naming convention, so the search

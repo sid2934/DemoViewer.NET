@@ -61,7 +61,7 @@ internal sealed class ExtensionContext : IExtensionContext
         _guard = services.GetService<ExtensionFaults>()?.GuardFor(extension) ?? ExtensionGuard.Standalone(extension);
         Features = new GateView(services.GetService<IFeatureGate>(), _guard);
         Jobs = new ExtensionJobs(extension.Id, () => services.GetService<IDemoProcessingQueue>(),
-            () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default);
+            () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default, _guard);
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
     }
@@ -197,8 +197,12 @@ internal sealed class ExtensionContext : IExtensionContext
     public const string ExtensionDataDirectoryName = "extension-data";
 }
 
-/// <summary>The processing queue as one extension sees it: every job carries the extension's id as its owner.</summary>
-internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueue?> queue, Func<JobKindRegistry> kinds)
+/// <summary>
+///     The processing queue as one extension sees it: every job carries the extension's id as its owner, and
+///     a job that throws is counted against the extension before the queue marks it failed.
+/// </summary>
+internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueue?> queue, Func<JobKindRegistry> kinds,
+    ExtensionGuard? guard = null)
     : IExtensionJobs
 {
     public Task RunAsync(string title, Func<IJobContext, Task> work, JobOptions? options = null)
@@ -211,13 +215,27 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
         DemoJobPriority priority = options.Priority == JobPriority.UserRequested
             ? DemoJobPriority.UserRequested
             : DemoJobPriority.Background;
-        QueueJobRequest request = new(kind, title, extensionId, priority, ctx => work(new Context(ctx)), options.Key,
+        QueueJobRequest request = new(kind, title, extensionId, priority, ctx => Counted(ctx, work), options.Key,
             ReplacePending: options.Key is not null, Preemptible: options.Preemptible, Serial: options.Serial,
             ExtensionKind: extensionKind);
         return QueueWork.Submit(queue(), request);
     }
 
     public void CancelAll() => queue()?.CancelOwned(extensionId);
+
+    private async Task Counted(IQueueJobContext ctx, Func<IJobContext, Task> work)
+    {
+        try
+        {
+            await work(new Context(ctx)).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (guard is not null && ex is not OutOfMemoryException
+                                   && !(ex is OperationCanceledException && ctx.CancellationToken.IsCancellationRequested))
+        {
+            guard.Report("job", ex);
+            throw;
+        }
+    }
 
     private (QueueJobKind Kind, string? ExtensionKind) Resolve(string kindId)
     {

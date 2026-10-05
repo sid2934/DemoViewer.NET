@@ -80,6 +80,50 @@ public class LaunchGuardTests
         }
     }
 
+    // A third-party extension loads its private dependencies into its own load context. A crash whose stack
+    // is in one of those dependencies, not in the entry assembly, is still the extension's. An identity in the
+    // app's default context claims only its entry assembly, never the rest of the app.
+    [Test]
+    public async Task ACrashInsideAnExtensionsOwnDependency_IsAttributedThroughItsLoadContext()
+    {
+        string bin = AppContext.BaseDirectory;
+        System.Runtime.Loader.AssemblyLoadContext context = new("external:test@1.0", isCollectible: true);
+        try
+        {
+            System.Reflection.Assembly entry = context.LoadFromAssemblyPath(Path.Combine(bin, "DemoViewer.NET.Extensions.StratBook.dll"));
+            System.Reflection.Assembly dependency = context.LoadFromAssemblyPath(Path.Combine(bin, "DemoViewer.NET.Extensions.Sdk.dll"));
+            System.Reflection.MethodInfo throws = dependency.GetType("DemoViewer.NET.Extensions.Sdk.ExtensionServiceProviderExtensions")!
+                .GetMethod("GetExtensionContext")!;
+            Exception thrown;
+            try
+            {
+                throws.Invoke(null, [null, "x"]);
+                throw new InvalidOperationException("expected a throw");
+            }
+            catch (System.Reflection.TargetInvocationException ex)
+            {
+                thrown = ex;
+            }
+
+            ExtensionIdentity external = new(entry, "External", "pack.external", context);
+            ExtensionIdentity entryOnly = external with { LoadContext = null };
+            ExtensionIdentity shipped = new(typeof(LaunchGuardTests).Assembly, "Shipped", "pack.shipped",
+                System.Runtime.Loader.AssemblyLoadContext.Default);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(LaunchGuard.Attribute(thrown, [shipped, external])).IsSameReferenceAs(external);
+                await Assert.That(LaunchGuard.Attribute(thrown, [entryOnly])).IsNull()
+                    .Because("matching the entry assembly alone misses the extension's own dependencies");
+                await Assert.That(LaunchGuard.Attribute(new InvalidOperationException("app"), [shipped])).IsNull();
+            }
+        }
+        finally
+        {
+            context.Unload();
+        }
+    }
+
     [Test]
     public async Task ACrash_NamesTheExtensionOnItsStack_AndTheNextLaunchSaysSo()
     {

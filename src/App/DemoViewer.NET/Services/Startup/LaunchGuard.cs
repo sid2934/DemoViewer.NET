@@ -1,7 +1,7 @@
 #region
 
-using System.Diagnostics;
 using System.Reflection;
+using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -49,10 +49,21 @@ public sealed record SafeModeState(bool IsActive, SafeModeReason? Reason, string
 }
 
 /// <summary>An extension as crash attribution sees it.</summary>
-/// <param name="Assembly">Its assembly.</param>
+/// <param name="Assembly">Its entry assembly.</param>
 /// <param name="Name">Its display name.</param>
 /// <param name="FeatureId">Its master switch.</param>
-public sealed record ExtensionIdentity(Assembly Assembly, string Name, string FeatureId);
+/// <param name="LoadContext">
+///     Its own load context, whose every assembly (its private dependencies too) is its code; null when it
+///     shares the app's default context and only its entry assembly is.
+/// </param>
+public sealed record ExtensionIdentity(Assembly Assembly, string Name, string FeatureId, AssemblyLoadContext? LoadContext = null)
+{
+    /// <summary>True when <paramref name="assembly" /> is this extension's code.</summary>
+    public bool Owns(Assembly assembly) =>
+        ReferenceEquals(assembly, Assembly)
+        || (LoadContext is not null && !ReferenceEquals(LoadContext, AssemblyLoadContext.Default)
+                                    && ReferenceEquals(AssemblyLoadContext.GetLoadContext(assembly), LoadContext));
+}
 
 /// <summary>
 ///     Tracks a desktop launch in <c>&lt;config root&gt;/launch-state.json</c> so the next launch can tell whether
@@ -182,41 +193,18 @@ public sealed class LaunchGuard
         }
     }
 
-    /// <summary>The extension whose code is deepest-first on <paramref name="exception" />'s stack, inner exceptions included.</summary>
+    /// <summary>
+    ///     The extension whose code is deepest-first on <paramref name="exception" />'s stack, inner exceptions
+    ///     included: a frame in its entry assembly or in any assembly of its own load context.
+    /// </summary>
     public static ExtensionIdentity? Attribute(Exception exception, IEnumerable<ExtensionIdentity> extensions)
     {
         ArgumentNullException.ThrowIfNull(exception);
         ArgumentNullException.ThrowIfNull(extensions);
         ExtensionIdentity[] known = [.. extensions];
-        if (known.Length == 0)
-        {
-            return null;
-        }
-
-        for (Exception? current = exception; current is not null; current = current.InnerException)
-        {
-            foreach (StackFrame frame in new StackTrace(current, false).GetFrames())
-            {
-                Assembly? assembly = frame.GetMethod()?.DeclaringType?.Assembly;
-                if (assembly is not null && known.FirstOrDefault(k => k.Assembly == assembly) is { } hit)
-                {
-                    return hit;
-                }
-            }
-
-            if (current is AggregateException { InnerExceptions.Count: > 1 } many)
-            {
-                foreach (Exception inner in many.InnerExceptions)
-                {
-                    if (Attribute(inner, known) is { } hit)
-                    {
-                        return hit;
-                    }
-                }
-            }
-        }
-
-        return null;
+        return known.Length == 0
+            ? null
+            : DemoViewer.NET.Extensions.StackAttribution.Find(exception, a => known.FirstOrDefault(k => k.Owns(a)));
     }
 
     /// <summary>Reads a state file; null when it is missing or unreadable.</summary>
