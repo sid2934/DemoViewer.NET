@@ -26,15 +26,19 @@ public sealed class EvaluatorPassAdapter : IDemoPass
     /// <summary>The wrapped evaluator.</summary>
     public IDemoEvaluator Evaluator { get; }
 
+    /// <inheritdoc />
     public string Id => Evaluator.Id;
 
+    /// <inheritdoc />
     public IReadOnlyList<string> After { get; }
 
+    /// <inheritdoc />
     public PassNeeds Needs(VisitedDemo demo) =>
         Evaluator.ForwardFor(demo.Path) is { } forward
             ? new PassNeeds(ParseMode.Forward, forward, Evaluator.ReadsUserCommands)
             : new PassNeeds(ParseMode.Retained, ForwardNeeds.None, Evaluator.ReadsUserCommands);
 
+    /// <inheritdoc />
     public PassInterest Interest(VisitedDemo demo, PassLevel level)
     {
         if (Evaluator.Wants(demo.Path))
@@ -45,6 +49,7 @@ public sealed class EvaluatorPassAdapter : IDemoPass
         return Evaluator.WantsAfterUpstream(demo.Path) ? PassInterest.IfUpstreamRuns : PassInterest.No;
     }
 
+    /// <inheritdoc />
     public void Run(PassInput input)
     {
         if (input.Forward is { } forward)
@@ -57,6 +62,7 @@ public sealed class EvaluatorPassAdapter : IDemoPass
         }
     }
 
+    /// <inheritdoc />
     public void OnFailed(VisitedDemo demo, Exception failure) => Evaluator.OnFailed(demo.Path);
 
     /// <summary>The level the evaluator asks for a demo at, from <see cref="IDemoEvaluator.PriorityFor" />.</summary>
