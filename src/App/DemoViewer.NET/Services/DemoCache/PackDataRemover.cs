@@ -294,7 +294,7 @@ public sealed class PackDataRemover(DemoCacheStore store, string? configRoot, st
 
     // Refuses a path that is rooted, empty, ".", carries a ".." segment, or resolves outside root
     // (including to root itself, which would otherwise let a descriptor delete the whole app-data root).
-    private static string? ResolveSafe(string root, string relative)
+    internal static string? ResolveSafe(string root, string relative)
     {
         if (string.IsNullOrEmpty(relative) || relative == ".")
         {

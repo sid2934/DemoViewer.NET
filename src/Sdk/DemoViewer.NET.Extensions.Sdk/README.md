@@ -97,7 +97,8 @@ when it names one.
   remove it. Jobs carry the extension's id, and switching the extension off cancels its queued jobs. Declare
   your own job kinds in `IExtension.JobKinds`, or use `BuiltInJobKinds`.
 - `Storage`: a config folder for the user's work and a cache folder for what you can rebuild. Both are null
-  in the browser build.
+  in the browser build. Write files with `WriteAtomicAsync` and read them with `ReadAsync`: the path must stay
+  inside the folder, and a crash mid-write leaves the previous file instead of a torn one.
 - `CreateLogger` and `Post`.
 
 Register an `IExtensionLifecycle` as a keyed singleton under your id to start loads when the extension is
@@ -119,6 +120,16 @@ An extension the app's publisher has not signed is unverified. Unverified extens
 user turns on "Allow unverified and potentially dangerous extensions" in Settings and restarts. An extension
 runs inside the app with the app's access to files and the network; that setting records the user's consent,
 it does not sandbox anything. A copy whose signature is present but broken never loads.
+
+## When your code throws
+
+The host runs every callback it makes into an extension under a guard: a throw is logged against the
+extension in the diagnostics log and the host carries on with a fallback (a filter keeps the demo, a view
+shows a placeholder, a handler is skipped). Three errors inside a minute, or ten in a session, turn the
+extension off until the app restarts; Settings says so and offers to turn it back on. A handler that runs on
+every frame or keypress counts once a minute for the same error. If `Register` throws, or a lifecycle
+cannot be built while the app starts, the app starts without the extension. Binding errors in your views are
+logged against the extension and never counted.
 
 ## Safe mode
 

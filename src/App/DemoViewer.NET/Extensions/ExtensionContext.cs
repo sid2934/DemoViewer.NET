@@ -4,6 +4,7 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -172,15 +173,74 @@ internal sealed class ExtensionContext : IExtensionContext
         }
     }
 
-    private sealed class StorageView(string extensionId) : IExtensionStorage
+    internal sealed class StorageView(string extensionId, string? configRoot = null, string? cacheRoot = null) : IExtensionStorage
     {
-        public string? ConfigDirectory => Ensure(AppPaths.ConfigRoot is { } root
+        private readonly string? _configRoot = configRoot ?? AppPaths.ConfigRoot;
+        private readonly string? _cacheRoot = cacheRoot ?? AppPaths.DemoCacheDir;
+
+        public string? ConfigDirectory => Ensure(_configRoot is { } root
             ? Path.Combine(root, ExtensionDataDirectoryName, extensionId)
             : null);
 
-        public string? CacheDirectory => Ensure(AppPaths.DemoCacheDir is { } cache
+        public string? CacheDirectory => Ensure(_cacheRoot is { } cache
             ? Path.Combine(cache, ExtensionDataDirectoryName, extensionId)
             : null);
+
+        public async Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
+            CancellationToken cancellationToken = default)
+        {
+            if (Resolve(root, relativePath) is not { } target)
+            {
+                return false;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+
+            // Beside the target, so the move is a rename on the same volume.
+            string temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                await using (FileStream stream = new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
+                {
+                    await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
+                    await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                File.Move(temp, target, overwrite: true);
+                return true;
+            }
+            finally
+            {
+                if (File.Exists(temp))
+                {
+                    File.Delete(temp);
+                }
+            }
+        }
+
+        public async Task<byte[]?> ReadAsync(StoreRoot root, string relativePath, CancellationToken cancellationToken = default)
+        {
+            if (Resolve(root, relativePath) is not { } target || !File.Exists(target))
+            {
+                return null;
+            }
+
+            return await File.ReadAllBytesAsync(target, cancellationToken).ConfigureAwait(false);
+        }
+
+        // Null when the build has no folders; throws for a path that would leave the extension's folder.
+        private string? Resolve(StoreRoot root, string relativePath)
+        {
+            ArgumentNullException.ThrowIfNull(relativePath);
+            if ((root == StoreRoot.Config ? ConfigDirectory : CacheDirectory) is not { } folder)
+            {
+                return null;
+            }
+
+            return PackDataRemover.ResolveSafe(folder, relativePath)
+                   ?? throw new ArgumentException($"'{relativePath}' is not a file inside the extension's folder.", nameof(relativePath));
+        }
 
         private static string? Ensure(string? path)
         {

@@ -87,6 +87,32 @@ public interface IExtensionStorage
 
     /// <summary>For anything the extension can rebuild. Created on first read.</summary>
     string? CacheDirectory { get; }
+
+    /// <summary>
+    ///     Writes <paramref name="content" /> to a file under one of the extension's folders, whole or not at
+    ///     all: the bytes go to a temporary file beside the target, which then replaces it. A crash mid-write
+    ///     leaves the previous file. The safe way to write the extension's data.
+    /// </summary>
+    /// <param name="root">Which of the extension's folders.</param>
+    /// <param name="relativePath">The file under that folder, with '/' or '\' between folders. Missing folders are created.</param>
+    /// <param name="content">The file's new contents.</param>
+    /// <param name="cancellationToken">Stops the write before the file is replaced.</param>
+    /// <returns>False on the browser build, which has no folders; true once the file is replaced.</returns>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="relativePath" /> is empty, rooted, has a ".." segment, or resolves outside the folder.
+    /// </exception>
+    Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Reads a file under one of the extension's folders, by the same path rule as <see cref="WriteAtomicAsync" />.</summary>
+    /// <param name="root">Which of the extension's folders.</param>
+    /// <param name="relativePath">The file under that folder.</param>
+    /// <param name="cancellationToken">Stops the read.</param>
+    /// <returns>The file's contents, or null when it does not exist or the build has no folders.</returns>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="relativePath" /> is empty, rooted, has a ".." segment, or resolves outside the folder.
+    /// </exception>
+    Task<byte[]?> ReadAsync(StoreRoot root, string relativePath, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Resolves an extension's <see cref="IExtensionContext" />.</summary>
