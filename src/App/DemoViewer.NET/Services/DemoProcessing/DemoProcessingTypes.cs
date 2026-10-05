@@ -72,7 +72,10 @@ public enum QueueJobKind
     DemoOpen,
 
     /// <summary>The scheduler asking every pass about the demos marked dirty, then submitting their visits. Light.</summary>
-    Scheduling
+    Scheduling,
+
+    /// <summary>The record passes reading cached records, no demo file. Light.</summary>
+    RecordPass
 }
 
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>

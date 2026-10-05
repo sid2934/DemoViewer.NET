@@ -1019,6 +1019,7 @@ public class App : Application
             };
             library.Scheduler = scheduler;
             highlights.Scheduler = scheduler;
+            scheduler.Records = sp.GetRequiredService<RecordPassRunner>();
 
             registry.AddPacksLazily(() =>
             {
@@ -1043,6 +1044,52 @@ public class App : Application
             });
 
             return scheduler;
+        });
+
+        // The record passes: work over what the cache holds, no demo read. Fed by the cache's own change
+        // events; a pack's passes are read from its contributions on the first run, and asked only while
+        // the pack is on.
+        services.AddSingleton(sp =>
+        {
+            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
+            Lazy<IReadOnlyList<(IExtension Pack, Func<IRecordPass> Factory)>> contributed = new(() =>
+            [
+                .. sp.GetRequiredService<PackContributionSet>().Packs.SelectMany(c => c.RecordPasses.Select(r =>
+                    (c.Pack, ExtensionRecordPassHost.Cached(r, () => HostLibrary.For(cache, queue)))))
+            ]);
+            IFeatureGate? features = sp.GetService<IFeatureGate>();
+            return new RecordPassRunner(() =>
+            {
+                List<IRecordPass> passes = [];
+                foreach ((IExtension pack, Func<IRecordPass> factory) in contributed.Value)
+                {
+                    if (!(features?.IsEnabled(pack.FeatureId) ?? true))
+                    {
+                        continue;
+                    }
+
+                    try
+                    {
+                        passes.Add(factory());
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        sp.GetRequiredService<ExtensionFaults>().GuardFor(pack).Report("build record pass", ex);
+                    }
+                }
+
+                return passes;
+            }, cache, queue)
+            {
+                Faulted = (pass, _, ex) =>
+                {
+                    if (pass is ExtensionRecordPassHost host)
+                    {
+                        host.Guard.Report("record pass " + pass.Id, ex);
+                    }
+                }
+            };
         });
 
         // Recently-opened-demos store. SINGLETON: it holds the live in-memory recents list

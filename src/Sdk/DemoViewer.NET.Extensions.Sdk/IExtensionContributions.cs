@@ -24,6 +24,14 @@ public interface IExtensionContributions
     /// <param name="after">Pass ids whose writes this one reads, such as <see cref="HostIds.LibraryPass" />.</param>
     void Pass(string id, Func<IExtensionPass> factory, params string[] after);
 
+    /// <summary>
+    ///     A pass over what the library already holds for each demo, run without reading the demo file. The
+    ///     factory is called only while the extension is on.
+    /// </summary>
+    /// <param name="id">The pass's <see cref="IExtensionRecordPass.Id" />.</param>
+    /// <param name="factory">Builds or returns the pass.</param>
+    void RecordPass(string id, Func<IExtensionRecordPass> factory);
+
     /// <summary>Commands for the keymap, in addition to <see cref="IExtension.Commands" />.</summary>
     void Commands(IEnumerable<CommandDescriptor> commands);
 

@@ -40,6 +40,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly List<IWorkspaceModule> _modules = [];
     private readonly List<HostTabContribution> _hostTabs = [];
     private readonly List<PassContribution> _passes = [];
+    private readonly List<RecordPassContribution> _recordPasses = [];
     private readonly List<CommandDescriptor> _commands = [];
     private readonly List<RulesetContribution> _rulesets = [];
     private readonly List<SettingsPageContribution> _settingsPages = [];
@@ -71,6 +72,9 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
     /// <summary>Passes, in contribution order.</summary>
     public IReadOnlyList<PassContribution> Passes => _passes;
+
+    /// <summary>Record passes, in contribution order.</summary>
+    public IReadOnlyList<RecordPassContribution> RecordPasses => _recordPasses;
 
     /// <summary>Job kinds, in contribution order.</summary>
 
@@ -143,6 +147,14 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentNullException.ThrowIfNull(factory);
         string[] order = [.. after];
         _passes.Add(new PassContribution(id, HostCache(factory, order), order));
+    }
+
+    /// <inheritdoc />
+    public void RecordPass(string id, Func<IExtensionRecordPass> factory)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(factory);
+        _recordPasses.Add(new RecordPassContribution(id, factory, _guard));
     }
 
     // The registry calls the factory on every resolve. One host per pass instance keeps the identity a visit

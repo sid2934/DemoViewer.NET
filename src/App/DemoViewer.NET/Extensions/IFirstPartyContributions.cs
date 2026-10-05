@@ -32,6 +32,12 @@ public sealed record JobKindDescriptor(QueueJobKind Kind, string Label, int Rank
 /// <param name="After">Pass ids whose writes this one reads in the same visit.</param>
 public sealed record PassContribution(string Id, Func<IDemoPass> Factory, IReadOnlyList<string> After);
 
+/// <summary>One record pass a pack registered.</summary>
+/// <param name="Id">The pass's id.</param>
+/// <param name="Factory">Builds or returns the pass.</param>
+/// <param name="Guard">The pack's guard, which the host runs the pass under.</param>
+internal sealed record RecordPassContribution(string Id, Func<IExtensionRecordPass> Factory, ExtensionGuard Guard);
+
 /// <summary>
 ///     A ruleset in the rules directories that a pack owns. The merged background build runs it only while
 ///     the owning pack is on, and it never enters the highlights fingerprint: the pack stamps its own rows

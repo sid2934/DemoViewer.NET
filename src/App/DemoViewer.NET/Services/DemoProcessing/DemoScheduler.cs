@@ -71,6 +71,9 @@ public sealed class DemoScheduler : IDisposable
     /// </summary>
     public Action<string, string?, Exception>? Faulted { get; set; }
 
+    /// <summary>The record passes, re-checked with every <see cref="RecheckAll" />. Null runs none.</summary>
+    public RecordPassRunner? Records { get; set; }
+
     /// <summary>
     ///     Raised with a pass id when that pass takes a demo or finishes one, on whatever thread changed it. A
     ///     handler must not block: it runs in the planning item or in the queue's slot.
@@ -110,6 +113,7 @@ public sealed class DemoScheduler : IDisposable
         }
 
         Schedule(PassLevel.Background);
+        Records?.RecheckAll();
     }
 
     /// <summary>

@@ -95,3 +95,32 @@ public interface IExtensionPasses
     /// <summary>Raised on the UI thread when one of the extension's own passes takes a demo or finishes one.</summary>
     event Action? Changed;
 }
+
+/// <summary>
+///     Work over what the library already holds for each demo (its row and its record: roster, rounds), run
+///     without reading the demo file. Registered once with <see cref="IExtensionContributions.RecordPass" />.
+///     When a demo's row changes, and when the host re-checks the library, every record pass is asked whether
+///     it wants the demo; the host then reads the demo's record once for every pass that does, as a light job
+///     on the processing queue, and asks each pass again right before its turn.
+///     <para>
+///         A pass that throws is skipped for that demo for the rest of the session and counted against the
+///         extension. A pass is not run twice on the same row: it runs again once the row changes.
+///     </para>
+/// </summary>
+public interface IExtensionRecordPass
+{
+    /// <summary>Unique across the extension's record passes.</summary>
+    string Id { get; }
+
+    /// <summary>
+    ///     Whether <paramref name="demo" /> needs this pass. Called often and never on the UI thread: answer from
+    ///     the row and from memory, never from a file.
+    /// </summary>
+    /// <param name="demo">The demo's row.</param>
+    bool Wants(LibraryDemo demo);
+
+    /// <summary>Does the pass's work. Runs on a queue thread; never touch the UI from here.</summary>
+    /// <param name="detail">The demo's row and record.</param>
+    /// <param name="cancellationToken">Fires when the job is stopped; throw <see cref="OperationCanceledException" /> to end the turn.</param>
+    void Run(LibraryDemoDetail detail, CancellationToken cancellationToken);
+}

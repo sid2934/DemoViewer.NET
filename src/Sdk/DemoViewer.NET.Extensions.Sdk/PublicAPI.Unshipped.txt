@@ -215,6 +215,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DemoAction(DemoViewer.NET.
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Library(DemoViewer.NET.Extensions.Sdk.ILibraryContribution! contribution) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Pass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionPass!>! factory, params string![]! after) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Playback(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution! contribution) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.RecordPass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass!>! factory) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer.NET.Extensions.Sdk.IReindexEstimate! estimate) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsSchema(DemoViewer.NET.Extensions.Sdk.SettingsSchema! schema) -> void
@@ -268,6 +269,10 @@ DemoViewer.NET.Extensions.Sdk.IExtensionPasses.Changed -> System.Action?
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses.IsBusy(string! passId) -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses.RecheckAll() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses.Request(string! demoPath) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass
+DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass.Run(DemoViewer.NET.Extensions.Sdk.LibraryDemoDetail! detail, System.Threading.CancellationToken cancellationToken) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass.Wants(DemoViewer.NET.Extensions.Sdk.LibraryDemo! demo) -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionResident
 DemoViewer.NET.Extensions.Sdk.IExtensionResident.Attach() -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionResident.Release() -> void
