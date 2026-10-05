@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -38,6 +39,9 @@ public interface IRecordPass
 /// </summary>
 public sealed class RecordPassRunner : IDisposable
 {
+    /// <summary>The queue owner of the record pass runs.</summary>
+    public const string Owner = "records";
+
     private const string RunKey = "records.run";
     private const string RunTitle = "Reading cached demos";
 
@@ -169,7 +173,23 @@ public sealed class RecordPassRunner : IDisposable
             _runQueued = true;
         }
 
-        _ = QueueWork.Run(_queue, QueueJobKind.RecordPass, RunTitle, "records", Drain, key: RunKey, preemptible: true);
+        // A run the user removes before it starts never drains; the next change must still be able to queue one.
+        StrongBox<bool> started = new(false);
+        _ = QueueWork.Run(_queue, QueueJobKind.RecordPass, RunTitle, Owner, token =>
+            {
+                started.Value = true;
+                Drain(token);
+            }, key: RunKey, preemptible: true)
+            .ContinueWith(_ =>
+            {
+                if (!started.Value)
+                {
+                    lock (_lock)
+                    {
+                        _runQueued = false;
+                    }
+                }
+            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     // Loops until nothing is dirty, so a change made while a batch ran is taken by this job.

@@ -109,6 +109,27 @@ public class RecordPassRunnerTests
         await Assert.That(host.Owner).IsEqualTo("test.library");
     }
 
+    [Test]
+    public async Task ARunRemovedBeforeItStarts_DoesNotStopTheNextChangeFromRunning()
+    {
+        using DemoProcessingQueue queue = CountingQueue(() => { });
+        DemoCacheStore store = new(null);
+        Recording pass = new("a", _ => true);
+        using RecordPassRunner runner = new(() => [pass], store, queue);
+
+        queue.Pause();
+        store.Upsert(HostLibraryTests.Parsed("/d/one.dem"));
+        await WaitFor(() => queue.Items.Any(i => i.Kind == QueueJobKind.RecordPass), "the queued run");
+        queue.CancelOwned(RecordPassRunner.Owner);
+        await WaitFor(() => !queue.Items.Any(i => i.Kind == QueueJobKind.RecordPass && i.State == DemoQueueItemState.Queued),
+            "the run's removal");
+        queue.Resume();
+
+        store.Upsert(HostLibraryTests.Parsed("/d/two.dem", sha: "bb"));
+        await WaitFor(() => pass.Runs.Count == 2, "both demos, the removed run's included");
+        await Assert.That(pass.Runs.Order()).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
+    }
+
     private sealed class Recording(string id, Func<DemoCacheIndexEntry, bool> wants) : IRecordPass
     {
         public ConcurrentQueue<string> Runs { get; } = new();
