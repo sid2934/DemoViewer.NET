@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
 
@@ -24,11 +23,8 @@ public interface IStratExport
     /// <inheritdoc cref="StratExportHost.IsReelRunning" />
     Func<bool>? IsReelRunning { get; }
 
-    /// <inheritdoc cref="StratExportHost.Settings" />
-    Func<AppSettings> Settings { get; }
-
-    /// <inheritdoc cref="StratExportHost.PersistSettings" />
-    Action<Action<AppSettings>> PersistSettings { get; }
+    /// <inheritdoc cref="StratExportHost.Exports" />
+    FirstPartyExports? Exports { get; }
 
     /// <inheritdoc cref="StratExportHost.MountStatusChip" />
     Action<Playback2DExportStatusViewModel>? MountStatusChip { get; }

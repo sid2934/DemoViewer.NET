@@ -6,7 +6,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Avalonia;
 using Avalonia.Threading;
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
@@ -19,7 +18,6 @@ using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
-using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
@@ -264,7 +262,7 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         new(string.Create(CultureInfo.InvariantCulture,
             $"GIF square ({StratExportJob.DefaultWidth}×{StratExportJob.DefaultHeight})"),
             StratExportJob.DefaultWidth, StratExportJob.DefaultHeight),
-        .. Playback2DExportDialogViewModel.SizePresets
+        .. FirstPartySceneExport.SizePresets
     ];
 
     /// <summary>The line the tab shows on the browser host.</summary>
@@ -568,55 +566,34 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
             StratExportJob job = ExportJobFactory?.Invoke(host) ?? new StratExportJob(
                 Canvas.MapLoader,
                 surfaces: RenderSurfaceProviderFactory.CreateCpu,
-                managedFfmpegDirectory: static () => FfmpegDependency.ManagedDirectory,
+                managedFfmpegDirectory: static () => FirstPartySceneExport.ManagedFfmpegDirectory,
                 log: AppendExportLog,
                 encoderProbe: EncoderProbeCache.Shared,
                 locateFfmpeg: null);
-            _exportJob = host.NewJob?.Invoke(job, AppendExportLog)
-                         ?? new ExportJobService(job, null, host.IsLiveSyncBusy, host.IsReelRunning, AppendExportLog);
+            if (host.NewJob?.Invoke(job, AppendExportLog) is not { } exportJob)
+            {
+                return;
+            }
+
+            _exportJob = exportJob;
             ExportStatus = new Playback2DExportStatusViewModel(_exportJob, host.OpenExportFolder);
             host.MountStatusChip?.Invoke(ExportStatus);
         }
 
         // The strat's own defaults, not the 2D tab's saved ones: a strat is shared as a short GIF, and
         // choosing here must not rewrite what the 2D tab opens with. Only the folder is shared.
-        Playback2DSettings saved = host.Settings().Playback2D;
-        Playback2DSettings seed = new()
-        {
-            ExportFormatId = ExportFormats.Gif,
-            ExportFps = StratExportJob.DefaultFps,
-            ExportWidth = StratExportJob.DefaultWidth,
-            ExportHeight = StratExportJob.DefaultHeight,
-            ExportOutputDirectory = saved.ExportOutputDirectory,
-            ExportIncludeHud = true,
-            ExportIncludeHudClock = true,
-            ExportIncludeAnnotations = true,
-            ExportIncludeVision = false,
-            ExportQuality = saved.ExportQuality,
-            ExportEncoder = EncoderLadder.Auto
-        };
-
         CloseExport();
-        ExportDialog = new Playback2DExportDialogViewModel(
+        ExportDialog = FirstPartySceneExport.NewDialog(
+            host.Exports,
+            new SceneExportDefaults(ExportFormats.Gif, StratExportJob.DefaultFps, StratExportJob.DefaultWidth,
+                StratExportJob.DefaultHeight, IncludeHud: true, IncludeHudClock: true, IncludeAnnotations: true,
+                IncludeVision: false),
             StratExportJob.Ranges(projection),
-            seed,
             _exportJob,
-
-            // An empty fixed script: the session's first-frame fit frames the map's bounds, which is the
-            // strat's camera. There is no live pan to mirror.
-            captureLiveCamera: null,
-            outputFrameCount: StratFrameSource.OutputFrameCount,
-            ffmpegLocator: static () => FfmpegLocator.Locate(FfmpegDependency.ManagedDirectory),
-            isLiveSyncSessionActive: host.IsLiveSyncBusy,
-
-            // The folder is written at Start below; the rest are the strat's constants, never the user's 2D ones.
-            persistDefaults: null,
-            fileExists: null,
-            captureInk: CaptureExport,
-            acquireFfmpeg: Playback2DExportDialogViewModel.ProductionAcquisition(FfmpegDependency.ManagedDirectory),
-            capturePalette: CaptureExportPalette,
-            scene: new ExportDialogScene("Export strat", ExportFileStem(document.Name), ExportSizes,
-                StratExportJob.LayerIds));
+            StratFrameSource.OutputFrameCount,
+            host.IsLiveSyncBusy,
+            CaptureExport,
+            new ExportDialogScene("Export strat", ExportFileStem(document.Name), ExportSizes, StratExportJob.LayerIds));
 
         ExportDialog.StartRequested += OnExportStarted;
     }
@@ -634,27 +611,12 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
         ExportDialog = null;
     }
 
-    private void OnExportStarted()
-    {
-        if (ExportDialog is { } dialog && _context?.GetService<IStratExport>() is { } host
-                                       && Path.GetDirectoryName(dialog.OutputPath) is { Length: > 0 } folder)
-        {
-            host.PersistSettings(settings => settings.Playback2D.ExportOutputDirectory = folder);
-        }
-
-        CloseExport();
-    }
+    private void OnExportStarted() => CloseExport();
 
     // At Start, on the UI thread: the canvas's tracks and ink as they are now, keyed onto the ink session the
     // request carries. Null with no strat open, which the job refuses.
     private AnnotationSession? CaptureExport() =>
         Canvas.CaptureForExport() is { } capture ? StratExportJob.Register(capture) : null;
-
-    // Resolved at Start for the 2D export's reason: the theme is only readable on the UI thread.
-    private static ScenePalette CaptureExportPalette() =>
-        Dispatcher.UIThread.CheckAccess()
-            ? ScenePaletteFactory.Build(Application.Current?.ActualThemeVariant)
-            : ScenePalette.Dark;
 
     // From the export's pool thread and ffmpeg's stderr pump; the chip marshals.
     private void AppendExportLog(string line) => ExportStatus?.AppendLog(line);

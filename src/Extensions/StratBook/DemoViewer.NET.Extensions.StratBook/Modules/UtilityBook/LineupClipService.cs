@@ -11,7 +11,6 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
-using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
 
 #endregion
@@ -1189,7 +1188,7 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
         _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _log = log;
         _render = render ?? ((request, setup, ct) => new SceneExportRunner(_ => setup, RenderSurfaceProviderFactory.CreateCpu,
-            static () => FfmpegDependency.ManagedDirectory, _log, EncoderProbeCache.Shared).RunAsync(request, NoProgress.Instance, ct));
+            static () => FirstPartySceneExport.ManagedFfmpegDirectory, _log, EncoderProbeCache.Shared).RunAsync(request, NoProgress.Instance, ct));
     }
 
     /// <summary>The unfinished GIF's path for <paramref name="gifPath" />.</summary>

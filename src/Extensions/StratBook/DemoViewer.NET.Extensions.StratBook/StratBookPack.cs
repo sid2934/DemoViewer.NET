@@ -5,7 +5,6 @@ using System.Globalization;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Modules.Library;
@@ -601,8 +600,7 @@ public sealed class StratBookPack : IExtension
                 exports is null ? null : (runner, log) => exports.NewJob(runner, liveSyncBusy, reelRunning, log),
                 liveSyncBusy,
                 reelRunning,
-                () => exports?.Settings ?? new AppSettings(),
-                mutate => exports?.PersistSettings(mutate),
+                exports,
                 status => sp.GetRequiredService<IFirstPartyExportChips>().Mount(ExportChipId, PackFeatureId, status),
                 path => Host(sp).Shell.RevealInFileManager(path));
         });

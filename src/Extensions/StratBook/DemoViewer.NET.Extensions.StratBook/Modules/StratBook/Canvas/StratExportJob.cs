@@ -16,7 +16,6 @@ using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
-using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
@@ -110,7 +109,7 @@ public sealed class StratExportJob : IExportRunner
         ArgumentNullException.ThrowIfNull(mapLoader);
         _mapLoader = mapLoader;
         _surfaces = surfaces ?? (static () => new CpuSurfaceProvider());
-        _encoding = new ExportEncoding(managedFfmpegDirectory ?? (static () => FfmpegDependency.ManagedDirectory),
+        _encoding = new ExportEncoding(managedFfmpegDirectory ?? (static () => FirstPartySceneExport.ManagedFfmpegDirectory),
             locateFfmpeg ?? FfmpegLocator.Locate, log, new EncoderSelector(encoderProbe));
     }
 
