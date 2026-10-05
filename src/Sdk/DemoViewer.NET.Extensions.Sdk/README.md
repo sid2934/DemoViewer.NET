@@ -1,7 +1,7 @@
 # DemoViewer.NET Extensions SDK
 
 Build extensions for DemoViewer.NET: tabs, demo passes and jobs, 2D Playback contributions, Library filters and
-badges, Match Overview actions and Settings pages. An extension is a .NET 10 class library that references
+badges, Match Overview actions, settings and per-demo data. An extension is a .NET 10 class library that references
 this package and nothing else of the app's.
 
 `samples/Extensions/HelloExtension` in the DemoViewer.NET repository is a complete, minimal extension.
@@ -77,11 +77,12 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `Tabs` | An `IWorkspaceModule` whose tabs join the strip. |
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind. |
-| `SettingsPage` | A page under Settings, Extensions. |
+| `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
+| `SettingsPage` | A page under Settings, Extensions with controls of your own. |
 | `Playback` | Lanes, panes, panels, toolbar items, mode toggles and key or action handlers in 2D Playback. |
 | `Library` | A Library filter, a per-demo badge, or both. |
 | `DemoAction` | A button on Match Overview for the open demo. |
-| `Store` / `DataRemoval` | The files "Delete extension data" lists and removes. |
+| `Store` / `DataRemoval` / `DataDeleted` | What "Delete extension data" removes beyond your own folders, a removal of your own, and a callback after the delete. |
 | `ReindexEstimate` | The count behind "N demos will be re-indexed" when the extension is switched back on. |
 
 Each contribution shows only while the extension's master switch is on, and while its own feature id is on
@@ -101,9 +102,15 @@ when it names one.
   background work and behind anything the user asked for.
 - `Passes`: ask for one demo again (`Request`), re-check the library (`RecheckAll`), and see whether one of your
   passes has a demo in flight (`IsBusy`, `Changed`).
-- `Storage`: a config folder for the user's work and a cache folder for what you can rebuild. Both are null
-  in the browser build. Write files with `WriteAtomicAsync` and read them with `ReadAsync`: the path must stay
-  inside the folder, and a crash mid-write leaves the previous file instead of a torn one.
+- `Settings`: your settings, a flat set of keys in a file only you read and write. `Get` takes the default and
+  answers it when nothing usable is stored; `Set` writes only a change; `Changed` names the key on the UI
+  thread. The browser build keeps them for the session.
+- `Data`: per-demo data the host keeps for you. See below.
+- `Storage`: files of your own in two folders the host keeps for you, one for the user's work and one for what
+  you can rebuild. You name a file by its path under the folder (`StoreRoot.Config` or `StoreRoot.Cache`) and
+  never see where the folder is. Write with `WriteAtomicAsync` and read with `ReadAsync`: the path must stay
+  inside the folder, and a crash mid-write leaves the previous file instead of a torn one. The browser build
+  has no folders.
 - `CreateLogger` and `Post`.
 
 `JobScope` covers code that has no job context at hand: `JobScope.UserAction()` puts the jobs queued inside it
@@ -137,6 +144,52 @@ IJobHandle handle = context.Jobs.Enqueue(JobRequest.OnDemo("Count frames", path,
     new JobOptions(Priority: JobPriority.UserRequested)));
 handle.Completed += result => Status = result.Status.ToString();
 ```
+
+## Settings
+
+Describe your settings and the host draws the page and stores the values in `context.Settings`:
+
+```csharp
+contributions.SettingsSchema(new SettingsSchema("myextension.settings", "MY EXTENSION",
+[
+    SettingDescriptor.Toggle("scan.background", "Scan in the background", false, "About a second per demo."),
+    SettingDescriptor.Number("scan.stride", "Sample every n-th tick", 4, 1, 64),
+    SettingDescriptor.Choice("names", "Place names from", "pawn", [new("pawn", "The game"), new("zones", "My zones")]),
+    SettingDescriptor.Folder("export.folder", "Export to")
+]));
+
+bool background = context.Settings.Get("scan.background", false);
+context.Settings.Changed += key => { if (key == "scan.background") context.Passes.RecheckAll(); };
+```
+
+A setting that changes what a pass wants should ask the scheduler again, as above, or the change waits for the
+next demo the library visits.
+
+## Per-demo data
+
+`context.Data` keeps what you compute for a demo, so the next session finds it without reading the demo again.
+Data is kept per facet (a name for one kind of data) and follows the demo's content: a moved or renamed demo
+keeps it, and a demo that leaves the library takes it along. Each write records a schema and a fingerprint (what
+the data was computed from); a read that asks for another schema or fingerprint finds nothing, so a new version
+of your pass rebuilds rather than reads stale data.
+
+```csharp
+public DemoInterest Interest(string demoPath) =>
+    data.Stamp(demoPath, "rounds") is { } stamp && stamp.IsCurrent(Schema, Fingerprint) ? DemoInterest.No : DemoInterest.Yes;
+
+public void Run(IPassContext context) =>
+    data.Write(context.DemoPath, new DemoDataWrite("rounds", Schema, Fingerprint, Serialize(Compute(context.Parsed))) { Count = rows });
+
+byte[]? payload = data.Read(demoPath, "rounds", Schema, Fingerprint);
+```
+
+`Stamp` and `Stamps` read the store's index and never open a file, so they are fine on the UI thread and in
+`Interest`. `Read` and `Write` touch the disk: call them from a pass or a job. `Parts` on a write keeps more
+than one file under one stamp; `MarkFailed`, `ClearFailed`, `Invalidate` and `SetCount` change a stamp alone.
+The browser build keeps no per-demo data: `IsAvailable` is false.
+
+"Delete extension data" in Settings switches the extension off, then removes your folders, your per-demo data
+and the stores you declared, and calls what you registered with `DataDeleted`.
 
 ## Installing
 

@@ -31,7 +31,7 @@ public interface IExtensionContext
     /// <summary>The open demo and the shell's navigation.</summary>
     IExtensionShell Shell { get; }
 
-    /// <summary>The extension's own folders.</summary>
+    /// <summary>The extension's own files.</summary>
     IExtensionStorage Storage { get; }
 
     /// <summary>The extension's own settings, which a <see cref="SettingsSchema" /> page edits.</summary>
@@ -88,15 +88,13 @@ public interface IExtensionShell
     void RevealInFileManager(string path);
 }
 
-/// <summary>The extension's own folders. Null on the browser build, which keeps state for the session only.</summary>
+/// <summary>
+///     Files of the extension's own, in two folders the host keeps for it: one for the user's work, one for
+///     what the extension can rebuild. The extension names a file by its path under the folder and never sees
+///     where the folder is. The browser build has no folders: writes keep nothing and reads find nothing.
+/// </summary>
 public interface IExtensionStorage
 {
-    /// <summary>For the user's work: kept until the user deletes the extension's data. Created on first read.</summary>
-    string? ConfigDirectory { get; }
-
-    /// <summary>For anything the extension can rebuild. Created on first read.</summary>
-    string? CacheDirectory { get; }
-
     /// <summary>
     ///     Writes <paramref name="content" /> to a file under one of the extension's folders, whole or not at
     ///     all: the bytes go to a temporary file beside the target, which then replaces it. A crash mid-write
@@ -108,7 +106,8 @@ public interface IExtensionStorage
     /// <param name="cancellationToken">Stops the write before the file is replaced.</param>
     /// <returns>False on the browser build, which has no folders; true once the file is replaced.</returns>
     /// <exception cref="ArgumentException">
-    ///     <paramref name="relativePath" /> is empty, rooted, has a ".." segment, or resolves outside the folder.
+    ///     <paramref name="relativePath" /> is empty, rooted, has a ".." segment, resolves outside the folder, or
+    ///     enters the cache folder's <c>demo-data</c> folder, which holds <see cref="IExtensionContext.Data" />.
     /// </exception>
     Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
         CancellationToken cancellationToken = default);

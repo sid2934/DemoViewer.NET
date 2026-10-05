@@ -51,7 +51,10 @@ public sealed record ExtensionDataRemovalResult(
     public static readonly ExtensionDataRemovalResult NotRun = new(false, ExtensionDataInventory.Empty, 0);
 }
 
-/// <summary>The extension's own "Delete extension data". Without one, the host deletes the declared stores.</summary>
+/// <summary>
+///     The extension's own "Delete extension data". Without one, the host deletes the extension's folders, its
+///     per-demo data and the declared stores.
+/// </summary>
 public interface IExtensionDataRemoval
 {
     /// <summary>The extension's master switch.</summary>

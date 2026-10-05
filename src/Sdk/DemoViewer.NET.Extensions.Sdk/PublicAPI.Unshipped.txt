@@ -208,6 +208,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContext.Storage.get -> DemoViewer.NET.Ex
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Commands(System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandDescriptor!>! commands) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Context.get -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DataDeleted(System.Action! afterDelete) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DataRemoval(DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval! removal) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DemoAction(DemoViewer.NET.Extensions.Sdk.DemoAction! action) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Library(DemoViewer.NET.Extensions.Sdk.ILibraryContribution! contribution) -> void
@@ -275,8 +276,6 @@ DemoViewer.NET.Extensions.Sdk.IExtensionShell.RevealInFileManager(string! path) 
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.SeekToTick(int tick) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionShell.SelectTab(string! tabId) -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionStorage
-DemoViewer.NET.Extensions.Sdk.IExtensionStorage.CacheDirectory.get -> string?
-DemoViewer.NET.Extensions.Sdk.IExtensionStorage.ConfigDirectory.get -> string?
 DemoViewer.NET.Extensions.Sdk.IExtensionStorage.ReadAsync(DemoViewer.NET.Extensions.Sdk.StoreRoot root, string! relativePath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<byte[]?>!
 DemoViewer.NET.Extensions.Sdk.IExtensionStorage.WriteAtomicAsync(DemoViewer.NET.Extensions.Sdk.StoreRoot root, string! relativePath, System.ReadOnlyMemory<byte> content, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
 DemoViewer.NET.Extensions.Sdk.IJobContext

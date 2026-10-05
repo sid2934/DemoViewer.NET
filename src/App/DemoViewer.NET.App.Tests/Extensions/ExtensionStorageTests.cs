@@ -89,4 +89,25 @@ public class ExtensionStorageTests
             Directory.Delete(root, true);
         }
     }
+
+    [Test]
+    [Arguments("demo-data/index.json.gz")]
+    [Arguments("demo-data")]
+    [Arguments("Demo-Data/rounds/x.json.gz")]
+    public async Task TheCacheFoldersPerDemoData_IsTheHostsAndRefused(string path)
+    {
+        string root = NewRoot();
+        try
+        {
+            ExtensionContext.StorageView storage = new("dev.example.store", root, Path.Combine(root, "cache"));
+
+            await Assert.ThrowsAsync<ArgumentException>(async () => await storage.WriteAtomicAsync(StoreRoot.Cache, path, new byte[] { 1 }));
+            await Assert.That(await storage.WriteAtomicAsync(StoreRoot.Config, "demo-data/mine.json", new byte[] { 1 })).IsTrue()
+                .Because("the config folder has no host-owned part");
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 }

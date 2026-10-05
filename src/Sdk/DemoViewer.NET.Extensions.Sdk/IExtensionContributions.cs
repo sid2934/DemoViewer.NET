@@ -39,11 +39,23 @@ public interface IExtensionContributions
     /// <summary>A Library filter or per-demo badge.</summary>
     void Library(ILibraryContribution contribution);
 
-    /// <summary>A folder or file the extension owns, listed and removed by "Delete extension data".</summary>
+    /// <summary>
+    ///     A folder or file the extension owns outside its own folders, listed and removed by "Delete extension
+    ///     data". The extension's own folders, its per-demo data included, are always listed.
+    /// </summary>
     void Store(StoreDescriptor store);
 
-    /// <summary>The extension's own "Delete extension data" action, for data a plain folder delete would get wrong.</summary>
+    /// <summary>
+    ///     The extension's own "Delete extension data", replacing the host's, for data a plain folder delete would
+    ///     get wrong. The host switches the extension off before calling it.
+    /// </summary>
     void DataRemoval(IExtensionDataRemoval removal);
+
+    /// <summary>
+    ///     Runs on the UI thread after "Delete extension data" removed the extension's files, while the extension
+    ///     is off: drop what is still held in memory, so switching back on shows nothing that was deleted.
+    /// </summary>
+    void DataDeleted(Action afterDelete);
 
     /// <summary>How many demos switching the extension back on will re-index, for the notice Settings shows.</summary>
     void ReindexEstimate(IReindexEstimate estimate);

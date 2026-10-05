@@ -52,7 +52,10 @@ internal sealed class PackContributionSet
         }
 
         Packs = collected;
+        _sp = sp;
     }
+
+    private readonly IServiceProvider _sp;
 
     /// <summary>One entry per pack, in pack order.</summary>
     public IReadOnlyList<PackContributions> Packs { get; }
@@ -80,8 +83,8 @@ internal sealed class PackContributionSet
     /// <summary>Every extension's Match Overview actions, in extension order.</summary>
     public IReadOnlyList<GatedDemoAction> DemoActions => [.. Packs.SelectMany(p => p.DemoActions)];
 
-    /// <summary>Every pack's "delete extension data" action, in pack order. One row per entry in Settings.</summary>
-    public IReadOnlyList<IExtensionDataRemoval> DataRemovals => [.. Packs.Select(p => p.DataRemovalContribution).OfType<IExtensionDataRemoval>()];
+    /// <summary>Every extension's "delete extension data" action, in pack order. One row per entry in Settings.</summary>
+    public IReadOnlyList<IExtensionDataRemoval> DataRemovals => [.. Packs.Select(p => new HostDataRemoval(p, _sp))];
 
     /// <summary>
     ///     Every pack-owned ruleset with its owner's live gate answer. A null gate reads every pack as on,

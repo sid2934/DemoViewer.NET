@@ -194,13 +194,13 @@ internal sealed class ExtensionContext : IExtensionContext
         private readonly string? _configRoot = configRoot ?? AppPaths.ConfigRoot;
         private readonly string? _cacheRoot = cacheRoot ?? AppPaths.DemoCacheDir;
 
-        public string? ConfigDirectory => Ensure(_configRoot is { } root
-            ? Path.Combine(root, ExtensionFolders.DataDirectoryName, extensionId)
-            : null);
+        private string? ConfigFolder => _configRoot is { } root
+            ? Path.Combine(root, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extensionId))
+            : null;
 
-        public string? CacheDirectory => Ensure(_cacheRoot is { } cache
-            ? Path.Combine(cache, ExtensionFolders.DataDirectoryName, extensionId)
-            : null);
+        private string? CacheFolder => _cacheRoot is { } cache
+            ? Path.Combine(cache, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extensionId))
+            : null;
 
         public async Task<bool> WriteAtomicAsync(StoreRoot root, string relativePath, ReadOnlyMemory<byte> content,
             CancellationToken cancellationToken = default)
@@ -228,23 +228,21 @@ internal sealed class ExtensionContext : IExtensionContext
         private string? Resolve(StoreRoot root, string relativePath)
         {
             ArgumentNullException.ThrowIfNull(relativePath);
-            if ((root == StoreRoot.Config ? ConfigDirectory : CacheDirectory) is not { } folder)
+            if ((root == StoreRoot.Config ? ConfigFolder : CacheFolder) is not { } folder)
             {
                 return null;
             }
 
-            return PackDataRemover.ResolveSafe(folder, relativePath)
-                   ?? throw new ArgumentException($"'{relativePath}' is not a file inside the extension's folder.", nameof(relativePath));
-        }
-
-        private static string? Ensure(string? path)
-        {
-            if (path is not null)
+            string target = PackDataRemover.ResolveSafe(folder, relativePath)
+                            ?? throw new ArgumentException($"'{relativePath}' is not a file inside the extension's folder.", nameof(relativePath));
+            string host = Path.Combine(folder, ExtensionDemoDataStore.DirectoryName);
+            if (root == StoreRoot.Cache && (string.Equals(target, host, StringComparison.OrdinalIgnoreCase)
+                                            || target.StartsWith(host + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)))
             {
-                Directory.CreateDirectory(path);
+                throw new ArgumentException($"'{relativePath}' is inside the per-demo data the host keeps.", nameof(relativePath));
             }
 
-            return path;
+            return target;
         }
     }
 }

@@ -50,6 +50,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly List<StoreDescriptor> _stores = [];
     private readonly List<GatedDemoAction> _demoActions = [];
     private IExtensionDataRemoval? _dataRemoval;
+    private readonly List<Action> _dataDeleted = [];
 
     /// <summary>The pack these contributions belong to.</summary>
     public IExtension Pack { get; } = pack;
@@ -275,6 +276,22 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     {
         ArgumentNullException.ThrowIfNull(removal);
         _dataRemoval = new GuardedDataRemoval(removal, _guard, Pack.FeatureId);
+    }
+
+    /// <inheritdoc />
+    public void DataDeleted(Action afterDelete)
+    {
+        ArgumentNullException.ThrowIfNull(afterDelete);
+        _dataDeleted.Add(afterDelete);
+    }
+
+    /// <summary>Runs the extension's after-delete callbacks on the UI thread, each under the guard.</summary>
+    internal void RaiseDataDeleted()
+    {
+        foreach (Action callback in _dataDeleted)
+        {
+            _toUiThread(() => _guard.Run("data deleted", callback));
+        }
     }
 
     /// <inheritdoc />
