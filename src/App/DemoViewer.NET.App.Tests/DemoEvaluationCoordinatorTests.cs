@@ -103,6 +103,89 @@ public class DemoEvaluationCoordinatorTests
     }
 
     [Test]
+    public async Task Evaluate_Throws_DemoIsNotReparsedOnLaterPolls()
+    {
+        int parses = 0;
+        DemoProcessingQueue queue = new(new HeavyJobGate(), _inline,
+            _ =>
+            {
+                Interlocked.Increment(ref parses);
+                return Synthetic();
+            });
+        // Wants stays true forever, as it does for an evaluator that throws before recording its result.
+        Fake thrower = new("thrower", onEvaluate: _ => throw new InvalidOperationException("boom"));
+        using DemoEvaluationCoordinator coord = new([thrower], queue, () => _oneDemo);
+
+        coord.Consider("/x/demo.dem");
+        await WaitFor(() => thrower.Count == 1 && !coord.HasOutstanding("thrower"), "the throwing evaluation");
+
+        coord.ConsiderAll();
+        coord.ConsiderAll();
+        await Task.Delay(80);
+
+        await Assert.That(coord.IsFaulted("thrower", "/x/demo.dem")).IsTrue();
+        await Assert.That(parses).IsEqualTo(1).Because("a throwing evaluator is skipped for that demo");
+        await Assert.That(thrower.Count).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task Evaluate_Cancelled_IsNotAFault()
+    {
+        DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, _ => Synthetic());
+        Fake cancelled = new("cancelled", onEvaluate: _ => throw new OperationCanceledException());
+        using DemoEvaluationCoordinator coord = new([cancelled], queue, () => Array.Empty<string>());
+
+        coord.Consider("/x/demo.dem");
+        await WaitFor(() => cancelled.Count == 1 && !coord.HasOutstanding("cancelled"), "the cancelled evaluation");
+
+        await Assert.That(coord.IsFaulted("cancelled", "/x/demo.dem")).IsFalse()
+            .Because("a preempted or removed item is requeued, not broken");
+    }
+
+    [Test]
+    public async Task ForgetFaults_OffersTheDemoAgain()
+    {
+        int parses = 0;
+        DemoProcessingQueue queue = new(new HeavyJobGate(), _inline,
+            _ =>
+            {
+                Interlocked.Increment(ref parses);
+                return Synthetic();
+            });
+        Fake thrower = new("thrower", onEvaluate: _ => throw new InvalidOperationException("boom"));
+        using DemoEvaluationCoordinator coord = new([thrower], queue, () => _oneDemo);
+
+        coord.Consider("/x/demo.dem");
+        await WaitFor(() => thrower.Count == 1 && !coord.HasOutstanding("thrower"), "the throwing evaluation");
+
+        coord.ForgetFaults("/x/demo.dem");
+        coord.ConsiderAll();
+        await WaitFor(() => thrower.Count == 2, "the demo offered again after its faults were cleared");
+        await Assert.That(parses).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task Evaluate_Throws_OtherDemosAndEvaluatorsStillConsidered()
+    {
+        DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, _ => Synthetic());
+        Fake thrower = new("thrower", onEvaluate: p =>
+        {
+            if (p == "/x/bad.dem")
+            {
+                throw new InvalidOperationException("boom");
+            }
+        });
+        using DemoEvaluationCoordinator coord = new([thrower], queue, () => Array.Empty<string>());
+
+        coord.Consider("/x/bad.dem");
+        await WaitFor(() => thrower.Count == 1 && !coord.HasOutstanding("thrower"), "the throwing evaluation");
+        coord.Consider("/x/good.dem");
+        await WaitFor(() => thrower.Count == 2, "the same evaluator on another demo");
+
+        await Assert.That(coord.IsFaulted("thrower", "/x/good.dem")).IsFalse();
+    }
+
+    [Test]
     public async Task ParseFailure_CallsOnFailed()
     {
         DemoProcessingQueue queue = new(new HeavyJobGate(), _inline,

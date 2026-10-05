@@ -55,6 +55,10 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     private readonly IDemoProcessingQueue _queue;
     private readonly Action<ParsedDemo>? _parseReleased;
 
+    // (evaluatorId, path) whose Evaluate, EvaluateForward or OnFailed threw. Skipped for the rest of the
+    // session: a throw leaves Wants true, so without this every capacity re-feed parses the demo again.
+    private readonly HashSet<(string Eval, string Path)> _faulted = [];
+
     private bool _disposed;
 
     /// <param name="evaluators">The registered background features (order = fan-out order within a slot).</param>
@@ -142,6 +146,11 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         List<IDemoEvaluator> wanting = [];
         foreach (IDemoEvaluator evaluator in evaluators)
         {
+            if (IsFaulted(evaluator.Id, path))
+            {
+                continue;
+            }
+
             bool wants;
             try
             {
@@ -198,6 +207,30 @@ public sealed class DemoEvaluationCoordinator : IDisposable
             }
 
             return false;
+        }
+    }
+
+    /// <summary>
+    ///     True when the evaluator threw on this demo earlier in the session; it is not offered the demo
+    ///     again until the app restarts.
+    /// </summary>
+    public bool IsFaulted(string evaluatorId, string path)
+    {
+        lock (_lock)
+        {
+            return _faulted.Contains((evaluatorId, path));
+        }
+    }
+
+    /// <summary>
+    ///     Clears every evaluator's fault for <paramref name="path" />: the file changed, so the bytes an
+    ///     evaluator threw on are gone and each one may be offered the demo again.
+    /// </summary>
+    public void ForgetFaults(string path)
+    {
+        lock (_lock)
+        {
+            _faulted.RemoveWhere(k => string.Equals(k.Path, path, StringComparison.Ordinal));
         }
     }
 
@@ -285,14 +318,23 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         }
     }
 
-    // Runs in the queue's gate slot (the queue already isolates the whole delegate via its SafeInvoke,
-    // so a throw is logged there); the finally guarantees the outstanding entry clears either way so the
-    // path can be re-evaluated later if it becomes interesting again.
+    // Runs in the queue's gate slot. The queue's SafeInvoke logs the rethrown exception; the finally clears
+    // the outstanding entry either way so a demo that becomes interesting again can be re-evaluated.
     private void Complete((string Eval, string Path) key, Action work)
     {
         try
         {
             work();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // A cancelled item (preempted, removed, pack switched off) is requeued or abandoned, not broken.
+            lock (_lock)
+            {
+                _faulted.Add(key);
+            }
+
+            throw;
         }
         finally
         {
