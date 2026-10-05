@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
@@ -60,23 +61,20 @@ public class SituationsModuleTests
     }
 
     [Test]
-    public async Task EverySituationsSetting_SurvivesAFilelessWrite()
+    public async Task TheSituationsSettings_DefaultToBackgroundAndPawn_AndKeepAWriteWithoutAFile()
     {
-        SettingsService svc = new(null);
-        await Assert.That(svc.Current.Situations.BackgroundIndex).IsTrue().Because("on by default: the flagship needs coverage");
-        await Assert.That(svc.Current.Situations.TokenSource).IsEqualTo(RoundIndexTokenSource.Pawn);
+        ExtensionSettingsStore store = new(StratBookPack.PackId, null, a => a());
+        StratBookSettings settings = new(store);
+        await Assert.That(settings.SituationsBackgroundIndex).IsTrue().Because("on by default: the flagship needs coverage");
+        await Assert.That(settings.TokenSource).IsEqualTo(RoundIndexTokenSource.Pawn);
 
-        svc.Write(s =>
-        {
-            s.Situations.BackgroundIndex = false;
-            s.Situations.TokenSource = RoundIndexTokenSource.Zones;
-        });
+        store.Set(StratBookSettings.SituationsBackgroundIndexKey, false);
+        store.Set(StratBookSettings.TokenSourceKey, RoundIndexTokenSource.Zones);
 
         using (Assert.Multiple())
         {
-            await Assert.That(svc.Current.Situations.BackgroundIndex).IsFalse()
-                .Because("a Situations property with no WriteInMemory row forgets itself on WASM");
-            await Assert.That(svc.Current.Situations.TokenSource).IsEqualTo(RoundIndexTokenSource.Zones);
+            await Assert.That(settings.SituationsBackgroundIndex).IsFalse().Because("the browser keeps the extension's settings for the session");
+            await Assert.That(settings.TokenSource).IsEqualTo(RoundIndexTokenSource.Zones);
         }
     }
 

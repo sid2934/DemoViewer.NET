@@ -53,7 +53,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <param name="demoCache">The unified demo cache: the stamp lives on its records.</param>
     /// <param name="store">The sidecar store the rows go to.</param>
     /// <param name="sources">The place source and fingerprint in force per map.</param>
-    /// <param name="backgroundIndex">The live <c>SituationsSettings.BackgroundIndex</c>; forced paths ignore it.</param>
+    /// <param name="backgroundIndex">The live <see cref="Extensions.StratBook.StratBookSettings.SituationsBackgroundIndex" />; forced paths ignore it.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted. Defaults to always-on.</param>

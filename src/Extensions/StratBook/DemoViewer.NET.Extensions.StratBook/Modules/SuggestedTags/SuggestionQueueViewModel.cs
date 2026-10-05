@@ -236,7 +236,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
 
     /// <summary>
     ///     The library sweep: whether every demo with round facts gets its proposals built in the
-    ///     background, not only the open one. Persisted as <c>Playback2D.SuggestedTagsBackground</c>.
+    ///     background, not only the open one. Persisted as the Strat Book's <c>suggestedTags.background</c> setting.
     /// </summary>
     public bool IsBackgroundOn
     {

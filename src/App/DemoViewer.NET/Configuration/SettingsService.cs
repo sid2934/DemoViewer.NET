@@ -500,17 +500,7 @@ public sealed class SettingsService
             new KeyValuePair<string, string?>("Playback2D:ExportEncoder",
                 settings.Playback2D.ExportEncoder),
             new KeyValuePair<string, string?>("Playback2D:ExportQuality",
-                settings.Playback2D.ExportQuality),
-            new KeyValuePair<string, string?>("Playback2D:TagPaletteId", settings.Playback2D.TagPaletteId),
-            new KeyValuePair<string, string?>("Playback2D:ReviewMode", settings.Playback2D.ReviewMode ? "true" : "false"),
-            new KeyValuePair<string, string?>("Playback2D:SuggestedTagsBackground",
-                settings.Playback2D.SuggestedTagsBackground ? "true" : "false"),
-            // Situations: the tab renders on the browser head, so both keys are flattened even though
-            // no index can be built there.
-            new KeyValuePair<string, string?>("Situations:BackgroundIndex",
-                settings.Situations.BackgroundIndex ? "true" : "false"),
-            new KeyValuePair<string, string?>("Situations:TokenSource",
-                settings.Situations.TokenSource.ToString())
+                settings.Playback2D.ExportQuality)
         };
 
         for (int i = 0; i < settings.Playback2D.AnnotationRecentColors.Length; i++)

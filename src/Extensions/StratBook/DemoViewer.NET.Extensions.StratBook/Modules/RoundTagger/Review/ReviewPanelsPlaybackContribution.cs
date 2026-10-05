@@ -5,8 +5,8 @@ using Avalonia;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
@@ -63,7 +63,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
     private ProposalTrack? _proposalTrack;
     private SuggestionQueueView? _queueView;
     private TagSession? _session;
-    private SettingsService? _settings;
+    private StratBookSettings? _settings;
     private TagEditorViewModel? _spanEditor;
     private IPlaybackSurface? _surface;
     private ILaneHandle? _tagLane;
@@ -110,7 +110,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         Detach();
         _surface = surface;
         _context = context;
-        _settings = context.GetService<SettingsService>();
+        _settings = context.GetService<StratBookSettings>();
 
         // No store means session-only tags, the annotation rule. The track re-queries on every session
         // version bump, posted to the UI thread because a save can raise Changed off it. Round Facts gives
@@ -127,7 +127,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
         // Review mode starts as the user left it (off on a first run). The lanes and the panels follow it.
         ModeToggle mode = new(ReviewModeId, "Review", "Review mode (Shift+R): label rounds and review the suggested labels",
-            nameof(Playback2DAction.ToggleReviewMode)) { IsOn = _settings?.Current.Playback2D.ReviewMode ?? false };
+            nameof(Playback2DAction.ToggleReviewMode)) { IsOn = _settings?.ReviewMode ?? false };
         ReviewMode = mode;
         _registrations.Add(surface.AddModeToggle(mode));
         _tagLane = surface.AddLane(_tagTrack, TimelineBandRow.Lane, new TagLaneBehaviour(this));
@@ -136,7 +136,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         // The palette edits through the session. The playhead it tags at is the shared clock's tick; its
         // button colours become the track's.
         TagPaletteViewModel palette = new(session, context.GetService<TagPaletteStore>(), Playhead, TickRate, _post);
-        palette.SelectPalette(_settings?.Current.Playback2D.TagPaletteId);
+        palette.SelectPalette(_settings?.TagPaletteId);
         palette.PaletteChosen += SavePaletteSetting;
         palette.PropertyChanged += OnPaletteChanged;
         palette.ApplyKeymap(surface.Keymap);
@@ -144,7 +144,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         Palette = palette;
 
         Queue = new SuggestionQueueViewModel(context.GetService<SuggestedTagsService>(), _proposalTrack, Seek, TickRate, _post,
-            () => _settings?.Current.Playback2D.SuggestedTagsBackground ?? false, SaveBackgroundSetting);
+            () => _settings?.SuggestedTagsBackground ?? false, SaveBackgroundSetting);
 
         PalettePanel = surface.AddPanel(PaletteOrder, () => palette,
             () => new TagPaletteView { Margin = new Thickness(0, 0, 0, 2) }, RoundTaggerModule.PaletteFeatureId, mode);
@@ -750,39 +750,28 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         }
     }
 
+    // The settings store logs a failed write and keeps the value for the session.
     private void SavePaletteSetting(string id)
     {
-        try
+        if (_settings is { } settings)
         {
-            _settings?.Write(s => s.Playback2D.TagPaletteId = id);
-        }
-        catch (Exception)
-        {
-            // A read-only config directory must not take the palette down over which palette it shows.
+            settings.TagPaletteId = id;
         }
     }
 
     private void SaveBackgroundSetting(bool on)
     {
-        try
+        if (_settings is { } settings)
         {
-            _settings?.Write(s => s.Playback2D.SuggestedTagsBackground = on);
-        }
-        catch (Exception)
-        {
-            // A read-only config directory keeps the sweep's state for the session.
+            settings.SuggestedTagsBackground = on;
         }
     }
 
     private void SaveReviewModeSetting(bool on)
     {
-        try
+        if (_settings is { } settings)
         {
-            _settings?.Write(s => s.Playback2D.ReviewMode = on);
-        }
-        catch (Exception)
-        {
-            // A read-only config directory must not take the toggle down.
+            settings.ReviewMode = on;
         }
     }
 

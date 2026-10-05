@@ -122,7 +122,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
 
     /// <param name="clusters">Every landing cluster in the Grenade Index, all maps.</param>
     /// <param name="directory">Where the pairs are written; null (the browser) plans nothing.</param>
-    /// <param name="enabled">The live <c>GrenadesSettings.RenderLineupClips</c>.</param>
+    /// <param name="enabled">The live <see cref="Extensions.StratBook.StratBookSettings.RenderLineupClips" />.</param>
     /// <param name="renderer">Renders a demo's GIFs.</param>
     /// <param name="fileExists">The existence probe; a listing of the directory taken per plan when null.</param>
     /// <param name="writeText">Writes a sidecar; an atomic write when null.</param>

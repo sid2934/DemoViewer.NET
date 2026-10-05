@@ -58,6 +58,7 @@ public class StratBookPackTests
         // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
+        "DemoViewer.NET.Extensions.StratBook.StratBookSettings",
         "DemoViewer.NET.Theming.ThemeRegistry",
         "DemoViewer.NET.Services.IWindowService",
         "System.Func`1[DemoViewer.NET.ViewModels.Settings.SettingsViewModel]",

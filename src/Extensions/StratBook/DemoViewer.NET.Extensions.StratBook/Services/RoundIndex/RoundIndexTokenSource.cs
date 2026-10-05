@@ -1,9 +1,8 @@
 namespace DemoViewer.NET.Services.RoundIndex;
 
 /// <summary>
-///     Which string a row's place comes from. A setting; changing it re-indexes the library. Core because
-///     <see cref="Configuration.SituationsSettings" /> stores it; the index that reads it is the Strat Book
-///     extension's.
+///     Which string a row's place comes from. A setting (<see cref="Extensions.StratBook.StratBookSettings.TokenSource" />);
+///     changing it re-indexes the library.
 /// </summary>
 public enum RoundIndexTokenSource
 {

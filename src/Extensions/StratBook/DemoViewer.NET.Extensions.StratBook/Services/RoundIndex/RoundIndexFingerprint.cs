@@ -51,7 +51,7 @@ public sealed class RoundIndexPlaceSources
     private readonly Func<RoundIndexTokenSource> _tokenSource;
     private readonly IZonePlaceResolverSource _zones;
 
-    /// <param name="tokenSource">The live <c>SituationsSettings.TokenSource</c>.</param>
+    /// <param name="tokenSource">The live <see cref="Extensions.StratBook.StratBookSettings.TokenSource" />.</param>
     /// <param name="zones">Where a map's zone resolver comes from; none until Zone Baking's resolver lands.</param>
     /// <param name="options">The sampling parameters; the shipped defaults when null.</param>
     public RoundIndexPlaceSources(

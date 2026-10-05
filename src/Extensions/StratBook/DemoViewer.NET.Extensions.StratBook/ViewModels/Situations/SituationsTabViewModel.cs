@@ -86,7 +86,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="evaluator">The index writer; null on a host without a queue (the browser).</param>
     /// <param name="demoCache">The index rows the counts derive from.</param>
     /// <param name="sources">The fingerprint in force per map, for the stale count and the fallback note.</param>
-    /// <param name="tokenSource">The live <c>SituationsSettings.TokenSource</c>.</param>
+    /// <param name="tokenSource">The live <see cref="Extensions.StratBook.StratBookSettings.TokenSource" />.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
     /// <param name="canvas">The Query Canvas; built over the same index and zone source when null, retiring bundles through the dispatcher.</param>
     /// <param name="results">The Result Cards; built over the same cache, sidecar store and sources when null.</param>

@@ -1436,8 +1436,9 @@ public static partial class Variants
                 StratBookPack.PackFeatureId),
             new(
                 "stratbook.grenade-index", "GRENADE INDEX", 1, "extension",
-                () => new GrenadeIndexSettingsViewModel(svc, monitor),
-                () => new GrenadeIndexSettingsView(),
+                () => new SchemaSettingsPageViewModel(StratBookSettings.GrenadeIndexSchema,
+                    new ExtensionSettingsStore(StratBookPack.PackId, null, a => a())),
+                () => new SchemaSettingsPageView(),
                 StratBookPack.PackFeatureId)
         ];
 

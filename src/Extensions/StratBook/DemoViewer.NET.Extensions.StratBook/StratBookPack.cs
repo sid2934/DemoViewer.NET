@@ -203,6 +203,9 @@ public sealed class StratBookPack : IExtension
         // pack-off composition-root test. Set only by the factories below, never by a caller asking for it.
         services.AddSingleton<StratBookPackInstances>();
 
+        // The pack's own settings file; every reader takes its values from here.
+        services.AddSingleton(sp => new StratBookSettings(Host(sp).Settings));
+
         // The Round Index: one row per (demo, live round, sampled second) with the per-side place-count
         // token, written as a .dvri.json sidecar beside the cache by an evaluator on the same tier-2
         // fan-out, one place after Round Facts so it reads the rows written in the same pass. The
@@ -215,23 +218,21 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton<IZonePlaceResolverSource>(new AssetZonePlaceResolverSource());
         services.AddSingleton(sp =>
         {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
-            return new RoundIndexPlaceSources(
-                () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn,
-                sp.GetRequiredService<IZonePlaceResolverSource>());
+            StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
+            return new RoundIndexPlaceSources(() => settings.TokenSource, sp.GetRequiredService<IZonePlaceResolverSource>());
         });
         services.AddSingleton(sp => new RoundIndexStore(
             AppPaths.DemoCacheDir,
             sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(sp =>
         {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             IExtensionFeatures features = Host(sp).Features;
             RoundIndexEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
-                () => monitor?.CurrentValue.Situations.BackgroundIndex ?? true,
+                () => settings.SituationsBackgroundIndex,
                 Host(sp).Post,
                 enabled: () => features.IsEnabled(PackFeatureId));
             built.Passes = Host(sp).Passes;
@@ -383,13 +384,13 @@ public sealed class StratBookPack : IExtension
 
         services.AddSingleton(sp =>
         {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             return new SituationsTabViewModel(
                 sp.GetRequiredService<ISituationIndex>(),
                 sp.GetRequiredService<RoundIndexEvaluator>(),
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
-                () => monitor?.CurrentValue.Situations.TokenSource ?? RoundIndexTokenSource.Pawn,
+                () => settings.TokenSource,
                 playback: () => sp.GetService<ISituationPlayback>(),
                 sidecars: sp.GetRequiredService<RoundIndexStore>(),
                 // The filter rail's opponent and our-side fields join through Team Identity; its source
@@ -484,7 +485,7 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton(_ => new ProfileStore(AppPaths.SuggestedTagsDirectory));
         services.AddSingleton(sp =>
         {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             IExtensionFeatures features = Host(sp).Features;
             SuggestedTagsService built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
@@ -493,7 +494,7 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<SiteRegionStore>(),
                 () => sp.GetRequiredService<ProfileStore>().Current,
                 () => features.IsEnabled(SuggestedTagsService.FeatureId),
-                () => monitor?.CurrentValue.Playback2D.SuggestedTagsBackground ?? false,
+                () => settings.SuggestedTagsBackground,
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
@@ -644,13 +645,13 @@ public sealed class StratBookPack : IExtension
         // rows in memory for the session.
         services.AddSingleton(sp =>
         {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             IExtensionFeatures features = Host(sp).Features;
             GrenadeIndexEvaluator built = new(
                 sp.GetRequiredService<DemoCacheStore>(),
-                () => monitor?.CurrentValue.Grenades.BackgroundIndex ?? false,
+                () => settings.GrenadesBackgroundIndex,
                 () => Host(sp).Shell.CurrentDemoPath,
-                () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
+                () => settings.TrajectoryStride,
                 enabled: () => features.IsEnabled(PackFeatureId));
             sp.GetRequiredService<StratBookPackInstances>().GrenadeWalk = built;
             built.Passes = Host(sp).Passes;
@@ -725,17 +726,17 @@ public sealed class StratBookPack : IExtension
         // Planned whenever the index changes; a null directory (the browser) plans nothing.
         services.AddSingleton(sp =>
         {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
+            StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             GrenadeIndex index = sp.GetRequiredService<GrenadeIndex>();
             ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
             LineupClipService clips = new(
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
                 AppPaths.ConfigRoot is { } root ? Path.Combine(root, App.LineupClipDirectoryName) : null,
-                () => monitor?.CurrentValue.Grenades.RenderLineupClips ?? true,
+                () => settings.RenderLineupClips,
                 new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
                 complete: () => index.IsReady,
-                maxBytes: () => (monitor?.CurrentValue.Grenades.LineupClipsMaxMegabytes ?? 1024) * 1024L * 1024L,
+                maxBytes: () => settings.LineupClipsMaxMegabytes * 1024L * 1024L,
                 jobs: Host(sp).Jobs);
             index.Changed += () => clips.PlanSoon();
             sp.GetRequiredService<StratBookPackInstances>().Record(clips);
@@ -819,13 +820,24 @@ public sealed class StratBookPack : IExtension
         // layout singleton resolves then, pack on or off, as it did when the shell took it by constructor.
         firstParty.HostTab(HubHostTab(sp.GetRequiredService<StratBookLayout>));
 
-        // Settings pages: the Suggested Tags tuning card and the Grenade Index card, both
-        // desktop-only (no filesystem on the browser, same gate they had before the move).
+        // Settings pages: the Suggested Tags tuning card, which needs its own controls, and the Grenade Index
+        // card the host draws. Both desktop only: the browser has no filesystem and no queue to sweep with.
         if (!OperatingSystem.IsBrowser())
         {
             contributions.SettingsPage(StratBookSettingsPages.SuggestedTagsTuning(sp));
-            contributions.SettingsPage(StratBookSettingsPages.GrenadeIndex(sp));
+            contributions.SettingsSchema(StratBookSettings.GrenadeIndexSchema);
         }
+
+        // A setting that widens what a pass wants asks the library again, so the change does not wait for a
+        // demo to change.
+        IExtensionContext host = contributions.Context;
+        sp.GetRequiredService<StratBookSettings>().Changed += key =>
+        {
+            if (StratBookSettings.WidensPasses(key) && host.Features.IsEnabled(PackFeatureId))
+            {
+                host.Passes.RecheckAll();
+            }
+        };
 
         // The Strat Book export chip: the shell shows it only while the pack is on, through the
         // same slot the IStratExport factory mounts into on the first Export.

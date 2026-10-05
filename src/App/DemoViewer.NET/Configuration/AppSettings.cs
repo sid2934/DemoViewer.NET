@@ -66,12 +66,6 @@ public sealed class AppSettings
     /// <summary>The 2D Playback module's settings. ONE section for the whole module.</summary>
     public Playback2DSettings Playback2D { get; set; } = new();
 
-    /// <summary>The Situations module's settings: the round index sweep and its token source.</summary>
-    public SituationsSettings Situations { get; set; } = new();
-
-    /// <summary>The grenade walk's settings: the library sweep and the trajectory stride.</summary>
-    public GrenadesSettings Grenades { get; set; } = new();
-
     /// <summary>The extension updater's settings: the feed URL and when Settings last checked.</summary>
     public ExtensionsSettings Extensions { get; set; } = new();
 
@@ -348,60 +342,6 @@ public enum LiveSyncLogLevel
 
     /// <summary>Silence the CSVG log surface entirely.</summary>
     None
-}
-
-/// <summary>
-///     The Situations module's settings. Both keys carry a <c>SettingsService.WriteInMemory</c> row:
-///     the tab renders on the browser head and says what it cannot do, so a write there must survive
-///     a tab switch even though no index can be built.
-/// </summary>
-public sealed class SituationsSettings
-{
-    /// <summary>
-    ///     Background library indexing, default ON: the flagship needs coverage, and at one to three
-    ///     seconds per demo the sweep is a third of the Highlights scan the opt-in there guards. Off,
-    ///     only a demo the user retries from the strip is indexed.
-    /// </summary>
-    public bool BackgroundIndex { get; set; } = true;
-
-    /// <summary>
-    ///     Which string names a row's place: <see cref="Services.RoundIndex.RoundIndexTokenSource.Pawn" />
-    ///     (default; Valve's names, no asset) or <see cref="Services.RoundIndex.RoundIndexTokenSource.Zones" />
-    ///     (the team's own zones where a map has them). Part of the index fingerprint, so changing it
-    ///     re-indexes the library; the strip says so.
-    /// </summary>
-    public Services.RoundIndex.RoundIndexTokenSource TokenSource { get; set; } =
-        Services.RoundIndex.RoundIndexTokenSource.Pawn;
-}
-
-/// <summary>
-///     The grenade walk's settings. Desktop only, like the highlights scan opt-in
-///     beside it in Settings: the browser has no processing queue to sweep with.
-/// </summary>
-public sealed class GrenadesSettings
-{
-    /// <summary>
-    ///     Background library walk, default OFF: about two and a half seconds per demo is half an hour
-    ///     over a 700-demo library. Off, the open demo is still walked on its own parse, and Match Overview
-    ///     walks any demo on request.
-    /// </summary>
-    public bool BackgroundIndex { get; set; }
-
-    /// <summary>Keep every n-th moved sample of a flight; bounce vertices are always kept. Read at walk time.</summary>
-    public int TrajectoryStride { get; set; } = 4;
-
-    /// <summary>
-    ///     Lineup Clip Render, default ON: every repeated throw position in the Grenade Index gets a GIF and its
-    ///     setpos line, queued in the Review Queue and rendered in the background. Read when the index changes.
-    /// </summary>
-    public bool RenderLineupClips { get; set; } = true;
-
-    /// <summary>
-    ///     The most the lineup-clips directory may hold, in MB, default 1024. Past it the least recently
-    ///     used pairs are deleted after a render and not rendered again unless asked for. Zero or less caps
-    ///     nothing.
-    /// </summary>
-    public int LineupClipsMaxMegabytes { get; set; } = 1024;
 }
 
 /// <summary>
@@ -739,29 +679,4 @@ public sealed class Playback2DSettings
     ///     unknown value in a hand-edited file degrades to the default instead of failing the bind.
     /// </summary>
     public string ExportQuality { get; set; } = "standard";
-
-    // ---------------- Tag Palette ----------------
-    // The one settings row the Round Tagger needs. WASM-reachable (the palette docks in the 2D
-    // tab on the browser too), so it has a SettingsService.WriteInMemory row.
-
-    /// <summary>
-    ///     The id of the palette the 2D tab tags with. An id no palette carries (a drop-in since deleted)
-    ///     falls back to the built-in <c>cs2-default</c> rather than to nothing.
-    /// </summary>
-    public string TagPaletteId { get; set; } = "cs2-default";
-
-    /// <summary>
-    ///     Whether 2D Playback is in Review mode: the tag palette, the suggestion queue and the tag and
-    ///     suggestion lanes show, the player cards collapse to a strip, and the tagging keys act. Off by
-    ///     default, so plain playback keeps the full player cards.
-    /// </summary>
-    public bool ReviewMode { get; set; }
-
-    /// <summary>
-    ///     Whether Suggested Tags sweeps the whole library in the background. Off by default, the Highlights
-    ///     scan's rule and the integrator's recommendation for this evaluator: the
-    ///     open demo is always evaluated on the parse its open paid for, and the queue's Detect button runs
-    ///     any demo on request.
-    /// </summary>
-    public bool SuggestedTagsBackground { get; set; }
 }

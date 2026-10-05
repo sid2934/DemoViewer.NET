@@ -50,9 +50,9 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     private readonly Func<ParsedDemo, GrenadeWalk>? _walk;
 
     /// <param name="demoCache">The unified demo cache: the stamp and the siblings live there.</param>
-    /// <param name="backgroundIndex">The live <c>GrenadesSettings.BackgroundIndex</c>; forced paths and the open demo ignore it.</param>
+    /// <param name="backgroundIndex">The live <see cref="Extensions.StratBook.StratBookSettings.GrenadesBackgroundIndex" />; forced paths and the open demo ignore it.</param>
     /// <param name="openDemo">The open demo's path, resolved at call time; null when none.</param>
-    /// <param name="stride">The live <c>GrenadesSettings.TrajectoryStride</c>; null defaults to 4.</param>
+    /// <param name="stride">The live <see cref="Extensions.StratBook.StratBookSettings.TrajectoryStride" />; null defaults to 4.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The walk to run; null walks the parse through <see cref="GrenadeWalker" />.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted, not even the open demo. Defaults to always-on.</param>

@@ -1,5 +1,7 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Extensions;
 using Avalonia.Input;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
@@ -331,19 +333,21 @@ public class ReviewPanelsPlaybackContributionTests
     }
 
     [Test]
-    public async Task ReviewMode_PersistsToTheTabsOldSettingsKey_AndANewAttachmentReadsIt()
+    public async Task ReviewMode_PersistsToTheStratBooksSettings_AndANewAttachmentReadsIt()
     {
         string dir = Path.Combine(Path.GetTempPath(), $"dv-review-mode-{Guid.NewGuid():N}");
         try
         {
-            SettingsService settings = new(dir);
+            StratBookSettings settings = new(new ExtensionSettingsStore(StratBookPack.PackId, dir, a => a()));
             (Playback2DTabViewModel vm, _, ReviewPanelsPlaybackContribution review) = Tab(configure: c => c.SetService(settings));
             await Assert.That(review.ReviewMode!.IsOn).IsFalse();
 
             review.ReviewMode.IsOn = true;
-            await Assert.That(settings.Current.Playback2D.ReviewMode).IsTrue().Because("the mode is persisted where the tab persisted it");
+            await Assert.That(new StratBookSettings(new ExtensionSettingsStore(StratBookPack.PackId, dir, a => a())).ReviewMode).IsTrue()
+                .Because("the mode is in the Strat Book's own settings file");
 
-            (Playback2DTabViewModel second, _, ReviewPanelsPlaybackContribution again) = Tab(configure: c => c.SetService(settings));
+            StratBookSettings reopened = new(new ExtensionSettingsStore(StratBookPack.PackId, dir, a => a()));
+            (Playback2DTabViewModel second, _, ReviewPanelsPlaybackContribution again) = Tab(configure: c => c.SetService(reopened));
             using (Assert.Multiple())
             {
                 await Assert.That(again.ReviewMode!.IsOn).IsTrue().Because("a new attachment starts as the user left it");
@@ -352,7 +356,7 @@ public class ReviewPanelsPlaybackContributionTests
             }
 
             again.ReviewMode.IsOn = false;
-            await Assert.That(settings.Current.Playback2D.ReviewMode).IsFalse();
+            await Assert.That(reopened.ReviewMode).IsFalse();
 
             second.Dispose();
             vm.Dispose();
