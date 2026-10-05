@@ -95,7 +95,28 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
-        _evaluators.Add(new EvaluatorContribution(id, () => new ExtensionEvaluatorAdapter(factory()), [.. after]));
+        _evaluators.Add(new EvaluatorContribution(id, AdapterCache(factory), [.. after]));
+    }
+
+    // The registry calls the factory on every resolve. One adapter per evaluator instance keeps the
+    // adapter identity stable across resolves; a factory that hands out a new instance gets a new adapter.
+    private static Func<IDemoEvaluator> AdapterCache(Func<IExtensionEvaluator> factory)
+    {
+        object gate = new();
+        ExtensionEvaluatorAdapter? cached = null;
+        return () =>
+        {
+            IExtensionEvaluator inner = factory();
+            lock (gate)
+            {
+                if (cached is null || !ReferenceEquals(cached.Inner, inner))
+                {
+                    cached = new ExtensionEvaluatorAdapter(inner);
+                }
+
+                return cached;
+            }
+        };
     }
     public void FirstPartyEvaluator(string id, Func<IDemoEvaluator> factory, params string[] after)
     {

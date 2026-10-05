@@ -1,7 +1,9 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -231,6 +233,60 @@ public class EvaluatorRegistryTests
         }
 
         await Assert.That(populateCalls).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task Resolve_ExtensionEvaluator_KeepsOneAdapterPerInstance()
+    {
+        PackContributions contributions = new(new EvaluatorPack(), () => throw new InvalidOperationException());
+        SdkFake shared = new("ext.shared");
+        int built = 0;
+        contributions.Evaluator("ext.shared", () => shared);
+        contributions.Evaluator("ext.fresh", () => new SdkFake("ext.fresh", ++built));
+
+        EvaluatorRegistry registry = new();
+        foreach (EvaluatorContribution c in contributions.Evaluators)
+        {
+            registry.AddPackEvaluator(c.Id, c.Factory, c.After, () => true);
+        }
+
+        IReadOnlyList<IDemoEvaluator> first = registry.Resolve();
+        IReadOnlyList<IDemoEvaluator> second = registry.Resolve();
+
+        await Assert.That(ReferenceEquals(first[0], second[0])).IsTrue()
+            .Because("the same evaluator instance is not re-wrapped on every resolve");
+        await Assert.That(ReferenceEquals(first[1], second[1])).IsFalse()
+            .Because("a factory that builds a new evaluator gets an adapter over that new instance");
+        await Assert.That(((ExtensionEvaluatorAdapter)second[1]).Inner).IsTypeOf<SdkFake>();
+        await Assert.That(built).IsEqualTo(2);
+    }
+
+    private sealed class EvaluatorPack : IExtension
+    {
+        public string Id => "net.demoviewer.pack.evaluators";
+        public string FeatureId => "pack.evaluators";
+        public IEnumerable<ExtensionFeature> Features => [];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
+    }
+
+    private sealed class SdkFake(string id, int generation = 0) : IExtensionEvaluator
+    {
+        public int Generation { get; } = generation;
+        public string Id { get; } = id;
+
+        public bool Wants(string path) => false;
+
+        public void Evaluate(string path, ParsedDemo parsed)
+        {
+            // not exercised here
+        }
     }
 
     private sealed class Fake(string id) : IDemoEvaluator
