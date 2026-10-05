@@ -538,7 +538,8 @@ public sealed class StratBookPack : IExtension
             sp.GetRequiredService<DemoCacheStore>(),
             sp.GetRequiredService<SuggestedTagsService>(),
             sp.GetRequiredService<TagStore>(),
-            sp.GetRequiredService<SiteRegionStore>()));
+            sp.GetRequiredService<SiteRegionStore>(),
+            Host(sp).Jobs));
 
         // The Strat Book's store: one folder per book under <config>/strats. One per process, because CheckOut's
         // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps

@@ -1,7 +1,11 @@
 #region
 
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
+using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Tags;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
@@ -41,7 +45,7 @@ public class SuggestedTagsTuningServiceTests
     private static readonly ClockIdentity Clock = new(ClockIdentity.DvFrameClock, 64, 2, 1, 20000);
 
     private static SuggestedTagsTuningService Tuning(SuggestedTagsReviewHarness h) =>
-        new(h.Cache, h.Service, h.Tags, h.Regions, _ => Parse());
+        new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs(), _ => Parse());
 
     [Test]
     public async Task BuildStoredReport_ReflectsHistoryAndScoresAgainstHandTags()
@@ -116,6 +120,39 @@ public class SuggestedTagsTuningServiceTests
             await Assert.That(row.Accepted).IsEqualTo(1)
                 .Because("verdict counts are history and a preview never recomputes them");
         }
+    }
+
+    [Test]
+    public async Task PreviewAsync_ParsesInsideAUserRequestedQueueJob_ThatWaitsForTheSlotInUse()
+    {
+        using SuggestedTagsReviewHarness h = new();
+        h.Build();
+        using HeavyJobGate gate = new();
+        using DemoProcessingQueue queue = new(gate, a => a(), _ => throw new NotSupportedException(),
+            _ => throw new NotSupportedException(), () => Task.CompletedTask);
+        ExtensionJobs jobs = new(StratBookPack.PackId, () => queue, () => JobKindRegistry.Build([new StratBookPack()]));
+        int parses = 0;
+        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, jobs, _ =>
+        {
+            Interlocked.Increment(ref parses);
+            return Parse();
+        });
+        TuningReport baseline = tuning.BuildStoredReport();
+
+        Task<TuningReport> preview;
+        using (await gate.AcquireBackgroundAsync())
+        {
+            preview = tuning.PreviewAsync(h.Profile, baseline, tuning.ScoredDemoPaths());
+            await Task.Delay(300);
+            await Assert.That(preview.IsCompleted).IsFalse().Because("a parse holds the only slot");
+            await Assert.That(parses).IsEqualTo(0).Because("the preview parses inside its queue job, not beside it");
+            DemoQueueItemSnapshot item = queue.Snapshot().Single(s => s.ExtensionKind == StratBookJobKinds.Tuning);
+            await Assert.That(item.Priority).IsEqualTo(DemoJobPriority.UserRequested);
+        }
+
+        TuningReport report = await preview.WaitAsync(TimeSpan.FromSeconds(10));
+        await Assert.That(parses).IsEqualTo(1);
+        await Assert.That(report.Rows.Count).IsEqualTo(baseline.Rows.Count);
     }
 
     [Test]

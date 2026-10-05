@@ -325,14 +325,14 @@ public class StratBookPackTests
     }
 
     [Test]
-    public async Task ThePack_JobKinds_AreTheFiveStratBookKinds_UnderTheExtensionsPrefix()
+    public async Task ThePack_JobKinds_AreTheSixStratBookKinds_UnderTheExtensionsPrefix()
     {
         ExtensionJobKind[] kinds = [.. new StratBookPack().JobKinds];
 
         await Assert.That(kinds.Select(k => k.Id)).IsEquivalentTo(
         [
             StratBookJobKinds.Mining, StratBookJobKinds.Preview, StratBookJobKinds.LineupClips,
-            StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams
+            StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams, StratBookJobKinds.Tuning
         ]);
         await Assert.That(kinds.All(k => k.Id.StartsWith("stratbook.", StringComparison.Ordinal))).IsTrue();
     }

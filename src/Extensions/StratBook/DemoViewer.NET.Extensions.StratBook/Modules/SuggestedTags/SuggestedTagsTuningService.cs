@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.ExceptionServices;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
@@ -35,10 +36,14 @@ public sealed class SuggestedTagsTuningService
     /// <summary>How many demos' detection inputs the preview keeps, least recently used out first.</summary>
     internal const int CacheCapacity = 8;
 
+    // One queued preview at a time: a newer one replaces a sweep still waiting for its turn.
+    private const string PreviewJobKey = "stratbook:suggested-tags-preview";
+
     private readonly Dictionary<string, CachedDemo> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _cacheOrder = [];
     private readonly DemoCacheStore _demoCache;
     private readonly Lock _gate = new();
+    private readonly IExtensionJobs _jobs;
     private readonly Func<string, ParsedDemo> _parseFile;
     private readonly SiteRegionStore _regions;
     private readonly SuggestedTagsService _suggestedTags;
@@ -48,18 +53,22 @@ public sealed class SuggestedTagsTuningService
     /// <param name="suggestedTags">The evaluator: stored proposals, verdicts, and the detection-input builder.</param>
     /// <param name="tags">The Tag Store hand tags are scored against; null runs with no ground truth (every row's recall/precision is "no data").</param>
     /// <param name="regions">The learned site region tables, the same store the evaluator reads.</param>
+    /// <param name="jobs">The processing queue a preview sweep runs on, as a user-requested job.</param>
     /// <param name="parseFile">The parse to run per demo; defaults to reading the file and parsing its bytes.</param>
     public SuggestedTagsTuningService(
         DemoCacheStore demoCache,
         SuggestedTagsService suggestedTags,
         TagStore? tags,
         SiteRegionStore regions,
+        IExtensionJobs jobs,
         Func<string, ParsedDemo>? parseFile = null)
     {
         ArgumentNullException.ThrowIfNull(demoCache);
         ArgumentNullException.ThrowIfNull(suggestedTags);
         ArgumentNullException.ThrowIfNull(regions);
+        ArgumentNullException.ThrowIfNull(jobs);
         _demoCache = demoCache;
+        _jobs = jobs;
         _suggestedTags = suggestedTags;
         _tags = tags;
         _regions = regions;
@@ -114,54 +123,81 @@ public sealed class SuggestedTagsTuningService
     ///     Re-runs detection under <paramref name="candidate" /> over <paramref name="demoPaths" /> and
     ///     returns <paramref name="baseline" /> with only <see cref="DetectorTuningRow.Recall" /> and
     ///     <see cref="DetectorTuningRow.Precision" /> replaced: the two numbers a
-    ///     parameter change updates before it is saved. Runs off the calling thread; a demo that fails to
-    ///     parse or has no Round Facts rows is skipped, the way the evaluator skips it.
+    ///     parameter change updates before it is saved. Runs as one user-requested job on the processing
+    ///     queue, since a cold cache parses demos; a newer preview replaces one still queued. A demo that
+    ///     fails to parse or has no Round Facts rows is skipped, the way the evaluator skips it.
     /// </summary>
     /// <param name="candidate">The profile to preview.</param>
     /// <param name="baseline">The report to keep the verdict counts from (<see cref="BuildStoredReport" />).</param>
     /// <param name="demoPaths">The demos to score, typically <see cref="ScoredDemoPaths" />.</param>
     /// <param name="cancellationToken">Cancels a sweep the user has already moved past.</param>
-    public Task<TuningReport> PreviewAsync(
+    /// <exception cref="OperationCanceledException">The sweep was cancelled, replaced or removed from the queue.</exception>
+    public async Task<TuningReport> PreviewAsync(
         DetectorProfile candidate, TuningReport baseline, IReadOnlyList<string> demoPaths,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentNullException.ThrowIfNull(baseline);
         ArgumentNullException.ThrowIfNull(demoPaths);
-        return Task.Run(() =>
+        TuningReport? report = null;
+        ExceptionDispatchInfo? failure = null;
+        await _jobs.RunAsync("Suggested Tags: preview tuning", job =>
         {
-            Dictionary<string, List<FiredProposal>> firedByDetector = new(StringComparer.Ordinal);
-            List<string> scoredPaths = [];
-            foreach (string path in demoPaths)
+            using CancellationTokenSource linked =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.CancellationToken);
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (GetOrBuildCache(path) is not { } cached)
-                {
-                    continue;
-                }
-
-                scoredPaths.Add(path);
-                SiteRegions regions = SiteRegions.Compose(cached.Map, null, cached.Table, candidate);
-                IReadOnlyList<TagProposal> proposals = ProposalDetection.Detect(
-                    cached.Map, cached.Inputs.TickRate, regions, cached.Inputs.Events, cached.Inputs.Rounds, candidate);
-                AddFired(firedByDetector, DemoKey(path, _demoCache.TryGetIndex(path)?.Sha256), proposals);
+                report = Preview(candidate, baseline, demoPaths, job, linked.Token);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // The queue records a failed job and completes its task normally; the caller still sees why.
+                failure = ExceptionDispatchInfo.Capture(ex);
             }
 
-            (IReadOnlyDictionary<string, IReadOnlyList<HandTagWindow>> handTags, int demosWithHandTags) =
-                CollectHandTags(scoredPaths);
-            IReadOnlyDictionary<string, IReadOnlyList<FiredProposal>> byDetector = ToReadOnly(firedByDetector);
-            List<DetectorTuningRow> rows =
-            [
-                .. baseline.Rows.Select(row =>
-                {
-                    (double? recall, double? precision) = SuggestedTagsTuning.Score(
-                        byDetector.GetValueOrDefault(row.Detector, []),
-                        handTags.GetValueOrDefault(row.Detector, [])); // detector id spells the code it proposes
-                    return row with { Recall = recall, Precision = precision };
-                })
-            ];
-            return new TuningReport(rows, baseline.DemosWithVerdicts, demosWithHandTags);
-        }, cancellationToken);
+            return Task.CompletedTask;
+        }, new JobOptions(StratBookJobKinds.Tuning, JobPriority.UserRequested, PreviewJobKey)).ConfigureAwait(false);
+        failure?.Throw();
+        cancellationToken.ThrowIfCancellationRequested();
+        return report ?? throw new OperationCanceledException("The preview was removed from the queue before it finished.");
+    }
+
+    private TuningReport Preview(DetectorProfile candidate, TuningReport baseline, IReadOnlyList<string> demoPaths,
+        IJobContext job, CancellationToken cancellationToken)
+    {
+        Dictionary<string, List<FiredProposal>> firedByDetector = new(StringComparer.Ordinal);
+        List<string> scoredPaths = [];
+        for (int i = 0; i < demoPaths.Count; i++)
+        {
+            string path = demoPaths[i];
+            cancellationToken.ThrowIfCancellationRequested();
+            job.Report(i, demoPaths.Count, Path.GetFileName(path));
+            if (GetOrBuildCache(path) is not { } cached)
+            {
+                continue;
+            }
+
+            scoredPaths.Add(path);
+            SiteRegions regions = SiteRegions.Compose(cached.Map, null, cached.Table, candidate);
+            IReadOnlyList<TagProposal> proposals = ProposalDetection.Detect(
+                cached.Map, cached.Inputs.TickRate, regions, cached.Inputs.Events, cached.Inputs.Rounds, candidate);
+            AddFired(firedByDetector, DemoKey(path, _demoCache.TryGetIndex(path)?.Sha256), proposals);
+        }
+
+        (IReadOnlyDictionary<string, IReadOnlyList<HandTagWindow>> handTags, int demosWithHandTags) =
+            CollectHandTags(scoredPaths);
+        IReadOnlyDictionary<string, IReadOnlyList<FiredProposal>> byDetector = ToReadOnly(firedByDetector);
+        List<DetectorTuningRow> rows =
+        [
+            .. baseline.Rows.Select(row =>
+            {
+                (double? recall, double? precision) = SuggestedTagsTuning.Score(
+                    byDetector.GetValueOrDefault(row.Detector, []),
+                    handTags.GetValueOrDefault(row.Detector, [])); // detector id spells the code it proposes
+                return row with { Recall = recall, Precision = precision };
+            })
+        ];
+        return new TuningReport(rows, baseline.DemosWithVerdicts, demosWithHandTags);
     }
 
     /// <summary>Forgets every cached parse, so the next preview reparses (a demo changed, a re-index ran).</summary>
