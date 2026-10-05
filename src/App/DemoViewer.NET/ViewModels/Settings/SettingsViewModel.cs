@@ -692,7 +692,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public bool ShowAllowUnverifiedRestartNotice => AllowUnverifiedExtensions != _allowUnverifiedAtOpen;
 
     /// <summary>The third-party extensions under the extensions folder: loaded, and why the others did not.</summary>
-    public IReadOnlyList<ExternalExtensionRow> ExternalExtensionRows { get; }
+    public IReadOnlyList<ExternalExtensionRow> ExternalExtensionRows { get; private set; }
 
     /// <summary>True when any third-party extension is installed.</summary>
     public bool HasExternalExtensions => ExternalExtensionRows.Count > 0;
@@ -822,6 +822,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         _disposed = true;
         _gate.Changed -= OnGateChanged;
+        if (_faults is not null)
+        {
+            _faults.Changed -= RefreshFaultNotices;
+        }
         _onChange?.Dispose();
         _extensionUpdatesCts.Cancel();
         _extensionUpdatesCts.Dispose();
@@ -1822,9 +1826,85 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void ResetOverrides() => Persist(s => s.Features.Overrides.Clear());
 
-    /// <summary>Persists an explicit on/off override for <paramref name="featureId" /> (the row-toggle write path).</summary>
-    internal void WriteFeatureOverride(string featureId, bool enabled) =>
+    /// <summary>
+    ///     Persists an explicit on/off override for <paramref name="featureId" /> (the row-toggle write path).
+    ///     Turning on an extension that was switched off for the session lifts that first: the override alone
+    ///     may already say on, and a write that changes nothing would never reach the gate.
+    /// </summary>
+    internal void WriteFeatureOverride(string featureId, bool enabled)
+    {
+        if (enabled && _faults?.StateOf(featureId).Suspended == true)
+        {
+            _faults.Resume(featureId);
+        }
+
         Persist(s => s.Features.Overrides[featureId] = enabled);
+    }
+
+    // ── Extension faults ──
+
+    private readonly Dictionary<string, ExtensionFaultNotice> _faultNotices = new(StringComparer.Ordinal);
+    private ExtensionFaults? _faults;
+    private Action? _openLog;
+
+    /// <summary>
+    ///     Shows, on each extension's master row and third-party row, whether it was switched off for this
+    ///     session after errors, with "Turn on again", "Keep off" and "Open log".
+    /// </summary>
+    /// <param name="faults">The process's fault tracker.</param>
+    /// <param name="openLog">Opens the diagnostics log folder, or null where there is none.</param>
+    internal void AttachExtensionFaults(ExtensionFaults faults, Action? openLog)
+    {
+        ArgumentNullException.ThrowIfNull(faults);
+        if (_faults is not null)
+        {
+            return;
+        }
+
+        _faults = faults;
+        _openLog = openLog;
+        foreach (FeatureToggleRow row in ExtensionsFeatureRows.Where(r => r.Scope == FeatureScope.Pack))
+        {
+            row.Fault = NoticeFor(row.FeatureId, row.Label);
+        }
+
+        ExternalExtensionRows =
+        [
+            .. ExternalExtensionRows.Select(r => r.FeatureId is { } id ? r with { Fault = NoticeFor(id, r.Name) } : r)
+        ];
+        faults.Changed += RefreshFaultNotices;
+        RefreshFaultNotices();
+    }
+
+    private ExtensionFaultNotice NoticeFor(string featureId, string name)
+    {
+        if (!_faultNotices.TryGetValue(featureId, out ExtensionFaultNotice? notice))
+        {
+            notice = new ExtensionFaultNotice(featureId, name, id => _faults?.Resume(id), KeepExtensionOff, _openLog);
+            _faultNotices[featureId] = notice;
+        }
+
+        return notice;
+    }
+
+    private void KeepExtensionOff(string featureId)
+    {
+        Persist(s => s.Features.Overrides[featureId] = false);
+        _faults?.Acknowledge(featureId);
+    }
+
+    private void RefreshFaultNotices()
+    {
+        if (_faults is not { } faults || _disposed)
+        {
+            return;
+        }
+
+        foreach (ExtensionFaultNotice notice in _faultNotices.Values)
+        {
+            notice.Apply(faults.StateOf(notice.FeatureId));
+        }
+    }
 
     /// <summary>Removes the explicit override for <paramref name="featureId" /> (the per-row clear affordance).</summary>
     internal void ClearFeatureOverride(string featureId) =>

@@ -1701,6 +1701,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _library.Save();
         _library.Dispose();
         ExtensionTabs.Deactivate(SelectedTab);
+        if (_extensionFaults is not null)
+        {
+            _extensionFaults.Changed -= OnExtensionFaultsChanged;
+        }
+
         _moduleContext?.Dispose();
         _moduleFeatures?.Dispose();
         Playback.Dispose();
@@ -3590,6 +3595,88 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private void RestartNormally() => _restart?.Invoke();
+
+    // ── Extension switched off after errors ──
+
+    private readonly HashSet<string> _faultBannerShownFor = new(StringComparer.Ordinal);
+    private ExtensionFaults? _extensionFaults;
+
+    /// <summary>
+    ///     A one-line banner for an extension switched off this session after errors, shown once per
+    ///     switch-off. Null when there is nothing to say.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasExtensionFaultBanner))]
+    private ExtensionFaultNotice? _extensionFaultBanner;
+
+    /// <summary>True while <see cref="ExtensionFaultBanner" /> shows.</summary>
+    public bool HasExtensionFaultBanner => ExtensionFaultBanner is not null;
+
+    /// <summary>Follows <paramref name="faults" /> for the banner. Once; later calls are ignored.</summary>
+    internal void AttachExtensionFaults(ExtensionFaults faults)
+    {
+        ArgumentNullException.ThrowIfNull(faults);
+        if (_extensionFaults is not null)
+        {
+            return;
+        }
+
+        _extensionFaults = faults;
+        faults.Changed += OnExtensionFaultsChanged;
+        OnExtensionFaultsChanged();
+    }
+
+    private void OnExtensionFaultsChanged()
+    {
+        if (_extensionFaults is not { } faults)
+        {
+            return;
+        }
+
+        foreach (ExtensionScope scope in faults.Scopes)
+        {
+            ExtensionFaultState state = faults.StateOf(scope.FeatureId);
+            if (!state.Suspended)
+            {
+                // Back on, or kept off in settings: a later switch-off gets its own banner.
+                _faultBannerShownFor.Remove(scope.FeatureId);
+                if (ExtensionFaultBanner?.FeatureId == scope.FeatureId)
+                {
+                    ExtensionFaultBanner = null;
+                }
+
+                continue;
+            }
+
+            if (_faultBannerShownFor.Add(scope.FeatureId))
+            {
+                ExtensionFaultNotice notice = new(scope.FeatureId, scope.Name, TurnExtensionOnAgain, KeepExtensionOff,
+                    AppPaths.LogsDir is { } logs ? () => OpenOutputFolder(logs) : null);
+                notice.Apply(state);
+                ExtensionFaultBanner = notice;
+            }
+            else if (ExtensionFaultBanner?.FeatureId == scope.FeatureId)
+            {
+                ExtensionFaultBanner.Apply(state);
+            }
+        }
+    }
+
+    private void TurnExtensionOnAgain(string featureId)
+    {
+        ExtensionFaultBanner = null;
+        _extensionFaults?.Resume(featureId);
+    }
+
+    private void KeepExtensionOff(string featureId)
+    {
+        ExtensionFaultBanner = null;
+        _settingsService?.Write(s => s.Features.Overrides[featureId] = false);
+        _extensionFaults?.Acknowledge(featureId);
+    }
+
+    [RelayCommand]
+    private void DismissExtensionFaultBanner() => ExtensionFaultBanner = null;
 
     [RelayCommand]
     private void TurnOffExtensionAndRestart()

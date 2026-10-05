@@ -15,6 +15,12 @@ namespace DemoViewer.NET.ViewModels.Settings;
 /// <param name="IsUnverified">True when it runs, or would, without a verified signature.</param>
 public sealed record ExternalExtensionRow(string Name, string Version, string State, bool IsLoaded, bool IsUnverified)
 {
+    /// <summary>Its master switch when it loaded; null for a copy that did not.</summary>
+    public string? FeatureId { get; init; }
+
+    /// <summary>Whether it was switched off for this session after errors, and the ways out; null when not tracked.</summary>
+    public ExtensionFaultNotice? Fault { get; init; }
+
     /// <summary>The loaded third-party extensions first, then the copies that did not load.</summary>
     public static IReadOnlyList<ExternalExtensionRow> Build(IReadOnlyList<PackStatus> statuses, IReadOnlyList<LoadOutcome> rejected)
     {
@@ -30,7 +36,7 @@ public sealed record ExternalExtensionRow(string Name, string Version, string St
 
             rows.Add(new ExternalExtensionRow(status.Manifest?.Name ?? status.Pack.Id, status.Manifest?.Version.ToString() ?? "",
                 external.Verified ? "Loaded. Verified." : "Loaded. Unverified: it runs with the same access to your files as the app.",
-                true, !external.Verified));
+                true, !external.Verified) { FeatureId = status.Pack.FeatureId });
         }
 
         foreach (LoadOutcome outcome in rejected)

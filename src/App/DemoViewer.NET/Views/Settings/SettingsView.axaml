@@ -58,6 +58,23 @@
                                Foreground="{DynamicResource AccentAmber}" FontSize="10"
                                TextWrapping="Wrap"
                                IsVisible="{Binding HasLoadNote}" />
+                    <!-- The extension was switched off for this session after errors, a pack master row only. -->
+                    <StackPanel Spacing="3" Margin="0,3,0,0" IsVisible="{Binding Fault.IsShown, FallbackValue=False}">
+                        <TextBlock Text="{Binding Fault.Text, FallbackValue=''}"
+                                   Foreground="{DynamicResource AccentCaution}" FontSize="10"
+                                   TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" Content="Turn on again"
+                                    Command="{Binding Fault.TurnOnAgainCommand, FallbackValue={x:Null}}"
+                                    IsVisible="{Binding Fault.CanTurnOnAgain, FallbackValue=False}" />
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" Content="Keep off"
+                                    Command="{Binding Fault.KeepOffCommand, FallbackValue={x:Null}}"
+                                    ToolTip.Tip="Turns the extension's switch off, so it stays off after a restart too." />
+                            <Button Classes="ghost" Padding="8,2" FontSize="10" Content="Open log"
+                                    Command="{Binding Fault.OpenLogCommand, FallbackValue={x:Null}}"
+                                    IsVisible="{Binding Fault.CanOpenLog, FallbackValue=False}" />
+                        </StackPanel>
+                    </StackPanel>
                     <!-- The update line, a pack master row only. The verdict of the last feed check,
                          Check and Update, and the download's progress while it runs. -->
                     <StackPanel Spacing="3" Margin="0,3,0,0" IsVisible="{Binding HasUpdate}">
@@ -733,6 +750,21 @@
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding State}" TextWrapping="Wrap" FontSize="10"
                                                                Foreground="{DynamicResource TextDim}" />
+                                                    <StackPanel Spacing="3" Margin="0,3,0,0"
+                                                                IsVisible="{Binding Fault.IsShown, FallbackValue=False}">
+                                                        <TextBlock Text="{Binding Fault.Text, FallbackValue=''}" TextWrapping="Wrap"
+                                                                   FontSize="10" Foreground="{DynamicResource AccentCaution}" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <Button Classes="ghost" Padding="8,2" FontSize="10" Content="Turn on again"
+                                                                    Command="{Binding Fault.TurnOnAgainCommand, FallbackValue={x:Null}}"
+                                                                    IsVisible="{Binding Fault.CanTurnOnAgain, FallbackValue=False}" />
+                                                            <Button Classes="ghost" Padding="8,2" FontSize="10" Content="Keep off"
+                                                                    Command="{Binding Fault.KeepOffCommand, FallbackValue={x:Null}}" />
+                                                            <Button Classes="ghost" Padding="8,2" FontSize="10" Content="Open log"
+                                                                    Command="{Binding Fault.OpenLogCommand, FallbackValue={x:Null}}"
+                                                                    IsVisible="{Binding Fault.CanOpenLog, FallbackValue=False}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>

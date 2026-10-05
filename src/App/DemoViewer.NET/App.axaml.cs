@@ -752,27 +752,34 @@ public class App : Application
         // this factory instead hands ownership to whoever opens Settings (the window service disposes the VM
         // on window-close / overlay-clear), so a fresh VM per open leaks nothing. Its live deps come from the
         // container so a self-write and an external edit both flow through the one SettingsService.
-        services.AddSingleton<Func<SettingsViewModel>>(sp => () => new SettingsViewModel(
-            sp.GetRequiredService<SettingsService>(),
-            sp.GetRequiredService<IOptionsMonitor<AppSettings>>(),
-            sp.GetRequiredService<IFeatureGate>(),
-            sp.GetRequiredService<ThemeRegistry>(),
-            // Replay-walkthrough starter: resolves the singleton shell lazily (never at ctor time, which
-            // would recurse through the shell factory). Null-safe if the shell isn't built yet.
-            () => Services?.GetService<MainViewModel>()?.StartWalkthrough(),
-            // The settings pages the packs contribute: the Suggested Tags tuning card and the
-            // Grenade Index card. Read fresh on every Settings open, same as the pages' own VMs.
-            sp.GetRequiredService<PackContributionSet>().SettingsPages,
-            // The Extensions "N demos will be re-indexed" notice's count; SettingsViewModel
-            // watches only the first entry.
-            sp.GetRequiredService<PackContributionSet>().ReindexEstimates,
-            // Each pack's "delete extension data" action, one row per entry.
-            sp.GetRequiredService<PackContributionSet>().DataRemovals,
-            // Every declared pack's compatibility verdict: versions, and the locked row with
-            // the reason for a pack that did not compose.
-            FeaturePacks.Statuses,
-            // The extension updater; absent where there is no config root to stage into.
-            sp.GetService<ExtensionUpdateService>()));
+        services.AddSingleton<Func<SettingsViewModel>>(sp => () =>
+        {
+            SettingsViewModel settingsVm = new(
+                sp.GetRequiredService<SettingsService>(),
+                sp.GetRequiredService<IOptionsMonitor<AppSettings>>(),
+                sp.GetRequiredService<IFeatureGate>(),
+                sp.GetRequiredService<ThemeRegistry>(),
+                // Replay-walkthrough starter: resolves the singleton shell lazily (never at ctor time, which
+                // would recurse through the shell factory). Null-safe if the shell isn't built yet.
+                () => Services?.GetService<MainViewModel>()?.StartWalkthrough(),
+                // The settings pages the packs contribute: the Suggested Tags tuning card and the
+                // Grenade Index card. Read fresh on every Settings open, same as the pages' own VMs.
+                sp.GetRequiredService<PackContributionSet>().SettingsPages,
+                // The Extensions "N demos will be re-indexed" notice's count; SettingsViewModel
+                // watches only the first entry.
+                sp.GetRequiredService<PackContributionSet>().ReindexEstimates,
+                // Each pack's "delete extension data" action, one row per entry.
+                sp.GetRequiredService<PackContributionSet>().DataRemovals,
+                // Every declared pack's compatibility verdict: versions, and the locked row with
+                // the reason for a pack that did not compose.
+                FeaturePacks.Statuses,
+                // The extension updater; absent where there is no config root to stage into.
+                sp.GetService<ExtensionUpdateService>());
+            // Says which extensions were switched off this session after errors.
+            settingsVm.AttachExtensionFaults(sp.GetRequiredService<ExtensionFaults>(),
+                AppPaths.LogsDir is { } logs ? () => Services?.GetService<MainViewModel>()?.OpenOutputFolder(logs) : null);
+            return settingsVm;
+        });
 
         // The extension updater: checks each extension's feed, stages a
         // newer version under <config root>/extensions/ for the loader to take at the next start. Judged by
@@ -1182,6 +1189,7 @@ public class App : Application
             shell.AttachStatusChips(sp.GetRequiredService<PackContributionSet>().StatusChips);
 
             sp.GetRequiredService<ExtensionShellHub>().Attach(shell);
+            shell.AttachExtensionFaults(sp.GetRequiredService<ExtensionFaults>());
 
             // The extensions' Match Overview actions, re-asked whenever a feature switch moves.
             IFeatureGate? actionGate = sp.GetService<IFeatureGate>();

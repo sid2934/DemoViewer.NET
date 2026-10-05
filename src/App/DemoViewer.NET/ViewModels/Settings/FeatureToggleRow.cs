@@ -217,6 +217,12 @@ public sealed partial class FeatureToggleRow : ObservableObject
     public bool HasUpdate => Update is not null;
 
     /// <summary>
+    ///     On an extension's master row: whether the extension was switched off for this session after errors,
+    ///     and the ways out. Null on every other row.
+    /// </summary>
+    public ExtensionFaultNotice? Fault { get; internal set; }
+
+    /// <summary>
     ///     The toggle is interactive only when the feature is neither Required, nor a group follower, nor
     ///     unavailable on this platform, nor an incompatible extension, nor a pack child whose pack is
     ///     currently off.
