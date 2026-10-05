@@ -122,6 +122,24 @@ internal static partial class AppLog
     public static partial void PassStillWaitingOnUpstream(ILogger logger, string passId, string demo);
 
     /// <summary>
+    ///     The queue read a demo. <paramref name="count" /> is the reads of that content this session; more
+    ///     than one means a second parse that one visit should have served.
+    /// </summary>
+    [LoggerMessage(EventId = 25, Level = LogLevel.Information,
+        Message = "Read {demo} ({read}): {count} read(s) of this demo this session")]
+    public static partial void DemoRead(ILogger logger, string demo, string read, int count);
+
+    /// <summary>An extension's pass overran its time budget too often and sits out the rest of the session.</summary>
+    [LoggerMessage(EventId = 26, Level = LogLevel.Warning,
+        Message = "Pass {passId} of {extension} overran its {budget} budget {count} times; it is off until the app restarts")]
+    public static partial void PassQuarantined(ILogger logger, string passId, string extension, TimeSpan budget, int count);
+
+    /// <summary>A pass was asked whether it wants a demo on the UI thread, which the host never does; it answered no.</summary>
+    [LoggerMessage(EventId = 27, Level = LogLevel.Warning,
+        Message = "Pass {passId} of {extension} was asked about {demo} on the UI thread; answered no")]
+    public static partial void PassAskedOnUiThread(ILogger logger, string passId, string extension, string demo);
+
+    /// <summary>
     ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI
     ///     shows clean text, THIS carries the full exception into the Diagnostics tab + file.
     /// </summary>

@@ -853,7 +853,9 @@ public class App : Application
                 // DI-free, like CommandRegistry.Build(packs): reads IExtension.JobKinds directly, no
                 // PackContributionSet, so building the queue can never re-enter its own DI resolution
                 // through a pack's Contribute (e.g. ReviewQueue resolves IDemoProcessingQueue eagerly).
-                jobKinds: sp.GetRequiredService<JobKindRegistry>());
+                jobKinds: sp.GetRequiredService<JobKindRegistry>(),
+                // Resolved at the first read, never while the queue is built.
+                contentHash: path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256);
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {

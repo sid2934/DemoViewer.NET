@@ -60,6 +60,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly Func<ReadOnlyMemory<byte>, ParsedDemo> _parseBytes; // foreground: parse in-hand bytes
     private readonly Func<string, DecodePlan, ParsedDemo> _parseFile; // background: read file at path → parse
     private readonly Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? _forwardPass;
+    private readonly Func<string, string?>? _contentHash;
+    private readonly Dictionary<string, int> _parsesByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly JobKindRegistry _jobKinds;
     private readonly Action<ParsedDemo>? _parseReleased;
     private readonly Action<Action> _post;
@@ -113,6 +115,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     ///     <see cref="JobKindRegistry.Default" />, the core table plus the one compiled-in pack's kinds,
     ///     so a test or a bare construction sees the same scheduling every kind had before the registry.
     /// </param>
+    /// <param name="contentHash">
+    ///     A demo's content hash when the library knows it, so <see cref="ParseCounts" /> counts copies of one
+    ///     demo together. Null counts by path.
+    /// </param>
     public DemoProcessingQueue(
         HeavyJobGate gate,
         Action<Action>? post = null,
@@ -123,8 +129,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         Func<string, DecodePlan, ParsedDemo>? parseFileWithPlan = null,
         Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? forwardPass = null,
         Action<ParsedDemo>? parseReleased = null,
-        JobKindRegistry? jobKinds = null)
+        JobKindRegistry? jobKinds = null,
+        Func<string, string?>? contentHash = null)
     {
+        _contentHash = contentHash;
         _gate = gate;
         _post = post ?? (a => Dispatcher.UIThread.Post(a));
         _parseFile = parseFileWithPlan ?? (parseFile is null ? ParseFileDefault : (path, _) => parseFile(path));
@@ -224,6 +232,67 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                                        && string.Equals(e.ExtensionKind, extensionKind, StringComparison.Ordinal)
                                        && IsActive(e));
         }
+    }
+
+    /// <summary>
+    ///     Every demo read this session, by content hash when the library knows it and by path otherwise, with
+    ///     how many times it was read: opens, retained parses and forward reads, a stopped read included.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> ParseCounts()
+    {
+        KeyValuePair<string, int>[] byPath;
+        lock (_sync)
+        {
+            byPath = [.. _parsesByPath];
+        }
+
+        // Folded at read time: a first import learns its hash during the visit that read it.
+        Dictionary<string, int> byContent = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string path, int count) in byPath)
+        {
+            string key = ContentKey(path);
+            byContent[key] = byContent.GetValueOrDefault(key) + count;
+        }
+
+        return byContent;
+    }
+
+    /// <summary>How many times the content at <paramref name="path" /> was read this session, through any path.</summary>
+    public int ParseCount(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        return ParseCounts().GetValueOrDefault(ContentKey(path));
+    }
+
+    private string ContentKey(string path)
+    {
+        try
+        {
+            return _contentHash?.Invoke(path) is { Length: > 0 } hash ? hash : path;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            AppLog.QueueOwnerHandlerFailed(DiagLog, ex);
+            return path;
+        }
+    }
+
+    // Called right before every read of a demo, so a read that fails or is stopped still counts.
+    private void NoteParse(string? path, string read)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        lock (_sync)
+        {
+            _parsesByPath[path] = _parsesByPath.GetValueOrDefault(path) + 1;
+        }
+
+        string name = System.IO.Path.GetFileName(path);
+        int count = ParseCount(path);
+        AppLog.DemoRead(DiagLog, name, read, count);
     }
 
     public int MaxConcurrency
@@ -349,6 +418,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         // Fast-path: the interactive slot preempts background and refuses during a reel.
         using (await _gate.AcquireInteractiveAsync(cancellationToken).ConfigureAwait(false))
         {
+            NoteParse(path, "open");
             return await Task.Run(() => _parseBytes(bytes), cancellationToken).ConfigureAwait(false);
         }
     }
@@ -487,6 +557,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             try
             {
                 // The parser takes no token: a replaced open still runs to the end of its parse.
+                NoteParse(entry.Path, "open");
                 parsed = await Task.Run(() => _parseBytes(bytes)).ConfigureAwait(false);
             }
             finally
@@ -1270,6 +1341,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         try
         {
+            NoteParse(entry.Path, "retained");
             parsed = _parseFile(entry.Path, plan);
         }
         catch (Exception ex)
@@ -1426,6 +1498,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         int reported = -1;
         try
         {
+            NoteParse(entry.Path, "forward");
             pass = _forwardPass!(entry.Path, needs, fraction =>
             {
                 int percent = (int)(fraction * 100);
