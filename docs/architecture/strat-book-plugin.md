@@ -225,8 +225,8 @@ cards) keeps its rows; the panels fill the third row as the inline views did, so
 passes unchanged.
 
 Keys and actions route through the surface rather than the tab naming a panel. `AddKeyHandler` is asked by the
-view before the tab's keymap, in registration order, which is how the `WhenPaletteFocused` and
-`WhenSuggestionSelected` rows shadow the always rows (the handler resolves its scope against `Keymap`);
+view before the tab's keymap, in registration order, which is how the Strat Book's palette and suggestion
+scope rows shadow the always rows (the handler resolves its scope against `Keymap`);
 `AddActionHandler` is asked for every action the tab does not handle itself, and for every action first while
 a shown panel `HasKeyboard`, which is how undo and redo are the tags' while the palette has the keyboard. The
 tab's `IsReviewAvailable` is "an open panel whose gate is on", so a tab with no contributed panel offers no
@@ -537,9 +537,9 @@ and `ProfileStore.Reload` (both pre-existing) cover `palettes/` and `suggested-t
 
 ```csharp
 public sealed record CommandDescriptor(
-    string Id,                // "stratbook.step.add"; persisted override key
+    string Id,                // "net.demoviewer.pack.stratbook.AddStep"; persisted override key
     string Label,
-    string Scope,             // "playback2d", "playback2d.palette", "stratbook.canvas"
+    string Scope,             // "playback2d", "playback2d.tool", or a scope the extension declares
     KeyGesture? DefaultChord,
     Func<CommandContext, bool> Run,
     Func<CommandContext, bool>? CanRun = null);
