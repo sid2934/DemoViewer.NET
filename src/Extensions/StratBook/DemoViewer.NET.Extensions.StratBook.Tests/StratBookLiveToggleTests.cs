@@ -14,6 +14,7 @@ using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
@@ -491,6 +492,16 @@ public class StratBookLiveToggleTests
             if (copy is null)
             {
                 SeedLibrary(provider, demos: 160, roundsPerDemo: 24, grenadesPerDemo: 60, indexRounds: true);
+                // Round Facts is core and runs with the pack off too: rows current under the live identity keep
+                // its backlog of the fake demos out of a measurement of the pack's own heap.
+                string? identity = provider.GetRequiredService<IRoundFactsRulesetIdentity>().Fingerprint(64);
+                DemoCacheStore cache = provider.GetRequiredService<DemoCacheStore>();
+                foreach (DemoCacheIndexEntry entry in cache.Index.ToList())
+                {
+                    cache.UpdateExisting(entry.Path, r => r.SetStamp(new PackStamp(RoundFactsRecords.FacetId, RoundFactsRecords.Schema, identity)));
+                }
+
+                cache.SaveIndex();
             }
 
             Dispatcher.UIThread.RunJobs();
