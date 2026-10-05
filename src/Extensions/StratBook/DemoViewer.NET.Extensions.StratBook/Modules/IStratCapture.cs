@@ -8,8 +8,7 @@ using DemoViewer.NET.Modules.Abstractions;
 namespace DemoViewer.NET.Modules;
 
 /// <summary>
-///     What a module needs to know whether "Create Strat From Round" has anything to capture, without
-///     naming the Strat Book pack: the open demo's parse. Resolved through
+///     Whether "Create Strat From Round" has anything to capture: the open demo's parse. Resolved through
 ///     <see cref="IModuleContext.GetService{T}" />; no registration at all (the pack off, or not built)
 ///     means the same as a null host.
 /// </summary>

@@ -35,7 +35,6 @@ using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Dossier;
 using DemoViewer.NET.ViewModels.Review;
 using DemoViewer.NET.ViewModels.RoundTagger;
-using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Situations;
 using DemoViewer.NET.ViewModels.StratBook;
 using DemoViewer.NET.ViewModels.SuggestedTags;
@@ -614,7 +613,7 @@ public sealed class StratBookPack : IExtension
             }
 
             return new StratCaptureHost(
-                () => sp.GetService<MainViewModel>()?.ModuleContext is ICurrentDemoSource source ? source.CurrentDemo : null,
+                () => Host(sp).Shell.CurrentDemo,
                 sp.GetRequiredService<StratStore>(),
                 sp.GetService<TeamIdentityService>(),
                 id =>
@@ -634,10 +633,11 @@ public sealed class StratBookPack : IExtension
             }
 
             SettingsService settings = sp.GetRequiredService<SettingsService>();
+            IFirstPartyShellState shell = sp.GetRequiredService<IFirstPartyShellState>();
             return new StratExportHost(
                 sp.GetRequiredService<HeavyJobGate>(),
-                () => sp.GetService<MainViewModel>()?.LiveSync?.State.IsSessionActive == true,
-                () => sp.GetService<MainViewModel>()?.ReelJob?.Status.IsRunning == true,
+                () => shell.IsLiveSyncSessionActive,
+                () => shell.IsReelJobRunning,
                 () => settings.Current,
                 settings.Write,
                 sp.GetRequiredService<StratBookExportChipSlot>().Mount,
