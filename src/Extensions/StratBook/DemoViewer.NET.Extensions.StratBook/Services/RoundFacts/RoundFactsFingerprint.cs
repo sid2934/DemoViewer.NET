@@ -6,7 +6,6 @@ using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using DemoViewer.NET.Modules.Highlights;
-using DemoViewer.NET.Services.DemoCache;
 using Microsoft.Extensions.Logging;
 using DemoViewer.NET.Services.RoundFacts;
 

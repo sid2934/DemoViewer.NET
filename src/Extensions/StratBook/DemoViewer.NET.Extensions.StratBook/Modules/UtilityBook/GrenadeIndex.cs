@@ -9,7 +9,6 @@ using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using Microsoft.Extensions.Logging;
 
