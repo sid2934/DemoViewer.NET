@@ -132,3 +132,19 @@ internal sealed class FaultRig
         Faults.Run(Scope, site, body, kind);
     }
 }
+
+/// <summary>An extension that contributes nothing, for a collector under test.</summary>
+internal sealed class StubExtension(string featureId = "pack.fake") : IExtension
+{
+    public string Id => "net.demoviewer." + featureId;
+    public string FeatureId => featureId;
+    public IEnumerable<ExtensionFeature> Features => [];
+
+    public void Register(Microsoft.Extensions.DependencyInjection.IServiceCollection services)
+    {
+    }
+
+    public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+    {
+    }
+}

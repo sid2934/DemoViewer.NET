@@ -3,6 +3,7 @@
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.ViewModels.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -22,9 +23,19 @@ internal sealed class PackContributionSet
         ArgumentNullException.ThrowIfNull(packs);
         ArgumentNullException.ThrowIfNull(sp);
         List<PackContributions> collected = new(packs.Count);
+        ExtensionFaults faults = sp.GetService<ExtensionFaults>() ?? ExtensionFaults.For(packs, static a => a());
         foreach (IExtension pack in packs)
         {
-            PackContributions contributions = new(pack, () => sp.GetExtensionContext(pack.Id), UiThreadMarshal.Run);
+            ExtensionGuard guard = faults.GuardFor(pack);
+            PackContributions contributions = new(pack, () => sp.GetExtensionContext(pack.Id), UiThreadMarshal.Run, guard);
+
+            // A pack whose registration failed has no services to contribute from.
+            if (faults.StartupFailed(pack.Id))
+            {
+                collected.Add(contributions);
+                continue;
+            }
+
             try
             {
                 pack.Contribute(contributions, sp);
@@ -33,7 +44,8 @@ internal sealed class PackContributionSet
             {
                 // One extension failing its Contribute must not stop the app: it contributes nothing.
                 AppLog.OperationFailed(Log, "contribute extension " + pack.Id, ex);
-                contributions = new PackContributions(pack, () => sp.GetExtensionContext(pack.Id), UiThreadMarshal.Run);
+                guard.Report("contribute", ex);
+                contributions = new PackContributions(pack, () => sp.GetExtensionContext(pack.Id), UiThreadMarshal.Run, guard);
             }
 
             collected.Add(contributions);

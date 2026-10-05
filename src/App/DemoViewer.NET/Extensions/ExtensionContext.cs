@@ -41,9 +41,14 @@ internal sealed class ExtensionShellHub
     }
 }
 
-/// <summary>The host as one extension sees it.</summary>
+/// <summary>
+///     The host as one extension sees it. Every callback the extension hands in (a posted action, a feature
+///     or demo change handler) runs as the extension's, so a throw is reported against it rather than
+///     reaching the dispatcher or skipping the host's own subscribers.
+/// </summary>
 internal sealed class ExtensionContext : IExtensionContext
 {
+    private readonly ExtensionGuard _guard;
     private readonly string _logPrefix;
 
     public ExtensionContext(IExtension extension, IServiceProvider services)
@@ -53,10 +58,11 @@ internal sealed class ExtensionContext : IExtensionContext
         ExtensionId = extension.Id;
         FeatureId = extension.FeatureId;
         _logPrefix = "Extension." + extension.Id;
-        Features = new GateView(services.GetService<IFeatureGate>());
+        _guard = services.GetService<ExtensionFaults>()?.GuardFor(extension) ?? ExtensionGuard.Standalone(extension);
+        Features = new GateView(services.GetService<IFeatureGate>(), _guard);
         Jobs = new ExtensionJobs(extension.Id, () => services.GetService<IDemoProcessingQueue>(),
             () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default);
-        Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>());
+        Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
     }
 
@@ -82,10 +88,10 @@ internal sealed class ExtensionContext : IExtensionContext
     public void Post(Action action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        Dispatcher.UIThread.Post(action);
+        Dispatcher.UIThread.Post(_guard.Wrap("posted callback", action));
     }
 
-    private sealed class GateView(IFeatureGate? gate) : IExtensionFeatures
+    private sealed class GateView(IFeatureGate? gate, ExtensionGuard guard) : IExtensionFeatures
     {
         public bool IsEnabled(string featureId) => gate?.IsEnabled(featureId) ?? true;
 
@@ -111,7 +117,7 @@ internal sealed class ExtensionContext : IExtensionContext
 
         private EventHandler Forward(Action value)
         {
-            EventHandler handler = (_, _) => value();
+            EventHandler handler = (_, _) => guard.Run("feature change handler", value);
             _forwards[value] = handler;
             return handler;
         }
@@ -121,10 +127,22 @@ internal sealed class ExtensionContext : IExtensionContext
     {
         private readonly ExtensionShellHub _hub;
 
-        public ShellView(ExtensionShellHub hub)
+        // Each of the extension's handlers runs even when one before it throws.
+        public ShellView(ExtensionShellHub hub, ExtensionGuard guard)
         {
             _hub = hub;
-            hub.DemoChanged += () => CurrentDemoChanged?.Invoke();
+            hub.DemoChanged += () =>
+            {
+                if (CurrentDemoChanged is not { } handlers)
+                {
+                    return;
+                }
+
+                foreach (Action handler in handlers.GetInvocationList().Cast<Action>())
+                {
+                    guard.Run("demo change handler", handler);
+                }
+            };
         }
 
         public string? CurrentDemoPath => _hub.Shell?.LoadedDemoPath;

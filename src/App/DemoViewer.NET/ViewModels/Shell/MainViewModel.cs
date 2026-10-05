@@ -1700,7 +1700,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _perfTimer?.Stop();
         _library.Save();
         _library.Dispose();
-        SelectedTab?.Deactivate();
+        ExtensionTabs.Deactivate(SelectedTab);
         _moduleContext?.Dispose();
         _moduleFeatures?.Dispose();
         Playback.Dispose();
@@ -2444,12 +2444,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             try
             {
-                descriptors.AddRange(module.CreateTabs(host));
+                descriptors.AddRange(ExtensionTabs.CreateTabs(module, host));
             }
             catch (Exception ex)
             {
-                // Failure isolation: a misbehaving module never crashes the shell.
+                // Failure isolation: a misbehaving module never crashes the shell. An extension's module is
+                // already contained by ExtensionTabs; this is a host module's failure.
                 RouteModuleLog(ModuleLogLevel.Error, $"Module '{module.Id}' CreateTabs failed: {ex.Message}");
+                string operation = $"module '{module.Id}' CreateTabs";
+                AppLog.OperationFailed(DiagLog, operation, ex);
             }
         }
 
@@ -2460,8 +2463,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             LibraryTab.Sections, null, contributed: false));
         foreach (HostTabContribution host in _hostTabs)
         {
-            IHostTabViewModel viewModel = host.ViewModelFactory();
-            viewModel.RailLabel = host.RailLabel;
+            // An extension's factory answers null when it threw: the host tab is left out.
+            if (host.ViewModelFactory() is not { } viewModel)
+            {
+                RouteModuleLog(ModuleLogLevel.Error, $"Host tab '{host.TabId}' could not be built; left out.");
+                continue;
+            }
+
+            ExtensionGuard? hostGuard = ExtensionGuards.For(host);
+            if (hostGuard is null)
+            {
+                viewModel.RailLabel = host.RailLabel;
+            }
+            else
+            {
+                hostGuard.Run("hub view model", () => viewModel.RailLabel = host.RailLabel);
+            }
+
             WorkspaceTabDescriptor tab = new()
             {
                 TabId = host.TabId,
@@ -2471,6 +2489,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 ViewModelFactory = () => viewModel,
                 ViewFactory = host.ViewFactory
             };
+            if (hostGuard is not null)
+            {
+                ExtensionGuards.Register(tab, hostGuard);
+            }
+
             descriptors.Add(tab);
             _hosts.Add(new SectionHostEntry(host.HostId, tab, viewModel.Sections, viewModel, contributed: true));
         }
@@ -2654,7 +2677,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     : ChooseNeighbor(removed, desired);
             }
 
-            removed.Deactivate(); // idempotent; drops the realized View if it was the (old) selected tab.
+            ExtensionTabs.Deactivate(removed); // idempotent; drops the realized View if it was the (old) selected tab.
             Tabs.Remove(removed);
         }
 
@@ -2775,11 +2798,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     partial void OnSelectedTabChanged(WorkspaceTabDescriptor? oldValue, WorkspaceTabDescriptor? newValue)
     {
-        oldValue?.Deactivate();
+        ExtensionTabs.Deactivate(oldValue);
 
         if (newValue is not null && _moduleContext is not null)
         {
-            newValue.Activate(_moduleContext);
+            ExtensionTabs.Activate(newValue, _moduleContext);
         }
     }
 
@@ -4775,7 +4798,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Dictionary<string, JsonElement> states = [];
         foreach (WorkspaceTabDescriptor tab in TabsAndSections())
         {
-            if (tab.TabViewModel?.SnapshotState() is not { } state)
+            if (ExtensionTabs.Snapshot(tab) is not { } state)
             {
                 continue;
             }

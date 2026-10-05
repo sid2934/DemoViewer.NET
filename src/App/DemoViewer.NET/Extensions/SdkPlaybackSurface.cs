@@ -14,8 +14,9 @@ using SdkP = DemoViewer.NET.Extensions.Sdk.Playback;
 
 namespace DemoViewer.NET.Extensions;
 
-/// <summary>Hosts an SDK playback contribution on the app's own surface.</summary>
-internal sealed class SdkPlaybackContribution(SdkP.IPlaybackContribution inner) : IPlaybackContribution, IDisposable
+/// <summary>Hosts an SDK playback contribution on the app's own surface, every call into it guarded.</summary>
+internal sealed class SdkPlaybackContribution(SdkP.IPlaybackContribution inner, ExtensionGuard guard)
+    : IPlaybackContribution, IDisposable
 {
     private SdkPlaybackSurface? _surface;
 
@@ -23,22 +24,17 @@ internal sealed class SdkPlaybackContribution(SdkP.IPlaybackContribution inner) 
 
     public void Attach(IPlaybackSurface surface, IModuleContext context)
     {
-        _surface = new SdkPlaybackSurface(surface);
-        Inner.Attach(_surface, context);
+        _surface = new SdkPlaybackSurface(surface, guard);
+        SdkPlaybackSurface attached = _surface;
+        guard.Run("playback attach", () => Inner.Attach(attached, context));
     }
 
-    // Detach undoes what Attach added even when the extension forgot a handle.
+    // Detach undoes what Attach added even when the extension forgot a handle or threw.
     public void Detach()
     {
-        try
-        {
-            Inner.Detach();
-        }
-        finally
-        {
-            _surface?.Dispose();
-            _surface = null;
-        }
+        guard.Run("playback detach", Inner.Detach);
+        _surface?.Dispose();
+        _surface = null;
     }
 
     public void Dispose()
@@ -48,17 +44,34 @@ internal sealed class SdkPlaybackContribution(SdkP.IPlaybackContribution inner) 
     }
 }
 
-/// <summary>The SDK's view of one 2D Playback tab, over the app's surface.</summary>
+/// <summary>A first-party playback contribution with its attach and detach run as its extension's.</summary>
+internal sealed class GuardedPlaybackContribution(IPlaybackContribution inner, ExtensionGuard guard) : IPlaybackContribution
+{
+    public IPlaybackContribution Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
+
+    public void Attach(IPlaybackSurface surface, IModuleContext context) =>
+        guard.Run("playback attach", () => Inner.Attach(surface, context));
+
+    public void Detach() => guard.Run("playback detach", Inner.Detach);
+}
+
+/// <summary>
+///     The SDK's view of one 2D Playback tab, over the app's surface. Every handler and factory the extension
+///     hands in is wrapped once, at registration, so a throw is reported against the extension and the tab
+///     carries on: the frame loop, the keymap and the timeline never see an extension's exception.
+/// </summary>
 internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
 {
     private static readonly IReadOnlyCollection<string> _actionIds = Enum.GetNames<Playback2DAction>();
 
     private readonly IPlaybackSurface _surface;
+    private readonly ExtensionGuard _guard;
     private readonly List<IDisposable> _owned = [];
 
-    public SdkPlaybackSurface(IPlaybackSurface surface)
+    public SdkPlaybackSurface(IPlaybackSurface surface, ExtensionGuard guard)
     {
         _surface = surface ?? throw new ArgumentNullException(nameof(surface));
+        _guard = guard ?? throw new ArgumentNullException(nameof(guard));
         _surface.KeymapChanged += OnKeymapChanged;
         _surface.Deactivated += OnDeactivated;
     }
@@ -72,9 +85,17 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
 
     public event Action? Deactivated;
 
-    public IDisposable OnDemoChanged(Action handler) => Own(_surface.OnDemoChanged(handler));
+    public IDisposable OnDemoChanged(Action handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return Own(_surface.OnDemoChanged(_guard.Wrap("demo change handler", handler)));
+    }
 
-    public IDisposable OnPlayheadChanged(Action<int> handler) => Own(_surface.OnPlayheadChanged(handler));
+    public IDisposable OnPlayheadChanged(Action<int> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return Own(_surface.OnPlayheadChanged(_guard.Wrap("playhead handler", handler, FaultKind.Recurring)));
+    }
 
     public string GestureHint(string actionId) =>
         Enum.TryParse(actionId, false, out Playback2DAction action) ? _surface.GestureHint(action) : "";
@@ -82,9 +103,9 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public SdkP.ILaneHandle AddLane(SdkP.ITimelineTrack track, SdkP.ILaneBehaviour? behaviour = null)
     {
         ArgumentNullException.ThrowIfNull(track);
-        CoreTrack core = new(track);
+        CoreTrack core = new(track, _guard);
         ILaneHandle handle = _surface.AddLane(core, TimelineBandRow.Lane,
-            behaviour is null ? null : new LaneBehaviour(behaviour));
+            behaviour is null ? null : new LaneBehaviour(behaviour, _guard));
         LaneHandle lane = new(track, core, handle);
         _owned.Add(lane);
         return lane;
@@ -93,10 +114,17 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public IDisposable AddBandMenu(Func<SdkP.PlaybackBand, IEnumerable<SdkP.MenuEntry>> items)
     {
         ArgumentNullException.ThrowIfNull(items);
-        return Own(_surface.AddBandMenu(band => Menu(items(Band(band)))));
+        Func<SdkP.PlaybackBand, IEnumerable<SdkP.MenuEntry>> guarded =
+            _guard.Wrap<SdkP.PlaybackBand, IEnumerable<SdkP.MenuEntry>>("band menu", b => [.. items(b)], []);
+        return Own(_surface.AddBandMenu(band => Menu(guarded(Band(band)), _guard)));
     }
 
-    public IDisposable AddModeToggle(SdkP.ModeToggle toggle) => Own(_surface.AddModeToggle(toggle));
+    public IDisposable AddModeToggle(SdkP.ModeToggle toggle)
+    {
+        ArgumentNullException.ThrowIfNull(toggle);
+        ExtensionGuards.Register(toggle, _guard);
+        return Own(_surface.AddModeToggle(toggle));
+    }
 
     public IDisposable AddToolbarItem(SdkP.ToolbarItem item)
     {
@@ -104,16 +132,18 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         Playback2DAction? action = item.ActionId is { } id && Enum.TryParse(id, false, out Playback2DAction parsed)
             ? parsed
             : null;
+        Func<SdkP.PlaybackMoment, bool> run = _guard.Wrap("toolbar item", item.Run, false);
         ToolbarItem mirrored = new(item.Id, item.Label, item.Tooltip,
-            frame => item.Run(new SdkP.PlaybackMoment(frame.Time.Tick, frame.Time.FrameIndex)), action, item.Order,
+            frame => run(new SdkP.PlaybackMoment(frame.Time.Tick, frame.Time.FrameIndex)), action, item.Order,
             item.Icon, item.MenuHeader);
 
-        void Sync(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-        {
-            mirrored.Label = item.Label;
-            mirrored.Tooltip = item.Tooltip;
-            mirrored.MenuHeader = item.MenuHeader;
-        }
+        void Sync(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+            _guard.Run("toolbar item", () =>
+            {
+                mirrored.Label = item.Label;
+                mirrored.Tooltip = item.Tooltip;
+                mirrored.MenuHeader = item.MenuHeader;
+            });
 
         item.PropertyChanged += Sync;
         IDisposable added = _surface.AddToolbarItem(mirrored);
@@ -127,12 +157,16 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public IDisposable AddPointerPreHandler(Func<SdkP.PlaybackPointer, bool> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
-        return Own(_surface.AddPointerPreHandler(p => handler(Pointer(p))));
+        Func<SdkP.PlaybackPointer, bool> guarded = _guard.Wrap("pointer handler", handler, false, FaultKind.Recurring);
+        return Own(_surface.AddPointerPreHandler(p => guarded(Pointer(p))));
     }
 
+    // A pane or panel whose view model cannot be built shows the placeholder control in its place.
     public SdkP.IPaneHandle AddPane(SdkP.PanePlacement where, int order, Func<object> viewModel)
     {
-        SdkP.IPaneHandle pane = _surface.AddPane(where, order, viewModel);
+        ArgumentNullException.ThrowIfNull(viewModel);
+        SdkP.IPaneHandle pane = _surface.AddPane(where, order,
+            () => _guard.Run("pane view model", viewModel, ExtensionPlaceholder.View(_guard.Scope, "this pane")));
         _owned.Add(pane);
         return pane;
     }
@@ -140,17 +174,36 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public SdkP.IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
         SdkP.ModeToggle? mode = null)
     {
-        SdkP.IPanelHandle panel = _surface.AddPanel(order, viewModel, view, featureId, mode);
+        ArgumentNullException.ThrowIfNull(viewModel);
+        Func<Control>? guardedView = view is null
+            ? null
+            : () => _guard.Run("panel view", view, ExtensionPlaceholder.View(_guard.Scope, "this panel"));
+        if (mode is not null)
+        {
+            ExtensionGuards.Register(mode, _guard);
+        }
+
+        SdkP.IPanelHandle panel = _surface.AddPanel(order,
+            () => _guard.Run("panel view model", viewModel, ExtensionPlaceholder.View(_guard.Scope, "this panel")),
+            guardedView, featureId, mode);
         _owned.Add(panel);
         return panel;
     }
 
-    public IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler) => Own(_surface.AddKeyHandler(handler));
+    public IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        Func<(Key Key, KeyModifiers Modifiers), bool> guarded =
+            _guard.Wrap<(Key Key, KeyModifiers Modifiers), bool>("key handler", k => handler(k.Key, k.Modifiers), false,
+                FaultKind.Recurring);
+        return Own(_surface.AddKeyHandler((key, modifiers) => guarded((key, modifiers))));
+    }
 
     public IDisposable AddActionHandler(Func<string, bool> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
-        return Own(_surface.AddActionHandler(action => handler(action.ToString())));
+        Func<string, bool> guarded = _guard.Wrap("action handler", handler, false, FaultKind.Recurring);
+        return Own(_surface.AddActionHandler(action => guarded(action.ToString())));
     }
 
     public void Dispose()
@@ -168,8 +221,8 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     internal static SdkP.PlaybackBand Band(TimelineBandViewModel band) =>
         new(band.TrackId, band.StartFrameIndex, band.EndFrameIndex, band.Label, band.Tooltip);
 
-    private static List<MenuEntry> Menu(IEnumerable<SdkP.MenuEntry> entries) =>
-        [.. entries.Select(e => new MenuEntry(e.Header, e.Run))];
+    private static List<MenuEntry> Menu(IEnumerable<SdkP.MenuEntry> entries, ExtensionGuard guard) =>
+        [.. entries.Select(e => new MenuEntry(e.Header, guard.Wrap("menu entry", e.Run)))];
 
     private static SdkP.PlaybackPointer Pointer(ScenePointer p)
     {
@@ -200,9 +253,23 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
         return registration;
     }
 
-    private void OnKeymapChanged() => KeymapChanged?.Invoke();
+    // Every subscriber here is the extension's; each runs even when one before it throws.
+    private void OnKeymapChanged() => RaiseEach(KeymapChanged, "keymap change handler");
 
-    private void OnDeactivated() => Deactivated?.Invoke();
+    private void OnDeactivated() => RaiseEach(Deactivated, "deactivate handler");
+
+    private void RaiseEach(Action? handlers, string site)
+    {
+        if (handlers is null)
+        {
+            return;
+        }
+
+        foreach (Action handler in handlers.GetInvocationList().Cast<Action>())
+        {
+            _guard.Run(site, handler);
+        }
+    }
 
     private sealed class Registration(Action dispose) : IDisposable
     {
@@ -228,44 +295,53 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     private sealed class CoreTrack : Core.ITimelineTrack
     {
         private readonly SdkP.ITimelineTrack _track;
+        private readonly ExtensionGuard _guard;
 
-        public CoreTrack(SdkP.ITimelineTrack track)
+        // The id and name are read once: the timeline reads them on every rebuild.
+        public CoreTrack(SdkP.ITimelineTrack track, ExtensionGuard guard)
         {
             _track = track;
-            _track.Changed += OnChanged;
+            _guard = guard;
+            Id = guard.Run("timeline track", () => track.Id, guard.Scope.Id + ".track");
+            DisplayName = guard.Run("timeline track", () => track.DisplayName, guard.Scope.Name);
+            guard.Run("timeline track", () => _track.Changed += OnChanged);
         }
 
-        public string Id => _track.Id;
+        public string Id { get; }
 
-        public string DisplayName => _track.DisplayName;
+        public string DisplayName { get; }
 
         public event Action? MarkersChanged;
 
-        public bool IsAvailable(Core.ITimelineData data) => _track.IsAvailable(new TimelineData(data));
+        public bool IsAvailable(Core.ITimelineData data) =>
+            _guard.Run("timeline track", () => _track.IsAvailable(new TimelineData(data)), false);
 
         public IReadOnlyList<Core.TimelineMarker> BuildMarkers(Core.ITimelineData data) => [];
 
         public IReadOnlyList<Core.TimelineBand> BuildBands(Core.ITimelineData data) =>
-        [
-            .. _track.BuildBands(new TimelineData(data))
-                .Select(b => new Core.TimelineBand(_track.Id, b.StartFrameIndex, b.EndFrameIndex, b.Label, b.Tooltip, b.Argb))
-        ];
+            _guard.Run<IReadOnlyList<Core.TimelineBand>>("timeline track", () =>
+            [
+                .. _track.BuildBands(new TimelineData(data))
+                    .Select(b => new Core.TimelineBand(Id, b.StartFrameIndex, b.EndFrameIndex, b.Label, b.Tooltip, b.Argb))
+            ], []);
 
-        public void Detach() => _track.Changed -= OnChanged;
+        public void Detach() => _guard.Run("timeline track", () => _track.Changed -= OnChanged);
 
         private void OnChanged() => MarkersChanged?.Invoke();
     }
 
-    private sealed class LaneBehaviour(SdkP.ILaneBehaviour inner) : ILaneBehaviour
+    private sealed class LaneBehaviour(SdkP.ILaneBehaviour inner, ExtensionGuard guard) : ILaneBehaviour
     {
-        public void OnBandPressed(TimelineBandViewModel band, Core.ITimelineData data) => inner.OnBandPressed(Band(band));
+        public void OnBandPressed(TimelineBandViewModel band, Core.ITimelineData data) =>
+            guard.Run("lane band press", () => inner.OnBandPressed(Band(band)));
 
         public IEnumerable<MenuEntry> MenuFor(TimelineBandViewModel band, Core.ITimelineData data) =>
-            Menu(inner.MenuFor(Band(band)));
+            Menu(guard.Run<IReadOnlyList<SdkP.MenuEntry>>("lane menu", () => [.. inner.MenuFor(Band(band))], []), guard);
 
-        public void OnLabelRequested(int frame) => inner.OnLabelRequested(frame);
+        public void OnLabelRequested(int frame) => guard.Run("lane label", () => inner.OnLabelRequested(frame));
 
-        public void OnEditSpanDragged(int startFrame, int endFrame) => inner.OnEditSpanDragged(startFrame, endFrame);
+        public void OnEditSpanDragged(int startFrame, int endFrame) =>
+            guard.Run("lane drag", () => inner.OnEditSpanDragged(startFrame, endFrame), FaultKind.Recurring);
     }
 
     private sealed class LaneHandle(SdkP.ITimelineTrack track, CoreTrack core, ILaneHandle handle) : SdkP.ILaneHandle

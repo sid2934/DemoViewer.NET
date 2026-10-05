@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Concurrent;
+using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.MatchOverview;
@@ -120,5 +121,40 @@ public class MatchOverviewDemoActionTests
         vm.SetCachedRecord(Parsed());
 
         await Assert.That(vm.DemoActions).IsEmpty();
+    }
+
+    // Collected through the pack's contributions: availability that throws reads as unavailable, a run that
+    // throws is contained, both count against the extension, and NotifyChanged on the extension's own action
+    // still reaches the page.
+    [Test]
+    [NotInParallel]
+    public async Task AnActionThatThrows_IsHiddenOrContained_AndCountedAgainstItsExtension()
+    {
+        FaultRig rig = new();
+        bool throwOnAsk = true;
+        DemoAction action = new("fake.index", "Index", "tip",
+            _ => throwOnAsk ? throw new InvalidOperationException("ask") : true,
+            _ => throw new InvalidOperationException("run"));
+        PackContributions contributions = new(new StubExtension(Feature), () => null!, null, rig.Guard);
+        contributions.DemoAction(action);
+
+        MatchOverviewTabViewModel vm = new();
+        vm.AttachDemoActions(contributions.DemoActions, _ => true);
+        vm.SetCachedRecord(Parsed());
+        DemoActionRow row = vm.DemoActions.Single();
+        await Assert.That(row.IsVisible).IsFalse().Because("a throwing availability check reads as unavailable");
+
+        throwOnAsk = false;
+        action.NotifyChanged();
+        await Assert.That(row.IsVisible).IsTrue().Because("the extension's own NotifyChanged still reaches the page");
+
+        int beforeRun = rig.Faults.StateOf(Feature).Count;
+        row.RunCommand.Execute(null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(beforeRun).IsGreaterThanOrEqualTo(1);
+            await Assert.That(rig.Faults.StateOf(Feature).Count).IsEqualTo(beforeRun + 1);
+            await Assert.That(rig.Faults.StateOf(Feature).LastSite).IsEqualTo("demo action");
+        }
     }
 }

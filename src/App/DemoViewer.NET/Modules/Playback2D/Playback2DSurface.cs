@@ -247,7 +247,10 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         {
             if (toggle.ActionId is { } id && id == action.ToString())
             {
-                return toggle.TryToggle();
+                // The toggle's Changed handlers are the extension's.
+                return ExtensionGuards.For(toggle) is { } guard
+                    ? guard.Run("mode toggle", toggle.TryToggle, false)
+                    : toggle.TryToggle();
             }
         }
 

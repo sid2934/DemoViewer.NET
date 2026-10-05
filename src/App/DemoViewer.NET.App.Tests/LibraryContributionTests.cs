@@ -170,6 +170,36 @@ public class LibraryContributionTests
         await Assert.That(calls).IsEqualTo(1);
     }
 
+    // Collected through the pack's contributions, a filter whose predicate throws keeps every demo and a
+    // badge that throws shows none; the Library still builds and each throw is counted against the pack.
+    [Test]
+    [NotInParallel]
+    public async Task AFilterAndABadgeThatThrow_KeepEveryDemo_AndCountAgainstTheExtension()
+    {
+        DemoViewer.NET.AppTests.Extensions.FaultRig rig = new();
+        DemoLibraryService lib = NewLibrary("/d/a.dem", "/d/b.dem");
+        FakeContribution c = new()
+        {
+            FeatureId = "pack.fake",
+            FilterValue = new LibraryFilter("Throws", [new LibraryFilterItem("", "All"), new LibraryFilterItem("x", "X")],
+                (_, _) => throw new InvalidOperationException("filter")),
+            HasBadgeValue = true,
+            BadgeForFunc = _ => throw new InvalidOperationException("badge")
+        };
+        PackContributions contributions = new(new FakePack(), () => throw new InvalidOperationException(), null, rig.Guard);
+        contributions.Library(c);
+        LibraryTabViewModel vm = NewVm(lib, contributions.LibraryContributions, _ => true);
+
+        LibraryFilterViewModel filter = vm.Filters.Single();
+        filter.Selected = filter.Items.Single(i => i.Key == "x");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.FilteredEntries.Count).IsEqualTo(2).Because("a throwing predicate keeps the demo");
+            await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsGreaterThanOrEqualTo(2);
+        }
+    }
+
     private sealed class FakePack : IExtension
     {
         public string Id => "net.demoviewer.pack.fake";

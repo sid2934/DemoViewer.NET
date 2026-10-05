@@ -1,7 +1,9 @@
 #region
 
+using Avalonia.Controls;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Shell;
 using SdkPlayback = DemoViewer.NET.Extensions.Sdk.Playback;
 
 #endregion
@@ -18,10 +20,20 @@ namespace DemoViewer.NET.Extensions;
 ///     Runs a host handler for a <c>Changed</c> the pack raised, on the UI thread. Null runs it inline on
 ///     the raising thread.
 /// </param>
-internal sealed class PackContributions(IExtension pack, Func<IExtensionContext> context, Action<Action>? toUiThread = null)
+/// <param name="guard">
+///     Runs the pack's code as the pack's: every interface and delegate collected here is wrapped so a throw
+///     is reported against the pack and the host gets a fallback. Null builds a guard that only logs.
+/// </param>
+/// <remarks>
+///     Modules are kept as the pack's own objects, so the pack can still find what it contributed; the
+///     shell runs their tabs through <see cref="ExtensionTabs" /> with the guard recorded here.
+/// </remarks>
+internal sealed class PackContributions(IExtension pack, Func<IExtensionContext> context, Action<Action>? toUiThread = null,
+    ExtensionGuard? guard = null)
     : IFirstPartyContributions
 {
     private readonly Action<Action> _toUiThread = toUiThread ?? (static a => a());
+    private readonly ExtensionGuard _guard = guard ?? ExtensionGuard.Standalone(pack);
     private IExtensionContext? _context;
     private readonly List<IWorkspaceModule> _modules = [];
     private readonly List<HostTabContribution> _hostTabs = [];
@@ -39,6 +51,9 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
     /// <summary>The pack these contributions belong to.</summary>
     public IExtension Pack { get; } = pack;
+
+    /// <summary>The guard every contribution of the pack runs under.</summary>
+    public ExtensionGuard Guard => _guard;
     public IExtensionContext Context => _context ??= context();
     public IReadOnlyList<GatedDemoAction> DemoActions => _demoActions;
 
@@ -84,6 +99,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public void Tabs(IWorkspaceModule workspaceModule)
     {
         ArgumentNullException.ThrowIfNull(workspaceModule);
+        ExtensionGuards.Register(workspaceModule, _guard);
         _modules.Add(workspaceModule);
     }
 
@@ -95,7 +111,26 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentException.ThrowIfNullOrWhiteSpace(host.TabId);
         ArgumentNullException.ThrowIfNull(host.ViewModelFactory);
         ArgumentNullException.ThrowIfNull(host.ViewFactory);
-        _hostTabs.Add(host.FeatureId is null ? host with { FeatureId = Pack.FeatureId } : host);
+        // A failed view model shows the placeholder rather than the extension's view over nothing.
+        bool viewModelFailed = false;
+        Func<IHostTabViewModel> viewModel = host.ViewModelFactory;
+        Func<Control> view = host.ViewFactory;
+        HostTabContribution guarded = host with
+        {
+            FeatureId = host.FeatureId ?? Pack.FeatureId,
+            // Null tells the shell to leave the host tab out.
+            ViewModelFactory = () =>
+            {
+                IHostTabViewModel? built = _guard.Run<IHostTabViewModel?>("hub view model", () => viewModel(), null);
+                viewModelFailed = built is null;
+                return built!;
+            },
+            ViewFactory = () => viewModelFailed
+                ? ExtensionPlaceholder.View(_guard.Scope, "this tab")
+                : _guard.Run("hub view", view, ExtensionPlaceholder.View(_guard.Scope, "this tab"))
+        };
+        ExtensionGuards.Register(guarded, _guard);
+        _hostTabs.Add(guarded);
     }
 
     /// <inheritdoc />
@@ -126,6 +161,8 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             }
         };
     }
+
+    /// <inheritdoc />
     public void FirstPartyEvaluator(string id, Func<IDemoEvaluator> factory, params string[] after)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -156,7 +193,23 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentException.ThrowIfNullOrWhiteSpace(page.Id);
         ArgumentNullException.ThrowIfNull(page.ViewModelFactory);
         ArgumentNullException.ThrowIfNull(page.ViewFactory);
-        _settingsPages.Add(page.FeatureId is null ? page with { FeatureId = Pack.FeatureId } : page);
+        // A failed view model shows the placeholder rather than the extension's view over nothing.
+        bool viewModelFailed = false;
+        Func<object> viewModel = page.ViewModelFactory;
+        Func<Control> view = page.ViewFactory;
+        _settingsPages.Add(page with
+        {
+            FeatureId = page.FeatureId ?? Pack.FeatureId,
+            ViewModelFactory = () =>
+            {
+                object? built = _guard.Run<object?>("settings page view model", () => viewModel(), null);
+                viewModelFailed = built is null;
+                return built ?? new object();
+            },
+            ViewFactory = () => viewModelFailed
+                ? ExtensionPlaceholder.View(_guard.Scope, "this page")
+                : _guard.Run("settings page view", view, ExtensionPlaceholder.View(_guard.Scope, "this page"))
+        });
     }
 
     /// <inheritdoc />
@@ -172,26 +225,29 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public void ReindexEstimate(IReindexEstimate estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
-        _reindexEstimates.Add(estimate);
+        _reindexEstimates.Add(new GuardedReindexEstimate(estimate, _guard));
     }
 
     /// <inheritdoc />
     public void Playback(SdkPlayback.IPlaybackContribution contribution)
     {
         ArgumentNullException.ThrowIfNull(contribution);
-        _playback.Add(new SdkPlaybackContribution(contribution));
+        _playback.Add(new SdkPlaybackContribution(contribution, _guard));
     }
+
+    /// <inheritdoc />
     public void FirstPartyPlayback(IPlaybackContribution contribution)
     {
         ArgumentNullException.ThrowIfNull(contribution);
-        _playback.Add(contribution);
+        _playback.Add(new GuardedPlaybackContribution(contribution, _guard));
     }
 
     /// <inheritdoc />
     public void Library(ILibraryContribution contribution)
     {
         ArgumentNullException.ThrowIfNull(contribution);
-        _library.Add(new HostLibraryContribution(contribution, contribution.FeatureId ?? Pack.FeatureId, _toUiThread));
+        string featureId = _guard.Run("library contribution", () => contribution.FeatureId, null) ?? Pack.FeatureId;
+        _library.Add(new HostLibraryContribution(contribution, featureId, _toUiThread, _guard));
     }
 
     /// <inheritdoc />
@@ -206,23 +262,31 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public void DataRemoval(IExtensionDataRemoval removal)
     {
         ArgumentNullException.ThrowIfNull(removal);
-        _dataRemoval = removal;
+        _dataRemoval = new GuardedDataRemoval(removal, _guard, Pack.FeatureId);
     }
 
     /// <inheritdoc />
     public void DemoAction(DemoAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        _demoActions.Add(new GatedDemoAction(action, action.FeatureId ?? Pack.FeatureId) { ToUiThread = _toUiThread });
+        Func<string, bool> isAvailable = _guard.Wrap("demo action availability", action.IsAvailable, false);
+        Action<string> run = _guard.Wrap("demo action", action.Run);
+        DemoAction guarded = new(action.Id, action.Label, action.Tooltip, isAvailable, run, action.FeatureId);
+        action.Changed += guarded.NotifyChanged;
+        _demoActions.Add(new GatedDemoAction(guarded, action.FeatureId ?? Pack.FeatureId) { ToUiThread = _toUiThread });
     }
+
 
     // Stamps the owning pack's id onto a contribution that left FeatureId null, so the host always has a
     // concrete gate id and never has to fall back to "always on" the way a settings page or chip would.
-    // Changed may be raised on any thread; the host's handlers run on the UI thread.
-    private sealed class HostLibraryContribution(ILibraryContribution inner, string featureId, Action<Action> toUiThread)
+    // Changed may be raised on any thread; the host's handlers run on the UI thread. Every read and call
+    // into the extension is guarded: a throwing filter keeps the demo, a throwing badge shows none.
+    private sealed class HostLibraryContribution(ILibraryContribution inner, string featureId, Action<Action> toUiThread,
+        ExtensionGuard guard)
         : ILibraryContribution
     {
         private readonly List<(Action Handler, Action Marshaled)> _handlers = [];
+        private (LibraryFilter Inner, LibraryFilter Guarded)? _filter;
 
         public string? FeatureId => featureId;
 
@@ -241,7 +305,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
                     _handlers.Add((value, marshaled));
                 }
 
-                inner.Changed += marshaled;
+                guard.Run("library subscribe", () => inner.Changed += marshaled);
             }
             remove
             {
@@ -258,18 +322,78 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
                 if (marshaled is not null)
                 {
-                    inner.Changed -= marshaled;
+                    guard.Run("library unsubscribe", () => inner.Changed -= marshaled);
                 }
             }
         }
 
-        public LibraryFilter? Filter => inner.Filter;
-        public bool HasBadge => inner.HasBadge;
-        public LibraryBadge? BadgeFor(LibraryDemo demo) => inner.BadgeFor(demo);
-        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<LibraryDemo> demos) => inner.BadgesFor(demos);
-        public IReadOnlyList<string> BadgeLabels => inner.BadgeLabels;
-        public string? BadgeResetLabel => inner.BadgeResetLabel;
-        public string? BadgeResetTooltip => inner.BadgeResetTooltip;
-        public void SetLabel(LibraryDemo demo, string? label) => inner.SetLabel(demo, label);
+        public LibraryFilter? Filter
+        {
+            get
+            {
+                if (guard.Run("library filter", () => inner.Filter, null) is not { } current)
+                {
+                    return null;
+                }
+
+                if (_filter is { } cached && ReferenceEquals(cached.Inner, current))
+                {
+                    return cached.Guarded;
+                }
+
+                Func<LibraryDemo, string, bool> matches = current.Matches;
+                LibraryFilter wrapped = current with
+                {
+                    Matches = (demo, key) =>
+                    {
+                        try
+                        {
+                            return matches(demo, key);
+                        }
+                        catch (Exception ex) when (ex is not OutOfMemoryException)
+                        {
+                            guard.Report("library filter", ex);
+                            return true;
+                        }
+                    }
+                };
+                _filter = (current, wrapped);
+                return wrapped;
+            }
+        }
+
+        public bool HasBadge => guard.Run("library badge", () => inner.HasBadge, false);
+
+        public LibraryBadge? BadgeFor(LibraryDemo demo) => guard.Run("library badge", () => inner.BadgeFor(demo), null);
+
+        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<LibraryDemo> demos) =>
+            guard.Run("library badge", () => inner.BadgesFor(demos), new Dictionary<string, LibraryBadge?>());
+
+        public IReadOnlyList<string> BadgeLabels => guard.Run("library badge labels", () => inner.BadgeLabels, []);
+
+        public string? BadgeResetLabel => guard.Run("library badge labels", () => inner.BadgeResetLabel, null);
+
+        public string? BadgeResetTooltip => guard.Run("library badge labels", () => inner.BadgeResetTooltip, null);
+
+        public void SetLabel(LibraryDemo demo, string? label) => guard.Run("library label", () => inner.SetLabel(demo, label));
+    }
+
+    private sealed class GuardedReindexEstimate(IReindexEstimate inner, ExtensionGuard guard) : IReindexEstimate
+    {
+        public string FeatureId { get; } = guard.Run("re-index estimate", () => inner.FeatureId, guard.Scope.FeatureId);
+
+        public Task<int> CountAsync() => guard.RunAsync("re-index estimate", inner.CountAsync, 0);
+    }
+
+    private sealed class GuardedDataRemoval(IExtensionDataRemoval inner, ExtensionGuard guard, string packFeatureId)
+        : IExtensionDataRemoval
+    {
+        public string FeatureId { get; } = guard.Run("data removal", () => inner.FeatureId, packFeatureId);
+
+        public Task<ExtensionDataInventory> InventoryAsync() =>
+            guard.RunAsync("data inventory", inner.InventoryAsync, ExtensionDataInventory.Empty);
+
+        public Task<ExtensionDataRemovalResult> DeleteAsync() =>
+            guard.RunAsync("data removal", inner.DeleteAsync, ExtensionDataRemovalResult.NotRun);
     }
 }
