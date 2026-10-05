@@ -116,6 +116,7 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter",
         "DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy",
         "DemoViewer.NET.Playback2D.Core.Levels.ILevelRadarBinder",
+        "DemoViewer.NET.Playback2D.Core.Levels.IMapAsset",
         "DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker",
         "DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode",
         "DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis",

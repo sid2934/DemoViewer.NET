@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 
 #endregion
@@ -8,22 +8,15 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The successor to <c>TimelineCoreCleanTests</c>: the timeline contract shipped Core-clean
-///     under an architecture test precisely so a later move into Core would be a namespace
-///     rewrite; that test's job is done, so it is deleted and this one takes over, asserting that the
-///     seven declared members now live in Core with their signatures unchanged.
-///     <para>
-///         The "land it in Pipeline instead" fallback did <b>not</b> fire: <c>ITimelineData</c>
-///         reaches only BCL types, so <c>ArchitectureTests.Core_ReferencesOnlySkiaSharpBclAndTheScene</c> stays
-///         green with it in Core.
-///     </para>
+///     The timeline contract is published: its seven types live in the scene package, BCL only, under the
+///     <c>DemoViewer.NET.Playback2D.Core.Timeline</c> namespace, with their signatures unchanged.
 /// </summary>
 public class TimelineContractTests
 {
     [Test]
-    public async Task Contract_LivesInCore()
+    public async Task Contract_LivesInTheScenePackage()
     {
-        string core = typeof(RadarLayer).Assembly.GetName().Name!;
+        string scene = typeof(Scene2DFrame).Assembly.GetName().Name!;
 
         foreach (Type t in (Type[])
                  [
@@ -32,7 +25,7 @@ public class TimelineContractTests
                      typeof(TimelineMarkerKind)
                  ])
         {
-            await Assert.That(t.Assembly.GetName().Name).IsEqualTo(core);
+            await Assert.That(t.Assembly.GetName().Name).IsEqualTo(scene);
             await Assert.That(t.Namespace).IsEqualTo("DemoViewer.NET.Playback2D.Core.Timeline");
         }
     }
