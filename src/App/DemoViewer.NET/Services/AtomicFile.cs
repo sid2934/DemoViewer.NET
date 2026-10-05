@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Services;
 /// <summary>
 ///     Whole-file writes that a crash cannot tear: the bytes go to a hidden temporary file beside the target,
 ///     which then replaces it. A reader sees the previous file or the new one, never half of either. Every
-///     store that writes a file under the config or cache root writes through here.
+///     store of the app that writes a file under the config or cache root writes through here.
 /// </summary>
 public static class AtomicFile
 {

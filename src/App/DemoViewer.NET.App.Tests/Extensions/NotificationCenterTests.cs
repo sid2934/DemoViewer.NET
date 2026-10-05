@@ -215,7 +215,7 @@ public class NotificationCenterTests
         await Assert.That(center.Cards).IsEmpty();
     }
 
-    // The acceptance check: a flood is capped in the stack and the strip's chips are not touched.
+    // A flood reaches the shell's stack capped, and the strip's chips are not touched.
     [Test]
     [NotInParallel]
     public async Task AFloodingExtension_IsCappedInTheShellsStack_AndTheStripsChipsStay() =>
