@@ -282,7 +282,8 @@ public class ExternalExtensionTests
                 PackContributions contributed = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
                     .GetRequiredService<PackContributionSet>(provider).Packs.Single();
 
-                Modules.Abstractions.WorkspaceTabDescriptor tab = contributed.Modules.Single().CreateTabs(new NoHost()).Single();
+                Modules.Abstractions.WorkspaceTabDescriptor tab =
+                    contributed.Modules.Single(m => m.Id == "dev.example.hello.tabs").CreateTabs(new NoHost()).Single();
                 Avalonia.Controls.Control view = tab.ViewFactory();
 
                 using (Assert.Multiple())
@@ -294,6 +295,8 @@ public class ExternalExtensionTests
                     await Assert.That(contributed.DemoActions.Single().FeatureId).IsEqualTo("pack.hello")
                         .Because("an action with no feature of its own shows under the extension's master switch");
                     await Assert.That(contributed.PlaybackContributions.Single()).IsTypeOf<SdkPlaybackContribution>();
+                    await Assert.That(contributed.HubTabs.Single().Id).IsEqualTo("hello.hub");
+                    await Assert.That(contributed.StatusChips.Single().FeatureId).IsEqualTo("pack.hello");
                 }
             });
         }
