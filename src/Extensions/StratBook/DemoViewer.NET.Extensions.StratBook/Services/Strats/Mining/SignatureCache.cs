@@ -97,16 +97,11 @@ public sealed class SignatureCache(string? path)
 
         try
         {
-            string directory = Path.GetDirectoryName(path)!;
-            Directory.CreateDirectory(directory);
-            string temp = Path.Combine(directory, $".signatures-{Guid.NewGuid():N}.tmp");
-            using (FileStream stream = File.Create(temp))
-            using (GZipStream gzip = new(stream, CompressionLevel.Fastest))
+            AtomicFile.Write(path, stream =>
             {
+                using GZipStream gzip = new(stream, CompressionLevel.Fastest, leaveOpen: true);
                 JsonSerializer.Serialize(gzip, new CacheFile(SchemaVersion, Entries), JsonOptions);
-            }
-
-            File.Move(temp, path, true);
+            });
             _dirty = false;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

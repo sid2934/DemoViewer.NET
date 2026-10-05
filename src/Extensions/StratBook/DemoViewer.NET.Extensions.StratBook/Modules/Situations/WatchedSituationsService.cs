@@ -5,6 +5,7 @@ using System.Text.Json;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
@@ -665,7 +666,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
 
         try
         {
-            DemoCacheStore.WriteAtomic(_path, JsonSerializer.Serialize(_file, WatchedSituationsFile.JsonOptions));
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_file, WatchedSituationsFile.JsonOptions));
         }
         catch (Exception)
         {

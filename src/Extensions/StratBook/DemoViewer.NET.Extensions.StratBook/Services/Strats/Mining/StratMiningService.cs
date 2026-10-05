@@ -931,7 +931,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             {
                 try
                 {
-                    WriteAtomic(_statePath, JsonSerializer.Serialize(_state, JsonOptions));
+                    AtomicFile.WriteAllText(_statePath, JsonSerializer.Serialize(_state, JsonOptions));
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
@@ -950,7 +950,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     {
         if (_detectedPath is not null)
         {
-            WriteAtomic(_detectedPath, JsonSerializer.Serialize(
+            AtomicFile.WriteAllText(_detectedPath, JsonSerializer.Serialize(
                 new DetectedFile(SchemaVersion, DateTime.UtcNow, [.. patterns]), JsonOptions));
         }
     }
@@ -1046,15 +1046,6 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         _stateUnread = false;
         StateProblem = problem;
         _state = new MiningState();
-    }
-
-    private static void WriteAtomic(string path, string content)
-    {
-        string directory = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(directory);
-        string temp = Path.Combine(directory, $".mining-{Guid.NewGuid():N}.tmp");
-        File.WriteAllText(temp, content);
-        File.Move(temp, path, true);
     }
 
     private sealed record DetectedFile(int SchemaVersion, DateTime MinedUtc, List<MinedPattern> Patterns);

@@ -3,6 +3,7 @@
 using System.Text.Json;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using Microsoft.Extensions.Logging;
 
@@ -210,7 +211,7 @@ public static class GrenadeStoreMigration
             return;
         }
 
-        DemoCacheStore.WriteAtomic(file, JsonSerializer.Serialize(attempts));
+        AtomicFile.WriteAllText(file, JsonSerializer.Serialize(attempts));
     }
 }
 

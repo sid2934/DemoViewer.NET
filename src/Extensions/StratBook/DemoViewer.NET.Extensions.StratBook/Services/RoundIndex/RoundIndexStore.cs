@@ -97,7 +97,7 @@ public sealed class RoundIndexStore : IDisposable
             return;
         }
 
-        WriteAtomic(file, tempPath => File.WriteAllText(tempPath, json));
+        AtomicFile.WriteAllText(file, json);
     }
 
     /// <summary>Writes a demo's positions file atomically, gzipped. Throws on an I/O failure like <see cref="Write" />.</summary>
@@ -118,7 +118,7 @@ public sealed class RoundIndexStore : IDisposable
             return;
         }
 
-        WriteAtomic(file, tempPath => File.WriteAllBytes(tempPath, bytes));
+        AtomicFile.WriteAllBytes(file, bytes);
     }
 
     /// <summary>A demo's sidecar, or null when it is missing or does not parse.</summary>
@@ -328,22 +328,6 @@ public sealed class RoundIndexStore : IDisposable
         catch (Exception)
         {
             return false; // Best effort.
-        }
-    }
-
-    private static void WriteAtomic(string targetPath, Action<string> writeTemp)
-    {
-        string directory = Path.GetDirectoryName(targetPath)!;
-        Directory.CreateDirectory(directory);
-        string tempPath = Path.Combine(directory, $".ri-{Guid.NewGuid():N}.tmp");
-        writeTemp(tempPath);
-        if (File.Exists(targetPath))
-        {
-            File.Replace(tempPath, targetPath, null);
-        }
-        else
-        {
-            File.Move(tempPath, targetPath);
         }
     }
 }

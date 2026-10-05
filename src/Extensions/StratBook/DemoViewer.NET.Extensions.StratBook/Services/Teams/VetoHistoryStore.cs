@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Services.Teams;
 ///     manual entry only, no scraping, filed per opponent team.
 ///     <para>
 ///         <b>Persistence.</b> <c>veto-history.json</c> beside <c>teams.json</c>, written whole through
-///         <see cref="DemoCacheStore.WriteAtomic" /> after every mutation, the same small-file rule
+///         <see cref="AtomicFile" /> after every mutation, the same small-file rule
 ///         <see cref="Review.ReviewQueue" /> follows. A null config root (the browser, tests) keeps the
 ///         history for the session; a file that cannot be read, or is at a newer schema, is refused and
 ///         never overwritten.
@@ -129,7 +129,7 @@ public sealed class VetoHistoryStore
         try
         {
             VetoHistoryFile file = new() { Entries = [.. _entries] };
-            DemoCacheStore.WriteAtomic(_path, JsonSerializer.Serialize(file, VetoHistoryFile.JsonOptions));
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(file, VetoHistoryFile.JsonOptions));
         }
         catch (Exception)
         {

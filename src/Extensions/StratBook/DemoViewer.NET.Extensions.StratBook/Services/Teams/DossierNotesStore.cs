@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Services.Teams;
 ///     lines, left-out lines, free notes and the summary, filed per team.
 ///     <para>
 ///         <b>Persistence.</b> <c>dossier-notes.json</c> beside <c>teams.json</c>, written whole through
-///         <see cref="DemoCacheStore.WriteAtomic" /> after every mutation, as <see cref="VetoHistoryStore" />
+///         <see cref="AtomicFile" /> after every mutation, as <see cref="VetoHistoryStore" />
 ///         does. A null config root (the browser, tests) keeps the notes for the session; a file that cannot
 ///         be read, or is at a newer schema, is refused and never overwritten.
 ///     </para>
@@ -297,7 +297,7 @@ public sealed class DossierNotesStore
         try
         {
             DossierNotesFile file = new() { Teams = [.. _teams] };
-            DemoCacheStore.WriteAtomic(_path, JsonSerializer.Serialize(file, DossierNotesFile.JsonOptions));
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(file, DossierNotesFile.JsonOptions));
         }
         catch (Exception)
         {

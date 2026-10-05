@@ -153,7 +153,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         _enabled = enabled;
         _renderer = renderer;
         _fileExists = fileExists;
-        _writeText = writeText ?? DemoCacheStore.WriteAtomic;
+        _writeText = writeText ?? AtomicFile.WriteAllText;
         _log = log;
         _complete = complete ?? (static () => true);
         _maxBytes = maxBytes ?? (static () => 0);
@@ -956,7 +956,7 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
         try
         {
             Directory.CreateDirectory(_directory!);
-            DemoCacheStore.WriteAtomic(Path.Combine(_directory!, EvictedFileName),
+            AtomicFile.WriteAllText(Path.Combine(_directory!, EvictedFileName),
                 string.Join('\n', LoadEvicted().Order(StringComparer.Ordinal)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

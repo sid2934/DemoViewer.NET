@@ -247,10 +247,7 @@ public sealed class LaunchGuard
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            string temp = _path + ".tmp";
-            File.WriteAllText(temp, JsonSerializer.Serialize(_state, _json));
-            File.Move(temp, _path, overwrite: true);
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_state, _json));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

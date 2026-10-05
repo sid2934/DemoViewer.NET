@@ -369,37 +369,12 @@ public sealed class SettingsService
         }
     }
 
-    // Atomically swaps the given object into place (temp + File.Move overwrite), so a watcher never observes a
+    // Atomically swaps the given object into place, so a watcher never observes a
     // half-written file. Used by the reactive preference Write (which additionally Reloads) and the
     // non-reactive Session/Recents saves (which do not).
     private void WriteObject(JsonObject file)
     {
-        string json = file.ToJsonString(_serializerOptions);
-        string dir = Path.GetDirectoryName(_settingsPath!)!;
-        Directory.CreateDirectory(dir);
-
-        string temp = Path.Combine(dir, SettingsFileName + "." + Guid.NewGuid().ToString("N") + ".tmp");
-        try
-        {
-            File.WriteAllText(temp, json);
-            File.Move(temp, _settingsPath!, true); // atomic swap on the same volume
-        }
-        catch
-        {
-            try
-            {
-                if (File.Exists(temp))
-                {
-                    File.Delete(temp);
-                }
-            }
-            catch
-            {
-                // Best-effort temp cleanup; surface the original failure below.
-            }
-
-            throw;
-        }
+        AtomicFile.WriteAllText(_settingsPath!, file.ToJsonString(_serializerOptions));
     }
 
     // WASM / no-filesystem persistence: flatten the fixed AppSettings shape into the in-memory provider so

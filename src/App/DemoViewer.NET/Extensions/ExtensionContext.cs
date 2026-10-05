@@ -198,29 +198,8 @@ internal sealed class ExtensionContext : IExtensionContext
                 return false;
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-
-            // Beside the target, so the move is a rename on the same volume.
-            string temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
-            {
-                await using (FileStream stream = new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
-                {
-                    await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
-                    await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-                }
-
-                cancellationToken.ThrowIfCancellationRequested();
-                File.Move(temp, target, overwrite: true);
-                return true;
-            }
-            finally
-            {
-                if (File.Exists(temp))
-                {
-                    File.Delete(temp);
-                }
-            }
+            await AtomicFile.WriteAllBytesAsync(target, content, cancellationToken).ConfigureAwait(false);
+            return true;
         }
 
         public async Task<byte[]?> ReadAsync(StoreRoot root, string relativePath, CancellationToken cancellationToken = default)

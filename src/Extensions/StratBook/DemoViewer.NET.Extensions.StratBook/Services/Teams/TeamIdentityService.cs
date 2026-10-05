@@ -1621,7 +1621,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
         try
         {
-            DemoCacheStore.WriteAtomic(_teamsPath, JsonSerializer.Serialize(_teams, TeamsFile.JsonOptions));
+            AtomicFile.WriteAllText(_teamsPath, JsonSerializer.Serialize(_teams, TeamsFile.JsonOptions));
         }
         catch (Exception)
         {
@@ -1638,7 +1638,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
         try
         {
-            DemoCacheStore.WriteAtomic(_indexPath, JsonSerializer.Serialize(_index, TeamsFile.JsonOptions));
+            AtomicFile.WriteAllText(_indexPath, JsonSerializer.Serialize(_index, TeamsFile.JsonOptions));
         }
         catch (Exception)
         {

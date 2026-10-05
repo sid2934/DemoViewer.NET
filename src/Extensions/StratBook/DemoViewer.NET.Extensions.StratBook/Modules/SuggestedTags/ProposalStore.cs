@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 
@@ -250,7 +251,7 @@ public sealed class ProposalStore : IDisposable
             return;
         }
 
-        DemoCacheStore.WriteAtomic(file, json);
+        AtomicFile.WriteAllText(file, json);
     }
 
     /// <summary>A demo's proposals, or null when the file is missing or does not parse.</summary>

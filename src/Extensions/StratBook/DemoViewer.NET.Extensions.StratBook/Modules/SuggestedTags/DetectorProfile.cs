@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -400,7 +401,7 @@ public sealed class ProfileStore
             else
             {
                 Directory.CreateDirectory(_directory);
-                DemoCacheStore.WriteAtomic(Path.Combine(_directory, FileName), json + "\n");
+                AtomicFile.WriteAllText(Path.Combine(_directory, FileName), json + "\n");
             }
 
             _current = profile;
@@ -482,7 +483,7 @@ public sealed class ProfileStore
         try
         {
             Directory.CreateDirectory(_directory);
-            DemoCacheStore.WriteAtomic(Path.Combine(_directory, FileName), json + "\n");
+            AtomicFile.WriteAllText(Path.Combine(_directory, FileName), json + "\n");
         }
         catch (IOException)
         {

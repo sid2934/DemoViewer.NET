@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -124,7 +125,7 @@ public sealed class GrenadeLineupStore
         ArgumentNullException.ThrowIfNull(snapshot);
         if (_file is not null)
         {
-            DemoCacheStore.WriteAtomicBytes(_file, SidecarJson.SerializeGzip(snapshot, GrenadeSidecar.JsonOptions));
+            AtomicFile.WriteAllBytes(_file, SidecarJson.SerializeGzip(snapshot, GrenadeSidecar.JsonOptions));
         }
     }
 

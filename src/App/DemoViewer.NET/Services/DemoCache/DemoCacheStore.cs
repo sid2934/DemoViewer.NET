@@ -381,7 +381,7 @@ public sealed class DemoCacheStore
                     return SidecarConversion.Failed;
                 }
 
-                WriteAtomicBytes(file, SidecarJson.Gzip(compact));
+                AtomicFile.WriteAllBytes(file, SidecarJson.Gzip(compact));
                 if (!VerifyRecordFile(file, demoPath))
                 {
                     File.Delete(file);
@@ -644,7 +644,7 @@ public sealed class DemoCacheStore
                 };
             }
 
-            WriteAtomicBytes(indexPath, JsonSerializer.SerializeToUtf8Bytes(file, _jsonOptions));
+            AtomicFile.WriteAllBytes(indexPath, JsonSerializer.SerializeToUtf8Bytes(file, _jsonOptions));
         }
         catch (Exception)
         {
@@ -720,7 +720,7 @@ public sealed class DemoCacheStore
             return;
         }
 
-        WriteAtomicBytes(file, content);
+        AtomicFile.WriteAllBytes(file, content);
     }
 
     /// <summary>
@@ -869,7 +869,7 @@ public sealed class DemoCacheStore
         {
             try
             {
-                WriteAtomicBytes(file, bytes);
+                AtomicFile.WriteAllBytes(file, bytes);
 
                 // Only once the new file reads back: otherwise the legacy record stays the reader's fallback.
                 string legacy = LegacySidecarPathFor(demoPath)!;
@@ -942,34 +942,6 @@ public sealed class DemoCacheStore
                              || suffix.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
             throw new ArgumentException($"'{suffix}' is not a sibling suffix", nameof(suffix));
-        }
-    }
-
-    /// <summary>
-    ///     Temp file plus replace: the one write idiom every store under the config root shares, so a
-    ///     crash mid-write leaves the previous file rather than a torn one.
-    /// </summary>
-    /// <param name="targetPath">The file to write.</param>
-    /// <param name="content">Its whole new content.</param>
-    internal static void WriteAtomic(string targetPath, string content) =>
-        WriteAtomicBytes(targetPath, Encoding.UTF8.GetBytes(content));
-
-    /// <summary>As <see cref="WriteAtomic(string, string)" />, for bytes.</summary>
-    /// <param name="targetPath">The file to write.</param>
-    /// <param name="content">Its whole new content.</param>
-    internal static void WriteAtomicBytes(string targetPath, byte[] content)
-    {
-        string directory = Path.GetDirectoryName(targetPath)!;
-        Directory.CreateDirectory(directory);
-        string tempPath = Path.Combine(directory, $".dc-{Guid.NewGuid():N}.tmp");
-        File.WriteAllBytes(tempPath, content);
-        if (File.Exists(targetPath))
-        {
-            File.Replace(tempPath, targetPath, null);
-        }
-        else
-        {
-            File.Move(tempPath, targetPath);
         }
     }
 
