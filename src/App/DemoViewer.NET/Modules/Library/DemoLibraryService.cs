@@ -147,10 +147,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// </summary>
     internal SettingsService? SettingsBacking { get; }
 
-    // The scheduler. When set, this service is registered as an IDemoEvaluator and the scheduler owns
-    // submission. This service NEVER touches the queue directly. Null (tests) → the inline one-at-a-time
-    // path, behaviourally identical to the pre-queue null-gate path.
-    /// <summary>The scheduler that drives this service's tier-2 work; null → the inline path.</summary>
+    // The scheduler owns submission; this service never touches the queue directly.
+    /// <summary>The scheduler that drives this service's tier-2 work; null leaves tier 2 pending.</summary>
     public DemoScheduler? Scheduler { get; set; }
 
     /// <summary>The configured root folders (recursively scanned). Bound to the UI; mutate via the public methods.</summary>
@@ -376,12 +374,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///     </para>
     /// </summary>
     /// <returns>How many rows were enlisted.</returns>
-    public async Task<int> RepairPendingScoresAsync()
+    public Task<int> RepairPendingScoresAsync()
     {
         List<DemoEntry> targets = [.. Entries.Where(e => e.ScoreRepairPending)];
-        if (targets.Count == 0)
+        // Without a scheduler nothing could read them; the rows stay as they are.
+        if (targets.Count == 0 || Scheduler is null)
         {
-            return 0;
+            return Task.FromResult(0);
         }
 
         foreach (DemoEntry target in targets)
@@ -390,20 +389,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
 
         Save();
-
-        // No queue (WASM, and the inline test path): parse them here, one at a time, and await: the same
-        // shape RescanAsync uses when it has no scheduler.
-        if (Scheduler is null)
-        {
-            foreach (DemoEntry target in targets)
-            {
-                await Task.Run(() => IndexTier2Inline(target)).ConfigureAwait(false);
-            }
-
-            Save();
-            RaiseChanged();
-            return targets.Count;
-        }
 
         lock (_tier2Lock)
         {
@@ -421,7 +406,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             Scheduler.DemoChanged(target.FilePath);
         }
 
-        return targets.Count;
+        return Task.FromResult(targets.Count);
     }
 
     /// <summary>
@@ -548,25 +533,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
-        // Legacy inline path (no queue, tests): parse one at a time on this thread and AWAIT
-        // completion, so a caller that awaits RescanAsync sees a fully-indexed library.
-        try
-        {
-            foreach (DemoEntry entry in needFull)
-            {
-                ct.ThrowIfCancellationRequested();
-                await Task.Run(() => IndexTier2Inline(entry), ct);
-                lock (_tier2Lock)
-                {
-                    _awaitingIndex.Remove(entry.FilePath);
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Persist whatever completed before cancellation.
-        }
-
+        // No scheduler (tests that only list folders): tier 2 is left pending; nothing reads a demo outside the queue.
         Save();
         RaiseChanged();
     }
@@ -618,8 +585,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // Removes a path from the tier-2 backlog (worker thread, under the lock) and, when the backlog drains,
-    // persists the tail (parity with the inline path's final Save, the every-12 Save in IndexTier2Core
-    // can leave <12 demos only in the in-memory cache).
+    // persists the tail (the every-12 Save in IndexTier2Core can leave <12 demos only in the in-memory cache).
     private void ClearTier2Backlog(string path)
     {
         bool drained;
@@ -1137,30 +1103,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         });
     }
 
-    // Legacy inline tier-2 (no queue): read + parse on this thread, then run the shared core. Its own
-    // failure handling marks the row Failed on a parse error.
-    private void IndexTier2Inline(DemoEntry entry)
-    {
-        _post(() => entry.State = DemoIndexState.Indexing);
-
-        ParsedDemo parsed;
-        try
-        {
-            byte[] bytes = File.ReadAllBytes(entry.FilePath);
-            parsed = DemoParser.Parse(bytes.AsMemory());
-        }
-        catch (Exception)
-        {
-            _post(() => entry.State = DemoIndexState.Failed);
-            UpsertCache(entry.FilePath, c => c.FullyIndexed = false);
-            return;
-        }
-
-        IndexTier2Core(entry, parsed);
-    }
-
     // Post-parse tier-2 extraction (players / duration / map / final score) + cache write. Runs with the
-    // ParsedDemo held, inside the queue's gate slot on the queue path, or inline on the legacy path.
+    // ParsedDemo held, inside the queue's gate slot.
     // Self-contained failure handling so a throw marks ONLY this row Failed.
     //
     // Internal so the real-demo test can drive one entry through it without a folder scan, which would

@@ -31,7 +31,8 @@ public class DemoLibraryPruneTests
         return dir;
     }
 
-    // Writes a library.json holding rows for paths that may or may not exist, plus the folder list.
+    // Writes a library.json holding rows for paths that may or may not exist, plus the folder list. A file
+    // that exists is keyed by its real size and mtime, so its row is a cache hit and nothing reads it.
     private static string SeedCache(string dir, IEnumerable<string> folders, params string[] cachedPaths)
     {
         string dataPath = Path.Combine(dir, "library.json");
@@ -43,8 +44,8 @@ public class DemoLibraryPruneTests
                 .. cachedPaths.Select(p => new DemoLibraryCacheEntry
                 {
                     Path = p,
-                    Size = 10,
-                    ModifiedTicks = 20,
+                    Size = File.Exists(p) ? new FileInfo(p).Length : 10,
+                    ModifiedTicks = File.Exists(p) ? new FileInfo(p).LastWriteTime.Ticks : 20,
                     Map = "de_dust2",
                     Players = ["someone"],
                     DurationSeconds = 100,

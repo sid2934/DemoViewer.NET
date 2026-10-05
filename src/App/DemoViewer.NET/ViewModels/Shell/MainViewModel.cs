@@ -198,8 +198,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // The global demo-processing queue (demo-processing-queue.md). An interactive open is submitted as
     // the highest-priority AWAITABLE foreground request (preempts background, refuses during a reel,
-    // best-effort coalesces onto an in-flight parse). Null (designer / tests) → the direct gate path.
+    // best-effort coalesces onto an in-flight parse). Null (designer / tests): opens use a queue the shell owns.
     private readonly IDemoProcessingQueue? _processingQueue;
+
+    // Built only when no queue is injected (tests), so an open still reads the demo through a queue.
+    private DemoProcessingQueue? _ownedQueue;
+    private HeavyJobGate? _ownedGate;
 
     // The queue → status-strip chip mapper; built in the ctor when a queue is
     // injected. Owns the "Processing" StatusChip added to Chips while the chrome.processingQueue gate is on
@@ -503,8 +507,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <param name="processingQueue">
     ///     The global demo-processing queue. When supplied, an interactive
     ///     open is submitted as the highest-priority awaitable foreground request (preempts background,
-    ///     coalesces onto an in-flight parse, refuses during a reel). Null → the direct
-    ///     <paramref name="heavyJobGate" /> path (designer / tests).
+    ///     coalesces onto an in-flight parse, refuses during a reel). Null (designer / tests): the shell builds
+    ///     its own queue on the first open, under <paramref name="heavyJobGate" /> when one is given.
     /// </param>
     /// <param name="scheduler">
     ///     The demo scheduler. When supplied, an interactive open plans the demo's visit and runs its passes
@@ -1685,6 +1689,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         _processingQueueStatus?.Dispose();
+        _ownedQueue?.Dispose();
+        _ownedGate?.Dispose();
         _idle?.Dispose();
 
         if (SettingsOverlay is { } overlay)
@@ -3509,15 +3515,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // Every open is one queue item at the front. A host without the queue parses under the gate, as before.
+    // Every open is one queue item at the front.
     private IDemoOpenTicket BeginOpenItem(string? path, string fileName) =>
-        _processingQueue?.BeginOpen(path, fileName) ?? new PassThroughDemoOpen(async (bytes, ct) =>
+        (_processingQueue ?? OwnedQueue()).BeginOpen(path, fileName);
+
+    private DemoProcessingQueue OwnedQueue()
+    {
+        if (_ownedQueue is null)
         {
-            using (_heavyJobGate is null ? null : await _heavyJobGate.AcquireInteractiveAsync(ct))
-            {
-                return await Task.Run(() => DemoParser.Parse(bytes), ct);
-            }
-        });
+            _ownedGate = _heavyJobGate is null ? new HeavyJobGate() : null;
+            _ownedQueue = new DemoProcessingQueue(_heavyJobGate ?? _ownedGate!) { ShellDemo = new ShellDemoLease(this) };
+        }
+
+        return _ownedQueue;
+    }
 
     // An open that ended before the load core ran: replaced or removed while reading, or the read failed.
     private void EndUnreadOpen(IDemoOpenTicket open, string fileName, Exception ex)

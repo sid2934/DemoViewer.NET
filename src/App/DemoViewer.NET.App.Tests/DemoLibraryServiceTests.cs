@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Validates the demo-library indexer end-to-end on a real demo (isolated via a symlink into a temp
 ///     folder so only one file is indexed): tier-1 map read, tier-2 players/duration from a full parse, and
 ///     the (path,size,mtime)-keyed disk cache round-tripping to a fresh service without re-parsing.
-///     Runs the service with an <b>inline</b> post so <c>RescanAsync</c> completes synchronously.
+///     Runs the service with an <b>inline</b> post; tier 2 reads through a real queue and scheduler.
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
@@ -249,8 +249,13 @@ public class DemoLibraryServiceTests
         (string dir, string dataPath) = MakeTempLibraryWith(demo);
         try
         {
+            using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a());
             using DemoLibraryService svc = new(_inline, dataPath);
-            await svc.AddFoldersAsync([dir]); // triggers a full rescan (tier1 + tier2), synchronous under Inline
+            using DemoScheduler scheduler = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = scheduler;
+            await svc.AddFoldersAsync([dir]);
+            await WaitForAsync(() => svc.Entries.Count == 1 && svc.Entries[0].State == DemoIndexState.Indexed
+                                     && FullyIndexedInCacheFile(dataPath) == 1, "tier 2 read through the queue", 60000);
 
             await Assert.That(svc.Entries.Count).IsEqualTo(1);
             DemoEntry entry = svc.Entries[0];
@@ -266,9 +271,14 @@ public class DemoLibraryServiceTests
 
             // A fresh service over the same folder + cache must load the demo already Indexed (cache hit,
             // no re-parse) after reconciliation.
+            using DemoProcessingQueue queue2 = new(new HeavyJobGate(), a => a(),
+                _ => throw new InvalidOperationException("a cached demo must not be read again"));
             using DemoLibraryService svc2 = new(_inline, dataPath);
+            using DemoScheduler scheduler2 = new([svc2], queue2, svc2.Tier2Backlog);
+            svc2.Scheduler = scheduler2;
             await svc2.AddFoldersAsync([dir]); // folder already persisted → this is a no-op add, so rescan explicitly
             await svc2.RescanAsync();
+            await Task.Delay(150);
             await Assert.That(svc2.Entries.Count).IsEqualTo(1);
             await Assert.That(svc2.Entries[0].State).IsEqualTo(DemoIndexState.Indexed);
             await Assert.That(svc2.Entries[0].Players.Count).IsEqualTo(entry.Players.Count);
