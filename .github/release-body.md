@@ -1,48 +1,60 @@
-## What's new in 0.8.1
+## What's new in 0.8.2
 
-The Stats page is rebuilt, and it can finally answer questions about aim rather than just counting
-kills.
+The Strat Room: six features for a team working through its own demos, shipped as the Strat Book
+extension on top of a new extension framework in the app.
 
-**A new scoreboard.** The table gained per-column scales, so a number is shaded against the other
-players in the match instead of sitting there as a bare figure, and the best in each column is
-marked. There is a podium for the top three, team badges, and a sub-nav that splits the stats into
-pages rather than one endless table. The whole palette now comes from the theme, so a custom theme
-retints the boards instead of fighting them.
+**Situation Search.** Describe a situation and get back every round in your library that matches it.
+Build the query on a canvas, or open a round in 2D Playback and press Ctrl+F to find rounds like
+that one. A tolerance slider decides how close a match has to be, and the results come back as
+cards you can walk straight into playback.
 
-**Fifteen aim-quality columns and an Aim board.** How fast you react to someone appearing, how long
-from first sight to first damage to the kill, how well you hold a spray, and whether you were
-actually stopped when you fired. These are computed from what the demo records about every shot,
-not estimated from the scoreboard.
+**Round Tagger.** Tag rounds from a shipped palette or with your own labels, with the facts the
+engine already knows about a round filled in for you. Detectors propose tags and you accept or
+reject them in a review loop, rather than having them written behind your back. Tagging works from
+2D Playback too, and the tags get their own lane on the timeline.
 
-**A spray plot.** Pick a weapon and see its recoil pattern with your own bullets drawn over it, so
-a spray-control number has a picture behind it. There is a toggle to measure from the enemy instead
-of from your first bullet, which shows tracking rather than pure recoil control.
+**Strat Book.** Write a strat as steps with lines, verbs and locations picked on the map, then watch
+the preview walk each player along real nav routes and throw the utility where you put it. Strats
+keep their version history, the record panel tracks how one has actually gone, role view shows a
+single player's job, and callout aliases let your team's name for a spot work as well as the
+canonical one. Strats mined out of your own demos turn up as detected strats, and anything in the
+book exports.
 
-**Every shipped map has geometry now.** Seventeen of the new columns need to know what you could
-actually see, which needs the map's collision. Four maps had none, so those columns showed a flat
-zero that looked like a measurement. All ten maps have it now, de_train among them.
+**Utility Book.** Every grenade thrown across your demos, indexed, with a lineup card and a clip
+for each, and a map view of the utility for a site.
 
-**And when something cannot be measured, it says so.** A cell with no data shows a dash and drops
-out of the ranking and the shading, instead of showing a zero that reads like a real result. If a
-demo is on a map with no geometry, the board says which map and why.
+**Review Queue and Reels.** Queue a clip from anywhere in the app, then work through the queue in
+review mode. The `dv2d` command renders a whole pack headlessly if you would rather have files.
 
-**CS2's own artwork.** Weapons, kill modifiers, ranks and round objects now appear as the icons
-Valve drew for them, in the kill feed and through the app, with the text still there underneath
-wherever an icon is missing.
+**Opponent Dossier.** A team's map pool record, how they open rounds, what they do after a plant,
+their setups, how the two halves differ, and how they behave in specific situations, with notes you
+can edit and an export. Teams come from rosters you confirm yourself; nothing is tracked from
+matchmaking automatically.
 
-**The Analysis graph draws the rules that actually ran.** It was drawing the engine's shared
-scaffolding and nothing else: on a typical demo that is 61 boxes of plumbing and not one of the
-stats you actually get out of it. The graph now shows the rules the engine really ran, per player,
-with a selector for whose nodes are on screen; ten players at once is nearly four thousand nodes and
-unreadable. Saved graph breakpoints do not carry over, because they were keyed by a node name that
-is no longer unique, so the old file is dropped rather than quietly matching ten nodes at once.
+**All of it is an extension, and off is a real off.** First run asks whether you want the Strat
+Book. Turning it off removes its tabs, panels and lanes, stops its indexing passes and its queued
+jobs, and gives back the memory it was holding in the session you are in, not after a restart. With
+it off, Library indexing does strictly less work than before this release. The extension carries its
+own version and updates from its own feed on its own cadence; a new copy is signed, and both the
+signature and the host contract it was built against are checked before it is accepted.
 
-One number moves down: counter-strafing was being measured over too long a window and was crediting
-shots taken after you had already stopped. The window now comes from the game's own friction values,
-so published counter-strafe figures fall. That is the metric getting more honest, not a regression.
+**Numbers that move.** The analysis engine moves to the 0.13 line, which the Strat Room needs for
+round facts, team-scoped rules and grenade projectiles. Three things change for figures you may
+already have written down: a weapon's clip now reads the real magazine count, smokes decode their
+full state rather than a partial one, and a round's winner comes from the server's own verdict, with
+round-won and round-lost counting only for the team they name.
 
 <details>
-<summary>What was new in 0.8.0 and earlier</summary>
+<summary>What was new in 0.8.1 and earlier</summary>
+
+**0.8.1** rebuilt the Stats page: a scoreboard with per-column scales and a podium, fifteen
+aim-quality columns and an Aim board measuring reaction, time to first damage and spray control from
+what the demo records about every shot, a spray plot with your own bullets drawn over the recoil
+pattern, collision geometry for all ten shipped maps so the seventeen sight-dependent columns
+stopped reading a flat zero, a dash instead of a zero wherever a cell has no data, CS2's own icons
+through the app and the kill feed, and an Analysis graph that draws the rules the engine really ran,
+per player, instead of its shared scaffolding. Counter-strafe figures fell: the window had been too
+long and was crediting shots taken after you had already stopped.
 
 **0.8.0** rebuilt the 2D playback view on a new Skia compositor: annotations you can draw on the map
 with their own time envelopes, saved beside the demo; video export straight out of the 2D view as
