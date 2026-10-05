@@ -2,6 +2,7 @@
 
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
@@ -62,7 +63,8 @@ internal sealed class ExtensionContext : IExtensionContext
         _guard = services.GetService<ExtensionFaults>()?.GuardFor(extension) ?? ExtensionGuard.Standalone(extension);
         Features = new GateView(services.GetService<IFeatureGate>(), _guard);
         Jobs = new ExtensionJobs(extension.Id, () => services.GetService<IDemoProcessingQueue>(),
-            () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default, _guard);
+            () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default, _guard, Post);
+        Passes = new ExtensionPasses(extension.Id, () => services.GetService<DemoScheduler>());
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
     }
@@ -79,6 +81,8 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionFeatures Features { get; }
 
     public IExtensionJobs Jobs { get; }
+
+    public IExtensionPasses Passes { get; }
 
     public IExtensionShell Shell { get; }
 
@@ -258,13 +262,106 @@ internal sealed class ExtensionContext : IExtensionContext
 }
 
 /// <summary>
-///     The processing queue as one extension sees it: every job carries the extension's id as its owner, and
-///     a job that throws is counted against the extension before the queue marks it failed.
+///     The processing queue as one extension sees it: every job carries the extension's id as its owner, a
+///     job that throws is counted against the extension before the queue marks it failed, a handle cancels
+///     its own job only, and a job's completion is told on the UI thread through the extension's post.
 /// </summary>
 internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueue?> queue, Func<JobKindRegistry> kinds,
-    ExtensionGuard? guard = null)
+    ExtensionGuard? guard = null, Action<Action>? post = null)
     : IExtensionJobs
 {
+    private readonly Action<Action> _post = post ?? (static a => a());
+
+    public IJobHandle Enqueue(JobRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        (QueueJobKind kind, string? extensionKind) = Resolve(request.Options.Kind);
+        JobPriority priority = QueueWork.InUserAction ? JobPriority.UserRequested : request.Options.Priority;
+        JobHandle handle = new(_post);
+        if (request.DemoPath is { } path)
+        {
+            EnqueueOnDemo(request, path, priority, kinds().Label(kind, extensionKind), handle);
+            return handle;
+        }
+
+        Func<IJobContext, Task> work = request.Work!;
+        IDemoProcessingQueue? target = queue();
+        if (QueueWork.RunsOnPool(target))
+        {
+            // No queue (the browser): the job still runs, on the pool, and still has an end to tell.
+            handle.Started();
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Counted(PoolContext.Instance, work).ConfigureAwait(false);
+                    handle.End(JobStatus.Completed, null);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    handle.End(JobStatus.Failed, ex);
+                }
+            });
+            return handle;
+        }
+
+        QueueJobRequest queued = new(kind, request.Title, extensionId, PriorityOf(priority), QueueWork.WithStopToken(async ctx =>
+            {
+                handle.Started();
+                try
+                {
+                    await Counted(ctx, work).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException
+                                           && !(ex is OperationCanceledException && ctx.CancellationToken.IsCancellationRequested))
+                {
+                    handle.Error = ex;
+                    throw;
+                }
+            }), request.Options.Key, ReplacePending: request.Options.Key is not null, Preemptible: request.Options.Preemptible,
+            Serial: request.Options.Serial, ExtensionKind: extensionKind, Level: LevelOf(priority));
+        IDemoQueueHandle submitted = target!.SubmitJob(queued);
+        handle.Attach(submitted.Cancel);
+        if (submitted.State == DemoQueueItemState.Rejected)
+        {
+            handle.End(JobStatus.Rejected, null);
+            return handle;
+        }
+
+        _ = submitted.Completion.ContinueWith(_ => handle.End(StatusOf(submitted.State), handle.Error),
+            CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        return handle;
+    }
+
+    // A job on a demo rides the demo's visit. Its fault is counted here; the queue then records the pass failed.
+    private void EnqueueOnDemo(JobRequest request, string path, JobPriority priority, string label, JobHandle handle)
+    {
+        if (queue() is not { } target || QueueWork.RunsOnPool(target))
+        {
+            handle.End(JobStatus.Rejected, null);
+            return;
+        }
+
+        Func<IDemoJobContext, Task> work = request.DemoWork!;
+        DemoJob job = DemoJob.Submit(target, new DemoJobRequest(path, label, extensionId, LevelOf(priority), async input =>
+        {
+            handle.Started();
+            try
+            {
+                await QueueWork.WithStopToken(() => work(new DemoContext(input)), input.CancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (guard is not null && ex is not OutOfMemoryException
+                                       && !(ex is OperationCanceledException && input.CancellationToken.IsCancellationRequested))
+            {
+                guard.Report("job", ex);
+                throw;
+            }
+        }, request.ReadsUserCommands, request.Title));
+        handle.Attach(job.Cancel);
+        _ = job.Completion.ContinueWith(_ => handle.End(StatusOf(job.State), job.Error),
+            CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    }
+
     public Task RunAsync(string title, Func<IJobContext, Task> work, JobOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(title);
@@ -272,16 +369,43 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
         options ??= new JobOptions();
         (QueueJobKind kind, string? extensionKind) = Resolve(options.Kind);
 
-        DemoJobPriority priority = options.Priority == JobPriority.UserRequested
-            ? DemoJobPriority.UserRequested
-            : DemoJobPriority.Background;
-        QueueJobRequest request = new(kind, title, extensionId, priority, ctx => Counted(ctx, work), options.Key,
+        QueueJobRequest request = new(kind, title, extensionId, PriorityOf(options.Priority), ctx => Counted(ctx, work), options.Key,
             ReplacePending: options.Key is not null, Preemptible: options.Preemptible, Serial: options.Serial,
-            ExtensionKind: extensionKind);
+            ExtensionKind: extensionKind, Level: LevelOf(options.Priority));
         return QueueWork.Submit(queue(), request);
     }
 
     public void CancelAll() => queue()?.CancelOwned(extensionId);
+
+    public IDisposable UserAction() => QueueWork.UserAction();
+
+    public void ThrowIfStopped() => QueueWork.ThrowIfStopped();
+
+    public bool IsStop(Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        return QueueWork.IsStop(exception);
+    }
+
+    private static DemoJobPriority PriorityOf(JobPriority priority) =>
+        priority == JobPriority.UserRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
+
+    private static PassLevel LevelOf(JobPriority priority) => priority switch
+    {
+        JobPriority.UserRequested => PassLevel.UserRequested,
+        JobPriority.Backlog => PassLevel.Backlog,
+        _ => PassLevel.Background
+    };
+
+    private static JobStatus StatusOf(DemoQueueItemState state) => state switch
+    {
+        DemoQueueItemState.Queued => JobStatus.Queued,
+        DemoQueueItemState.Running => JobStatus.Running,
+        DemoQueueItemState.Completed => JobStatus.Completed,
+        DemoQueueItemState.Failed => JobStatus.Failed,
+        DemoQueueItemState.Rejected => JobStatus.Rejected,
+        _ => JobStatus.Cancelled
+    };
 
     private async Task Counted(IQueueJobContext ctx, Func<IJobContext, Task> work)
     {
@@ -318,5 +442,157 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
         public CancellationToken CancellationToken => inner.CancellationToken;
 
         public void Report(int done, int total, string? detail = null) => inner.Report(done, total, detail);
+    }
+
+    private sealed class PoolContext : IQueueJobContext
+    {
+        public static PoolContext Instance { get; } = new();
+
+        public CancellationToken CancellationToken => CancellationToken.None;
+
+        public void Report(int done, int total, string? detail = null)
+        {
+        }
+
+        public Task StepAsideAsync() => Task.CompletedTask;
+
+        public void ReleaseSlot()
+        {
+        }
+    }
+
+    // The demo's parse is the visit's; the input stops handing it out once the job's turn ends.
+    private sealed class DemoContext(DemoJobInput input) : IDemoJobContext
+    {
+        public CancellationToken CancellationToken => input.CancellationToken;
+
+        public string DemoPath => input.DemoPath;
+
+        public ParsedDemo Parsed => input.Parsed;
+
+        public void Report(int done, int total, string? detail = null)
+        {
+        }
+    }
+
+    // One job's state as the extension sees it. Completed is raised through the extension's post, once.
+    private sealed class JobHandle(Action<Action> post) : IJobHandle
+    {
+        private readonly TaskCompletionSource<JobResult> _done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly object _gate = new();
+        private Action? _cancel;
+        private Action<JobResult>? _completed;
+        private bool _cancelRequested;
+        private int _status = (int)JobStatus.Queued;
+
+        public Exception? Error { get; set; }
+
+        public JobStatus Status => (JobStatus)Volatile.Read(ref _status);
+
+        public Task<JobResult> Completion => _done.Task;
+
+        public event Action<JobResult>? Completed
+        {
+            add
+            {
+                if (value is null)
+                {
+                    return;
+                }
+
+                lock (_gate)
+                {
+                    if (!_done.Task.IsCompleted)
+                    {
+                        _completed += value;
+                        return;
+                    }
+                }
+
+                JobResult result = _done.Task.Result;
+                post(() => value(result));
+            }
+            remove
+            {
+                lock (_gate)
+                {
+                    _completed -= value;
+                }
+            }
+        }
+
+        public void Cancel()
+        {
+            Action? cancel;
+            lock (_gate)
+            {
+                _cancelRequested = true;
+                cancel = _cancel;
+            }
+
+            cancel?.Invoke();
+        }
+
+        public void Attach(Action cancel)
+        {
+            bool now;
+            lock (_gate)
+            {
+                _cancel = cancel;
+                now = _cancelRequested;
+            }
+
+            if (now)
+            {
+                cancel();
+            }
+        }
+
+        public void Started() =>
+            Interlocked.CompareExchange(ref _status, (int)JobStatus.Running, (int)JobStatus.Queued);
+
+        public void End(JobStatus status, Exception? error)
+        {
+            JobResult result = new(status, status == JobStatus.Failed ? error : null);
+            Action<JobResult>? handlers;
+            lock (_gate)
+            {
+                if (_done.Task.IsCompleted)
+                {
+                    return;
+                }
+
+                Volatile.Write(ref _status, (int)status);
+                _done.SetResult(result);
+                handlers = _completed;
+                _completed = null;
+            }
+
+            if (handlers is not null)
+            {
+                foreach (Action<JobResult> handler in handlers.GetInvocationList().Cast<Action<JobResult>>())
+                {
+                    post(() => handler(result));
+                }
+            }
+        }
+    }
+}
+
+/// <summary>The scheduler as one extension sees it: re-checks for everyone, busy reads for its own passes only.</summary>
+internal sealed class ExtensionPasses(string extensionId, Func<DemoScheduler?> scheduler) : IExtensionPasses
+{
+    public void Request(string demoPath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(demoPath);
+        scheduler()?.Request(demoPath);
+    }
+
+    public void RecheckAll() => scheduler()?.RecheckAll();
+
+    public bool IsBusy(string passId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(passId);
+        return scheduler()?.HasOutstanding(passId, extensionId) ?? false;
     }
 }

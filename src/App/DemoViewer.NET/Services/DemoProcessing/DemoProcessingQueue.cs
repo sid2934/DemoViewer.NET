@@ -761,7 +761,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 }
 
                 PumpLocked(); // priority may have changed the pick order
-                handle = new Handle(this, existing.Id, owners, path, existing.Completion.Task);
+                handle = new Handle(this, existing.Id, owners, path, existing.Completion.Task, entry: existing);
             }
             else if (_entries.FirstOrDefault(e =>
                          e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Running && e.Forward
@@ -791,7 +791,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 supersededCancel = forward.Cancel;
                 _entries.Add(entry);
                 PumpLocked();
-                handle = new Handle(this, entry.Id, owners, path, entry.Completion.Task);
+                handle = new Handle(this, entry.Id, owners, path, entry.Completion.Task, entry: entry);
             }
             else if (priority < DemoJobPriority.UserRequested && BackgroundTierCountLocked() >= _maxQueueSize)
             {
@@ -819,7 +819,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 // A visit that waits for the open stops nothing: the open did that when it began.
                 supersededCancel = entry.ParkedBehind is null ? PreemptForLocked(entry) : null;
                 PumpLocked();
-                handle = new Handle(this, entry.Id, owners, path, entry.Completion.Task);
+                handle = new Handle(this, entry.Id, owners, path, entry.Completion.Task, entry: entry);
             }
         }
 
@@ -889,13 +889,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
                 preempted = PreemptForLocked(existing);
                 PumpLocked();
-                handle = new Handle(this, existing.Id, [request.OwnerTag], existing.Path, existing.Completion.Task);
+                handle = new Handle(this, existing.Id, [request.OwnerTag], existing.Path, existing.Completion.Task, entry: existing);
             }
             else
             {
                 Entry entry = SubmitJobLocked(request);
                 preempted = PreemptForLocked(entry);
-                handle = new Handle(this, entry.Id, [request.OwnerTag], entry.Path, entry.Completion.Task);
+                handle = new Handle(this, entry.Id, [request.OwnerTag], entry.Path, entry.Completion.Task, entry: entry);
             }
         }
 
@@ -2086,6 +2086,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         return new Handle(this, Guid.Empty, owners, path, done.Task, true);
     }
 
+    private DemoQueueItemState StateOf(Entry entry)
+    {
+        lock (_sync)
+        {
+            return entry.State;
+        }
+    }
+
     private DemoQueueItemState GetState(Guid id)
     {
         lock (_sync)
@@ -2345,11 +2353,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         IReadOnlyList<string> owners,
         string path,
         Task completion,
-        bool rejected = false) : IDemoQueueHandle
+        bool rejected = false,
+        Entry? entry = null) : IDemoQueueHandle
     {
         public Guid Id => id;
         public Task Completion => completion;
-        public DemoQueueItemState State => rejected ? DemoQueueItemState.Rejected : queue.GetState(id);
+
+        // Read from the entry itself: a finished light item leaves the list, and is still completed.
+        public DemoQueueItemState State => rejected ? DemoQueueItemState.Rejected
+            : entry is null ? queue.GetState(id) : queue.StateOf(entry);
         public void Cancel()
         {
             if (queue.KindOf(id) is { } kind && kind != QueueJobKind.DemoProcessing)

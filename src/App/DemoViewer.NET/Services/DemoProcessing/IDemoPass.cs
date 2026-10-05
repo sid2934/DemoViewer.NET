@@ -161,6 +161,19 @@ public interface IDemoPass
     }
 }
 
+/// <summary>
+///     A pass that says how urgent a demo is and where it sorts among demos of its level. The scheduler raises a
+///     visit to the highest level any planned pass asks for, and orders it by the highest hint.
+/// </summary>
+internal interface IPassScheduling
+{
+    /// <summary>The level the pass asks for <paramref name="demo" /> at.</summary>
+    PassLevel LevelFor(VisitedDemo demo);
+
+    /// <summary>Within a level, higher runs sooner.</summary>
+    long OrderHint(VisitedDemo demo);
+}
+
 /// <summary>How one pass's turn on a visit ended.</summary>
 public enum PassOutcome
 {

@@ -134,6 +134,28 @@ public sealed class DemoScheduler : IDisposable
         }
     }
 
+    /// <summary>
+    ///     <see cref="HasOutstanding(string)" /> for a pass that belongs to <paramref name="owner" />; false for a
+    ///     pass id another owner registered.
+    /// </summary>
+    public bool HasOutstanding(string passId, string owner)
+    {
+        IReadOnlyList<IDemoPass> passes;
+        try
+        {
+            passes = _passes();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            ReportFault("scheduler", null, ex);
+            return false;
+        }
+
+        return passes.Any(p => string.Equals(p.Id, passId, StringComparison.Ordinal)
+                               && string.Equals(p.Owner, owner, StringComparison.Ordinal))
+               && HasOutstanding(passId);
+    }
+
     /// <summary>True when the pass threw on this demo earlier in the session; it is not offered the demo again until restart.</summary>
     public bool IsFaulted(string passId, string path)
     {
@@ -321,14 +343,15 @@ public sealed class DemoScheduler : IDisposable
         long orderHint = 0;
         foreach (IDemoPass pass in planned)
         {
-            if (pass is EvaluatorPassAdapter adapter)
+            if (pass is IPassScheduling scheduling)
             {
-                if (SafeLevel(adapter, demo) > level)
+                PassLevel asked = SafeLevel(pass, scheduling, demo);
+                if (asked > level)
                 {
-                    level = PassLevel.UserRequested;
+                    level = asked;
                 }
 
-                orderHint = Math.Max(orderHint, SafeOrderHint(adapter, demo));
+                orderHint = Math.Max(orderHint, SafeOrderHint(pass, scheduling, demo));
             }
         }
 
@@ -395,28 +418,28 @@ public sealed class DemoScheduler : IDisposable
         }
     }
 
-    private PassLevel SafeLevel(EvaluatorPassAdapter adapter, VisitedDemo demo)
+    private PassLevel SafeLevel(IDemoPass pass, IPassScheduling scheduling, VisitedDemo demo)
     {
         try
         {
-            return adapter.LevelFor(demo);
+            return scheduling.LevelFor(demo);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            ReportFault(adapter.Id, demo.Path, ex);
+            ReportFault(pass.Id, demo.Path, ex);
             return PassLevel.Background;
         }
     }
 
-    private long SafeOrderHint(EvaluatorPassAdapter adapter, VisitedDemo demo)
+    private long SafeOrderHint(IDemoPass pass, IPassScheduling scheduling, VisitedDemo demo)
     {
         try
         {
-            return adapter.Evaluator.OrderHint(demo.Path);
+            return scheduling.OrderHint(demo);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            ReportFault(adapter.Id, demo.Path, ex);
+            ReportFault(pass.Id, demo.Path, ex);
             return 0;
         }
     }

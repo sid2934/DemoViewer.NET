@@ -253,13 +253,13 @@ public class PassRegistryTests
     }
 
     [Test]
-    public async Task Resolve_ExtensionEvaluator_KeepsOneAdapterPerInstance()
+    public async Task Resolve_ExtensionPass_KeepsOneHostPerInstance()
     {
         PackContributions contributions = new(new EvaluatorPack(), () => throw new InvalidOperationException());
         SdkFake shared = new("ext.shared");
         int built = 0;
-        contributions.Evaluator("ext.shared", () => shared);
-        contributions.Evaluator("ext.fresh", () => new SdkFake("ext.fresh", ++built));
+        contributions.Pass("ext.shared", () => shared);
+        contributions.Pass("ext.fresh", () => new SdkFake("ext.fresh", ++built));
 
         PassRegistry registry = new();
         foreach (PassContribution c in contributions.Passes)
@@ -271,10 +271,10 @@ public class PassRegistryTests
         IReadOnlyList<IDemoPass> second = registry.Resolve();
 
         await Assert.That(ReferenceEquals(first[0], second[0])).IsTrue()
-            .Because("the same evaluator instance is not re-wrapped on every resolve");
+            .Because("the same pass instance is not re-wrapped on every resolve");
         await Assert.That(ReferenceEquals(first[1], second[1])).IsFalse()
-            .Because("a factory that builds a new evaluator gets an adapter over that new instance");
-        await Assert.That(((ExtensionEvaluatorAdapter)((EvaluatorPassAdapter)second[1]).Evaluator).Inner).IsTypeOf<SdkFake>();
+            .Because("a factory that builds a new pass gets a host over that new instance");
+        await Assert.That(((ExtensionPassHost)second[1]).Inner).IsTypeOf<SdkFake>();
         await Assert.That(built).IsEqualTo(2);
     }
 
@@ -340,14 +340,14 @@ public class PassRegistryTests
         }
     }
 
-    private sealed class SdkFake(string id, int generation = 0) : IExtensionEvaluator
+    private sealed class SdkFake(string id, int generation = 0) : IExtensionPass
     {
         public int Generation { get; } = generation;
         public string Id { get; } = id;
 
-        public bool Wants(string path) => false;
+        public DemoInterest Interest(string demoPath) => DemoInterest.No;
 
-        public void Evaluate(string path, ParsedDemo parsed)
+        public void Run(IPassContext context)
         {
             // not exercised here
         }

@@ -25,6 +25,9 @@ public interface IExtensionContext
     /// <summary>The processing queue every off-UI-thread job goes through.</summary>
     IExtensionJobs Jobs { get; }
 
+    /// <summary>The scheduling of the extension's own passes.</summary>
+    IExtensionPasses Passes { get; }
+
     /// <summary>The open demo and the shell's navigation.</summary>
     IExtensionShell Shell { get; }
 

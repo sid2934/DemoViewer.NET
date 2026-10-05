@@ -1,6 +1,6 @@
 namespace DemoViewer.NET.Extensions.Sdk;
 
-/// <summary>Ids of host tabs, features and evaluators an extension can name.</summary>
+/// <summary>Ids of host tabs, features and passes an extension can name.</summary>
 public static class HostIds
 {
     /// <summary>The Library tab.</summary>
@@ -24,6 +24,6 @@ public static class HostIds
     /// <summary>The Match Overview tab's feature.</summary>
     public const string MatchOverviewFeature = "tab.matchoverview";
 
-    /// <summary>The library indexer: name it in <c>after</c> to evaluate a demo once its cache record is written.</summary>
-    public const string LibraryEvaluator = "library";
+    /// <summary>The library indexer's pass: name it in <c>after</c> to run on a demo once its cache record is written.</summary>
+    public const string LibraryPass = "library";
 }

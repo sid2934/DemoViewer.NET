@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///     and the run dispatches to <see cref="IDemoEvaluator.Evaluate" /> or
 ///     <see cref="IDemoEvaluator.EvaluateForward" /> by the read the visit made.
 /// </summary>
-public sealed class EvaluatorPassAdapter : IDemoPass
+public sealed class EvaluatorPassAdapter : IDemoPass, IPassScheduling
 {
     /// <param name="evaluator">The evaluator.</param>
     /// <param name="after">The pass ids it runs after, as registered.</param>
@@ -68,6 +68,9 @@ public sealed class EvaluatorPassAdapter : IDemoPass
     /// <summary>The level the evaluator asks for a demo at, from <see cref="IDemoEvaluator.PriorityFor" />.</summary>
     public PassLevel LevelFor(VisitedDemo demo) =>
         Evaluator.PriorityFor(demo.Path) >= DemoJobPriority.UserRequested ? PassLevel.UserRequested : PassLevel.Background;
+
+    /// <summary>The evaluator's <see cref="IDemoEvaluator.OrderHint" />.</summary>
+    public long OrderHint(VisitedDemo demo) => Evaluator.OrderHint(demo.Path);
 
     /// <summary>
     ///     A factory handing out one adapter per evaluator instance: the registry calls the factory on every

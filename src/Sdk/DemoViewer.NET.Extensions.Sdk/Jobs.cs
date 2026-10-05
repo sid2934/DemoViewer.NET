@@ -1,13 +1,143 @@
+using CS2DemoKit.Parser;
+
 namespace DemoViewer.NET.Extensions.Sdk;
 
 /// <summary>How urgent a job is.</summary>
 public enum JobPriority
 {
-    /// <summary>Indexing and anything the user did not ask for. Pausable, runs when the app is idle.</summary>
+    /// <summary>Opt-in sweeps and anything the user did not ask for. Pausable, runs when the app is idle.</summary>
     Background,
+
+    /// <summary>
+    ///     Catching up on demos the library just added or found changed. Pausable like background work, and
+    ///     runs ahead of it.
+    /// </summary>
+    Backlog,
 
     /// <summary>Work a click asked for: it goes to the front and stops background work.</summary>
     UserRequested
+}
+
+/// <summary>Where a job is, or how it ended.</summary>
+public enum JobStatus
+{
+    /// <summary>Waiting for its turn.</summary>
+    Queued,
+
+    /// <summary>Running now.</summary>
+    Running,
+
+    /// <summary>Ran to the end.</summary>
+    Completed,
+
+    /// <summary>Threw, or the demo it named could not be read.</summary>
+    Failed,
+
+    /// <summary>Cancelled, removed from the queue list, or stopped because the extension was switched off.</summary>
+    Cancelled,
+
+    /// <summary>Not queued: the queue was full of background work, or the host has no queue.</summary>
+    Rejected
+}
+
+/// <summary>How a job ended.</summary>
+/// <param name="Status">One of the ended states: completed, failed, cancelled or rejected.</param>
+/// <param name="Error">What the job threw, when it failed.</param>
+public sealed record JobResult(JobStatus Status, Exception? Error = null);
+
+/// <summary>A queued job: its state, its end, and a way to cancel it.</summary>
+public interface IJobHandle
+{
+    /// <summary>Where the job is now. Safe to read from any thread.</summary>
+    JobStatus Status { get; }
+
+    /// <summary>Completes when the job ends, however it ends. Never faults.</summary>
+    Task<JobResult> Completion { get; }
+
+    /// <summary>
+    ///     Raised once when the job ends, on the UI thread. A handler added after the end is raised at once,
+    ///     still on the UI thread.
+    /// </summary>
+    event Action<JobResult>? Completed;
+
+    /// <summary>Cancels this job only. A queued job never runs; a running one sees its token fire.</summary>
+    void Cancel();
+}
+
+/// <summary>What a job that names a demo gets: the demo's parse for as long as the job runs.</summary>
+public interface IDemoJobContext : IJobContext
+{
+    /// <summary>The demo the job named.</summary>
+    string DemoPath { get; }
+
+    /// <summary>
+    ///     The demo's parse, shared with the demo's visit. Read only; do not keep it past the job, which
+    ///     throws <see cref="ObjectDisposedException" /> once the job has ended.
+    /// </summary>
+    ParsedDemo Parsed { get; }
+}
+
+/// <summary>
+///     A job for <see cref="IExtensionJobs.Enqueue" />. A job that names a demo joins that demo's visit: the
+///     demo is read once for it and every pass that wants the demo, on the parse the shell holds when the demo
+///     is open, and the job runs after those passes.
+/// </summary>
+public sealed class JobRequest
+{
+    /// <summary>A job that needs no demo.</summary>
+    /// <param name="title">The line the queue list shows.</param>
+    /// <param name="work">The job.</param>
+    /// <param name="options">How it is queued; null for a background compute job.</param>
+    public JobRequest(string title, Func<IJobContext, Task> work, JobOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(title);
+        ArgumentNullException.ThrowIfNull(work);
+        Title = title;
+        Work = work;
+        Options = options ?? new JobOptions();
+    }
+
+    private JobRequest(string title, string demoPath, Func<IDemoJobContext, Task> work, JobOptions? options)
+    {
+        Title = title;
+        DemoPath = demoPath;
+        DemoWork = work;
+        Options = options ?? new JobOptions();
+    }
+
+    /// <summary>A job on one demo's parse.</summary>
+    /// <param name="title">The line the queue list shows.</param>
+    /// <param name="demoPath">The demo.</param>
+    /// <param name="work">
+    ///     The job. It holds the demo's parse until its task ends, and no other demo is read meanwhile, so it
+    ///     must not wait on another job.
+    /// </param>
+    /// <param name="options">How it is queued; only <see cref="JobOptions.Priority" /> and <see cref="JobOptions.Kind" /> apply.</param>
+    public static JobRequest OnDemo(string title, string demoPath, Func<IDemoJobContext, Task> work, JobOptions? options = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(title);
+        ArgumentException.ThrowIfNullOrEmpty(demoPath);
+        ArgumentNullException.ThrowIfNull(work);
+        return new JobRequest(title, demoPath, work, options);
+    }
+
+    /// <summary>The line the queue list shows.</summary>
+    public string Title { get; }
+
+    /// <summary>How it is queued.</summary>
+    public JobOptions Options { get; }
+
+    /// <summary>The job, when it names no demo.</summary>
+    public Func<IJobContext, Task>? Work { get; }
+
+    /// <summary>The demo the job runs on, or null.</summary>
+    public string? DemoPath { get; }
+
+    /// <summary>The job, when it names a demo.</summary>
+    public Func<IDemoJobContext, Task>? DemoWork { get; }
+
+    /// <summary>True when a job on a demo reads player inputs, which the parse otherwise may leave out.</summary>
+    public bool ReadsUserCommands { get; init; }
 }
 
 /// <summary>
@@ -59,13 +189,17 @@ public interface IJobContext
 /// <summary>
 ///     The app's processing queue. Every job the extension runs off the UI thread goes through it, so the user
 ///     sees it and can pause or remove it. Jobs carry the extension's id, and switching the extension off
-///     cancels the queued ones.
+///     cancels the queued ones. Neither a handle nor <see cref="CancelAll" /> reaches another owner's work.
 /// </summary>
 public interface IExtensionJobs
 {
+    /// <summary>Queues <paramref name="request" /> and returns its handle.</summary>
+    /// <exception cref="ArgumentException">The request names a job kind that is neither built in nor declared.</exception>
+    IJobHandle Enqueue(JobRequest request);
+
     /// <summary>
     ///     Queues <paramref name="work" />. The task completes when the job ran, failed or was removed; it
-    ///     faults only if the host could not queue it at all.
+    ///     faults only if the host could not queue it at all. Without a queue (the browser) it runs on the pool.
     /// </summary>
     /// <param name="title">The line the queue list shows.</param>
     /// <param name="work">The job.</param>
@@ -74,4 +208,21 @@ public interface IExtensionJobs
 
     /// <summary>Removes every queued job of this extension. A running one finishes its current step.</summary>
     void CancelAll();
+
+    /// <summary>
+    ///     Marks the jobs queued inside the scope, and in what it awaits, as asked for by the user, whatever their
+    ///     <see cref="JobOptions.Priority" />. For one runner shared by a click and a background refresh: the
+    ///     click's handler opens the scope.
+    /// </summary>
+    IDisposable UserAction();
+
+    /// <summary>
+    ///     Throws <see cref="OperationCanceledException" /> when the job running this code has been stopped, by
+    ///     the user or for the user's own job. For work that has no token at hand, at its natural boundaries.
+    ///     Never throws outside a job.
+    /// </summary>
+    void ThrowIfStopped();
+
+    /// <summary>True when <paramref name="exception" /> is the queue stopping the running job, which must be let through.</summary>
+    bool IsStop(Exception exception);
 }

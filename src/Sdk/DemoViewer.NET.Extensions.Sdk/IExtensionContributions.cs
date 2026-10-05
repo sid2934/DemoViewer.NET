@@ -15,8 +15,14 @@ public interface IExtensionContributions
     /// <summary>A module whose tabs join the strip, or a host tab's sections when a descriptor names a <c>HostId</c>.</summary>
     void Tabs(IWorkspaceModule workspaceModule);
 
-    /// <summary>An evaluator on the library's shared parse, run after every evaluator named in <paramref name="after" />.</summary>
-    void Evaluator(string id, Func<IExtensionEvaluator> factory, params string[] after);
+    /// <summary>
+    ///     A pass on every demo's visit, run after every pass named in <paramref name="after" /> that is on the
+    ///     same visit. The factory is called only while the extension is on.
+    /// </summary>
+    /// <param name="id">The pass's <see cref="IExtensionPass.Id" />, declared up front so the order can be checked without building the pass.</param>
+    /// <param name="factory">Builds or returns the pass.</param>
+    /// <param name="after">Pass ids whose writes this one reads, such as <see cref="HostIds.LibraryPass" />.</param>
+    void Pass(string id, Func<IExtensionPass> factory, params string[] after);
 
     /// <summary>Commands for the keymap, in addition to <see cref="IExtension.Commands" />.</summary>
     void Commands(IEnumerable<CommandDescriptor> commands);

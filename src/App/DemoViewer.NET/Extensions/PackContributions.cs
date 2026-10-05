@@ -134,27 +134,28 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     }
 
     /// <inheritdoc />
-    public void Evaluator(string id, Func<IExtensionEvaluator> factory, params string[] after)
+    public void Pass(string id, Func<IExtensionPass> factory, params string[] after)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
-        _passes.Add(new PassContribution(id, EvaluatorPassAdapter.Cached(AdapterCache(factory), after), [.. after]));
+        string[] order = [.. after];
+        _passes.Add(new PassContribution(id, HostCache(factory, order), order));
     }
 
-    // The registry calls the factory on every resolve. One adapter per evaluator instance keeps the
-    // adapter identity stable across resolves; a factory that hands out a new instance gets a new adapter.
-    private static Func<IDemoEvaluator> AdapterCache(Func<IExtensionEvaluator> factory)
+    // The registry calls the factory on every resolve. One host per pass instance keeps the identity a visit
+    // tells passes apart by, and the quarantine with it; a factory that hands out a new instance gets a new host.
+    private Func<IDemoPass> HostCache(Func<IExtensionPass> factory, IReadOnlyList<string> after)
     {
         object gate = new();
-        ExtensionEvaluatorAdapter? cached = null;
+        ExtensionPassHost? cached = null;
         return () =>
         {
-            IExtensionEvaluator inner = factory();
+            IExtensionPass inner = factory();
             lock (gate)
             {
                 if (cached is null || !ReferenceEquals(cached.Inner, inner))
                 {
-                    cached = new ExtensionEvaluatorAdapter(inner);
+                    cached = new ExtensionPassHost(inner, after, _guard);
                 }
 
                 return cached;

@@ -139,6 +139,46 @@ public static class QueueWork
     private static readonly AsyncLocal<bool> _userAction = new();
     private static readonly AsyncLocal<CancellationToken> _current = new();
 
+    /// <summary>True inside a <see cref="UserAction" /> scope.</summary>
+    internal static bool InUserAction => _userAction.Value;
+
+    /// <summary>True when there is no queue to submit to, or a test asked for the pool.</summary>
+    internal static bool RunsOnPool(IDemoProcessingQueue? queue) => queue is null || Bypass;
+
+    /// <summary>
+    ///     <paramref name="body" /> with the item's token visible to <see cref="ThrowIfStopped" /> and
+    ///     <see cref="IsStop" /> while it runs.
+    /// </summary>
+    internal static Func<IQueueJobContext, Task> WithStopToken(Func<IQueueJobContext, Task> body) =>
+        async ctx =>
+        {
+            CancellationToken outer = _current.Value;
+            _current.Value = ctx.CancellationToken;
+            try
+            {
+                await body(ctx).ConfigureAwait(false);
+            }
+            finally
+            {
+                _current.Value = outer;
+            }
+        };
+
+    /// <summary>Runs <paramref name="body" /> with <paramref name="token" /> visible to <see cref="ThrowIfStopped" />.</summary>
+    internal static async Task WithStopToken(Func<Task> body, CancellationToken token)
+    {
+        CancellationToken outer = _current.Value;
+        _current.Value = token;
+        try
+        {
+            await body().ConfigureAwait(false);
+        }
+        finally
+        {
+            _current.Value = outer;
+        }
+    }
+
     // The context a body gets when there is no queue: nothing to report to, nothing that stops it.
     private sealed class PoolContext : IQueueJobContext
     {
