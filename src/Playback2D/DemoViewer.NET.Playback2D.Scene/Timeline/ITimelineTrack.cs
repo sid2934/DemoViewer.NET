@@ -6,12 +6,25 @@ namespace DemoViewer.NET.Playback2D.Core.Timeline;
 /// </summary>
 public enum TimelineMarkerKind
 {
+    /// <summary>A round start or end.</summary>
     Round,
+
+    /// <summary>A kill.</summary>
     Kill,
+
+    /// <summary>The bomb was planted.</summary>
     BombPlant,
+
+    /// <summary>The bomb was defused.</summary>
     BombDefuse,
+
+    /// <summary>The bomb exploded.</summary>
     BombExplode,
+
+    /// <summary>An annotation on the map.</summary>
     Annotation,
+
+    /// <summary>Anything the other kinds do not cover.</summary>
     Custom
 }
 

@@ -21,8 +21,8 @@ public enum ToolKind
     Erase,
 
     /// <summary>
-    ///     A tool written against the published <see cref="Tools.IMapTool" /> contract, registered through a
-    ///     <see cref="MapToolAdapter" />: a map view's primary tool. Never selected by the playback toolbar, so
+    ///     A tool written against the published <see cref="Tools.IMapTool" /> contract, registered through an
+    ///     adapter in the host: a map view's primary tool. Never selected by the playback toolbar, so
     ///     <c>LastTool</c> never holds it.
     /// </summary>
     Map,

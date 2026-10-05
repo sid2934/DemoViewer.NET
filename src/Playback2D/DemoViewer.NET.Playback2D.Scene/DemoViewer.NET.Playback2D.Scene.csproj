@@ -2,10 +2,11 @@
 
     <!--
       The scene contract of the 2D map: the frame, the layer interface and compositor, floors and panes,
-      places, the viewport transform, cameras and the palette. SkiaSharp and the BCL only, enforced by
-      ArchitectureTests, which also pins its public types to an allow-list.
-      The types keep their DemoViewer.NET.Playback2D.Core namespaces; the concrete layers, input tools,
-      annotations, export and rendering backends stay in DemoViewer.NET.Playback2D.Core, which is not published.
+      places, the viewport transform, cameras and the palette, plus the annotation, timeline, tool and HUD
+      contracts and the query, overlay and utility layers an extension draws with. SkiaSharp and the BCL only,
+      enforced by ArchitectureTests, which also pins its public types to an allow-list.
+      The types keep their DemoViewer.NET.Playback2D.Core namespaces; the app's own layers, the drawing tools,
+      export, keyframes and rendering backends stay in DemoViewer.NET.Playback2D.Core, which is not published.
     -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>

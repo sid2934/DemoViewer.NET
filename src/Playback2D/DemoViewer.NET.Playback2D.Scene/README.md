@@ -27,9 +27,18 @@ The types keep the namespaces the app uses for them, under `DemoViewer.NET.Playb
 | `Playback2D.Core.Zones` | `PlaceResolver`, `ZoneSet`, `PlaceHit` and the zone geometry |
 | `Playback2D.Core.Cameras` | `ICameraRig` and the built-in rigs |
 | `Playback2D.Core.Tools` | `IMapTool`, `MapToolEvent`, `IMapToolContext`, `MapToolButton`, `MapToolModifiers` |
+| `Playback2D.Core.Layers` (drawing) | `OverlayHeatmapLayer`, `QueryTokenLayer`, `UtilityMapLayer` |
+| `Playback2D.Core.Overlay`, `.Query`, `.Utility` | the documents those three layers draw |
+| `Playback2D.Core.Annotations` | `AnnotationDocument`, `AnnotationElement`, `AnnotationSession`, `DocDelta` and the styles and timing they carry |
+| `Playback2D.Core.Timeline` | `ITimelineTrack`, `ITimelineData`, `TimelineMarker`, `TimelineBand`, `AnnotationTrack` |
+| `Playback2D.Core.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens or annotations needs |
+| `Playback2D.Core.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
+| `Playback2D.Core.Vision` | `IVisionSolver`, `VisionSolution` |
+| `Playback2D.Core` (more) | `MarkerSmoother`, `SceneGuides`, `TrailGeometry`, `SceneDefaults`; `Levels.MapSpaceFactory`; `Zones.NavPathfinder` |
 
-The concrete layers, the drawing tools, annotations, video export and the render backends are not
-published.
+The app's own layers (radar, markers, roster and the rest), the drawing tools, video export, keyframes and the
+render backends are not published. `IMapTool` is the contract to write a new tool against; `IPointerTool`
+is published for tools that hold the playback tab's token editor or annotation session.
 
 ## Frames and layers
 
