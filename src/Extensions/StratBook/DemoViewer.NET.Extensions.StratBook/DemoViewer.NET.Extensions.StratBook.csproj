@@ -52,11 +52,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- The SDK and its UI kit, with the scene contract through the SDK, are the packages a third party
-             takes; the projects stand in for them, as for the sample. The app reference is the first-party
-             seam (export, the review queue, the Playback2D layers and tools the canvases draw with), and it
-             grants the extension no internals. The app never references the extension; the heads reference
-             both and hand the pack list to FeaturePacks. -->
+        <!-- The SDK and its UI kit, with the scene package through the SDK, are the packages a third party
+             takes; the projects stand in for them, as for the sample. Everything Playback2D the extension
+             draws with comes from those. The app reference is the first-party seam (export, clip export, the
+             review queue and the playback host the strat canvas mounts), and it grants the extension no
+             internals; PackPlayback2DBindingTests pins which unpublished Playback2D types it may bind. The
+             app never references the extension; the heads reference both and hand the pack list to
+             FeaturePacks. -->
         <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
         <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
         <ProjectReference Include="..\..\..\App\DemoViewer.NET\DemoViewer.NET.csproj"/>
