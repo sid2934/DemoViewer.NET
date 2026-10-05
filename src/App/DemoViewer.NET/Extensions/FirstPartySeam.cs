@@ -46,15 +46,6 @@ public sealed record GatedDemoAction(DemoAction Action, string FeatureId)
 }
 
 /// <summary>
-///     What a first-party extension can contribute beyond the SDK: surfaces whose types are the app's own and
-///     not part of the public contract. The host's contribution collector implements it; a first-party
-///     extension reaches it by casting the <see cref="IExtensionContributions" /> it is handed.
-/// </summary>
-public interface IFirstPartyContributions : IExtensionContributions
-{
-}
-
-/// <summary>
 ///     Shell state a first-party extension reads that the SDK does not publish: whether a Live Sync session or
 ///     a reel render holds the machine, which an export must not start beside. Resolved from the container.
 /// </summary>

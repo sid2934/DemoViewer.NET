@@ -34,7 +34,7 @@ namespace DemoViewer.NET.Extensions;
 /// </remarks>
 internal sealed class PackContributions(IExtension pack, Func<IExtensionContext> context, Action<Action>? toUiThread = null,
     ExtensionGuard? guard = null)
-    : IFirstPartyContributions
+    : IExtensionContributions
 {
     private readonly Action<Action> _toUiThread = toUiThread ?? (static a => a());
     private readonly ExtensionGuard _guard = guard ?? ExtensionGuard.Standalone(pack);

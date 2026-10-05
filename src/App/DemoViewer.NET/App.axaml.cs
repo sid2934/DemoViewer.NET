@@ -1379,7 +1379,7 @@ public class App : Application
             // JobKindRegistry.Build(packs), DI-free like CommandRegistry.Build.
             // CommandRegistry.Default reads IExtension.Commands directly (no DI, so a bare-constructed
             // view model resolves pack chords in a headless test too). This is the consumer for the
-            // IFirstPartyContributions.Commands(...) call: not a second registration, a check that the two
+            // IExtensionContributions.Commands(...) call: not a second registration, a check that the two
             // channels agree (CommandRegistry.CommandsMatch) so they cannot drift apart.
             // A mismatch, or a Commands getter that throws, keeps the extension off for the session: its
             // keymap rows and its modules would disagree.

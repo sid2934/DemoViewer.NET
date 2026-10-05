@@ -24,10 +24,11 @@ restart. Data on disk is untouched; re-enabling backfills whatever indexing was 
 The public contract is the `DemoViewer.NET.Extensions.Sdk` package (`src/Sdk/DemoViewer.NET.Extensions.Sdk`,
 author guide in its README): `IExtension`, `IExtensionContributions`, `IExtensionContext` and the SDK's
 playback types, with the UI kit (`DemoViewer.NET.Extensions.Sdk.Ui`, including the embeddable `MapView`) and
-the scene contract (`DemoViewer.NET.Playback2D.Scene`) beside it. Surfaces the SDK does not carry (rulesets and
-forward-pass evaluators) stay first-party behind `IFirstPartyContributions`, which the Strat Book reaches by
-casting and which refuses an extension installed from outside the app. Third-party extensions load from the same extensions folder; unverified ones
-only with the user's consent, and none at all in safe mode.
+the scene contract (`DemoViewer.NET.Playback2D.Scene`) beside it. Surfaces the SDK does not carry (export, the
+review queue, the user-work folders) stay first-party as `IFirstPartyShellState`, `IFirstPartyExportChips`,
+`FirstPartyExports` and `FirstPartyHost`, app types the Strat Book resolves from the container and an
+extension installed from outside the app cannot reference. Third-party extensions load from the same
+extensions folder; unverified ones only with the user's consent, and none at all in safe mode.
 
 The extension reaches the shell, 2D Playback and the Library through `IExtensionContributions` (tabs,
 evaluators, job kinds, settings pages, playback panels and lanes, library filters and badges, session
@@ -1709,8 +1710,8 @@ Rules as built:
   seams App.Tests reaches) and nothing to the extension itself; no Playback2D assembly grants it either, which
   `PackBoundaryTests` pins. The extension builds on public types: the SDK, the UI kit's `MapView` for the
   Query Canvas and the Utility Book map, the published scene contract, `Scene2DHost.AddTool`/`AddLayer`/
-  `FrameHost` for the strat canvas, and the first-party seam (`IFirstPartyContributions`,
-  `IFirstPartyShellState`, `IFirstPartyExportChips`, export). The strat frame source builds a frame shell per
+  `FrameHost` for the strat canvas, and the first-party seam (`IFirstPartyShellState`,
+  `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`). The strat frame source builds a frame shell per
   call over its pooled lists instead of refilling `Scene2DFrame`'s internals. In the two unpublished
   Playback2D assemblies it binds only export, clip export and Review Queue types, which
   `PackPlayback2DBindingTests` reads from its metadata against a list with a reason per type; maps, map
