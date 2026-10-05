@@ -79,12 +79,16 @@ internal static class Playback2DWholeGraph
         typeof(Scene2DFrame).Assembly,
         typeof(DemoViewer.NET.Playback2D.Core.Layers.RadarLayer).Assembly,
         typeof(SceneFrameBuilder).Assembly,
+        typeof(DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapView).Assembly,
         .. FeaturePacks.Default.Select(pack => pack.GetType().Assembly).Distinct()
     ]);
 
     private static readonly Lazy<List<SourceFile>> _sources = new(LoadProductionSources);
 
-    /// <summary>The assemblies a production consumer of this module can be in: the app's four and the packs'.</summary>
+    /// <summary>
+    ///     The assemblies a production consumer of this module can be in: the app's four, the UI kit (whose
+    ///     MapView consumes the app's map renderer) and the packs'.
+    /// </summary>
     public static IReadOnlyList<SysAssembly> ProductionAssemblies => _production.Value;
 
     /// <summary>

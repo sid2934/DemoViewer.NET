@@ -22,6 +22,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     tool added by composition, the refused-press pan, and one bundle decode shared by every view of a map.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class MapViewTests
 {
     private const string Map = "de_mirage";

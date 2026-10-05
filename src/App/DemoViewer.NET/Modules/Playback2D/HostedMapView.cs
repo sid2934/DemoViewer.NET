@@ -50,6 +50,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     private MapToolAdapter? _primary;
     private string? _mapName;
     private LoadedMapAsset? _lease;
+    private bool _attached;
 
     private readonly SceneRenderGate _gate = new();
     private readonly MapSpaceFactory _levels = new();
@@ -107,7 +108,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
             }
 
             _mapName = value;
-            if (!_released)
+            if (_attached)
             {
                 Rebind();
             }
@@ -229,6 +230,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
 
         RefreshPalette();
         ActualThemeVariantChanged += OnThemeVariantChanged;
+        _attached = true;
         Rebind();
     }
 
@@ -237,6 +239,7 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
     {
         base.OnDetachedFromVisualTree(e);
         ActualThemeVariantChanged -= OnThemeVariantChanged;
+        _attached = false;
         Router.CancelActive();
         RestoreToolAfterPan();
         ReleaseResources();

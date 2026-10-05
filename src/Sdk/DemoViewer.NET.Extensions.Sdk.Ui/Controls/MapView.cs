@@ -57,7 +57,10 @@ public sealed class MapView : Control
         set => SetValue(MapNameProperty, value);
     }
 
-    /// <summary>True when the host has art for <see cref="MapName" />. False shows nothing: say so beside the view.</summary>
+    /// <summary>
+    ///     True when the host has art for <see cref="MapName" />. The art is loaded while the view is in the visual
+    ///     tree, so this is false before the view is shown. False shows nothing: say so beside the view.
+    /// </summary>
     public bool HasMap => _backend?.HasMap ?? false;
 
     /// <summary>The bound map's floors, lowest first; empty with no map.</summary>
