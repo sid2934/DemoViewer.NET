@@ -172,6 +172,7 @@ For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extens
   never see where the folder is. Write with `WriteAtomicAsync` and read with `ReadAsync`: the path must stay
   inside the folder, and a crash mid-write leaves the previous file instead of a torn one. The browser build
   has no folders.
+- `Notifications`: short messages to the user, drawn as a small stack above the status strip. See below.
 - `CreateLogger` and `Post`.
 
 `JobScope` covers code that has no job context at hand: `JobScope.UserAction()` puts the jobs queued inside it
@@ -179,6 +180,27 @@ at user priority, and `JobScope.ThrowIfStopped()` stops a long loop when the use
 
 Register an `IExtensionLifecycle` as a keyed singleton under your id to start loads when the extension is
 switched on and to release memory when it is switched off.
+
+### Notifications
+
+`Post` a `Notification` with an id, a severity, a title and an optional body, action and time to live. It is the
+one way an extension tells the user something happened; a status chip is for state that lasts.
+
+```csharp
+context.Notifications.Post(new Notification("myextension.scan", NotificationSeverity.Success,
+    "Scan finished", $"{count} demos read.")
+{
+    Action = new NotificationAction("Open", () => context.Shell.SelectTab("myextension.tab")),
+    TimeToLive = TimeSpan.FromSeconds(30)
+});
+```
+
+Posting again under the same id replaces the card in place, so a repeated "N new" message never stacks.
+`Dismiss` closes one. `Post` is safe from any thread, never blocks and never throws: a notification without an
+id or a title is logged against the extension and dropped. The host keeps three cards per extension and drops
+the oldest past that, so a flood from one extension never pushes out another's. Cards show only while the
+extension is on, close when it is switched off, and last for the session. The action runs on the UI thread; a
+throw from it counts as the extension's fault.
 
 ## Reading demos
 
