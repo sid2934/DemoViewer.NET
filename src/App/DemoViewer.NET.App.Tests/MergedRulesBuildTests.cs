@@ -74,6 +74,14 @@ public class MergedRulesBuildTests
     // Order matters: the engine composes in read order, so the merged set must keep it.
     private static string Joined(IEnumerable<string> ids) => string.Join(",", ids);
 
+    private static ParsedDemo TwoFrameDemo() => SyntheticParsedDemo.Create(
+        [
+            new DemoFrame { CommandKind = EDemoCommands.DemPacket, FrameNumber = 0, ServerTick = 1, HeaderLength = 0, RawLength = 0, RawStart = 0, IsCompressed = false },
+            new DemoFrame { CommandKind = EDemoCommands.DemPacket, FrameNumber = 1, ServerTick = 500, HeaderLength = 0, RawLength = 0, RawStart = 0, IsCompressed = false }
+        ],
+        [TestGameEvents.RoundFreezeEnd(frameNumber: 1, serverTick: 500, gameTick: 500)],
+        tickCount: 500);
+
     private static string Compute(IEnumerable<RulesetDoc> docs, int tickRate = 64) =>
         HighlightConfigFingerprint.Compute([.. docs], tickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint;
 
@@ -199,8 +207,15 @@ public class MergedRulesBuildTests
                 composed = ex;
             }
 
-            await Assert.That(composed).IsNotNull().Because("the broken override does not compose on its own");
-            await Assert.That(build.Fingerprint(64).Fingerprint).IsEqualTo(ShippedFingerprint64);
+            AnalysisRun run = build.BareRun(TwoFrameDemo());
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(composed).IsNotNull().Because("the broken override does not compose on its own");
+                await Assert.That(build.Fingerprint(64).Fingerprint).IsEqualTo(ShippedFingerprint64);
+                await Assert.That(run.Build.ExcludedRulesets.Select(r => r.Id)).IsEquivalentTo([RoundFacts])
+                    .Because("the merged run every highlights visit makes drops the broken ruleset alone");
+            }
         }
         finally
         {
@@ -289,13 +304,7 @@ public class MergedRulesBuildTests
     {
         bool extensionOn = false;
         MergedRulesBuild build = new(FixtureRules, () => [StampedRuleset.Core(RoundFacts), GatedBy(() => extensionOn)]);
-        ParsedDemo parsed = SyntheticParsedDemo.Create(
-            [
-                new DemoFrame { CommandKind = EDemoCommands.DemPacket, FrameNumber = 0, ServerTick = 1, HeaderLength = 0, RawLength = 0, RawStart = 0, IsCompressed = false },
-                new DemoFrame { CommandKind = EDemoCommands.DemPacket, FrameNumber = 1, ServerTick = 500, HeaderLength = 0, RawLength = 0, RawStart = 0, IsCompressed = false }
-            ],
-            [TestGameEvents.RoundFreezeEnd(frameNumber: 1, serverTick: 500, gameTick: 500)],
-            tickCount: 500);
+        ParsedDemo parsed = TwoFrameDemo();
 
         AnalysisRun off = build.BareRun(parsed);
         AnalysisRun offAgain = build.BareRun(parsed);

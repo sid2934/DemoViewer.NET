@@ -492,8 +492,8 @@ public class StratBookLiveToggleTests
             if (copy is null)
             {
                 SeedLibrary(provider, demos: 160, roundsPerDemo: 24, grenadesPerDemo: 60, indexRounds: true);
-                // Round Facts is core and runs with the pack off too: rows current under the live identity keep
-                // its backlog of the fake demos out of a measurement of the pack's own heap.
+                // Round Facts is core and runs with the pack off too: a stamp current under the live identity
+                // keeps its backlog of the fake demos out of a measurement of the pack's own heap.
                 string? identity = provider.GetRequiredService<IRoundFactsRulesetIdentity>().Fingerprint(64);
                 DemoCacheStore cache = provider.GetRequiredService<DemoCacheStore>();
                 foreach (DemoCacheIndexEntry entry in cache.Index.ToList())
