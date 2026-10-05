@@ -461,6 +461,7 @@ public sealed class PassThroughDemoOpen(Func<ReadOnlyMemory<byte>, CancellationT
     {
     }
 
+    /// <inheritdoc />
     public Task RunPassesAsync(ParsedDemo parsed, Action? plan = null) =>
         plan is null ? Task.CompletedTask : Task.Run(plan);
 
