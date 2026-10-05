@@ -91,6 +91,8 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateOff.get -> 
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateWorking.get -> bool
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.StatusChipViewModel() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.DisplayText
+DemoViewer.NET.Extensions.Sdk.Ui.ExtensionViewModel
+DemoViewer.NET.Extensions.Sdk.Ui.ExtensionViewModel.ExtensionViewModel() -> void
 DemoViewer.NET.Extensions.Sdk.Ui.Theming.StyleClasses
 DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeColors
 DemoViewer.NET.Extensions.Sdk.Ui.Theming.ThemeTokens

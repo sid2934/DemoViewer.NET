@@ -1,0 +1,29 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
+             xmlns:theme="using:DemoViewer.NET.Extensions.Sdk.Ui.Theming"
+             xmlns:vm="using:ThirdPartyFake.ViewModels"
+             x:Class="ThirdPartyFake.Views.FakeTabView"
+             x:DataType="vm:FakeTabViewModel"
+             Background="{DynamicResource {x:Static theme:ThemeTokens.PanelBg}}">
+
+    <StackPanel Margin="16" Spacing="10">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <ui:GameIcon Key="equipment/ak47" IconHeight="14" Foreground="{DynamicResource TextMid}" />
+            <TextBlock Classes="sectionLabel" Text="THIRD PARTY FAKE" VerticalAlignment="Center" />
+            <ui:StatusChip DataContext="{Binding Status}" />
+        </StackPanel>
+
+        <Border Classes="card" Padding="10">
+            <ui:KeyValueTable Rows="{Binding Rows}" />
+        </Border>
+
+        <ContentControl Content="{Binding Detail}" />
+
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Classes="primary" Content="Primary" />
+            <Button Classes="ghost" Content="Ghost" />
+        </StackPanel>
+    </StackPanel>
+
+</UserControl>

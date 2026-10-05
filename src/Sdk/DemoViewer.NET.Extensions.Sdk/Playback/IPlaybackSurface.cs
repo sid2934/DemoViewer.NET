@@ -51,13 +51,13 @@ public interface IPlaybackSurface
     /// <summary>A pane. <see cref="PanePlacement.Side" /> panes show one at a time.</summary>
     /// <param name="where">Where it docks.</param>
     /// <param name="order">Position among panes there.</param>
-    /// <param name="viewModel">Builds its view model; the view is found by the <c>ViewModel</c> to <c>View</c> naming rule.</param>
+    /// <param name="viewModel">Builds its view model, an <see cref="IExtensionViewModel" />; the view is found by the <c>ViewModel</c> to <c>View</c> naming rule.</param>
     IPaneHandle AddPane(PanePlacement where, int order, Func<object> viewModel);
 
     /// <summary>A right-column panel. Several can be open at once.</summary>
     /// <param name="order">Position in the column.</param>
     /// <param name="viewModel">Builds its view model.</param>
-    /// <param name="view">Builds its view; null for the naming rule.</param>
+    /// <param name="view">Builds its view; null for the naming rule, which needs an <see cref="IExtensionViewModel" />.</param>
     /// <param name="featureId">Shown only while this feature is on.</param>
     /// <param name="mode">Shown only while this mode is on.</param>
     IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,

@@ -101,7 +101,8 @@ public interface IPlaybackSurface
 
     /// <summary>
     ///     A pane the contribution opens and closes through the handle. The view model's view comes from
-    ///     the ViewLocator convention, so it must derive from <c>ViewModelBase</c> and have a <c>…View</c>.
+    ///     the ViewLocator convention, so it must be a <c>ViewModelBase</c> or an <see cref="IExtensionViewModel" />
+    ///     and have a matching <c>View</c>.
     ///     For <see cref="PanePlacement.RightColumn" /> this is <see cref="AddPanel" /> with no gate and
     ///     the located view, and the handle is an <see cref="IPanelHandle" />.
     /// </summary>
@@ -118,7 +119,8 @@ public interface IPlaybackSurface
     /// <param name="viewModel">Builds the view model on <see cref="IPaneHandle.Open" />; disposed on close when it is <see cref="IDisposable" />.</param>
     /// <param name="view">
     ///     Builds the panel's control; the host sets its DataContext to the view model. Null takes the
-    ///     ViewLocator convention, which needs a <c>ViewModelBase</c> with a <c>…View</c>.
+    ///     ViewLocator convention, which needs a <c>ViewModelBase</c> or an <see cref="IExtensionViewModel" />
+    ///     with a matching <c>View</c>.
     /// </param>
     /// <param name="featureId">The gate the panel shows under, read through the tab's features; null for the owning pack's alone.</param>
     /// <param name="mode">The mode the panel shows under; null shows it whenever it is open with its gate on.</param>

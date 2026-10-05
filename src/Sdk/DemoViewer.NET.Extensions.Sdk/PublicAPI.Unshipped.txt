@@ -187,6 +187,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionStorage.CacheDirectory.get -> string?
 DemoViewer.NET.Extensions.Sdk.IExtensionStorage.ConfigDirectory.get -> string?
 DemoViewer.NET.Extensions.Sdk.IExtensionStorage.ReadAsync(DemoViewer.NET.Extensions.Sdk.StoreRoot root, string! relativePath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<byte[]?>!
 DemoViewer.NET.Extensions.Sdk.IExtensionStorage.WriteAtomicAsync(DemoViewer.NET.Extensions.Sdk.StoreRoot root, string! relativePath, System.ReadOnlyMemory<byte> content, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<bool>!
+DemoViewer.NET.Extensions.Sdk.IExtensionViewModel
 DemoViewer.NET.Extensions.Sdk.IJobContext
 DemoViewer.NET.Extensions.Sdk.IJobContext.CancellationToken.get -> System.Threading.CancellationToken
 DemoViewer.NET.Extensions.Sdk.IJobContext.Report(int done, int total, string? detail = null) -> void

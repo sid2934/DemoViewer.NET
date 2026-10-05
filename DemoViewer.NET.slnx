@@ -52,6 +52,7 @@
     <Folder Name="/src/Testing/">
         <Project Path="src/Testing/DemoViewer.NET.TestSupport/DemoViewer.NET.TestSupport.csproj"/>
         <Project Path="src/Testing/DemoViewer.NET.LiveSync.Tests/DemoViewer.NET.LiveSync.Tests.csproj"/>
+        <Project Path="src/Testing/ThirdPartyFake/ThirdPartyFake.csproj"/>
     </Folder>
     <Folder Name="/src/Visualization/">
         <Project Path="src/Visualization/DemoViewer.NET.Visualization/DemoViewer.NET.Visualization.csproj"/>
