@@ -14,19 +14,18 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.RoundFacts;
 
 /// <summary>
-///     The evaluator that writes round facts: a core pass on the demo's visit, so it runs on the parse the
-///     visit already holds and costs no second parse. It runs the merged rules on that parse and reads the
-///     <c>round_facts</c> table out of the run through its <see cref="IRoundFactsRowSource" />, projects it
-///     onto the record's <see cref="DemoCacheRecord.RoundFacts" />, stamped under the
-///     <see cref="RoundFactsFingerprint" /> (<see cref="RoundFactsRecords.WriteRoundFacts" />).
+///     The evaluator that writes round facts: a core pass on the demo's visit, so it costs no second parse.
+///     On a forward read it takes the <c>round_facts</c> table out of the visit's merged rules run; on a
+///     retained parse it runs the merged rules on that parse. Either way it projects the table onto the
+///     record's <see cref="DemoCacheRecord.RoundFacts" />, stamped under the <see cref="RoundFactsFingerprint" />
+///     (<see cref="RoundFactsRecords.WriteRoundFacts" />).
 ///     <para>
 ///         Registered after the highlight scanner; a pass that reads these rows orders after
 ///         <see cref="EvaluatorId" /> and reads them in the same visit.
 ///     </para>
 ///     <para>
-///         Gated by the ruleset's owner: off, it wants nothing, lists nothing pending and writes nothing. A
-///         user who disables the ruleset (a same-id override with <c>enabled: false</c>) removes it from the
-///         effective set; the identity then answers null, and the evaluator wants nothing either way.
+///         Always on. A user who disables the ruleset (a same-id override with <c>enabled: false</c>) removes
+///         it from the effective set; the identity then answers null, and the evaluator wants nothing.
 ///     </para>
 /// </summary>
 public sealed class RoundFactsEvaluator : IDemoEvaluator
@@ -102,6 +101,13 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
 
     /// <inheritdoc />
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
+
+    /// <summary>The rows come out of the visit's rules run, so a forward read serves this pass.</summary>
+    public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.Rules;
+
+    /// <inheritdoc />
+    public void EvaluateForward(string path, ForwardDemoResult pass) =>
+        Refresh(path, pass.Demo.TickRate, () => _rows.Rows(pass), () => pass.Rounds, () => FrameClock.IdentityFor(pass));
 
     /// <summary>
     ///     Rewrites a demo's index row from its record: for a row whose stamp claims rows the record does not
