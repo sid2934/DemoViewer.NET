@@ -797,8 +797,8 @@ public sealed class StratBookPack : IExtension
         ArgumentNullException.ThrowIfNull(services);
         IServiceProvider sp = services;
 
-        // The hub tab, the export chip, the round_facts ruleset and the playback contributions that read scene
-        // frames and keymap scopes are first-party surfaces the SDK does not carry.
+        // The hub tab, the export chip and the playback contributions that read scene frames and keymap
+        // scopes are first-party surfaces the SDK does not carry.
         IFirstPartyContributions firstParty = (IFirstPartyContributions)contributions;
 
         contributions.Commands(StratBookCommands.All);
@@ -857,11 +857,6 @@ public sealed class StratBookPack : IExtension
         // Every module is registered on both hosts; each degrades to session-only state in the browser and
         // says so. The VMs are container singletons resolved lazily on first activation, so nothing here
         // constructs one. The order is the shell's registration order and is pinned by a test.
-
-        // The round_facts ruleset in the rules directories is the pack's: MergedRulesBuild runs it only
-        // while the pack is on and keeps it out of the highlights fingerprint. Not a doc of its own, so
-        // the user overlay and the Workbench keep working on it.
-        firstParty.Ruleset(RoundFactsFingerprint.RulesetId);
 
         // The pack passes on the demo's visit, ordered to match the dependency chain each one reads: Round Index after the host's Round Facts rows,
         // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing

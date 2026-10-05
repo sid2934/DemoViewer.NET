@@ -831,25 +831,9 @@ public class App : Application
         // callback is rooted by the singleton IOptionsMonitor for the app's lifetime; nothing to dispose.
         // The one rules read highlights and round facts share, and the queue's forward pass over it. An entry
         // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
-        // A pack-owned ruleset (round_facts) rides the merged set only while its pack is on; the pack
-        // contributions are read on the first build, never at construction, since Contribute resolves services.
-        services.AddSingleton(sp =>
-        {
-            IFeatureGate? gate = sp.GetService<IFeatureGate>();
-            // A shipped extension's ruleset stays out of the core set even when the extension is not composed
-            // (safe mode): as an always-off claim, so the highlights fingerprint never moves with safe mode.
-            return new MergedRulesBuild(() =>
-            {
-                IReadOnlyList<GatedRuleset> gated = sp.GetRequiredService<PackContributionSet>().GatedRulesets(gate);
-                return
-                [
-                    .. gated,
-                    .. FeaturePacks.ClaimedRulesets
-                        .Where(id => !gated.Any(g => string.Equals(g.RulesetId, id, StringComparison.Ordinal)))
-                        .Select(id => new GatedRuleset(id, static () => false))
-                ];
-            });
-        });
+        // round_facts is a core stamped ruleset: always on, it rides every merged run, and it stays out of
+        // the highlights fingerprint because its rows are stamped under its own identity.
+        services.AddSingleton(_ => new MergedRulesBuild(() => [StampedRuleset.Core(RoundFactsFingerprint.RulesetId)]));
         services.AddSingleton(sp =>
         {
             ForwardPassRunner? forward = OperatingSystem.IsBrowser()
@@ -976,30 +960,19 @@ public class App : Application
         // evaluator rides the demo's visit after the highlight scan (no second parse) and writes the rows onto
         // the record under the round_facts ruleset's own fingerprint; the source is the read API over them.
         // The row source and the identity share the one merged build, so rows are always stored under the
-        // fingerprint of the doc that produced them. Both are gated on the ruleset's owner: while a pack
-        // claims round_facts, off looks off, and the rows stay on disk for when it comes back.
+        // fingerprint of the doc that produced them. Always on: 2D Playback reads the rows for every user.
         services.AddSingleton(sp => new RulesRoundFactsRulesetIdentity(sp.GetRequiredService<MergedRulesBuild>()));
         services.AddSingleton<IRoundFactsRulesetIdentity>(sp => sp.GetRequiredService<RulesRoundFactsRulesetIdentity>());
         services.AddSingleton<IRoundFactsRowSource>(sp =>
             new EngineRoundFactsRowSource(sp.GetRequiredService<RulesRoundFactsRulesetIdentity>()));
-        services.AddSingleton(sp =>
-        {
-            MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
-            return new RoundFactsEvaluator(
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<IRoundFactsRowSource>(),
-                sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
-                action => Dispatcher.UIThread.Post(action),
-                enabled: () => rules.IsOwnerOn(RoundFactsFingerprint.RulesetId));
-        });
-        services.AddSingleton<IRoundFactsSource>(sp =>
-        {
-            MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
-            return new RoundFactsSource(
-                sp.GetRequiredService<DemoCacheStore>(),
-                sp.GetRequiredService<RoundFactsEvaluator>(),
-                enabled: () => rules.IsOwnerOn(RoundFactsFingerprint.RulesetId));
-        });
+        services.AddSingleton(sp => new RoundFactsEvaluator(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<IRoundFactsRowSource>(),
+            sp.GetRequiredService<IRoundFactsRulesetIdentity>(),
+            action => Dispatcher.UIThread.Post(action)));
+        services.AddSingleton<IRoundFactsSource>(sp => new RoundFactsSource(
+            sp.GetRequiredService<DemoCacheStore>(),
+            sp.GetRequiredService<RoundFactsEvaluator>()));
 
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
@@ -1348,7 +1321,7 @@ public class App : Application
         registry.Register(new HighlightsModule(sp.GetRequiredService<HighlightsTabViewModel>));
 
         // Each pack's modules, in pack order, after the core modules. The pack owns which modules it
-        // contributes and their order. Rulesets are consumed by MergedRulesBuild.
+        // contributes and their order.
         foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
             IExtension pack = contributions.Pack;

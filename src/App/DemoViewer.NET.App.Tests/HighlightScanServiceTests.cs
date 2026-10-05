@@ -4,6 +4,7 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Profiles;
+using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
@@ -188,6 +189,40 @@ public class HighlightScanServiceTests
             // stops a rules save blanking the highlight section of the whole library.
             await Assert.That(store.TryLoadRecord("/demos/stale.dem")!.AnalysisState)
                 .IsEqualTo(DemoAnalysisState.Indexed);
+        }
+    }
+
+    // Demos scanned before Round Facts became a core stamped ruleset carry the pinned fingerprint; they stay
+    // current under the composed build, and a user override of round_facts that does not compose leaves the
+    // highlights backlog exactly as it was rather than reading every demo as current.
+    [Test]
+    public async Task RoundFactsAsCore_RequeuesNoHighlights_AndABrokenOverrideKeepsTheBacklog()
+    {
+        string shipped = RuleSetLocator.ResolveShippedRulesDirectory();
+        DirectoryInfo user = Directory.CreateTempSubdirectory("dv-hss-broken-");
+        try
+        {
+            string yaml = await File.ReadAllTextAsync(Path.Combine(shipped, "round_facts.rules.yaml"));
+            await File.WriteAllTextAsync(Path.Combine(user.FullName, "round_facts.rules.yaml"),
+                yaml + "\nhighlights:\n  broken:\n    when: no_such_stat >= 1\n    per: round\n    title: broken\n");
+
+            foreach (MergedRulesBuild rules in new[]
+                     {
+                         new MergedRulesBuild(() => YamlConfigLoader.LoadWithOverlay(shipped, null), () => [StampedRuleset.Core("round_facts")]),
+                         new MergedRulesBuild(() => YamlConfigLoader.LoadWithOverlay(shipped, user.FullName), () => [StampedRuleset.Core("round_facts")])
+                     })
+            {
+                DemoCacheStore store = new(null);
+                store.Upsert(IndexedRow("/demos/scanned.dem", 0, fingerprint: MergedRulesBuildTests.ShippedFingerprint64));
+                store.Upsert(IndexedRow("/demos/stale.dem", 0, fingerprint: "OLD"));
+                using HighlightScanService scanner = new(store, new RulesHighlightHarvester(rules), () => [], () => false);
+
+                await Assert.That(scanner.PendingPaths()).IsEquivalentTo(["/demos/stale.dem"]);
+            }
+        }
+        finally
+        {
+            user.Delete(true);
         }
     }
 

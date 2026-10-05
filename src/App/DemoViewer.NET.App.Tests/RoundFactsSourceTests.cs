@@ -69,38 +69,6 @@ public class RoundFactsSourceTests
         }
     };
 
-    // Pack off: every read answers "no rows" and the writer's Updated is not forwarded, so tints, joins
-    // and labels go with the pack. The rows stay in the store for when it comes back.
-    [Test]
-    public async Task PackOff_EveryReadAnswersNoRows_AndNothingIsForwarded()
-    {
-        DemoCacheStore store = Store();
-        bool packOn = false;
-        RoundFactsEvaluator evaluator = new(store, new NoRowsSource(), new NullIdentity());
-        RoundFactsSource source = new(store, evaluator, enabled: () => packOn);
-        int forwarded = 0;
-        source.Updated += _ => forwarded++;
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(source.TryGet(DemoA)).IsNull();
-            await Assert.That(source.TryGet(store.TryLoadRecord(DemoA)!)).IsNull();
-            await Assert.That(source.RoundAt(DemoA, 1500)).IsNull();
-            await Assert.That(source.Query(new RoundFactsFilter())).IsEmpty();
-            await Assert.That(source.FactsFor(DemoA, 1)).IsEmpty();
-            await Assert.That(store.TryLoadRecord(DemoA)!.RoundFacts).IsNotNull().Because("the rows are kept, not shown");
-        }
-
-        packOn = true;
-        using (Assert.Multiple())
-        {
-            await Assert.That(source.TryGet(DemoA)?.Rounds.Count).IsEqualTo(3);
-            await Assert.That(source.RoundAt(DemoA, 1500)?.Number).IsEqualTo(1);
-            await Assert.That(source.Query(new RoundFactsFilter())).IsNotEmpty();
-            await Assert.That(forwarded).IsEqualTo(0);
-        }
-    }
-
     private sealed class NoRowsSource : IRoundFactsRowSource
     {
         public RoundFactsTable Rows(CS2DemoKit.Parser.ParsedDemo parsed) => RoundFactsTable.Unavailable("test");

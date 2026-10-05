@@ -41,7 +41,6 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     private static ILogger? _diagLog;
 
     private readonly DemoCacheStore _demoCache;
-    private readonly Func<bool> _enabled;
     private readonly IRoundFactsRulesetIdentity _identity;
     private readonly Action<Action> _post;
     private readonly IRoundFactsRowSource _rows;
@@ -57,19 +56,16 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// <param name="rows">The engine seam that evaluates the ruleset on a held parse.</param>
     /// <param name="identity">The effective ruleset's fingerprint, or null when there is none.</param>
     /// <param name="post">UI-thread marshal for <see cref="Updated" />; defaults to synchronous.</param>
-    /// <param name="enabled">The ruleset owner's live gate; null means always on.</param>
     public RoundFactsEvaluator(
         DemoCacheStore demoCache,
         IRoundFactsRowSource rows,
         IRoundFactsRulesetIdentity identity,
-        Action<Action>? post = null,
-        Func<bool>? enabled = null)
+        Action<Action>? post = null)
     {
         _demoCache = demoCache;
         _rows = rows;
         _identity = identity;
         _post = post ?? (action => action());
-        _enabled = enabled ?? (() => true);
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(RoundFactsLog.Category);
@@ -91,11 +87,6 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// </remarks>
     public bool Wants(string path)
     {
-        if (!_enabled())
-        {
-            return false;
-        }
-
         DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
         string? fingerprint = TryFingerprint(BacklogTickRate);
         return entry is { ParseSchema: > 0 } && entry.NeedsRoundFacts(fingerprint) && !TriedWithoutRows(path, fingerprint);
@@ -104,7 +95,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
     /// <remarks>A demo the Library has not parsed yet: its rows can only be written once that parse has landed.</remarks>
     public bool WantsAfterUpstream(string path) =>
-        _enabled() && TryFingerprint(BacklogTickRate) is not null && _demoCache.TryGetIndex(path) is not { ParseSchema: > 0 };
+        TryFingerprint(BacklogTickRate) is not null && _demoCache.TryGetIndex(path) is not { ParseSchema: > 0 };
 
     /// <inheritdoc />
     public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
@@ -132,11 +123,6 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
-        if (!_enabled())
-        {
-            return [];
-        }
-
         string? fingerprint = TryFingerprint(BacklogTickRate);
         if (fingerprint is null)
         {
@@ -159,11 +145,6 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     private void Refresh(string path, int tickRate, Func<RoundFactsTable> rowsOf,
         Func<IReadOnlyList<ClipRound>> roundsOf, Func<ClockIdentity> clockOf)
     {
-        if (!_enabled())
-        {
-            return;
-        }
-
         string fileName = Path.GetFileName(path);
         try
         {

@@ -1443,7 +1443,7 @@ change adds that second extension, not done here.
 |---|---|---|
 | UI (tabs, sections, panes, lanes, menus, keybinds, settings pages, chips) | Gone immediately (gate is already live; sections reconcile by identity) | Never built |
 | Background jobs (evaluators, mining, inbox, lineup clips, migrations) | Evaluators stop at the next `Wants()` poll; queued jobs owned by the pack are cancelled by owner tag; a job already running finishes its current unit | Never queued |
-| Indexing passes (Round Index, Grenade walk, Suggested Tags, Round Facts if pack-owned) | Stop at the next demo; nothing new written | Not run. Library indexing does strictly less work |
+| Indexing passes (Round Index, Grenade walk, Suggested Tags) | Stop at the next demo; nothing new written | Not run. Library indexing does strictly less work |
 | Resident memory (`SituationIndex`, `GrenadeIndex`, `SignatureCache`, cached VMs) | Released in session (the in-session release rule; see the live toggle below) | Not allocated |
 | Startup cost (index loads, Team Identity rebuild, store construction) | n/a | None |
 | Data on disk (the pack's config-root and cache-root stores, cache sidecars, record fields) | Kept, untouched | Kept, untouched |
@@ -1453,10 +1453,11 @@ Strat Book data" as a separate, confirmed action that removes the paths in the p
 cache sidecars are regenerable, `strats/`, `tags/`, `teams.json`, `review-queue.json` and the dossier
 stores are user work and must be called out by name in the confirmation.
 
-**Round Facts while off.** Both the writer and the reader are gated: `RoundFactsEvaluator` writes
-nothing and `RoundFactsSource` answers "no rows" and forwards no `Updated`, so winner tints, situation joins
-and tag labels go with the pack rather than showing rows written while it was on. The rows stay in the cache
-records and come back with the pack; a bare run cached under one gate state is not served under another.
+**Round Facts while off.** Round Facts is core and always on: 2D Playback tints its round bands by the
+rows for every user. The `round_facts` ruleset is a core stamped ruleset, so it rides every merged run with
+the pack on or off and never enters the highlights fingerprint. The rows are the record's own
+`DemoCacheRecord.RoundFacts` member; rows an older build kept in the pack's payload are lifted onto it on
+read, under the same stamp, so nothing re-runs. "Delete extension data" leaves them.
 
 **Stale cache while off.** Library keeps indexing new demos without pack passes. The pack fields of those
 records are absent, or the `Packs` entry itself is missing. Fields of records indexed
@@ -1465,8 +1466,8 @@ before the switch stay as they were.
 **Re-enabling.** The pack's evaluators report every demo whose pack fingerprint is missing or stale through
 `PendingPaths()`, which is the existing mechanism, so re-enabling backfills automatically. The cost is a
 re-index of everything indexed while off, which on a large library is the same order as a first index.
-Round Facts is in the pack, and the highlights fingerprint already excludes it, so a toggle does not force
-a library-wide Reels re-scan. The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
+Round Facts is core and the highlights fingerprint excludes it, so a toggle does not force a library-wide
+Reels re-scan or a Round Facts one. The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
 be visible and pausable in the queue, per the standing rule that all background work goes through it.
 
 **Live toggle, as built.** Live in both directions, and turning off releases the pack's memory in
@@ -1540,8 +1541,8 @@ data for the session only.
 
 ## 4. Release and compatibility rules
 
-1. **Boundary:** the whole Strat Room is in the pack, and so are Round Facts, Teams and Provenance, so "off"
-   removes their indexing cost. The Review Queue stays core, since Reels uses it.
+1. **Boundary:** the whole Strat Room is in the pack, and so are Teams and Provenance, so "off" removes their
+   indexing cost. Round Facts is core. The Review Queue stays core, since Reels uses it.
 2. **Default:** first-run setup asks whether to turn it on; the answer sets the master switch. Upgrades keep
    it on.
 3. **Toggling:** turning it off is live and must also release its memory in session. No "reclaimed on
@@ -1705,8 +1706,7 @@ Rules as built:
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
   assembly, asks each compatible pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 2.4).
-- **Shared namespaces.** `DemoViewer.NET.Services.RoundFacts` (models and `IRoundFactsSource` in core,
-  `RoundFactsSource` and the evaluator in the pack), `DemoViewer.NET.Services.RoundIndex`
+- **Shared namespaces.** `DemoViewer.NET.Services.RoundIndex`
   (`RoundIndexTokenSource` in core, the index in the pack) and `DemoViewer.NET.Services.Zones` (Zone Baking in
   core, the resolver source in the pack) are declared by both assemblies. `PackBoundaryTests` treats a
   namespace both declare as shared and scans core only for the pack-owned ones.

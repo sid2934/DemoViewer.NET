@@ -85,14 +85,4 @@ internal sealed class PackContributionSet
 
     /// <summary>Every extension's "delete extension data" action, in pack order. One row per entry in Settings.</summary>
     public IReadOnlyList<IExtensionDataRemoval> DataRemovals => [.. Packs.Select(p => new HostDataRemoval(p, _sp))];
-
-    /// <summary>
-    ///     Every pack-owned ruleset with its owner's live gate answer. A null gate reads every pack as on,
-    ///     the designer and unit-test path; a pack id the gate does not know resolves off, never on.
-    /// </summary>
-    public IReadOnlyList<GatedRuleset> GatedRulesets(IFeatureGate? gate) =>
-    [
-        .. Packs.SelectMany(p => p.Rulesets.Select(r =>
-            new GatedRuleset(r.RulesetId, () => gate?.IsEnabled(p.Pack.FeatureId) ?? true)))
-    ];
 }

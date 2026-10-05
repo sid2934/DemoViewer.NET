@@ -11,9 +11,7 @@ namespace DemoViewer.NET.Extensions.Loading;
 /// <summary>What a desktop launch loads.</summary>
 /// <param name="Statuses">The shipped extensions, then the third-party ones that loaded.</param>
 /// <param name="ExternalRejected">Third-party copies that did not load, with the reason.</param>
-/// <param name="ClaimedRulesets">The rulesets the shipped extensions own, loaded or not.</param>
-public sealed record ExtensionStartupResult(
-    IReadOnlyList<PackStatus> Statuses, IReadOnlyList<LoadOutcome> ExternalRejected, IReadOnlyList<string> ClaimedRulesets);
+public sealed record ExtensionStartupResult(IReadOnlyList<PackStatus> Statuses, IReadOnlyList<LoadOutcome> ExternalRejected);
 
 /// <summary>The desktop head's extension resolution, before Avalonia starts.</summary>
 public static class ExtensionStartup
@@ -33,17 +31,16 @@ public static class ExtensionStartup
         ArgumentNullException.ThrowIfNull(host);
         ArgumentNullException.ThrowIfNull(shippedTrust);
         ArgumentNullException.ThrowIfNull(publisherKeys);
-        string[] claimed = [.. shipped.SelectMany(s => s.Rulesets ?? []).Distinct(StringComparer.Ordinal)];
         if (safeMode)
         {
-            return new ExtensionStartupResult([], [], claimed);
+            return new ExtensionStartupResult([], []);
         }
 
         IReadOnlyList<PackStatus> fromShipped = ExtensionLoader.Resolve(configRoot, shipped, host, shippedTrust);
         ExternalResolution external = ExternalExtensions.Resolve(configRoot,
             [.. fromShipped.Where(s => s.IsCompatible).Select(s => s.Pack)], host,
             new ExternalTrust(publisherKeys, allowUnverified));
-        return new ExtensionStartupResult([.. fromShipped, .. external.Loaded], external.Rejected, claimed);
+        return new ExtensionStartupResult([.. fromShipped, .. external.Loaded], external.Rejected);
     }
 
     /// <summary>

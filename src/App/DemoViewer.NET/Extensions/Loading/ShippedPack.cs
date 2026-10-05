@@ -10,16 +10,12 @@ namespace DemoViewer.NET.Extensions.Loading;
 /// <param name="Id">The pack id, equal to the manifest's.</param>
 /// <param name="Create">Constructs the compiled-in pack. Called at most once, and never when a staged copy wins.</param>
 /// <param name="ManifestPath">The shipped <c>extension.json</c>, as a full path.</param>
-/// <param name="Rulesets">
-///     Rulesets in the rules directories this pack owns. They stay out of the core set even when the pack is not
-///     composed (safe mode), so entering safe mode never changes the highlights fingerprint.
-/// </param>
-public sealed record ShippedPack(string Id, Func<IExtension> Create, string ManifestPath, IReadOnlyList<string>? Rulesets = null)
+public sealed record ShippedPack(string Id, Func<IExtension> Create, string ManifestPath)
 {
     /// <summary>
     ///     The shipped pack whose manifest the build copied beside the app
     ///     (<c>&lt;AppContext.BaseDirectory&gt;/extension.json</c>).
     /// </summary>
-    public static ShippedPack BesideApp(string id, Func<IExtension> create, IReadOnlyList<string>? rulesets = null) =>
-        new(id, create, Path.Combine(AppContext.BaseDirectory, Manifest.ExtensionManifest.FileName), rulesets);
+    public static ShippedPack BesideApp(string id, Func<IExtension> create) =>
+        new(id, create, Path.Combine(AppContext.BaseDirectory, Manifest.ExtensionManifest.FileName));
 }

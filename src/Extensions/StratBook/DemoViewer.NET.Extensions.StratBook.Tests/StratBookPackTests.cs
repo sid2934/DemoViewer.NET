@@ -233,12 +233,16 @@ public class StratBookPackTests
         });
     }
 
-    // The round_facts ruleset is the pack's. With the pack on the merged set is the whole read
-    // (the forward pass is byte-identical to before the pack); off, the ruleset alone leaves it.
+    // round_facts is core and always on: the pack claims no ruleset, so its state moves neither the merged
+    // set nor the core set, and the rows it reads are written with the pack on or off. Its Round Index
+    // still orders after the core Round Facts pass, which writes those rows on the same visit.
     [Test]
-    public async Task ThePack_ClaimsTheRoundFactsRuleset_WhichLeavesTheMergedSetOnlyWhenOff()
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task ThePack_ClaimsNoRuleset_AndRoundFactsRunsWithThePackOnOrOff(bool packOn)
     {
-        await WithProvider(null, async provider =>
+        string? settings = packOn ? null : """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
+        await WithProvider(settings, async provider =>
         {
             PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
             Modules.Highlights.MergedRulesBuild build = provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>();
@@ -252,23 +256,16 @@ public class StratBookPackTests
             using (Assert.Multiple())
             {
                 await Assert.That(pack.Pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
-                await Assert.That(pack.Rulesets.Select(r => r.RulesetId)).IsEquivalentTo(["round_facts"]);
-                await Assert.That(build.PackRulesets.Select(r => r.RulesetId)).IsEquivalentTo(["round_facts"]);
+                await Assert.That(build.StampedRulesets.Select(r => (r.RulesetId, r.Owner)))
+                    .IsEquivalentTo([("round_facts", Modules.Highlights.StampedRuleset.CoreOwner)]);
                 await Assert.That(read).Contains("round_facts");
                 await Assert.That(string.Join(",", build.Docs.Select(d => d.Id))).IsEqualTo(read)
-                    .Because("pack on: the merged set is the whole read, in read order");
-            }
-        });
-
-        const string packOff = """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
-        await WithProvider(packOff, async provider =>
-        {
-            Modules.Highlights.MergedRulesBuild build = provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>();
-            using (Assert.Multiple())
-            {
-                await Assert.That(build.Docs.Select(d => d.Id)).DoesNotContain("round_facts");
+                    .Because("the merged set is the whole read, in read order, whatever the pack says");
                 await Assert.That(build.CoreDocs.Select(d => d.Id)).DoesNotContain("round_facts");
-                await Assert.That(build.EnabledDoc("round_facts")).IsNull();
+                await Assert.That(build.EnabledDoc("round_facts")).IsNotNull();
+                await Assert.That(pack.Passes.Single(p => p.Id == "roundindex").After).IsEquivalentTo([DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass]);
+                await Assert.That(pack.Passes.Select(p => p.Id)).DoesNotContain(DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass)
+                    .Because("Delete extension data strips the pack's own pass stamps, never the core Round Facts one");
             }
         });
     }

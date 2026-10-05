@@ -42,7 +42,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly List<PassContribution> _passes = [];
     private readonly List<RecordPassContribution> _recordPasses = [];
     private readonly List<CommandDescriptor> _commands = [];
-    private readonly List<RulesetContribution> _rulesets = [];
     private readonly List<SettingsPageContribution> _settingsPages = [];
     private readonly List<StatusChipContribution> _statusChips = [];
     private readonly List<IReindexEstimate> _reindexEstimates = [];
@@ -61,8 +60,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public IExtensionContext Context => _context ??= context();
     public IReadOnlyList<GatedDemoAction> DemoActions => _demoActions;
 
-    /// <summary>Rulesets the pack owns, in contribution order.</summary>
-    public IReadOnlyList<RulesetContribution> Rulesets => _rulesets;
 
     /// <summary>Modules, in contribution order.</summary>
     public IReadOnlyList<IWorkspaceModule> Modules => _modules;
@@ -185,13 +182,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     {
         ArgumentNullException.ThrowIfNull(commands);
         _commands.AddRange(commands);
-    }
-
-    /// <inheritdoc />
-    public void Ruleset(string rulesetId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(rulesetId);
-        _rulesets.Add(new RulesetContribution(rulesetId));
     }
 
     /// <inheritdoc />

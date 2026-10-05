@@ -236,10 +236,10 @@ public class StratBookCompositionRootTests
 
             using (Assert.Multiple())
             {
-                // The seeded rows carry a fake fingerprint, so they are stale: the control below shows the
-                // pack-on build wants them, which is what makes this assertion non-vacuous.
-                await Assert.That(roundFacts.Wants(demo)).IsFalse();
-                await Assert.That(roundFacts.PendingPaths()).IsEmpty();
+                // Round Facts is core: the seeded rows carry a fake fingerprint, so they are stale with the
+                // pack off as well as on.
+                await Assert.That(roundFacts.Wants(demo)).IsTrue();
+                await Assert.That(roundFacts.PendingPaths()).Contains(demo);
                 await Assert.That(roundIndex.Wants(demo)).IsFalse();
                 await Assert.That(roundIndex.PendingPaths()).IsEmpty();
                 await Assert.That(suggestedTags.Wants(demo)).IsFalse();
@@ -253,10 +253,9 @@ public class StratBookCompositionRootTests
             }
 
             await Assert.That(SuggestedBadge(provider)).IsNull().Because("the pack is off: the pending suggestions are never read");
-            // The ruleset itself leaves the merged set: the Library and Highlights passes run less. Read
-            // after the evaluator asserts, since the first rules read collects the pack contributions.
+            // round_facts rides the merged set whatever the pack says.
             await Assert.That(provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>().Docs.Select(d => d.Id))
-                .DoesNotContain(DemoViewer.NET.Services.RoundFacts.RoundFactsFingerprint.RulesetId);
+                .Contains(DemoViewer.NET.Services.RoundFacts.RoundFactsFingerprint.RulesetId);
         }, packOff);
 
         // Control: the same seed and the same demo, pack on (its default). Without this, the asserts

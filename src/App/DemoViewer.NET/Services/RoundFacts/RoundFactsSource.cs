@@ -7,32 +7,19 @@ using DemoViewer.NET.Services.DemoCache;
 
 namespace DemoViewer.NET.Services.RoundFacts;
 
-/// <summary>
-///     The store-backed <see cref="IRoundFactsSource" />. Gated with the ruleset's owner like the writer: off,
-///     every read answers "no rows" and nothing is forwarded, so rows written while the owner was on stop
-///     surfacing (tints, joins, labels) the moment it goes off. The rows themselves stay on disk.
-/// </summary>
+/// <summary>The store-backed <see cref="IRoundFactsSource" />: the rows on each demo's cache record.</summary>
 public sealed class RoundFactsSource : IRoundFactsSource
 {
     private readonly DemoCacheStore _demoCache;
-    private readonly Func<bool> _enabled;
 
     /// <param name="demoCache">The unified demo cache the rows live in.</param>
     /// <param name="evaluator">The writer, whose <see cref="RoundFactsEvaluator.Updated" /> this forwards; null in a read-only host.</param>
-    /// <param name="enabled">The ruleset owner's live gate; null means always on.</param>
-    public RoundFactsSource(DemoCacheStore demoCache, RoundFactsEvaluator? evaluator = null, Func<bool>? enabled = null)
+    public RoundFactsSource(DemoCacheStore demoCache, RoundFactsEvaluator? evaluator = null)
     {
         _demoCache = demoCache;
-        _enabled = enabled ?? (() => true);
         if (evaluator is not null)
         {
-            evaluator.Updated += path =>
-            {
-                if (_enabled())
-                {
-                    Updated?.Invoke(path);
-                }
-            };
+            evaluator.Updated += path => Updated?.Invoke(path);
         }
     }
 
@@ -43,10 +30,10 @@ public sealed class RoundFactsSource : IRoundFactsSource
     public event Action<string>? Updated;
 
     /// <inheritdoc />
-    public RoundFactsRows? TryGet(string demoPath) => _enabled() ? _demoCache.RoundFactsOf(demoPath) : null;
+    public RoundFactsRows? TryGet(string demoPath) => _demoCache.RoundFactsOf(demoPath);
 
     /// <inheritdoc />
-    public RoundFactsRows? TryGet(DemoCacheRecord record) => _enabled() ? _demoCache.RoundFactsOf(record) : null;
+    public RoundFactsRows? TryGet(DemoCacheRecord record) => _demoCache.RoundFactsOf(record);
 
     /// <inheritdoc />
     public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
@@ -56,11 +43,6 @@ public sealed class RoundFactsSource : IRoundFactsSource
     public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter)
     {
         ArgumentNullException.ThrowIfNull(filter);
-        if (!_enabled())
-        {
-            return [];
-        }
-
         List<(DemoCacheIndexEntry, RoundFacts)> hits = [];
         foreach (DemoCacheRecord record in _demoCache.LoadRecords(e =>
                      e.RoundFactsStamp() is { Schema: > 0 } && (filter.Demos is null || filter.Demos.Contains(e.Path))))

@@ -72,9 +72,9 @@ public class EngineRoundFactsRowSourceTests
         RulesetDoc doc = ShippedDoc();
         DemoViewer.NET.Modules.Highlights.MergedRulesBuild build = new(
             () => throw new InvalidOperationException("the filter needs no read"),
-            () => [new DemoViewer.NET.Extensions.GatedRuleset(RoundFactsFingerprint.RulesetId, () => true)]);
+            () => [DemoViewer.NET.Modules.Highlights.StampedRuleset.Core(RoundFactsFingerprint.RulesetId)]);
 
-        await Assert.That(build.WithoutPackRulesets([doc])).IsEmpty();
+        await Assert.That(build.WithoutStampedRulesets([doc])).IsEmpty();
     }
 
     [Test]

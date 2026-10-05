@@ -605,11 +605,11 @@ public class StratBookPackBaselineTests
     ///     The "library + highlights only" indexing-time case. Unlike <see cref="IndexingTimePerDemo" />,
     ///     which calls every evaluator's <c>Evaluate</c> directly and so bypasses
     ///     <c>Wants</c>, this times every demo with <see cref="TimeReduced" /> only:
-    ///     with the pack off, Round Facts, Round Index, Suggested Tags and Grenades all answer
+    ///     with the pack off, Round Index, Suggested Tags and Grenades all answer
     ///     <c>Wants() == false</c>, so the real coordinator never submits a demo to them and the forward
-    ///     pass library and highlights alone run is the whole of what "library index time" means now. Also
-    ///     confirms <c>round_facts</c> actually left the merged ruleset, not just the evaluator's
-    ///     own write.
+    ///     pass library, highlights and the core Round Facts run is the whole of what "library index time"
+    ///     means now. Also reports whether <c>round_facts</c> is in the merged ruleset, which it is with the
+    ///     pack on or off.
     /// </summary>
     [Test]
     [Category("Environmental")]

@@ -11,7 +11,6 @@ using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.LiveSync;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Options;
@@ -80,13 +79,13 @@ internal sealed class Program
         bool allowUnverified = ExtensionStartup.ReadAllowUnverified(AppPaths.SettingsFile);
         ExtensionStartupResult extensions = ExtensionStartup.Resolve(
             AppPaths.ConfigRoot,
-            [ShippedPack.BesideApp(StratBookPack.PackId, static () => new StratBookPack(), [RoundFactsFingerprint.RulesetId])],
+            [ShippedPack.BesideApp(StratBookPack.PackId, static () => new StratBookPack())],
             ExtensionHost.Current,
             TrustPolicy.ForLaunch(allowUnverified),
             PublisherKeys.Current,
             allowUnverified,
             launch.Decision.IsActive);
-        FeaturePacks.ConfigureResolved(extensions.Statuses, extensions.ExternalRejected, extensions.ClaimedRulesets);
+        FeaturePacks.ConfigureResolved(extensions.Statuses, extensions.ExternalRejected);
 
         // One fault tracker for the process, before anything runs extension code: the composition root takes
         // it, and the UI-thread and unobserved-task backstops attribute through it.

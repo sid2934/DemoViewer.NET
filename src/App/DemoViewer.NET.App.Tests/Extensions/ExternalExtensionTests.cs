@@ -196,13 +196,11 @@ public class ExternalExtensionTests
         {
             Install(root);
             ExtensionStartupResult result = ExtensionStartup.Resolve(root,
-                [ShippedPack.BesideApp(StratBookPackId, static () => new global::DemoViewer.NET.Extensions.StratBook.StratBookPack(), ["round_facts"])],
+                [ShippedPack.BesideApp(StratBookPackId, static () => new global::DemoViewer.NET.Extensions.StratBook.StratBookPack())],
                 ExtensionHost.Current, TrustPolicy.Nothing, PublisherKeys.Current, allowUnverified: true, safeMode: true);
 
             await Assert.That(result.Statuses).IsEmpty();
             await Assert.That(result.ExternalRejected).IsEmpty();
-            await Assert.That(result.ClaimedRulesets).IsEquivalentTo(["round_facts"])
-                .Because("the shipped extension's ruleset stays claimed, so safe mode leaves the highlights fingerprint alone");
         }
         finally
         {

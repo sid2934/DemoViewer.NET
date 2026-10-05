@@ -39,20 +39,6 @@ public sealed record PassContribution(string Id, Func<IDemoPass> Factory, IReadO
 internal sealed record RecordPassContribution(string Id, Func<IExtensionRecordPass> Factory, ExtensionGuard Guard);
 
 /// <summary>
-///     A ruleset in the rules directories that a pack owns. The merged background build runs it only while
-///     the owning pack is on, and it never enters the highlights fingerprint: the pack stamps its own rows
-///     with its own identity, so toggling the pack re-runs nothing of the core's.
-/// </summary>
-/// <param name="RulesetId">The <c>id:</c> of the ruleset as the rules directories spell it.</param>
-public sealed record RulesetContribution(string RulesetId);
-
-/// <summary>
-///     A pack-owned ruleset as <see cref="DemoViewer.NET.Modules.Highlights.MergedRulesBuild" /> reads it: the
-///     id and the live answer to "is the owning pack on".
-/// </summary>
-public sealed record GatedRuleset(string RulesetId, Func<bool> Enabled);
-
-/// <summary>
 ///     A strip tab a pack contributes to host sections (the Strat Book hub). Sections name it by
 ///     <paramref name="HostId" /> through <see cref="WorkspaceTabDescriptor.HostId" />; the shell shows the
 ///     tab only while <paramref name="FeatureId" /> resolves on AND at least one hosted section does, and
@@ -126,9 +112,6 @@ internal interface IFirstPartyContributions : IExtensionContributions
 {
     /// <summary>A strip tab that hosts sections.</summary>
     void HostTab(HostTabContribution host);
-
-    /// <summary>A ruleset the merged background build runs only while the extension is on.</summary>
-    void Ruleset(string rulesetId);
 
     /// <summary>A status-chip slot on the shell's strip.</summary>
     void StatusChip(StatusChipContribution chip);
