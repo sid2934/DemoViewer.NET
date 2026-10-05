@@ -210,6 +210,9 @@ public static partial class Variants
             ["uikit-status-chips"] = UiKitStatusChips,
             ["uikit-controls"] = UiKitControls,
             ["uikit-third-party-fake"] = UiKitThirdPartyFake,
+            // The notification stack over the status strip: two extensions, every severity, one capped
+            // flood; 720x520.
+            ["uikit-notifications"] = UiKitNotifications,
             ["highlights-populated"] = () => Highlights(true, false),
             ["highlights-empty"] = () => Highlights(false, false),
             ["highlights-narrow"] = () => Highlights(true, true),

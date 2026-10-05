@@ -21,6 +21,45 @@ public static partial class Variants
     // A 1x1 red GIF87a: enough for GifView to decode and paint a frame without a file in the repository.
     private const string OnePixelGif = "R0lGODdhAQABAPAAAP8AAAAAACwAAAAAAQABAAACAkQBADs=";
 
+    // The host's stack as the shell draws it, off the strip's right end. The flood posts ten cards and
+    // shows the cap's three; the other extension's card stays.
+    private static Panel UiKitNotifications()
+    {
+        DemoViewer.NET.Extensions.ExtensionScope hello = new("dev.example.hello", "pack.hello", "Hello", typeof(Variants).Assembly);
+        DemoViewer.NET.Extensions.ExtensionScope loud = new("dev.example.loud", "pack.loud", "Loud", typeof(Variants).Assembly);
+        DemoViewer.NET.Extensions.ExtensionFaults faults = new([hello, loud], static a => a());
+        DemoViewer.NET.Extensions.NotificationCenter center = new(static a => a());
+        IExtensionNotifications helloNotes = center.For(faults.GuardFor(hello));
+        IExtensionNotifications loudNotes = center.For(faults.GuardFor(loud));
+
+        helloNotes.Post(new Notification("greeted", NotificationSeverity.Success, "Greeted de_mirage.dem", "212,480 frames.")
+        {
+            Action = new NotificationAction("Show", static () => { })
+        });
+        for (int i = 1; i <= 10; i++)
+        {
+            NotificationSeverity severity = (NotificationSeverity)(i % 4);
+            loudNotes.Post(new Notification("loud" + i, severity, $"Loud message {i}",
+                i % 2 == 0 ? null : "A body long enough to wrap onto a second line inside the card's fixed width."));
+        }
+
+        Panel root = new() { Width = 720, Height = 520, Background = Tok(ThemeTokens.ShellBg) };
+        root.Children.Add(new DemoViewer.NET.Controls.StatusStrip
+        {
+            VerticalAlignment = VerticalAlignment.Bottom,
+            StatusText = "Ready.",
+            RightText = "de_mirage"
+        });
+        root.Children.Add(new DemoViewer.NET.Controls.NotificationTray
+        {
+            Items = center.Cards,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 12, 34)
+        });
+        return root;
+    }
+
     private static Border UiKitStatusChips()
     {
         Grid grid = new()
