@@ -1713,7 +1713,7 @@ Rules as built:
   `PackBoundaryTests` pins. The extension builds on public types: the SDK, the UI kit's `MapView` for the
   Query Canvas and the Utility Book map, the published scene contract, `Scene2DHost.AddTool`/`AddLayer`/
   `FrameHost` for the strat canvas, and the first-party seam (`IFirstPartyShellState`,
-  `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`). The strat frame source builds a frame shell per
+  `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`, `FirstPartySceneExport`). The strat frame source builds a frame shell per
   call over its pooled lists instead of refilling `Scene2DFrame`'s internals. In the two unpublished
   Playback2D assemblies it binds only export, clip export and Review Queue types, which
   `PackPlayback2DBindingTests` reads from its metadata against a list with a reason per type; maps, map

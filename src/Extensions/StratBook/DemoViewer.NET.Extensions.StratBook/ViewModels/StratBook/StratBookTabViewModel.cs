@@ -331,12 +331,12 @@ public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspa
     public string StatusLine => Session.StatusText;
 
     /// <summary>
-    ///     True when the open strat can be exported: the feature is on, the shell wired a host (a desktop build),
+    ///     True when the open strat can be exported: the feature is on, the shell wired a host that builds export jobs (a desktop build),
     ///     and a strat is open. Re-raised wherever one of the three changes.
     /// </summary>
     public bool CanExport =>
         _context?.Features?.IsEnabled(ExportFeatureId) is not false &&
-        _context?.GetService<IStratExport>() is not null &&
+        _context?.GetService<IStratExport>() is { NewJob: not null } &&
         HasOpenStrat;
 
     /// <summary>
