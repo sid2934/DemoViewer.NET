@@ -21,6 +21,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     compiled-in pack.
 /// </summary>
 [NotInParallel]
+[Category("Render")]
 public class ThirdPartyViewResolutionTests
 {
     private static string FakeOutput()
