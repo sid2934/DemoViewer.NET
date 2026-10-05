@@ -1,8 +1,11 @@
 #region
 
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 #endregion
 
@@ -61,6 +64,43 @@ public class ShellModuleFeatureGateTests
         using ShellModuleFeatureGate projection = new(gate, static () => true);
 
         await Assert.That(projection.IsEnabled("playback2d.export")).IsFalse();
+    }
+
+    // A module reads the pack's sub-features through this projection: a session suspension of the pack
+    // turns them off here too and tells the module, with no settings write.
+    [Test]
+    [NotInParallel]
+    public async Task ASuspendedPack_TurnsItsSubFeaturesOff_ForModules()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvshellgate_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            SettingsService svc = new(dir);
+            svc.Write(s => s.UserCategory = UserCategory.Developer);
+            ServiceCollection services = new();
+            services.Configure<AppSettings>(svc.Configuration);
+            using ServiceProvider sp = services.BuildServiceProvider();
+            using FeatureGate gate = new(sp.GetRequiredService<IOptionsMonitor<AppSettings>>(), false);
+            using ShellModuleFeatureGate projection = new(gate, static () => false);
+            string sub = FeatureCatalog.All
+                .First(d => d.OwnerPackId == StratBookPack.PackFeatureId && d.Scope == FeatureScope.SubFeature && !d.Required).Id;
+            int raised = 0;
+            projection.Changed += () => raised++;
+            await Assert.That(projection.IsEnabled(sub)).IsTrue();
+
+            gate.SuspendForSession(StratBookPack.PackFeatureId);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(projection.IsEnabled(sub)).IsFalse();
+                await Assert.That(raised).IsEqualTo(1);
+            }
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
     }
 
     [Test]
