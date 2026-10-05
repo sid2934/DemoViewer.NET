@@ -26,7 +26,7 @@ public class ExternalExtensionTests
     }
 
     // <root>/extensions/<id>/<version>/ holding the sample's build output.
-    private static string Install(string configRoot, string id = HelloId, string version = "1.0.0")
+    internal static string Install(string configRoot, string id = HelloId, string version = "1.0.0")
     {
         string target = Path.Combine(configRoot, ExtensionLoader.ExtensionsDirectoryName, id, version);
         Directory.CreateDirectory(target);
@@ -38,12 +38,12 @@ public class ExternalExtensionTests
         return target;
     }
 
-    private static string NewRoot() => Path.Combine(Path.GetTempPath(), "dv-ext-" + Guid.NewGuid().ToString("N"));
+    internal static string NewRoot() => Path.Combine(Path.GetTempPath(), "dv-ext-" + Guid.NewGuid().ToString("N"));
 
-    private static ExternalResolution Resolve(string root, bool allowUnverified, IReadOnlyList<IExtension>? shipped = null) =>
+    internal static ExternalResolution Resolve(string root, bool allowUnverified, IReadOnlyList<IExtension>? shipped = null) =>
         ExternalExtensions.Resolve(root, shipped ?? [], ExtensionHost.Current, new ExternalTrust(PublisherKeys.Current, allowUnverified));
 
-    private static void Cleanup(string root)
+    internal static void Cleanup(string root)
     {
         try
         {
@@ -201,6 +201,8 @@ public class ExternalExtensionTests
 
             await Assert.That(result.Statuses).IsEmpty();
             await Assert.That(result.ExternalRejected).IsEmpty();
+            await Assert.That(result.ClaimedRulesets).Contains("dev_example_hello__kills")
+                .Because("the sample's manifest claims its ruleset, so it stays apart from the highlights unloaded");
         }
         finally
         {

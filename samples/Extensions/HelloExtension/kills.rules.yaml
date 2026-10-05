@@ -1,0 +1,18 @@
+# A ruleset the Hello extension ships. The host runs it with the highlights on every demo while the
+# extension is on and keeps its table as library facts, which the extension reads back by FactKey.
+# The ruleset: key is the qualified id: the extension id made safe, two underscores, the name.
+ruleset: dev_example_hello__kills
+title: Hello kills
+summary: Kills per player across the match.
+for: each_player
+stats:
+  kills:
+    count: kill
+    per: match
+    label: HelloKills
+show:
+  tables:
+    hello_kills:
+      per: player_match
+      columns:
+        - { stat: kills, label: kills }

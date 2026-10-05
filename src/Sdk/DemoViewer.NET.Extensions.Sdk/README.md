@@ -1,7 +1,7 @@
 # DemoViewer.NET Extensions SDK
 
-Build extensions for DemoViewer.NET: tabs, demo passes and jobs, 2D Playback contributions, Library filters and
-badges, Match Overview actions, settings and per-demo data. An extension is a .NET 10 class library that references
+Build extensions for DemoViewer.NET: tabs, demo passes and jobs, rulesets, 2D Playback contributions, Library
+filters and badges, Match Overview actions, settings and per-demo data. An extension is a .NET 10 class library that references
 this package and nothing else of the app's.
 
 `samples/Extensions/HelloExtension` in the DemoViewer.NET repository is a complete, minimal extension.
@@ -77,6 +77,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `Tabs` | An `IWorkspaceModule` whose tabs join the strip. |
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `RecordPass` | An `IExtensionRecordPass` that runs over what the library already holds for a demo, without a parse. |
+| `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts. |
 | `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind. |
 | `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
 | `SettingsPage` | A page under Settings, Extensions with controls of your own. |
@@ -179,6 +180,51 @@ sealed class RosterPass : IExtensionRecordPass
 
 A record pass runs again on a demo only when its row changes. One that throws is skipped for that demo for the
 rest of the session and counted against the extension.
+
+## Analysis facts
+
+`context.Library.Facts` is every analysis output the library holds: the highlights its scan found
+(`Highlights`), the per-round, per-side Round Facts rows (`RoundFacts`), and the tables of every ruleset the
+host runs beside the highlights, its own and every extension's, as `FactTable`s keyed by
+`FactKey(rulesetId, table)`. Facts are library data: an extension reads another's as freely as its own. A
+ruleset whose extension is off is not in `Declared`, and its facts read as absent until it is back on.
+
+`Declared`, `Status` and `IsCurrent` read the library's index and open no file. `TryGet`, `Highlights` and the
+Round Facts rows read one file each: call them off the UI thread, in a job or a pass. A demo whose facts were
+written raises `Library.Changed` for it. A pass that reads them names `HostIds.FactsPass` (or
+`HostIds.RoundFactsPass`) in `after`.
+
+A ruleset's scoreboard is read off snapshots, which only a full analysis of one open demo takes, so the library
+never writes it: its key is in `Declared` and its status is always `NeedsFullAnalysis`.
+
+## Rulesets
+
+Ship a ruleset as YAML and the host runs it on every demo the library visits, in the same rules run as the
+highlights, while the extension is on:
+
+```csharp
+contributions.Ruleset(new RulesetContribution("kills",
+    () => typeof(MyExtension).Assembly.GetManifestResourceStream("MyExtension.kills.rules.yaml")!));
+```
+
+The ruleset's id is qualified with the extension id: `RulesetContribution.QualifiedId("com.example.myextension",
+"kills")` is `com_example_myextension__kills`, and the YAML's `ruleset:` key must be exactly that. Each table its
+`show: tables:` declares is written for every demo as a fact under `FactKey(qualifiedId, tableName)`; a table name
+must be one no other ruleset declares. Editing the YAML re-runs the ruleset alone on every demo, and never the
+highlights.
+
+The host reads the YAML between the shipped rules and the user's own rules folder, so a user file with the same
+id overrides yours, or switches it off with `enabled: false`. A ruleset that does not load, carries another id or
+reuses a table name is left out with a line in the diagnostics log, and nothing else is affected.
+
+List the names in `extension.json`, so the host keeps them apart from the highlights even when the extension
+does not load:
+
+```json
+"rulesets": ["kills"]
+```
+
+"Delete extension data" removes the facts of your rulesets with the rest of your data.
 
 ## Settings
 

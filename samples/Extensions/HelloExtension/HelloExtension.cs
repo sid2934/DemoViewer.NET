@@ -9,8 +9,9 @@ namespace HelloExtension;
 
 /// <summary>
 ///     A tab that shows the open demo, a pass that counts the open demo's frames and keeps the count as the
-///     demo's own data, a settings page the host renders, a Match Overview action that greets a demo from a job
-///     on its parse, and a 2D Playback toolbar button.
+///     demo's own data, a ruleset whose kills table the host keeps as library facts and the tab reads back, a
+///     settings page the host renders, a Match Overview action that greets a demo from a job on its parse, and a
+///     2D Playback toolbar button.
 /// </summary>
 public sealed class HelloExtension : IExtension
 {
@@ -53,6 +54,11 @@ public sealed class HelloExtension : IExtension
         // parse and never makes the library read a demo for it.
         contributions.Pass(FrameCountPass.PassId, () => new FrameCountPass(services.GetRequiredService<HelloTabViewModel>(), context.Data));
 
+        // The host runs the ruleset with the highlights on every demo while the extension is on and keeps its
+        // table as library facts. extension.json lists it under "rulesets" too.
+        contributions.Ruleset(new RulesetContribution(HelloFacts.RulesetName,
+            () => typeof(HelloExtension).Assembly.GetManifestResourceStream("HelloExtension.kills.rules.yaml")!));
+
         // A job that names the demo runs on that demo's parse: the shell's when the demo is open.
         contributions.DemoAction(new DemoAction("hello.greet", "Say hello", "Greets this demo with its frame count",
             _ => true,
@@ -78,6 +84,7 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
     private readonly IExtensionContext _context;
     private volatile string? _openDemo;
     private string? _greeted;
+    private int? _kills;
 
     public HelloTabViewModel(IExtensionContext context)
     {
@@ -92,7 +99,15 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
                 _context.Passes.Request(path);
             }
 
+            ReadKills();
             Changed?.Invoke();
+        };
+        _context.Library.Changed += change =>
+        {
+            if (change.Path is null || string.Equals(change.Path, _openDemo, StringComparison.OrdinalIgnoreCase))
+            {
+                ReadKills();
+            }
         };
         _context.Settings.Changed += _ => Changed?.Invoke();
         _context.Data.Changed += _ => Changed?.Invoke();
@@ -120,8 +135,34 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
                                              && FrameCountPass.Count(_context.Data, open) is { } count
                 ? $" ({count} frames)"
                 : "";
-            return $"Open demo: {open ?? "none"}{frames}. Last greeted: {Greeted ?? "nobody"}.";
+            string kills = _kills is { } total ? $" {total} kills." : "";
+            return $"Open demo: {open ?? "none"}{frames}.{kills} Last greeted: {Greeted ?? "nobody"}.";
         }
+    }
+
+    // The table is a file read, so it runs as a job; the status check before it reads only the index.
+    private void ReadKills()
+    {
+        string? path = _openDemo;
+        _kills = null;
+        if (path is null || !_context.Library.Facts.IsCurrent(path, HelloFacts.Key))
+        {
+            return;
+        }
+
+        _ = _context.Jobs.RunAsync("Hello: read kills", _ =>
+        {
+            int? kills = HelloFacts.TotalKills(_context.Library.Facts, path);
+            _context.Post(() =>
+            {
+                if (string.Equals(path, _openDemo, StringComparison.OrdinalIgnoreCase))
+                {
+                    _kills = kills;
+                    Changed?.Invoke();
+                }
+            });
+            return Task.CompletedTask;
+        });
     }
 
     // The stamp comes from the store's index, so this opens no file and is safe on the UI thread.
@@ -140,6 +181,20 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
     public void RestoreState(object? state)
     {
     }
+}
+
+/// <summary>The extension's ruleset's output as the library keeps it.</summary>
+public static class HelloFacts
+{
+    /// <summary>The extension's own name for its ruleset.</summary>
+    public const string RulesetName = "kills";
+
+    /// <summary>The table the ruleset declares: one row per player, the match's kills.</summary>
+    public static FactKey Key { get; } = new(RulesetContribution.QualifiedId(HelloExtension.ExtensionId, RulesetName), "hello_kills");
+
+    /// <summary>Every player's kills in the demo summed, or null when the library has not written the table.</summary>
+    public static int? TotalKills(IAnalysisFacts facts, string demoPath) =>
+        facts.TryGet(demoPath, Key) is { } table ? (int)table.Rows.Sum(r => r.Values.GetValueOrDefault("kills")?.AsNumber() ?? 0) : null;
 }
 
 /// <summary>

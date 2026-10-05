@@ -5,5 +5,6 @@
   "assembly": "HelloExtension.dll",
   "entryType": "HelloExtension.HelloExtension",
   "requiresHost": "^1.1",
-  "requiresCs2DemoKit": "*"
+  "requiresCs2DemoKit": "*",
+  "rulesets": ["kills"]
 }

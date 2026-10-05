@@ -18,6 +18,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <EmbeddedResource Include="kills.rules.yaml" LogicalName="HelloExtension.kills.rules.yaml"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
     </ItemGroup>
 
