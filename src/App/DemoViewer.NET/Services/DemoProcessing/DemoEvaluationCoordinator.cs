@@ -61,6 +61,12 @@ public sealed class DemoEvaluationCoordinator : IDisposable
 
     private bool _disposed;
 
+    /// <summary>
+    ///     Told when an evaluator throws from any call the coordinator makes into it, with the demo when there
+    ///     is one. The composition root counts it against the extension that contributed the evaluator.
+    /// </summary>
+    public Action<string, string?, Exception>? Faulted { get; set; }
+
     /// <param name="evaluators">The registered background features (order = fan-out order within a slot).</param>
     /// <param name="queue">The shared processing queue that owns the workers + gate + coalescing.</param>
     /// <param name="candidatePaths">
@@ -156,9 +162,10 @@ public sealed class DemoEvaluationCoordinator : IDisposable
             {
                 wants = evaluator.Wants(path);
             }
-            catch (Exception)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 // A misbehaving interest check must not stall the others or the pump.
+                ReportFault(evaluator.Id, path, ex);
                 continue;
             }
 
@@ -276,8 +283,9 @@ public sealed class DemoEvaluationCoordinator : IDisposable
             {
                 evaluator.OnParsedOpportunistically(path, parsed);
             }
-            catch (Exception)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                ReportFault(evaluator.Id, path, ex);
                 // Isolated: a misbehaving hand-off handler must not fail the trigger or the other evaluators.
             }
         }
@@ -334,6 +342,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
                 _faulted.Add(key);
             }
 
+            ReportFault(key.Eval, key.Path, ex);
             throw;
         }
         finally
@@ -364,58 +373,76 @@ public sealed class DemoEvaluationCoordinator : IDisposable
             {
                 evaluator.OnForwardOpportunistically(path, pass);
             }
-            catch (Exception)
+            catch (Exception ex) when (ex is not OutOfMemoryException)
             {
+                ReportFault(evaluator.Id, path, ex);
                 // Isolated, like FanOutParsed.
             }
         }
     }
 
-    private static ForwardNeeds? SafeForwardFor(IDemoEvaluator evaluator, string path)
+    private ForwardNeeds? SafeForwardFor(IDemoEvaluator evaluator, string path)
     {
         try
         {
             return evaluator.ForwardFor(path);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            ReportFault(evaluator.Id, path, ex);
             return null;
         }
     }
 
-    private static DemoJobPriority SafePriority(IDemoEvaluator evaluator, string path)
+    private DemoJobPriority SafePriority(IDemoEvaluator evaluator, string path)
     {
         try
         {
             return evaluator.PriorityFor(path);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            ReportFault(evaluator.Id, path, ex);
             return DemoJobPriority.Background;
         }
     }
 
-    private static bool SafeReadsUserCommands(IDemoEvaluator evaluator)
+    private bool SafeReadsUserCommands(IDemoEvaluator evaluator)
     {
         try
         {
             return evaluator.ReadsUserCommands;
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            ReportFault(evaluator.Id, null, ex);
             return true;
         }
     }
 
-    private static long SafeOrderHint(IDemoEvaluator evaluator, string path)
+    private long SafeOrderHint(IDemoEvaluator evaluator, string path)
     {
         try
         {
             return evaluator.OrderHint(path);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            ReportFault(evaluator.Id, path, ex);
             return 0;
+        }
+    }
+
+    // The callback is the composition root's; it must never break the pump either.
+    private void ReportFault(string evaluatorId, string? path, Exception exception)
+    {
+        try
+        {
+            Faulted?.Invoke(evaluatorId, path, exception);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Nothing to fall back to.
         }
     }
 }

@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -968,12 +969,35 @@ public class App : Application
             registry.AddCore(library.Id, () => library);
             registry.AddCore(highlights.Id, () => highlights);
 
+            // Each pack evaluator's extension, so a throw from any call into it counts against that extension.
+            // Filled when the registry populates, before anything can fault.
+            ConcurrentDictionary<string, ExtensionGuard> guardOf = new(StringComparer.Ordinal);
+
+            IEnumerable<string> PendingOf(IDemoEvaluator evaluator)
+            {
+                if (!guardOf.TryGetValue(evaluator.Id, out ExtensionGuard? guard))
+                {
+                    return evaluator.PendingPaths();
+                }
+
+                return guard.Run<IReadOnlyList<string>>("pending demos of " + evaluator.Id, evaluator.PendingPaths, []);
+            }
+
             DemoEvaluationCoordinator coordinator = new(
                 registry.Resolve,
                 sp.GetRequiredService<IDemoProcessingQueue>(),
-                () => registry.Resolve().SelectMany(e => e.PendingPaths()).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+                () => registry.Resolve().SelectMany(PendingOf).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 sp.GetRequiredService<MergedRulesBuild>().Forget,
-                registry.Validate);
+                registry.Validate)
+            {
+                Faulted = (id, _, ex) =>
+                {
+                    if (guardOf.TryGetValue(id, out ExtensionGuard? guard))
+                    {
+                        guard.Report("pass " + id, ex);
+                    }
+                }
+            };
             library.Coordinator = coordinator;
             highlights.Coordinator = coordinator;
 
@@ -983,14 +1007,18 @@ public class App : Application
                 foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
                 {
                     IExtension pack = contributions.Pack;
+                    ExtensionGuard guard = contributions.Guard;
                     foreach (EvaluatorContribution contribution in contributions.Evaluators)
                     {
                         // .Coordinator (where the evaluator type has one) is set by the evaluator's own DI
                         // factory, not here: a wrapper assignment only runs once something has already
                         // polled, but GrenadeIndexEvaluator can also be built earlier, through GrenadeIndex
                         // at StartPacks time.
+                        guardOf[contribution.Id] = guard;
+                        string id = contribution.Id;
                         registry.AddPackEvaluator(contribution.Id, contribution.Factory, contribution.After,
-                            () => features?.IsEnabled(pack.FeatureId) ?? true);
+                            () => features?.IsEnabled(pack.FeatureId) ?? true,
+                            ex => guard.Report("build pass " + id, ex));
                     }
                 }
             });

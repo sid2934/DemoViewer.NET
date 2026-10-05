@@ -94,6 +94,30 @@ public class EvaluatorRegistryTests
         Assert.Throws<InvalidOperationException>(() => registry.Resolve());
     }
 
+    // A pack evaluator whose factory throws, or builds the wrong id, is left out of that resolve and
+    // reported; every other evaluator, the core library included, still resolves.
+    [Test]
+    public async Task Resolve_APackFactoryThatThrows_IsLeftOutAndReported_AndTheFanOutGoesOn()
+    {
+        EvaluatorRegistry registry = new();
+        List<string> reported = [];
+        registry.AddCore("core", () => new Fake("core"));
+        registry.AddPackEvaluator("broken", () => throw new InvalidOperationException("factory"), ["core"], () => true,
+            ex => reported.Add("broken: " + ex.Message));
+        registry.AddPackEvaluator("misnamed", () => new Fake("other"), ["core"], () => true,
+            ex => reported.Add("misnamed"));
+        registry.AddPackEvaluator("fine", () => new Fake("fine"), ["core"], () => true, _ => reported.Add("fine"));
+
+        IReadOnlyList<IDemoEvaluator> resolved = registry.Resolve();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(resolved.Select(e => e.Id)).IsEquivalentTo(["core", "fine"],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(reported).IsEquivalentTo(["broken: factory", "misnamed"]);
+        }
+    }
+
     [Test]
     public async Task Resolve_PackDisabled_NeverInvokesItsFactory_AndExcludesItFromTheOrder()
     {

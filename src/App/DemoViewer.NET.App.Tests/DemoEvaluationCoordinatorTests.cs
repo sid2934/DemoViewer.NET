@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -126,6 +127,27 @@ public class DemoEvaluationCoordinatorTests
         await Assert.That(coord.IsFaulted("thrower", "/x/demo.dem")).IsTrue();
         await Assert.That(parses).IsEqualTo(1).Because("a throwing evaluator is skipped for that demo");
         await Assert.That(thrower.Count).IsEqualTo(1);
+    }
+
+    // Every throw out of an evaluator reaches the Faulted callback with the evaluator and the demo, which
+    // the composition root counts against the extension; the parse count still stops at one.
+    [Test]
+    public async Task Evaluate_Throws_IsReportedOnce_WithTheEvaluatorAndTheDemo()
+    {
+        DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, _ => Synthetic());
+        Fake thrower = new("thrower", onEvaluate: _ => throw new InvalidOperationException("boom"));
+        ConcurrentQueue<(string Id, string? Path)> reported = new();
+        using DemoEvaluationCoordinator coord = new([thrower], queue, () => _oneDemo)
+        {
+            Faulted = (id, path, _) => reported.Enqueue((id, path))
+        };
+
+        coord.Consider("/x/demo.dem");
+        await WaitFor(() => !reported.IsEmpty && !coord.HasOutstanding("thrower"), "the throwing evaluation");
+        coord.ConsiderAll();
+        await Task.Delay(80);
+
+        await Assert.That(reported.ToArray()).IsEquivalentTo([("thrower", (string?)"/x/demo.dem")]);
     }
 
     [Test]

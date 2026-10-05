@@ -22,7 +22,8 @@ public sealed class EvaluatorRegistry
     private bool _packsPopulated;
     private IReadOnlyList<string>? _sortedIds;
 
-    private sealed record Entry(Func<IDemoEvaluator> Factory, IReadOnlyList<string> After, Func<bool> Enabled);
+    private sealed record Entry(Func<IDemoEvaluator> Factory, IReadOnlyList<string> After, Func<bool> Enabled,
+        Action<Exception>? OnFault);
 
     /// <summary>A core evaluator: always in the graph, never gated.</summary>
     public void AddCore(string id, Func<IDemoEvaluator> factory, params string[] after) =>
@@ -36,8 +37,17 @@ public sealed class EvaluatorRegistry
     public void AddPacksLazily(Action populate) => _populatePacks = populate;
 
     /// <summary>Called back from the <see cref="AddPacksLazily" /> delegate, once per contributed evaluator.</summary>
-    public void AddPackEvaluator(string id, Func<IDemoEvaluator> factory, IReadOnlyList<string> after, Func<bool> enabled) =>
-        Add(id, factory, after, enabled);
+    /// <param name="id">The evaluator's id.</param>
+    /// <param name="factory">Builds or returns the evaluator.</param>
+    /// <param name="after">Ids it runs after.</param>
+    /// <param name="enabled">Whether its pack is on right now.</param>
+    /// <param name="onFault">
+    ///     Told when the factory throws or builds an evaluator with another id; that evaluator is left out of
+    ///     the resolve and the rest of the fan-out goes on. Null throws out of <see cref="Resolve" />.
+    /// </param>
+    public void AddPackEvaluator(string id, Func<IDemoEvaluator> factory, IReadOnlyList<string> after, Func<bool> enabled,
+        Action<Exception>? onFault = null) =>
+        Add(id, factory, after, enabled, onFault);
 
     /// <summary>
     ///     The live, ordered, currently-enabled evaluators: every core entry, plus every pack evaluator
@@ -60,11 +70,20 @@ public sealed class EvaluatorRegistry
                     continue;
                 }
 
-                IDemoEvaluator instance = entry.Factory();
-                if (!string.Equals(instance.Id, id, StringComparison.Ordinal))
+                IDemoEvaluator instance;
+                try
                 {
-                    throw new InvalidOperationException(
-                        $"Evaluator registered as '{id}' built an instance whose Id is '{instance.Id}'.");
+                    instance = entry.Factory();
+                    if (!string.Equals(instance.Id, id, StringComparison.Ordinal))
+                    {
+                        throw new InvalidOperationException(
+                            $"Evaluator registered as '{id}' built an instance whose Id is '{instance.Id}'.");
+                    }
+                }
+                catch (Exception ex) when (entry.OnFault is not null && ex is not OutOfMemoryException)
+                {
+                    entry.OnFault(ex);
+                    continue;
                 }
 
                 result.Add(instance);
@@ -102,14 +121,15 @@ public sealed class EvaluatorRegistry
         _populatePacks?.Invoke();
     }
 
-    private void Add(string id, Func<IDemoEvaluator> factory, IReadOnlyList<string> after, Func<bool>? enabled)
+    private void Add(string id, Func<IDemoEvaluator> factory, IReadOnlyList<string> after, Func<bool>? enabled,
+        Action<Exception>? onFault = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(after);
         lock (_gate)
         {
-            if (!_entries.TryAdd(id, new Entry(factory, after, enabled ?? (static () => true))))
+            if (!_entries.TryAdd(id, new Entry(factory, after, enabled ?? (static () => true), onFault)))
             {
                 throw new InvalidOperationException($"Evaluator id '{id}' is registered more than once.");
             }
