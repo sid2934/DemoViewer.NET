@@ -740,6 +740,75 @@ public class DemoLibraryServiceTests
         }
     }
 
+    /// <summary>
+    ///     A rescan that replaces one between its reconcile and its tier-2 hand-off still indexes the demos the
+    ///     first one added, and a demo whose parse failed is not read again by the next rescan.
+    /// </summary>
+    [Test]
+    public async Task ARescanReplacingOneMidFlight_IndexesWhatTheFirstFound_AndAFailedDemoIsNotReadAgain()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        await File.WriteAllBytesAsync(Path.Combine(dir, "good.dem"), [1, 2, 3]);
+        await File.WriteAllBytesAsync(Path.Combine(dir, "bad.dem"), [4, 5, 6, 7]);
+        try
+        {
+            int goodParses = 0, badParses = 0;
+            DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+                path =>
+                {
+                    if (path.EndsWith("bad.dem", StringComparison.Ordinal))
+                    {
+                        Interlocked.Increment(ref badParses);
+                        throw new InvalidDataException("corrupt");
+                    }
+
+                    Interlocked.Increment(ref goodParses);
+                    return SyntheticDemo();
+                });
+            using DemoLibraryService svc = new(_inline, Path.Combine(dir, "library.json"));
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
+
+            // Hold the queue as soon as the first rescan has reconciled, so it is replaced before tier 2.
+            bool held = false;
+            svc.Changed += () =>
+            {
+                if (!held && svc.Entries.Count == 2)
+                {
+                    held = true;
+                    queue.Pause();
+                }
+            };
+            Task first = svc.AddFoldersAsync([dir]);
+            await WaitForAsync(() => held, "the first rescan's reconcile");
+            Task second = svc.RescanAsync();
+            queue.Resume();
+            await Task.WhenAll(first, second);
+            await WaitForAsync(() => svc.Entries.All(e => e.State is DemoIndexState.Indexed or DemoIndexState.Failed),
+                "both demos indexed or failed");
+
+            await svc.RescanAsync();
+            await Task.Delay(200);
+            using (Assert.Multiple())
+            {
+                await Assert.That(goodParses).IsEqualTo(1);
+                await Assert.That(badParses).IsEqualTo(1).Because("a failed parse is not retried by a rescan");
+            }
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                /* best-effort cleanup */
+            }
+        }
+    }
+
     [Test]
     public async Task PrettifyMap_StripsPrefix_AndTitleCases()
     {
