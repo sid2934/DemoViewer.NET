@@ -18,8 +18,8 @@ namespace HelloExtension;
 ///     A tab that shows the open demo, a tab with a map of its own, a hub tab with two sections, a status chip,
 ///     a pass that counts the open demo's frames and keeps the count as the demo's own data, a ruleset whose
 ///     kills table the host keeps as library facts and the tab reads back, a settings page the host renders, a
-///     Match Overview action that greets a demo from a job on its parse, and a 2D Playback toolbar button and
-///     map layer.
+///     Match Overview action that greets a demo from a job on its parse and posts a notification when it is
+///     done, and a 2D Playback toolbar button and map layer.
 /// </summary>
 public sealed class HelloExtension : IExtension
 {
@@ -34,6 +34,9 @@ public sealed class HelloExtension : IExtension
 
     /// <summary>The keymap action that runs the toolbar button. Prefixed with the extension id, as every command id must be.</summary>
     public const string WhereAction = ExtensionId + ".where";
+
+    /// <summary>The id the greeting's notification is posted under.</summary>
+    public const string GreetedNotification = "hello.greeted";
 
     /// <summary>The hub tab's id, which its sections name as their host.</summary>
     public const string HubId = "hello.hub";
@@ -101,10 +104,21 @@ public sealed class HelloExtension : IExtension
                 }, new JobOptions(Priority: JobPriority.UserRequested)));
                 handle.Completed += result =>
                 {
+                    bool read = result.Status == JobStatus.Completed;
                     services.GetRequiredService<HelloTabViewModel>().Greeted =
                         context.Settings.Get(GreetingKey, "Hello") + " "
-                        + (result.Status == JobStatus.Completed ? $"{Path.GetFileName(path)} ({frames} frames)" : Path.GetFileName(path));
+                        + (read ? $"{Path.GetFileName(path)} ({frames} frames)" : Path.GetFileName(path));
                     chip.Greeted(Path.GetFileName(path));
+
+                    // One id, so greeting again replaces the card rather than stacking another.
+                    context.Notifications.Post(new Notification(GreetedNotification,
+                        read ? NotificationSeverity.Success : NotificationSeverity.Warning,
+                        read ? $"Greeted {Path.GetFileName(path)}" : $"Could not read {Path.GetFileName(path)}",
+                        read ? $"{frames} frames." : "The greeting went out without a frame count.")
+                    {
+                        Action = new NotificationAction("Show", () => context.Shell.SelectTab("hello.tab")),
+                        TimeToLive = TimeSpan.FromSeconds(30)
+                    });
                 };
             }));
         contributions.Commands(Commands);

@@ -323,6 +323,63 @@ public class ExternalExtensionTests
         }
     }
 
+    // The sample's greeting posts a notification when its job ends. With no queue to run on, the job is
+    // refused at once, which ends it too. The card lands in the host's one stack, stamped with the extension.
+    [Test]
+    [NotInParallel]
+    public async Task TheSamplesGreeting_PostsANotification_IntoTheHostsStack()
+    {
+        string root = NewRoot();
+        string? previous = Environment.GetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar);
+        try
+        {
+            Install(root);
+            IExtension hello = Resolve(root, allowUnverified: true).Loaded.Single().Pack;
+            Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, root);
+
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                Microsoft.Extensions.DependencyInjection.ServiceCollection services =
+                    App.ComposeServices(new Services.DesktopWindowService(() => null), [hello]);
+                // The sample answered on, whatever the composed gate defaults a loaded extension to.
+                Microsoft.Extensions.DependencyInjection.ServiceCollectionServiceExtensions.AddSingleton<Features.IFeatureGate>(
+                    services, new SwitchableGate());
+                await using Microsoft.Extensions.DependencyInjection.ServiceProvider provider =
+                    Microsoft.Extensions.DependencyInjection.ServiceCollectionContainerBuilderExtensions.BuildServiceProvider(services);
+                PackContributions contributed = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetRequiredService<PackContributionSet>(provider).Packs.Single();
+                NotificationCenter center = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetRequiredService<NotificationCenter>(provider);
+
+                Services.DemoProcessing.QueueWork.Bypass = true;
+                contributed.DemoActions.Single().Action.Run(Path.Combine(root, "missing.dem"));
+                DateTime until = DateTime.UtcNow.AddSeconds(20);
+                while (center.Cards.Count == 0 && DateTime.UtcNow < until)
+                {
+                    Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                    await Task.Delay(20);
+                }
+
+                NotificationCardViewModel card = center.Cards.Single();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(card.Id).IsEqualTo("hello.greeted");
+                    await Assert.That(card.IsWarning).IsTrue().Because("the refused job read no frames");
+                    await Assert.That(card.SourceName).IsNotEmpty();
+                    await Assert.That(card.Owner.FeatureId).IsEqualTo("pack.hello");
+                    await Assert.That(card.ActionLabel).IsEqualTo("Show");
+                    await Assert.That(card.ExpiresAt).IsNotNull();
+                }
+            });
+        }
+        finally
+        {
+            Services.DemoProcessing.QueueWork.Bypass = false;
+            Environment.SetEnvironmentVariable(Services.AppPaths.ConfigDirEnvVar, previous);
+            Cleanup(root);
+        }
+    }
+
     // The sample joins the one keymap as a third-party extension: its prefixed command takes a free chord
     // beside the shipped extension's, the key's id runs its toolbar button, and with the extension off the
     // chord resolves to nothing and the id reaches no one.
