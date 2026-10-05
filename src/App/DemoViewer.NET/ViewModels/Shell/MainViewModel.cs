@@ -2380,6 +2380,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>The extensions' notification cards, newest first; the stack above the status strip binds it.</summary>
+    public ObservableCollection<NotificationCardViewModel> Notifications { get; private set; } = [];
+
+    /// <summary>Shows the extensions' notifications. Called once by the composition root after the shell is built.</summary>
+    internal void AttachNotifications(NotificationCenter center)
+    {
+        ArgumentNullException.ThrowIfNull(center);
+        Notifications = center.Cards;
+        OnPropertyChanged(nameof(Notifications));
+    }
+
     /// <summary>
     ///     Mounts a first-party export job's status as a chip under <paramref name="chipId" />, shown while the
     ///     job runs or until its result is dismissed, and only while <paramref name="featureId" /> is on. The

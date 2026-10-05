@@ -325,6 +325,11 @@
 
         </DockPanel>
 
+        <!-- Extension notifications: a small stack above the status strip's right end. -->
+        <controls:NotificationTray Items="{Binding Notifications}"
+                                    HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                    Margin="0 0 12 34" />
+
         <!-- ── Settings overlay (WASM host: no OS windows) ──────────────────────
          Shown when a SettingsViewModel is set on the shell (BrowserWindowService route). On desktop a real
          SettingsWindow opens instead and SettingsOverlay stays null, so this collapses. Scrim dims the shell

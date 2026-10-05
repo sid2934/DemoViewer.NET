@@ -116,6 +116,8 @@ internal sealed class ExtensionContext : IExtensionContext
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
         Settings = new ExtensionSettingsStore(extension.Id, AppPaths.ConfigRoot, Post);
+        Notifications = services.GetService<NotificationCenter>()?.For(_guard, CreateLogger("Notifications"))
+                        ?? new NotificationCenter(Post).For(_guard, CreateLogger("Notifications"));
         string? version = extension.GetType().Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         _data = new Lazy<IExtensionDemoData>(() => AppPaths.DemoCacheDir is { } cache
             ? new ExtensionDemoDataStore(extension.Id, Path.Combine(cache, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extension.Id)),
@@ -150,6 +152,8 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionDemoData Data => _data.Value;
 
     public IExtensionLibrary Library => _library.Value;
+
+    public IExtensionNotifications Notifications { get; }
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 

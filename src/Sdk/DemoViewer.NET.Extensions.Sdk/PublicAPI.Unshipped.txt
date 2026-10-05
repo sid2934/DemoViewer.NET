@@ -1643,3 +1643,48 @@ static DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.operator !=(DemoViewe
 static DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? left, DemoViewer.NET.Extensions.Sdk.Playback.TimelineMark? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StatusChipContribution.operator !=(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? left, DemoViewer.NET.Extensions.Sdk.StatusChipContribution? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.StatusChipContribution.operator ==(DemoViewer.NET.Extensions.Sdk.StatusChipContribution? left, DemoViewer.NET.Extensions.Sdk.StatusChipContribution? right) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Notifications.get -> DemoViewer.NET.Extensions.Sdk.IExtensionNotifications!
+DemoViewer.NET.Extensions.Sdk.IExtensionNotifications
+DemoViewer.NET.Extensions.Sdk.IExtensionNotifications.Dismiss(string! id) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionNotifications.Post(DemoViewer.NET.Extensions.Sdk.Notification! notification) -> void
+DemoViewer.NET.Extensions.Sdk.Notification
+DemoViewer.NET.Extensions.Sdk.Notification.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Notification!
+DemoViewer.NET.Extensions.Sdk.Notification.Action.get -> DemoViewer.NET.Extensions.Sdk.NotificationAction?
+DemoViewer.NET.Extensions.Sdk.Notification.Action.init -> void
+DemoViewer.NET.Extensions.Sdk.Notification.Body.get -> string?
+DemoViewer.NET.Extensions.Sdk.Notification.Body.init -> void
+DemoViewer.NET.Extensions.Sdk.Notification.Deconstruct(out string! Id, out DemoViewer.NET.Extensions.Sdk.NotificationSeverity Severity, out string! Title, out string? Body) -> void
+DemoViewer.NET.Extensions.Sdk.Notification.Equals(DemoViewer.NET.Extensions.Sdk.Notification? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Notification.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.Notification.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.Notification.Notification(string! Id, DemoViewer.NET.Extensions.Sdk.NotificationSeverity Severity, string! Title, string? Body = null) -> void
+DemoViewer.NET.Extensions.Sdk.Notification.Severity.get -> DemoViewer.NET.Extensions.Sdk.NotificationSeverity
+DemoViewer.NET.Extensions.Sdk.Notification.Severity.init -> void
+DemoViewer.NET.Extensions.Sdk.Notification.TimeToLive.get -> System.TimeSpan?
+DemoViewer.NET.Extensions.Sdk.Notification.TimeToLive.init -> void
+DemoViewer.NET.Extensions.Sdk.Notification.Title.get -> string!
+DemoViewer.NET.Extensions.Sdk.Notification.Title.init -> void
+DemoViewer.NET.Extensions.Sdk.NotificationAction
+DemoViewer.NET.Extensions.Sdk.NotificationAction.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.NotificationAction!
+DemoViewer.NET.Extensions.Sdk.NotificationAction.Deconstruct(out string! Label, out System.Action! Run) -> void
+DemoViewer.NET.Extensions.Sdk.NotificationAction.Equals(DemoViewer.NET.Extensions.Sdk.NotificationAction? other) -> bool
+DemoViewer.NET.Extensions.Sdk.NotificationAction.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.NotificationAction.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.NotificationAction.NotificationAction(string! Label, System.Action! Run) -> void
+DemoViewer.NET.Extensions.Sdk.NotificationAction.Run.get -> System.Action!
+DemoViewer.NET.Extensions.Sdk.NotificationAction.Run.init -> void
+DemoViewer.NET.Extensions.Sdk.NotificationSeverity
+DemoViewer.NET.Extensions.Sdk.NotificationSeverity.Error = 3 -> DemoViewer.NET.Extensions.Sdk.NotificationSeverity
+DemoViewer.NET.Extensions.Sdk.NotificationSeverity.Info = 0 -> DemoViewer.NET.Extensions.Sdk.NotificationSeverity
+DemoViewer.NET.Extensions.Sdk.NotificationSeverity.Success = 1 -> DemoViewer.NET.Extensions.Sdk.NotificationSeverity
+DemoViewer.NET.Extensions.Sdk.NotificationSeverity.Warning = 2 -> DemoViewer.NET.Extensions.Sdk.NotificationSeverity
+override DemoViewer.NET.Extensions.Sdk.Notification.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Notification.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Notification.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.NotificationAction.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.NotificationAction.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.NotificationAction.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.Notification.operator !=(DemoViewer.NET.Extensions.Sdk.Notification? left, DemoViewer.NET.Extensions.Sdk.Notification? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Notification.operator ==(DemoViewer.NET.Extensions.Sdk.Notification? left, DemoViewer.NET.Extensions.Sdk.Notification? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.NotificationAction.operator !=(DemoViewer.NET.Extensions.Sdk.NotificationAction? left, DemoViewer.NET.Extensions.Sdk.NotificationAction? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.NotificationAction.operator ==(DemoViewer.NET.Extensions.Sdk.NotificationAction? left, DemoViewer.NET.Extensions.Sdk.NotificationAction? right) -> bool

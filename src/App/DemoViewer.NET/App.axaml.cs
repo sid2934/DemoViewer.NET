@@ -1157,6 +1157,7 @@ public class App : Application
         services.AddSingleton<ExtensionShellHub>();
         services.AddSingleton<IFirstPartyShellState>(sp => sp.GetRequiredService<ExtensionShellHub>());
         services.AddSingleton<IFirstPartyExportChips>(sp => sp.GetRequiredService<ExtensionShellHub>());
+        services.AddSingleton(sp => new NotificationCenter(static a => Dispatcher.UIThread.Post(a), sp.GetService<IFeatureGate>()));
         foreach (IExtension pack in packs)
         {
             IExtension owner = pack;
@@ -1303,6 +1304,7 @@ public class App : Application
             // The status chips the packs contribute. A post-construction call, not a ctor parameter: the
             // ctor parameter list is the next thing to edit.
             shell.AttachStatusChips(sp.GetRequiredService<PackContributionSet>().StatusChips);
+            shell.AttachNotifications(sp.GetRequiredService<NotificationCenter>());
 
             sp.GetRequiredService<ExtensionShellHub>().Attach(shell);
             shell.AttachExtensionFaults(sp.GetRequiredService<ExtensionFaults>());
