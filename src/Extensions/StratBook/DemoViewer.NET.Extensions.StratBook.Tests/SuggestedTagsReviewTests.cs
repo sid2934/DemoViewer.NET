@@ -77,7 +77,7 @@ public class SuggestedTagsReviewTests
     {
         using SuggestedTagsReviewHarness h = new();
         string? open = null;
-        SuggestedTagsService service = new(h.Cache, h.Proposals, h.Tags, h.Regions, () => DetectorProfile.Default,
+        SuggestedTagsService service = new(h.Cache.Library(), h.Cache.RoundFacts(), h.Proposals, h.Tags, h.Regions, () => DetectorProfile.Default,
             () => true, () => false, openDemo: () => open, walk: _ => Walk(), utcNow: () => Now);
         h.Seed();
 

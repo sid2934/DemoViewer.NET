@@ -330,7 +330,7 @@ public class DossierEditingTests
     public async Task TheTab_CollectsItsSections_IntoTheEditor_AndExportsTheStarredOnes()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -342,7 +342,7 @@ public class DossierEditingTests
         Guid teamA = teams.Teams.First(t => t.Rosters.Any(r => r.CoreLineup != null && r.CoreLineup.Contains(Ids(1)[0]))).Id;
         List<string> written = [];
         VetoHistoryStore vetoes = new(null);
-        using DossierTabViewModel vm = new(teams, cache, vetoes, isBrowser: false, notes: new DossierNotesStore(null),
+        using DossierTabViewModel vm = new(teams, cache.Library(), vetoes, isBrowser: false, notes: new DossierNotesStore(null),
             export: (text, _, _) =>
             {
                 written.Add(text);

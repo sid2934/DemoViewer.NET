@@ -7,7 +7,6 @@ using Avalonia.Media.Immutable;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -677,7 +676,7 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
     /// <param name="firstTick">The parse's first tick, or 0 when unknown.</param>
     /// <param name="lastTick">The parse's last tick, or 0 when unknown.</param>
     public static (int FromTick, int ToTick) SpanFor(int playhead, double leadSeconds, double lagSeconds,
-        int tickRate, IReadOnlyList<CachedRound>? rounds, bool clampToRound, int firstTick = 0, int lastTick = 0)
+        int tickRate, IReadOnlyList<LibraryRound>? rounds, bool clampToRound, int firstTick = 0, int lastTick = 0)
     {
         int rate = tickRate > 0 ? tickRate : 64;
         int from = playhead - (int)Math.Round(Math.Max(0, leadSeconds) * rate);
@@ -685,11 +684,11 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
 
         if (clampToRound && rounds is { Count: > 0 })
         {
-            CachedRound? current = null;
-            CachedRound? next = null;
-            foreach (CachedRound round in rounds.OrderBy(r => r.StartTickFrameClock))
+            LibraryRound? current = null;
+            LibraryRound? next = null;
+            foreach (LibraryRound round in rounds.OrderBy(r => r.StartTick))
             {
-                if (round.StartTickFrameClock <= playhead)
+                if (round.StartTick <= playhead)
                 {
                     current = round;
                 }
@@ -702,10 +701,10 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
 
             if (current is not null)
             {
-                from = Math.Max(from, current.StartTickFrameClock);
+                from = Math.Max(from, current.StartTick);
                 if (next is not null)
                 {
-                    to = Math.Min(to, next.StartTickFrameClock - 1);
+                    to = Math.Min(to, next.StartTick - 1);
                 }
             }
         }

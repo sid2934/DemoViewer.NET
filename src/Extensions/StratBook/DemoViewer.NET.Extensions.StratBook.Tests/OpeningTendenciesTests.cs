@@ -274,7 +274,7 @@ public class OpeningTendenciesTests
         ReviewQueue queue = new(null);
         List<string> shown = [];
         QueuedPost posted = new();
-        using DossierTabViewModel vm = new(h.Teams, h.Cache, new VetoHistoryStore(null), false,
+        using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
             review: queue,
             selectTab: id =>
             {
@@ -378,7 +378,7 @@ public class OpeningTendenciesTests
         public static async Task<Harness> Create(bool loadGrenades = true)
         {
             DemoCacheStore cache = new(null);
-            TeamIdentityService teams = new(null, cache, new RoundFactsSource(cache), run: _inline);
+            TeamIdentityService teams = new(null, cache.Library(), new RoundFactsSource(cache), run: _inline);
             await teams.StartAsync();
 
             DemoCacheRecord record = Record(Demo, "de_nuke", 0, Rows());
@@ -404,11 +404,11 @@ public class OpeningTendenciesTests
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
             store.WritePositions(Demo, Positions(sources.FingerprintFor("de_nuke")));
 
-            GrenadeIndex grenades = new(cache, new RoundIndexEvaluatorTests.MapZones(
+            GrenadeIndex grenades = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones(
                 ("de_nuke", new RoundIndexBuilderTests.FakeZoneResolver("zv-nuke", v => v.X < 0 ? "Outside" : "Ramp"))));
             grenades.Load();
 
-            OpeningTendenciesService service = new(teams, cache, grenades, store, sources.FingerprintFor);
+            OpeningTendenciesService service = new(teams, cache.Library(), cache.RoundFacts(), grenades, store, sources.FingerprintFor);
             Guid teamA = teams.Teams.First(t => t.Rosters.Any(r => r.CoreLineup?.Contains(Id(1)) == true)).Id;
             return new Harness(cache, teams, store, grenades, service, teamA);
         }

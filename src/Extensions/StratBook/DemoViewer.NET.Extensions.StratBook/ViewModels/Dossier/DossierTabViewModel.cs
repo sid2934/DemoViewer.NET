@@ -16,7 +16,6 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Teams;
@@ -54,7 +53,7 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 /// </summary>
 public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
 
     // One runner per section (openings, post-plant, situational, heatmaps): a queue item keyed by section in
     // the app, so a newer build replaces a queued one.
@@ -119,7 +118,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     private string _periodDiffNote = "";
 
     /// <param name="teams">Team Identity, for the team picker and the sides the record is built from.</param>
-    /// <param name="demoCache">The cache a demo's map, score and side-round totals come from.</param>
+    /// <param name="library">The library a demo's map, score and side-round totals come from.</param>
     /// <param name="vetoes">The user's manually entered veto steps, filed per opponent.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
     /// <param name="heatmaps">Builds the Setup Heatmaps By Buy; null hides the section.</param>
@@ -136,7 +135,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="roundIndex">The round index stamps the projection key reads; none when null.</param>
     /// <param name="notes">The user's stars, edits and notes; a session-only store when null.</param>
     /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
-    public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
+    public DossierTabViewModel(TeamIdentityService teams, IExtensionLibrary library, VetoHistoryStore vetoes, bool? isBrowser = null,
         SetupHeatmapService? heatmaps = null,
         ReviewQueue? review = null,
         Func<string, bool>? selectTab = null,
@@ -155,10 +154,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         _grenades = grenades;
         _roundIndex = roundIndex;
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(vetoes);
         _teams = teams;
-        _demoCache = demoCache;
+        _library = library;
         _vetoes = vetoes;
         _heatmaps = heatmaps;
         _review = review;
@@ -572,12 +571,12 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         foreach ((DemoRef demo, int side, TeamAssignment assignment) in _teams.SidesOf(row.Id))
         {
             key.Append('|').Append(side).Append(JsonSerializer.Serialize(demo)).Append(JsonSerializer.Serialize(assignment));
-            if (_demoCache.TryGetIndex(demo.Path) is { } entry)
+            if (_library.Find(demo.Path) is { } entry)
             {
                 DemoDataStamp? index = _roundIndex?.Stamp(demo.Path);
                 DemoDataStamp? grenades = _grenades?.Store.Stamp(demo.Path);
                 key.Append(CultureInfo.InvariantCulture,
-                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsStamp()?.Fingerprint}/{index?.Fingerprint}/{index?.WrittenAtTicks}/{grenades?.State ?? DemoDataState.Pending}/{grenades?.Count ?? 0}/{grenades?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
+                    $"{entry.Modified.Ticks}/{entry.FileSizeBytes}/{entry.State}/{entry.CtSideWins}/{entry.TSideWins}/{entry.Fact(RoundFactsRecords.FacetId)?.Fingerprint}/{index?.Fingerprint}/{index?.WrittenAtTicks}/{grenades?.State ?? DemoDataState.Pending}/{grenades?.Count ?? 0}/{grenades?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
             }
         }
 
@@ -606,7 +605,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             return;
         }
 
-        MapPoolRecord record = MapPoolRecordService.Build(_teams, _demoCache, row.Id);
+        MapPoolRecord record = MapPoolRecordService.Build(_teams, _library, row.Id);
         foreach (MapPoolMapRow map in record.Maps)
         {
             Maps.Add(new MapPoolRowViewModel(map));
@@ -645,7 +644,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             return;
         }
 
-        PeriodDiffSet set = PeriodDiffService.Build(_teams, _demoCache, row.Id, WindowSize);
+        PeriodDiffSet set = PeriodDiffService.Build(_teams, _library, row.Id, WindowSize);
         PeriodDiffRecent = new PeriodDiffRowViewModel(set.Recent);
         PeriodDiffPrevious = new PeriodDiffRowViewModel(set.Previous);
         PeriodDiffNote = PeriodDiffNoteFor(set);

@@ -138,7 +138,7 @@ public class GrenadeIndexTests
 
     private static GrenadeIndex Loaded(DemoCacheStore cache, IZonePlaceResolverSource? zones = null)
     {
-        GrenadeIndex index = new(cache,
+        GrenadeIndex index = new(cache.Library(),
             zones ?? new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones), ("de_inferno", InfernoZones)));
         index.Load();
         return index;
@@ -155,7 +155,7 @@ public class GrenadeIndexTests
         {
             DemoCacheStore cache = Library();
             Guid first;
-            using (GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: new GrenadeLineupStore(root)))
+            using (GrenadeIndex index = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: new GrenadeLineupStore(root)))
             {
                 index.Load();
                 first = index.Query(SmokesIntoCt(NineDemos.ToHashSet()))[0].Lineups[0].Id;
@@ -166,7 +166,7 @@ public class GrenadeIndexTests
                 [Row("a", GrenadeKind.Smoke, new Vector3(532, 288, -160), new Vector3(-1400, -1400, -170))]);
             GrenadeLineupStore reread = new(root);
             int anchors = reread.For(Mirage).Anchors.Count;
-            using GrenadeIndex again = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: reread);
+            using GrenadeIndex again = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: reread);
             again.Load();
             GrenadeLineup a = again.Query(SmokesIntoCt())[0].Lineups[0];
             using (Assert.Multiple())
@@ -207,7 +207,7 @@ public class GrenadeIndexTests
     {
         DemoCacheStore cache = Library();
         GrenadeLineupStore store = new(null);
-        using GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
+        using GrenadeIndex index = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
         index.Query(new GrenadeQuery(Mirage));
         await Assert.That(store.For(Mirage).Anchors).IsEmpty().Because("an index that has not loaded sees a partial library");
     }
@@ -322,7 +322,7 @@ public class GrenadeIndexTests
         try
         {
             GrenadeLineupStore store = new(root);
-            using GrenadeIndex index = new(Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
+            using GrenadeIndex index = new(Library().Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
             index.Load();
             Guid id = index.Query(SmokesIntoCt())[0].Lineups[0].Id;
             index.FlushLineups();
@@ -460,9 +460,9 @@ public class GrenadeIndexTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(RoundIndexTestData.ParsedRecord("/d/new.dem", Mirage, "shaN"));
-        GrenadeIndexEvaluator evaluator = new(cache, cache.Grenades(), () => true,
+        GrenadeIndexEvaluator evaluator = new(cache.Library(), cache.Grenades(), () => true,
             walk: _ => new GrenadeWalk(MirageRows(1), 1, ReconstructedInputSource.DecoderName, 4));
-        using GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), evaluator);
+        using GrenadeIndex index = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), evaluator);
         index.Load();
         int changes = 0;
         index.Changed += () => changes++;

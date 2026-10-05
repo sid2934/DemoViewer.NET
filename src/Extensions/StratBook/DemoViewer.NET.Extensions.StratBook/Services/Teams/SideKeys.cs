@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 
@@ -72,68 +72,97 @@ public sealed class DemoSideInput
         && string.Equals(Ct.Clan, other.Ct.Clan, StringComparison.Ordinal);
 }
 
-/// <summary>The side-key projection of a cache record.</summary>
+/// <summary>The side-key projection of a library row, or of a demo's record.</summary>
 public static class SideKeys
 {
-    /// <summary>Is this entry a member of a side key? Bots, coaches and empty or zero ids are not.</summary>
-    /// <param name="player">The cached roster entry.</param>
-    public static bool IsKeyMember(CachedPlayerInfo player) =>
-        !player.IsBot
-        && !player.IsCoach
-        && player.Team is 2 or 3
-        && !string.IsNullOrEmpty(player.SteamId64)
-        && !string.Equals(player.SteamId64, "0", StringComparison.Ordinal);
+    /// <summary>Is this player a member of a side key? Bots, coaches and players without an id are not.</summary>
+    /// <param name="player">The roster entry.</param>
+    public static bool IsKeyMember(LibraryPlayer player) =>
+        !player.IsBot && !player.IsCoach && player.Team is 2 or 3 && player.SteamId64 != 0;
 
-    /// <summary>The key of one end-of-demo side.</summary>
-    /// <param name="record">The record, at tier 2 or above.</param>
+    /// <summary>The key of one end-of-demo side from the demo's players.</summary>
+    /// <param name="detail">The demo's record.</param>
     /// <param name="side">2 = T, 3 = CT.</param>
-    public static SideInput Side(DemoCacheRecord record, int side)
+    public static SideInput Side(LibraryDemoDetail detail, int side)
     {
-        ArgumentNullException.ThrowIfNull(record);
-        List<CachedPlayerInfo> members =
+        ArgumentNullException.ThrowIfNull(detail);
+        List<(string Id, string Name)> members =
         [
-            .. record.Players.Where(p => p.Team == side && IsKeyMember(p))
-                .OrderBy(p => p.SteamId64, StringComparer.Ordinal)
+            .. detail.Players.Where(p => p.Team == side && IsKeyMember(p))
+                .Select(p => (DemoKeys.SteamIdText(p.SteamId64), p.Name))
+                .OrderBy(p => p.Item1, StringComparer.Ordinal)
         ];
-        // Two userinfo slots can carry one account when a player reconnects; the key is a set.
-        List<string> key = [];
-        List<string> names = [];
-        foreach (CachedPlayerInfo member in members)
-        {
-            if (key.Count > 0 && string.Equals(key[^1], member.SteamId64, StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            key.Add(member.SteamId64);
-            names.Add(member.Name);
-        }
-
-        string? clan = side == 3 ? record.CtClan : record.TClan;
-        return new SideInput(key, names, string.IsNullOrWhiteSpace(clan) ? null : clan);
+        return Keyed(members, side == 3 ? detail.Demo.CtClan : detail.Demo.TClan);
     }
 
-    /// <summary>The clustering input of a record, or null below tier 2 (no roster has been parsed).</summary>
-    /// <param name="record">The record.</param>
-    public static DemoSideInput? From(DemoCacheRecord record)
+    /// <summary>The key of one end-of-demo side from the library's row, or null when the row carries no sides.</summary>
+    /// <param name="demo">The row.</param>
+    /// <param name="side">2 = T, 3 = CT.</param>
+    public static SideInput? Side(LibraryDemo demo, int side)
     {
-        ArgumentNullException.ThrowIfNull(record);
-        if (!record.Parse.IsPresent || string.IsNullOrEmpty(record.Path))
+        ArgumentNullException.ThrowIfNull(demo);
+        if (demo.PlayersOn(side) is not { } players)
         {
             return null;
         }
 
-        return new DemoSideInput
-        {
-            StableKey = DemoCacheStore.StableKey(record.Path),
-            Path = record.Path,
-            Sha256 = record.Sha256,
-            OrderTicks = record.ModifiedTicks,
-            SourceKind = TeamSourcePolicy.EffectiveKind(record.SourceKind, record.Server).ToString(),
-            T = Side(record, 2),
-            Ct = Side(record, 3)
-        };
+        return Keyed([.. players.Select(p => (DemoKeys.SteamIdText(p.SteamId64), p.Name)).OrderBy(p => p.Item1, StringComparer.Ordinal)],
+            side == 3 ? demo.CtClan : demo.TClan);
     }
+
+    // Two slots can carry one account when a player reconnects; the key is a set, the first name kept.
+    private static SideInput Keyed(List<(string Id, string Name)> members, string? clan)
+    {
+        List<string> key = [];
+        List<string> names = [];
+        foreach ((string id, string name) in members)
+        {
+            if (key.Count > 0 && string.Equals(key[^1], id, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            key.Add(id);
+            names.Add(name);
+        }
+
+        return new SideInput(key, names, string.IsNullOrWhiteSpace(clan) ? null : clan);
+    }
+
+    /// <summary>
+    ///     The clustering input of a library row, or null when the demo is not parsed or its row carries no
+    ///     sides (a row written before the library kept them).
+    /// </summary>
+    /// <param name="demo">The row.</param>
+    public static DemoSideInput? From(LibraryDemo demo)
+    {
+        ArgumentNullException.ThrowIfNull(demo);
+        if (demo.State < LibraryDemoState.Parsed || Side(demo, 2) is not { } t || Side(demo, 3) is not { } ct)
+        {
+            return null;
+        }
+
+        return Input(demo, t, ct);
+    }
+
+    /// <summary>The clustering input of a demo's record, or null when the demo is not parsed.</summary>
+    /// <param name="detail">The record.</param>
+    public static DemoSideInput? From(LibraryDemoDetail detail)
+    {
+        ArgumentNullException.ThrowIfNull(detail);
+        return detail.Demo.State < LibraryDemoState.Parsed ? null : Input(detail.Demo, Side(detail, 2), Side(detail, 3));
+    }
+
+    private static DemoSideInput Input(LibraryDemo demo, SideInput t, SideInput ct) => new()
+    {
+        StableKey = DemoKeys.StableKey(demo.FilePath),
+        Path = demo.FilePath,
+        Sha256 = demo.Sha256,
+        OrderTicks = demo.Modified.Ticks,
+        SourceKind = TeamSourcePolicy.EffectiveKind(demo.SourceKind, demo.Server).ToString(),
+        T = t,
+        Ct = ct
+    };
 
     /// <summary>The clustering input a persisted index row carries, so a rebuild reads no sidecar.</summary>
     /// <param name="stableKey">The row's key.</param>

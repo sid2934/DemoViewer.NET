@@ -22,7 +22,6 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Services.Dependencies;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundIndex;
@@ -139,7 +138,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     /// <param name="tags">The Tag Store the Strat Record Panel reads and listens to; a session-only store when omitted.</param>
     /// <param name="evidence">Computes a strat's record from <paramref name="tags" />; built without Demo Provenance Labels when omitted.</param>
     /// <param name="review">Where the record panel's numbers send their clips; null says there is none on this host.</param>
-    /// <param name="indexBySha">Hash to library row, for a clip's path (<see cref="DemoCacheStore.TryGetIndexBySha256" />).</param>
+    /// <param name="indexBySha">Hash to library row, for a clip's path (<see cref="IExtensionLibrary.FindBySha256" />).</param>
     /// <param name="selectTab">Shows a tab by id, for the Review tab after the record panel sends clips; null stays on the Strat Book.</param>
     /// <param name="grenades">
     ///     The Utility Book's Grenade Index (Lineup On A Strat Step): fills a step's lineup choices in the
@@ -165,7 +164,7 @@ public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTab
     public StratBookTabViewModel(StratStore store, TeamIdentityService? teams = null, Action<Action>? post = null, bool? isBrowser = null,
         CalloutResolverSource? calloutResolvers = null, Func<string?, LoadedMapAsset?>? canvasMapLoader = null,
         TagStore? tags = null, StratEvidenceService? evidence = null, ReviewQueue? review = null,
-        Func<string, DemoCacheIndexEntry?>? indexBySha = null, Func<string, bool>? selectTab = null,
+        Func<string, LibraryDemo?>? indexBySha = null, Func<string, bool>? selectTab = null,
         GrenadeIndex? grenades = null, StratMiningService? mining = null, Func<ISituationPlayback?>? playback = null,
         StratSpawnSource? spawns = null,
         StratBookLayout? layout = null, Func<string, LoadedMapAsset?, UtilityBookTabViewModel>? lineupMap = null,

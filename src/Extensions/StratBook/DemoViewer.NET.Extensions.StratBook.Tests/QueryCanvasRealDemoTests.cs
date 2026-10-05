@@ -36,7 +36,7 @@ public class QueryCanvasRealDemoTests
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
         RoundIndexTestData.Indexed(cache, sidecars, path, document);
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
         index.Load();
 
         // The first run with both sides alive and every place known: its CT token is the target.

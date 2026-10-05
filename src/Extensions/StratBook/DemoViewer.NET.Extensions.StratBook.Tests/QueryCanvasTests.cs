@@ -311,7 +311,7 @@ public class QueryCanvasTests
             await Assert.That(mapChanges).IsEqualTo(1);
         }
 
-        using SituationsTabViewModel tab = new(h.Index, null, h.Cache, h.Sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
+        using SituationsTabViewModel tab = new(h.Index, null, h.Cache.Library(), h.Sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
         await Assert.That(tab.Canvas.Maps).IsEquivalentTo(["de_nuke"]);
         await Assert.That(tab.Canvas.CanSearch).IsTrue();
     }
@@ -328,7 +328,7 @@ public class QueryCanvasTests
             Cache = new DemoCacheStore(null);
             Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Index = new SituationIndex(Cache, Sidecars, Sources);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources);
 
             RoundIndexDocument document = Document("de_nuke", Sources.FingerprintFor("de_nuke"),
                 (1, 10746, 17138, [new RoundIndexRun(0, 4, CtToken, TToken)]));
@@ -344,7 +344,7 @@ public class QueryCanvasTests
             Indexed(Cache, Sidecars, Demo, document);
             Index.Load();
 
-            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache, _ => null,
+            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache.Library(), _ => null,
                 dispose => dispose());
             Tool = Vm.Tool;
 

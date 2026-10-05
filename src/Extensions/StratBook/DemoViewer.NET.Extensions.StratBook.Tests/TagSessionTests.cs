@@ -18,11 +18,11 @@ public class TagSessionTests
 {
     private const string DemoPath = "/d/match.dem";
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 0 },
-        new() { Number = 2, StartTickFrameClock = 10_000 },
-        new() { Number = 3, StartTickFrameClock = 20_000 }
+        new LibraryRound(1, 0),
+        new LibraryRound(2, 10_000),
+        new LibraryRound(3, 20_000)
     ];
 
     private static readonly string[] WonAtA = ["won", "A"];
@@ -30,7 +30,7 @@ public class TagSessionTests
     private static readonly string[] OneCode = ["A execute"];
 
     private static TagSession Session(TagStore? store, bool browser = false) =>
-        new(store, _ => _rounds, () => browser, () => Created) { AutoSaveDelay = TimeSpan.FromHours(1) };
+        new(store, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => browser, () => Created) { AutoSaveDelay = TimeSpan.FromHours(1) };
 
     private static async Task<TagSession> Attached(TagStore? store, bool browser = false)
     {
@@ -321,7 +321,7 @@ public class TagSessionTests
             await Assert.That(TagSession.RoundAt(_rounds, 9_999)).IsEqualTo(1);
             await Assert.That(TagSession.RoundAt(_rounds, 10_000)).IsEqualTo(2);
             await Assert.That(TagSession.RoundAt(_rounds, 99_999)).IsEqualTo(3);
-            await Assert.That(TagSession.RoundAt([new CachedRound { Number = 1, StartTickFrameClock = 500 }], 10)).IsNull();
+            await Assert.That(TagSession.RoundAt([new LibraryRound(1, 500)], 10)).IsNull();
             await Assert.That(TagSession.RoundAt(null, 10)).IsNull();
         }
     }

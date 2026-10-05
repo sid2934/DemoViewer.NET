@@ -57,7 +57,7 @@ public class DeferredStoreLoadTests
         try
         {
             DemoCacheStore cache = new(Path.Combine(root, "cache"));
-            TeamIdentityService first = new(root, cache, run: _inline);
+            TeamIdentityService first = new(root, cache.Library(), run: _inline);
             await first.StartAsync();
             using (cache.BeginBatch())
             {
@@ -70,7 +70,7 @@ public class DeferredStoreLoadTests
             first.Dispose();
 
             Action? queuedRead = null;
-            TeamIdentityService second = new(root, cache, run: _inline, scheduleLoad: read =>
+            TeamIdentityService second = new(root, cache.Library(), run: _inline, scheduleLoad: read =>
             {
                 queuedRead = read; // the queue has not got to it yet
                 return Task.CompletedTask;
@@ -80,7 +80,7 @@ public class DeferredStoreLoadTests
             second.Rename(ids[0], "Renamed early");
             queuedRead!(); // the queue item runs later and finds the read done
 
-            TeamIdentityService third = new(root, cache, run: _inline);
+            TeamIdentityService third = new(root, cache.Library(), run: _inline);
             using (Assert.Multiple())
             {
                 await Assert.That(ids.Count).IsGreaterThanOrEqualTo(2);
@@ -131,7 +131,7 @@ public class DeferredStoreLoadTests
     public async Task ATeamsCommand_ShowsTheTabBusy_UntilItLands_AndTheActionsWait()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -142,7 +142,7 @@ public class DeferredStoreLoadTests
         await teams.Idle;
         List<(string What, Action Change)> queued = [];
         TaskCompletionSource landed = new();
-        TeamsTabViewModel vm = new(teams, cache, isBrowser: false, command: (what, change) =>
+        TeamsTabViewModel vm = new(teams, cache.Library(), isBrowser: false, command: (what, change) =>
         {
             queued.Add((what, change));
             return landed.Task;

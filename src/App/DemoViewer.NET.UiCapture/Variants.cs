@@ -719,7 +719,7 @@ public static partial class Variants
     private static IReadOnlyList<ILibraryContribution> LibraryPackContributions(DemoLibraryService lib)
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: a =>
+        TeamIdentityService teams = new(null, DemoViewer.NET.Extensions.HostLibrary.For(cache, null), run: a =>
         {
             a();
             return Task.CompletedTask;
@@ -761,7 +761,7 @@ public static partial class Variants
         return
         [
             new TeamLibraryContribution(() => teams),
-            new ProvenanceLibraryContribution(() => new DemoProvenanceSource(cache, teams), () => teams)
+            new ProvenanceLibraryContribution(() => new DemoProvenanceSource(DemoViewer.NET.Extensions.HostLibrary.For(cache, null), teams), () => teams)
         ];
     }
 
@@ -1425,8 +1425,9 @@ public static partial class Variants
                 "stratbook.suggested-tags-tuning", "SUGGESTED TAGS TUNING", 0, "extension",
                 () => new SuggestedTagsTuningViewModel(
                     new SuggestedTagsTuningService(
-                        cache,
-                        new SuggestedTagsService(cache, new ProposalStore(MemoryDemoData.For(cache)), null, new SiteRegionStore(null),
+                        DemoViewer.NET.Extensions.HostLibrary.For(cache, null),
+                        new SuggestedTagsService(DemoViewer.NET.Extensions.HostLibrary.For(cache, null), new Services.RoundFacts.RoundFactsSource(cache),
+                            new ProposalStore(MemoryDemoData.For(DemoViewer.NET.Extensions.HostLibrary.For(cache, null))), null, new SiteRegionStore(null),
                             () => new ProfileStore(null).Current, () => true, () => false),
                         null,
                         new SiteRegionStore(null),

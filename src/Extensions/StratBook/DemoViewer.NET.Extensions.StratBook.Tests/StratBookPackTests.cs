@@ -125,6 +125,7 @@ public class StratBookPackTests
         "DemoViewer.NET.Modules.UtilityBook.LineupClipService",
         "DemoViewer.NET.Modules.UtilityBook.LineupClipPass",
         "DemoViewer.NET.Services.DemoProcessing.DemoScheduler",
+        "DemoViewer.NET.Services.DemoProcessing.RecordPassRunner",
         // The Strat Book export chip's mount point, shared by the StatusChip
         // contribution and the IStratExport factory's mount callback.
         "DemoViewer.NET.Extensions.StratBook.StratBookExportChipSlot",

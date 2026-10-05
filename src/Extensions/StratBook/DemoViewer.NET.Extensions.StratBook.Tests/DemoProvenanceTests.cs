@@ -75,8 +75,8 @@ public class DemoProvenanceTests
     private static (DemoCacheStore Cache, TeamIdentityService Teams, DemoProvenanceSource Source) Fresh(string? root = null)
     {
         DemoCacheStore cache = new(root is null ? null : Path.Combine(root, "cache"));
-        TeamIdentityService teams = new(root, cache, run: _inline);
-        return (cache, teams, new DemoProvenanceSource(cache, teams));
+        TeamIdentityService teams = new(root, cache.Library(), run: _inline);
+        return (cache, teams, new DemoProvenanceSource(cache.Library(), teams));
     }
 
     private static async Task Seed(DemoCacheStore cache, TeamIdentityService teams, params DemoCacheRecord[] records)
@@ -249,15 +249,15 @@ public class DemoProvenanceTests
     {
         using (Assert.Multiple())
         {
-            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = FaceitServer, SourceKind = "GotvMatchmaking" }))
+            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = FaceitServer, SourceKind = "GotvMatchmaking" }.AsRow()))
                 .IsEqualTo(DemoSourceKind.GotvMatchmaking).Because("tier 2 saw the client name; the server name alone would not say so");
-            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = ValveServer, SourceKind = null }))
+            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = ValveServer, SourceKind = null }.AsRow()))
                 .IsEqualTo(DemoSourceKind.GotvMatchmaking).Because("a row written before the field: the classifier's own server-name fallback");
-            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = FaceitServer, SourceKind = null }))
+            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = FaceitServer, SourceKind = null }.AsRow()))
                 .IsEqualTo(DemoSourceKind.Faceit).Because("the engine reads FACEIT server names as Unknown; the app reads them as FACEIT");
-            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = ScrimServer, SourceKind = null }))
+            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = ScrimServer, SourceKind = null }.AsRow()))
                 .IsEqualTo(DemoSourceKind.Unknown);
-            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = null, SourceKind = "not a kind" }))
+            await Assert.That(DemoProvenanceSource.SourceKindOf(new DemoCacheIndexEntry { Server = null, SourceKind = "not a kind" }.AsRow()))
                 .IsEqualTo(DemoSourceKind.Unknown);
         }
     }

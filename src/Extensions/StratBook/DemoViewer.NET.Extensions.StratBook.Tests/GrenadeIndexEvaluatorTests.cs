@@ -49,7 +49,7 @@ public class GrenadeIndexEvaluatorTests
     {
         DemoCacheStore cache = new(root);
         cache.Upsert(RoundIndexTestData.ParsedRecord(Demo, sha: sha));
-        GrenadeIndexEvaluator evaluator = new(cache, new GrenadeStore(root is null ? cache.Data() : cache.DiskData(root)), () => background,
+        GrenadeIndexEvaluator evaluator = new(cache.Library(), new GrenadeStore(root is null ? cache.Data() : cache.DiskData(root)), () => background,
             () => open, walk: walk ?? OneSmoke, enabled: enabled);
         return (cache, evaluator);
     }
@@ -108,7 +108,7 @@ public class GrenadeIndexEvaluatorTests
     public async Task Wanted_OnlyWithTheOptIn_AndNeverWithoutAParse()
     {
         (DemoCacheStore cache, GrenadeIndexEvaluator off) = Wire();
-        GrenadeIndexEvaluator on = new(cache, cache.Grenades(), () => true, walk: OneSmoke);
+        GrenadeIndexEvaluator on = new(cache.Library(), cache.Grenades(), () => true, walk: OneSmoke);
         cache.Upsert(new DemoCacheRecord { Path = "/d/unparsed.dem", Size = 1, ModifiedTicks = 1 });
 
         using (Assert.Multiple())
@@ -130,7 +130,7 @@ public class GrenadeIndexEvaluatorTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(RoundIndexTestData.ParsedRecord(Demo, sha: "abc"));
-        GrenadeIndexEvaluator evaluator = new(cache, cache.Grenades(), () => true, () => Demo, walk: OneSmoke, enabled: () => false);
+        GrenadeIndexEvaluator evaluator = new(cache.Library(), cache.Grenades(), () => true, () => Demo, walk: OneSmoke, enabled: () => false);
 
         using (Assert.Multiple())
         {

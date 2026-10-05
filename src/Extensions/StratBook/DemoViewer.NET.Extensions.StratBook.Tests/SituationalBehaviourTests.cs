@@ -179,7 +179,7 @@ public class SituationalBehaviourTests
         ReviewQueue queue = new(null);
         List<string> shown = [];
         QueuedPost posted = new();
-        using DossierTabViewModel vm = new(h.Teams, h.Cache, new VetoHistoryStore(null), false,
+        using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
             review: queue,
             selectTab: id =>
             {
@@ -263,7 +263,7 @@ public class SituationalBehaviourTests
         public static async Task<Harness> Create()
         {
             DemoCacheStore cache = new(null);
-            TeamIdentityService teams = new(null, cache, new RoundFactsSource(cache), run: _inline);
+            TeamIdentityService teams = new(null, cache.Library(), new RoundFactsSource(cache), run: _inline);
             await teams.StartAsync();
 
             using (cache.BeginBatch())
@@ -274,7 +274,7 @@ public class SituationalBehaviourTests
 
             await teams.Idle;
 
-            SituationalBehaviourService service = new(teams, cache);
+            SituationalBehaviourService service = new(teams, cache.Library(), cache.RoundFacts());
             Guid teamA = teams.Teams.First(t => t.Rosters.Any(r => r.CoreLineup?.Contains(Id(1)) == true)).Id;
             return new Harness(cache, teams, service, teamA);
         }

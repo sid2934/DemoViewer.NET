@@ -8,7 +8,7 @@ namespace DemoViewer.NET.Services.Teams;
 /// <param name="DemoPath">The demo.</param>
 /// <param name="Sha256">The demo's content hash, or null.</param>
 /// <param name="Map">The map, or "" when the index has none.</param>
-/// <param name="OrderTicks">Team Identity's own order stamp: <c>DemoCacheRecord.ModifiedTicks</c> until a real match date exists.</param>
+/// <param name="OrderTicks">Team Identity's own order stamp: the file's write time until a real match date exists.</param>
 /// <param name="Side">2 = T, 3 = CT: the team's end-of-demo side.</param>
 /// <param name="RosterId">The roster Team Identity matched this side to, or null when the side never joined one.</param>
 /// <param name="RosterLabel">The roster's own label when the user set one, else <see cref="RosterId" />; "" without a roster.</param>

@@ -1,11 +1,11 @@
 #region
 
+using DemoViewer.NET.Services.RoundFacts;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundIndex;
@@ -35,7 +35,7 @@ namespace DemoViewer.NET.ViewModels.Situations;
 /// </summary>
 public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly RoundIndexStore _sidecars;
     private readonly RoundIndexEvaluator? _evaluator;
     private readonly ISituationIndex _index;
@@ -85,7 +85,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
     /// <param name="index">The in-memory situation index.</param>
     /// <param name="evaluator">The index writer; null on a host without a queue (the browser).</param>
-    /// <param name="demoCache">The index rows the counts derive from.</param>
+    /// <param name="library">The index rows the counts derive from.</param>
     /// <param name="sources">The fingerprint in force per map, for the stale count and the fallback note.</param>
     /// <param name="tokenSource">The live <see cref="Extensions.StratBook.StratBookSettings.TokenSource" />.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
@@ -98,6 +98,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     /// <param name="watched">Watched Situations; a session-only service over the same index and services when null.</param>
     /// <param name="review">The Review Queue the cards send their set to; null hides the action. Used when <paramref name="results" /> is null.</param>
     /// <param name="run">Runs the result cards' fill and overlay; the pool when null.</param>
+    /// <param name="roundFacts">The Round Facts rows the result cards show; null shows none.</param>
     /// <param name="callouts">
     ///     Callout Aliases' resolver builder; null shows the canvas's place names in their stored canonical
     ///     spelling. Used when <paramref name="canvas" /> is null.
@@ -105,7 +106,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     public SituationsTabViewModel(
         ISituationIndex index,
         RoundIndexEvaluator? evaluator,
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         RoundIndexPlaceSources sources,
         Func<RoundIndexTokenSource> tokenSource,
         bool? isBrowser = null,
@@ -118,15 +119,16 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         WatchedSituationsService? watched = null,
         ReviewQueue? review = null,
         CalloutResolverSource? callouts = null,
-        Func<string, Func<Action, Task>>? run = null)
+        Func<string, Func<Action, Task>>? run = null,
+        IRoundFactsSource? roundFacts = null)
     {
         ArgumentNullException.ThrowIfNull(index);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(tokenSource);
         _index = index;
         _evaluator = evaluator;
-        _demoCache = demoCache;
+        _library = library;
         _sources = sources;
         _tokenSource = tokenSource;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
@@ -134,30 +136,30 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         // The canvas resolves a drop through the same zone source the builder mints tokens through, so
         // the place a click names and the place a row stores come from one vocabulary. Its filter rail
         // reads the two services the opponent, side and source fields join through.
-        Canvas = canvas ?? new QueryCanvasViewModel(index, new QueryPlaceResolver(index, sources.Zones), demoCache,
-            filters: new SearchFiltersViewModel(demoCache, teams, provenance),
+        Canvas = canvas ?? new QueryCanvasViewModel(index, new QueryPlaceResolver(index, sources.Zones), library,
+            filters: new SearchFiltersViewModel(library, teams, provenance),
             calloutResolverFor: callouts is null ? null : map => callouts.ForDefaultOwner(teams, map));
 
         // The cards read the positions files the same store wrote, under the fingerprint in force for
         // the map; a set built without a sidecar store has nothing to draw and says so on every tile.
         // Their overlay is the canvas's own document, so the heatmap lands on the map the query was
         // drawn on.
-        _sidecars = sidecars ?? new RoundIndexStore(MemoryDemoData.For(demoCache));
-        Results = results ?? new ResultCardsViewModel(demoCache, _sidecars,
-            sources, playback ?? (() => null), overlay: Canvas.Overlay, review: review, run: run);
+        _sidecars = sidecars ?? new RoundIndexStore(MemoryDemoData.For(library));
+        Results = results ?? new ResultCardsViewModel(library, _sidecars,
+            sources, playback ?? (() => null), overlay: Canvas.Overlay, review: review, run: run, roundFacts: roundFacts);
         Canvas.Searched += Results.Load;
         Results.SearchTeam ??= () => Canvas.Filters.Opponent.Value;
         Canvas.PropertyChanged += OnCanvasPropertyChanged;
 
         // The saved list saves from and re-runs onto this canvas. A host that passes no service gets
         // a session-only one over the same index, the browser's own state.
-        _ownedWatched = watched is null ? new WatchedSituationsService(null, index, demoCache, teams, provenance) : null;
+        _ownedWatched = watched is null ? new WatchedSituationsService(null, index, library, teams, provenance) : null;
         Watched = new WatchedSituationsViewModel(watched ?? _ownedWatched!, Canvas, teams);
 
         // Every source matters: the library on a demo's arrival or departure, the store on every stamp, the
         // index on load and merge. Subscribed for the VM's life rather than per activation so the strip is
         // right the moment the tab opens.
-        _demoCache.Changed += OnCacheChanged;
+        _library.Changed += OnLibraryChanged;
         _sidecars.Changed += OnCacheChanged;
         _index.Changed += Refresh;
         Refresh();
@@ -211,7 +213,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         }
 
         _disposed = true;
-        _demoCache.Changed -= OnCacheChanged;
+        _library.Changed -= OnLibraryChanged;
         _sidecars.Changed -= OnCacheChanged;
         _index.Changed -= Refresh;
         Canvas.Searched -= Results.Load;
@@ -248,19 +250,22 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     [RelayCommand(CanExecute = nameof(HasFailed))]
     private void RetryFailed() => _evaluator?.RetryFailed();
 
+    private void OnLibraryChanged(LibraryChange change) => OnCacheChanged(change.Path);
+
+
     // Library-wide counts move for any demo, so the changed path is accepted and ignored.
     private void OnCacheChanged(string? changedPath) => Refresh();
 
     /// <summary>Recomputes every count from the index rows and the loaded index.</summary>
     public void Refresh()
     {
-        IReadOnlyList<DemoCacheIndexEntry> rows = _demoCache.Index;
+        IReadOnlyList<LibraryDemo> rows = _library.Demos;
         IReadOnlyList<string> pending = _evaluator?.PendingPaths() ?? [];
 
         LibraryCount = rows.Count;
         IndexedCount = _index.IndexedDemoCount;
         StaleCount = _index.StaleDemoCount;
-        FailedCount = rows.Count(r => _sidecars.IsFailed(r.Path));
+        FailedCount = rows.Count(r => _sidecars.IsFailed(r.FilePath));
         PendingCount = pending.Count;
         IsIndexing = _evaluator?.IsIndexing ?? false;
         // PendingPaths is newest-first, the order the queue drains in, so its head is the demo in flight.
@@ -319,7 +324,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
     // The zones mode is per map: a map without zones falls back to the pawn and the strip names it,
     // so a search result speaking Valve's names on that map is not a surprise.
-    private string BuildTokenSourceLine(IReadOnlyList<DemoCacheIndexEntry> rows)
+    private string BuildTokenSourceLine(IReadOnlyList<LibraryDemo> rows)
     {
         if (_tokenSource() != RoundIndexTokenSource.Zones)
         {
@@ -328,7 +333,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
 
         List<string> fallback =
         [
-            .. rows.Select(r => r.Map)
+            .. rows.Select(r => r.MapName)
                 .OfType<string>()
                 .Where(m => m.Length > 0)
                 .Distinct(StringComparer.OrdinalIgnoreCase)

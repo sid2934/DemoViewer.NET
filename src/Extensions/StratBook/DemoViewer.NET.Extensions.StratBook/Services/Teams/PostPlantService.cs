@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 
@@ -86,24 +85,28 @@ public sealed class PostPlantService
     // A record without a clock header is still a CS2 demo; the frame clock of every build here is 64.
     private const int FallbackTickRate = 64;
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFactsSource _roundFacts;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly RoundIndexStore _positions;
     private readonly TeamIdentityService _teams;
 
     /// <param name="teams">Team Identity: the team's demos and its side per round.</param>
-    /// <param name="demoCache">The records: map, hash and Round Facts rows per demo.</param>
+    /// <param name="library">The library: map and hash per demo, and the players.</param>
+    /// <param name="roundFacts">The Round Facts rows per demo.</param>
     /// <param name="positions">The round positions files, for the spots, the holds and the retakes.</param>
     /// <param name="fingerprintFor">The fingerprint current positions carry per map; a file under another is stale.</param>
-    public PostPlantService(TeamIdentityService teams, DemoCacheStore demoCache, RoundIndexStore positions,
+    public PostPlantService(TeamIdentityService teams, IExtensionLibrary library, IRoundFactsSource roundFacts, RoundIndexStore positions,
         Func<string?, string> fingerprintFor)
     {
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(fingerprintFor);
         _teams = teams;
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
         _positions = positions;
         _fingerprintFor = fingerprintFor;
     }
@@ -121,8 +124,8 @@ public sealed class PostPlantService
         {
             JobScope.ThrowIfStopped(); // one demo at a time: a user's build may take the lane between them
             if (!seen.Add(demo.Path)
-                || _demoCache.TryGetIndex(demo.Path)?.Map is not { Length: > 0 } map
-                || _demoCache.TryLoadWithRoundFacts(demo.Path) is not ({ } record, { } rows))
+                || _library.Find(demo.Path) is not { MapName: { Length: > 0 } map } record
+                || _roundFacts.TryGet(demo.Path) is not { } rows)
             {
                 continue;
             }

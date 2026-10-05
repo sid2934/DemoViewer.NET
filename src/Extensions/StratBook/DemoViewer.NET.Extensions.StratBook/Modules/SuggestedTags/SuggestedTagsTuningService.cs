@@ -3,7 +3,6 @@
 using System.Runtime.ExceptionServices;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Tags;
 
@@ -42,30 +41,30 @@ public sealed class SuggestedTagsTuningService
 
     private readonly Dictionary<string, CachedDemo> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly LinkedList<string> _cacheOrder = [];
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly Lock _gate = new();
     private readonly IExtensionJobs _jobs;
     private readonly SiteRegionStore _regions;
     private readonly SuggestedTagsService _suggestedTags;
     private readonly TagStore? _tags;
 
-    /// <param name="demoCache">The unified cache: the library this scores over.</param>
+    /// <param name="library">The library this scores over.</param>
     /// <param name="suggestedTags">The evaluator: stored proposals, verdicts, and the detection-input builder.</param>
     /// <param name="tags">The Tag Store hand tags are scored against; null runs with no ground truth (every row's recall/precision is "no data").</param>
     /// <param name="regions">The learned site region tables, the same store the evaluator reads.</param>
     /// <param name="jobs">The processing queue a preview reads its demos and scores them on, as user-requested jobs.</param>
     public SuggestedTagsTuningService(
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         SuggestedTagsService suggestedTags,
         TagStore? tags,
         SiteRegionStore regions,
         IExtensionJobs jobs)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(suggestedTags);
         ArgumentNullException.ThrowIfNull(regions);
         ArgumentNullException.ThrowIfNull(jobs);
-        _demoCache = demoCache;
+        _library = library;
         _jobs = jobs;
         _suggestedTags = suggestedTags;
         _tags = tags;
@@ -75,10 +74,10 @@ public sealed class SuggestedTagsTuningService
     /// <summary>Every demo the evaluator has built proposals for, newest first: what the tables score over.</summary>
     public IReadOnlyList<string> ScoredDemoPaths() =>
     [
-        .. _demoCache.Index
-            .Where(e => _suggestedTags.Load(e.Path, e.Sha256).Entries.Count > 0)
-            .OrderByDescending(e => e.ModifiedTicks)
-            .Select(e => e.Path)
+        .. _library.Demos
+            .Where(e => _suggestedTags.Load(e.FilePath, e.Sha256).Entries.Count > 0)
+            .OrderByDescending(e => e.Modified.Ticks)
+            .Select(e => e.FilePath)
     ];
 
     /// <summary>
@@ -93,16 +92,16 @@ public sealed class SuggestedTagsTuningService
         List<string> scoredPaths = [];
         int demosWithVerdicts = 0;
 
-        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
+        foreach (LibraryDemo entry in _library.Demos)
         {
-            ProposalSet set = _suggestedTags.Load(entry.Path, entry.Sha256);
+            ProposalSet set = _suggestedTags.Load(entry.FilePath, entry.Sha256);
             if (set.Entries.Count == 0)
             {
                 continue;
             }
 
-            scoredPaths.Add(entry.Path);
-            AddFired(firedByDetector, DemoKey(entry.Path, entry.Sha256), set.Entries.Select(e => e.Proposal));
+            scoredPaths.Add(entry.FilePath);
+            AddFired(firedByDetector, DemoKey(entry.FilePath, entry.Sha256), set.Entries.Select(e => e.Proposal));
             if (set.Entries.Any(e => e.Verdict is not null))
             {
                 demosWithVerdicts++;
@@ -240,7 +239,7 @@ public sealed class SuggestedTagsTuningService
             }
 
             scoredPaths.Add(path);
-            AddFired(firedByDetector, DemoKey(path, _demoCache.TryGetIndex(path)?.Sha256), proposals);
+            AddFired(firedByDetector, DemoKey(path, _library.Find(path)?.Sha256), proposals);
         }
 
         (IReadOnlyDictionary<string, IReadOnlyList<HandTagWindow>> handTags, int demosWithHandTags) =
@@ -283,10 +282,10 @@ public sealed class SuggestedTagsTuningService
         return null;
     }
 
-    // The record and its Round Facts rows, or null when the demo has none: nothing bounds rounds and seats sides.
-    private (DemoCacheRecord Record, RoundFactsRows Facts)? Inputs(string path) =>
-        _demoCache.TryLoadRecord(path) is { } record
-        && _demoCache.RoundFactsOf(record) is { Schema: StratBookCache.RoundFactsSchema } facts
+    // The row and its Round Facts rows, or null when the demo has none: nothing bounds rounds and seats sides.
+    private (LibraryDemo Record, RoundFactsRows Facts)? Inputs(string path) =>
+        _library.Find(path) is { } record
+        && _suggestedTags.RoundFacts.TryGet(path) is { Schema: StratBookCache.RoundFactsSchema } facts
             ? (record, facts)
             : null;
 
@@ -297,7 +296,7 @@ public sealed class SuggestedTagsTuningService
             return null;
         }
 
-        string map = string.IsNullOrEmpty(parsed.MapName) ? record.Map ?? "" : parsed.MapName;
+        string map = string.IsNullOrEmpty(parsed.MapName) ? record.MapName ?? "" : parsed.MapName;
         SuggestedTagsService.DetectionInputs inputs = _suggestedTags.BuildDetectionInputs(path, map, parsed, facts, record);
         SiteRegionTable? table;
         try
@@ -362,7 +361,7 @@ public sealed class SuggestedTagsTuningService
         HashSet<string> shas = new(StringComparer.Ordinal);
         foreach (string path in scoredPaths)
         {
-            if (_demoCache.TryGetIndex(path)?.Sha256 is { Length: > 0 } sha)
+            if (_library.Find(path)?.Sha256 is { Length: > 0 } sha)
             {
                 shas.Add(sha.ToLowerInvariant());
             }

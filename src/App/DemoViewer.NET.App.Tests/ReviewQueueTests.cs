@@ -343,7 +343,7 @@ public class ReviewQueueTests
         RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         ReviewQueue queue = new(null);
-        ResultCardsViewModel cards = new(cache, sidecars, sources, () => null, new SituationThumbnailCache(),
+        ResultCardsViewModel cards = new(cache.Library(), sidecars, sources, () => null, new SituationThumbnailCache(),
             () => new SituationThumbnailRenderer(_ => null), action => action(), _ => null, review: queue);
         cache.Upsert(ParsedRecord("/d/a.dem"));
         Guid opponent = Guid.NewGuid();
@@ -380,7 +380,7 @@ public class ReviewQueueTests
         await Assert.That(queue.Entries.Count).IsEqualTo(3);
         await Assert.That(cards.ReviewLine).IsEqualTo("already in Review");
 
-        ResultCardsViewModel without = new(cache, sidecars, sources, () => null);
+        ResultCardsViewModel without = new(cache.Library(), sidecars, sources, () => null);
         await Assert.That(without.HasReview).IsFalse().Because("no queue on the host hides the action");
     }
 

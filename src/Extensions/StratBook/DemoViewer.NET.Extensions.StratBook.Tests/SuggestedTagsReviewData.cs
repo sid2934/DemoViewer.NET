@@ -36,7 +36,7 @@ internal sealed class SuggestedTagsReviewHarness : IDisposable
         Tags = new TagStore(tagsRoot);
         Regions = new SiteRegionStore(null);
         Regions.Save(SuggestedTagsTestData.Table);
-        Service = new SuggestedTagsService(Cache, Proposals, Tags, Regions, () => Profile, () => Enabled,
+        Service = new SuggestedTagsService(Cache.Library(), Cache.RoundFacts(), Proposals, Tags, Regions, () => Profile, () => Enabled,
             () => Background, walk: _ => Walk(), utcNow: () => Now);
     }
 

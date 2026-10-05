@@ -9,7 +9,6 @@ using System.Text;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.RoundIndex;
 using Microsoft.Extensions.Logging;
@@ -165,7 +164,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
 
     private static ILogger? _diagLog;
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly GrenadeIndexEvaluator? _evaluator;
     private readonly object _gate = new();
     private readonly Dictionary<string, LoadedDemo> _loaded = new(StringComparer.OrdinalIgnoreCase);
@@ -185,7 +184,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
 
-    /// <param name="demoCache">The library's index rows.</param>
+    /// <param name="library">The library's rows.</param>
     /// <param name="zones">Where a map's zone resolver comes from; none when omitted.</param>
     /// <param name="evaluator">The writer, whose <c>Indexed</c> merges a demo; null in a read-only host.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
@@ -195,13 +194,13 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
     ///     fold into it; the pool when null.
     /// </param>
     /// <param name="store">The grenade rows; the evaluator's when null, else rows kept in memory.</param>
-    public GrenadeIndex(DemoCacheStore demoCache, IZonePlaceResolverSource? zones = null,
+    public GrenadeIndex(IExtensionLibrary library, IZonePlaceResolverSource? zones = null,
         GrenadeIndexEvaluator? evaluator = null, Action<Action>? post = null, GrenadeLineupStore? lineups = null,
         Func<Action, Task>? scheduleSave = null, GrenadeStore? store = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
-        _demoCache = demoCache;
-        _store = store ?? evaluator?.Store ?? new GrenadeStore(Extensions.StratBook.MemoryDemoData.For(demoCache));
+        ArgumentNullException.ThrowIfNull(library);
+        _library = library;
+        _store = store ?? evaluator?.Store ?? new GrenadeStore(Extensions.StratBook.MemoryDemoData.For(library));
         _lineups = lineups ?? new GrenadeLineupStore((string?)null);
         _scheduleSave = scheduleSave ?? (drain => Task.Run(drain));
         _zones = zones ?? NoZonePlaceResolverSource.Instance;
@@ -290,7 +289,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
             _evaluator.Walked += OnIndexed;
         }
 
-        _demoCache.Changed += OnCacheChanged;
+        _library.Changed += OnLibraryChanged;
         _store.Changed += OnCacheChanged;
     }
 
@@ -337,7 +336,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
             _evaluator.Walked -= OnIndexed;
         }
 
-        _demoCache.Changed -= OnCacheChanged;
+        _library.Changed -= OnLibraryChanged;
         _store.Changed -= OnCacheChanged;
         return true;
     }
@@ -350,7 +349,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
     {
         Attach();
         Stopwatch watch = Stopwatch.StartNew();
-        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
+        foreach (LibraryDemo entry in _library.Demos)
         {
             if (IsLoadable(entry))
             {
@@ -958,7 +957,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
 
     // ── Merge and remove ──────────────────────────────────────────────────────
 
-    private bool IsLoadable(DemoCacheIndexEntry? entry) => entry is not null && _store.IsCurrent(entry.Path);
+    private bool IsLoadable(LibraryDemo? entry) => entry is not null && _store.IsCurrent(entry.FilePath);
 
     private static (string? Place, string? Source) Resolve(IZonePlaceResolver? zones, WorldPoint landing) =>
         zones?.Resolve(landing.ToVector()) is { Length: > 0 } place
@@ -995,7 +994,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
         }
     }
 
-    private bool Merge(DemoCacheIndexEntry entry, IReadOnlyDictionary<string, List<TrajectoryPoint>>? flights = null)
+    private bool Merge(LibraryDemo entry, IReadOnlyDictionary<string, List<TrajectoryPoint>>? flights = null)
     {
         lock (_gate)
         {
@@ -1006,9 +1005,9 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
             }
         }
 
-        if (_store.TryReadRows(entry.Path, entry.Sha256) is not { } document)
+        if (_store.TryReadRows(entry.FilePath, entry.Sha256) is not { } document)
         {
-            string fileName = Path.GetFileName(entry.Path);
+            string fileName = Path.GetFileName(entry.FilePath);
             GrenadeIndexLog.RowsIgnored(Log, fileName);
             return false;
         }
@@ -1016,10 +1015,10 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
         // Rows without a thrower's name take it from the record's players.
         if (document.Grenades.Any(r => r.ThrowerName is null))
         {
-            GrenadeSidecar.Name(document, _demoCache.TryLoadRecord(entry.Path)?.Players);
+            GrenadeSidecar.Name(document, _library.Detail(entry.FilePath)?.Players);
         }
 
-        string map = entry.Map ?? "";
+        string map = entry.MapName ?? "";
         DemoRef demo = DemoRef.From(entry);
         IZonePlaceResolver? zones = map.Length > 0 ? _zones.TryGet(map) : null;
         int tickRate = document.Clock.TickRate > 0 ? document.Clock.TickRate : 64;
@@ -1040,7 +1039,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
 
         lock (_gate)
         {
-            _loaded[entry.Path] = new LoadedDemo(demo, map, zones?.ZonesVersion, grenades);
+            _loaded[entry.FilePath] = new LoadedDemo(demo, map, zones?.ZonesVersion, grenades);
             InvalidateLocked(map);
         }
 
@@ -1100,11 +1099,14 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
 
     private void OnIndexed(string path)
     {
-        if (_demoCache.TryGetIndex(path) is { } entry && IsLoadable(entry) && Merge(entry, _evaluator?.TakeFlights(path)))
+        if (_library.Find(path) is { } entry && IsLoadable(entry) && Merge(entry, _evaluator?.TakeFlights(path)))
         {
             _post(() => Changed?.Invoke());
         }
     }
+
+    private void OnLibraryChanged(LibraryChange change) => OnCacheChanged(change.Path);
+
 
     // Removals only: new rows arrive through the evaluator's Walked, so no rows are read here.
     private void OnCacheChanged(string? path)
@@ -1120,7 +1122,7 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
             IEnumerable<string> candidates = path is null ? _loaded.Keys.ToList() : [path];
             foreach (string loaded in candidates)
             {
-                if (_loaded.ContainsKey(loaded) && !IsLoadable(_demoCache.TryGetIndex(loaded)))
+                if (_loaded.ContainsKey(loaded) && !IsLoadable(_library.Find(loaded)))
                 {
                     changed |= _loaded.Remove(loaded);
                     InvalidateLocked(null);

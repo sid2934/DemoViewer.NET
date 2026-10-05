@@ -232,7 +232,7 @@ public class SetupHeatmapTests
         using Harness h = await Harness.Create();
         ReviewQueue queue = new(null);
         List<string> shown = [];
-        using DossierTabViewModel vm = new(h.Teams, h.Cache, new VetoHistoryStore(null), false,
+        using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
             h.Service, queue, id =>
             {
                 shown.Add(id);
@@ -317,7 +317,7 @@ public class SetupHeatmapTests
         public static async Task<Harness> Create(string? positionsFingerprint = null)
         {
             DemoCacheStore cache = new(null);
-            TeamIdentityService teams = new(null, cache, new RoundFactsSource(cache), run: _inline);
+            TeamIdentityService teams = new(null, cache.Library(), new RoundFactsSource(cache), run: _inline);
             await teams.StartAsync();
             using (cache.BeginBatch())
             {
@@ -330,7 +330,7 @@ public class SetupHeatmapTests
             RoundIndexStore store = new(cache.Data());
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
             store.WritePositions(Demo, Positions(positionsFingerprint ?? sources.FingerprintFor("de_nuke")));
-            SetupHeatmapService service = new(teams, cache, store, sources.FingerprintFor);
+            SetupHeatmapService service = new(teams, cache.Library(), cache.RoundFacts(), store, sources.FingerprintFor);
 
             Guid teamA = teams.Teams.First(t => t.Rosters.Any(r => r.CoreLineup?.Contains(Id(1)) == true)).Id;
             Guid teamB = teams.Teams.First(t => t.Rosters.Any(r => r.CoreLineup?.Contains(Id(11)) == true)).Id;

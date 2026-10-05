@@ -3,7 +3,6 @@
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Teams;
@@ -44,25 +43,29 @@ public sealed class RoundSignatureBuilder
     private const int FallbackTickRate = 64;
 
     private readonly SignatureCache? _cache;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFactsSource _roundFacts;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly Func<string, IReadOnlyList<MiningGrenade>>? _grenades;
     private readonly RoundIndexStore _positions;
     private readonly TeamIdentityService? _teams;
 
-    /// <param name="demoCache">The records: map, hash and Round Facts rows.</param>
+    /// <param name="library">The library: map and hash per demo.</param>
+    /// <param name="roundFacts">The Round Facts rows per demo.</param>
     /// <param name="positions">The round positions files.</param>
     /// <param name="fingerprintFor">The fingerprint current positions carry per map.</param>
     /// <param name="grenades">A map's indexed grenades with their lineups; null when nothing is indexed.</param>
     /// <param name="teams">Team Identity, for the team on each side; null leaves every round unowned.</param>
     /// <param name="cache">Signatures from earlier builds; null reads every demo's files on every build.</param>
-    public RoundSignatureBuilder(DemoCacheStore demoCache, RoundIndexStore positions, Func<string?, string> fingerprintFor,
+    public RoundSignatureBuilder(IExtensionLibrary library, IRoundFactsSource roundFacts, RoundIndexStore positions, Func<string?, string> fingerprintFor,
         Func<string, IReadOnlyList<MiningGrenade>>? grenades, TeamIdentityService? teams, SignatureCache? cache = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(fingerprintFor);
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
         _positions = positions;
         _fingerprintFor = fingerprintFor;
         _grenades = grenades;
@@ -118,17 +121,17 @@ public sealed class RoundSignatureBuilder
     {
         BuildSession session = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
-        foreach (IGrouping<string, DemoCacheIndexEntry> map in _demoCache.Index
-                     .Where(e => e.Map is { Length: > 0 })
-                     .GroupBy(e => e.Map!, StringComparer.OrdinalIgnoreCase))
+        foreach (IGrouping<string, LibraryDemo> map in _library.Demos
+                     .Where(e => e.MapName is { Length: > 0 })
+                     .GroupBy(e => e.MapName!, StringComparer.OrdinalIgnoreCase))
         {
             ILookup<string, MiningGrenade> grenades = (_grenades?.Invoke(map.Key) ?? [])
                 .ToLookup(g => g.Grenade.Demo.Path, StringComparer.OrdinalIgnoreCase);
-            foreach (DemoCacheIndexEntry entry in map)
+            foreach (LibraryDemo entry in map)
             {
-                if (seen.Add(entry.Sha256 ?? entry.Path))
+                if (seen.Add(entry.Sha256 ?? entry.FilePath))
                 {
-                    session.Items.Add((entry, map.Key, grenades.Contains(entry.Path) ? [.. grenades[entry.Path]] : null));
+                    session.Items.Add((entry, map.Key, grenades.Contains(entry.FilePath) ? [.. grenades[entry.FilePath]] : null));
                 }
             }
         }
@@ -142,29 +145,29 @@ public sealed class RoundSignatureBuilder
         ArgumentNullException.ThrowIfNull(session);
         for (int i = from; i < Math.Min(session.Count, from + count); i++)
         {
-            (DemoCacheIndexEntry entry, string map, IReadOnlyList<MiningGrenade>? grenades) = session.Items[i];
-            session.Present.Add(entry.Path);
+            (LibraryDemo entry, string map, IReadOnlyList<MiningGrenade>? grenades) = session.Items[i];
+            session.Present.Add(entry.FilePath);
             DemoSignatures? demo;
             string? key = _cache is null ? null : KeyFor(entry, map);
-            if (key is not null && _cache!.TryGet(entry.Path, key) is { } hit)
+            if (key is not null && _cache!.TryGet(entry.FilePath, key) is { } hit)
             {
                 demo = hit;
                 session.Reused++;
             }
             else
             {
-                demo = Read(entry.Path, map);
+                demo = Read(entry.FilePath, map);
                 session.Built++;
                 // A demo whose files could not be read is not cached: the next mine tries it again.
                 if (key is not null && demo is not null)
                 {
-                    _cache!.Put(entry.Path, key, demo);
+                    _cache!.Put(entry.FilePath, key, demo);
                 }
             }
 
             if (demo is not null)
             {
-                session.Signatures.AddRange(Attach(entry.Path, map, demo, grenades));
+                session.Signatures.AddRange(Attach(entry.FilePath, map, demo, grenades));
             }
         }
     }
@@ -186,7 +189,7 @@ public sealed class RoundSignatureBuilder
     /// <summary>One build in progress; see <see cref="Begin" />.</summary>
     public sealed class BuildSession
     {
-        internal List<(DemoCacheIndexEntry Entry, string Map, IReadOnlyList<MiningGrenade>? Grenades)> Items { get; } = [];
+        internal List<(LibraryDemo Entry, string Map, IReadOnlyList<MiningGrenade>? Grenades)> Items { get; } = [];
 
         internal List<RoundSignature> Signatures { get; } = [];
 
@@ -208,35 +211,25 @@ public sealed class RoundSignatureBuilder
         Read(path, map) is { } demo ? Attach(path, map, demo, grenades) : [];
 
     // Everything a demo's signatures are read from, so a change to any of them rebuilds it. Grenades are not in
-    // it: throws are attached fresh on every build. The file stamp catches a record rewrite the index row does not show.
-    private string KeyFor(DemoCacheIndexEntry entry, string map)
+    // it: throws are attached fresh on every build.
+    private string KeyFor(LibraryDemo entry, string map)
     {
+        LibraryFactState? facts = entry.Fact(RoundFactsRecords.FacetId);
         string teams = "-";
-        if (_teams is not null && _teams.GetAssignment(entry.Path) is { } assignment)
+        if (_teams is not null && _teams.GetAssignment(entry.FilePath) is { } assignment)
         {
             teams = string.Create(CultureInfo.InvariantCulture,
-                $"{_teams.TeamOnSide(entry.Path, 2)?.Id}:{assignment.T.TeamId}:{string.Join(',', assignment.T.Key)}/{_teams.TeamOnSide(entry.Path, 3)?.Id}:{assignment.Ct.TeamId}:{string.Join(',', assignment.Ct.Key)}");
+                $"{_teams.TeamOnSide(entry.FilePath, 2)?.Id}:{assignment.T.TeamId}:{string.Join(',', assignment.T.Key)}/{_teams.TeamOnSide(entry.FilePath, 3)?.Id}:{assignment.Ct.TeamId}:{string.Join(',', assignment.Ct.Key)}");
         }
 
         return string.Create(CultureInfo.InvariantCulture,
-            $"{SignatureVersion}|{entry.Sha256}|{entry.Size}|{entry.ModifiedTicks}|{entry.RoundFactsStamp()?.Schema ?? 0}|{entry.RoundFactsStamp()?.Fingerprint}|{_positions.ComputedAtTicks(entry.Path)}|{_fingerprintFor(map)}|{FileStamp(_demoCache.SidecarPathFor(entry.Path))}|{teams}");
-    }
-
-    private static string FileStamp(string? file)
-    {
-        if (file is null)
-        {
-            return "-";
-        }
-
-        FileInfo info = new(file);
-        return info.Exists ? string.Create(CultureInfo.InvariantCulture, $"{info.Length}:{info.LastWriteTimeUtc.Ticks}") : "none";
+            $"{SignatureVersion}|{entry.Sha256}|{entry.FileSizeBytes}|{entry.Modified.Ticks}|{facts?.Schema ?? 0}|{facts?.Fingerprint}|{facts?.Count ?? 0}|{_positions.ComputedAtTicks(entry.FilePath)}|{_fingerprintFor(map)}|{teams}");
     }
 
     // Null when the record has no Round Facts rows or the positions file is missing or stale.
     private DemoSignatures? Read(string path, string map)
     {
-        if (_demoCache.TryLoadWithRoundFacts(path) is not ({ } record, { } rows)
+        if (_library.Find(path) is not { } record || _roundFacts.TryGet(path) is not { } rows
             || _positions.TryReadPositions(path, _fingerprintFor(map), record.Sha256) is not { } positions)
         {
             return null;

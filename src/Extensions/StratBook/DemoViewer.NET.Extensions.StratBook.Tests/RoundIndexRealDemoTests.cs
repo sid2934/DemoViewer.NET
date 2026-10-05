@@ -161,8 +161,8 @@ public class RoundIndexRealDemoTests
         RoundIndexStore sidecars = new(store.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);
-        using SituationIndex index = new(store, sidecars, sources, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(store.Library(), store.RoundFacts(), sidecars, sources, () => true);
+        using SituationIndex index = new(store.Library(), sidecars, sources, evaluator: evaluator);
         index.Load();
 
         Stopwatch watch = Stopwatch.StartNew();

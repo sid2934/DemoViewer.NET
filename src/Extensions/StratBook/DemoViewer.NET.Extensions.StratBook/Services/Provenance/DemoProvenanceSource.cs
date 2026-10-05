@@ -1,7 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.Teams;
 
 #endregion
@@ -10,29 +10,29 @@ namespace DemoViewer.NET.Services.Provenance;
 
 /// <summary>
 ///     The store-backed <see cref="IDemoProvenanceSource" />: the override from <c>teams.json</c> when
-///     one names the demo, else <see cref="DemoProvenanceHeuristic" /> over the cache row's clan tags and
+///     one names the demo, else <see cref="DemoProvenanceHeuristic" /> over the library row's clan tags and
 ///     source kind and Team Identity's assignment. Nothing is persisted here; every answer is a lookup
 ///     over two in-memory indexes, so there is no cache to invalidate.
 /// </summary>
 public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
 {
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly Action<Action> _post;
     private readonly TeamIdentityService _teams;
     private bool _disposed;
 
-    /// <param name="demoCache">The unified demo cache: clan tags, source kind and the hash-to-path bridge.</param>
+    /// <param name="library">The demo library: clan tags, source kind and the hash-to-path bridge.</param>
     /// <param name="teams">Team Identity: the assignment the default reads, and the override store.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
-    public DemoProvenanceSource(DemoCacheStore demoCache, TeamIdentityService teams, Action<Action>? post = null)
+    public DemoProvenanceSource(IExtensionLibrary library, TeamIdentityService teams, Action<Action>? post = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(teams);
-        _demoCache = demoCache;
+        _library = library;
         _teams = teams;
         _post = post ?? (action => action());
         _teams.Changed += OnTeamsChanged;
-        _demoCache.Changed += OnCacheChanged;
+        _library.Changed += OnLibraryChanged;
     }
 
     /// <inheritdoc />
@@ -48,7 +48,7 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
 
         _disposed = true;
         _teams.Changed -= OnTeamsChanged;
-        _demoCache.Changed -= OnCacheChanged;
+        _library.Changed -= OnLibraryChanged;
     }
 
     /// <inheritdoc />
@@ -59,7 +59,7 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
             return null;
         }
 
-        if (_demoCache.TryGetIndexBySha256(sha256) is { } entry)
+        if (_library.FindBySha256(sha256) is { } entry)
         {
             return Resolve(entry, _teams.ProvenanceOverrides).Label;
         }
@@ -82,7 +82,7 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
                 continue;
             }
 
-            labels[sha] = _demoCache.TryGetIndexBySha256(sha) is { } entry
+            labels[sha] = _library.FindBySha256(sha) is { } entry
                 ? Resolve(entry, overrides).Label
                 : overrides.FirstOrDefault(o => string.Equals(o.DemoSha256, sha, StringComparison.Ordinal))?.Label;
         }
@@ -92,7 +92,7 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
 
     /// <inheritdoc />
     public DemoProvenance? Resolve(string demoPath) =>
-        _demoCache.TryGetIndex(demoPath) is { } entry ? Resolve(entry, _teams.ProvenanceOverrides) : null;
+        _library.Find(demoPath) is { } entry ? Resolve(entry, _teams.ProvenanceOverrides) : null;
 
     /// <inheritdoc />
     public IReadOnlyDictionary<string, DemoProvenance> ResolveAll(IEnumerable<string> demoPaths)
@@ -102,7 +102,7 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
         Dictionary<string, DemoProvenance> resolved = new(StringComparer.Ordinal);
         foreach (string path in demoPaths)
         {
-            if (!resolved.ContainsKey(path) && _demoCache.TryGetIndex(path) is { } entry)
+            if (!resolved.ContainsKey(path) && _library.Find(path) is { } entry)
             {
                 resolved[path] = Resolve(entry, overrides);
             }
@@ -115,9 +115,9 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
     ///     The heuristic's inputs for a cache row and its assignment. Public so a test can pin what the
     ///     source reads without a service.
     /// </summary>
-    /// <param name="entry">The index row.</param>
+    /// <param name="entry">The library row.</param>
     /// <param name="assignment">Team Identity's assignment, or null when the demo is unknown or unclusterable.</param>
-    public static ProvenanceInputs InputsFor(DemoCacheIndexEntry entry, TeamAssignment? assignment)
+    public static ProvenanceInputs InputsFor(LibraryDemo entry, TeamAssignment? assignment)
     {
         ArgumentNullException.ThrowIfNull(entry);
         return new ProvenanceInputs(
@@ -132,19 +132,19 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
     ///     stored, else the classifier over the cached server name, with a FACEIT server read as FACEIT, so
     ///     no re-index is needed to label an old library.
     /// </summary>
-    /// <param name="entry">The index row.</param>
-    public static DemoSourceKind SourceKindOf(DemoCacheIndexEntry entry)
+    /// <param name="entry">The library row.</param>
+    public static DemoSourceKind SourceKindOf(LibraryDemo entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
         return TeamSourcePolicy.EffectiveKind(entry.SourceKind, entry.Server);
     }
 
-    private DemoProvenance Resolve(DemoCacheIndexEntry entry, IReadOnlyList<ProvenanceOverride> overrides)
+    private DemoProvenance Resolve(LibraryDemo entry, IReadOnlyList<ProvenanceOverride> overrides)
     {
-        string key = DemoCacheStore.StableKey(entry.Path);
+        string key = DemoKeys.StableKey(entry.FilePath);
         string? pinned = overrides.FirstOrDefault(o => TeamIdentityService.Matches(o, key, entry.Sha256))?.Label;
-        string? fallback = DemoProvenanceHeuristic.Default(InputsFor(entry, _teams.GetAssignment(entry.Path)));
-        return new DemoProvenance(entry.Path, entry.Sha256, pinned ?? fallback, fallback,
+        string? fallback = DemoProvenanceHeuristic.Default(InputsFor(entry, _teams.GetAssignment(entry.FilePath)));
+        return new DemoProvenance(entry.FilePath, entry.Sha256, pinned ?? fallback, fallback,
             pinned is not null ? ProvenanceOrigin.Override
             : fallback is not null ? ProvenanceOrigin.Heuristic
             : ProvenanceOrigin.None);
@@ -152,7 +152,7 @@ public sealed class DemoProvenanceSource : IDemoProvenanceSource, IDisposable
 
     private void OnTeamsChanged() => RaiseChanged();
 
-    private void OnCacheChanged(string? path) => RaiseChanged();
+    private void OnLibraryChanged(LibraryChange change) => RaiseChanged();
 
     private void RaiseChanged() => _post(() => Changed?.Invoke());
 }

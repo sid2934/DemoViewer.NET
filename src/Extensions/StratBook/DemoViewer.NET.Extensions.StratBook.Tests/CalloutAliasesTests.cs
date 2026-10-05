@@ -188,9 +188,9 @@ public class CalloutAliasesTests
         DemoCacheStore cache = new(null);
         RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
 
-        using QueryCanvasViewModel vm = new(index, new QueryPlaceResolver(index, sources.Zones), cache, _ => null,
+        using QueryCanvasViewModel vm = new(index, new QueryPlaceResolver(index, sources.Zones), cache.Library(), _ => null,
             dispose => dispose(), calloutResolverFor: _ => resolver);
         vm.Map = "de_nuke";
 

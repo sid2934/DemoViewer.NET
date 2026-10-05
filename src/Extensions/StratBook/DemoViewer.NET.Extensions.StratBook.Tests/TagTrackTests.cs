@@ -50,15 +50,15 @@ public class TagTrackTests
     private static readonly int[] MarkerFrames = [50, 90, 700];
     private static readonly string[] RoundOnly = ["round"];
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 0 },
-        new() { Number = 2, StartTickFrameClock = 1_000 }
+        new LibraryRound(1, 0),
+        new LibraryRound(2, 1_000)
     ];
 
     private static async Task<TagSession> Attached(params TagInstance[] instances)
     {
-        TagSession session = new(null, _ => _rounds, () => false, () => Created)
+        TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };

@@ -326,10 +326,10 @@ public class TagMatrixTests
         private Corpus()
         {
             Cache = new DemoCacheStore(null);
-            Teams = new TeamIdentityService(null, Cache, _facts, run: _inline);
+            Teams = new TeamIdentityService(null, Cache.Library(), _facts, run: _inline);
             Store = new TagStore(null);
             Queue = new ReviewQueue(null);
-            Matrix = new TagMatrixTabViewModel(Store, Queue, Cache.TryGetIndexBySha256, Teams,
+            Matrix = new TagMatrixTabViewModel(Store, Queue, Cache.Library().FindBySha256, Teams,
                 tab =>
                 {
                     SelectedTabs.Add(tab);

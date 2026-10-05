@@ -66,7 +66,7 @@ public class DossierModuleTests
     private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams, Guid TeamA, Guid TeamB)> Library()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -137,7 +137,7 @@ public class DossierModuleTests
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
 
-        MapPoolRecord record = MapPoolRecordService.Build(teams, cache, teamA);
+        MapPoolRecord record = MapPoolRecordService.Build(teams, cache.Library(), teamA);
 
         using (Assert.Multiple())
         {
@@ -166,7 +166,7 @@ public class DossierModuleTests
     public async Task AReactivation_KeepsTheProjection_ANewDemoOfTheTeamRebuildsIt_AndAHiddenTabWaits()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
-        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false);
+        using DossierTabViewModel vm = new(teams, cache.Library(), new VetoHistoryStore(null), isBrowser: false);
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
         MapPoolRowViewModel first = vm.Maps[0];
         vm.OnActivated(null!);
@@ -191,7 +191,7 @@ public class DossierModuleTests
     public async Task EachMap_GetsASection_WithItsRecordLineAndFindings_AndTheTeamWideLinesStayInTheGeneralSections()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
-        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false,
+        using DossierTabViewModel vm = new(teams, cache.Library(), new VetoHistoryStore(null), isBrowser: false,
             notes: new DossierNotesStore(null));
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
         DossierMapSectionViewModel nuke = vm.MapSections.Single(m => m.Map == "de_nuke");
@@ -213,7 +213,7 @@ public class DossierModuleTests
     public async Task DismissRestoreAndTheSettledToggle_WorkOnAFindingInsideAMapSection()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
-        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false,
+        using DossierTabViewModel vm = new(teams, cache.Library(), new VetoHistoryStore(null), isBrowser: false,
             notes: new DossierNotesStore(null));
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
         DossierMapSectionViewModel nuke = vm.MapSections.Single(m => m.Map == "de_nuke");
@@ -239,7 +239,7 @@ public class DossierModuleTests
     public async Task CollapseAll_ClosesEverySection_AndAClosedMapSectionBuildsNothing_UntilItIsOpened()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
-        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false);
+        using DossierTabViewModel vm = new(teams, cache.Library(), new VetoHistoryStore(null), isBrowser: false);
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
         DossierMapSectionViewModel nuke = vm.MapSections.Single(m => m.Map == "de_nuke");
         bool openAtStart = nuke.IsExpanded; // few findings: opens by default
@@ -267,8 +267,8 @@ public class DossierModuleTests
     public async Task TheGrenadeIndexFinishingItsLoad_ReProjectsTheSelectedTeam()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, _) = await Library();
-        using GrenadeIndex grenades = new(cache);
-        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false, grenades: grenades);
+        using GrenadeIndex grenades = new(cache.Library());
+        using DossierTabViewModel vm = new(teams, cache.Library(), new VetoHistoryStore(null), isBrowser: false, grenades: grenades);
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);
         MapPoolRowViewModel before = vm.Maps[0];
         vm.OnActivated(null!);
@@ -287,7 +287,7 @@ public class DossierModuleTests
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA, Guid teamB) = await Library();
         VetoHistoryStore vetoes = new(null);
-        using DossierTabViewModel vm = new(teams, cache, vetoes, isBrowser: false);
+        using DossierTabViewModel vm = new(teams, cache.Library(), vetoes, isBrowser: false);
 
         using (Assert.Multiple())
         {
@@ -339,10 +339,10 @@ public class DossierModuleTests
     public async Task WithNoDemos_TheRecordSaysSo_AndVetoesStaySessionOnly()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         VetoHistoryStore vetoes = new(null);
-        using DossierTabViewModel vm = new(teams, cache, vetoes);
+        using DossierTabViewModel vm = new(teams, cache.Library(), vetoes);
 
         using (Assert.Multiple())
         {

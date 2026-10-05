@@ -228,7 +228,7 @@ public class FindRoundsLikeThisTests
     public async Task TheShippedSeam_LoadsTheCanvas_AndShowsTheTab_OrRefusesWhenTheTabIsGone()
     {
         using Harness h = new();
-        using SituationsTabViewModel tab = new(h.Index, null, h.Cache, h.Sources,
+        using SituationsTabViewModel tab = new(h.Index, null, h.Cache.Library(), h.Sources,
             () => RoundIndexTokenSource.Pawn, false, h.Vm);
         List<string> shown = [];
         bool tabOnStrip = true;
@@ -325,9 +325,9 @@ public class FindRoundsLikeThisTests
             Cache = new DemoCacheStore(null);
             Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Index = new SituationIndex(Cache, Sidecars, Sources);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources);
             Index.Load();
-            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache, _ => null,
+            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache.Library(), _ => null,
                 dispose => dispose());
         }
 

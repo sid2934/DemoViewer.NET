@@ -26,10 +26,10 @@ public class TagFactsRefresherTests
 
     private static readonly DateTime Refreshed = new(2026, 9, 24, 9, 30, 0, DateTimeKind.Utc);
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 1_000 },
-        new() { Number = 2, StartTickFrameClock = 10_000 }
+        new LibraryRound(1, 1_000),
+        new LibraryRound(2, 10_000)
     ];
 
     // Round 1: CT pistol win on elimination, no plant, one T death at 1 500. Round 2: T full buy against a
@@ -214,7 +214,7 @@ public class TagFactsRefresherTests
     {
         TagStore store = new(null);
         FakeFacts facts = new(Rows());
-        using TagSession session = new(store, _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(store, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -247,7 +247,7 @@ public class TagFactsRefresherTests
     public async Task AFreshInstance_AlreadyCarriesItsRoundsFacts()
     {
         FakeFacts facts = new(Rows());
-        using TagSession session = new(new TagStore(null), _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(new TagStore(null), _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -278,7 +278,7 @@ public class TagFactsRefresherTests
     public async Task MovingAStart_IntoAnotherRound_RederivesItsFacts_AndUndoMovesThemBack()
     {
         FakeFacts facts = new(Rows());
-        using TagSession session = new(new TagStore(null), _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(new TagStore(null), _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -311,7 +311,7 @@ public class TagFactsRefresherTests
         store.Save(Document(Sha, early));
         FakeFacts facts = new(Rows());
 
-        using TagSession session = new(store, _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(store, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -330,7 +330,7 @@ public class TagFactsRefresherTests
     public async Task ASessionWithoutRows_LeavesFactsToTheRefresher()
     {
         FakeFacts facts = new(null);
-        using TagSession session = new(new TagStore(null), _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(new TagStore(null), _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };

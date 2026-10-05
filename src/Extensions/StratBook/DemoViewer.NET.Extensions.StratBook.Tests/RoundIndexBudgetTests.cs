@@ -54,7 +54,7 @@ public class RoundIndexBudgetTests
             DemoCacheStore reopened = new(root);
             RoundIndexStore sidecars = new(reopened.DiskData(root));
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-            using SituationIndex index = new(reopened, sidecars, sources);
+            using SituationIndex index = new(reopened.Library(), sidecars, sources);
 
             Stopwatch load = Stopwatch.StartNew();
             index.Load();

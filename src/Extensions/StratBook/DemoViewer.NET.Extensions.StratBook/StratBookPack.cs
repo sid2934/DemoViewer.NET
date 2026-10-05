@@ -229,17 +229,19 @@ public sealed class StratBookPack : IExtension
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             IExtensionFeatures features = Host(sp).Features;
             RoundIndexEvaluator built = new(
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
+                sp.GetRequiredService<IRoundFactsSource>(),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 () => settings.SituationsBackgroundIndex,
                 Host(sp).Post,
-                enabled: () => features.IsEnabled(PackFeatureId));
+                enabled: () => features.IsEnabled(PackFeatureId),
+                reprojectRow: path => sp.GetRequiredService<RoundFactsEvaluator>().ReprojectRow(path));
             built.Passes = Host(sp).Passes;
             return built;
         });
         services.AddSingleton(sp => new SituationIndex(
-            sp.GetRequiredService<DemoCacheStore>(),
+            Library(sp),
             sp.GetRequiredService<RoundIndexStore>(),
             sp.GetRequiredService<RoundIndexPlaceSources>(),
             sp.GetRequiredService<IRoundFactsSource>(),
@@ -271,11 +273,11 @@ public sealed class StratBookPack : IExtension
         // refresh itself runs off the UI thread and reaches an open demo through the store's routing.
         services.AddSingleton(sp =>
         {
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            IExtensionLibrary library = Library(sp);
             return new TagFactsRefresher(
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
-                path => cache.TryGetIndex(path)?.Sha256,
+                path => library.Find(path)?.Sha256,
                 background: work => _ = Job(sp, "Tags: round facts", work, new JobOptions(BuiltInJobKinds.Save)));
         });
 
@@ -289,9 +291,9 @@ public sealed class StratBookPack : IExtension
             return palettes;
         });
 
-        // Team Identity: teams as data over the cache's rosters. Two files under the config root, the
+        // Team Identity: teams as data over the library's sides. Two files under the config root, the
         // user's teams.json beside settings.json and the derived team-index.json under cache/; the
-        // service lifts side keys off DemoCacheStore.Changed and replays clustering off the UI thread.
+        // service lifts side keys off the library's change events and replays clustering off the UI thread.
         // Round Facts is the join SideAtRound reads. Null config root (the browser) makes it session-only.
         services.AddSingleton(sp =>
         {
@@ -300,7 +302,7 @@ public sealed class StratBookPack : IExtension
             // first-run wizard has not asked yet.
             TeamIdentityService teams = new(
                 Paths(sp).ConfigRoot,
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
                 sp.GetRequiredService<IRoundFactsSource>(),
                 Host(sp).Post,
                 run: work => Job(sp, "Teams: update", work,
@@ -323,7 +325,7 @@ public sealed class StratBookPack : IExtension
         // Demo Provenance Labels: the override from teams.json else the heuristic over the cache row and
         // the assignment. No store of its own; it re-raises the two stores' Changed on the UI thread.
         services.AddSingleton(sp => new DemoProvenanceSource(
-            sp.GetRequiredService<DemoCacheStore>(),
+            Library(sp),
             sp.GetRequiredService<TeamIdentityService>(),
             Host(sp).Post));
         services.AddSingleton<IDemoProvenanceSource>(sp => sp.GetRequiredService<DemoProvenanceSource>());
@@ -331,7 +333,7 @@ public sealed class StratBookPack : IExtension
         // reaches the shell at call time, never at construction.
         services.AddSingleton(sp => new TeamsTabViewModel(
             sp.GetRequiredService<TeamIdentityService>(),
-            sp.GetRequiredService<DemoCacheStore>(),
+            Library(sp),
             async path => await Host(sp).Shell.OpenDemoAsync(path),
             command: (what, change) => Job(sp, "Teams: " + what.TrimEnd('…'), change,
                 new JobOptions(StratBookJobKinds.Teams, JobPriority.UserRequested, Serial: TeamIdentityService.QueueSerial)),
@@ -388,7 +390,7 @@ public sealed class StratBookPack : IExtension
             return new SituationsTabViewModel(
                 sp.GetRequiredService<ISituationIndex>(),
                 sp.GetRequiredService<RoundIndexEvaluator>(),
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 () => settings.TokenSource,
                 playback: () => sp.GetService<ISituationPlayback>(),
@@ -404,7 +406,8 @@ public sealed class StratBookPack : IExtension
                 // Strat Book's own default.
                 callouts: sp.GetRequiredService<CalloutResolverSource>(),
                 run: part => work => Job(sp, "Situations: " + part, work,
-                    new JobOptions(Key: "section:situations:" + part, Preemptible: true)));
+                    new JobOptions(Key: "section:situations:" + part, Preemptible: true)),
+                roundFacts: sp.GetRequiredService<IRoundFactsSource>());
         });
 
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
@@ -414,22 +417,22 @@ public sealed class StratBookPack : IExtension
         // and no files, so it gets no pack row.
         services.AddSingleton(sp =>
         {
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            IExtensionLibrary library = Library(sp);
             TeamIdentityService teams = sp.GetRequiredService<TeamIdentityService>();
             return new ReviewQueueTabViewModel(
                 sp.GetRequiredService<ReviewQueue>(),
                 () => sp.GetService<ISituationPlayback>(),
                 exportPack: sp.GetService<FirstPartyExports>()?.PackExport,
                 packDirectory: sp.GetService<FirstPartyExports>()?.ExportOutputDirectory,
-                mapOf: clip => (clip.Sha256 is { } sha ? cache.TryGetIndexBySha256(sha) : null)?.Map
-                               ?? cache.TryGetIndex(clip.DemoPath)?.Map,
+                mapOf: clip => (clip.Sha256 is { } sha ? library.FindBySha256(sha) : null)?.MapName
+                               ?? library.Find(clip.DemoPath)?.MapName,
                 teamName: id => teams.AllTeams.FirstOrDefault(t => t.Id == id || t.MergedFrom.Contains(id))?.Name);
         });
 
         // The Strat Book's Suggested section: every demo's tag suggestions in one inbox, read as a queue item.
         services.AddSingleton(sp => new SuggestedInboxService(
             sp.GetRequiredService<SuggestedTagsService>(),
-            sp.GetRequiredService<DemoCacheStore>(),
+            Library(sp),
             Host(sp).Jobs,
             run: work => Job(sp, "Suggested: read a demo", work, new JobOptions()),
             post: Host(sp).Post));
@@ -446,7 +449,7 @@ public sealed class StratBookPack : IExtension
             WatchedSituationsService watched = new(
                 Paths(sp).ConfigRoot,
                 sp.GetRequiredService<ISituationIndex>(),
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
                 sp.GetRequiredService<TeamIdentityService>(),
                 sp.GetRequiredService<IDemoProvenanceSource>(),
                 Host(sp).Post);
@@ -459,11 +462,11 @@ public sealed class StratBookPack : IExtension
         // of the multi-demo mode, and the tab switch after a send reaches the shell at call time.
         services.AddSingleton(sp =>
         {
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            IExtensionLibrary library = Library(sp);
             return new TagMatrixTabViewModel(
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<ReviewQueue>(),
-                cache.TryGetIndexBySha256,
+                library.FindBySha256,
                 sp.GetRequiredService<TeamIdentityService>(),
                 tabId => Host(sp).Shell.SelectTab(tabId),
                 Host(sp).Post,
@@ -487,7 +490,8 @@ public sealed class StratBookPack : IExtension
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             IExtensionFeatures features = Host(sp).Features;
             SuggestedTagsService built = new(
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
+                sp.GetRequiredService<IRoundFactsSource>(),
                 sp.GetRequiredService<ProposalStore>(),
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<SiteRegionStore>(),
@@ -508,7 +512,7 @@ public sealed class StratBookPack : IExtension
         // profile for recall/precision. Shares the evaluator's store and region table so a
         // preview scores exactly what the queue already built.
         services.AddSingleton(sp => new SuggestedTagsTuningService(
-            sp.GetRequiredService<DemoCacheStore>(),
+            Library(sp),
             sp.GetRequiredService<SuggestedTagsService>(),
             sp.GetRequiredService<TagStore>(),
             sp.GetRequiredService<SiteRegionStore>(),
@@ -537,7 +541,8 @@ public sealed class StratBookPack : IExtension
         {
             IExtensionFeatures features = Host(sp).Features;
             StratMiningService mining = new(
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
+                sp.GetRequiredService<IRoundFactsSource>(),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>().FingerprintFor,
                 sp.GetRequiredService<GrenadeIndex>(),
@@ -556,7 +561,7 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton<StratBookLayout>();
         services.AddSingleton(sp =>
         {
-            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+            IExtensionLibrary library = Library(sp);
             // The canvas (and the Detected preview's) fallback when nobody passes placesFor/routing
             // explicitly: the extension's switches, the zone source and the user's keybind overrides.
             FirstPartyHost paths = Paths(sp);
@@ -570,7 +575,7 @@ public sealed class StratBookPack : IExtension
                 tags: sp.GetRequiredService<TagStore>(),
                 evidence: sp.GetRequiredService<StratEvidenceService>(),
                 review: sp.GetRequiredService<ReviewQueue>(),
-                indexBySha: cache.TryGetIndexBySha256,
+                indexBySha: library.FindBySha256,
                 selectTab: tabId => Host(sp).Shell.SelectTab(tabId),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 mining: sp.GetRequiredService<StratMiningService>(),
@@ -648,7 +653,7 @@ public sealed class StratBookPack : IExtension
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             IExtensionFeatures features = Host(sp).Features;
             GrenadeIndexEvaluator built = new(
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
                 sp.GetRequiredService<GrenadeStore>(),
                 () => settings.GrenadesBackgroundIndex,
                 () => Host(sp).Shell.CurrentDemoPath,
@@ -666,7 +671,7 @@ public sealed class StratBookPack : IExtension
         {
             string? legacyLineups = Paths(sp).CacheRoot is { } cacheRoot ? Path.Combine(cacheRoot, GrenadeLineupStore.FileName) : null;
             GrenadeIndex index = new(
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 sp.GetRequiredService<GrenadeIndexEvaluator>(),
                 Host(sp).Post,
@@ -695,29 +700,33 @@ public sealed class StratBookPack : IExtension
             RoundIndexPlaceSources sources = sp.GetRequiredService<RoundIndexPlaceSources>();
             return new DossierTabViewModel(
                 sp.GetRequiredService<TeamIdentityService>(),
-                sp.GetRequiredService<DemoCacheStore>(),
+                Library(sp),
                 sp.GetRequiredService<VetoHistoryStore>(),
                 heatmaps: new SetupHeatmapService(
                     sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>(),
+                    Library(sp),
+                    sp.GetRequiredService<IRoundFactsSource>(),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
                 review: sp.GetRequiredService<ReviewQueue>(),
                 selectTab: tabId => Host(sp).Shell.SelectTab(tabId),
                 openings: new OpeningTendenciesService(
                     sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>(),
+                    Library(sp),
+                    sp.GetRequiredService<IRoundFactsSource>(),
                     sp.GetRequiredService<GrenadeIndex>(),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
                 postPlant: new PostPlantService(
                     sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>(),
+                    Library(sp),
+                    sp.GetRequiredService<IRoundFactsSource>(),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
                 situational: new SituationalBehaviourService(
                     sp.GetRequiredService<TeamIdentityService>(),
-                    sp.GetRequiredService<DemoCacheStore>()),
+                    Library(sp),
+                    sp.GetRequiredService<IRoundFactsSource>()),
                 notes: sp.GetRequiredService<DossierNotesStore>(),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 runSection: section => work => Job(sp, "Dossier: " + section, work,
@@ -770,9 +779,12 @@ public sealed class StratBookPack : IExtension
     // Where the user's own work already lives, from before extensions had folders of their own.
     private static FirstPartyHost Paths(IServiceProvider sp) => sp.GetRequiredService<FirstPartyHost>();
 
+    // The demo library, read only.
+    private static IExtensionLibrary Library(IServiceProvider sp) => Host(sp).Library;
+
     // The per-demo data the host keeps, or the session's own where it keeps none (the browser).
     private static IExtensionDemoData Data(IServiceProvider sp) =>
-        Host(sp).Data is { IsAvailable: true } data ? data : MemoryDemoData.For(sp.GetRequiredService<DemoCacheStore>());
+        Host(sp).Data is { IsAvailable: true } data ? data : MemoryDemoData.For(Library(sp));
 
     // One processing-queue job through the context, owned by the pack's id.
     private static Task Job(IServiceProvider sp, string title, Action work, JobOptions options) =>
@@ -874,6 +886,8 @@ public sealed class StratBookPack : IExtension
 
         // The Library's Team filter and provenance chip, each resolving its service lazily on first use.
         contributions.Library(new TeamLibraryContribution(sp.GetRequiredService<TeamIdentityService>));
+        // A demo whose library row predates side players gets its sides from its record, without a parse.
+        contributions.RecordPass(TeamIdentityService.SidesPassId, () => sp.GetRequiredService<TeamIdentityService>().SidesPass);
         contributions.Library(new ProvenanceLibraryContribution(sp.GetRequiredService<IDemoProvenanceSource>, sp.GetRequiredService<TeamIdentityService>));
 
         // Every module is registered on both hosts; each degrades to session-only state in the browser and
@@ -918,7 +932,7 @@ public sealed class StratBookPack : IExtension
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
         // gate above decides what the band offers; nothing is constructed here.
         contributions.Playback(new CreateStratPlaybackContribution(contributions.Context.Post, contributions.Context.Jobs));
-        firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post));
+        firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post, library: Library(sp)));
         firstParty.FirstPartyPlayback(new Modules.Situations.SituationsPlaybackContribution());
 
         // The Situations tab. The badge reads Watched Situations, so the service resolves now, but only
@@ -971,11 +985,11 @@ public sealed class StratBookPack : IExtension
     // canvas's bundle instead of decoding its own; the canvas keeps it.
     private static UtilityBookTabViewModel UtilityBookFor(IServiceProvider sp, string? lockedMap, global::DemoViewer.NET.Playback2D.Pipeline.Assets.LoadedMapAsset? sharedAsset)
     {
-        DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
+        IExtensionLibrary library = Library(sp);
         return new UtilityBookTabViewModel(
             sp.GetRequiredService<GrenadeIndex>(),
             sp.GetRequiredService<ISituationPlayback>(),
-            demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
+            demoDate: path => library.Find(path) is { Modified.Ticks: > 0 } entry ? new DateTime(entry.Modified.Ticks) : null,
             clipDirectory: Paths(sp).ConfigRoot is { } root ? Path.Combine(root, LineupClipService.DirectoryName) : null,
             background: work => _ = Job(sp, lockedMap is null ? "Utility Book" : "Lineup picker", work,
                 new JobOptions(Key: lockedMap is null ? "section:utility" : "section:lineup-picker", Preemptible: true)),

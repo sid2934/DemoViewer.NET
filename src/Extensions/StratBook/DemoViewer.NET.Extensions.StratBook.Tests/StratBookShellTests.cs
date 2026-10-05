@@ -495,7 +495,7 @@ public class StratBookShellTests
     private static (DemoCacheStore Cache, TeamIdentityService Teams) NewTeams()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: a =>
+        TeamIdentityService teams = new(null, cache.Library(), run: a =>
         {
             a();
             return Task.CompletedTask;

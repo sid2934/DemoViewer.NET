@@ -7,7 +7,6 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -65,7 +64,8 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFactsSource _roundFacts;
     private readonly string? _detectedPath;
     private readonly Func<bool> _enabled;
     private readonly Func<string?, string> _fingerprintFor;
@@ -95,7 +95,8 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     private bool _stateRefused;
     private bool _stateUnread;
 
-    /// <param name="demoCache">Records, Round Facts and the cache events a quiet re-mine follows.</param>
+    /// <param name="library">The library rows and the change events a quiet re-mine follows.</param>
+    /// <param name="roundFacts">The Round Facts rows per demo.</param>
     /// <param name="positions">The round positions files.</param>
     /// <param name="fingerprintFor">The positions fingerprint per map.</param>
     /// <param name="grenadeIndex">The Grenade Index; null mines positions only.</param>
@@ -115,16 +116,18 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     ///     The owning pack's gate for the cache-quiet re-mine only; a user-requested <see cref="MineAsync()" />
     ///     always runs. Defaults to always-on.
     /// </param>
-    public StratMiningService(DemoCacheStore demoCache, RoundIndexStore positions, Func<string?, string> fingerprintFor,
+    public StratMiningService(IExtensionLibrary library, IRoundFactsSource roundFacts, RoundIndexStore positions, Func<string?, string> fingerprintFor,
         GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags, string? cacheRoot,
         string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null,
         IExtensionJobs? jobs = null, Func<bool>? enabled = null, IExtensionPasses? passes = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(fingerprintFor);
         ArgumentNullException.ThrowIfNull(strats);
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
         _positions = positions;
         _fingerprintFor = fingerprintFor;
         _grenadeIndex = grenadeIndex;
@@ -138,7 +141,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         _jobs = jobs;
         _passes = passes;
         _enabled = enabled ?? (() => true);
-        _signatures = new RoundSignatureBuilder(demoCache, positions, fingerprintFor,
+        _signatures = new RoundSignatureBuilder(library, roundFacts, positions, fingerprintFor,
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
             new SignatureCache(cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "signatures.json.gz")));
         Load();
@@ -212,7 +215,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         }
 
         _strats.Deleted += OnStratDeleted;
-        _demoCache.Changed += OnSourceChanged;
+        _library.Changed += OnLibraryChanged;
         if (_grenadeIndex is not null)
         {
             _grenadeIndex.Changed += OnSourceChanged;
@@ -294,7 +297,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         }
 
         _strats.Deleted -= OnStratDeleted;
-        _demoCache.Changed -= OnSourceChanged;
+        _library.Changed -= OnLibraryChanged;
         if (_grenadeIndex is not null)
         {
             _grenadeIndex.Changed -= OnSourceChanged;
@@ -631,11 +634,12 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         ArgumentNullException.ThrowIfNull(pattern);
         RoundSignature medoid = pattern.Medoid;
         cancellationToken.ThrowIfCancellationRequested();
-        if (_demoCache.TryLoadWithRoundFacts(medoid.DemoPath) is not ({ } record, { } rows)
+        if (_library.Find(medoid.DemoPath) is not { } record || _roundFacts.TryGet(medoid.DemoPath) is not { } rows
             || rows.Rounds.FirstOrDefault(r => r.Number == medoid.Round) is not { } facts
             || cancellationToken.IsCancellationRequested
             || _positions.TryReadPositions(medoid.DemoPath, _fingerprintFor(pattern.Map), record.Sha256) is not { } positions
-            || positions.Round(medoid.Round) is not { } stored)
+            || positions.Round(medoid.Round) is not { } stored
+            || _library.Detail(medoid.DemoPath) is not { } detail)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return null;
@@ -651,9 +655,9 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         ];
         cancellationToken.ThrowIfCancellationRequested();
         Dictionary<int, (ulong, string)> players = [];
-        foreach (CachedPlayerInfo player in record.Players)
+        foreach (LibraryPlayer player in detail.Players)
         {
-            players[player.Slot] = (ulong.TryParse(player.SteamId64, out ulong id) ? id : 0, player.Name);
+            players[player.Slot] = (player.SteamId64, player.Name);
         }
 
         RoundCapture capture = CachedRoundCapture.Build(positions, stored, facts, grenades, players, medoid.TickRate,
@@ -673,13 +677,13 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             : pattern.Side == 2 ? DefaultCode : SetupCode;
         foreach (MinedMember member in pattern.Members)
         {
-            string? sha = member.Sha256 ?? _demoCache.TryGetIndex(member.DemoPath)?.Sha256;
-            if (sha is null || _demoCache.TryLoadRecord(member.DemoPath) is not { } record)
+            string? sha = member.Sha256 ?? _library.Find(member.DemoPath)?.Sha256;
+            if (sha is null || _library.Find(member.DemoPath) is not { } record)
             {
                 continue;
             }
 
-            RoundFacts.RoundFactsRows? facts = _demoCache.RoundFactsOf(record);
+            RoundFacts.RoundFactsRows? facts = _roundFacts.TryGet(member.DemoPath);
             (int from, int to) = RunSpan(pattern, member, facts?.Rounds.FirstOrDefault(r => r.Number == member.Round));
             TagInstance run = new()
             {
@@ -698,7 +702,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
                     new TagLabel(StratEvidence.RevisionGroup, "1")
                 ]
             };
-            _tags.Append(new DemoIdentity(sha, Path.GetFileName(member.DemoPath), record.Size),
+            _tags.Append(new DemoIdentity(sha, Path.GetFileName(member.DemoPath), record.FileSizeBytes),
                 facts?.Clock?.ToIdentity() ?? ClockIdentity.Unknown, run);
         }
     }
@@ -842,6 +846,9 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             }
         }, publish: false);
     }
+
+    private void OnLibraryChanged(LibraryChange change) => OnSourceChanged(change.Path);
+
 
     private void OnSourceChanged(string? _) => OnSourceChanged();
 

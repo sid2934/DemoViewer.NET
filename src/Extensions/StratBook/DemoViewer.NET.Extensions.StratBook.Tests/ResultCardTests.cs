@@ -390,9 +390,9 @@ public class ResultCardTests
             (2, 3000, 4000, [new RoundIndexRun(0, 2, "Outside:5", "Lobby:5")]));
         Indexed(h.Cache, h.Sidecars, DemoA, document);
         h.Index.Load();
-        RoundIndexEvaluator evaluator = new(h.Cache, h.Sidecars, h.Sources, () => true, walk: _ => []);
-        using SituationsTabViewModel tab = new(h.Index, evaluator, h.Cache, h.Sources, () => RoundIndexTokenSource.Pawn,
-            false, new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache, _ => null,
+        RoundIndexEvaluator evaluator = new(h.Cache.Library(), h.Cache.RoundFacts(), h.Sidecars, h.Sources, () => true, walk: _ => []);
+        using SituationsTabViewModel tab = new(h.Index, evaluator, h.Cache.Library(), h.Sources, () => RoundIndexTokenSource.Pawn,
+            false, new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null,
                 dispose => dispose()), h.Vm);
 
         tab.Canvas.Map = "de_nuke";
@@ -450,9 +450,9 @@ public class ResultCardTests
             Cache = new DemoCacheStore(null);
             Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Index = new SituationIndex(Cache, Sidecars, Sources);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources);
             Index.Load();
-            Vm = new ResultCardsViewModel(Cache, Sidecars, Sources, () => Seam, new SituationThumbnailCache(),
+            Vm = new ResultCardsViewModel(Cache.Library(), Sidecars, Sources, () => Seam, new SituationThumbnailCache(),
                 () =>
                 {
                     RendererBuilds++;
@@ -462,7 +462,7 @@ public class ResultCardTests
                         return null;
                     });
                 },
-                action => action(), _ => null);
+                action => action(), _ => null, roundFacts: Cache.RoundFacts());
         }
 
         public DemoCacheStore Cache { get; }

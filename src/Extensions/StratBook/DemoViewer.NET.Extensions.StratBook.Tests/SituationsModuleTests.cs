@@ -84,14 +84,14 @@ public class SituationsModuleTests
         DemoCacheStore cache = new(null);
         RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true, walk: _ => []);
-        using SituationIndex index = new(cache, sidecars, sources, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), sidecars, sources, () => true, walk: _ => []);
+        using SituationIndex index = new(cache.Library(), sidecars, sources, evaluator: evaluator);
         Indexed(cache, sidecars, "/d/a.dem", Document("de_nuke", sources.FingerprintFor("de_nuke")));
         cache.Upsert(ParsedRecord("/d/b.dem", facts: Facts(Round(1, 1000, 2000))));
         cache.Upsert(ParsedRecord("/d/c.dem"));
         index.Load();
 
-        using SituationsTabViewModel vm = new(index, evaluator, cache, sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
+        using SituationsTabViewModel vm = new(index, evaluator, cache.Library(), sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
 
         using (Assert.Multiple())
         {
@@ -127,10 +127,10 @@ public class SituationsModuleTests
         DemoCacheStore cache = new(null);
         RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
         index.Load();
 
-        using SituationsTabViewModel vm = new(index, null, cache, sources, () => RoundIndexTokenSource.Zones, isBrowser: true);
+        using SituationsTabViewModel vm = new(index, null, cache.Library(), sources, () => RoundIndexTokenSource.Zones, isBrowser: true);
 
         using (Assert.Multiple())
         {
@@ -150,10 +150,10 @@ public class SituationsModuleTests
         RoundIndexBuilderTests.FakeZoneResolver nuke = new("zv-1", _ => null);
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Zones,
             new RoundIndexEvaluatorTests.MapZones(("de_nuke", nuke)));
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
         index.Load();
 
-        using SituationsTabViewModel vm = new(index, null, cache, sources, () => RoundIndexTokenSource.Zones, isBrowser: false);
+        using SituationsTabViewModel vm = new(index, null, cache.Library(), sources, () => RoundIndexTokenSource.Zones, isBrowser: false);
 
         await Assert.That(vm.TokenSourceLine).Contains("no zones for de_dust2");
         await Assert.That(vm.TokenSourceLine).DoesNotContain("de_nuke");

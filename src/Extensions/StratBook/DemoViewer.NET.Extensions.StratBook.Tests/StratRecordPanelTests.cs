@@ -219,7 +219,7 @@ public class StratRecordPanelTests
             Cache = new DemoCacheStore(null);
             Queue = new ReviewQueue(null);
             StratEvidenceService evidence = new(Tags, new FixedProvenance(Provenance));
-            Panel = new StratRecordPanelViewModel(evidence, Tags, Queue, Cache.TryGetIndexBySha256,
+            Panel = new StratRecordPanelViewModel(evidence, Tags, Queue, Cache.Library().FindBySha256,
                 tab =>
                 {
                     SelectedTabs.Add(tab);

@@ -63,7 +63,7 @@ public class LibraryContributionsTests
     private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> Library()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -158,7 +158,7 @@ public class LibraryContributionsTests
                 () =>
                 {
                     provenanceResolves++;
-                    return source = new DemoProvenanceSource(cache, teams);
+                    return source = new DemoProvenanceSource(cache.Library(), teams);
                 },
                 () =>
                 {
@@ -197,7 +197,7 @@ public class LibraryContributionsTests
         using (teams)
         {
             DemoCacheStore cache = new(null);
-            ProvenanceLibraryContribution contribution = new(() => new DemoProvenanceSource(cache, teams), () => teams);
+            ProvenanceLibraryContribution contribution = new(() => new DemoProvenanceSource(cache.Library(), teams), () => teams);
 
             using (Assert.Multiple())
             {
@@ -215,7 +215,7 @@ public class LibraryContributionsTests
         (DemoCacheStore cache, TeamIdentityService teams) = await Library();
         using (teams)
         {
-            DemoProvenanceSource real = new(cache, teams);
+            DemoProvenanceSource real = new(cache.Library(), teams);
             CountingProvenanceSource counting = new(real);
             ProvenanceLibraryContribution contribution = new(() => counting, () => teams);
 
@@ -287,7 +287,7 @@ public class LibraryContributionsTests
 
             await teams.Idle;
             teams.SetMyAccounts([Ids(1)[0]]);
-            DemoProvenanceSource source = new(cache, teams);
+            DemoProvenanceSource source = new(cache.Library(), teams);
             ProvenanceLibraryContribution contribution = new(() => source, () => teams);
             LibraryDemo a = Entry("/d/a.dem");
 

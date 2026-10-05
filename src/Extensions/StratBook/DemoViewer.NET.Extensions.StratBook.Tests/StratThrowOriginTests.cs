@@ -334,7 +334,7 @@ public class StratThrowOriginTests
             cache.WriteGrenades(path, document);
         }
 
-        GrenadeIndex index = new(cache);
+        GrenadeIndex index = new(cache.Library());
         index.Load();
         GrenadeLineup lineup = index.Query(new GrenadeQuery(Map)).SelectMany(c => c.Lineups).Single();
         return (index, lineup);
@@ -343,7 +343,7 @@ public class StratThrowOriginTests
     private static GrenadeLineup Lineup(Guid id, IReadOnlyList<Guid> aliases)
     {
         GrenadeRow row = new() { Id = id.ToString(), Kind = GrenadeKind.Smoke };
-        IndexedGrenade throwOf = new(new DemoRef("/d/x.dem", "x", null), Map, row, new WorldPoint(1, 2, 3), new WorldPoint(4, 5, 6), null, null);
+        IndexedGrenade throwOf = new(new global::DemoViewer.NET.Extensions.StratBook.DemoRef("/d/x.dem", "x", null), Map, row, new WorldPoint(1, 2, 3), new WorldPoint(4, 5, 6), null, null);
         return new GrenadeLineup(new WorldPoint(1, 2, 3), false, [throwOf], id) { AliasIds = [id, .. aliases] };
     }
 }

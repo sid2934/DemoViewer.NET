@@ -98,10 +98,10 @@ public static partial class Variants
                 Grenades = rows
             };
             cache.Upsert(record);
-            new GrenadeStore(MemoryDemoData.For(cache)).Write(path, document);
+            new GrenadeStore(MemoryDemoData.For(DemoViewer.NET.Extensions.HostLibrary.For(cache, null))).Write(path, document);
         }
 
-        GrenadeIndex index = new(cache);
+        GrenadeIndex index = new(DemoViewer.NET.Extensions.HostLibrary.For(cache, null));
         index.Load();
         return index;
     }

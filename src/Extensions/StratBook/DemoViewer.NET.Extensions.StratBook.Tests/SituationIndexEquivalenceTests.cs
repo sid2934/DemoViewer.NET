@@ -99,7 +99,7 @@ public class SituationIndexEquivalenceTests
             Indexed(cache, sidecars, path, document, computed, modified);
         }
 
-        SituationIndex index = new(cache, sidecars, new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn));
+        SituationIndex index = new(cache.Library(), sidecars, new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn));
         index.Load();
         return index;
     }
@@ -252,7 +252,7 @@ public class SituationIndexEquivalenceTests
             Indexed(cache, sidecars, DemoPath(n), SyntheticDocument(random, Maps[n % Maps.Length], 24, 14, Places.Length), 100, 1000 + n);
         }
 
-        using SituationIndex index = new(cache, sidecars, new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn));
+        using SituationIndex index = new(cache.Library(), sidecars, new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn));
         long before = GC.GetTotalMemory(true);
         index.Load();
         long after = GC.GetTotalMemory(true);

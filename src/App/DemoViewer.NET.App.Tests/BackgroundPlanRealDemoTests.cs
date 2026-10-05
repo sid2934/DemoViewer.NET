@@ -102,12 +102,12 @@ public class BackgroundPlanRealDemoTests
 
         RoundIndexStore index = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        new RoundIndexEvaluator(cache, index, sources, () => true).Evaluate(path, parsed);
+        new RoundIndexEvaluator(cache.Library(), cache.RoundFacts(), index, sources, () => true).Evaluate(path, parsed);
         outputs["round index"] = index.TryReadText(path) ?? "null";
         outputs["round positions"] = JsonSerializer.Serialize(index.TryReadPositions(path), Json);
 
         ProposalStore proposals = new(cache.Data());
-        SuggestedTagsService tags = new(cache, proposals, null, new SiteRegionStore(null),
+        SuggestedTagsService tags = new(cache.Library(), cache.RoundFacts(), proposals, null, new SiteRegionStore(null),
             () => DetectorProfile.Default, () => true, () => true, index, sources);
         tags.Evaluate(path, parsed);
         outputs["suggested tags"] = JsonSerializer.Serialize(

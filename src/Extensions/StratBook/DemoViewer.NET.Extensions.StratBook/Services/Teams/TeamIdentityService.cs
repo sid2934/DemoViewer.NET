@@ -1,9 +1,9 @@
 #region
 
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
 using System.Text.Json;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
@@ -23,10 +23,11 @@ namespace DemoViewer.NET.Services.Teams;
 ///     <para>
 ///         <b>Assignment is a replay.</b> Every change, one demo indexed or a merge, re-runs
 ///         <see cref="TeamClusterer" /> over the side keys already in the index, seeded from the user
-///         file, in <c>orderTicks</c> order. The keys are lifted out of each record once, on
-///         <see cref="DemoCacheStore.Changed" />, so nothing here opens a sidecar again until a rebuild;
-///         a replay over a few hundred demos costs milliseconds and is the same pass a rebuild runs, which
-///         is what keeps the incremental and the rebuilt index identical.
+///         file, in <c>orderTicks</c> order. The keys are read off the library's rows, which carry each
+///         side's players, on <see cref="IExtensionLibrary.Changed" />; a row written before the library
+///         carried sides is lifted from its record by <see cref="SidesPass" />, a record pass. A replay over a
+///         few hundred demos costs milliseconds and is the same pass a rebuild runs, which is what keeps the
+///         incremental and the rebuilt index identical.
 ///     </para>
 ///     <para>
 ///         <b>Browser host.</b> No config root, so both files are session-only and the Teams panel says so.
@@ -46,12 +47,12 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     private const int SideJoinCapacity = 4;
     private const string IndexFileName = "team-index.json";
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly object _gate = new();
     private readonly string? _indexPath;
 
-    // Keyed on the index entry INSTANCE: Upsert swaps it synchronously before the record is readable, so a
-    // cached join never outlives the record it was built from. Under _joinGate.
+    // Keyed on the library row INSTANCE: the library hands out a new row whenever the demo's record is
+    // written, so a cached join never outlives the record it was built from. Under _joinGate.
     private readonly object _joinGate = new();
     private readonly List<JoinSlot> _joins = [];
     private readonly Dictionary<string, DemoSideInput> _inputs = new(StringComparer.Ordinal);
@@ -78,7 +79,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     public bool IsLoaded => _load.IsDone;
 
     /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
-    /// <param name="demoCache">The unified demo cache the side keys come from.</param>
+    /// <param name="library">The demo library the side keys come from.</param>
     /// <param name="roundFacts">The per-round rows <see cref="SideAtRound" /> joins; null answers null.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
     /// <param name="run">Runs a replay off the caller's thread; defaults to the thread pool. Tests pass an inline runner.</param>
@@ -89,15 +90,15 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     /// </param>
     public TeamIdentityService(
         string? configRoot,
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         IRoundFactsSource? roundFacts = null,
         Action<Action>? post = null,
         Func<Action, Task>? run = null,
         Func<Action, Task>? scheduleLoad = null,
         bool loadAtStart = true)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
-        _demoCache = demoCache;
+        ArgumentNullException.ThrowIfNull(library);
+        _library = library;
         _roundFacts = roundFacts;
         _post = post ?? (action => action());
         _run = run ?? (action => Task.Run(action));
@@ -484,7 +485,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             _attached = true;
         }
 
-        _demoCache.Changed += OnCacheChanged;
+        _library.Changed += OnLibraryChanged;
         bool schedule;
         lock (_gate)
         {
@@ -563,7 +564,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             _attached = false;
         }
 
-        _demoCache.Changed -= OnCacheChanged;
+        _library.Changed -= OnLibraryChanged;
         return true;
     }
 
@@ -586,8 +587,8 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     });
 
     /// <summary>
-    ///     The id-preserving rebuild: one <see cref="DemoCacheStore.LoadRecords" /> pass to
-    ///     collect every side key, then the seeded replay. Off the UI thread; the documented cold cost.
+    ///     The id-preserving rebuild: every side key the library's rows carry, then the seeded replay. Off the
+    ///     UI thread. A row without sides joins when <see cref="SidesPass" /> reads its record.
     /// </summary>
     public Task RebuildAsync(CancellationToken ct = default) => Schedule(() => RebuildCore(ct));
 
@@ -595,9 +596,9 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     {
         ct.ThrowIfCancellationRequested();
         List<DemoSideInput> inputs = [];
-        foreach (DemoCacheRecord record in _demoCache.LoadRecords(e => e.ParseSchema > 0))
+        foreach (LibraryDemo demo in _library.Demos)
         {
-            if (SideKeys.From(record) is { } input)
+            if (SideKeys.From(demo) is { } input)
             {
                 inputs.Add(input);
             }
@@ -623,9 +624,9 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
     }
 
-    private void OnCacheChanged(string? path)
+    private void OnLibraryChanged(LibraryChange change)
     {
-        if (path is null)
+        if (change.Path is not { } path)
         {
             _ = Schedule(SyncWithIndex);
             return;
@@ -634,42 +635,17 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         _ = Schedule(() => SyncOne(path));
     }
 
-    // A batch or a startup: every parsed row the index does not know, or knows under another file
-    // identity, is lifted; rows the cache forgot are dropped.
+    // A batch or a startup: every parsed row whose sides the index does not hold, or holds under another
+    // file identity, is lifted; rows the library forgot are dropped. A parsed row the library has no sides
+    // for keeps what is held: its record is read by the sides pass, never treated as an empty side.
     private void SyncWithIndex()
     {
-        Dictionary<string, DemoCacheIndexEntry> entries = new(StringComparer.Ordinal);
-        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
+        Dictionary<string, LibraryDemo> parsed = new(StringComparer.Ordinal);
+        foreach (LibraryDemo demo in _library.Demos)
         {
-            if (entry.ParseSchema > 0)
+            if (demo.State >= LibraryDemoState.Parsed)
             {
-                entries[DemoCacheStore.StableKey(entry.Path)] = entry;
-            }
-        }
-
-        List<string> toLoad = [];
-        List<string> toDrop = [];
-        lock (_gate)
-        {
-            foreach ((string key, DemoCacheIndexEntry entry) in entries)
-            {
-                if (!_inputs.TryGetValue(key, out DemoSideInput? held)
-                    || held.OrderTicks != entry.ModifiedTicks
-                    || !string.Equals(held.Sha256, entry.Sha256, StringComparison.Ordinal))
-                {
-                    toLoad.Add(entry.Path);
-                }
-            }
-
-            toDrop.AddRange(_inputs.Keys.Where(key => !entries.ContainsKey(key)));
-        }
-
-        List<DemoSideInput> loaded = [];
-        foreach (string path in toLoad)
-        {
-            if (_demoCache.TryLoadRecord(path) is { } record && SideKeys.From(record) is { } input)
-            {
-                loaded.Add(input);
+                parsed[DemoKeys.StableKey(demo.FilePath)] = demo;
             }
         }
 
@@ -681,16 +657,17 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             }
 
             bool changed = false;
-            foreach (string key in toDrop)
+            foreach (string key in _inputs.Keys.Where(key => !parsed.ContainsKey(key)).ToList())
             {
                 changed |= _inputs.Remove(key);
             }
 
-            foreach (DemoSideInput input in loaded)
+            foreach ((string key, LibraryDemo demo) in parsed)
             {
-                if (!_inputs.TryGetValue(input.StableKey, out DemoSideInput? held) || !held.SameSides(input))
+                if (SideKeys.From(demo) is { } input
+                    && (!_inputs.TryGetValue(key, out DemoSideInput? held) || !held.SameSides(input)))
                 {
-                    _inputs[input.StableKey] = input;
+                    _inputs[key] = input;
                     changed = true;
                 }
             }
@@ -702,13 +679,13 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
     }
 
-    // One demo changed: a removal drops it, a parsed row is lifted (a capacity-1 hit right after the
-    // upsert), and nothing runs when the sides are the ones already held.
+    // One demo changed: a removal drops it, a parsed row with sides is lifted, and nothing runs when the
+    // sides are the ones already held or the row carries none yet.
     private void SyncOne(string path)
     {
-        string key = DemoCacheStore.StableKey(path);
-        DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
-        if (entry is null)
+        string key = DemoKeys.StableKey(path);
+        LibraryDemo? demo = _library.Find(path);
+        if (demo is null)
         {
             lock (_gate)
             {
@@ -721,28 +698,93 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             return;
         }
 
-        if (entry.ParseSchema == 0)
+        if (SideKeys.From(demo) is { } input)
         {
-            return;
+            Lift([input]);
         }
+    }
 
-        DemoSideInput? input = _demoCache.TryLoadRecord(path) is { } record ? SideKeys.From(record) : null;
-        if (input is null)
-        {
-            return;
-        }
-
+    // Takes the inputs into the index and replays once when any of them moved a side.
+    private void Lift(IReadOnlyList<DemoSideInput> inputs)
+    {
         lock (_gate)
         {
-            if (!_attached || (_inputs.TryGetValue(key, out DemoSideInput? held) && held.SameSides(input)))
+            if (!_attached)
             {
                 return;
             }
 
-            _inputs[key] = input;
-            Recompute();
+            bool changed = false;
+            foreach (DemoSideInput input in inputs)
+            {
+                if (!_inputs.TryGetValue(input.StableKey, out DemoSideInput? held) || !held.SameSides(input))
+                {
+                    _inputs[input.StableKey] = input;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                Recompute();
+            }
         }
     }
+
+    // Inputs the sides pass read off records, taken in one replay however many arrived meanwhile.
+    private readonly Dictionary<string, DemoSideInput> _fromRecords = new(StringComparer.Ordinal);
+
+    private void LiftFromRecord(DemoSideInput input)
+    {
+        bool schedule;
+        lock (_fromRecords)
+        {
+            schedule = _fromRecords.Count == 0;
+            _fromRecords[input.StableKey] = input;
+        }
+
+        if (schedule)
+        {
+            _ = Schedule(() =>
+            {
+                List<DemoSideInput> inputs;
+                lock (_fromRecords)
+                {
+                    inputs = [.. _fromRecords.Values];
+                    _fromRecords.Clear();
+                }
+
+                Lift(inputs);
+            });
+        }
+    }
+
+    /// <summary>
+    ///     The record pass that lifts the sides of a parsed demo whose library row does not carry them: a row
+    ///     written before the library kept sides. Reading the record also gives the library the row's sides.
+    /// </summary>
+    public IExtensionRecordPass SidesPass => _sidesPass ??= new SidesRecordPass(this);
+
+    private IExtensionRecordPass? _sidesPass;
+
+    private sealed class SidesRecordPass(TeamIdentityService owner) : IExtensionRecordPass
+    {
+        public string Id => SidesPassId;
+
+        public bool Wants(LibraryDemo demo) =>
+            demo.State >= LibraryDemoState.Parsed && (demo.CtPlayers is null || demo.TPlayers is null);
+
+        public void Run(LibraryDemoDetail detail, CancellationToken cancellationToken)
+        {
+            if (SideKeys.From(detail) is { } input)
+            {
+                owner.LiftFromRecord(input);
+            }
+        }
+    }
+
+    /// <summary>The id of <see cref="SidesPass" />.</summary>
+    public const string SidesPassId = "teams.sides";
 
     private Task Schedule(Action work)
     {
@@ -784,7 +826,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     {
         lock (_gate)
         {
-            return _index.Demos.TryGetValue(DemoCacheStore.StableKey(demoPath), out TeamIndexDemo? row)
+            return _index.Demos.TryGetValue(DemoKeys.StableKey(demoPath), out TeamIndexDemo? row)
                 ? ToAssignment(row)
                 : null;
         }
@@ -830,7 +872,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     {
         lock (_gate)
         {
-            return _index.Demos.TryGetValue(DemoCacheStore.StableKey(demoPath), out TeamIndexDemo? row)
+            return _index.Demos.TryGetValue(DemoKeys.StableKey(demoPath), out TeamIndexDemo? row)
                    && row.Side(endSide)?.TeamId is { } id
                 ? _teams.Find(id)
                 : null;
@@ -850,7 +892,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         List<string>? key;
         lock (_gate)
         {
-            if (!_index.Demos.TryGetValue(DemoCacheStore.StableKey(demoPath), out TeamIndexDemo? row))
+            if (!_index.Demos.TryGetValue(DemoKeys.StableKey(demoPath), out TeamIndexDemo? row))
             {
                 return null;
             }
@@ -887,7 +929,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             return null;
         }
 
-        DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(demoPath);
+        LibraryDemo? entry = _library.Find(demoPath);
         if (entry is null)
         {
             return BuildJoin(demoPath);
@@ -916,10 +958,10 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         return join.Value;
     }
 
-    // Rows and slot map from one record read, so the two always describe the same write.
+    // Rows and slot map of one demo, cached per library row so a rewrite of the demo builds them again.
     private SideJoin? BuildJoin(string demoPath)
     {
-        if (_demoCache.TryLoadRecord(demoPath) is not { } record || _roundFacts?.TryGet(record) is not { } rows)
+        if (_roundFacts?.TryGet(demoPath) is not { } rows || _library.Detail(demoPath) is not { } detail)
         {
             return null;
         }
@@ -931,9 +973,9 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
 
         Dictionary<int, string> bySlot = [];
-        foreach (CachedPlayerInfo player in record.Players)
+        foreach (LibraryPlayer player in detail.Players)
         {
-            bySlot[player.Slot] = player.SteamId64;
+            bySlot[player.Slot] = DemoKeys.SteamIdText(player.SteamId64);
         }
 
         return new SideJoin(rounds, bySlot);
@@ -941,7 +983,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
     private sealed record SideJoin(Dictionary<int, RoundFacts.RoundFacts> Rounds, Dictionary<int, string> BySlot);
 
-    private sealed record JoinSlot(string Path, DemoCacheIndexEntry Entry, Lazy<SideJoin?> Join);
+    private sealed record JoinSlot(string Path, LibraryDemo Entry, Lazy<SideJoin?> Join);
 
     /// <summary>The members table of one roster: SteamID64 to appearances, last name, first and last seen.</summary>
     /// <param name="teamId">The team.</param>
@@ -1149,7 +1191,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             List<(TeamIndexDemo Row, TeamIndexSide Side)> picked = [];
             foreach (DemoSideRef side in sides)
             {
-                if (_index.Demos.TryGetValue(DemoCacheStore.StableKey(side.DemoPath), out TeamIndexDemo? row)
+                if (_index.Demos.TryGetValue(DemoKeys.StableKey(side.DemoPath), out TeamIndexDemo? row)
                     && row.Side(side.Side) is { IsClusterable: true } s)
                 {
                     picked.Add((row, s));
@@ -1197,8 +1239,8 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             _teams.Teams.Add(team);
             foreach ((TeamIndexDemo row, TeamIndexSide _) in picked)
             {
-                int side = sides.First(s => string.Equals(DemoCacheStore.StableKey(s.DemoPath),
-                    DemoCacheStore.StableKey(row.Path), StringComparison.Ordinal)).Side;
+                int side = sides.First(s => string.Equals(DemoKeys.StableKey(s.DemoPath),
+                    DemoKeys.StableKey(row.Path), StringComparison.Ordinal)).Side;
                 UpsertOverride(row, side, id);
             }
 
@@ -1236,7 +1278,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         _load.Ensure();
         lock (_gate)
         {
-            if (!_index.Demos.TryGetValue(DemoCacheStore.StableKey(demoPath), out TeamIndexDemo? row))
+            if (!_index.Demos.TryGetValue(DemoKeys.StableKey(demoPath), out TeamIndexDemo? row))
             {
                 return;
             }
@@ -1252,7 +1294,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         _load.Ensure();
         lock (_gate)
         {
-            string key = DemoCacheStore.StableKey(demoPath);
+            string key = DemoKeys.StableKey(demoPath);
             string? sha = _index.Demos.GetValueOrDefault(key)?.Sha256;
             int removed = _teams.Overrides.RemoveAll(o => o.Side == endSide && Matches(o, key, sha));
             if (removed == 0)
@@ -1285,8 +1327,8 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     /// <param name="demoPath">The demo.</param>
     public ProvenanceOverride? ProvenanceOverrideFor(string demoPath)
     {
-        string key = DemoCacheStore.StableKey(demoPath);
-        string? sha = _demoCache.TryGetIndex(demoPath)?.Sha256;
+        string key = DemoKeys.StableKey(demoPath);
+        string? sha = _library.Find(demoPath)?.Sha256;
         lock (_gate)
         {
             sha ??= _index.Demos.GetValueOrDefault(key)?.Sha256;
@@ -1308,8 +1350,8 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             throw new ArgumentException($"'{label}' is not a provenance label", nameof(label));
         }
 
-        string key = DemoCacheStore.StableKey(demoPath);
-        string? sha = _demoCache.TryGetIndex(demoPath)?.Sha256;
+        string key = DemoKeys.StableKey(demoPath);
+        string? sha = _library.Find(demoPath)?.Sha256;
         lock (_gate)
         {
             sha ??= _index.Demos.GetValueOrDefault(key)?.Sha256;
@@ -1405,7 +1447,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     ///     cache's stable key. Public so Demo Provenance Labels applies the same rule to its overrides.
     /// </summary>
     /// <param name="o">The entry.</param>
-    /// <param name="stableKey"><see cref="DemoCacheStore.StableKey" /> of the demo.</param>
+    /// <param name="stableKey"><see cref="DemoKeys.StableKey" /> of the demo.</param>
     /// <param name="sha256">The demo's content hash, or null before it is hashed.</param>
     public static bool Matches(IDemoKeyedOverride o, string stableKey, string? sha256) =>
         (o.DemoSha256 is not null && string.Equals(o.DemoSha256, sha256, StringComparison.Ordinal))
@@ -1428,7 +1470,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
     private void UpsertOverride(TeamIndexDemo row, int side, Guid? teamId)
     {
-        string key = DemoCacheStore.StableKey(row.Path);
+        string key = DemoKeys.StableKey(row.Path);
         _teams.Overrides.RemoveAll(o => o.Side == side && Matches(o, key, row.Sha256));
         _teams.Overrides.Add(new TeamOverride
         {

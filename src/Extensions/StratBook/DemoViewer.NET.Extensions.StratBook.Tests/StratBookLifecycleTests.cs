@@ -190,7 +190,7 @@ public class StratBookLifecycleTests
         services.AddSingleton(_ =>
         {
             constructed++;
-            return new GrenadeIndex(new DemoCacheStore(null));
+            return new GrenadeIndex(new DemoCacheStore(null).Library());
         });
         using ServiceProvider sp = services.BuildServiceProvider();
         StratBookLifecycle lifecycle = new(sp, instances);
@@ -213,7 +213,7 @@ public class StratBookLifecycleTests
             IndexOneGrenade(cache, "/d/a.dem", "de_dust2");
             // No background drain: the default schedule (Task.Run) writes the moment Query marks the
             // store dirty, racing this test's "before" check. Only an explicit Flush should write here.
-            using GrenadeIndex grenades = new(cache, lineups: new GrenadeLineupStore(root), scheduleSave: _ => Task.CompletedTask);
+            using GrenadeIndex grenades = new(cache.Library(), lineups: new GrenadeLineupStore(root), scheduleSave: _ => Task.CompletedTask);
             grenades.Load();
             // Minting the first anchor for this map marks the lineup store dirty (GrenadeIndex.EnsureAssignedLocked).
             _ = grenades.Query(new GrenadeQuery("de_dust2"));

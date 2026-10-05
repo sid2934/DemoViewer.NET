@@ -54,12 +54,12 @@ public class SituationResultWalkTests
         DemoViewer.NET.Services.DemoCache.DemoCacheStore cache = new(null);
         DemoViewer.NET.Services.RoundIndex.RoundIndexStore store = new(cache.Data());
         DemoViewer.NET.Services.RoundIndex.RoundIndexPlaceSources sources = new(() => DemoViewer.NET.Services.RoundIndex.RoundIndexTokenSource.Pawn);
-        using DemoViewer.NET.Services.RoundIndex.SituationIndex index = new(cache, store, sources);
+        using DemoViewer.NET.Services.RoundIndex.SituationIndex index = new(cache.Library(), store, sources);
         index.Load();
         ResultCardTests.RecordingPlayback playback = new();
-        ResultCardsViewModel results = new(cache, store, sources, () => playback, post: a => a(), decode: _ => null,
+        ResultCardsViewModel results = new(cache.Library(), store, sources, () => playback, post: a => a(), decode: _ => null,
             renderer: () => new SituationThumbnailRenderer(_ => null));
-        using SituationsTabViewModel built = new(index, null, cache, sources, () => DemoViewer.NET.Services.RoundIndex.RoundIndexTokenSource.Pawn,
+        using SituationsTabViewModel built = new(index, null, cache.Library(), sources, () => DemoViewer.NET.Services.RoundIndex.RoundIndexTokenSource.Pawn,
             false, results: results);
         tab = built;
 

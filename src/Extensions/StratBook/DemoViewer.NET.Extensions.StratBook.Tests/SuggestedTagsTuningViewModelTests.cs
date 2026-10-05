@@ -34,7 +34,7 @@ public class SuggestedTagsTuningViewModelTests
     public async Task OnTheBrowserHost_TheSectionHidesItself_EvenWithAHarness()
     {
         using SuggestedTagsReviewHarness h = new();
-        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
+        SuggestedTagsTuningService tuning = new(h.Cache.Library(), h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
         ProfileStore profiles = new(null);
 
         SuggestedTagsTuningViewModel vm = new(tuning, profiles, isBrowser: true);
@@ -49,7 +49,7 @@ public class SuggestedTagsTuningViewModelTests
         h.Build();
         await Assert.That(h.Service.Accept(DemoPath, h.Service.Load(DemoPath).Entries
             .Single(e => e.Proposal.Detector == "execute").Proposal.Id)).IsTrue();
-        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
+        SuggestedTagsTuningService tuning = new(h.Cache.Library(), h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
         ProfileStore profiles = new(null);
 
         SuggestedTagsTuningViewModel vm = new(tuning, profiles);
@@ -71,7 +71,7 @@ public class SuggestedTagsTuningViewModelTests
     {
         using SuggestedTagsReviewHarness h = new();
         h.Build();
-        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
+        SuggestedTagsTuningService tuning = new(h.Cache.Library(), h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
         ProfileStore profiles = new(null);
         SuggestedTagsTuningViewModel vm = new(tuning, profiles);
 
@@ -94,7 +94,7 @@ public class SuggestedTagsTuningViewModelTests
     {
         using SuggestedTagsReviewHarness h = new();
         h.Build();
-        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
+        SuggestedTagsTuningService tuning = new(h.Cache.Library(), h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
         ProfileStore profiles = new(null);
         SuggestedTagsTuningViewModel vm = new(tuning, profiles);
 
@@ -132,7 +132,7 @@ public class SuggestedTagsTuningViewModelTests
                 Labels = [new TagLabel("site", execute.Labels["site"])] // a site-bearing code only matches on its site
             });
 
-        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
+        SuggestedTagsTuningService tuning = new(h.Cache.Library(), h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
         ProfileStore profiles = new(null);
         SuggestedTagsTuningViewModel vm = new(tuning, profiles);
 

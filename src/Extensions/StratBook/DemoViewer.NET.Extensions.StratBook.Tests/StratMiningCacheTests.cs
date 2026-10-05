@@ -51,7 +51,7 @@ public class StratMiningCacheTests
     }
 
     private static MiningGrenade Grenade(int demo, Guid lineup) =>
-        new(new IndexedGrenade(new DemoRef($"/d/m{demo}.dem", DemoCacheStore.StableKey($"/d/m{demo}.dem"), null), Map,
+        new(new IndexedGrenade(new global::DemoViewer.NET.Extensions.StratBook.DemoRef($"/d/m{demo}.dem", global::DemoViewer.NET.Extensions.StratBook.DemoKeys.StableKey($"/d/m{demo}.dem"), null), Map,
             new GrenadeRow
             {
                 Id = "g1",
@@ -74,7 +74,7 @@ public class StratMiningCacheTests
         public TeamIdentityService? Teams { get; set; }
 
         public RoundSignatureBuilder Builder(Library library, SignatureCache? cache) =>
-            new(library.Cache, library.Positions, _ => Fingerprint,
+            new(library.Cache.Library(), library.Cache.RoundFacts(), library.Positions, _ => Fingerprint,
                 map => [Grenade(1, Lineup), Grenade(2, Lineup)], Teams, cache);
     }
 
@@ -113,7 +113,7 @@ public class StratMiningCacheTests
             library.Cache.Upsert(record);
         }
 
-        TeamIdentityService teams = new(null, library.Cache, new RecordFacts(library.Cache), run: a =>
+        TeamIdentityService teams = new(null, library.Cache.Library(), new RecordFacts(library.Cache), run: a =>
         {
             a();
             return Task.CompletedTask;
@@ -212,7 +212,7 @@ public class StratMiningCacheTests
         using Library library = Library.Create();
         InlineJobs jobs = new();
         FakePasses passes = new() { Busy = true };
-        using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
+        using StratMiningService service = new(library.Cache.Library(), library.Cache.RoundFacts(), library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
             library.Strats, library.Tags, null, null, run: a =>
             {
                 a();
@@ -264,7 +264,7 @@ public class StratMiningCacheTests
         using Library library = Library.Create();
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = RealQueue(gate);
-        using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
+        using StratMiningService service = new(library.Cache.Library(), library.Cache.RoundFacts(), library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
             library.Strats, library.Tags, null, null, jobs: Jobs(queue)) { QuietDelay = Timeout.InfiniteTimeSpan };
 
         Task mine;
@@ -295,7 +295,7 @@ public class StratMiningCacheTests
         using Library library = Library.Create();
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = RealQueue(gate);
-        using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
+        using StratMiningService service = new(library.Cache.Library(), library.Cache.RoundFacts(), library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
             library.Strats, library.Tags, null, null, jobs: Jobs(queue)) { QuietDelay = Timeout.InfiniteTimeSpan };
         await service.MineAsync().WaitAsync(TimeSpan.FromSeconds(10));
         MinedPattern execute = service.Patterns.Select(p => p.Pattern).Single(p => p.Kind == PatternKind.Execute);
@@ -331,7 +331,7 @@ public class StratMiningCacheTests
         TaskCompletionSource inBatch = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource proceed = new(TaskCreationOptions.RunContinuationsAsynchronously);
         int steps = 0;
-        using StratMiningService service = new(library.Cache, library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
+        using StratMiningService service = new(library.Cache.Library(), library.Cache.RoundFacts(), library.Positions, StratMiningServiceTests._sources.FingerprintFor, null, null,
             library.Strats, library.Tags, null, null, jobs: Jobs(queue), run: a => Task.Run(async () =>
             {
                 a();

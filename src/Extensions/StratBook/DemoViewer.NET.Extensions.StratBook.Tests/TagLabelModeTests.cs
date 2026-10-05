@@ -26,12 +26,12 @@ public class TagLabelModeTests
 {
     private const string DemoPath = "/d/match.dem";
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 0 },
-        new() { Number = 2, StartTickFrameClock = 10_000 },
-        new() { Number = 3, StartTickFrameClock = 20_000 },
-        new() { Number = 4, StartTickFrameClock = 30_000 }
+        new LibraryRound(1, 0),
+        new LibraryRound(2, 10_000),
+        new LibraryRound(3, 20_000),
+        new LibraryRound(4, 30_000)
     ];
 
     private static readonly string[] OutcomeValues = ["won", "lost"];
@@ -44,7 +44,7 @@ public class TagLabelModeTests
 
     private static async Task<TagSession> Attached()
     {
-        TagSession session = new(null, _ => _rounds, () => false, () => Created)
+        TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };

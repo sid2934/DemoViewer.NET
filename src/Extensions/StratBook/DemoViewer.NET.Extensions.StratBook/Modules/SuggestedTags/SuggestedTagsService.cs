@@ -7,7 +7,6 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Generated;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -79,7 +78,11 @@ public sealed class SuggestedTagsService : IExtensionPass
     private static ILogger? _diagLog;
 
     private readonly Func<bool> _background;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFactsSource _roundFacts;
+
+    /// <summary>The Round Facts rows the detectors read, for the tuning preview's re-runs.</summary>
+    internal IRoundFactsSource RoundFacts => _roundFacts;
     private readonly Func<bool> _enabled;
 
     // Demos whose build threw this session: not wanted again until a forced request, so one bad file is
@@ -112,7 +115,8 @@ public sealed class SuggestedTagsService : IExtensionPass
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
     private readonly IZonePlaceResolverSource _zones;
 
-    /// <param name="demoCache">The unified demo cache: the stamp and the pending count live on its records.</param>
+    /// <param name="library">The demo library: which demos are parsed and carry Round Facts.</param>
+    /// <param name="roundFacts">The Round Facts rows the detectors bound rounds and seat sides with.</param>
     /// <param name="proposals">Where the proposals files go.</param>
     /// <param name="tags">The Tag Store accepts write into and verdicts live in; null runs without verdicts.</param>
     /// <param name="regions">The learned site region tables.</param>
@@ -128,7 +132,8 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="utcNow">The clock verdicts and instances are stamped with.</param>
     public SuggestedTagsService(
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
+        IRoundFactsSource roundFacts,
         ProposalStore proposals,
         TagStore? tags,
         SiteRegionStore regions,
@@ -144,13 +149,15 @@ public sealed class SuggestedTagsService : IExtensionPass
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
         Func<DateTime>? utcNow = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(proposals);
         ArgumentNullException.ThrowIfNull(regions);
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(enabled);
         ArgumentNullException.ThrowIfNull(background);
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
         _proposals = proposals;
         _tags = tags;
         _regions = regions;
@@ -198,7 +205,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// </remarks>
     public bool Wants(string path)
     {
-        if (!_enabled() || !NeedsBuild(_demoCache.TryGetIndex(path)))
+        if (!_enabled() || !NeedsBuild(_library.Find(path)))
         {
             return false;
         }
@@ -226,7 +233,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// </remarks>
     public bool WantsAfterUpstream(string path)
     {
-        if (!_enabled() || HasInputs(_demoCache.TryGetIndex(path)))
+        if (!_enabled() || HasInputs(_library.Find(path)))
         {
             return false;
         }
@@ -257,7 +264,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     }
 
     /// <inheritdoc />
-    public long OrderHint(string demoPath) => _demoCache.TryGetIndex(demoPath)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _library.Find(demoPath)?.Modified.Ticks ?? 0;
 
     /// <inheritdoc />
     public DemoInterest Interest(string demoPath) =>
@@ -300,11 +307,11 @@ public sealed class SuggestedTagsService : IExtensionPass
 
         return
         [
-            .. _demoCache.Index
+            .. _library.Demos
                 .Where(e => NeedsBuild(e)
-                            && (forced.Contains(e.Path) || (background && !failed.Contains(e.Path))))
-                .OrderByDescending(e => e.ModifiedTicks)
-                .Select(e => e.Path)
+                            && (forced.Contains(e.FilePath) || (background && !failed.Contains(e.FilePath))))
+                .OrderByDescending(e => e.Modified.Ticks)
+                .Select(e => e.FilePath)
         ];
     }
 
@@ -326,7 +333,7 @@ public sealed class SuggestedTagsService : IExtensionPass
 
     /// <summary>Whether a demo has what a build needs: a parse and Round Facts rows.</summary>
     /// <param name="path">The demo's path.</param>
-    public bool CanDetect(string path) => HasInputs(_demoCache.TryGetIndex(path));
+    public bool CanDetect(string path) => HasInputs(_library.Find(path));
 
     /// <summary>The detector-set fingerprint for a map's demos under the profile and regions in force.</summary>
     /// <param name="map">The map, or null.</param>
@@ -522,14 +529,14 @@ public sealed class SuggestedTagsService : IExtensionPass
 
         // The facts a hand-made tag gets as it is made, so the Matrix can slice an accepted tag at once
         // rather than after the next rows rewrite.
-        DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-        if (record is not null && _demoCache.RoundFactsOf(record) is { Schema: StratBookCache.RoundFactsSchema } rows)
+        LibraryDemo? record = _library.Find(path);
+        if (record is not null && _roundFacts.TryGet(path) is { Schema: StratBookCache.RoundFactsSchema } rows)
         {
             TagFactsRefresher.RefreshInstance(instance, rows.Rounds, StratBookCache.RoundFactsSchema, now);
         }
 
         DemoIdentity demo = new(sha, document.Demo.FileName ?? Path.GetFileName(path),
-            record?.Size ?? document.Demo.SizeBytes);
+            record?.FileSizeBytes ?? document.Demo.SizeBytes);
         if (!_tags.Append(demo, document.Clock.ToIdentity(), instance))
         {
             return false;
@@ -592,7 +599,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     private (ProposalDocument? Document, ProposalSet Set) Resolve(string path, string? sha256, ProposalDocument document)
     {
         bool persistent = IsPersistent;
-        string? sha = Normalize(sha256) ?? Normalize(_demoCache.TryGetIndex(path)?.Sha256)
+        string? sha = Normalize(sha256) ?? Normalize(_library.Find(path)?.Sha256)
             ?? Normalize(document.Demo.Sha256);
         if (sha is not null && Normalize(document.Demo.Sha256) is { } written
                             && !string.Equals(sha, written, StringComparison.Ordinal))
@@ -644,12 +651,12 @@ public sealed class SuggestedTagsService : IExtensionPass
 
         try
         {
-            if (_demoCache.TryLoadWithRoundFacts(path) is not ({ } record, { Schema: StratBookCache.RoundFactsSchema } facts))
+            if (_library.Find(path) is not { } record || _roundFacts.TryGet(path) is not { Schema: StratBookCache.RoundFactsSchema } facts)
             {
                 return; // nothing to bound rounds and seat sides with; Round Facts has not written this demo
             }
 
-            string map = string.IsNullOrEmpty(parsed.MapName) ? record.Map ?? "" : parsed.MapName;
+            string map = string.IsNullOrEmpty(parsed.MapName) ? record.MapName ?? "" : parsed.MapName;
             DetectorProfile profile = _profile();
             SiteRegionTable? table = TableFor(map);
             string fingerprint = SuggestionsFingerprint.Compose(profile, table);
@@ -675,9 +682,9 @@ public sealed class SuggestedTagsService : IExtensionPass
                 Demo = new ProposalDemoHeader
                 {
                     Sha256 = Normalize(record.Sha256),
-                    StableKey = DemoCacheStore.StableKey(path),
+                    StableKey = DemoKeys.StableKey(path),
                     FileName = fileName,
-                    SizeBytes = record.Size
+                    SizeBytes = record.FileSizeBytes
                 },
                 Clock = RoundFactsClock.From(clock),
                 DetectorSet = new ProposalDetectorSet
@@ -733,9 +740,9 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <param name="map">The map, resolved.</param>
     /// <param name="parsed">The held parse.</param>
     /// <param name="facts">The demo's Round Facts rows.</param>
-    /// <param name="record">The demo's cache record, for the Round Index's freshness stamp.</param>
+    /// <param name="record">The demo's library row.</param>
     internal DetectionInputs BuildDetectionInputs(
-        string path, string map, ParsedDemo parsed, RoundFactsRows facts, DemoCacheRecord record)
+        string path, string map, ParsedDemo parsed, RoundFactsRows facts, LibraryDemo record)
     {
         int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
         IReadOnlyList<RoundOccupancy> rounds;
@@ -773,11 +780,11 @@ public sealed class SuggestedTagsService : IExtensionPass
         return new DetectionInputs(tickRate, rounds, events, source);
     }
 
-    private bool NeedsBuild(DemoCacheIndexEntry? entry) =>
-        entry is not null && HasInputs(entry) && !_proposals.IsCurrent(entry.Path, FingerprintFor(entry.Map));
+    private bool NeedsBuild(LibraryDemo? entry) =>
+        entry is not null && HasInputs(entry) && !_proposals.IsCurrent(entry.FilePath, FingerprintFor(entry.MapName));
 
-    private static bool HasInputs(DemoCacheIndexEntry? entry) =>
-        entry is { ParseSchema: > 0 } && entry.HasRoundFacts();
+    private static bool HasInputs(LibraryDemo? entry) =>
+        entry is { State: >= LibraryDemoState.Parsed } && entry.Fact(RoundFactsRecords.FacetId) is { IsWritten: true };
 
     private SiteRegionTable? TableFor(string? map)
     {

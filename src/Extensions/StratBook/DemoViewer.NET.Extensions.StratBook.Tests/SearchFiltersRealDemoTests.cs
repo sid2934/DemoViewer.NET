@@ -32,8 +32,8 @@ public class SearchFiltersRealDemoTests
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         RoundFactsSource factsSource = new(store, facts);
-        RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);
-        using SituationIndex index = new(store, sidecars, sources, factsSource, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(store.Library(), store.RoundFacts(), sidecars, sources, () => true);
+        using SituationIndex index = new(store.Library(), sidecars, sources, factsSource, evaluator: evaluator);
         index.Load();
 
         store.Upsert(new DemoCacheRecord

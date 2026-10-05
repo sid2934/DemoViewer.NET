@@ -10,7 +10,6 @@ using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundIndex;
 using DemoViewer.NET.Services.Strats;
 
@@ -56,7 +55,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 {
     private readonly Func<string, CalloutResolver>? _calloutResolverFor;
     private readonly SituationLiveCount _counter;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly ISituationIndex _index;
     private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
     private readonly Action<Action> _retire;
@@ -109,7 +108,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     /// <param name="index">The index the count runs against, and the place centroids the snap reads.</param>
     /// <param name="resolver">Turns a drop into a place.</param>
-    /// <param name="demoCache">The index rows, for the map list.</param>
+    /// <param name="library">The index rows, for the map list.</param>
     /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
     /// <param name="retire">
     ///     Runs a replaced bundle's dispose after the host has rebound: a Background-priority dispatcher
@@ -125,7 +124,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     public QueryCanvasViewModel(
         ISituationIndex index,
         IQueryPlaceResolver resolver,
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         Func<string, LoadedMapAsset?>? loadMapAsset = null,
         Action<Action>? retire = null,
         SearchFiltersViewModel? filters = null,
@@ -135,9 +134,9 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(resolver);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         _index = index;
-        _demoCache = demoCache;
+        _library = library;
         _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
         _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
         _calloutResolverFor = calloutResolverFor;
@@ -147,7 +146,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         Document = new QueryCanvasDocument();
         Draft = new SituationQueryDraft(Document);
         Tool = new QueryTokenTool(Document, resolver);
-        Filters = filters ?? new SearchFiltersViewModel(demoCache);
+        Filters = filters ?? new SearchFiltersViewModel(library);
         Filters.Changed += OnFiltersChanged;
 
         for (int slot = 0; slot < QueryCanvasDocument.SlotsPerSide; slot++)
@@ -162,7 +161,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
         Document.Changed += OnDocumentChanged;
         Tool.Dropped += OnDropped;
-        _demoCache.Changed += OnCacheChanged;
+        _library.Changed += OnLibraryChanged;
         _index.Changed += OnIndexChanged;
         RefreshMaps();
         RefreshRail();
@@ -195,7 +194,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     /// <summary>"over 240 of 277 demos" beside the count, "counting" while one is in flight, empty with no map.</summary>
     public string CoverageLine => LiveCount is not null
-        ? $"over {_index.IndexedDemoCount} of {_demoCache.Index.Count} demos"
+        ? $"over {_index.IndexedDemoCount} of {_library.Demos.Count} demos"
         : IsCounting ? "counting" : "";
 
     /// <summary>
@@ -330,7 +329,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         Filters.Dispose();
         Document.Changed -= OnDocumentChanged;
         Tool.Dropped -= OnDropped;
-        _demoCache.Changed -= OnCacheChanged;
+        _library.Changed -= OnLibraryChanged;
         _index.Changed -= OnIndexChanged;
         if (MapAsset is { } asset)
         {
@@ -655,6 +654,9 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         ? $"resolved to {DisplayPlace(hit.Place)} ({hit.Source})"
         : "no place near that drop; the token is on the map but not in the query";
 
+    private void OnLibraryChanged(LibraryChange change) => OnCacheChanged(change.Path);
+
+
     // A row that arrived or left moves the coverage and, with a demo-level filter set, the demo set;
     // the count is re-asked either way, debounced, so a library scan does not run one per row.
     private void OnCacheChanged(string? changedPath)
@@ -700,7 +702,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     {
         List<string> maps =
         [
-            .. _demoCache.Index.Select(r => r.Map)
+            .. _library.Demos.Select(r => r.MapName)
                 .OfType<string>()
                 .Where(m => m.Length > 0)
                 .Concat(Map is { } picked ? [picked] : [])

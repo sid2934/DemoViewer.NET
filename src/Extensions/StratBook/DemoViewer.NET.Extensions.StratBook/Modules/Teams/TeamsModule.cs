@@ -48,7 +48,7 @@ public sealed class TeamsModule : IWorkspaceModule
             TabId = "teams.browser",
             Header = "Teams",
             Order = 0,
-            HostId = DemoViewer.NET.ViewModels.Library.LibraryTabViewModel.HostId,
+            HostId = HostIds.LibraryTab,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new TeamsTabView()

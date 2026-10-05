@@ -126,6 +126,20 @@ public sealed class RoundFactsEvaluator : IExtensionPass
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <summary>
+    ///     Rewrites a demo's index row from its record: for a row whose stamp claims rows the record does not
+    ///     hold, so the stamp goes and the demo is wanted again. Nothing happens for a demo with no record.
+    /// </summary>
+    /// <param name="path">The demo's path.</param>
+    public void ReprojectRow(string path)
+    {
+        if (_demoCache.TryLoadRecord(path) is { } record)
+        {
+            _demoCache.Upsert(record);
+            _demoCache.SaveIndex();
+        }
+    }
+
+    /// <summary>
     ///     The demos whose rows are missing or stale under the current fingerprint, for the pending counts.
     ///     Derived from the index, never stored.
     /// </summary>

@@ -151,7 +151,7 @@ public class DemoCachePackPayloadTests
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
             string roundIndexFingerprint = sources.FingerprintFor("de_nuke");
             DemoCacheStore probe = new(null);
-            SuggestedTagsService probeService = new(probe, new ProposalStore(probe.Data()), null, new SiteRegionStore(null),
+            SuggestedTagsService probeService = new(probe.Library(), probe.RoundFacts(), new ProposalStore(probe.Data()), null, new SiteRegionStore(null),
                 () => DetectorProfile.Default, () => true, () => true);
             string suggestionsFingerprint = probeService.FingerprintFor("de_nuke");
 
@@ -169,10 +169,10 @@ public class DemoCachePackPayloadTests
             DemoCacheRecord record = cache.TryLoadRecord(Demo)!;
 
             RoundFactsEvaluator roundFacts = new(cache, new NoRows(), new FixedIdentity("rf-A"));
-            RoundIndexEvaluator roundIndex = new(cache, new RoundIndexStore(cache.Data()), sources, () => true, walk: _ => []);
-            SuggestedTagsService suggestions = new(cache, new ProposalStore(cache.Data()), null, new SiteRegionStore(null),
+            RoundIndexEvaluator roundIndex = new(cache.Library(), cache.RoundFacts(), new RoundIndexStore(cache.Data()), sources, () => true, walk: _ => []);
+            SuggestedTagsService suggestions = new(cache.Library(), cache.RoundFacts(), new ProposalStore(cache.Data()), null, new SiteRegionStore(null),
                 () => DetectorProfile.Default, () => true, () => true);
-            GrenadeIndexEvaluator grenades = new(cache, cache.Grenades(), () => true);
+            GrenadeIndexEvaluator grenades = new(cache.Library(), cache.Grenades(), () => true);
 
             using (Assert.Multiple())
             {

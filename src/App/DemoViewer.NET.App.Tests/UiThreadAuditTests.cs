@@ -684,7 +684,7 @@ public class UiThreadAuditTests
         File.Copy(Path.Combine(source, "teams.json"), Path.Combine(teamsRoot, "teams.json"));
         File.Copy(Path.Combine(source, "cache", "team-index.json"), Path.Combine(teamsRoot, "cache", "team-index.json"));
         sw.Restart();
-        Services.Teams.TeamIdentityService teams = new(teamsRoot, cache);
+        Services.Teams.TeamIdentityService teams = new(teamsRoot, cache.Library());
         double teamsCtor = sw.Elapsed.TotalMilliseconds;
         Directory.Delete(teamsRoot, true);
         Console.WriteLine($"[ui-audit] store loads: cache index={cacheMs:F0}ms ({cache.Index.Count} rows) "

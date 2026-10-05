@@ -4,7 +4,6 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using Microsoft.Extensions.Logging;
 
@@ -34,7 +33,9 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     private static ILogger? _diagLog;
 
     private readonly Func<bool> _backgroundIndex;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly Action<string>? _reprojectRow;
+    private readonly IRoundFactsSource _roundFacts;
     private readonly Func<bool> _enabled;
 
     // Manual per-demo requests (a Retry on the strip): they submit regardless of the opt-in, but only
@@ -49,27 +50,37 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     // real walk; a synthetic parse carries no entity data for the tracker to replay.
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
 
-    /// <param name="demoCache">The unified demo cache: the stamp lives on its records.</param>
+    /// <param name="library">The library: which demos are parsed and carry Round Facts.</param>
+    /// <param name="roundFacts">The Round Facts rows the index samples within.</param>
     /// <param name="store">The sidecar store the rows go to.</param>
     /// <param name="sources">The place source and fingerprint in force per map.</param>
     /// <param name="backgroundIndex">The live <see cref="Extensions.StratBook.StratBookSettings.SituationsBackgroundIndex" />; forced paths ignore it.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted. Defaults to always-on.</param>
+    /// <param name="reprojectRow">
+    ///     Asks Round Facts to rewrite a demo's library row from its record, for a row that claims rows the
+    ///     record does not hold; null leaves the row as it is.
+    /// </param>
     public RoundIndexEvaluator(
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
+        IRoundFactsSource roundFacts,
         RoundIndexStore store,
         RoundIndexPlaceSources sources,
         Func<bool> backgroundIndex,
         Action<Action>? post = null,
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
-        Func<bool>? enabled = null)
+        Func<bool>? enabled = null,
+        Action<string>? reprojectRow = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(backgroundIndex);
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
+        _reprojectRow = reprojectRow;
         _store = store;
         _sources = sources;
         _backgroundIndex = backgroundIndex;
@@ -110,7 +121,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// </remarks>
     public bool Wants(string path)
     {
-        if (!_enabled() || !NeedsIndex(_demoCache.TryGetIndex(path)))
+        if (!_enabled() || !NeedsIndex(_library.Find(path)))
         {
             return false;
         }
@@ -125,7 +136,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <remarks>A demo without Round Facts rows yet, with the sweep on or the demo forced: the index follows the rows.</remarks>
     public bool WantsAfterUpstream(string path)
     {
-        if (!_enabled() || _demoCache.TryGetIndex(path) is { ParseSchema: > 0 } entry && entry.HasRoundFacts())
+        if (!_enabled() || _library.Find(path) is { State: >= LibraryDemoState.Parsed } entry && HasRoundFacts(entry))
         {
             return false;
         }
@@ -146,7 +157,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     }
 
     /// <inheritdoc />
-    public long OrderHint(string demoPath) => _demoCache.TryGetIndex(demoPath)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _library.Find(demoPath)?.Modified.Ticks ?? 0;
 
     /// <inheritdoc />
     public DemoInterest Interest(string demoPath) =>
@@ -187,18 +198,18 @@ public sealed class RoundIndexEvaluator : IExtensionPass
 
         return
         [
-            .. _demoCache.Index
-                .Where(e => NeedsIndex(e) && (background || forced.Contains(e.Path)))
-                .OrderByDescending(e => e.ModifiedTicks)
-                .Select(e => e.Path)
+            .. _library.Demos
+                .Where(e => NeedsIndex(e) && (background || forced.Contains(e.FilePath)))
+                .OrderByDescending(e => e.Modified.Ticks)
+                .Select(e => e.FilePath)
         ];
     }
 
     /// <summary>Every row that carries an index built under another fingerprint than its map's current one.</summary>
     public int StaleCount() =>
-        _demoCache.Index.Count(e =>
-            _store.Stamp(e.Path) is { Schema: > 0, State: DemoDataState.Written }
-            && !_store.IsCurrent(e.Path, _sources.FingerprintFor(e.Map)));
+        _library.Demos.Count(e =>
+            _store.Stamp(e.FilePath) is { Schema: > 0, State: DemoDataState.Written }
+            && !_store.IsCurrent(e.FilePath, _sources.FingerprintFor(e.MapName)));
 
     /// <summary>
     ///     Re-queues one demo at user priority regardless of the opt-in: the strip's Retry. A failed
@@ -229,7 +240,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     {
         List<string> failed =
         [
-            .. _demoCache.Index.Where(e => _store.IsFailed(e.Path)).Select(e => e.Path)
+            .. _library.Demos.Where(e => _store.IsFailed(e.FilePath)).Select(e => e.FilePath)
         ];
         foreach (string path in failed)
         {
@@ -248,9 +259,12 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         Passes?.RecheckAll();
     }
 
-    private bool NeedsIndex(DemoCacheIndexEntry? entry) =>
-        entry is { ParseSchema: > 0 } && entry.HasRoundFacts()
-        && _store.Needs(entry.Path, _sources.FingerprintFor(entry.Map));
+    private bool NeedsIndex(LibraryDemo? entry) =>
+        entry is { State: >= LibraryDemoState.Parsed } && HasRoundFacts(entry)
+        && _store.Needs(entry.FilePath, _sources.FingerprintFor(entry.MapName));
+
+    private static bool HasRoundFacts(LibraryDemo entry) =>
+        entry.Fact(RoundFactsRecords.FacetId) is { IsWritten: true };
 
     private void Refresh(string path, ParsedDemo parsed)
     {
@@ -263,18 +277,17 @@ public sealed class RoundIndexEvaluator : IExtensionPass
 
         try
         {
-            DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-            if (record is null || _demoCache.RoundFactsOf(record) is not { Schema: StratBookCache.RoundFactsSchema } facts)
+            LibraryDemo? record = _library.Find(path);
+            if (record is null || _roundFacts.TryGet(path) is not { Schema: StratBookCache.RoundFactsSchema } facts)
             {
                 // The row said Round Facts was written (that is why Wants picked this demo) but the
-                // sidecar has none: index.json was saved before a later write replaced the record. Left
-                // alone, Wants stays true and the scheduler re-parses this demo forever. Re-project the
-                // row from the sidecar so it stops claiming facts and Round Facts re-wants the demo.
-                if (record is not null && _demoCache.TryGetIndex(path)?.RoundFactsStamp() is { Schema: > 0 })
+                // record has none: index.json was saved before a later write replaced the record. Left
+                // alone, Wants stays true and every check re-parses this demo. Round Facts rewrites the
+                // row from the record, so it stops claiming rows and Round Facts wants the demo again.
+                if (record?.Fact(RoundFactsRecords.FacetId) is { Schema: > 0 })
                 {
                     RoundIndexLog.RowClaimedMissingFacts(Log, fileName);
-                    _demoCache.UpdateExisting(path, _ => { });
-                    _demoCache.SaveIndex();
+                    _reprojectRow?.Invoke(path);
                 }
 
                 return; // no round windows to sample within; Round Facts has not written this demo yet
@@ -295,13 +308,13 @@ public sealed class RoundIndexEvaluator : IExtensionPass
             }
 
             RoundIndexDocument document = build.Index;
-            string stableKey = DemoCacheStore.StableKey(path);
+            string stableKey = DemoKeys.StableKey(path);
             document.Demo = new RoundIndexDemo
             {
                 Sha256 = record.Sha256,
                 StableKey = stableKey,
                 FileName = fileName,
-                SizeBytes = record.Size
+                SizeBytes = record.FileSizeBytes
             };
             build.Positions.Demo = new RoundPositionsDemo
             {

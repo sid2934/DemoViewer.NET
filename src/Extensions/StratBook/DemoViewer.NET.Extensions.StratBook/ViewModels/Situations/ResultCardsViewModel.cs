@@ -11,7 +11,6 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -70,7 +69,8 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     private readonly SituationThumbnailCache _cache;
     private readonly Func<string, Func<Action, Task>> _run;
     private readonly Func<byte[], Bitmap?> _decode;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFactsSource? _roundFacts;
     private readonly Func<ISituationPlayback?> _playback;
     private readonly Action<Action> _post;
     private readonly Func<SituationThumbnailRenderer> _renderer;
@@ -103,7 +103,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     [ObservableProperty]
     private string _walkLine = "";
 
-    /// <param name="demoCache">The records: Round Facts rows, tick rate and hash per demo.</param>
+    /// <param name="library">The library: tick rate and hash per demo.</param>
     /// <param name="store">The positions files.</param>
     /// <param name="sources">The fingerprint in force per map: a positions file under another is stale.</param>
     /// <param name="playback">The seek seam, resolved per click; null on a host with no 2D tab.</param>
@@ -114,8 +114,9 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     /// <param name="overlay">The canvas's overlay document the heatmap layer draws; a private one when null.</param>
     /// <param name="review">The Review Queue the set is sent to; null hides the action.</param>
     /// <param name="run">Runs the fill and the overlay: queue items in the app, the pool when null.</param>
+    /// <param name="roundFacts">The Round Facts rows a card shows; null shows none.</param>
     public ResultCardsViewModel(
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         RoundIndexStore store,
         RoundIndexPlaceSources sources,
         Func<ISituationPlayback?> playback,
@@ -125,14 +126,16 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         Func<byte[], Bitmap?>? decode = null,
         OverlayDocument? overlay = null,
         ReviewQueue? review = null,
-        Func<string, Func<Action, Task>>? run = null)
+        Func<string, Func<Action, Task>>? run = null,
+        IRoundFactsSource? roundFacts = null)
     {
         _run = run ?? (_ => work => Task.Run(work));
-        ArgumentNullException.ThrowIfNull(demoCache);
+        _roundFacts = roundFacts;
+        ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentNullException.ThrowIfNull(playback);
-        _demoCache = demoCache;
+        _library = library;
         _store = store;
         _sources = sources;
         _playback = playback;
@@ -276,7 +279,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         DropOverlay();
         foreach (SituationHit hit in hits)
         {
-            Cards.Add(new ResultCardViewModel(this, hit, _demoCache.TryGetIndex(hit.DemoPath)));
+            Cards.Add(new ResultCardViewModel(this, hit, _library.Find(hit.DemoPath)));
         }
 
         _shown = PageSize;
@@ -516,8 +519,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             if (!string.Equals(currentPath, hit.DemoPath, StringComparison.Ordinal))
             {
                 currentPath = hit.DemoPath;
-                DemoCacheRecord? record = TryLoadRecord(hit.DemoPath);
-                positions = _store.TryReadPositions(hit.DemoPath, _sources.FingerprintFor(hit.Map), record?.Sha256);
+                positions = _store.TryReadPositions(hit.DemoPath, _sources.FingerprintFor(hit.Map), _library.Find(hit.DemoPath)?.Sha256);
             }
 
             if (positions?.Round(hit.RoundNumber) is not { } round)
@@ -581,7 +583,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     {
         using SituationThumbnailRenderer renderer = _renderer();
         string? currentPath = null;
-        DemoCacheRecord? record = null;
+        LibraryDemoDetail? record = null;
         RoundPositionsDocument? positions = null;
         string fingerprint = "";
 
@@ -599,11 +601,11 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
             {
                 currentPath = hit.DemoPath;
                 fingerprint = _sources.FingerprintFor(hit.Map);
-                record = TryLoadRecord(hit.DemoPath);
-                positions = _store.TryReadPositions(hit.DemoPath, fingerprint, record?.Sha256);
+                record = TryLoadDetail(hit.DemoPath);
+                positions = _store.TryReadPositions(hit.DemoPath, fingerprint, record?.Demo.Sha256);
             }
 
-            RoundFacts? round = record is null ? null : _demoCache.RoundFactsOf(record)?.Rounds.FirstOrDefault(r => r.Number == hit.RoundNumber);
+            RoundFacts? round = record is null ? null : _roundFacts?.TryGet(hit.DemoPath)?.Rounds.FirstOrDefault(r => r.Number == hit.RoundNumber);
             int tickRate = record?.TickRate ?? 0;
 
             byte[]? png = null;
@@ -638,11 +640,11 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         }
     }
 
-    private DemoCacheRecord? TryLoadRecord(string path)
+    private LibraryDemoDetail? TryLoadDetail(string path)
     {
         try
         {
-            return _demoCache.TryLoadRecord(path);
+            return _library.Detail(path);
         }
         catch (Exception)
         {

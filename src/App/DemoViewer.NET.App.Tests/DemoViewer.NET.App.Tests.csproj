@@ -49,6 +49,7 @@
              ForwardQueueTests. -->
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\RoundIndexTestData.cs" Link="RoundIndexTestData.cs"/>
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\CacheRecordTestExtensions.cs" Link="CacheRecordTestExtensions.cs"/>
+        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\LibraryTestExtensions.cs" Link="LibraryTestExtensions.cs"/>
         <!-- UiThreadAuditTests walks the StratBook hub like every other section's. -->
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\StratBookHubAccess.cs" Link="StratBookHubAccess.cs"/>
         <!-- ZonePlaceResolverSourceTests (core: Services/Zones) checks the adjacency-seam naming through

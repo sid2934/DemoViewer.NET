@@ -91,7 +91,7 @@ public class StratBookModuleTests
     public async Task TheBooks_AreMePlusEveryTeam_WithUsTheDefault()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         string[] five = ["76560001", "76560002", "76560003", "76560004", "76560005"];
         string[] other = ["76560011", "76560012", "76560013", "76560014", "76560015"];

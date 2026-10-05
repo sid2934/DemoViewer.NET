@@ -360,7 +360,7 @@ public class TeamIdentityRevisionTests
     public async Task AProvenancePin_ReclustersThroughTheService()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService service = new(null, cache, run: a =>
+        TeamIdentityService service = new(null, cache.Library(), run: a =>
         {
             a();
             return Task.CompletedTask;

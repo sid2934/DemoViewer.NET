@@ -3,7 +3,6 @@
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
 
@@ -85,7 +84,7 @@ public sealed partial class ResultCardViewModel : ViewModelBase
     /// <param name="owner">The result set this card belongs to.</param>
     /// <param name="hit">The matching (demo, round).</param>
     /// <param name="entry">The demo's index row, for the match label; null when the library lost it.</param>
-    public ResultCardViewModel(ResultCardsViewModel owner, SituationHit hit, DemoCacheIndexEntry? entry)
+    public ResultCardViewModel(ResultCardsViewModel owner, SituationHit hit, LibraryDemo? entry)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(hit);
@@ -215,7 +214,7 @@ public sealed partial class ResultCardViewModel : ViewModelBase
         OnPropertyChanged(nameof(SeekTick));
     }
 
-    private static string MatchLabelFor(SituationHit hit, DemoCacheIndexEntry? entry)
+    private static string MatchLabelFor(SituationHit hit, LibraryDemo? entry)
     {
         if (entry is { CtClan.Length: > 0, TClan.Length: > 0 })
         {

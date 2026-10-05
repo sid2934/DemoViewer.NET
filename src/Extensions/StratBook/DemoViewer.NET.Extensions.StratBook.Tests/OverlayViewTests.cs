@@ -186,11 +186,11 @@ public class OverlayViewTests
         DemoCacheStore cache = new(null);
         RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
         index.Load();
-        using QueryCanvasViewModel canvas = new(index, new QueryPlaceResolver(index, sources.Zones), cache,
+        using QueryCanvasViewModel canvas = new(index, new QueryPlaceResolver(index, sources.Zones), cache.Library(),
             _ => null, dispose => dispose(), post: action => action(), countDelay: TimeSpan.Zero);
-        using SituationsTabViewModel tab = new(index, null, cache, sources, () => RoundIndexTokenSource.Pawn, false,
+        using SituationsTabViewModel tab = new(index, null, cache.Library(), sources, () => RoundIndexTokenSource.Pawn, false,
             canvas, sidecars: sidecars);
 
         await Assert.That(tab.Results.Overlay).IsSameReferenceAs(canvas.Overlay);
@@ -253,7 +253,7 @@ public class OverlayViewTests
         });
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         facts.Evaluate(path, parsed);
-        RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);
+        RoundIndexEvaluator evaluator = new(store.Library(), store.RoundFacts(), sidecars, sources, () => true);
         evaluator.Evaluate(path, parsed);
 
         RoundPositionsDocument positions = sidecars.TryReadPositions(path, sources.FingerprintFor(parsed.MapName!))
@@ -333,7 +333,7 @@ public class OverlayViewTests
             _ownsSidecars = sidecars is null;
             Sidecars = sidecars ?? new RoundIndexStore(Cache.Data());
             Sources = sources ?? new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Vm = new ResultCardsViewModel(Cache, Sidecars, Sources, () => null, new SituationThumbnailCache(),
+            Vm = new ResultCardsViewModel(Cache.Library(), Sidecars, Sources, () => null, new SituationThumbnailCache(),
                 () => new SituationThumbnailRenderer(_ => null), Post.Run, _ => null, Canvas);
         }
 

@@ -46,7 +46,7 @@ public class LineupClipTests
     };
 
     private static IndexedGrenade Throw(string demo, GrenadeRow row) =>
-        new(new DemoRef(demo, DemoCacheStore.StableKey(demo), "sha-" + Path.GetFileNameWithoutExtension(demo)),
+        new(new global::DemoViewer.NET.Extensions.StratBook.DemoRef(demo, global::DemoViewer.NET.Extensions.StratBook.DemoKeys.StableKey(demo), "sha-" + Path.GetFileNameWithoutExtension(demo)),
             Mirage, row, row.ReleasePosition ?? default, new WorldPoint(-1500, 800, 0), "CTSpawn", "zones:1");
 
     // The id is the position's, stable across calls, as GrenadeIndex.LineupId is; here keyed by the first row.

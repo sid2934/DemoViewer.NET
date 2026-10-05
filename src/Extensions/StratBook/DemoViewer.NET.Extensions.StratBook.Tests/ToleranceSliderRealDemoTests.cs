@@ -34,15 +34,15 @@ public class ToleranceSliderRealDemoTests
         facts.Evaluate(path, parsed);
         RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), sidecars, sources, () => true);
         evaluator.Evaluate(path, parsed);
-        using SituationIndex index = new(cache, sidecars, sources, evaluator: evaluator);
+        using SituationIndex index = new(cache.Library(), sidecars, sources, evaluator: evaluator);
         index.Load();
 
         RoundIndexDocument document = sidecars.TryRead(path) ?? throw new InvalidOperationException("no index");
         RoundIndexRun run = document.Rounds.SelectMany(r => r.Runs).First(r => r.Ct.Length > 0 && !r.Ct.Contains('?'));
 
-        using QueryCanvasViewModel canvas = new(index, new QueryPlaceResolver(index), cache, _ => null,
+        using QueryCanvasViewModel canvas = new(index, new QueryPlaceResolver(index), cache.Library(), _ => null,
             dispose => dispose(), post: action => action(), countDelay: TimeSpan.Zero);
         canvas.Map = document.Map;
         int slot = 0;

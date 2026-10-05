@@ -330,17 +330,17 @@ public class StratBookPackBaselineTests
         RoundIndexStore positions = new(demoCache.DiskData(cache));
         AssetZonePlaceResolverSource zones = new();
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
-        using SituationIndex situations = new(demoCache, positions, sources);
+        using SituationIndex situations = new(demoCache.Library(), positions, sources);
         situations.Load();
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
         long afterSituations = GC.GetTotalMemory(true);
 
-        using GrenadeIndex grenades = new(demoCache, zones);
+        using GrenadeIndex grenades = new(demoCache.Library(), zones);
         grenades.Load();
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
         long afterGrenades = GC.GetTotalMemory(true);
 
-        using TeamIdentityService teams = new(dir, demoCache, new CachedFacts(demoCache));
+        using TeamIdentityService teams = new(dir, demoCache.Library(), new CachedFacts(demoCache));
         await teams.StartAsync();
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
         long afterTeams = GC.GetTotalMemory(true);

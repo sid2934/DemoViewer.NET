@@ -5,7 +5,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Teams;
@@ -144,7 +143,7 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
     private static readonly SearchFilterOption<int?> _anySide = new("Any side", null);
     private static readonly SearchFilterOption<Guid?> _anyOpponent = new("Any opponent", null);
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly IDemoProvenanceSource? _provenance;
     private readonly TeamIdentityService? _teams;
 
@@ -159,13 +158,13 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private DateTime? _to;
 
-    /// <param name="demoCache">The index rows the date and source fields read.</param>
+    /// <param name="library">The index rows the date and source fields read.</param>
     /// <param name="teams">Team Identity, for the opponent list and our side; null offers neither.</param>
     /// <param name="provenance">Demo Provenance Labels, for the source field; null offers no source filter.</param>
-    public SearchFiltersViewModel(DemoCacheStore demoCache, TeamIdentityService? teams = null, IDemoProvenanceSource? provenance = null)
+    public SearchFiltersViewModel(IExtensionLibrary library, TeamIdentityService? teams = null, IDemoProvenanceSource? provenance = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
-        _demoCache = demoCache;
+        ArgumentNullException.ThrowIfNull(library);
+        _library = library;
         _teams = teams;
         _provenance = provenance;
 
@@ -325,7 +324,7 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
     ///     The demos the opponent, date and source fields keep, as stable keys, or null when none of the
     ///     three is set. The three intersect: a demo must pass every set field.
     /// </summary>
-    public IReadOnlySet<string>? ToDemos() => Values.ToDemos(_demoCache, _teams, _provenance);
+    public IReadOnlySet<string>? ToDemos() => Values.ToDemos(_library, _teams, _provenance);
 
     /// <summary>
     ///     Puts stored values back on the rail, one <see cref="Changed" /> for the lot. A value the rail

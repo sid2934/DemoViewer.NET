@@ -28,11 +28,11 @@ public class TagPaletteTests
 {
     private const string DemoPath = "/d/match.dem";
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 0 },
-        new() { Number = 2, StartTickFrameClock = 10_000 },
-        new() { Number = 3, StartTickFrameClock = 20_000 }
+        new LibraryRound(1, 0),
+        new LibraryRound(2, 10_000),
+        new LibraryRound(3, 20_000)
     ];
 
     private static readonly string[] OutcomeValues = ["won", "lost"];
@@ -58,7 +58,7 @@ public class TagPaletteTests
 
     private static async Task<TagSession> Attached()
     {
-        TagSession session = new(null, _ => _rounds, () => false, () => Created)
+        TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -104,7 +104,7 @@ public class TagPaletteTests
         (_, int lateTo) = TagPaletteViewModel.SpanFor(19_900, 5, 10, 64, _rounds, true);
         (int freeFrom, int freeTo) = TagPaletteViewModel.SpanFor(19_900, 5, 10, 64, _rounds, false);
         // Warmup: before the first round there is no round to clamp to, only the parse's start.
-        (int warmFrom, _) = TagPaletteViewModel.SpanFor(-500, 5, 10, 64, [new CachedRound { Number = 1, StartTickFrameClock = 0 }], true);
+        (int warmFrom, _) = TagPaletteViewModel.SpanFor(-500, 5, 10, 64, [new LibraryRound(1, 0)], true);
 
         using (Assert.Multiple())
         {
@@ -312,7 +312,7 @@ public class TagPaletteTests
     [Test]
     public async Task WithNoDemoAttached_ThePaletteTakesNoFocus()
     {
-        using TagSession session = new(null, _ => _rounds, () => false, () => Created);
+        using TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created);
         using TagPaletteViewModel palette = new(session, null, () => 0);
 
         await Assert.That(palette.Focus()).IsFalse();

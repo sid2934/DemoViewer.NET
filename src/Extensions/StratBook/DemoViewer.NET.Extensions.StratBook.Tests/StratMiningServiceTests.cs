@@ -128,7 +128,7 @@ public class StratMiningServiceTests
         public required string Root { get; init; }
 
         public StratMiningService Service(Func<Action, Task>? run = null, Func<bool>? enabled = null) =>
-            new(Cache, Positions, _sources.FingerprintFor, null, null, Strats, Tags,
+            new(Cache.Library(), Cache.RoundFacts(), Positions, _sources.FingerprintFor, null, null, Strats, Tags,
                 Path.Combine(Root, "cache"), Root, run: run ?? _inline, enabled: enabled)
             { QuietDelay = Timeout.InfiniteTimeSpan };
 

@@ -6,7 +6,6 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.RoundIndex;
@@ -47,7 +46,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     /// <summary>The file under the config root.</summary>
     public const string FileName = "watched-situations.json";
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly object _gate = new();
     private readonly ISituationIndex _index;
 
@@ -66,7 +65,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
 
     /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
     /// <param name="index">The in-memory situation index the watches run against.</param>
-    /// <param name="demoCache">The index rows the filter's demo set and the stamps read.</param>
+    /// <param name="library">The index rows the filter's demo set and the stamps read.</param>
     /// <param name="teams">Team Identity, for the opponent and our-side fields; null leaves both inert.</param>
     /// <param name="provenance">Demo Provenance Labels, for the source field; null leaves it inert.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
@@ -74,16 +73,16 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     public WatchedSituationsService(
         string? configRoot,
         ISituationIndex index,
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         TeamIdentityService? teams = null,
         IDemoProvenanceSource? provenance = null,
         Action<Action>? post = null,
         Func<long>? now = null)
     {
         ArgumentNullException.ThrowIfNull(index);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         _index = index;
-        _demoCache = demoCache;
+        _library = library;
         _teams = teams;
         _provenance = provenance;
         _post = post ?? (action => action());
@@ -395,7 +394,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     public SituationQuery ToQuery(WatchedSituation watch, IReadOnlySet<string>? demos = null, long? indexedAfter = null)
     {
         ArgumentNullException.ThrowIfNull(watch);
-        IReadOnlySet<string>? filtered = watch.Filters.ToDemos(_demoCache, _teams, _provenance);
+        IReadOnlySet<string>? filtered = watch.Filters.ToDemos(_library, _teams, _provenance);
         IReadOnlySet<string>? scope = demos is null ? filtered
             : filtered is null ? demos
             : new HashSet<string>(demos.Where(filtered.Contains), StringComparer.Ordinal);

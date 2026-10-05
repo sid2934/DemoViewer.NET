@@ -129,7 +129,7 @@ public sealed class RoundIndexDemo
     /// <summary>Null until Content Identity has hashed the demo; a reader with a hash ignores a mismatching file.</summary>
     public string? Sha256 { get; set; }
 
-    /// <summary><c>DemoCacheStore.StableKey</c> of the path: the join key until the hash exists, the file name afterwards.</summary>
+    /// <summary><c>DemoKeys.StableKey</c> of the path: the join key until the hash exists, the file name afterwards.</summary>
     public string StableKey { get; set; } = "";
 
     public string FileName { get; set; } = "";

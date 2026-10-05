@@ -54,7 +54,7 @@ public class GeneratedInboxTests
     internal static async Task<(TeamIdentityService Service, DemoCacheStore Cache)> Teams(bool setMe = true)
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService service = new(null, cache, run: a =>
+        TeamIdentityService service = new(null, cache.Library(), run: a =>
         {
             a();
             return Task.CompletedTask;
@@ -99,7 +99,7 @@ public class GeneratedInboxTests
     {
         using SuggestedTagsReviewHarness h = new();
         h.Build();
-        using SuggestedInboxService inbox = new(h.Service, h.Cache, run: _inline);
+        using SuggestedInboxService inbox = new(h.Service, h.Cache.Library(), run: _inline);
         using SuggestedInboxViewModel vm = new(inbox);
         await Assert.That(inbox.IsLoaded).IsFalse().Because("nothing is read until the section is first shown");
         vm.OnActivated(null!);
@@ -143,7 +143,7 @@ public class GeneratedInboxTests
         {
             using SuggestedTagsReviewHarness h = new();
             h.Build();
-            using SuggestedInboxService inbox = new(h.Service, h.Cache, run: _inline);
+            using SuggestedInboxService inbox = new(h.Service, h.Cache.Library(), run: _inline);
             using SuggestedInboxViewModel vm = new(inbox);
             await inbox.LoadAsync();
             h.Service.Reject(DemoPath, DefaultId);
@@ -280,7 +280,7 @@ public class GeneratedInboxTests
     {
         (TeamIdentityService service, DemoCacheStore cache) = await Teams(setMe: false);
         await Assert.That(service.MeSuggestion?.SteamId64).IsEqualTo(Ids(0)[0]);
-        using TeamsTabViewModel vm = new(service, cache, isBrowser: false);
+        using TeamsTabViewModel vm = new(service, cache.Library(), isBrowser: false);
 
         vm.DismissMeSuggestionCommand.Execute(null);
         using (Assert.Multiple())
@@ -301,7 +301,7 @@ public class GeneratedInboxTests
     public async Task TheTeamsInbox_ListsADismissal_UnderSettled_WithRestore()
     {
         (TeamIdentityService service, DemoCacheStore cache) = await Teams();
-        using TeamsTabViewModel vm = new(service, cache, isBrowser: false);
+        using TeamsTabViewModel vm = new(service, cache.Library(), isBrowser: false);
         SuggestionRow roster = vm.Suggestions.First(s => s.Id.StartsWith("roster:", StringComparison.Ordinal));
 
         vm.DismissSuggestionCommand.Execute(roster);

@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
@@ -54,17 +53,21 @@ public sealed class SituationalBehaviourService
     // A record without a clock header is still a CS2 demo; the frame clock of every build here is 64.
     private const int FallbackTickRate = 64;
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFactsSource _roundFacts;
     private readonly TeamIdentityService _teams;
 
     /// <param name="teams">Team Identity: the team's demos and its side per round.</param>
-    /// <param name="demoCache">The records: map, hash and Round Facts rows per demo.</param>
-    public SituationalBehaviourService(TeamIdentityService teams, DemoCacheStore demoCache)
+    /// <param name="library">The library: map and hash per demo, and the players.</param>
+    /// <param name="roundFacts">The Round Facts rows per demo.</param>
+    public SituationalBehaviourService(TeamIdentityService teams, IExtensionLibrary library, IRoundFactsSource roundFacts)
     {
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         _teams = teams;
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
     }
 
     /// <summary>The team's situational numbers. Reads records: call it off the UI thread like the other Dossier sections.</summary>
@@ -79,8 +82,8 @@ public sealed class SituationalBehaviourService
         {
             JobScope.ThrowIfStopped(); // one demo at a time: a user's build may take the lane between them
             if (!seen.Add(demo.Path)
-                || _demoCache.TryGetIndex(demo.Path)?.Map is not { Length: > 0 } map
-                || _demoCache.TryLoadWithRoundFacts(demo.Path) is not ({ } record, { } rows))
+                || _library.Find(demo.Path) is not { MapName: { Length: > 0 } map } record
+                || _roundFacts.TryGet(demo.Path) is not { } rows)
             {
                 continue;
             }

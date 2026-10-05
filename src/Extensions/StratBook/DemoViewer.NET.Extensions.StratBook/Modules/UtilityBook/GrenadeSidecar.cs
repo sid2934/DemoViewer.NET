@@ -1,9 +1,9 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
@@ -29,7 +29,7 @@ public sealed class GrenadeDemoHeader
     /// <summary>Null until Content Identity has hashed the demo; a reader with a hash ignores a mismatching file.</summary>
     public string? Sha256 { get; set; }
 
-    /// <summary><c>DemoCacheStore.StableKey</c> of the path.</summary>
+    /// <summary><c>DemoKeys.StableKey</c> of the path.</summary>
     public string StableKey { get; set; } = "";
 
     public string FileName { get; set; } = "";
@@ -110,10 +110,10 @@ public static class GrenadeSidecar
 
     /// <summary>Builds both documents for a walk of <paramref name="parsed" />.</summary>
     /// <param name="path">The demo's path.</param>
-    /// <param name="record">The demo's cache record, for its hash and size; null when there is none yet.</param>
+    /// <param name="record">The demo's library row, for its hash, size and source; null when there is none yet.</param>
     /// <param name="parsed">The held parse, for the clock and the source.</param>
     /// <param name="walk">The walk's output.</param>
-    public static (GrenadeDocument Rows, GrenadePathsDocument Paths) Build(string path, DemoCacheRecord? record,
+    public static (GrenadeDocument Rows, GrenadePathsDocument Paths) Build(string path, LibraryDemo? record,
         ParsedDemo parsed, GrenadeWalk walk)
     {
         ArgumentNullException.ThrowIfNull(parsed);
@@ -172,7 +172,7 @@ public static class GrenadeSidecar
         TryDeserialize<GrenadePathsDocument>(json) is { SchemaVersion: CurrentSchema } document ? document : null;
 
     /// <summary>Fills each row's thrower name from the record's players, by SteamID and then by slot.</summary>
-    internal static void Name(GrenadeDocument document, IReadOnlyList<CachedPlayerInfo>? players)
+    internal static void Name(GrenadeDocument document, IReadOnlyList<LibraryPlayer>? players)
     {
         if (players is null)
         {
@@ -181,16 +181,16 @@ public static class GrenadeSidecar
 
         Dictionary<string, string> bySteam = new(StringComparer.Ordinal);
         Dictionary<int, string> bySlot = [];
-        foreach (CachedPlayerInfo player in players)
+        foreach (LibraryPlayer player in players)
         {
             if (player.Name.Length == 0)
             {
                 continue;
             }
 
-            if (player.SteamId64.Length > 0)
+            if (player.SteamId64 != 0)
             {
-                bySteam.TryAdd(player.SteamId64, player.Name);
+                bySteam.TryAdd(DemoKeys.SteamIdText(player.SteamId64), player.Name);
             }
 
             bySlot.TryAdd(player.Slot, player.Name);
@@ -209,12 +209,12 @@ public static class GrenadeSidecar
         string.IsNullOrEmpty(recordSha256) || string.IsNullOrEmpty(fileSha256)
                                            || string.Equals(recordSha256, fileSha256, StringComparison.OrdinalIgnoreCase);
 
-    private static GrenadeDemoHeader DemoHeader(string path, DemoCacheRecord? record) => new()
+    private static GrenadeDemoHeader DemoHeader(string path, LibraryDemo? record) => new()
     {
         Sha256 = record?.Sha256,
-        StableKey = DemoCacheStore.StableKey(path),
+        StableKey = DemoKeys.StableKey(path),
         FileName = Path.GetFileName(path),
-        SizeBytes = record?.Size ?? 0
+        SizeBytes = record?.FileSizeBytes ?? 0
     };
 
     private static T? TryDeserialize<T>(string json) where T : class

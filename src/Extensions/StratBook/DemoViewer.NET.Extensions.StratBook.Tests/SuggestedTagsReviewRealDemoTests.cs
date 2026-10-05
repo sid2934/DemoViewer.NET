@@ -47,7 +47,7 @@ public class SuggestedTagsReviewRealDemoTests
 
         ProposalStore proposals = new(cache.Data());
         TagStore tags = new(null);
-        SuggestedTagsService service = new(cache, proposals, tags, new SiteRegionStore(null),
+        SuggestedTagsService service = new(cache.Library(), cache.RoundFacts(), proposals, tags, new SiteRegionStore(null),
             () => DetectorProfile.Default, () => true, () => true);
         service.Evaluate(path, parsed);
 

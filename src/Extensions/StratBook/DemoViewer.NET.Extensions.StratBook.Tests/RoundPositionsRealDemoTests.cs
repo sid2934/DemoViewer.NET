@@ -183,7 +183,7 @@ public class RoundPositionsRealDemoTests
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         // Only the facts matter here, so the renderer and the decoder are stubs, the same convention
         // ResultCardTests' Harness uses: no bundle load, no bitmap decode.
-        ResultCardsViewModel vm = new(store, sidecars, sources, () => null, renderer: () => new SituationThumbnailRenderer(_ => null),
+        ResultCardsViewModel vm = new(store.Library(), sidecars, sources, () => null, renderer: () => new SituationThumbnailRenderer(_ => null),
             post: action => action(), decode: _ => null);
         vm.Load(hits);
         await vm.BatchTask;

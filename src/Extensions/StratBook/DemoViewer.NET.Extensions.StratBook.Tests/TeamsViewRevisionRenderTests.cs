@@ -64,7 +64,7 @@ public class TeamsViewRevisionRenderTests
         await HeadlessSession.RunOnUi(async () =>
         {
             DemoCacheStore cache = new(null);
-            TeamIdentityService service = new(null, cache, run: a =>
+            TeamIdentityService service = new(null, cache.Library(), run: a =>
             {
                 a();
                 return Task.CompletedTask;
@@ -99,7 +99,7 @@ public class TeamsViewRevisionRenderTests
             await service.Idle;
             service.SetMyAccounts(Ids(0));
 
-            using TeamsTabViewModel vm = new(service, cache, isBrowser: false);
+            using TeamsTabViewModel vm = new(service, cache.Library(), isBrowser: false);
             vm.SelectedTeam = vm.Teams.FirstOrDefault();
             TeamsTabView view = new() { DataContext = vm };
             Window window = new() { Width = 1280, Height = 900, Content = view };

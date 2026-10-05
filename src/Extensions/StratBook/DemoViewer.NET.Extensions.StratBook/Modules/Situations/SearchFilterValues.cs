@@ -1,7 +1,7 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Teams;
@@ -112,18 +112,18 @@ public sealed record SearchFilterValues
     ///     The demos the opponent, date and source fields keep, as stable keys, or null when none of the
     ///     three is set. The three intersect: a demo must pass every set field.
     /// </summary>
-    /// <param name="demoCache">The index rows the fields read.</param>
+    /// <param name="library">The index rows the fields read.</param>
     /// <param name="teams">Team Identity, for the opponent's demos; null keeps every demo on that field.</param>
     /// <param name="provenance">Demo Provenance Labels, for the source field; null keeps every demo on that field.</param>
-    public IReadOnlySet<string>? ToDemos(DemoCacheStore demoCache, TeamIdentityService? teams, IDemoProvenanceSource? provenance)
+    public IReadOnlySet<string>? ToDemos(IExtensionLibrary library, TeamIdentityService? teams, IDemoProvenanceSource? provenance)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         if (!HasDemoFilter)
         {
             return null;
         }
 
-        IReadOnlyList<DemoCacheIndexEntry> rows = demoCache.Index;
+        IReadOnlyList<LibraryDemo> rows = library.Demos;
         HashSet<string> keep = new(StringComparer.Ordinal);
 
         HashSet<string>? against = null;
@@ -135,14 +135,14 @@ public sealed record SearchFilterValues
         IReadOnlyDictionary<string, DemoProvenance>? labels = null;
         if (Source is not null && provenance is not null)
         {
-            labels = provenance.ResolveAll(rows.Select(r => r.Path));
+            labels = provenance.ResolveAll(rows.Select(r => r.FilePath));
         }
 
         DateTime? from = From?.Date;
         DateTime? to = To?.Date.AddDays(1);
-        foreach (DemoCacheIndexEntry row in rows)
+        foreach (LibraryDemo row in rows)
         {
-            string key = DemoCacheStore.StableKey(row.Path);
+            string key = DemoKeys.StableKey(row.FilePath);
             if (against is not null && !against.Contains(key))
             {
                 continue;
@@ -150,7 +150,7 @@ public sealed record SearchFilterValues
 
             if (Source is { } source)
             {
-                string? label = labels is not null && labels.TryGetValue(row.Path, out DemoProvenance? resolved) ? resolved.Label : null;
+                string? label = labels is not null && labels.TryGetValue(row.FilePath, out DemoProvenance? resolved) ? resolved.Label : null;
                 bool matches = source == SearchFilterOptions.Unlabeled ? label is null : string.Equals(label, source, StringComparison.Ordinal);
                 if (!matches)
                 {
@@ -162,7 +162,7 @@ public sealed record SearchFilterValues
             // a real one exists; the bounds are whole days in the same local clock the file time is in.
             if (from is not null || to is not null)
             {
-                DateTime modified = new(row.ModifiedTicks);
+                DateTime modified = new(row.Modified.Ticks);
                 if ((from is { } lower && modified < lower) || (to is { } upper && modified >= upper))
                 {
                     continue;

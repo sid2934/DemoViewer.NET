@@ -1,9 +1,3 @@
-#region
-
-using DemoViewer.NET.Services.DemoCache;
-
-#endregion
-
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
@@ -12,13 +6,13 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///     Change notices run on the calling thread.
 /// </summary>
 /// <param name="library">The library whose removals the data follows; null follows nothing.</param>
-public sealed class MemoryDemoData(DemoCacheStore? library = null) : IExtensionDemoData, IDisposable
+public sealed class MemoryDemoData(IExtensionLibrary? library = null) : IExtensionDemoData, IDisposable
 {
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<DemoCacheStore, MemoryDemoData> Shared = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IExtensionLibrary, MemoryDemoData> Shared = new();
 
     /// <summary>The one in-memory data of <paramref name="library" />, so every store over that library shares it.</summary>
     /// <param name="library">The library.</param>
-    public static MemoryDemoData For(DemoCacheStore library)
+    public static MemoryDemoData For(IExtensionLibrary library)
     {
         ArgumentNullException.ThrowIfNull(library);
         return Shared.GetValue(library, static l => new MemoryDemoData(l));
@@ -193,7 +187,7 @@ public sealed class MemoryDemoData(DemoCacheStore? library = null) : IExtensionD
         Changed?.Invoke(demoPath);
     }
 
-    private string? Sha256Of(string demoPath) => library?.TryGetIndex(demoPath)?.Sha256;
+    private string? Sha256Of(string demoPath) => library?.Find(demoPath)?.Sha256;
 
     // Called under the lock.
     private void Follow()
@@ -205,9 +199,9 @@ public sealed class MemoryDemoData(DemoCacheStore? library = null) : IExtensionD
         }
     }
 
-    private void OnLibraryChanged(string? path)
+    private void OnLibraryChanged(LibraryChange change)
     {
-        if (path is null || library?.TryGetIndex(path) is not null)
+        if (change.Path is not { } path || library?.Find(path) is not null)
         {
             return;
         }

@@ -30,7 +30,7 @@ internal sealed class ToleranceSliderHarness : IDisposable
         Cache = new DemoCacheStore(null);
         Sidecars = new RoundIndexStore(Cache.Data());
         Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-        Index = new SituationIndex(Cache, Sidecars, Sources, zones: zones);
+        Index = new SituationIndex(Cache.Library(), Sidecars, Sources, zones: zones);
 
         string fingerprint = Sources.FingerprintFor("de_nuke");
         RoundIndexDocument a = Document("de_nuke", fingerprint,
@@ -54,7 +54,7 @@ internal sealed class ToleranceSliderHarness : IDisposable
         Cache.Upsert(ParsedRecord(DemoTrain, "de_train"));
         Index.Load();
 
-        Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, zones), Cache, _ => null,
+        Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, zones), Cache.Library(), _ => null,
             dispose => dispose(), post: action => action(), countDelay: TimeSpan.Zero);
         Vm.Map = "de_nuke";
     }

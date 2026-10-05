@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
@@ -23,7 +22,7 @@ public sealed record SuggestedInboxItem(string DemoPath, string? Sha256, string 
 /// </summary>
 public sealed class SuggestedInboxService : IDisposable
 {
-    private readonly DemoCacheStore _cache;
+    private readonly IExtensionLibrary _library;
     private readonly object _gate = new();
     private readonly Action<Action> _post;
     private readonly IExtensionJobs? _jobs;
@@ -33,17 +32,17 @@ public sealed class SuggestedInboxService : IDisposable
     private Task? _loading;
 
     /// <param name="suggestions">The engine: proposals, verdicts, accept, dismiss and restore.</param>
-    /// <param name="cache">The demo index: which demos have proposals, their maps and pending counts.</param>
+    /// <param name="library">The library: the maps and write times of the demos with proposals.</param>
     /// <param name="jobs">Where the library read runs; null runs it on <paramref name="run" />.</param>
     /// <param name="run">Runs work off the UI thread; defaults to <see cref="Task.Run(Action)" />.</param>
     /// <param name="post">UI-thread marshal for <see cref="Changed" />.</param>
-    public SuggestedInboxService(SuggestedTagsService suggestions, DemoCacheStore cache, IExtensionJobs? jobs = null,
+    public SuggestedInboxService(SuggestedTagsService suggestions, IExtensionLibrary library, IExtensionJobs? jobs = null,
         Func<Action, Task>? run = null, Action<Action>? post = null)
     {
         ArgumentNullException.ThrowIfNull(suggestions);
-        ArgumentNullException.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(library);
         _suggestions = suggestions;
-        _cache = cache;
+        _library = library;
         _jobs = jobs;
         _run = run ?? Task.Run;
         _post = post ?? (a => a());
@@ -123,9 +122,9 @@ public sealed class SuggestedInboxService : IDisposable
         Dictionary<string, IReadOnlyList<SuggestedInboxItem>> all = new(StringComparer.OrdinalIgnoreCase);
         foreach (DemoDataStamp stamp in _suggestions.Proposals.Stamps().Where(s => s.Fingerprint is not null))
         {
-            if (_cache.TryGetIndex(stamp.DemoPath) is { } row)
+            if (_library.Find(stamp.DemoPath) is { } row)
             {
-                all[row.Path] = Read(row);
+                all[row.FilePath] = Read(row);
             }
         }
 
@@ -140,7 +139,7 @@ public sealed class SuggestedInboxService : IDisposable
 
     private void ReadDemo(string path)
     {
-        if (_cache.TryGetIndex(path) is not { } row)
+        if (_library.Find(path) is not { } row)
         {
             return;
         }
@@ -156,11 +155,11 @@ public sealed class SuggestedInboxService : IDisposable
         }
     }
 
-    private IReadOnlyList<SuggestedInboxItem> Read(DemoCacheIndexEntry row)
+    private IReadOnlyList<SuggestedInboxItem> Read(LibraryDemo row)
     {
-        ProposalSet set = _suggestions.Load(row.Path, row.Sha256);
-        string fileName = Path.GetFileName(row.Path);
-        return [.. set.Entries.Select(e => new SuggestedInboxItem(row.Path, set.Sha256, fileName, row.Map, row.ModifiedTicks, e))];
+        ProposalSet set = _suggestions.Load(row.FilePath, row.Sha256);
+        string fileName = Path.GetFileName(row.FilePath);
+        return [.. set.Entries.Select(e => new SuggestedInboxItem(row.FilePath, set.Sha256, fileName, row.MapName, row.Modified.Ticks, e))];
     }
 
     private void Publish()

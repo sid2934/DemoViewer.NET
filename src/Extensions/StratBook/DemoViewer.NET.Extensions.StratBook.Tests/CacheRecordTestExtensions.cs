@@ -56,7 +56,7 @@ internal static class CacheRecordTestExtensions
     // ── Per-demo data ─────────────────────────────────────────────────────────
 
     /// <summary>The in-memory per-demo data every store over <paramref name="cache" /> shares in a test.</summary>
-    public static MemoryDemoData Data(this DemoCacheStore cache) => MemoryDemoData.For(cache);
+    public static MemoryDemoData Data(this DemoCacheStore cache) => MemoryDemoData.For(cache.Library());
 
     /// <summary>The host's on-disk per-demo data of the Strat Book under <paramref name="cacheRoot" />, over <paramref name="cache" />.</summary>
     public static IExtensionDemoData DiskData(this DemoCacheStore cache, string cacheRoot) =>

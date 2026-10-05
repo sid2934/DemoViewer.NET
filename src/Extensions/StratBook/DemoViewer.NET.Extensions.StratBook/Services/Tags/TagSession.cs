@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 
 #endregion
@@ -60,7 +59,7 @@ public sealed class TagSession : IDisposable
     private readonly Func<bool> _isBrowser;
     private readonly List<TagDelta> _redo = [];
     private readonly IRoundFactsSource? _roundFacts;
-    private readonly Func<string, IReadOnlyList<CachedRound>?>? _roundsFor;
+    private readonly Func<string, Task<IReadOnlyList<LibraryRound>?>>? _roundsFor;
 
     // Saves are serialized, the annotation controller's reason: cancelling the debounce does not stop a
     // write already under way, and two in flight could land the older one last.
@@ -79,7 +78,7 @@ public sealed class TagSession : IDisposable
     private RoundFactsRows? _factRows;
     private bool _factRowsRead;
     private int _lastSavedVersion = -1;
-    private IReadOnlyList<CachedRound>? _rounds;
+    private IReadOnlyList<LibraryRound>? _rounds;
     private bool _saveFailed;
 
     /// <summary>Creates a session. Every dependency is optional so a headless test needs no container.</summary>
@@ -91,14 +90,14 @@ public sealed class TagSession : IDisposable
     ///     Round Facts, for the facts a new instance is made with (<see cref="TagFactsRefresher" />); null
     ///     leaves <c>facts</c> to the refresher.
     /// </param>
-    public TagSession(TagStore? store, Func<string, IReadOnlyList<CachedRound>?>? roundsFor = null,
+    public TagSession(TagStore? store, Func<string, Task<IReadOnlyList<LibraryRound>?>>? roundsFor = null,
         IRoundFactsSource? roundFacts = null)
         : this(store, roundsFor, OperatingSystem.IsBrowser, () => DateTime.UtcNow, roundFacts)
     {
     }
 
     /// <summary>Test seam: the host predicate and the clock injected.</summary>
-    internal TagSession(TagStore? store, Func<string, IReadOnlyList<CachedRound>?>? roundsFor,
+    internal TagSession(TagStore? store, Func<string, Task<IReadOnlyList<LibraryRound>?>>? roundsFor,
         Func<bool> isBrowser, Func<DateTime> utcNow, IRoundFactsSource? roundFacts = null)
     {
         ArgumentNullException.ThrowIfNull(isBrowser);
@@ -125,7 +124,7 @@ public sealed class TagSession : IDisposable
     ///     The attached demo's cached rounds (frame clock), or null without a cache record. The Tag Palette
     ///     clamps a new span by them: the same rows <c>round</c> is derived from, so the two cannot disagree.
     /// </summary>
-    public IReadOnlyList<CachedRound>? Rounds => _rounds;
+    public IReadOnlyList<LibraryRound>? Rounds => _rounds;
 
     /// <summary>Bumped on every change, undoable or not. Never goes backwards.</summary>
     public int Version { get; private set; }
@@ -244,7 +243,7 @@ public sealed class TagSession : IDisposable
         }
 
         DemoPath = demoPath;
-        _rounds = string.IsNullOrEmpty(demoPath) ? null : _roundsFor?.Invoke(demoPath);
+        _rounds = string.IsNullOrEmpty(demoPath) || _roundsFor is null ? null : await _roundsFor(demoPath).ConfigureAwait(true);
         _factRows = null;
         _factRowsRead = false;
         _saveFailed = false;
@@ -371,7 +370,7 @@ public sealed class TagSession : IDisposable
     /// <summary>The number of the round containing <paramref name="tick" />, or null without rounds or before the first.</summary>
     /// <param name="rounds">Cached rounds, frame clock.</param>
     /// <param name="tick">A frame-clock tick.</param>
-    public static int? RoundAt(IReadOnlyList<CachedRound>? rounds, int tick)
+    public static int? RoundAt(IReadOnlyList<LibraryRound>? rounds, int tick)
     {
         if (rounds is null)
         {
@@ -380,10 +379,10 @@ public sealed class TagSession : IDisposable
 
         // The latest start at or before the tick. ClipWindows.RoundStartFor answers the same question
         // with the start tick rather than the round number, which is why it is not called here.
-        CachedRound? best = null;
-        foreach (CachedRound round in rounds)
+        LibraryRound? best = null;
+        foreach (LibraryRound round in rounds)
         {
-            if (round.StartTickFrameClock <= tick && (best is null || round.StartTickFrameClock > best.StartTickFrameClock))
+            if (round.StartTick <= tick && (best is null || round.StartTick > best.StartTick))
             {
                 best = round;
             }

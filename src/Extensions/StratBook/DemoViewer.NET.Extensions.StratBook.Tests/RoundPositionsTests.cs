@@ -199,7 +199,7 @@ public class RoundPositionsTests
         cache.Upsert(ParsedRecord(Demo, sha: "abc", facts: Facts(Round(1, 1000, 1200))));
         RoundIndexStore store = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, store, sources, () => true, walk: _ => [.. Placed(1000), .. Placed(1064)]);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), store, sources, () => true, walk: _ => [.. Placed(1000), .. Placed(1064)]);
 
         evaluator.Evaluate(Demo, RoundIndexTestData.Demo(lastTick: 5000));
 

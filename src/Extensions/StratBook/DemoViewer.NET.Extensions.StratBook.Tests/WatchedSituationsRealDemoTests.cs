@@ -34,8 +34,8 @@ public class WatchedSituationsRealDemoTests
             facts.Evaluate(path, parsed);
             RoundIndexStore sidecars = new(cache.Data());
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-            RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true);
-            using SituationIndex index = new(cache, sidecars, sources, evaluator: evaluator);
+            RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), sidecars, sources, () => true);
+            using SituationIndex index = new(cache.Library(), sidecars, sources, evaluator: evaluator);
             index.Load();
 
             // The run is only known once the demo is indexed, so the watch is saved against the
@@ -53,13 +53,13 @@ public class WatchedSituationsRealDemoTests
                 }
             }
 
-            using WatchedSituationsService service = new(root, index, cache, now: () => 1000);
+            using WatchedSituationsService service = new(root, index, cache.Library(), now: () => 1000);
             WatchedSituation watch = service.Watch("", document.Map, tokens, SituationTolerance.Exact, SearchFilterValues.None);
             evaluator.RebuildAll();
             evaluator.Evaluate(path, parsed);
             await Assert.That(service.NewCountOf(watch.Id)).IsGreaterThanOrEqualTo(1);
 
-            using WatchedSituationsService restarted = new(root, index, cache, now: () => 1000);
+            using WatchedSituationsService restarted = new(root, index, cache.Library(), now: () => 1000);
             await Assert.That(restarted.NewCountOf(watch.Id)).IsEqualTo(service.NewCountOf(watch.Id));
         }
         finally

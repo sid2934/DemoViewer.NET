@@ -310,8 +310,8 @@ public class SituationQueryTests
         Harness h = new(null, null);
         Indexed(h.Cache, h.Sidecars, DemoA, DocA());
         h.Index.Load();
-        RoundIndexEvaluator evaluator = new(h.Cache, h.Sidecars, h.Sources, () => true, walk: _ => []);
-        using SituationIndex index = new(h.Cache, h.Sidecars, h.Sources, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(h.Cache.Library(), h.Cache.RoundFacts(), h.Sidecars, h.Sources, () => true, walk: _ => []);
+        using SituationIndex index = new(h.Cache.Library(), h.Sidecars, h.Sources, evaluator: evaluator);
         index.Load();
         List<RoundIndexedEvent> merged = [];
         index.Indexed += merged.Add;
@@ -448,7 +448,7 @@ public class SituationQueryTests
             Cache = new DemoCacheStore(null);
             Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Index = new SituationIndex(Cache, Sidecars, Sources, facts, zones);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources, facts, zones);
         }
 
         public DemoCacheStore Cache { get; }

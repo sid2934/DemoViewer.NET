@@ -461,9 +461,9 @@ public class SearchFiltersTests
             Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Facts = new FakeFacts();
-            Teams = new TeamIdentityService(null, Cache, Facts, run: _inline);
-            Provenance = new DemoProvenanceSource(Cache, Teams);
-            Index = new SituationIndex(Cache, Sidecars, Sources, Facts);
+            Teams = new TeamIdentityService(null, Cache.Library(), Facts, run: _inline);
+            Provenance = new DemoProvenanceSource(Cache.Library(), Teams);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources, Facts);
         }
 
         public DemoCacheStore Cache { get; }
@@ -505,8 +505,8 @@ public class SearchFiltersTests
             h.Teams.SetUs(h.Teams.TeamOnSide(DemoA, 2)!.Id);
             h.Teams.Rename(h.Teams.TeamOnSide(DemoA, 3)!.Id, "Falcons");
 
-            h.Filters = new SearchFiltersViewModel(h.Cache, h.Teams, h.Provenance);
-            h.Canvas = new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache, _ => null,
+            h.Filters = new SearchFiltersViewModel(h.Cache.Library(), h.Teams, h.Provenance);
+            h.Canvas = new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null,
                 dispose => dispose(), h.Filters, action => action(), TimeSpan.Zero);
             return h;
         }

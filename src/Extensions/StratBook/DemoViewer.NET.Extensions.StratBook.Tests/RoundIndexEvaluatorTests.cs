@@ -36,7 +36,7 @@ public class RoundIndexEvaluatorTests
         cache.Upsert(ParsedRecord(Demo, sha: "abc", facts: withFacts ? facts ?? TwoRounds() : null));
         RoundIndexStore store = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, store, sources, () => background, walk: _ => []);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), store, sources, () => background, walk: _ => []);
         return (cache, store, evaluator);
     }
 
@@ -87,14 +87,21 @@ public class RoundIndexEvaluatorTests
             await File.WriteAllTextAsync(first.SidecarPathFor(Demo)!, JsonSerializer.Serialize(stale));
 
             DemoCacheStore cache = new(root);
-            RoundIndexEvaluator evaluator = new(cache, new RoundIndexStore(cache.Data()),
-                new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn), () => true, walk: _ => []);
+            List<string> reprojected = [];
+            RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), new RoundIndexStore(cache.Data()),
+                new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn), () => true, walk: _ => [],
+                reprojectRow: path =>
+                {
+                    reprojected.Add(path);
+                    cache.Upsert(cache.TryLoadRecord(path)!);
+                });
             await Assert.That(evaluator.Wants(Demo)).IsTrue().Because("the stale row claims Round Facts");
 
             evaluator.Evaluate(Demo, Parse());
 
             using (Assert.Multiple())
             {
+                await Assert.That(reprojected).IsEquivalentTo([Demo]).Because("Round Facts owns the row's stamp, not the round index");
                 await Assert.That(evaluator.Wants(Demo)).IsFalse();
                 await Assert.That(cache.TryGetIndex(Demo)!.RoundFactsSchema()).IsEqualTo(0)
                     .Because("the row now matches the sidecar, so Round Facts wants the demo again");
@@ -188,7 +195,7 @@ public class RoundIndexEvaluatorTests
         cache.Upsert(ParsedRecord(Demo, sha: "abc", facts: TwoRounds()));
         RoundIndexStore store = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, store, sources, () => true, walk: _ => [], enabled: () => false);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), store, sources, () => true, walk: _ => [], enabled: () => false);
 
         using (Assert.Multiple())
         {

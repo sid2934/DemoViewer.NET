@@ -3,7 +3,6 @@
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoCache;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -37,7 +36,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     private static ILogger? _diagLog;
 
     private readonly Func<bool> _backgroundIndex;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly Func<bool> _enabled;
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, List<TrajectoryPoint>>> _flights = new(StringComparer.OrdinalIgnoreCase);
@@ -50,7 +49,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     // Test seam: the walk for a parse. Null is the real walker; a synthetic parse has no entities to walk.
     private readonly Func<ParsedDemo, GrenadeWalk>? _walk;
 
-    /// <param name="demoCache">The library: which demos are parsed, and their records.</param>
+    /// <param name="library">The library: which demos are parsed, and their rows.</param>
     /// <param name="store">The grenade rows and their stamps.</param>
     /// <param name="backgroundIndex">The live <see cref="Extensions.StratBook.StratBookSettings.GrenadesBackgroundIndex" />; forced paths and the open demo ignore it.</param>
     /// <param name="openDemo">The open demo's path, resolved at call time; null when none.</param>
@@ -59,7 +58,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     /// <param name="walk">The walk to run; null walks the parse through <see cref="GrenadeWalker" />.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted, not even the open demo. Defaults to always-on.</param>
     public GrenadeIndexEvaluator(
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         GrenadeStore store,
         Func<bool> backgroundIndex,
         Func<string?>? openDemo = null,
@@ -68,10 +67,10 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         Func<ParsedDemo, GrenadeWalk>? walk = null,
         Func<bool>? enabled = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(backgroundIndex);
-        _demoCache = demoCache;
+        _library = library;
         _store = store;
         _backgroundIndex = backgroundIndex;
         _openDemo = openDemo ?? (() => null);
@@ -117,12 +116,12 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
             return false;
         }
 
-        DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
+        LibraryDemo? entry = _library.Find(path);
         lock (_gate)
         {
             if (_forcedPaths.Contains(path))
             {
-                return entry is { ParseSchema: > 0 } && !_store.IsCurrent(path);
+                return entry is { State: >= LibraryDemoState.Parsed } && !_store.IsCurrent(path);
             }
         }
 
@@ -136,7 +135,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     /// </remarks>
     public bool WantsAfterUpstream(string path)
     {
-        if (!_enabled() || _demoCache.TryGetIndex(path) is { ParseSchema: > 0 })
+        if (!_enabled() || _library.Find(path) is { State: >= LibraryDemoState.Parsed })
         {
             return false;
         }
@@ -157,7 +156,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     }
 
     /// <inheritdoc />
-    public long OrderHint(string demoPath) => _demoCache.TryGetIndex(demoPath)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _library.Find(demoPath)?.Modified.Ticks ?? 0;
 
     /// <inheritdoc />
     public DemoInterest Interest(string demoPath) =>
@@ -203,12 +202,12 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
 
         return
         [
-            .. _demoCache.Index
-                .Where(e => forced.Contains(e.Path)
-                    ? e.ParseSchema > 0 && !_store.IsCurrent(e.Path)
+            .. _library.Demos
+                .Where(e => forced.Contains(e.FilePath)
+                    ? e.State >= LibraryDemoState.Parsed && !_store.IsCurrent(e.FilePath)
                     : background && NeedsWalk(e))
-                .OrderByDescending(e => e.ModifiedTicks)
-                .Select(e => e.Path)
+                .OrderByDescending(e => e.Modified.Ticks)
+                .Select(e => e.FilePath)
         ];
     }
 
@@ -247,8 +246,8 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         Passes?.Request(path);
     }
 
-    private bool NeedsWalk(DemoCacheIndexEntry? entry) =>
-        entry is { ParseSchema: > 0 } && _store.Needs(entry.Path);
+    private bool NeedsWalk(LibraryDemo? entry) =>
+        entry is { State: >= LibraryDemoState.Parsed } && _store.Needs(entry.FilePath);
 
     private bool IsOpen(string path) =>
         _openDemo() is { } open && string.Equals(open, path, StringComparison.OrdinalIgnoreCase);
@@ -268,8 +267,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         {
             GrenadeWalk walk = _walk?.Invoke(parsed)
                                ?? GrenadeWalker.Walk(parsed, new GrenadeWalkOptions(TrajectoryStride: Math.Max(1, _stride())));
-            DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-            (GrenadeDocument rows, _) = GrenadeSidecar.Build(path, record, parsed, walk);
+            (GrenadeDocument rows, _) = GrenadeSidecar.Build(path, _library.Find(path), parsed, walk);
 
             // The store stamps the rows as it writes them: a crash before the stamp leaves the demo "not walked".
             _store.Write(path, rows);

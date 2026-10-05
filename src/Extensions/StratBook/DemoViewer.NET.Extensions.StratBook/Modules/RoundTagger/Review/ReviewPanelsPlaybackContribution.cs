@@ -15,7 +15,6 @@ using DemoViewer.NET.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Tags;
 using DemoViewer.NET.Theming;
@@ -39,8 +38,9 @@ namespace DemoViewer.NET.Modules.RoundTagger.Review;
 /// </summary>
 /// <param name="post">Marshals change notifications onto the UI thread; synchronous when omitted (tests).</param>
 /// <param name="identity">Resolves a demo's identity for the session's attach; <see cref="TagSession.IdentityForAsync" /> when omitted (tests).</param>
+/// <param name="library">The library a tag's round bounds come from; none when omitted (tests).</param>
 public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null,
-    Func<string, string?, Task<DemoIdentity?>>? identity = null) : IPlaybackContribution, IDisposable
+    Func<string, string?, Task<DemoIdentity?>>? identity = null, IExtensionLibrary? library = null) : IPlaybackContribution, IDisposable
 {
     /// <summary>The Review mode toggle's id.</summary>
     public const string ReviewModeId = "stratbook.review";
@@ -115,8 +115,8 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         // No store means session-only tags, the annotation rule. The track re-queries on every session
         // version bump, posted to the UI thread because a save can raise Changed off it. Round Facts gives
         // a new tag its round's facts as it is made.
-        DemoCacheStore? cache = context.GetService<DemoCacheStore>();
-        TagSession session = new(context.GetService<TagStore>(), path => cache?.TryLoadRecord(path)?.Rounds,
+        TagSession session = new(context.GetService<TagStore>(),
+            async path => library is null ? null : (await library.GetDetailAsync(path).ConfigureAwait(true))?.Rounds,
             context.GetService<IRoundFactsSource>());
         _session = session;
         _tagTrack = new TagTrack(session, _post);

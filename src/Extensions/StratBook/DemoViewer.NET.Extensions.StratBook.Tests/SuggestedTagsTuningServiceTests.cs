@@ -45,7 +45,7 @@ public class SuggestedTagsTuningServiceTests
     private static readonly ClockIdentity Clock = new(ClockIdentity.DvFrameClock, 64, 2, 1, 20000);
 
     private static SuggestedTagsTuningService Tuning(SuggestedTagsReviewHarness h) =>
-        new(h.Cache, h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
+        new(h.Cache.Library(), h.Service, h.Tags, h.Regions, new InlineJobs { ParseDemo = _ => Parse() });
 
     [Test]
     public async Task BuildStoredReport_ReflectsHistoryAndScoresAgainstHandTags()
@@ -136,7 +136,7 @@ public class SuggestedTagsTuningServiceTests
                 return Parse();
             });
         ExtensionJobs jobs = new(StratBookPack.PackId, () => queue, () => JobKindRegistry.Build([new StratBookPack()]));
-        SuggestedTagsTuningService tuning = new(h.Cache, h.Service, h.Tags, h.Regions, jobs);
+        SuggestedTagsTuningService tuning = new(h.Cache.Library(), h.Service, h.Tags, h.Regions, jobs);
         TuningReport baseline = tuning.BuildStoredReport();
 
         Task<TuningReport> preview;

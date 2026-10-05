@@ -38,14 +38,14 @@ public class StratMiningCalibration
         RoundIndexStore positions = new(demoCache.DiskData(cache));
         AssetZonePlaceResolverSource zones = new();
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
-        using GrenadeIndex grenades = new(demoCache, zones);
+        using GrenadeIndex grenades = new(demoCache.Library(), zones);
         grenades.Load();
-        TeamIdentityService teams = new(root, demoCache, new CachedFacts(demoCache));
+        TeamIdentityService teams = new(root, demoCache.Library(), new CachedFacts(demoCache));
         await teams.StartAsync();
 
         Console.WriteLine($"[mine] teams={teams.AllTeams.Count} " + string.Join(", ", teams.AllTeams.Select(t => $"{t.Name}:{teams.DemosOf(t.Id).Count}")));
         Stopwatch watch = Stopwatch.StartNew();
-        RoundSignatureBuilder builder = new(demoCache, positions, sources.FingerprintFor, RoundSignatureBuilder.FromIndex(grenades), teams);
+        RoundSignatureBuilder builder = new(demoCache.Library(), demoCache.RoundFacts(), positions, sources.FingerprintFor, RoundSignatureBuilder.FromIndex(grenades), teams);
         IReadOnlyList<RoundSignature> signatures = builder.Build();
         Console.WriteLine($"[mine] demos={demoCache.Index.Count} grenadeDemos={grenades.DemoCount} signatures={signatures.Count} in {watch.ElapsedMilliseconds} ms");
         foreach (IGrouping<(PatternKind, int), RoundSignature> g in signatures.GroupBy(s => (s.Kind, s.Side)).OrderBy(g => g.Key))
@@ -98,9 +98,9 @@ public class StratMiningCalibration
         RoundIndexStore positions = new(demoCache.DiskData(cache));
         AssetZonePlaceResolverSource zones = new();
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
-        using GrenadeIndex grenades = new(demoCache, zones);
+        using GrenadeIndex grenades = new(demoCache.Library(), zones);
         grenades.Load();
-        TeamIdentityService teams = new(root, demoCache, new CachedFacts(demoCache));
+        TeamIdentityService teams = new(root, demoCache.Library(), new CachedFacts(demoCache));
         await teams.StartAsync();
         string scratch = Path.Combine(Path.GetTempPath(), "dv-mine-cost-" + Guid.NewGuid().ToString("N"));
         try
@@ -112,7 +112,7 @@ public class StratMiningCalibration
                 if (pass != 2)
                 {
                     service?.Dispose();
-                    service = new StratMiningService(demoCache, positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
+                    service = new StratMiningService(demoCache.Library(), demoCache.RoundFacts(), positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
                         scratch, null, run: a =>
                         {
                             a();
@@ -171,7 +171,7 @@ public class StratMiningCalibration
     private static async Task Promote(DemoCacheStore demoCache, RoundIndexStore positions, RoundIndexPlaceSources sources,
         GrenadeIndex grenades, TeamIdentityService teams)
     {
-        using StratMiningService service = new(demoCache, positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
+        using StratMiningService service = new(demoCache.Library(), demoCache.RoundFacts(), positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
             null, null, run: a =>
             {
                 a();

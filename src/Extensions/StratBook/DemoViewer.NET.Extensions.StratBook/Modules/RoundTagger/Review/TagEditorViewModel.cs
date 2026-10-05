@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Tags;
 
 #endregion
@@ -372,7 +371,7 @@ public sealed partial class TagEditorViewModel : ObservableObject
     /// <param name="clampToRound">Whether to keep the span inside its round.</param>
     /// <param name="firstTick">The parse's first tick, or 0.</param>
     /// <param name="lastTick">The parse's last tick, or 0 when unknown.</param>
-    public static (int From, int To) Clamp(int from, int to, IReadOnlyList<CachedRound>? rounds, bool clampToRound,
+    public static (int From, int To) Clamp(int from, int to, IReadOnlyList<LibraryRound>? rounds, bool clampToRound,
         int firstTick, int lastTick)
     {
         if (clampToRound && RoundBounds(rounds, from) is { } round)
@@ -397,18 +396,18 @@ public sealed partial class TagEditorViewModel : ObservableObject
     /// <summary>The round a tick falls in: its start and, when another round follows, the tick before that one's start.</summary>
     /// <param name="rounds">The demo's rounds, frame clock, or null.</param>
     /// <param name="tick">The tick.</param>
-    public static (int Number, int Start, int? End)? RoundBounds(IReadOnlyList<CachedRound>? rounds, int tick)
+    public static (int Number, int Start, int? End)? RoundBounds(IReadOnlyList<LibraryRound>? rounds, int tick)
     {
         if (rounds is not { Count: > 0 })
         {
             return null;
         }
 
-        CachedRound? current = null;
-        CachedRound? next = null;
-        foreach (CachedRound round in rounds.OrderBy(r => r.StartTickFrameClock))
+        LibraryRound? current = null;
+        LibraryRound? next = null;
+        foreach (LibraryRound round in rounds.OrderBy(r => r.StartTick))
         {
-            if (round.StartTickFrameClock <= tick)
+            if (round.StartTick <= tick)
             {
                 current = round;
             }
@@ -419,7 +418,7 @@ public sealed partial class TagEditorViewModel : ObservableObject
             }
         }
 
-        return current is null ? null : (current.Number, current.StartTickFrameClock, next is null ? null : next.StartTickFrameClock - 1);
+        return current is null ? null : (current.Number, current.StartTick, next is null ? null : next.StartTick - 1);
     }
 
     private string Seconds(int tick) =>
