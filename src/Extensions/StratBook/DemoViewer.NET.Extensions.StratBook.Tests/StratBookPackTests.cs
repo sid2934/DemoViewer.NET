@@ -46,6 +46,8 @@ public class StratBookPackTests
         // The extension updater, registered when a config root exists to stage into.
         "DemoViewer.NET.Extensions.Updates.ExtensionUpdateService",
         "DemoViewer.NET.Features.IFeatureGate",
+        // The process's extension fault tracker, which the gate takes.
+        "DemoViewer.NET.Extensions.ExtensionFaults",
         "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
         // The extension host: the job-kind registry, the shell hub and the pack's own context.
         "DemoViewer.NET.Extensions.JobKindRegistry",
