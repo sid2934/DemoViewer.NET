@@ -43,6 +43,15 @@ public readonly struct ViewportTransform
     /// <summary>Effective screen-pixels-per-world-unit (<see cref="BaseScale" /> × <see cref="Zoom" />).</summary>
     public double EffectiveScale => BaseScale * Zoom;
 
+    /// <summary>A transform from its parts.</summary>
+    /// <param name="viewWidth">Viewport width in device-independent pixels.</param>
+    /// <param name="viewHeight">Viewport height in device-independent pixels.</param>
+    /// <param name="centerX">World X the view is anchored on.</param>
+    /// <param name="centerY">World Y the view is anchored on.</param>
+    /// <param name="baseScale">The auto-fit scale, screen pixels per world unit.</param>
+    /// <param name="zoom">The user zoom multiplier; 1 is the auto-fit.</param>
+    /// <param name="panX">The user pan in screen pixels.</param>
+    /// <param name="panY">The user pan in screen pixels.</param>
     public ViewportTransform(double viewWidth, double viewHeight, double centerX, double centerY,
         double baseScale, double zoom, double panX, double panY)
     {

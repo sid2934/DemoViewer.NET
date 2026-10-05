@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The scene contract of the 2D map: the frame, the layer interface and compositor, floors and panes,
+      places, the viewport transform, cameras and the palette. SkiaSharp and the BCL only, enforced by
+      ArchitectureTests, which also pins its public types to an allow-list.
+      The types keep their DemoViewer.NET.Playback2D.Core namespaces; the concrete layers, input tools,
+      annotations, export and rendering backends stay in DemoViewer.NET.Playback2D.Core, which is not published.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.Playback2D.Core</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="SkiaSharp"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!--
+          The scene's typeface, embedded rather than resolved from the host.
+          SKTypeface.Default is "Segoe UI" on Windows and something else entirely on the ubuntu golden
+          lane, so a system face makes every text-bearing golden machine-specific. Licence notice:
+          THIRD-PARTY-NOTICES.md §d (SIL OFL 1.1).
+        -->
+        <EmbeddedResource Include="Assets\Inter-Regular.ttf"
+                          LogicalName="DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Core"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Pipeline"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
+        <!-- The strat canvas's frame source writes Scene2DFrame's internal fields directly,
+             the same pooled-refill pattern SceneFrameBuilder uses. -->
+        <InternalsVisibleTo Include="DemoViewer.NET.Extensions.StratBook"/>
+    </ItemGroup>
+
+</Project>

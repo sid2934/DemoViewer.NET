@@ -3,6 +3,7 @@
 using System.Reflection;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
 
@@ -11,37 +12,192 @@ using SysAssembly = System.Reflection.Assembly;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The layering rules that make Core a runtime instead of a UI helper. These are
+///     The layering rules that make Core and the scene contract a runtime instead of a UI helper, and the
+///     scene contract's published surface. These are
 ///     asserted against assembly metadata rather than csproj text, because a transitive edge added three
 ///     projects away is exactly the kind of regression a reference-graph reading of the csproj misses.
 /// </summary>
 public class ArchitectureTests
 {
-    // Everything Core is allowed to reference directly. SkiaSharp plus the BCL, and nothing else.
-    private static readonly string[] _coreAllowedPrefixes =
+    // Everything the scene contract is allowed to reference directly. SkiaSharp plus the BCL, and nothing else.
+    private static readonly string[] _sceneAllowedPrefixes =
     [
         "SkiaSharp", "System", "netstandard", "mscorlib", "Microsoft.CSharp"
     ];
 
-    [Test]
-    public async Task Core_ReferencesOnlySkiaSharpAndBcl()
-    {
-        List<string> disallowed = [];
-        foreach (AssemblyName reference in typeof(Scene2DFrame).Assembly.GetReferencedAssemblies())
-        {
-            string name = reference.Name ?? "";
-            if (!_coreAllowedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
-            {
-                disallowed.Add(name);
-            }
-        }
+    // Core adds the scene contract it is built over, and nothing else.
+    private static readonly string[] _coreAllowedPrefixes =
+    [
+        .. _sceneAllowedPrefixes, "DemoViewer.NET.Playback2D.Scene"
+    ];
 
-        await Assert.That(disallowed).IsEmpty();
-    }
+    // The scene contract's public types: what DemoViewer.NET.Playback2D.Scene promises to third parties.
+    // A type joins or leaves this list on purpose, never as a side effect of moving code between assemblies.
+    private static readonly string[] _publishedSceneTypes =
+    [
+        "DemoViewer.NET.Playback2D.Core.AreaEffect",
+        "DemoViewer.NET.Playback2D.Core.AreaEffectKind",
+        "DemoViewer.NET.Playback2D.Core.BombMarker",
+        "DemoViewer.NET.Playback2D.Core.Cameras.FitAliveRig",
+        "DemoViewer.NET.Playback2D.Core.Cameras.FitMapRig",
+        "DemoViewer.NET.Playback2D.Core.Cameras.FollowPlayerRig",
+        "DemoViewer.NET.Playback2D.Core.Cameras.ICameraRig",
+        "DemoViewer.NET.Playback2D.Core.Cameras.ManualRig",
+        "DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer",
+        "DemoViewer.NET.Playback2D.Core.Compositing.ISceneProfiler",
+        "DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint",
+        "DemoViewer.NET.Playback2D.Core.Compositing.LayerPhase",
+        "DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot",
+        "DemoViewer.NET.Playback2D.Core.Compositing.PictureCacheOutcome",
+        "DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositor",
+        "DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorOptions",
+        "DemoViewer.NET.Playback2D.Core.Compositing.SceneCompositorStats",
+        "DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext",
+        "DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderGate",
+        "DemoViewer.NET.Playback2D.Core.Compositing.SceneSubmission",
+        "DemoViewer.NET.Playback2D.Core.ConePoint",
+        "DemoViewer.NET.Playback2D.Core.GrenadeKind",
+        "DemoViewer.NET.Playback2D.Core.GrenadeTrail",
+        "DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint",
+        "DemoViewer.NET.Playback2D.Core.KillFeedRow",
+        "DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds",
+        "DemoViewer.NET.Playback2D.Core.Levels.FloorSlice",
+        "DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter",
+        "DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy",
+        "DemoViewer.NET.Playback2D.Core.Levels.LevelCrossingTracker",
+        "DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode",
+        "DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresis",
+        "DemoViewer.NET.Playback2D.Core.Levels.LevelHysteresisOptions",
+        "DemoViewer.NET.Playback2D.Core.Levels.LevelLayouts",
+        "DemoViewer.NET.Playback2D.Core.Levels.LevelPane",
+        "DemoViewer.NET.Playback2D.Core.Levels.LevelPaneSnapshot",
+        "DemoViewer.NET.Playback2D.Core.Levels.LevelSetChange",
+        "DemoViewer.NET.Playback2D.Core.Levels.MapLevel",
+        "DemoViewer.NET.Playback2D.Core.Levels.MapLevelId",
+        "DemoViewer.NET.Playback2D.Core.Levels.MapSpace",
+        "DemoViewer.NET.Playback2D.Core.Levels.PaneSet",
+        "DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality",
+        "DemoViewer.NET.Playback2D.Core.Levels.SingleLayout",
+        "DemoViewer.NET.Playback2D.Core.Levels.StackedLayout",
+        "DemoViewer.NET.Playback2D.Core.MapRadarImage",
+        "DemoViewer.NET.Playback2D.Core.PlayerMarker",
+        "DemoViewer.NET.Playback2D.Core.RenderPurpose",
+        "DemoViewer.NET.Playback2D.Core.RingState",
+        "DemoViewer.NET.Playback2D.Core.Scene2DFrame",
+        "DemoViewer.NET.Playback2D.Core.SceneGameInfo",
+        "DemoViewer.NET.Playback2D.Core.SceneMapInfo",
+        "DemoViewer.NET.Playback2D.Core.ScenePalette",
+        "DemoViewer.NET.Playback2D.Core.SceneStrokeWidths",
+        "DemoViewer.NET.Playback2D.Core.SceneTime",
+        "DemoViewer.NET.Playback2D.Core.SceneVision",
+        "DemoViewer.NET.Playback2D.Core.ShapedText",
+        "DemoViewer.NET.Playback2D.Core.Sightline",
+        "DemoViewer.NET.Playback2D.Core.SliceCamera",
+        "DemoViewer.NET.Playback2D.Core.TextBlobCache",
+        "DemoViewer.NET.Playback2D.Core.TokenRouteLine",
+        "DemoViewer.NET.Playback2D.Core.ViewportTransform",
+        "DemoViewer.NET.Playback2D.Core.VisionCone",
+        "DemoViewer.NET.Playback2D.Core.WorldBounds",
+        "DemoViewer.NET.Playback2D.Core.Zones.Bombsite",
+        "DemoViewer.NET.Playback2D.Core.Zones.PlaceHit",
+        "DemoViewer.NET.Playback2D.Core.Zones.PlaceHitKind",
+        "DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin",
+        "DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline",
+        "DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver",
+        "DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneArea",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneHull",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZonePlace",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZonePlane",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneSet",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind",
+    ];
+
+    // Tooling and first-party authoring: none of it is published.
+    private static readonly string[] _unpublishedNamespaces =
+    [
+        "DemoViewer.NET.Playback2D.Core.Annotations", "DemoViewer.NET.Playback2D.Core.Export",
+        "DemoViewer.NET.Playback2D.Core.Hud", "DemoViewer.NET.Playback2D.Core.Input",
+        "DemoViewer.NET.Playback2D.Core.Keyframes", "DemoViewer.NET.Playback2D.Core.Overlay",
+        "DemoViewer.NET.Playback2D.Core.Query", "DemoViewer.NET.Playback2D.Core.Rendering",
+        "DemoViewer.NET.Playback2D.Core.Timeline", "DemoViewer.NET.Playback2D.Pipeline"
+    ];
+
+    private static SysAssembly Scene => typeof(Scene2DFrame).Assembly;
+
+    private static SysAssembly Core => typeof(RadarLayer).Assembly;
+
+    [Test]
+    public async Task Scene_ReferencesOnlySkiaSharpAndBcl() =>
+        await Assert.That(DisallowedReferences(Scene, _sceneAllowedPrefixes)).IsEmpty();
+
+    [Test]
+    public async Task Core_ReferencesOnlySkiaSharpBclAndTheScene() =>
+        await Assert.That(DisallowedReferences(Core, _coreAllowedPrefixes)).IsEmpty();
+
+    [Test]
+    public async Task Scene_TransitiveClosure_ContainsNoAvalonia() =>
+        await AssertNoAvaloniaIn(Scene);
 
     [Test]
     public async Task Core_TransitiveClosure_ContainsNoAvalonia() =>
-        await AssertNoAvaloniaIn(typeof(Scene2DFrame).Assembly);
+        await AssertNoAvaloniaIn(Core);
+
+    [Test]
+    public async Task Scene_PublicTypes_AreExactlyThePublishedList()
+    {
+        string[] exported = [.. Scene.GetExportedTypes().Select(t => t.FullName!).Order(StringComparer.Ordinal)];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(exported.Except(_publishedSceneTypes, StringComparer.Ordinal)).IsEmpty()
+                .Because("a type made public in the scene contract is published; add it to the list on purpose");
+            await Assert.That(_publishedSceneTypes.Except(exported, StringComparer.Ordinal)).IsEmpty()
+                .Because("a published type was removed or made internal");
+        }
+    }
+
+    [Test]
+    public async Task Scene_PublishesNothingFromTheToolingNamespaces()
+    {
+        string[] leaked =
+        [
+            .. Scene.GetExportedTypes().Select(t => t.FullName!)
+                .Where(name => _unpublishedNamespaces.Any(ns => name.StartsWith(ns + ".", StringComparison.Ordinal)))
+        ];
+
+        await Assert.That(leaked).IsEmpty();
+    }
+
+    /// <summary>
+    ///     The pooled refill path stays first-party: a published frame is immutable to a third party, which
+    ///     sees init-only properties and no writable field.
+    /// </summary>
+    [Test]
+    public async Task Scene2DFrame_ExposesNoWritableState()
+    {
+        FieldInfo[] writableFields =
+        [
+            .. typeof(Scene2DFrame).GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static)
+                .Where(f => !f.IsInitOnly)
+        ];
+        string[] setters =
+        [
+            .. typeof(Scene2DFrame).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.SetMethod is { IsPublic: true } set
+                            && !set.ReturnParameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.CompilerServices.IsExternalInit)))
+                .Select(p => p.Name)
+        ];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(writableFields).IsEmpty();
+            await Assert.That(setters).IsEmpty();
+        }
+    }
 
     [Test]
     public async Task Pipeline_TransitiveClosure_ContainsNoAvalonia() =>
@@ -60,11 +216,17 @@ public class ArchitectureTests
     public async Task Core_DoesNotReferencePipeline()
     {
         string pipeline = typeof(SceneFrameBuilder).Assembly.GetName().Name!;
-        bool referenced = typeof(Scene2DFrame).Assembly.GetReferencedAssemblies()
+        bool referenced = Core.GetReferencedAssemblies()
             .Any(a => string.Equals(a.Name, pipeline, StringComparison.Ordinal));
 
         await Assert.That(referenced).IsFalse();
     }
+
+    private static List<string> DisallowedReferences(SysAssembly assembly, string[] allowedPrefixes) =>
+    [
+        .. assembly.GetReferencedAssemblies().Select(r => r.Name ?? "")
+            .Where(name => !allowedPrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal)))
+    ];
 
     private static async Task AssertNoAvaloniaIn(SysAssembly root)
     {

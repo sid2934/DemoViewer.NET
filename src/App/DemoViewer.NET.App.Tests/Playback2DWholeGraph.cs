@@ -69,7 +69,7 @@ internal readonly record struct IlSite(
 /// </summary>
 internal static class Playback2DWholeGraph
 {
-    // The App head, the render Core, the Pipeline, and every compiled-in pack's assembly: the
+    // The App head, the scene contract, the render Core, the Pipeline, and every compiled-in pack's assembly: the
     // contributions that read the module's settings and subscribe its events live there; found the way
     // the ViewLocator finds pack views). Everything a Playback2D consumer could live in: Desktop/Browser
     // only set AppHostHooks, and LiveSync cannot see this module at all.
@@ -77,13 +77,14 @@ internal static class Playback2DWholeGraph
     [
         typeof(AppSettings).Assembly,
         typeof(Scene2DFrame).Assembly,
+        typeof(DemoViewer.NET.Playback2D.Core.Layers.RadarLayer).Assembly,
         typeof(SceneFrameBuilder).Assembly,
         .. FeaturePacks.Default.Select(pack => pack.GetType().Assembly).Distinct()
     ]);
 
     private static readonly Lazy<List<SourceFile>> _sources = new(LoadProductionSources);
 
-    /// <summary>The assemblies a production consumer of this module can be in: the app's three and the packs'.</summary>
+    /// <summary>The assemblies a production consumer of this module can be in: the app's four and the packs'.</summary>
     public static IReadOnlyList<SysAssembly> ProductionAssemblies => _production.Value;
 
     /// <summary>

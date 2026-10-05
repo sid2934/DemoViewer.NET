@@ -82,6 +82,9 @@ public sealed class FloorSplitter
     // across a boundary on a ramp: assignment uses the LAST slices unless Z clearly enters a new band.
     private List<FloorSlice> _slices = new();
 
+    /// <summary>Creates a splitter. A non-positive argument takes its default.</summary>
+    /// <param name="bucketWidth">The Z histogram bucket width, in world units.</param>
+    /// <param name="gapThreshold">The empty Z span, in world units, that separates two floors.</param>
     public FloorSplitter(double bucketWidth = 64, double gapThreshold = 180)
     {
         BucketWidth = bucketWidth > 0 ? bucketWidth : 64;

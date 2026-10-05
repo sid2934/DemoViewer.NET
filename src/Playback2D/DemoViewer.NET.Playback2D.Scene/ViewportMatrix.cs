@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Playback2D.Core;
 ///         and any future world-space clip.
 ///     </para>
 /// </summary>
-public static class ViewportMatrix
+internal static class ViewportMatrix
 {
     /// <summary>
     ///     World → pane-local screen, matching <see cref="ViewportTransform.WorldToScreen" /> exactly.

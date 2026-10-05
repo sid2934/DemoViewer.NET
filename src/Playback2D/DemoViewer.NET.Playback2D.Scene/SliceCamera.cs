@@ -26,6 +26,8 @@ public struct SliceCamera
     /// </summary>
     public bool ManualOverride { get; set; }
 
+    /// <summary>A camera showing <paramref name="current" />, with no manual override.</summary>
+    /// <param name="current">The transform to start from.</param>
     public SliceCamera(ViewportTransform current)
     {
         Current = current;

@@ -3,10 +3,19 @@ namespace DemoViewer.NET.Playback2D.Core;
 /// <summary>Grenade-projectile kind, drives the trail colour (A4).</summary>
 public enum GrenadeKind
 {
+    /// <summary>A high-explosive grenade.</summary>
     He,
+
+    /// <summary>A flashbang.</summary>
     Flash,
+
+    /// <summary>A smoke grenade.</summary>
     Smoke,
+
+    /// <summary>A molotov or incendiary grenade.</summary>
     Molotov,
+
+    /// <summary>A decoy grenade.</summary>
     Decoy
 }
 
@@ -25,6 +34,7 @@ public readonly record struct GrenadeTrailPoint(float X, float Y, float Z);
 /// </summary>
 public sealed class GrenadeTrail
 {
+    /// <summary>The projectile's kind.</summary>
     public GrenadeKind Kind { get; init; }
 
     /// <summary>The thrower's side, 2 = T and 3 = CT, which colours the trail; 0 colours it by <see cref="Kind" />.</summary>

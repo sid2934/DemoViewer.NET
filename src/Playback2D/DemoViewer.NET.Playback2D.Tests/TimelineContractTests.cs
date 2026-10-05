@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 
 #endregion
@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Playback2DTests;
 ///     seven declared members now live in Core with their signatures unchanged.
 ///     <para>
 ///         The "land it in Pipeline instead" fallback did <b>not</b> fire: <c>ITimelineData</c>
-///         reaches only BCL types, so <c>ArchitectureTests.Core_ReferencesOnlySkiaSharpAndBcl</c> stays
+///         reaches only BCL types, so <c>ArchitectureTests.Core_ReferencesOnlySkiaSharpBclAndTheScene</c> stays
 ///         green with it in Core.
 ///     </para>
 /// </summary>
@@ -23,7 +23,7 @@ public class TimelineContractTests
     [Test]
     public async Task Contract_LivesInCore()
     {
-        string core = typeof(Scene2DFrame).Assembly.GetName().Name!;
+        string core = typeof(RadarLayer).Assembly.GetName().Name!;
 
         foreach (Type t in (Type[])
                  [

@@ -42,7 +42,7 @@ public class RenderPurposeTests
     public async Task TheEnumDeclaresItselfReserved_AndNamesThumbnailAsNeverProduced()
     {
         string path = Path.Combine(RepoRoot(), "src", "Playback2D",
-            "DemoViewer.NET.Playback2D.Core", "RenderPurpose.cs");
+            "DemoViewer.NET.Playback2D.Scene", "RenderPurpose.cs");
 
         await Assert.That(File.Exists(path)).IsTrue()
             .Because($"RenderPurpose.cs moved; this suite is reading nothing (looked at '{path}')");

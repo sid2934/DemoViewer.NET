@@ -845,7 +845,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 ### Strat routes on the canvas (the Strats canvas, the Detected preview, a strat export)
 - **Files:** `AddRoutes` in `Playback2D.Pipeline/Frames/StratFrameSource.cs`, `DrawRoute` in
-  `Playback2D.Core/Layers/MarkerLayer.cs`, `Playback2D.Core/TokenRouteLine.cs`, `ScenePalette.RouteT`/`RouteCt`.
+  `Playback2D.Core/Layers/MarkerLayer.cs`, `Playback2D.Scene/TokenRouteLine.cs`, `ScenePalette.RouteT`/`RouteCt`.
 - **What:** while a token moves, a line from where it is through each corner of the move to where it stops: its way
   ahead, so a viewer reads which way round a wall it goes. Gone on arrival, at a hold, and before a run starts (a
   step's hold). Only when the tracks are routed (`stratbook.routing` on and the map's nav in memory); off draws
