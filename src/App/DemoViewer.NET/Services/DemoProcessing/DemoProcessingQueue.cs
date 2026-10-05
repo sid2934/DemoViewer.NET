@@ -875,7 +875,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             Entry? existing = request.Key is null
                 ? null
                 : _entries.FirstOrDefault(e => e.Kind == request.Kind && e.State == DemoQueueItemState.Queued
-                                               && string.Equals(e.Key, request.Key, StringComparison.Ordinal));
+                                               && string.Equals(e.Key, request.Key, StringComparison.Ordinal)
+                                               && string.Equals(e.JobOwner, request.OwnerTag, StringComparison.Ordinal));
             if (existing is not null)
             {
                 existing.DisplayName = request.Title;
@@ -1323,7 +1324,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         {
             while (true)
             {
-                bool user;
+                bool ownRead;
                 lock (_sync)
                 {
                     if (_disposed || NextStartableLocked(false) is not { } next)
@@ -1331,18 +1332,19 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                         return; // nothing to do → exit; respawned on next submit/resume/grow
                     }
 
-                    user = next.Priority >= DemoJobPriority.UserRequested;
+                    ownRead = IsOwnReadLocked(next);
                 }
 
                 // Acquire a background slot (yields to interactive/reel; respects the hard cap). Between
                 // demos the worker re-acquires, so it steps aside at each demo boundary, exactly like
-                // the historical per-consumer loops. A user's item is not held back by an export session.
-                using SlotLease slot = new(_gate, await _gate.AcquireBackgroundAsync(user, _shutdownToken).ConfigureAwait(false));
+                // the historical per-consumer loops. An export session holds everything back except the
+                // demo reads of the job that runs it (a pack export's clips).
+                using SlotLease slot = new(_gate, await _gate.AcquireBackgroundAsync(ownRead, _shutdownToken).ConfigureAwait(false));
 
                 Entry? entry;
                 lock (_sync)
                 {
-                    entry = _disposed ? null : PickNextQueuedLocked(false, user && _gate.IsExportActive);
+                    entry = _disposed ? null : PickNextQueuedLocked(false, ownRead && _gate.IsExportActive);
                 }
 
                 if (entry is null)
@@ -1807,7 +1809,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 // A newer build of the same key is already waiting and replaces this one's work.
                 bool replaced = entry.ReplacePending && entry.Key is not null && _entries.Any(e =>
                     e.State == DemoQueueItemState.Queued && e.Kind == entry.Kind
-                    && string.Equals(e.Key, entry.Key, StringComparison.Ordinal));
+                    && string.Equals(e.Key, entry.Key, StringComparison.Ordinal)
+                    && string.Equals(e.JobOwner, entry.JobOwner, StringComparison.Ordinal));
                 if (!replaced)
                 {
                     RequeueLocked(entry);
@@ -1962,6 +1965,27 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         return best is null || opening || jobRunning || (best.Kind != QueueJobKind.DemoProcessing && anyRunning) ? null : best;
     }
 
+    // Under _sync. True for a visit carrying a job of a running job's owner that gave its slot up: that job's
+    // own demo read.
+    private bool IsOwnReadLocked(Entry e)
+    {
+        if (e.Kind != QueueJobKind.DemoProcessing)
+        {
+            return false;
+        }
+
+        HashSet<string> owners = new(StringComparer.Ordinal);
+        foreach (Entry r in _entries)
+        {
+            if (r.State == DemoQueueItemState.Running && r.SlotReleased && r.JobOwner is { } owner)
+            {
+                owners.Add(owner);
+            }
+        }
+
+        return owners.Count > 0 && e.Visit!.HasJobOwnedBy(owners);
+    }
+
     // Under _sync. A job that gave its slot up still holds the lane, except for the demos it reads itself: its
     // own visits (a pack export's clips) start beside it, one heavy read at a time as ever.
     private Entry? OwnReadLocked(HashSet<string> owners, string? resident)
@@ -1985,10 +2009,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     // Marks the next startable item Running under the lock.
-    private Entry? PickNextQueuedLocked(bool light, bool userOnly = false)
+    private Entry? PickNextQueuedLocked(bool light, bool ownReadOnly = false)
     {
         Entry? best = NextStartableLocked(light);
-        if (best is not null && userOnly && best.Priority < DemoJobPriority.UserRequested)
+        if (best is not null && ownReadOnly && !IsOwnReadLocked(best))
         {
             best = null;
         }
@@ -2259,7 +2283,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         foreach (Entry r in _entries)
         {
             if (r.State == DemoQueueItemState.Running && !ReferenceEquals(r, e)
-                && ((e.Key is not null && r.Kind == e.Kind && string.Equals(r.Key, e.Key, StringComparison.Ordinal))
+                && ((e.Key is not null && r.Kind == e.Kind && string.Equals(r.Key, e.Key, StringComparison.Ordinal)
+                     && string.Equals(r.JobOwner, e.JobOwner, StringComparison.Ordinal))
                     || (e.Serial is not null && string.Equals(r.Serial, e.Serial, StringComparison.Ordinal))))
             {
                 return true;

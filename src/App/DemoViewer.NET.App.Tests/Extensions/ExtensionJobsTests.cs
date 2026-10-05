@@ -132,6 +132,39 @@ public class ExtensionJobsTests
     }
 
     [Test]
+    public async Task AKey_JoinsOnlyTheSameOwnersJob_NeverAnotherExtensionsOrTheHosts()
+    {
+        using Rig rig = new();
+        List<string> ran = [];
+        Func<IJobContext, Task> Record(string name) => _ =>
+        {
+            lock (ran)
+            {
+                ran.Add(name);
+            }
+
+            return Task.CompletedTask;
+        };
+        rig.Queue.Pause();
+        IDemoQueueHandle core = rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.StoreSave, "Save: review queue", "review",
+            DemoJobPriority.Background, ctx => Record("core")(null!), Key: "save:review-queue", ReplacePending: true));
+        JobOptions save = new(BuiltInJobKinds.Save, Key: "save:review-queue");
+        IJobHandle one = rig.JobsFor("dev.example.one").Enqueue(new JobRequest("one", Record("one"), save));
+        IJobHandle two = rig.JobsFor("dev.example.two").Enqueue(new JobRequest("two", Record("two"), save));
+        one.Cancel();
+        await one.Completion;
+        rig.Queue.Resume();
+        await Task.WhenAll(core.Completion, two.Completion);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(ran).IsEquivalentTo(["core", "two"]).Because("each owner's keyed job is its own");
+            await Assert.That(one.Status).IsEqualTo(JobStatus.Cancelled);
+            await Assert.That(two.Status).IsEqualTo(JobStatus.Completed);
+        }
+    }
+
+    [Test]
     public async Task AJobNamingADemo_JoinsItsVisit_AndReadsTheParse()
     {
         using Rig rig = new();

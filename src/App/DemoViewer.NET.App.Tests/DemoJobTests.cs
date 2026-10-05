@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Export.Pack;
 
 #endregion
 
@@ -252,18 +253,45 @@ public class DemoJobTests
     }
 
     [Test]
-    public async Task ALease_IsHandedOut_DuringAnExportSession_WhileBackgroundWorkWaits()
+    public async Task APackExport_ReadsItsDemosThroughLeases_InsideItsSession_WhileOtherWorkWaits()
     {
         using Rig rig = new();
-        using IDisposable session = await rig.Gate.EnterExportSessionAsync();
-        IDemoQueueHandle background = rig.Queue.SubmitVisit(new DemoVisitRequest("/d/old.dem", PassLevel.Background, [new TestPass("library")]));
-        using DemoLease lease = await DemoJob.LeaseAsync(rig.Queue, Demo, "pack export", "review", PassLevel.UserRequested)
-            .WaitAsync(TimeSpan.FromSeconds(5));
+        IDemoQueueHandle background = rig.Queue.SubmitVisit(new DemoVisitRequest("/d/old.dem", PassLevel.Background,
+            [new TestPass("library")]));
+        DemoJob? other = null;
+        DemoQueueItemState otherWhileExporting = DemoQueueItemState.Completed;
+        DemoQueueItemState backgroundWhileExporting = DemoQueueItemState.Completed;
+
+        int read = await PackExportQueue.RunAsync(rig.Queue, "Pack export", null, async (_, ct) =>
+        {
+            using IDisposable session = await rig.Gate.EnterExportSessionAsync(ct);
+            int leases = 0;
+            using (await DemoJob.LeaseAsync(rig.Queue, "/d/a.dem", "pack export", PackExportQueue.Owner, PassLevel.UserRequested, ct))
+            {
+                leases++;
+            }
+
+            using (await DemoJob.LeaseAsync(rig.Queue, "/d/b.dem", "pack export", PackExportQueue.Owner, PassLevel.UserRequested, ct))
+            {
+                leases++;
+                other = DemoJob.Submit(rig.Queue, new DemoJobRequest("/d/c.dem", "clips", "someone-else", PassLevel.UserRequested,
+                    _ => Task.CompletedTask));
+                await Task.Delay(100, ct);
+                otherWhileExporting = other.State;
+                backgroundWhileExporting = background.State;
+            }
+
+            return leases;
+        }, null, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        await other!.Completion.WaitAsync(TimeSpan.FromSeconds(10));
 
         using (Assert.Multiple())
         {
-            await Assert.That(lease.Parsed).IsNotNull();
-            await Assert.That(background.State).IsEqualTo(DemoQueueItemState.Queued);
+            await Assert.That(read).IsEqualTo(2).Because("the export's own reads start beside the job that runs it");
+            await Assert.That(otherWhileExporting).IsEqualTo(DemoQueueItemState.Queued)
+                .Because("another owner's read waits for the export, user-requested or not");
+            await Assert.That(backgroundWhileExporting).IsEqualTo(DemoQueueItemState.Queued);
+            await Assert.That(other.State).IsEqualTo(DemoQueueItemState.Completed).Because("it runs once the export ends");
         }
     }
 

@@ -226,20 +226,19 @@ public sealed class HeavyJobGate : IDisposable
         AcquireBackgroundAsync(false, cancellationToken);
 
     /// <summary>
-    ///     <see cref="AcquireBackgroundAsync(CancellationToken)" /> for a queue item, which an export session does
-    ///     not hold back when the user asked for it: a pack export reads its demos through such items while its
-    ///     session is open.
+    ///     <see cref="AcquireBackgroundAsync(CancellationToken)" /> for a queue item that an export session does not
+    ///     hold back: a pack export reads its demos through such items while its own session is open.
     /// </summary>
-    /// <param name="userRequested">True for an item the user asked for.</param>
+    /// <param name="duringExport">True for an item the running export reads its demos through.</param>
     /// <param name="cancellationToken">Stops the wait.</param>
-    public async Task<IDisposable> AcquireBackgroundAsync(bool userRequested, CancellationToken cancellationToken = default)
+    public async Task<IDisposable> AcquireBackgroundAsync(bool duringExport, CancellationToken cancellationToken = default)
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             lock (_sync)
             {
-                if (_reelSessions == 0 && (_exportSessions == 0 || userRequested) && _interactivePending == 0 &&
+                if (_reelSessions == 0 && (_exportSessions == 0 || duringExport) && _interactivePending == 0 &&
                     _held < _maxConcurrency)
                 {
                     _held++;
