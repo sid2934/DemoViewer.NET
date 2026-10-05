@@ -10,24 +10,7 @@ using Avalonia.Threading;
 
 #endregion
 
-namespace DemoViewer.NET.AppTests;
-
-/// <summary>
-///     Avalonia entry point for headless UI tests. Uses the REAL <see cref="DemoViewer.NET.App" /> so
-///     its styles, brushes, converters, and card/hex DataTemplates are loaded, and the Skia backend
-///     (UseHeadlessDrawing = false) so rendered frames can be captured to PNG for inspection.
-/// </summary>
-public static class TestAppBuilder
-{
-    public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>()
-            .UseSkia()
-            .UseHeadless(new AvaloniaHeadlessPlatformOptions
-            {
-                UseHeadlessDrawing = false
-            })
-            .WithInterFont();
-}
+namespace DemoViewer.NET.Extensions.Testing;
 
 /// <summary>
 ///     Thrown internally when a dispatch faulted BEFORE the test body was entered, i.e. the fault
@@ -104,13 +87,20 @@ public static class HeadlessSession
         }
     }
 
+    // The test assembly names its app builder the way Avalonia's own test integrations expect, so this file
+    // carries no app type and links into any extension's test project.
+    private static Type EntryPoint() =>
+        typeof(HeadlessSession).Assembly.GetCustomAttribute<AvaloniaTestApplicationAttribute>()?.AppBuilderEntryPointType
+        ?? throw new InvalidOperationException(
+            "The test assembly declares no [assembly: AvaloniaTestApplication(typeof(...))] naming a type with a static BuildAvaloniaApp().");
+
     private static HeadlessUnitTestSession Session
     {
         get
         {
             lock (_sessionGate)
             {
-                return _session ??= HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
+                return _session ??= HeadlessUnitTestSession.StartNew(EntryPoint());
             }
         }
     }

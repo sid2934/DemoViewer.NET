@@ -5,7 +5,7 @@ using DemoViewer.NET.Modules.Abstractions;
 
 #endregion
 
-namespace DemoViewer.NET.AppTests;
+namespace DemoViewer.NET.Extensions.Testing;
 
 /// <summary>
 ///     A recording <see cref="IModuleContext" /> for the A1 dispatch / follow / adapter tests. Every

@@ -1,0 +1,9 @@
+<Project>
+    <!-- Headless UI test support for an extension's test project, compiled in as source: the shared headless
+         session (RunOnUi with its wedge and setup-fault handling) and a recording IModuleContext fake. Import
+         this file from the test csproj, reference Avalonia.Headless, Avalonia.Skia and TUnit, and declare the
+         app builder with [assembly: AvaloniaTestApplication(typeof(...))]. -->
+    <ItemGroup>
+        <Compile Include="$(MSBuildThisFileDirectory)*.cs" LinkBase="ExtensionTesting"/>
+    </ItemGroup>
+</Project>

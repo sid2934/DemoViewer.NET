@@ -69,4 +69,6 @@
         <Using Include="DemoViewer.NET.Extensions.Sdk"/>
     </ItemGroup>
 
+    <Import Project="..\..\Testing\DemoViewer.NET.Extensions.Testing\DemoViewer.NET.Extensions.Testing.props"/>
+
 </Project>
