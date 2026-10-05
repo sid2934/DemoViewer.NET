@@ -392,6 +392,8 @@ public class StratMiningCacheTests
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
+
         public int ActiveCount(QueueJobKind kind) => kind == QueueJobKind.DemoProcessing ? QueuedCount + RunningCount : 0;
 
         public int Jobs { get; private set; }

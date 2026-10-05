@@ -165,6 +165,8 @@ internal static class UpdateFixtures
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
+
         public IDemoQueueHandle SubmitJob(QueueJobRequest request)
         {
             lock (Requests)

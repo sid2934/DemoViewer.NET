@@ -206,6 +206,8 @@ public class ProcessingQueueStatusViewModelTests
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) =>
             throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
+
         public IDemoQueueHandle SubmitJob(QueueJobRequest request) => throw new NotSupportedException();
 
         public int ActiveCount(QueueJobKind kind) => 0;

@@ -677,6 +677,19 @@ public class StratBookLiveToggleTests
             return new DoneHandle(Task.CompletedTask);
         }
 
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request)
+        {
+            lock (Titles)
+            {
+                foreach (IDemoPass pass in request.Passes)
+                {
+                    Parses.Add((pass.Id, request.Path));
+                }
+            }
+
+            return new DoneHandle(Task.CompletedTask);
+        }
+
         public IDemoQueueHandle SubmitJob(QueueJobRequest request)
         {
             lock (Titles)

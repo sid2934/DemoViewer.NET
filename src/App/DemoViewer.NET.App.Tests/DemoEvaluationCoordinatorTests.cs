@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -345,6 +346,110 @@ public class DemoEvaluationCoordinatorTests
             await Assert.That(parses).IsEqualTo(1).Because("the waiting pass rides the upstream parse");
             await Assert.That(order).IsEquivalentTo(["library", "facts"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
             await Assert.That(coord.HasOutstanding("facts")).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task Consider_SubmitsOneVisitThroughSubmitVisit_WithAPassPerWantedEvaluator_KeyedByItsId()
+    {
+        RecordingQueue queue = new();
+        Fake a = new("a");
+        Fake b = new("b");
+        Fake c = new("c", _ => false);
+        using DemoEvaluationCoordinator coord = new([a, b, c], queue, () => _oneDemo);
+
+        coord.Consider("/x/demo.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.Visits).HasCount().EqualTo(1).Because("one visit carries every wanted pass");
+            await Assert.That(queue.Visits[0].Path).IsEqualTo("/x/demo.dem");
+            await Assert.That(queue.Visits[0].Passes.Select(p => p.Id)).IsEquivalentTo(["a", "b"],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("a pass is keyed by its evaluator's id");
+            await Assert.That(queue.Backgrounds).IsEqualTo(0).Because("the coordinator no longer submits per evaluator");
+        }
+    }
+
+    // A queue that only records what the coordinator submits, as the extension test doubles do.
+    private sealed class RecordingQueue : IDemoProcessingQueue
+    {
+        public List<DemoVisitRequest> Visits { get; } = [];
+        public int Backgrounds { get; private set; }
+
+        public ReadOnlyObservableCollection<DemoQueueItem> Items { get; } = new([]);
+        public int MaxConcurrency { get; set; } = 1;
+        public int MaxQueueSize { get; set; } = 200;
+        public bool BackgroundEnabled { get; set; } = true;
+        public bool IsPaused => false;
+        public int QueuedCount => 0;
+        public int RunningCount => 0;
+
+        public event Action? Changed
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action? CapacityAvailable
+        {
+            add { }
+            remove { }
+        }
+
+        public int ActiveCount(QueueJobKind kind) => 0;
+
+        public Task<ParsedDemo> RequestForegroundAsync(string? path, ReadOnlyMemory<byte> bytes,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request)
+        {
+            Backgrounds++;
+            return new RecordedHandle();
+        }
+
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request)
+        {
+            lock (Visits)
+            {
+                Visits.Add(request);
+            }
+
+            return new RecordedHandle();
+        }
+
+        public IDemoQueueHandle SubmitJob(QueueJobRequest request) => throw new NotSupportedException();
+
+        public IReadOnlyList<DemoQueueItemSnapshot> Snapshot() => [];
+
+        public void RemoveByUser(Guid itemId)
+        {
+        }
+
+        public void CancelOwned(string ownerTag, string path)
+        {
+        }
+
+        public void CancelOwned(string ownerTag)
+        {
+        }
+
+        public void Pause()
+        {
+        }
+
+        public void Resume()
+        {
+        }
+
+        private sealed class RecordedHandle : IDemoQueueHandle
+        {
+            public Guid Id { get; } = Guid.NewGuid();
+            public DemoQueueItemState State => DemoQueueItemState.Queued;
+            public Task Completion => new TaskCompletionSource().Task;
+
+            public void Cancel()
+            {
+            }
         }
     }
 

@@ -120,6 +120,8 @@ public class StratLineupPickerTests
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
+
         public int ActiveCount(QueueJobKind kind) => 0;
 
         public IDemoQueueHandle SubmitJob(QueueJobRequest request)
