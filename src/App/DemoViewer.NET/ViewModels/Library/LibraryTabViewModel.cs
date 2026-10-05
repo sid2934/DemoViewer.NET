@@ -103,6 +103,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private readonly Func<string, bool> _isFeatureEnabled;
     private readonly bool[] _contributionOn;
     private readonly LibraryFilterViewModel?[] _filterVms;
+    private readonly Func<string, LibraryDemo?>? _findDemo;
     private readonly Action[] _changedHandlers;
 
     [ObservableProperty]
@@ -142,8 +143,10 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         RecentFilesStore? recentFiles = null,
         string? sampleDemoPath = null,
         IReadOnlyList<ILibraryContribution>? contributions = null,
-        Func<string, bool>? isFeatureEnabled = null)
+        Func<string, bool>? isFeatureEnabled = null,
+        Func<string, LibraryDemo?>? findDemo = null)
     {
+        _findDemo = findDemo;
         _library = library;
         _openDemo = openDemo;
         _pickFolders = pickFolders;
@@ -660,7 +663,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         {
             // The contribution started offering a filter it did not have at construction or its last
             // transition on (no contribution does this today; kept for a future one that can).
-            LibraryFilterViewModel added = new(filter, ApplyFilter);
+            LibraryFilterViewModel added = new(filter, ApplyFilter, DemoOf);
             _filterVms[i] = added;
             Filters.Add(added);
         }
@@ -729,7 +732,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             {
                 if (_filterVms[i] is null && _contributions[i].Filter is { } filter)
                 {
-                    LibraryFilterViewModel vm = new(filter, ApplyFilter);
+                    LibraryFilterViewModel vm = new(filter, ApplyFilter, DemoOf);
                     _filterVms[i] = vm;
                     Filters.Add(vm);
                 }
@@ -801,7 +804,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public void SetBadgeLabel(DemoEntry entry, string? label)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        ActiveBadgeContribution()?.SetLabel(entry.ToLibraryDemo(), label);
+        ActiveBadgeContribution()?.SetLabel(DemoOf(entry), label);
     }
 
     // One BadgesFor call per refresh, not one BadgeFor per entry: a contribution whose per-entry answer
@@ -809,7 +812,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private void RefreshBadges()
     {
         ILibraryContribution? active = ActiveBadgeContribution();
-        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(_library.Entries.Select(e => e.ToLibraryDemo()));
+        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(_library.Entries.Select(DemoOf));
         foreach (DemoEntry entry in _library.Entries)
         {
             LibraryBadge? badge = badges?.GetValueOrDefault(entry.FilePath);
@@ -1038,4 +1041,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             CardRows.Add(new CardRow(row));
         }
     }
+
+    // The library's own row when the cache has one: contributions then see the hash, clans and sides.
+    private LibraryDemo DemoOf(DemoEntry entry) => _findDemo?.Invoke(entry.FilePath) ?? entry.ToLibraryDemo();
 }

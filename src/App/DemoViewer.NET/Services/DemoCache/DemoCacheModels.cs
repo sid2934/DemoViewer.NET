@@ -89,6 +89,15 @@ public sealed class CachedPlayerInfo
     public bool IsCoach { get; set; }
 }
 
+/// <summary>One player of one side on an index row: a human who is not a coach and carries a SteamID.</summary>
+public sealed class IndexSidePlayer
+{
+    public string SteamId64 { get; set; } = "";
+
+    /// <summary>RAW name, as <see cref="CachedPlayerInfo.Name" />.</summary>
+    public string Name { get; set; } = "";
+}
+
 /// <summary>A round boundary. Needed by clip lead-in flooring and by the round count.</summary>
 public sealed class CachedRound
 {
@@ -470,8 +479,43 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         AnalysisState = AnalysisState,
         ConfigFingerprint = ConfigFingerprint,
         HighlightCount = Highlights.Count,
-        PackStamps = [.. PackStamps]
+        PackStamps = [.. PackStamps],
+        CtPlayers = Parse.IsPresent ? SidePlayers(3) : null,
+        TPlayers = Parse.IsPresent ? SidePlayers(2) : null
     };
+
+    /// <summary>
+    ///     True for a roster entry that counts as one of a side's players: no bot, no coach, a real SteamID.
+    ///     The team clustering keys sides on exactly this set.
+    /// </summary>
+    public static bool IsSidePlayer(CachedPlayerInfo player) =>
+        !player.IsBot
+        && !player.IsCoach
+        && player.Team is 2 or 3
+        && !string.IsNullOrEmpty(player.SteamId64)
+        && !string.Equals(player.SteamId64, "0", StringComparison.Ordinal);
+
+    /// <summary>
+    ///     The side's players by <see cref="IsSidePlayer" />, sorted ordinally by SteamID. One account in two
+    ///     slots (a reconnect) is listed once, under the first slot's name.
+    /// </summary>
+    /// <param name="side">2 = T, 3 = CT.</param>
+    public List<IndexSidePlayer> SidePlayers(int side)
+    {
+        List<IndexSidePlayer> players = [];
+        foreach (CachedPlayerInfo player in Players.Where(p => p.Team == side && IsSidePlayer(p))
+                     .OrderBy(p => p.SteamId64, StringComparer.Ordinal))
+        {
+            if (players.Count > 0 && string.Equals(players[^1].SteamId64, player.SteamId64, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            players.Add(new IndexSidePlayer { SteamId64 = player.SteamId64, Name = player.Name });
+        }
+
+        return players;
+    }
 }
 
 /// <summary>
@@ -531,6 +575,17 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     ///     index without opening a sidecar. A stamp with every optional member costs about 100 bytes.
     /// </summary>
     public List<PackStamp> PackStamps { get; set; } = [];
+
+    /// <summary>
+    ///     The players who ended the demo as CT (<see cref="DemoCacheRecord.SidePlayers" />). Null when the
+    ///     demo is not parsed, or the row was written by an index older than version 3.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<IndexSidePlayer>? CtPlayers { get; set; }
+
+    /// <summary>The players who ended the demo as T, by the rule of <see cref="CtPlayers" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<IndexSidePlayer>? TPlayers { get; set; }
 
     /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
     [JsonExtensionData]
@@ -613,8 +668,10 @@ public sealed class DemoCacheIndexFile
     /// <summary>
     ///     Version of the INDEX container itself, independent of the per-tier record schemas. 2: record
     ///     sidecars are gzipped <c>&lt;key&gt;.json.gz</c>; a version-1 <c>&lt;key&gt;.json</c> is still read.
+    ///     3: parsed rows carry each side's players (<see cref="DemoCacheIndexEntry.CtPlayers" />); a row
+    ///     loaded from an older index has none until its record is read again.
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     public int Version { get; set; } = CurrentVersion;
 

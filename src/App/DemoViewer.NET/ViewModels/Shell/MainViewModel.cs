@@ -898,7 +898,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _recentFiles,
             _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
             libraryContributions, // the Team filter and the provenance chip
-            isFeatureEnabled: id => _gate?.IsEnabled(id) ?? true);
+            isFeatureEnabled: id => _gate?.IsEnabled(id) ?? true,
+            findDemo: demoCache is null ? null : HostLibrary.For(demoCache, processingQueue).Find);
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.

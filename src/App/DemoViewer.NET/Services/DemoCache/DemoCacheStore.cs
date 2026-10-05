@@ -63,7 +63,7 @@ public sealed class DemoCacheStore
     ///     <para>
     ///         <b>Not a test convenience.</b> Without it the no-root mode can hold exactly ONE record: writes
     ///         go nowhere and reads are served only by the capacity-1 JSON cache, so the second demo upserted
-    ///         evicts the first and <see cref="TryLoadRecord" /> returns null for it forever. Every surface
+    ///         evicts the first and <see cref="TryLoadRecord(string)" /> returns null for it forever. Every surface
     ///         that resolves more than one demo, the Reels clip tray is cross-demo BY DEFINITION, silently
     ///         loses all but the most recent. The class contract already promised "nothing is written and
     ///         every API still works"; this is what makes the second half true.
@@ -109,6 +109,7 @@ public sealed class DemoCacheStore
     private byte[]? _lastRecordBytes;
     private string? _lastRecordPath;
     private int _legacyMigrationVersion; // under _gate
+    private long _indexVersion; // under _gate
 
     /// <param name="cacheRoot">
     ///     The cache directory (<c>&lt;config&gt;/cache</c>), or null for an in-memory store (WASM, and tests
@@ -130,6 +131,21 @@ public sealed class DemoCacheStore
             lock (_gate)
             {
                 return [.. _index.Values];
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Moves on every change to the index: a row set, replaced or removed. Equal versions mean an equal
+    ///     <see cref="Index" />, so a projection of it can be cached against this.
+    /// </summary>
+    public long IndexVersion
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _indexVersion;
             }
         }
     }
@@ -258,7 +274,16 @@ public sealed class DemoCacheStore
     ///         render's credibility rests on this page starting nothing the user did not ask for.
     ///     </para>
     /// </summary>
-    public DemoCacheRecord? TryLoadRecord(string path)
+    public DemoCacheRecord? TryLoadRecord(string path) => TryLoadRecord(path, true);
+
+    /// <summary>
+    ///     <see cref="TryLoadRecord(string)" />, leaving the capacity-1 cache alone when
+    ///     <paramref name="remember" /> is false: a reader walking many demos does not evict the one the user
+    ///     is looking at.
+    /// </summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="remember">False keeps the read out of the capacity-1 cache.</param>
+    public DemoCacheRecord? TryLoadRecord(string path, bool remember)
     {
         byte[]? cached = null;
         lock (_gate)
@@ -297,10 +322,13 @@ public sealed class DemoCacheStore
                 byte[] bytes = File.ReadAllBytes(file);
                 if (TryDeserializeRecord(bytes) is { } record)
                 {
-                    lock (_gate)
+                    if (remember)
                     {
-                        _lastRecordPath = path;
-                        _lastRecordBytes = bytes;
+                        lock (_gate)
+                        {
+                            _lastRecordPath = path;
+                            _lastRecordBytes = bytes;
+                        }
                     }
 
                     return record;
@@ -435,7 +463,7 @@ public sealed class DemoCacheStore
     ///     <para>
     ///         <b>Deliberately not the normal path.</b> This store is index-plus-lazy-sidecars precisely so
     ///         nothing deserializes the whole library at startup; every other reader wants one demo at a time
-    ///         and must keep using <see cref="TryLoadRecord" />. Filter on
+    ///         and must keep using <see cref="TryLoadRecord(string)" />. Filter on
     ///         <see cref="DemoCacheIndexEntry.HighlightCount" />: that field exists so a caller can decide
     ///         which sidecars are worth opening without opening them.
     ///     </para>
@@ -532,6 +560,31 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
+    ///     Sets a demo's index row to the projection of <paramref name="record" /> without writing its sidecar:
+    ///     for a row written by an older index that lacks what the projection now carries. Nothing happens when
+    ///     the demo has no row, or the row describes another file.
+    /// </summary>
+    /// <param name="record">The demo's record as read from its sidecar.</param>
+    /// <returns>True when the row was replaced.</returns>
+    public bool RefreshIndexRow(DemoCacheRecord record)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        lock (_gate)
+        {
+            if (!_index.TryGetValue(record.Path, out DemoCacheIndexEntry? current)
+                || !current.MatchesFile(record.Size, record.ModifiedTicks))
+            {
+                return false;
+            }
+
+            SetIndexEntry(record.ToIndexEntry());
+        }
+
+        RaiseChanged(record.Path);
+        return true;
+    }
+
+    /// <summary>
     ///     Loads a demo's record, applies <paramref name="mutate" />, and persists it. Convenience over
     ///     <see cref="LoadOrCreate" /> + <see cref="Upsert" /> for the common single-tier fill.
     /// </summary>
@@ -586,6 +639,7 @@ public sealed class DemoCacheStore
             if (removed)
             {
                 UnlinkSha(gone!);
+                _indexVersion++;
             }
 
             if (_lastRecordPath is not null
@@ -987,6 +1041,7 @@ public sealed class DemoCacheStore
         }
 
         _index[entry.Path] = entry;
+        _indexVersion++;
         if (!string.IsNullOrEmpty(entry.Sha256))
         {
             if (!_pathsBySha.TryGetValue(entry.Sha256, out HashSet<string>? paths))

@@ -40,6 +40,9 @@ public interface IExtensionContext
     /// <summary>The extension's per-demo data, kept by the host.</summary>
     IExtensionDemoData Data { get; }
 
+    /// <summary>The demo library, read only.</summary>
+    IExtensionLibrary Library { get; }
+
     /// <summary>A logger whose lines land in the app's diagnostics log, tagged with the extension.</summary>
     ILogger CreateLogger(string category);
 
