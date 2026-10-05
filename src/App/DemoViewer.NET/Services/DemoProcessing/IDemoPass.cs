@@ -134,6 +134,12 @@ public interface IDemoPass
     /// <summary>Pass ids whose writes this one reads. On one visit they run before it.</summary>
     IReadOnlyList<string> After { get; }
 
+    /// <summary>
+    ///     Who the pass's work belongs to: <see cref="IDemoProcessingQueue.CancelOwned(string)" /> with this tag
+    ///     takes it off every visit. The pass's own id unless an extension owns it.
+    /// </summary>
+    string Owner => Id;
+
     /// <summary>What this pass needs from the parse of <paramref name="demo" />.</summary>
     PassNeeds Needs(VisitedDemo demo);
 

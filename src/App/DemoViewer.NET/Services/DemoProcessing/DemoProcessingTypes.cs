@@ -412,6 +412,15 @@ public interface IDemoProcessingQueue
     /// </summary>
     void CancelOwned(string ownerTag);
 
+    /// <summary>
+    ///     Takes one pass off the queued or running visit of <paramref name="path" />, leaving the visit's other
+    ///     passes, and ends the visit when nothing else wants it. A pass already taking its turn is not stopped
+    ///     here; it sees its own cancellation.
+    /// </summary>
+    void CancelPass(string path, IDemoPass pass)
+    {
+    }
+
     /// <summary>Pause background processing (transient; in-flight parses finish; foreground unaffected).</summary>
     void Pause();
 

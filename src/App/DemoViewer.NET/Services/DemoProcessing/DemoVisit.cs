@@ -67,6 +67,8 @@ internal sealed class DemoVisit
 
     public int RemoveWhere(Predicate<VisitPass> match) => _passes.RemoveAll(match);
 
+    public bool Contains(IDemoPass pass) => _passes.Exists(p => ReferenceEquals(p.Pass, pass));
+
     /// <summary>True when a pass needing <paramref name="needs" /> can join a visit already reading this way.</summary>
     public static bool CanJoinRunning(PassNeeds needs, bool forward, ForwardNeeds produced, bool userCommands) =>
         forward
@@ -119,7 +121,8 @@ internal sealed class DemoVisit
             ordered.Add(next);
         }
 
-        return ordered;
+        // A job joining the visit reads what the registered passes wrote on this read.
+        return [.. ordered.Where(p => p.Pass is not DemoJobPass), .. ordered.Where(p => p.Pass is DemoJobPass)];
     }
 }
 

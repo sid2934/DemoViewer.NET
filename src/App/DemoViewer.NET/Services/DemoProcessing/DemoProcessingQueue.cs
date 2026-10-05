@@ -937,6 +937,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         bool freedQueueSlot = false;
         CancellationTokenSource? cancel = null;
+        List<VisitPass> removed = [];
         lock (_sync)
         {
             Entry? e = _entries.FirstOrDefault(x => x.Id == itemId);
@@ -953,6 +954,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             if (e.State == DemoQueueItemState.Queued)
             {
                 e.CancelRequested = true;
+                if (e.Visit is { } visit)
+                {
+                    visit.RemoveWhere(p =>
+                    {
+                        removed.Add(p);
+                        return true;
+                    });
+                }
+
                 SetTerminalLocked(e, DemoQueueItemState.Cancelled, null);
                 freedQueueSlot = e.Kind != QueueJobKind.HeapCompaction;
             }
@@ -965,6 +975,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
         }
 
+        EndPasses(removed, PassOutcome.Cancelled);
         CancelQuietly(cancel);
         RaiseChanged();
         if (freedQueueSlot)
@@ -1086,7 +1097,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private static int RemovePassesLocked(Entry e, string ownerTag, List<VisitPass> removed) =>
         e.Visit!.RemoveWhere(p =>
         {
-            if (!string.Equals(p.Pass.Id, ownerTag, StringComparison.Ordinal))
+            if (!string.Equals(p.Pass.Id, ownerTag, StringComparison.Ordinal)
+                && !string.Equals(p.Pass.Owner, ownerTag, StringComparison.Ordinal))
             {
                 return false;
             }
@@ -1094,6 +1106,59 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             removed.Add(p);
             return true;
         });
+
+    public void CancelPass(string path, IDemoPass pass)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        ArgumentNullException.ThrowIfNull(pass);
+        bool freedQueueSlot = false;
+        CancellationTokenSource? cancel = null;
+        List<VisitPass> removed = [];
+        lock (_sync)
+        {
+            Entry? e = _entries.FirstOrDefault(x =>
+                x.Kind == QueueJobKind.DemoProcessing && IsActive(x) && !x.Finalizing && PathEquals(x.Path, path)
+                && x.Visit!.Contains(pass));
+            if (e is null)
+            {
+                return;
+            }
+
+            e.Visit!.RemoveWhere(p =>
+            {
+                if (!ReferenceEquals(p.Pass, pass))
+                {
+                    return false;
+                }
+
+                removed.Add(p);
+                return true;
+            });
+            if (e.Visit.Count > 0 || e.ForegroundWaiters.Count > 0)
+            {
+                // Another pass still wants the read.
+            }
+            else if (e.State == DemoQueueItemState.Queued)
+            {
+                SetTerminalLocked(e, DemoQueueItemState.Cancelled, null);
+                freedQueueSlot = true;
+            }
+            else if (e.State == DemoQueueItemState.Running)
+            {
+                e.CancelRequested = true;
+                cancel = e.Cancel;
+            }
+        }
+
+        EndPasses(removed, PassOutcome.Cancelled);
+        CancelQuietly(cancel);
+        RaiseChanged();
+        if (freedQueueSlot)
+        {
+            RaiseCapacityAvailable();
+            CompactIfDue();
+        }
+    }
 
     public IReadOnlyList<DemoQueueItemSnapshot> Snapshot()
     {
@@ -1253,23 +1318,26 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         {
             while (true)
             {
+                bool user;
                 lock (_sync)
                 {
-                    if (_disposed || NextStartableLocked(false) is null)
+                    if (_disposed || NextStartableLocked(false) is not { } next)
                     {
                         return; // nothing to do → exit; respawned on next submit/resume/grow
                     }
+
+                    user = next.Priority >= DemoJobPriority.UserRequested;
                 }
 
                 // Acquire a background slot (yields to interactive/reel; respects the hard cap). Between
                 // demos the worker re-acquires, so it steps aside at each demo boundary, exactly like
-                // the historical per-consumer loops.
-                using SlotLease slot = new(_gate, await _gate.AcquireBackgroundAsync(_shutdownToken).ConfigureAwait(false));
+                // the historical per-consumer loops. A user's item is not held back by an export session.
+                using SlotLease slot = new(_gate, await _gate.AcquireBackgroundAsync(user, _shutdownToken).ConfigureAwait(false));
 
                 Entry? entry;
                 lock (_sync)
                 {
-                    entry = _disposed ? null : PickNextQueuedLocked(false);
+                    entry = _disposed ? null : PickNextQueuedLocked(false, user && _gate.IsExportActive);
                 }
 
                 if (entry is null)
@@ -1880,9 +1948,14 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     // Marks the next startable item Running under the lock.
-    private Entry? PickNextQueuedLocked(bool light)
+    private Entry? PickNextQueuedLocked(bool light, bool userOnly = false)
     {
         Entry? best = NextStartableLocked(light);
+        if (best is not null && userOnly && best.Priority < DemoJobPriority.UserRequested)
+        {
+            best = null;
+        }
+
         if (best is not null)
         {
             best.State = DemoQueueItemState.Running;
