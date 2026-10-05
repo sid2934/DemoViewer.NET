@@ -32,6 +32,7 @@ namespace AnalysisBench;
 ///         without user commands, the highlights build, a separate round_facts build, the library's
 ///         final-state replay and round derivation. <c>--read=app-forward</c>: the queue's forward pass for
 ///         the same three consumers (<c>ForwardDemoPass</c>, one merged build). Both imply <c>--eval</c>.
+///         <c>--without=&lt;ruleset id&gt;</c> drops one ruleset from the read, to price it against a run with it.
 ///     </para>
 ///     Emits one <c>@BGJOB</c> JSON line per demo and one <c>@BGRUN</c> line at the end.
 /// </summary>
@@ -46,6 +47,7 @@ internal static class BackgroundRunCommand
         string compact = named.GetValueOrDefault("--compact", "none");
         string? plan = named.GetValueOrDefault("--plan");
         bool eval = flags.Contains("--eval") || read.StartsWith("app-", StringComparison.Ordinal);
+        string? without = named.GetValueOrDefault("--without");
 
         RuleConfigLoadResult? rules = null;
         if (eval)
@@ -54,6 +56,11 @@ internal static class BackgroundRunCommand
             if (!rules.Success)
             {
                 throw new RuleConfigException(rules.Errors);
+            }
+
+            if (without is not null)
+            {
+                rules = rules with { Rulesets = [.. rules.Rulesets.Where(r => r.Id != without)] };
             }
         }
 
@@ -110,6 +117,7 @@ internal static class BackgroundRunCommand
             compact,
             plan,
             eval,
+            without,
             demos = demos.Length,
             wallMs,
             peakWsMb = sampler.PeakWs / Mb,
