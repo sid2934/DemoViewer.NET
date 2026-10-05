@@ -14,7 +14,8 @@ only, no UI framework. It is versioned with `DemoViewer.NET.Extensions.Sdk`.
 The app ships this assembly and SkiaSharp, so copies in your extension's folder are never loaded. Build
 against the SkiaSharp version this package depends on.
 
-The types keep the namespaces the app uses for them, under `DemoViewer.NET.Playback2D.Core`.
+The types keep the namespaces the app uses for them: most are under `DemoViewer.NET.Playback2D.Core`, and the
+zone loaders, the sidecar identity records and the content key under `DemoViewer.NET.Playback2D.Pipeline`.
 
 ## What is in it
 
@@ -34,6 +35,10 @@ The types keep the namespaces the app uses for them, under `DemoViewer.NET.Playb
 | `Playback2D.Core.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens or annotations needs |
 | `Playback2D.Core.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
 | `Playback2D.Core.Vision` | `IVisionSolver`, `VisionSolution` |
+| `Playback2D.Core.Zones` (overlays) | `ZoneOverlayDocument`, `ZoneOverlayApplier`: a user's zone edits over the baked set |
+| `Playback2D.Pipeline.Assets` | `ZoneAssetPipeline`, `ZoneSetReader`, `ZoneOverlayReader`: a map's places loaded from its bundle directory |
+| `Playback2D.Pipeline.Annotations` | `DemoIdentity`, `ClockIdentity`: which demo and which parse a sidecar was written against |
+| `Playback2D.Pipeline` | `DemoContentHash`, the demo content key every store joins on |
 | `Playback2D.Core` (more) | `MarkerSmoother`, `SceneGuides`, `TrailGeometry`, `SceneDefaults`; `Levels.MapSpaceFactory`; `Zones.NavPathfinder` |
 
 The app's own layers (radar, markers, roster and the rest), the drawing tools, video export, keyframes and the

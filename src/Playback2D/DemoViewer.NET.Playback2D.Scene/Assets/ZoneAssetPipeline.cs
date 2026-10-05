@@ -29,7 +29,7 @@ public sealed record ZoneLoadResult(
 /// <summary>
 ///     Loads a map's <c>zones.json</c> from its bundle directory, applies the user overlay for that map,
 ///     and builds the <see cref="PlaceResolver" /> over the effective set. The sibling of
-///     <see cref="MapAssetPipeline" /> for the zone file.
+///     <c>MapAssetPipeline</c> for the zone file.
 ///     <para>
 ///         <b>Never throws, reads nothing from <c>bundle.json</c>.</b> The file is located by path
 ///         (a <c>--zones</c> top-up cannot write a bundle reference, so nothing reads one),

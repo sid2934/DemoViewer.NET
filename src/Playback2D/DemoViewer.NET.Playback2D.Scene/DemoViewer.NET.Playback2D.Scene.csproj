@@ -3,9 +3,10 @@
     <!--
       The scene contract of the 2D map: the frame, the layer interface and compositor, floors and panes,
       places, the viewport transform, cameras and the palette, plus the annotation, timeline, tool and HUD
-      contracts and the query, overlay and utility layers an extension draws with. SkiaSharp and the BCL only,
-      enforced by ArchitectureTests, which also pins its public types to an allow-list.
-      The types keep their DemoViewer.NET.Playback2D.Core namespaces; the app's own layers, the drawing tools,
+      contracts, the query, overlay and utility layers an extension draws with, the zone loaders and the demo
+      content key. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
+      to an allow-list.
+      The types keep the namespaces they had in Core and Pipeline; the app's own layers, the drawing tools,
       export, keyframes and rendering backends stay in DemoViewer.NET.Playback2D.Core, which is not published.
     -->
     <PropertyGroup>

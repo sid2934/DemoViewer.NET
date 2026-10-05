@@ -32,6 +32,19 @@ public class ArchitectureTests
         .. _sceneAllowedPrefixes, "DemoViewer.NET.Playback2D.Scene"
     ];
 
+    // Published types that kept the namespace they had in Pipeline: the demo content key, the sidecar
+    // identity records and the zone loaders. Nothing else in a Pipeline namespace is published.
+    private static readonly string[] _keptPipelineNamespaceTypes =
+    [
+        "DemoViewer.NET.Playback2D.Pipeline.Annotations.ClockIdentity",
+        "DemoViewer.NET.Playback2D.Pipeline.Annotations.DemoIdentity",
+        "DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneAssetPipeline",
+        "DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult",
+        "DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneOverlayReader",
+        "DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneSetReader",
+        "DemoViewer.NET.Playback2D.Pipeline.DemoContentHash",
+    ];
+
     // The scene contract's public types: what DemoViewer.NET.Playback2D.Scene promises to third parties.
     // A type joins or leaves this list on purpose, never as a side effect of moving code between assemblies.
     private static readonly string[] _publishedSceneTypes =
@@ -181,11 +194,17 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic",
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor",
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneHull",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneOverlayApplier",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneOverlayDocument",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneOverlayMerge",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneOverlayResult",
+        "DemoViewer.NET.Playback2D.Core.Zones.ZoneOverlayZone",
         "DemoViewer.NET.Playback2D.Core.Zones.ZonePlace",
         "DemoViewer.NET.Playback2D.Core.Zones.ZonePlane",
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneSet",
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneVolume",
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneVolumeKind",
+        .. _keptPipelineNamespaceTypes,
     ];
 
     // Tooling, export, rendering backends and keyframes: none of it is published.
@@ -236,6 +255,7 @@ public class ArchitectureTests
         [
             .. Scene.GetExportedTypes().Select(t => t.FullName!)
                 .Where(name => _unpublishedNamespaces.Any(ns => name.StartsWith(ns + ".", StringComparison.Ordinal)))
+                .Except(_keptPipelineNamespaceTypes, StringComparer.Ordinal)
         ];
 
         await Assert.That(leaked).IsEmpty();
