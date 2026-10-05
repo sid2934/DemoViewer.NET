@@ -187,6 +187,13 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     {
         ArgumentNullException.ThrowIfNull(ruleset);
         ArgumentNullException.ThrowIfNull(ruleset.Yaml);
+        // A bad name drops this ruleset, not the extension's other contributions.
+        if (!RulesetContribution.IsValidId(ruleset.Id))
+        {
+            _guard.Report("ruleset", new ArgumentException($"'{ruleset.Id}' is not a ruleset name.", nameof(ruleset)));
+            return;
+        }
+
         string id = RulesetContribution.QualifiedId(Pack.Id, ruleset.Id);
         Func<Stream> open = ruleset.Yaml;
         _rulesets.Add(new ContributedRuleset(id, Pack.Id, ruleset.FeatureId ?? Pack.FeatureId, () => _guard.Run<string?>("ruleset " + id, () =>

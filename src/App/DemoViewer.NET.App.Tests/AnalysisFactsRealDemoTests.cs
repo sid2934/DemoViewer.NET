@@ -38,6 +38,80 @@ public class AnalysisFactsRealDemoTests
                                               - { stat: nonsense, label: nonsense }
                                       """;
 
+    private const string DanglingYaml = """
+                                        ruleset: fixture_dangling
+                                        for: each_player
+                                        stats:
+                                          kills:
+                                            count: kill
+                                            per: match
+                                            label: DanglingKills
+                                        show:
+                                          scoreboard:
+                                            - { stat: no_such_stat, label: Dangling, group: game }
+                                          tables:
+                                            fixture_dangling_table:
+                                              per: player_match
+                                              columns:
+                                                - { stat: no_such_stat, label: dangling }
+                                        """;
+
+    // Loads cleanly and names a stat it does not declare in its show block, which the resolver does not
+    // check: the case that reaches the merged build.
+    [Test]
+    public async Task ARulesetThatLoadsButCannotBuild_LeavesTheHighlightsAndRoundFactsWritten()
+    {
+        string path = BackgroundPlanRealDemoTests.SmallestDemo(0);
+        string fixture = AnalysisFactsTests.WriteFixture(("fixture_dangling", DanglingYaml));
+        try
+        {
+            MergedRulesBuild rules = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () =>
+            [
+                StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
+                new StampedRuleset("fixture_dangling", "dev.example.x", static () => true)
+            ]);
+            DemoCacheStore cache = new(null);
+            cache.Upsert(new DemoCacheRecord
+            {
+                Path = path,
+                Size = new FileInfo(path).Length,
+                Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
+            });
+            RulesRoundFactsRulesetIdentity identity = new(rules);
+            RoundFactsEvaluator roundFacts = new(cache, new EngineRoundFactsRowSource(identity), identity);
+            StampedFacts stamped = new(rules);
+            FactsEvaluator facts = new(cache, stamped);
+            AnalysisFacts library = new(cache, stamped, new RoundFactsSource(cache, roundFacts));
+            IReadOnlySet<string> cut = rules.StampedOutputs(id => id == RoundFactsFingerprint.RulesetId
+                ? roundFacts.Records(path)
+                : facts.Records(path, id));
+
+            ForwardDemoResult pass;
+            using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
+            {
+                pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, rules.Docs, outputs: cut);
+            }
+
+            roundFacts.EvaluateForward(path, pass);
+            facts.EvaluateForward(path, pass);
+            FactKey key = new("fixture_dangling", "fixture_dangling_table");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(rules.Docs.Select(d => d.Id)).Contains("fixture_dangling").Because("it loads, so it reaches the build");
+                await Assert.That(pass.Run!.Highlights.Count).IsGreaterThan(0);
+                await Assert.That(library.RoundFacts.TryGet(path)?.Rounds.Count ?? 0).IsGreaterThan(0);
+                await Assert.That(library.Status(path, key)).IsNotEqualTo(FactStatus.Current);
+                await Assert.That(rules.Fingerprint(64).Fingerprint).IsEqualTo(MergedRulesBuildTests.ShippedFingerprint64);
+            }
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+        }
+    }
+
     [Test]
     public async Task OneRead_StoresTheStaleTables_AndTheLibraryReadsThemBack()
     {
@@ -83,6 +157,7 @@ public class AnalysisFactsRealDemoTests
             FactTable? table = library.TryGet(path, key);
             using (Assert.Multiple())
             {
+                await Assert.That(rules.Docs.Select(d => d.Id)).Contains(BrokenRuleset).Because("it loads, so this reaches the build");
                 await Assert.That(wanted).IsTrue();
                 await Assert.That(first).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId, AnalysisFactsTests.FactsTable })
                     .Because("the broken ruleset has no fingerprint, so nothing reads for it");
