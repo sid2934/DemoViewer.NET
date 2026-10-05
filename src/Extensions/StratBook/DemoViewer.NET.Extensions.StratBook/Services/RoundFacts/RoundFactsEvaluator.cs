@@ -104,6 +104,11 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     }
 
     /// <inheritdoc />
+    /// <remarks>A demo the Library has not parsed yet: its rows can only be written once that parse has landed.</remarks>
+    public bool WantsAfterUpstream(string path) =>
+        _enabled() && TryFingerprint(BacklogTickRate) is not null && _demoCache.TryGetIndex(path) is not { ParseSchema: > 0 };
+
+    /// <inheritdoc />
     public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
 
     /// <inheritdoc />

@@ -959,40 +959,45 @@ public class App : Application
         services.AddSingleton(sp => new ReviewQueue(AppPaths.ConfigRoot,
             scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue"),
             scheduleLoad: StartupLoad(sp, "Load: review queue", "review")));
-        // The "one parse, many evaluators" coordinator: the single submitter
-        // that polls the registered IDemoEvaluators for a demo and coalesces their queue submissions onto
-        // ONE parse. Library and Highlights are core, always in the fan-out; a pack's evaluators come from
-        // an EvaluatorRegistry built over its Evaluator contributions, ordered by declared After ids rather
-        // than a hand-written array. The registry reads PackContributionSet lazily, on the
-        // coordinator's first poll, not here: resolving it during this factory would run every pack's
-        // Contribute() during container build, well before anything needs it. A disabled pack's evaluator
-        // factories are never invoked here, so those services are not constructed by THIS path while the
-        // pack is off (a resident like SituationIndex or GrenadeIndex may still resolve one directly at
-        // StartPacks time; each such evaluator sets its own .Coordinator in its own factory, below). The
-        // candidate universe re-polled on CapacityAvailable is the UNION of the CURRENTLY resolved
-        // evaluators' PendingPaths. The ORDER is a contract (the round index reads the round facts written
-        // in the same pass) and is pinned by AppCompositionRootTests.
+        // The "one parse, many evaluators" coordinator: the single submitter that asks the registered
+        // passes about a demo and submits them together as ONE visit, so the demo is read once. Library
+        // and Highlights are core, always on the visit; a pack's passes come from a PassRegistry built over
+        // its Pass contributions, ordered by declared After ids rather than a hand-written array. The
+        // registry reads PackContributionSet lazily, on the coordinator's first poll, not here: resolving
+        // it during this factory would run every pack's Contribute() during container build, well before
+        // anything needs it. A disabled pack's pass factories are never invoked here, so those services
+        // are not constructed by THIS path while the pack is off (a resident like SituationIndex or
+        // GrenadeIndex may still resolve one directly at StartPacks time; each such evaluator sets its own
+        // .Coordinator in its own factory, below). The candidate universe re-polled on CapacityAvailable
+        // is the UNION of the CURRENTLY resolved evaluators' PendingPaths. The ORDER is a contract (the
+        // round index reads the round facts written in the same visit) and is pinned by
+        // AppCompositionRootTests.
         services.AddSingleton(sp =>
         {
             DemoLibraryService library = sp.GetRequiredService<DemoLibraryService>();
             HighlightScanService highlights = sp.GetRequiredService<HighlightScanService>();
 
-            EvaluatorRegistry registry = new();
-            registry.AddCore(library.Id, () => library);
-            registry.AddCore(highlights.Id, () => highlights);
+            PassRegistry registry = new();
+            registry.AddCoreEvaluator(library.Id, () => library);
+            registry.AddCoreEvaluator(highlights.Id, () => highlights);
 
-            // Each pack evaluator's extension, so a throw from any call into it counts against that extension.
+            // Each pack pass's extension, so a throw from any call into it counts against that extension.
             // Filled when the registry populates, before anything can fault.
             ConcurrentDictionary<string, ExtensionGuard> guardOf = new(StringComparer.Ordinal);
 
-            IEnumerable<string> PendingOf(IDemoEvaluator evaluator)
+            IEnumerable<string> PendingOf(IDemoPass pass)
             {
-                if (!guardOf.TryGetValue(evaluator.Id, out ExtensionGuard? guard))
+                if (pass is not EvaluatorPassAdapter adapter)
                 {
-                    return evaluator.PendingPaths();
+                    return [];
                 }
 
-                return guard.Run<IReadOnlyList<string>>("pending demos of " + evaluator.Id, evaluator.PendingPaths, []);
+                if (!guardOf.TryGetValue(pass.Id, out ExtensionGuard? guard))
+                {
+                    return adapter.Evaluator.PendingPaths();
+                }
+
+                return guard.Run<IReadOnlyList<string>>("pending demos of " + pass.Id, adapter.Evaluator.PendingPaths, []);
             }
 
             DemoEvaluationCoordinator coordinator = new(
@@ -1020,7 +1025,7 @@ public class App : Application
                 {
                     IExtension pack = contributions.Pack;
                     ExtensionGuard guard = contributions.Guard;
-                    foreach (EvaluatorContribution contribution in contributions.Evaluators)
+                    foreach (PassContribution contribution in contributions.Passes)
                     {
                         // .Coordinator (where the evaluator type has one) is set by the evaluator's own DI
                         // factory, not here: a wrapper assignment only runs once something has already
@@ -1028,7 +1033,7 @@ public class App : Application
                         // at StartPacks time.
                         guardOf[contribution.Id] = guard;
                         string id = contribution.Id;
-                        registry.AddPackEvaluator(contribution.Id, contribution.Factory, contribution.After,
+                        registry.AddPackPass(contribution.Id, contribution.Factory, contribution.After,
                             () => features?.IsEnabled(pack.FeatureId) ?? true,
                             ex => guard.Report("build pass " + id, ex));
                     }
@@ -1266,7 +1271,7 @@ public class App : Application
         foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
             IExtension pack = contributions.Pack;
-            // Evaluators are consumed by the EvaluatorRegistry the DemoEvaluationCoordinator factory
+            // Passes are consumed by the PassRegistry the DemoEvaluationCoordinator factory
             // builds; job kinds by JobKindRegistry.Build(packs), DI-free like CommandRegistry.Build.
             // CommandRegistry.Default reads IExtension.Commands directly (no DI, so a bare-constructed
             // view model resolves pack chords in a headless test too). This is the consumer for the

@@ -124,6 +124,21 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     }
 
     /// <inheritdoc />
+    /// <remarks>A demo without Round Facts rows yet, with the sweep on or the demo forced: the index follows the rows.</remarks>
+    public bool WantsAfterUpstream(string path)
+    {
+        if (!_enabled() || _demoCache.TryGetIndex(path) is { ParseSchema: > 0 } entry && entry.HasRoundFacts())
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _forcedPaths.Contains(path) || _backgroundIndex();
+        }
+    }
+
+    /// <inheritdoc />
     public DemoJobPriority PriorityFor(string path)
     {
         lock (_gate)

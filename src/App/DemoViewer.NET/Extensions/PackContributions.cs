@@ -37,7 +37,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private IExtensionContext? _context;
     private readonly List<IWorkspaceModule> _modules = [];
     private readonly List<HostTabContribution> _hostTabs = [];
-    private readonly List<EvaluatorContribution> _evaluators = [];
+    private readonly List<PassContribution> _passes = [];
     private readonly List<CommandDescriptor> _commands = [];
     private readonly List<RulesetContribution> _rulesets = [];
     private readonly List<SettingsPageContribution> _settingsPages = [];
@@ -66,8 +66,8 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     /// <summary>Host tabs, in contribution order, each stamped with a gate id.</summary>
     public IReadOnlyList<HostTabContribution> HostTabs => _hostTabs;
 
-    /// <summary>Evaluators, in contribution order.</summary>
-    public IReadOnlyList<EvaluatorContribution> Evaluators => _evaluators;
+    /// <summary>Passes, in contribution order.</summary>
+    public IReadOnlyList<PassContribution> Passes => _passes;
 
     /// <summary>Job kinds, in contribution order.</summary>
 
@@ -138,7 +138,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
-        _evaluators.Add(new EvaluatorContribution(id, AdapterCache(factory), [.. after]));
+        _passes.Add(new PassContribution(id, EvaluatorPassAdapter.Cached(AdapterCache(factory), after), [.. after]));
     }
 
     // The registry calls the factory on every resolve. One adapter per evaluator instance keeps the
@@ -167,7 +167,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
-        _evaluators.Add(new EvaluatorContribution(id, factory, [.. after]));
+        _passes.Add(new PassContribution(id, EvaluatorPassAdapter.Cached(factory, after), [.. after]));
     }
 
     /// <inheritdoc />

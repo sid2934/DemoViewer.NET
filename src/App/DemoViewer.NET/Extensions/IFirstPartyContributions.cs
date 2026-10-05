@@ -23,14 +23,14 @@ namespace DemoViewer.NET.Extensions;
 /// <param name="ExtensionKind">For <see cref="QueueJobKind.Extension" />, the extension's kind id; null for a core kind.</param>
 public sealed record JobKindDescriptor(QueueJobKind Kind, string Label, int Rank, bool IsLight, string? ExtensionKind = null);
 
-/// <summary>An evaluator a pack adds to the demo fan-out, ordered after the evaluator ids it reads from.</summary>
+/// <summary>A pass a pack adds to every demo's visit, ordered after the pass ids it reads from.</summary>
 /// <param name="Id">
-///     The id the built evaluator reports through <see cref="IDemoEvaluator.Id" />. Declared up front so the
-///     fan-out order can be sorted and validated without constructing a disabled pack's evaluators.
+///     The id the built pass reports through <see cref="IDemoPass.Id" />. Declared up front so the run order
+///     can be sorted and validated without constructing a disabled pack's passes.
 /// </param>
-/// <param name="Factory">Builds or resolves the evaluator; invoked only while the owning pack is enabled.</param>
-/// <param name="After">Evaluator ids whose writes this one reads in the same pass.</param>
-public sealed record EvaluatorContribution(string Id, Func<IDemoEvaluator> Factory, IReadOnlyList<string> After);
+/// <param name="Factory">Builds or resolves the pass; invoked only while the owning pack is enabled.</param>
+/// <param name="After">Pass ids whose writes this one reads in the same visit.</param>
+public sealed record PassContribution(string Id, Func<IDemoPass> Factory, IReadOnlyList<string> After);
 
 /// <summary>
 ///     A ruleset in the rules directories that a pack owns. The merged background build runs it only while

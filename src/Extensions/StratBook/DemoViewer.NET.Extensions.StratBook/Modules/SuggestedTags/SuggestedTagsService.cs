@@ -217,6 +217,31 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     }
 
     /// <inheritdoc />
+    /// <remarks>A demo without Round Facts rows yet, with the sweep on or the demo forced: the proposals follow the rows.</remarks>
+    public bool WantsAfterUpstream(string path)
+    {
+        if (!_enabled() || HasInputs(_demoCache.TryGetIndex(path)))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            if (_forcedPaths.Contains(path))
+            {
+                return true;
+            }
+
+            if (_failed.Contains(path))
+            {
+                return false;
+            }
+        }
+
+        return _background();
+    }
+
+    /// <inheritdoc />
     public DemoJobPriority PriorityFor(string path)
     {
         lock (_gate)

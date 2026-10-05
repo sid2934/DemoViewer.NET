@@ -116,6 +116,21 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     }
 
     /// <inheritdoc />
+    /// <remarks>A demo the Library has not parsed yet, with the sweep on or the demo forced: the walk follows the parse stamp.</remarks>
+    public bool WantsAfterUpstream(string path)
+    {
+        if (!_enabled() || _demoCache.TryGetIndex(path) is { ParseSchema: > 0 })
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _forcedPaths.Contains(path) || _backgroundIndex();
+        }
+    }
+
+    /// <inheritdoc />
     public DemoJobPriority PriorityFor(string path)
     {
         lock (_gate)

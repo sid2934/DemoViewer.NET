@@ -63,7 +63,13 @@ public class SuggestedTagsReviewTests
         h.Background = true;
         h.Cache.Upsert(RoundIndexTestData.ParsedRecord(DemoPath, SuggestedTagsTestData.Map, Sha));
         await Assert.That(h.Service.Wants(DemoPath)).IsFalse().Because("without Round Facts rows nothing can be detected");
+        await Assert.That(h.Service.WantsAfterUpstream(DemoPath)).IsTrue().Because("the proposals follow Round Facts on the same visit");
         await Assert.That(h.Service.CanDetect(DemoPath)).IsFalse();
+
+        h.Background = false;
+        await Assert.That(h.Service.WantsAfterUpstream(DemoPath)).IsTrue().Because("the forced request above still stands with the sweep off");
+        h.Seed();
+        await Assert.That(h.Service.WantsAfterUpstream(DemoPath)).IsFalse().Because("Wants answers once the rows are there");
     }
 
     [Test]

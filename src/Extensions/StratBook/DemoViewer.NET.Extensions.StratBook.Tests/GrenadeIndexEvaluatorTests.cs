@@ -66,6 +66,9 @@ public class GrenadeIndexEvaluatorTests
             await Assert.That(off.PendingPaths()).IsEmpty();
             await Assert.That(on.Wants(Demo)).IsTrue();
             await Assert.That(on.Wants("/d/unparsed.dem")).IsFalse();
+            await Assert.That(on.WantsAfterUpstream("/d/unparsed.dem")).IsTrue().Because("the walk follows the Library's parse on the same visit");
+            await Assert.That(on.WantsAfterUpstream(Demo)).IsFalse().Because("a parsed demo is Wants' call");
+            await Assert.That(off.WantsAfterUpstream("/d/unparsed.dem")).IsFalse();
             await Assert.That(on.PendingPaths()).IsEquivalentTo(new[] { Demo });
             await Assert.That(on.PriorityFor(Demo)).IsEqualTo(DemoJobPriority.Background);
         }

@@ -259,6 +259,9 @@ public class RoundFactsEvaluatorTests
         RoundFactsEvaluator evaluator = new(store, source, new FakeIdentity("rf-A"));
 
         await Assert.That(evaluator.Wants(Demo)).IsFalse().Because("the Library parses first; its fan-out reaches this");
+        await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsTrue().Because("the rows follow the Library's parse on the same visit");
+        await Assert.That(new RoundFactsEvaluator(store, source, new FakeIdentity(null)).WantsAfterUpstream(Demo)).IsFalse()
+            .Because("no ruleset means nothing to run after the parse either");
 
         evaluator.OnParsedOpportunistically(Demo, TwoRoundDemo());
 

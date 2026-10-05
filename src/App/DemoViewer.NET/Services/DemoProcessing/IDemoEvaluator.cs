@@ -32,6 +32,14 @@ public interface IDemoEvaluator
     bool Wants(string path);
 
     /// <summary>
+    ///     True when <see cref="Wants" /> is false only because the demo lacks what an evaluator this one runs
+    ///     after writes (the library's parse stamp, the Round Facts rows). The visit then carries this evaluator
+    ///     when that upstream evaluator is on it, and asks <see cref="Wants" /> again once upstream has run.
+    ///     Default false: the evaluator reads nothing another one writes.
+    /// </summary>
+    bool WantsAfterUpstream(string path) => false;
+
+    /// <summary>
     ///     Does this evaluator's work on the single held parse. Runs INSIDE the queue's gate slot with
     ///     the <see cref="ParsedDemo" /> still in memory (the one-heavy-parse invariant), so it must
     ///     finish SYNCHRONOUSLY before the slot releases. Failures are isolated by the queue: a throw

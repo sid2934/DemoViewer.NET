@@ -7,26 +7,17 @@ using CS2DemoKit.Parser;
 namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
-///     The single submitter that turns "which features want this demo?" into "parse it once, fan the
-///     result out to all of them" (demo-processing-queue "one parse, many evaluators"). It polls every
-///     registered <see cref="IDemoEvaluator" /> for a path and, for each interested one, submits a queue
-///     request tagged with that evaluator's <see cref="IDemoEvaluator.Id" />. Because
-///     <see cref="IDemoProcessingQueue.SubmitBackground" /> coalesces by path, all interested evaluators'
-///     requests merge into one entry → one parse → each evaluator's <see cref="IDemoEvaluator.Evaluate" />
-///     runs (isolated) on the single held <see cref="ParsedDemo" />.
+///     The single submitter that turns "which passes want this demo?" into one visit of the demo on the
+///     queue (demo-processing-queue "one parse, many evaluators"). It asks every registered
+///     <see cref="IDemoPass" /> about a path, plans the closure (every pass that says yes, plus every pass
+///     waiting on one of those), and submits them together as one <see cref="DemoVisitRequest" />. The queue
+///     reads the demo once in the mode the passes need and runs each one on that read, in After order.
 ///     <para>
 ///         Centralizing the submit decision (vs each feature running its own pump) means: a demo's
-///         evaluators are submitted TOGETHER, so they always coalesce onto one entry (closing the
+///         passes are submitted TOGETHER, so they always coalesce onto one entry (closing the
 ///         finalizing-race window between independently-timed feeders); one backlog + one
 ///         <see cref="IDemoProcessingQueue.CapacityAvailable" /> re-feed instead of N; and a future
-///         feature plugs in by registering an evaluator: no new parse path.
-///     </para>
-///     <para>
-///         Per entry, one pass: forward when every owner on the entry can take one
-///         (<see cref="IDemoEvaluator.ForwardFor" />), retained otherwise, with every owner run on that one
-///         retained parse. Two passes back to back peak at the retained one and cost both, so a mixed entry
-///         never splits; an owner that arrives while a forward pass it cannot join is running stops that pass
-///         (the queue moves its owners onto the entry that replaces it).
+///         feature plugs in by registering a pass: no new parse path.
 ///     </para>
 ///     <para>
 ///         Thread-safety: the outstanding/backlog sets are lock-guarded; <see cref="Consider(string)" /> may be
@@ -35,39 +26,39 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 /// </summary>
 public sealed class DemoEvaluationCoordinator : IDisposable
 {
-    // (evaluatorId, path) rejected because the tier was full, re-submitted on the next CapacityAvailable.
-    private readonly HashSet<(string Eval, string Path)> _backlog = [];
+    // (passId, path) rejected because the tier was full, re-submitted on the next CapacityAvailable.
+    private readonly HashSet<(string Pass, string Path)> _backlog = [];
     private readonly Func<IEnumerable<string>> _candidatePaths;
-    private readonly IReadOnlyList<IDemoEvaluator> _evaluators;
+    private readonly IReadOnlyList<IDemoPass> _passes;
 
-    // Set only by the live-registry constructor. Re-read on every poll so an evaluator whose pack just
+    // Set only by the live-registry constructor. Re-read on every poll so a pass whose pack just
     // came on is included on the next Consider/ConsiderAll, with no separate refresh step.
-    private readonly Func<IReadOnlyList<IDemoEvaluator>>? _liveEvaluators;
+    private readonly Func<IReadOnlyList<IDemoPass>>? _livePasses;
 
     // Set only by the live-registry constructor: the registry's own Validate, so BuildServices can fail
-    // fast on a cycle or an unknown After id without materializing any evaluator.
-    private readonly Action? _validateEvaluators;
+    // fast on a cycle or an unknown After id without materializing any pass.
+    private readonly Action? _validatePasses;
 
     private readonly object _lock = new();
 
-    // (evaluatorId, path) currently submitted and not yet terminal, never re-submitted while present.
-    private readonly HashSet<(string Eval, string Path)> _outstanding = [];
+    // (passId, path) currently submitted and not yet terminal, never re-submitted while present.
+    private readonly HashSet<(string Pass, string Path)> _outstanding = [];
     private readonly IDemoProcessingQueue _queue;
     private readonly Action<ParsedDemo>? _parseReleased;
 
-    // (evaluatorId, path) whose Evaluate, EvaluateForward or OnFailed threw. Skipped for the rest of the
-    // session: a throw leaves Wants true, so without this every capacity re-feed parses the demo again.
-    private readonly HashSet<(string Eval, string Path)> _faulted = [];
+    // (passId, path) whose Run, Interest or OnFailed threw. Skipped for the rest of the session: a throw
+    // leaves the pass interested, so without this every capacity re-feed parses the demo again.
+    private readonly HashSet<(string Pass, string Path)> _faulted = [];
 
     private bool _disposed;
 
     /// <summary>
-    ///     Told when an evaluator throws from any call the coordinator makes into it, with the demo when there
-    ///     is one. The composition root counts it against the extension that contributed the evaluator.
+    ///     Told when a pass throws from any call made into it, with the demo when there is one. The
+    ///     composition root counts it against the extension that contributed the pass.
     /// </summary>
     public Action<string, string?, Exception>? Faulted { get; set; }
 
-    /// <param name="evaluators">The registered background features (order = fan-out order within a slot).</param>
+    /// <param name="evaluators">The registered background features (order = run order within a slot). Each is wrapped as a pass.</param>
     /// <param name="queue">The shared processing queue that owns the workers + gate + coalescing.</param>
     /// <param name="candidatePaths">
     ///     Yields the current universe of demo paths to (re-)poll: typically the
@@ -81,15 +72,15 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         Action<ParsedDemo>? parseReleased = null)
     {
         _parseReleased = parseReleased;
-        _evaluators = evaluators;
+        _passes = evaluators.Select(e => (IDemoPass)new EvaluatorPassAdapter(e, [])).ToList();
         _queue = queue;
         _candidatePaths = candidatePaths;
         _queue.CapacityAvailable += OnCapacityAvailable;
     }
 
-    /// <param name="evaluators">
-    ///     Read fresh on every poll (an <see cref="EvaluatorRegistry" />'s <c>Resolve</c>, typically), not
-    ///     snapshotted once: a pack evaluator is never constructed until the pack is enabled AND something
+    /// <param name="passes">
+    ///     Read fresh on every poll (a <see cref="PassRegistry" />'s <c>Resolve</c>, typically), not
+    ///     snapshotted once: a pack pass is never constructed until the pack is enabled AND something
     ///     actually polls, and an enable mid-session is picked up on the very next poll.
     /// </param>
     /// <param name="queue">The shared processing queue that owns the workers + gate + coalescing.</param>
@@ -98,29 +89,29 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     ///     library's known demos. Re-polled on <see cref="IDemoProcessingQueue.CapacityAvailable" />.
     /// </param>
     /// <param name="parseReleased">Called after <see cref="FanOutParsed" /> has handed a parse to every evaluator.</param>
-    /// <param name="validateEvaluators">
+    /// <param name="validatePasses">
     ///     The registry's own <c>Validate</c>: populates and sorts without constructing anything, so
     ///     <see cref="ValidateEvaluators" /> can fail fast on a cycle or an unknown After id at startup.
     /// </param>
     public DemoEvaluationCoordinator(
-        Func<IReadOnlyList<IDemoEvaluator>> evaluators,
+        Func<IReadOnlyList<IDemoPass>> passes,
         IDemoProcessingQueue queue,
         Func<IEnumerable<string>> candidatePaths,
         Action<ParsedDemo>? parseReleased = null,
-        Action? validateEvaluators = null)
-        : this([], queue, candidatePaths, parseReleased)
+        Action? validatePasses = null)
+        : this(Array.Empty<IDemoEvaluator>(), queue, candidatePaths, parseReleased)
     {
-        _liveEvaluators = evaluators;
-        _validateEvaluators = validateEvaluators;
+        _livePasses = passes;
+        _validatePasses = validatePasses;
     }
 
-    private IReadOnlyList<IDemoEvaluator> CurrentEvaluators => _liveEvaluators?.Invoke() ?? _evaluators;
+    private IReadOnlyList<IDemoPass> CurrentPasses => _livePasses?.Invoke() ?? _passes;
 
     /// <summary>
-    ///     Validates the live registry's After graph without constructing any evaluator: a cycle or an
+    ///     Validates the live registry's After graph without constructing any pass: a cycle or an
     ///     unknown After id throws here. No-op for a coordinator built from a plain snapshot.
     /// </summary>
-    public void ValidateEvaluators() => _validateEvaluators?.Invoke();
+    public void ValidateEvaluators() => _validatePasses?.Invoke();
 
     /// <summary>Detaches the capacity handler.</summary>
     public void Dispose()
@@ -135,79 +126,114 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     }
 
     /// <summary>
-    ///     The registered evaluators' ids in fan-out order. The order is a contract other features
-    ///     build on (an evaluator may read what the one before it wrote in the same pass), so the
+    ///     The registered passes' ids in run order. The order is a contract other features
+    ///     build on (a pass may read what the one before it wrote in the same visit), so the
     ///     composition root's list is pinned by a test through this.
     /// </summary>
-    public IReadOnlyList<string> EvaluatorIds => [.. CurrentEvaluators.Select(e => e.Id)];
+    public IReadOnlyList<string> EvaluatorIds => [.. CurrentPasses.Select(p => p.Id)];
 
-    /// <summary>Polls every evaluator for one path and submits for each interested, not-outstanding one.</summary>
-    public void Consider(string path) => Consider(path, CurrentEvaluators);
+    /// <summary>Asks every pass about one path and submits one visit for the interested, not-outstanding ones.</summary>
+    public void Consider(string path) => Consider(path, CurrentPasses);
 
     // ConsiderAll resolves the live list ONCE for the whole batch and passes it here, instead of every
     // Consider(path) re-resolving it: the registry's factory calls are cheap (DI caches the singleton)
     // but the gate checks and the sort lookup are not free to repeat per path.
-    private void Consider(string path, IReadOnlyList<IDemoEvaluator> evaluators)
+    private void Consider(string path, IReadOnlyList<IDemoPass> passes)
     {
-        List<IDemoEvaluator> wanting = [];
-        foreach (IDemoEvaluator evaluator in evaluators)
+        VisitedDemo demo = new(path);
+        List<IDemoPass> candidates = passes.Where(p => !IsFaulted(p.Id, path)).ToList();
+        List<IDemoPass> planned = VisitPlanner.Plan(candidates, demo, PassLevel.Background,
+            (pass, ex) => ReportFault(pass.Id, path, ex));
+
+        // The level comes from the planned evaluators' own forced sets until visits are planned from events.
+        PassLevel level = PassLevel.Background;
+        foreach (IDemoPass pass in planned)
         {
-            if (IsFaulted(evaluator.Id, path))
+            if (pass is EvaluatorPassAdapter adapter && SafeLevel(adapter, demo) > level)
             {
-                continue;
-            }
-
-            bool wants;
-            try
-            {
-                wants = evaluator.Wants(path);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                // A misbehaving interest check must not stall the others or the pump.
-                ReportFault(evaluator.Id, path, ex);
-                continue;
-            }
-
-            if (wants)
-            {
-                wanting.Add(evaluator);
+                level = PassLevel.UserRequested;
             }
         }
 
-        // Every request carries the union: the first one may start parsing before the next is submitted.
-        bool userCommands = wanting.Any(SafeReadsUserCommands);
-        Dictionary<IDemoEvaluator, ForwardNeeds?> forward = wanting.ToDictionary(e => e, e => SafeForwardFor(e, path));
-        ForwardNeeds needs = forward.Values.Aggregate(ForwardNeeds.None, (all, n) => all | (n ?? ForwardNeeds.None));
-        foreach (IDemoEvaluator evaluator in wanting)
+        List<IDemoPass> submitting = [];
+        lock (_lock)
         {
-            (string Id, string path) key = (evaluator.Id, path);
-            lock (_lock)
+            foreach (IDemoPass pass in planned)
             {
+                (string Id, string Path) key = (pass.Id, path);
                 if (_outstanding.Contains(key))
                 {
-                    continue; // already in flight for this evaluator
+                    continue; // already in flight for this pass
                 }
 
                 _outstanding.Add(key);
                 _backlog.Remove(key);
+                submitting.Add(pass);
             }
+        }
 
-            Submit(evaluator, path, key, userCommands, forward[evaluator] is not null, needs);
+        if (submitting.Count == 0)
+        {
+            return;
+        }
+
+        long orderHint = 0;
+        foreach (IDemoPass pass in submitting)
+        {
+            if (pass is EvaluatorPassAdapter adapter)
+            {
+                orderHint = Math.Max(orderHint, SafeOrderHint(adapter, demo));
+            }
+        }
+
+        IDemoQueueHandle handle = _queue.SubmitVisit(new DemoVisitRequest(path, level, submitting, orderHint,
+            Path.GetFileName(path), (pass, outcome, error) => PassEnded(path, pass, outcome, error)));
+
+        if (handle.State == DemoQueueItemState.Rejected)
+        {
+            // Tier full: hold for the next CapacityAvailable so it isn't dropped.
+            lock (_lock)
+            {
+                foreach (IDemoPass pass in submitting)
+                {
+                    _outstanding.Remove((pass.Id, path));
+                    _backlog.Add((pass.Id, path));
+                }
+            }
+        }
+    }
+
+    // Runs in the queue's slot. Clears the outstanding entry either way so a demo that becomes interesting
+    // again can be re-evaluated; a throw puts the pass on the session's skip list for that demo.
+    private void PassEnded(string path, IDemoPass pass, PassOutcome outcome, Exception? error)
+    {
+        (string Id, string Path) key = (pass.Id, path);
+        lock (_lock)
+        {
+            _outstanding.Remove(key);
+            if (outcome == PassOutcome.Failed)
+            {
+                _faulted.Add(key);
+            }
+        }
+
+        if (outcome == PassOutcome.Failed && error is not null)
+        {
+            ReportFault(key.Id, key.Path, error);
         }
     }
 
     /// <summary>
-    ///     True while the named evaluator has at least one demo in flight (submitted, not yet
+    ///     True while the named pass has at least one demo in flight (submitted, not yet
     ///     terminal): backs a feature's "is scanning" indicator.
     /// </summary>
     public bool HasOutstanding(string evaluatorId)
     {
         lock (_lock)
         {
-            foreach ((string Eval, string Path) key in _outstanding)
+            foreach ((string Pass, string Path) key in _outstanding)
             {
-                if (string.Equals(key.Eval, evaluatorId, StringComparison.Ordinal))
+                if (string.Equals(key.Pass, evaluatorId, StringComparison.Ordinal))
                 {
                     return true;
                 }
@@ -218,7 +244,7 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     }
 
     /// <summary>
-    ///     True when the evaluator threw on this demo earlier in the session; it is not offered the demo
+    ///     True when the pass threw on this demo earlier in the session; it is not offered the demo
     ///     again until the app restarts.
     /// </summary>
     public bool IsFaulted(string evaluatorId, string path)
@@ -230,8 +256,8 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     }
 
     /// <summary>
-    ///     Clears every evaluator's fault for <paramref name="path" />: the file changed, so the bytes an
-    ///     evaluator threw on are gone and each one may be offered the demo again.
+    ///     Clears every pass's fault for <paramref name="path" />: the file changed, so the bytes a
+    ///     pass threw on are gone and each one may be offered the demo again.
     /// </summary>
     public void ForgetFaults(string path)
     {
@@ -244,10 +270,10 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// <summary>Re-polls the whole candidate universe (rescan + capacity re-feed). Idempotent.</summary>
     public void ConsiderAll()
     {
-        IReadOnlyList<IDemoEvaluator> evaluators = CurrentEvaluators;
+        IReadOnlyList<IDemoPass> passes = CurrentPasses;
         foreach (string path in _candidatePaths())
         {
-            Consider(path, evaluators);
+            Consider(path, passes);
         }
     }
 
@@ -261,7 +287,8 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     ///     Because the hand-off is NOT gated on <see cref="IDemoEvaluator.Wants" />, it is order-independent
     ///     (a target whose backlog row doesn't exist yet still refreshes). Runs synchronously on the
     ///     caller's thread (offload the UI thread: an evaluator's replay/analysis can be multi-second);
-    ///     each evaluator is isolated so one failure never blocks the others or the trigger.
+    ///     each evaluator is isolated so one failure never blocks the others or the trigger. Only evaluators
+    ///     have the hook; a pass that is not one is not fed.
     /// </summary>
     /// <param name="path">The .dem path of the already-parsed demo.</param>
     /// <param name="parsed">The held parse to hand to each evaluator (immutable: safe to read concurrently).</param>
@@ -272,13 +299,8 @@ public sealed class DemoEvaluationCoordinator : IDisposable
     /// </param>
     public void FanOutParsed(string path, ParsedDemo parsed, IReadOnlySet<string>? skip = null)
     {
-        foreach (IDemoEvaluator evaluator in CurrentEvaluators)
+        foreach (IDemoEvaluator evaluator in Evaluators(skip))
         {
-            if (skip is not null && skip.Contains(evaluator.Id))
-            {
-                continue;
-            }
-
             try
             {
                 evaluator.OnParsedOpportunistically(path, parsed);
@@ -300,75 +322,14 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         }
     }
 
-    private void Submit(IDemoEvaluator evaluator, string path, (string Eval, string Path) key, bool userCommands,
-        bool forward, ForwardNeeds needs)
-    {
-        IDemoQueueHandle handle = _queue.SubmitBackground(new DemoProcessingRequest(
-            path,
-            evaluator.Id,
-            SafePriority(evaluator, path),
-            SafeOrderHint(evaluator, path),
-            parsed => Complete(key, () => evaluator.Evaluate(path, parsed)),
-            _ => Complete(key, () => evaluator.OnFailed(path)),
-            Path.GetFileName(path),
-            userCommands,
-            forward ? pass => Complete(key, () => evaluator.EvaluateForward(path, pass)) : null,
-            forward ? needs : ForwardNeeds.None));
-
-        if (handle.State == DemoQueueItemState.Rejected)
-        {
-            // Tier full: hold for the next CapacityAvailable so it isn't dropped.
-            lock (_lock)
-            {
-                _outstanding.Remove(key);
-                _backlog.Add(key);
-            }
-        }
-    }
-
-    // Runs in the queue's gate slot. The queue's SafeInvoke logs the rethrown exception; the finally clears
-    // the outstanding entry either way so a demo that becomes interesting again can be re-evaluated.
-    private void Complete((string Eval, string Path) key, Action work)
-    {
-        try
-        {
-            work();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            // A cancelled item (preempted, removed, pack switched off) is requeued or abandoned, not broken.
-            lock (_lock)
-            {
-                _faulted.Add(key);
-            }
-
-            ReportFault(key.Eval, key.Path, ex);
-            throw;
-        }
-        finally
-        {
-            lock (_lock)
-            {
-                _outstanding.Remove(key);
-            }
-        }
-    }
-
-    private void OnCapacityAvailable() => ConsiderAll();
-
     /// <summary>
     ///     <see cref="FanOutParsed" /> for a forward pass: the library's tier-2 pass hands its result to the
     ///     other evaluators that can read one.
     /// </summary>
     public void FanOutForward(string path, ForwardDemoResult pass, IReadOnlySet<string>? skip = null)
     {
-        foreach (IDemoEvaluator evaluator in CurrentEvaluators)
+        foreach (IDemoEvaluator evaluator in Evaluators(skip))
         {
-            if (skip is not null && skip.Contains(evaluator.Id))
-            {
-                continue;
-            }
-
             try
             {
                 evaluator.OnForwardOpportunistically(path, pass);
@@ -381,64 +342,51 @@ public sealed class DemoEvaluationCoordinator : IDisposable
         }
     }
 
-    private ForwardNeeds? SafeForwardFor(IDemoEvaluator evaluator, string path)
+    private IEnumerable<IDemoEvaluator> Evaluators(IReadOnlySet<string>? skip)
     {
-        try
+        foreach (IDemoPass pass in CurrentPasses)
         {
-            return evaluator.ForwardFor(path);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            ReportFault(evaluator.Id, path, ex);
-            return null;
+            if (pass is EvaluatorPassAdapter adapter && (skip is null || !skip.Contains(pass.Id)))
+            {
+                yield return adapter.Evaluator;
+            }
         }
     }
 
-    private DemoJobPriority SafePriority(IDemoEvaluator evaluator, string path)
+    private void OnCapacityAvailable() => ConsiderAll();
+
+    private PassLevel SafeLevel(EvaluatorPassAdapter adapter, VisitedDemo demo)
     {
         try
         {
-            return evaluator.PriorityFor(path);
+            return adapter.LevelFor(demo);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            ReportFault(evaluator.Id, path, ex);
-            return DemoJobPriority.Background;
+            ReportFault(adapter.Id, demo.Path, ex);
+            return PassLevel.Background;
         }
     }
 
-    private bool SafeReadsUserCommands(IDemoEvaluator evaluator)
+    private long SafeOrderHint(EvaluatorPassAdapter adapter, VisitedDemo demo)
     {
         try
         {
-            return evaluator.ReadsUserCommands;
+            return adapter.Evaluator.OrderHint(demo.Path);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            ReportFault(evaluator.Id, null, ex);
-            return true;
-        }
-    }
-
-    private long SafeOrderHint(IDemoEvaluator evaluator, string path)
-    {
-        try
-        {
-            return evaluator.OrderHint(path);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            ReportFault(evaluator.Id, path, ex);
+            ReportFault(adapter.Id, demo.Path, ex);
             return 0;
         }
     }
 
     // The callback is the composition root's; it must never break the pump either.
-    private void ReportFault(string evaluatorId, string? path, Exception exception)
+    private void ReportFault(string passId, string? path, Exception exception)
     {
         try
         {
-            Faulted?.Invoke(evaluatorId, path, exception);
+            Faulted?.Invoke(passId, path, exception);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {

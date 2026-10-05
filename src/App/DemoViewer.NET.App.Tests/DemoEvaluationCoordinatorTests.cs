@@ -299,6 +299,67 @@ public class DemoEvaluationCoordinatorTests
         await Assert.That(ok.OpportunisticCount).IsEqualTo(1).Because("a sibling throw is isolated");
     }
 
+    [Test]
+    public async Task Consider_APassWaitingOnUpstream_JoinsTheUpstreamsVisit_AndRunsAfterItOnTheSameParse()
+    {
+        int parses = 0;
+        List<string> order = [];
+        bool libraryWrote = false;
+        DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, _ =>
+        {
+            Interlocked.Increment(ref parses);
+            return Synthetic();
+        });
+        Fake library = new("library", _ => !libraryWrote, _ =>
+        {
+            libraryWrote = true;
+            lock (order)
+            {
+                order.Add("library");
+            }
+        });
+        // Wanted only once the library has written and until it has itself; before that it can only wait.
+        bool factsWrote = false;
+        UpstreamFake facts = new("facts", _ => libraryWrote && !factsWrote, _ => !libraryWrote, _ =>
+        {
+            factsWrote = true;
+            lock (order)
+            {
+                order.Add("facts");
+            }
+        });
+        PassRegistry registry = new();
+        registry.AddCoreEvaluator("library", () => library);
+        registry.AddCoreEvaluator("facts", () => facts, "library");
+        using DemoEvaluationCoordinator coord = new(registry.Resolve, queue, () => _oneDemo);
+
+        coord.Consider("/x/demo.dem");
+        await WaitFor(() => order.Count == 2 && !coord.HasOutstanding("facts"), "both passes on one visit");
+
+        // A demo the library does not want has no upstream on the visit, so the waiting pass stays off it.
+        coord.Consider("/x/other.dem");
+        await Task.Delay(80);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(parses).IsEqualTo(1).Because("the waiting pass rides the upstream parse");
+            await Assert.That(order).IsEquivalentTo(["library", "facts"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(coord.HasOutstanding("facts")).IsFalse();
+        }
+    }
+
+    private sealed class UpstreamFake(string id, Func<string, bool> wants, Func<string, bool> afterUpstream, Action<string> onEvaluate)
+        : IDemoEvaluator
+    {
+        public string Id => id;
+
+        public bool Wants(string path) => wants(path);
+
+        public bool WantsAfterUpstream(string path) => afterUpstream(path);
+
+        public void Evaluate(string path, ParsedDemo parsed) => onEvaluate(path);
+    }
+
     private sealed class Fake(
         string id,
         Func<string, bool>? wants = null,

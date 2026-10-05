@@ -48,6 +48,9 @@ public class RoundIndexEvaluatorTests
         evaluator.Written += _ => written++;
 
         await Assert.That(evaluator.Wants(Demo)).IsFalse();
+        await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsTrue().Because("the index follows Round Facts on the same visit");
+        await Assert.That(Wire(background: false, withFacts: false).Evaluator.WantsAfterUpstream(Demo)).IsFalse()
+            .Because("with the sweep off nothing follows");
         await Assert.That(evaluator.PendingPaths()).IsEmpty();
 
         evaluator.OnParsedOpportunistically(Demo, Parse());
@@ -63,6 +66,7 @@ public class RoundIndexEvaluatorTests
         // Round Facts lands: the same pass's next fan-out reaches this one.
         cache.UpdateExisting(Demo, r => r.SetRoundFacts(TwoRounds(), "rf-A"));
         await Assert.That(evaluator.Wants(Demo)).IsTrue();
+        await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsFalse().Because("Wants answers once the rows are there");
         await Assert.That(evaluator.PendingPaths()).Contains(Demo);
     }
 
