@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.Sdk.Playback;
@@ -14,6 +15,9 @@ public sealed class HelloExtension : IExtension
     public const string MasterSwitch = "pack.hello";
     public const string TabFeature = "tab.hello";
 
+    /// <summary>The keymap action that runs the toolbar button. Prefixed with the extension id, as every command id must be.</summary>
+    public const string WhereAction = ExtensionId + ".where";
+
     public string Id => ExtensionId;
 
     public string FeatureId => MasterSwitch;
@@ -22,6 +26,11 @@ public sealed class HelloExtension : IExtension
     [
         new(MasterSwitch, ExtensionFeatureKind.Extension, "Hello", "A sample extension.", null, AudienceDefaults.Everyone),
         new(TabFeature, ExtensionFeatureKind.Tab, "Hello tab", "Shows the open demo.", MasterSwitch, AudienceDefaults.Everyone)
+    ];
+
+    public IEnumerable<CommandDescriptor> Commands =>
+    [
+        new(WhereAction, "Hello: log the tick shown", "playback2d", new KeyGesture(Key.H, KeyModifiers.Shift), _ => false)
     ];
 
     public void Register(IServiceCollection services) =>
@@ -39,6 +48,7 @@ public sealed class HelloExtension : IExtension
                 context.Post(() => services.GetRequiredService<HelloTabViewModel>().Greeted = Path.GetFileName(path));
                 return Task.CompletedTask;
             })));
+        contributions.Commands(Commands);
         contributions.Playback(new HelloPlayback());
     }
 }
@@ -108,8 +118,10 @@ internal sealed class HelloPlayback : IPlaybackContribution
     public void Attach(IPlaybackSurface surface, IModuleContext context)
     {
         ArgumentNullException.ThrowIfNull(surface);
-        _item = surface.AddToolbarItem(new ToolbarItem("hello.where", "Where am I?", "Logs the tick shown",
-            moment => moment.Tick >= 0));
+        // Naming the action makes Shift+H run the button too, while the extension is on.
+        _item = surface.AddToolbarItem(new ToolbarItem("hello.where", "Where am I?",
+            $"Logs the tick shown{surface.GestureHint(HelloExtension.WhereAction)}",
+            moment => moment.Tick >= 0, HelloExtension.WhereAction));
     }
 
     public void Detach()
