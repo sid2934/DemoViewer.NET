@@ -5,7 +5,6 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Strats;
 
@@ -54,7 +53,7 @@ public sealed record StratCaptureRequest(
 ///         the first mapping of an epoch seeds the book's default.
 ///     </para>
 /// </summary>
-public sealed partial class CreateStratDialogViewModel : ViewModelBase, IDisposable
+public sealed partial class CreateStratDialogViewModel : ExtensionViewModel, IDisposable
 {
     private readonly CancellationTokenSource _cancel = new();
     private readonly Action<Action> _post;

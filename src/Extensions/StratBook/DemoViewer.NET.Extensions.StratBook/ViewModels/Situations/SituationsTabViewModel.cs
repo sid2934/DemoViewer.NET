@@ -33,7 +33,7 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         as "nothing matched".
 ///     </para>
 /// </summary>
-public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class SituationsTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     private readonly DemoCacheStore _demoCache;
     private readonly RoundIndexEvaluator? _evaluator;

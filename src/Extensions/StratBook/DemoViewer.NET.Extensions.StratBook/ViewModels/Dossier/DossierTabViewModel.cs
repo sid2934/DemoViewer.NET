@@ -12,7 +12,6 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Dossier;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Review;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
@@ -52,7 +51,7 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 ///         <see cref="MapPoolRecordService.Build" /> and re-projects on every <c>Changed</c>.
 ///     </para>
 /// </summary>
-public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class DossierTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     private readonly DemoCacheStore _demoCache;
 

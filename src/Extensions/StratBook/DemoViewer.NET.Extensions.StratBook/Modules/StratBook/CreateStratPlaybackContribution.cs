@@ -4,7 +4,6 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Strats;

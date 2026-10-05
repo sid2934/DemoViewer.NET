@@ -8,7 +8,6 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Utility;
@@ -37,7 +36,7 @@ public sealed record UtilityBookOption<T>(string Label, T? Value) where T : stru
 ///         lineup. The toggle brings the single throws back, and the map says how many it is hiding.
 ///     </para>
 /// </summary>
-public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     /// <summary>Frame-clock ticks a watch starts before the release: two seconds at 64 ticks.</summary>
     public const int WatchLeadTicks = 128;

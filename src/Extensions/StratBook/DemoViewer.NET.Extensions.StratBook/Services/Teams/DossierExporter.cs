@@ -1,7 +1,6 @@
 #region
 
 using System.Text;
-using DemoViewer.NET.Controls;
 
 #endregion
 

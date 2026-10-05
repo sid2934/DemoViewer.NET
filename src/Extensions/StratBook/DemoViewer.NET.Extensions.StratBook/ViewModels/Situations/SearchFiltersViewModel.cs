@@ -3,7 +3,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Situations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Provenance;
@@ -29,7 +28,7 @@ public sealed record SearchFilterOption<T>(string Display, T Value) : SearchFilt
 ///     <see cref="Replace" /> keeps a selection across a rebuilt option list by value, the way the
 ///     Library's team filter keeps its team across a rename.
 /// </summary>
-public sealed class SearchFilterField<T> : ViewModelBase
+public sealed class SearchFilterField<T> : ExtensionViewModel
 {
     private SearchFilterOption<T>? _selected;
 
@@ -133,7 +132,7 @@ public sealed class SearchFilterField<T> : ViewModelBase
 ///         <see cref="Apply" /> puts a stored one back on the rail for a re-run.
 ///     </para>
 /// </summary>
-public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
+public sealed partial class SearchFiltersViewModel : ExtensionViewModel, IDisposable
 {
     /// <summary>The source option for demos that carry no label: <see cref="SearchFilterOptions.Unlabeled" />, spelt once for the rail and a stored filter.</summary>
     public const string Unlabeled = SearchFilterOptions.Unlabeled;

@@ -30,7 +30,7 @@ namespace DemoViewer.NET.ViewModels.StratBook;
 ///         column exists; this panel adds no cost of its own beyond one more scan.
 ///     </para>
 /// </summary>
-public sealed partial class StratHistoryPanelViewModel : ViewModelBase, IDisposable
+public sealed partial class StratHistoryPanelViewModel : ExtensionViewModel, IDisposable
 {
     private static readonly TimeSpan _defaultDebounce = TimeSpan.FromMilliseconds(150);
 

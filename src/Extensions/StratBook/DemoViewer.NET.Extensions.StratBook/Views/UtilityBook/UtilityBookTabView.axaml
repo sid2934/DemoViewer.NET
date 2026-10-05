@@ -3,7 +3,6 @@
              xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:vm="using:DemoViewer.NET.ViewModels.UtilityBook"
              xmlns:utility="using:DemoViewer.NET.Modules.UtilityBook"
-             xmlns:controls="using:DemoViewer.NET.Controls"
              x:Class="DemoViewer.NET.Views.UtilityBook.UtilityBookTabView"
              x:DataType="vm:UtilityBookTabViewModel">
 

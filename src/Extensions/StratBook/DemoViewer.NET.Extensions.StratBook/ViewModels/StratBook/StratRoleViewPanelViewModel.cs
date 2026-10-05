@@ -28,7 +28,7 @@ namespace DemoViewer.NET.ViewModels.StratBook;
 ///         not read from the runtime here, the Highlights precedent the tab itself follows.
 ///     </para>
 /// </summary>
-public sealed partial class StratRoleViewPanelViewModel : ViewModelBase
+public sealed partial class StratRoleViewPanelViewModel : ExtensionViewModel
 {
     private readonly Func<string, string, string?> _print;
 

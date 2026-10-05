@@ -16,7 +16,7 @@ namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Settings;
 ///     page cannot reach <c>SettingsViewModel</c>'s private <c>Persist</c>/<c>Reflect</c> echo-guard pair;
 ///     this one owns an identical pair over the same <see cref="SettingsService" /> singleton.
 /// </summary>
-public sealed partial class GrenadeIndexSettingsViewModel : ViewModelBase, IDisposable
+public sealed partial class GrenadeIndexSettingsViewModel : ExtensionViewModel, IDisposable
 {
     private readonly SettingsService _settings;
     private readonly IDisposable? _onChange;

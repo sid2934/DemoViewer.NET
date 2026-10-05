@@ -2,7 +2,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
-             xmlns:controls="using:DemoViewer.NET.Controls"
              x:Class="DemoViewer.NET.Views.Situations.ResultCardsView"
              x:DataType="vm:ResultCardsViewModel">
 

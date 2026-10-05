@@ -52,7 +52,7 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         a user can tell the zone graph from the one the index folded from its own transitions.
 ///     </para>
 /// </summary>
-public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
+public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposable
 {
     private readonly Func<string, CalloutResolver>? _calloutResolverFor;
     private readonly SituationLiveCount _counter;
@@ -740,7 +740,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 }
 
 /// <summary>One rail slot: which side and slot, whether it is on the map, where, and whether it is armed.</summary>
-public sealed partial class QueryRailSlotViewModel : ViewModelBase
+public sealed partial class QueryRailSlotViewModel : ExtensionViewModel
 {
     private readonly QueryCanvasViewModel _owner;
 

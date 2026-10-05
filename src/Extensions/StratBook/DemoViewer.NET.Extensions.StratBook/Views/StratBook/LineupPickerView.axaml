@@ -4,7 +4,6 @@
              xmlns:vm="using:DemoViewer.NET.ViewModels.StratBook"
              xmlns:ub="using:DemoViewer.NET.ViewModels.UtilityBook"
              xmlns:utility="using:DemoViewer.NET.Modules.UtilityBook"
-             xmlns:controls="using:DemoViewer.NET.Controls"
              x:Class="DemoViewer.NET.Views.StratBook.LineupPickerView"
              x:DataType="vm:LineupPickerViewModel">
 

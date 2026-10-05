@@ -18,7 +18,6 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.RoundFacts;
 using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Theming;
 using DemoViewer.NET.Views.RoundTagger;
 using DemoViewer.NET.Views.SuggestedTags;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;

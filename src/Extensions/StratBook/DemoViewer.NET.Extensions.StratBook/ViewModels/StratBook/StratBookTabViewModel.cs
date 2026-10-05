@@ -10,7 +10,6 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.StratBook;
 using DemoViewer.NET.Modules.StratBook.Canvas;
@@ -55,7 +54,7 @@ namespace DemoViewer.NET.ViewModels.StratBook;
 ///         the render boundary, like every player name.
 ///     </para>
 /// </summary>
-public sealed partial class StratBookTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class StratBookTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     /// <summary>The map filter's "no filter" entry.</summary>
     public const string AllMaps = "all maps";
