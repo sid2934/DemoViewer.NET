@@ -149,7 +149,7 @@ internal static class DetectorMath
         "event",
         e.Tick,
         e.ThrowerName is { Length: > 0 } name
-            ? string.Create(CultureInfo.InvariantCulture, $"{e.Kind} by {Library.DisplayText.Sanitize(name)} -> {e.Place ?? "unplaced"}")
+            ? string.Create(CultureInfo.InvariantCulture, $"{e.Kind} by {DisplayText.Sanitize(name)} -> {e.Place ?? "unplaced"}")
             : e.ThrowerSlot >= 0
             ? string.Create(CultureInfo.InvariantCulture, $"{e.Kind} by slot {e.ThrowerSlot} -> {e.Place ?? "unplaced"}")
             : string.Create(CultureInfo.InvariantCulture, $"{e.Kind} -> {e.Place ?? "unplaced"}"));

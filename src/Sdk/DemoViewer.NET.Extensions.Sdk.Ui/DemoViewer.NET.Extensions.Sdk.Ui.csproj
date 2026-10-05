@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The UI kit an extension builds its views with: the host's shared controls, the theme token and style
+      class names, and the view-model base the host's view locator resolves. Like the SDK it references no
+      app assembly, and it is published with it.
+    -->
+    <PropertyGroup>
+        <!-- The SDK's version, computed from its version.json, whose path filters include this project. -->
+        <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
+        <RootNamespace>DemoViewer.NET.Extensions.Sdk.Ui</RootNamespace>
+        <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <IsPackable>true</IsPackable>
+        <PackageId>DemoViewer.NET.Extensions.Sdk.Ui</PackageId>
+        <Description>Controls, theme token names and style class names for DemoViewer.NET extension views, so an extension looks like the app it runs in.</Description>
+        <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk;avalonia</PackageTags>
+        <!-- Every public member is documented: this package is read by people who cannot see the app. -->
+        <NoWarn>$(NoWarn.Replace('CS1591', ''));NU5104</NoWarn>
+        <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- Direct, not transitive: the Avalonia build tasks (XAML compilation) and the MVVM source generators
+             only run in a project that references the package itself. -->
+        <PackageReference Include="Avalonia"/>
+        <PackageReference Include="Avalonia.Skia"/>
+        <PackageReference Include="CommunityToolkit.Mvvm"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
+        <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.UiCapture"/>
+    </ItemGroup>
+
+    <!-- Same rule as the app csproj: the Avalonia XAML rewrite re-embeds the .pdb path after Roslyn, which
+         undoes ContinuousIntegrationBuild. No debug directory in Release leaves nothing to re-embed. -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>none</DebugType>
+    </PropertyGroup>
+
+</Project>

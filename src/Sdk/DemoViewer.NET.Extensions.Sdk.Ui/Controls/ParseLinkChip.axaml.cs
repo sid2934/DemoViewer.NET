@@ -7,7 +7,7 @@ using Avalonia.Interactivity;
 
 #endregion
 
-namespace DemoViewer.NET.Controls;
+namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 
 /// <summary>
 ///     Reusable clickable code-link chip. Renders a monospace

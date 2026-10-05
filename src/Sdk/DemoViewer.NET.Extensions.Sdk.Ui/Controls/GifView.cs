@@ -10,7 +10,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Controls;
+namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 
 /// <summary>
 ///     Plays an animated GIF from a file, looping, scaled to fit. Nothing is read until the control is in
@@ -23,6 +23,7 @@ namespace DemoViewer.NET.Controls;
 /// </summary>
 public sealed class GifView : Control, IDisposable
 {
+    /// <summary>Defines the <see cref="Source" /> property.</summary>
     public static readonly StyledProperty<string?> SourceProperty =
         AvaloniaProperty.Register<GifView, string?>(nameof(Source));
 
@@ -53,7 +54,7 @@ public sealed class GifView : Control, IDisposable
     public int CurrentFrame => _frame;
 
     /// <summary>Completes when the current source has been read and its first frame decoded.</summary>
-    internal Task Loading { get; private set; } = Task.CompletedTask;
+    public Task Loading { get; private set; } = Task.CompletedTask;
 
     /// <inheritdoc />
     public void Dispose() => Stop();

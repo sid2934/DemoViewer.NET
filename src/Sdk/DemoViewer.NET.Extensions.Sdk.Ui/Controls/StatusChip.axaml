@@ -1,18 +1,16 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels"
-             x:Class="DemoViewer.NET.Controls.StatusChip"
+             xmlns:vm="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
+             x:Class="DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip"
              x:DataType="vm:StatusChipViewModel">
 
     <!--
-        StatusChip (docs/csvg-integration/ux-design.md; contract in docs/ui/design-system.md).
-        A dot + neutral label in the bottom StatusStrip that opens a card-flyout for detail + actions.
+        A dot and a neutral label that opens a card-flyout for detail and actions.
 
-        THEME MANDATE: the dot colour is NOT a code-held brush — the shared `Ellipse.dot.*` styles in
-        Styles/Primitives.axaml resolve it from a DarkPalette token via the bound state→class selector
-        (the Border.teamChip pattern), so it re-themes live. The LABEL is always the neutral TextMid
-        token — the only universally-AA-safe label across the four built-in themes; state is
-        word-carried, the dot a redundant colour cue.
+        The dot colour is not a code-held brush: the host's `Ellipse.dot.*` styles resolve it from a
+        palette token through the bound state-to-class selector, so it re-themes live. The label is
+        always the neutral TextMid token, the only label that is AA-safe across the built-in themes;
+        the word carries the state and the dot is a redundant colour cue.
     -->
 
     <!-- Chip body: a ghost button [dot][label]; click / Enter opens the flyout (Button auto-opens its Flyout). -->

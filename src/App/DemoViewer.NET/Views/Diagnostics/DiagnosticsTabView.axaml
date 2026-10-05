@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:vm="using:DemoViewer.NET.ViewModels.Diagnostics"
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:diagViews="using:DemoViewer.NET.Views.Diagnostics"
@@ -79,7 +80,7 @@
                         <Border Classes="sectionHeader">
                             <TextBlock Text="SYSTEM" Classes="sectionLabel" />
                         </Border>
-                        <controls:KeyValueTable Rows="{Binding SystemRows}" Margin="0 4 0 0" />
+                        <ui:KeyValueTable Rows="{Binding SystemRows}" Margin="0 4 0 0" />
                     </StackPanel>
 
                     <!-- A2 Environment -->
@@ -87,7 +88,7 @@
                         <Border Classes="sectionHeader">
                             <TextBlock Text="ENVIRONMENT" Classes="sectionLabel" />
                         </Border>
-                        <controls:KeyValueTable Rows="{Binding EnvironmentRows}" Margin="0 4 0 0" />
+                        <ui:KeyValueTable Rows="{Binding EnvironmentRows}" Margin="0 4 0 0" />
                     </StackPanel>
 
                     <!-- A3 Session -->
@@ -95,7 +96,7 @@
                         <Border Classes="sectionHeader">
                             <TextBlock Text="SESSION" Classes="sectionLabel" />
                         </Border>
-                        <controls:KeyValueTable Rows="{Binding SessionRows}" Margin="0 4 0 0" />
+                        <ui:KeyValueTable Rows="{Binding SessionRows}" Margin="0 4 0 0" />
                     </StackPanel>
 
                 </StackPanel>
@@ -222,7 +223,7 @@
                                     <Border Classes="sectionHeader">
                                         <TextBlock Text="METRICS (CSVG + ASP.NET)" Classes="sectionLabel" />
                                     </Border>
-                                    <controls:KeyValueTable Rows="{Binding CsvgMetricRows}" Margin="0 4 0 0" />
+                                    <ui:KeyValueTable Rows="{Binding CsvgMetricRows}" Margin="0 4 0 0" />
                                 </StackPanel>
                             </Border>
 
@@ -231,7 +232,7 @@
                                     <Border Classes="sectionHeader">
                                         <TextBlock Text="RECENT SPANS (newest first)" Classes="sectionLabel" />
                                     </Border>
-                                    <controls:KeyValueTable Rows="{Binding CsvgTraceRows}" Margin="0 4 0 0" />
+                                    <ui:KeyValueTable Rows="{Binding CsvgTraceRows}" Margin="0 4 0 0" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -242,7 +243,7 @@
                               Header="Parse pipeline"
                               IsExpanded="True"
                               IsVisible="{Binding ParseProfilingVisible}">
-                        <controls:KeyValueTable Rows="{Binding ParseProfilingRows}" />
+                        <ui:KeyValueTable Rows="{Binding ParseProfilingRows}" />
                     </Expander>
 
                     <!-- B2 Entity profiling (compile-gated: PROFILE_ENTITY) -->
@@ -250,7 +251,7 @@
                               Header="Entity decode"
                               IsExpanded="True"
                               IsVisible="{Binding EntityProfilingVisible}">
-                        <controls:KeyValueTable Rows="{Binding EntityProfilingRows}" />
+                        <ui:KeyValueTable Rows="{Binding EntityProfilingRows}" />
                     </Expander>
 
                     <!-- B3 Evaluator runtime (always rendered; idle until toggled) -->
@@ -272,7 +273,7 @@
 
                             <TextBlock Text="{Binding EvaluatorStatus}" Classes="diagHint" />
 
-                            <controls:KeyValueTable Rows="{Binding EvaluatorCounterRows}" />
+                            <ui:KeyValueTable Rows="{Binding EvaluatorCounterRows}" />
 
                             <Border Background="{DynamicResource PanelBg}"
                                     CornerRadius="4" Padding="0 4">
@@ -280,7 +281,7 @@
                                     <Border Classes="sectionHeader">
                                         <TextBlock Text="PHASE TIMELINE" Classes="sectionLabel" />
                                     </Border>
-                                    <controls:KeyValueTable Rows="{Binding EvaluatorTimelineRows}" Margin="0 4 0 0" />
+                                    <ui:KeyValueTable Rows="{Binding EvaluatorTimelineRows}" Margin="0 4 0 0" />
                                 </StackPanel>
                             </Border>
 

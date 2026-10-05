@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
         xmlns:vm="using:DemoViewer.NET.ViewModels"
         xmlns:shell="using:DemoViewer.NET.ViewModels.Shell"
         xmlns:controls="using:DemoViewer.NET.Controls"
@@ -27,7 +28,7 @@
             <ItemsControl ItemsSource="{Binding ParseChain}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ParseChainEntry">
-                        <controls:ParseLinkChip Label="{Binding Label}"
+                        <ui:ParseLinkChip Label="{Binding Label}"
                                                 Detail="{Binding Detail}"
                                                 SourceBadge="{Binding SourceBadge}"
                                                 Indent="{Binding Indent}"

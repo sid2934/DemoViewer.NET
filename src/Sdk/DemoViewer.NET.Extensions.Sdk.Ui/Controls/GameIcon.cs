@@ -13,7 +13,7 @@ using DemoViewer.NET.GameIcons;
 
 #endregion
 
-namespace DemoViewer.NET.Controls;
+namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 
 /// <summary>
 ///     Draws one baked CS2 icon, tinted to <see cref="Foreground" />.
@@ -26,8 +26,8 @@ namespace DemoViewer.NET.Controls;
 ///         <see cref="Foreground" /> is an ordinary styled property and takes a <c>DynamicResource</c>.
 ///     </para>
 ///     <para>
-///         <b>Sized by height, never by a square box.</b> Most of the catalogue is not square — an AWP is
-///         3.42× wider than it is tall — so <see cref="IconHeight" /> is the input and the width follows
+///         <b>Sized by height, never by a square box.</b> Most of the catalogue is not square (an AWP is
+///         3.42× wider than it is tall), so <see cref="IconHeight" /> is the input and the width follows
 ///         from the manifest's intrinsic aspect. Measuring the bitmap instead would work, but only after a
 ///         decode; the manifest knows the aspect without touching pixels.
 ///     </para>
@@ -94,7 +94,7 @@ public sealed class GameIcon : Control
     }
 
     /// <summary>
-    ///     Text drawn where the icon would have gone when the key is <b>missing</b> from the bake — a
+    ///     Text drawn where the icon would have gone when the key is <b>missing</b> from the bake: a
     ///     typo, an uncurated key, or one a CS2 update renamed.
     ///     <para>
     ///         <b>Not drawn for artwork CS2 ships deliberately empty</b> (the environment deaths). That
@@ -179,7 +179,7 @@ public sealed class GameIcon : Control
 
 
         // A picture is drawn as it was baked. Rank badges and Premier emblems carry their own colour,
-        // and masking one would replace all of it with a single flat fill — a Global Elite badge would
+        // and masking one would replace all of it with a single flat fill, so a Global Elite badge would
         // come out as an orange blob. Only hue-free artwork is a mask.
         if (!icon.Tintable)
         {
@@ -203,7 +203,7 @@ public sealed class GameIcon : Control
     ///     <para>
     ///         <b>Only <see cref="IconAvailability.Blank" /> suppresses it.</b> A missing key falls back
     ///         because something should have drawn and did not; a <see cref="IconAvailability.None" />
-    ///         — no key bound at all — also falls back, because that is a caller who has a glyph of its
+    ///         (no key bound at all) also falls back, because that is a caller who has a glyph of its
     ///         own and simply no icon to prefer over it, which is how the timeline draws annotation and
     ///         round markers CS2 has no artwork for. Blank is the one case where the game itself is
     ///         saying there is nothing here, and inventing a word for it would be a lie.

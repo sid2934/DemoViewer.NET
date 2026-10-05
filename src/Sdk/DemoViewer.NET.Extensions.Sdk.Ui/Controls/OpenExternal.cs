@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 #endregion
 
-namespace DemoViewer.NET.Controls;
+namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 
 /// <summary>
 ///     Helpers for opening source links: VS Code (preferred for local paths with line numbers)

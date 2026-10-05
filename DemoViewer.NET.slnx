@@ -26,6 +26,7 @@
     </Folder>
     <Folder Name="/src/Sdk/">
         <Project Path="src/Sdk/DemoViewer.NET.Extensions.Sdk/DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <Project Path="src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
     </Folder>
     <Folder Name="/src/Extensions/">
         <Project

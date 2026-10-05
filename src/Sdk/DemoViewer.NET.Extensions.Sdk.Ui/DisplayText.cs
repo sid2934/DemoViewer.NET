@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Library;
+namespace DemoViewer.NET.Extensions.Sdk.Ui;
 
 /// <summary>
 ///     Sanitizes untrusted user-generated strings (CS2 player names) for DISPLAY in wrapping

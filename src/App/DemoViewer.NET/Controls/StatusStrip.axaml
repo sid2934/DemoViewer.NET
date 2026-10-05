@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:controls="using:DemoViewer.NET.Controls"
              xmlns:vm="using:DemoViewer.NET.ViewModels"
              x:Class="DemoViewer.NET.Controls.StatusStrip"
@@ -48,8 +49,8 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:StatusChipViewModel">
-                        <controls:StatusChip />
+                    <DataTemplate x:DataType="ui:StatusChipViewModel">
+                        <ui:StatusChip />
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

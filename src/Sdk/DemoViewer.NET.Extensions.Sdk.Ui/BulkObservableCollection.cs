@@ -6,7 +6,7 @@ using System.ComponentModel;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Library;
+namespace DemoViewer.NET.Extensions.Sdk.Ui;
 
 /// <summary>
 ///     An <see cref="ObservableCollection{T}" /> with a bulk <see cref="AddRange" /> that raises a

@@ -5,14 +5,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels;
+namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 
 /// <summary>
-///     The dot's semantic state: maps 1:1 onto a DarkPalette token via a bound state→class selector in
-///     <c>Controls/StatusChip.axaml</c> (the <c>Border.teamChip</c> pattern), NOT a code-held brush, so the
-///     dot re-themes live. Off and Suspended share
-///     <see cref="Off" /> (both render <c>TextDim</c>); the <em>word</em> in <see cref="StatusChipViewModel.Label" />
-///     is the accessible carrier of state, the dot a redundant colour cue (WCAG 1.4.1).
+///     The dot's semantic state. Each maps onto one palette token through a bound state-to-class selector in
+///     <see cref="StatusChip" />, never a code-held brush, so the dot re-themes live. The word in
+///     <see cref="StatusChipViewModel.Label" /> is the accessible carrier of state; the dot is a redundant
+///     colour cue.
 /// </summary>
 public enum StatusChipDotState
 {
@@ -33,19 +32,16 @@ public enum StatusChipDotState
 }
 
 /// <summary>
-///     The reusable view-model behind a <c>Controls/StatusChip</c>: a persistent, stateful
-///     background-activity indicator (a dot + neutral label) that opens a <c>card-flyout</c> for detail and
-///     actions (docs/ui/design-system.md "StatusChip"). Two consumers justify the shared control: Live Sync
-///     and the future Reel job.
+///     The view model behind a <see cref="StatusChip" />: a persistent background-activity indicator, a dot and
+///     a neutral label, that opens a <c>card-flyout</c> for detail and actions.
 ///     <para>
-///         Colour rule (theme mandate): this VM holds <b>no brushes</b>. It exposes the dot's semantic state
-///         (<see cref="DotState" />) plus <see cref="IsPulsing" /> / <see cref="IsHollow" /> as
-///         class-driving flags; the XAML resolves the token via a <c>{DynamicResource}</c> state→class Style,
-///         so every colour tracks the active theme. The label is always the neutral <c>TextMid</c> token
-///         (the only universally-AA-safe label across the four built-in themes).
+///         It holds no brushes. It exposes the dot's semantic state (<see cref="DotState" />) and the
+///         <see cref="IsPulsing" /> and <see cref="IsHollow" /> flags; the control resolves the colour from a
+///         palette token, so every colour tracks the active theme. The label is always the neutral
+///         <c>TextMid</c> token.
 ///     </para>
 /// </summary>
-public sealed partial class StatusChipViewModel : ViewModelBase
+public sealed partial class StatusChipViewModel : ObservableObject
 {
     /// <summary>The dot's semantic state (drives the state→token class selector).</summary>
     [ObservableProperty]
@@ -56,9 +52,8 @@ public sealed partial class StatusChipViewModel : ViewModelBase
     private object? _flyoutContent;
 
     /// <summary>
-    ///     True to render the dot as a hollow ring (stroke, transparent fill): the single "believed-good but
-    ///     inferred, not engine-confirmed" treatment. Sync is outbound-only today so this is always false
-    ///     today, but the rendering path is implemented against the contract's <c>IsInferred</c> flag.
+    ///     True to render the dot as a hollow ring (stroke, transparent fill): the one "believed good but
+    ///     inferred, not confirmed" treatment, meant to pair with <see cref="StatusChipDotState.Good" />.
     /// </summary>
     [ObservableProperty]
     private bool _isHollow;
@@ -71,7 +66,7 @@ public sealed partial class StatusChipViewModel : ViewModelBase
     [ObservableProperty]
     private string _label = "";
 
-    /// <summary>Optional primary action (unused by the flyout-driven Live Sync chip; part of the shared contract).</summary>
+    /// <summary>Optional primary action for the chip's owner to run.</summary>
     [ObservableProperty]
     private ICommand? _primaryAction;
 

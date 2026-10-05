@@ -1,0 +1,127 @@
+#nullable enable
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>.AddRange(System.Collections.Generic.IEnumerable<T>! items) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>.BulkObservableCollection() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>.ReplaceAll(System.Collections.Generic.IEnumerable<T>! items) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.BulkObservableCollection<T>.SyncTo(System.Collections.Generic.IReadOnlyList<T>! target) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Fallback.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Fallback.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontFamily.get -> Avalonia.Media.FontFamily!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontFamily.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontSize.get -> double
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontSize.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Foreground.get -> Avalonia.Media.IBrush?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Foreground.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.GameIcon() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.IconHeight.get -> double
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.IconHeight.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Key.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Key.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.CurrentFrame.get -> int
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Dispose() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.FrameCount.get -> int
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.GifView() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Loading.get -> System.Threading.Tasks.Task!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Source.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Source.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.InitializeComponent(bool loadXaml = true) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.KeyValueTable() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.Rows.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.Rows.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.ShowDeltaOnly.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.ShowDeltaOnly.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.VisibleRows.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Deconstruct(out string! Key, out string! Value, out bool IsDelta, out string? PreviousValue) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Equals(DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.IsDelta.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.IsDelta.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Key.get -> string!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Key.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.KvpRow(string! Key, string! Value, bool IsDelta, string? PreviousValue) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.PreviousValue.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.PreviousValue.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Value.get -> string!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Value.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.Markdown.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.Markdown.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.MarkdownBlock() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.OpenExternal
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Command.get -> System.Windows.Input.ICommand?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Command.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Detail.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Detail.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Indent.get -> Avalonia.Thickness
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Indent.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.InitializeComponent(bool loadXaml = true) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.IsClickable.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Label.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalLine.get -> int?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalLine.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalPath.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalPath.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.ParseLinkChip() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.SourceBadge.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.SourceBadge.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Tooltip.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.Tooltip.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.WebFallback.get -> string?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.WebFallback.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip.InitializeComponent(bool loadXaml = true) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip.StatusChip() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Degraded = 3 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Error = 4 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Good = 2 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Off = 0 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState.Working = 1 -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipDotState
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateDegraded.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateError.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateGood.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateOff.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.IsStateWorking.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChipViewModel.StatusChipViewModel() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.DisplayText
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.Render(Avalonia.Media.DrawingContext! context) -> void
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.Render(Avalonia.Media.DrawingContext! context) -> void
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs! change) -> void
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.OnPropertyChanged(Avalonia.AvaloniaPropertyChangedEventArgs! change) -> void
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.operator !=(DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? left, DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow.operator ==(DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? left, DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.OpenExternal.OpenLocalFile(string! localPath, int? line = null, int? column = null) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.OpenExternal.OpenUri(string! uri) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.OpenExternal.TryOpenInVsCode(string! localPath, int? line = null, int? column = null) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.DisplayText.Sanitize(string! text) -> string!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FallbackProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontFamilyProperty -> Avalonia.StyledProperty<Avalonia.Media.FontFamily!>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.FontSizeProperty -> Avalonia.StyledProperty<double>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.ForegroundProperty -> Avalonia.StyledProperty<Avalonia.Media.IBrush?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.IconHeightProperty -> Avalonia.StyledProperty<double>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GameIcon.KeyProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.GifView.SourceProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.RowsProperty -> Avalonia.StyledProperty<System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.ShowDeltaOnlyProperty -> Avalonia.StyledProperty<bool>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable.VisibleRowsProperty -> Avalonia.DirectProperty<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KeyValueTable!, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.Ui.Controls.KvpRow!>!>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.MarkdownBlock.MarkdownProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.CommandProperty -> Avalonia.StyledProperty<System.Windows.Input.ICommand?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.DetailProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.IndentProperty -> Avalonia.StyledProperty<Avalonia.Thickness>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.IsClickableProperty -> Avalonia.DirectProperty<DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip!, bool>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LabelProperty -> Avalonia.StyledProperty<string!>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalLineProperty -> Avalonia.StyledProperty<int?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.LocalPathProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.SourceBadgeProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.TooltipProperty -> Avalonia.StyledProperty<string?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.ParseLinkChip.WebFallbackProperty -> Avalonia.StyledProperty<string?>!

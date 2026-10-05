@@ -5,7 +5,7 @@ using Avalonia.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Controls;
+namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 
 /// <summary>
 ///     Generic two-column key/value grid. Renders <see cref="Rows" /> as a

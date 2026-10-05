@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:shell="using:DemoViewer.NET.ViewModels.Shell"
@@ -110,7 +111,7 @@
                 <!-- Row 1: flat field table (default) or recursive relationship tree, toggled by ShowRelationshipTree -->
                 <Panel Grid.Row="1" IsVisible="{Binding EntityTab.HasEntitySelection}">
 
-                    <controls:KeyValueTable Rows="{Binding EntityTab.EntityFieldRows}"
+                    <ui:KeyValueTable Rows="{Binding EntityTab.EntityFieldRows}"
                                             ShowDeltaOnly="{Binding EntityTab.ShowDeltaFieldsOnly}"
                                             IsVisible="{Binding !EntityTab.ShowRelationshipTree}" />
 

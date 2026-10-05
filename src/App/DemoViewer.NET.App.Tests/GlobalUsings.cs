@@ -5,3 +5,6 @@
 
 global using CS2OpenSchema.Protos;
 global using CS2OpenSchema.Events;
+
+global using DemoViewer.NET.Extensions.Sdk.Ui;
+global using DemoViewer.NET.Extensions.Sdk.Ui.Controls;

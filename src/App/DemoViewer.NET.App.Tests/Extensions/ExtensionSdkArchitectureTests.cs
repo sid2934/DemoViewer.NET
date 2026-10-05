@@ -17,6 +17,30 @@ public class ExtensionSdkArchitectureTests
     }
 
     [Test]
+    public async Task TheUiKit_ReferencesOnlyTheSdkAndTheIconCatalogue_OfThisRepo()
+    {
+        string[] ours =
+        [
+            .. typeof(DisplayText).Assembly.GetReferencedAssemblies()
+                .Select(a => a.Name!)
+                .Where(n => n.StartsWith("DemoViewer.NET", StringComparison.Ordinal))
+        ];
+
+        string[] allowed = ["DemoViewer.NET.Extensions.Sdk", "DemoViewer.NET.Modules.Abstractions", "DemoViewer.NET.GameIcons"];
+
+        await Assert.That(ours.Except(allowed)).IsEmpty();
+    }
+
+    [Test]
+    public async Task TheUiKitAndIconAssemblyVersions_AreTheSdks()
+    {
+        Version sdk = typeof(IExtension).Assembly.GetName().Version!;
+
+        await Assert.That(typeof(DisplayText).Assembly.GetName().Version).IsEqualTo(sdk);
+        await Assert.That(typeof(GameIcons.IconCatalogue).Assembly.GetName().Version).IsEqualTo(sdk);
+    }
+
+    [Test]
     public async Task TheModuleAbstractions_ReferenceNothingOfThisRepo()
     {
         string[] ours =

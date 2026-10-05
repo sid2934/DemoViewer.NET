@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:DemoViewer.NET.ViewModels.EntityTracking"
@@ -50,7 +51,7 @@
                             <!-- A weapon entity gets CS2's own silhouette next to its class name, so a
                                  CWeaponAWP is recognisable at a glance in a list of hundreds of entities.
                                  Non-weapon classes resolve to nothing and leave the column empty. -->
-                            <controls:GameIcon Grid.Column="1" IconHeight="9"
+                            <ui:GameIcon Grid.Column="1" IconHeight="9"
                                                Key="{Binding ClassName, Converter={x:Static controls:WeaponIconKey.EntityClass}}"
                                                Foreground="{DynamicResource TextDim}"
                                                HorizontalAlignment="Left" VerticalAlignment="Center"

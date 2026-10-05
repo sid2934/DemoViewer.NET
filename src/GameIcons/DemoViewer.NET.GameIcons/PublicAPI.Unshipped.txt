@@ -1,0 +1,83 @@
+#nullable enable
+DemoViewer.NET.GameIcons.IconAvailability
+DemoViewer.NET.GameIcons.IconAvailability.Available = 1 -> DemoViewer.NET.GameIcons.IconAvailability
+DemoViewer.NET.GameIcons.IconAvailability.Blank = 2 -> DemoViewer.NET.GameIcons.IconAvailability
+DemoViewer.NET.GameIcons.IconAvailability.Missing = 3 -> DemoViewer.NET.GameIcons.IconAvailability
+DemoViewer.NET.GameIcons.IconAvailability.None = 0 -> DemoViewer.NET.GameIcons.IconAvailability
+DemoViewer.NET.GameIcons.IconCatalogue
+DemoViewer.NET.GameIcons.IconRef
+DemoViewer.NET.GameIcons.IconRef.<Clone>$() -> DemoViewer.NET.GameIcons.IconRef!
+DemoViewer.NET.GameIcons.IconRef.Aspect.get -> double
+DemoViewer.NET.GameIcons.IconRef.Bytes(int scale) -> byte[]!
+DemoViewer.NET.GameIcons.IconRef.Deconstruct(out string! Key, out double Width, out double Height, out bool Tintable) -> void
+DemoViewer.NET.GameIcons.IconRef.Equals(DemoViewer.NET.GameIcons.IconRef? other) -> bool
+DemoViewer.NET.GameIcons.IconRef.Height.get -> double
+DemoViewer.NET.GameIcons.IconRef.Height.init -> void
+DemoViewer.NET.GameIcons.IconRef.IconRef(string! Key, double Width, double Height, bool Tintable = true) -> void
+DemoViewer.NET.GameIcons.IconRef.Key.get -> string!
+DemoViewer.NET.GameIcons.IconRef.Key.init -> void
+DemoViewer.NET.GameIcons.IconRef.Open(int scale) -> System.IO.Stream!
+DemoViewer.NET.GameIcons.IconRef.Tintable.get -> bool
+DemoViewer.NET.GameIcons.IconRef.Tintable.init -> void
+DemoViewer.NET.GameIcons.IconRef.Width.get -> double
+DemoViewer.NET.GameIcons.IconRef.Width.init -> void
+DemoViewer.NET.GameIcons.IconRef.WidthAt(double pixelHeight) -> double
+DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.Blind = 16 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.Domination = 128 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.Headshot = 1 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.InAir = 32 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.NoScope = 2 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.None = 0 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.Penetrate = 4 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.Revenge = 256 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.Smoke = 8 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.KillModifier.Suicide = 64 -> DemoViewer.NET.GameIcons.KillModifier
+DemoViewer.NET.GameIcons.PremierTier
+DemoViewer.NET.GameIcons.PremierTier.<Clone>$() -> DemoViewer.NET.GameIcons.PremierTier!
+DemoViewer.NET.GameIcons.PremierTier.Deconstruct(out int Index, out string! Key, out string! Hex, out int MinRating) -> void
+DemoViewer.NET.GameIcons.PremierTier.Equals(DemoViewer.NET.GameIcons.PremierTier? other) -> bool
+DemoViewer.NET.GameIcons.PremierTier.Hex.get -> string!
+DemoViewer.NET.GameIcons.PremierTier.Hex.init -> void
+DemoViewer.NET.GameIcons.PremierTier.Index.get -> int
+DemoViewer.NET.GameIcons.PremierTier.Index.init -> void
+DemoViewer.NET.GameIcons.PremierTier.Key.get -> string!
+DemoViewer.NET.GameIcons.PremierTier.Key.init -> void
+DemoViewer.NET.GameIcons.PremierTier.MinRating.get -> int
+DemoViewer.NET.GameIcons.PremierTier.MinRating.init -> void
+DemoViewer.NET.GameIcons.PremierTier.PremierTier(int Index, string! Key, string! Hex, int MinRating) -> void
+const DemoViewer.NET.GameIcons.IconCatalogue.MaxRank = 18 -> int
+override DemoViewer.NET.GameIcons.IconRef.Equals(object? obj) -> bool
+override DemoViewer.NET.GameIcons.IconRef.GetHashCode() -> int
+override DemoViewer.NET.GameIcons.IconRef.ToString() -> string!
+override DemoViewer.NET.GameIcons.PremierTier.Equals(object? obj) -> bool
+override DemoViewer.NET.GameIcons.PremierTier.GetHashCode() -> int
+override DemoViewer.NET.GameIcons.PremierTier.ToString() -> string!
+static DemoViewer.NET.GameIcons.IconCatalogue.CompetitiveRank(int rank) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.Demand(string? key, out DemoViewer.NET.GameIcons.IconAvailability availability) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.Get(string! key) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.IsBlank(string? key) -> bool
+static DemoViewer.NET.GameIcons.IconCatalogue.Keys.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+static DemoViewer.NET.GameIcons.IconCatalogue.Map(string? mapName) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.MissingKeyObserver.get -> System.Action<string!>?
+static DemoViewer.NET.GameIcons.IconCatalogue.MissingKeyObserver.set -> void
+static DemoViewer.NET.GameIcons.IconCatalogue.MissingKeys.get -> System.Collections.Generic.IReadOnlyCollection<string!>!
+static DemoViewer.NET.GameIcons.IconCatalogue.Modifier(DemoViewer.NET.GameIcons.KillModifier modifier) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.NeedsWinsBadge() -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.PremierEmblem(int csRating) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.PremierTiers.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.GameIcons.PremierTier!>!
+static DemoViewer.NET.GameIcons.IconCatalogue.PremierUnranked() -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.RankName(int rank) -> string!
+static DemoViewer.NET.GameIcons.IconCatalogue.RankNames.get -> System.Collections.Generic.IReadOnlyList<string!>!
+static DemoViewer.NET.GameIcons.IconCatalogue.ScaleFor(double pixelHeight) -> int
+static DemoViewer.NET.GameIcons.IconCatalogue.Scales.get -> System.Collections.Generic.IReadOnlyList<int>!
+static DemoViewer.NET.GameIcons.IconCatalogue.SourceHash.get -> string!
+static DemoViewer.NET.GameIcons.IconCatalogue.TierForRating(int csRating) -> DemoViewer.NET.GameIcons.PremierTier!
+static DemoViewer.NET.GameIcons.IconCatalogue.Ui(string! name) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.UnrankedBadge(bool expired = false, bool wingman = false) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.Weapon(string? demoWeaponName) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconCatalogue.WingmanRank(int rank) -> DemoViewer.NET.GameIcons.IconRef?
+static DemoViewer.NET.GameIcons.IconRef.operator !=(DemoViewer.NET.GameIcons.IconRef? left, DemoViewer.NET.GameIcons.IconRef? right) -> bool
+static DemoViewer.NET.GameIcons.IconRef.operator ==(DemoViewer.NET.GameIcons.IconRef? left, DemoViewer.NET.GameIcons.IconRef? right) -> bool
+static DemoViewer.NET.GameIcons.PremierTier.operator !=(DemoViewer.NET.GameIcons.PremierTier? left, DemoViewer.NET.GameIcons.PremierTier? right) -> bool
+static DemoViewer.NET.GameIcons.PremierTier.operator ==(DemoViewer.NET.GameIcons.PremierTier? left, DemoViewer.NET.GameIcons.PremierTier? right) -> bool

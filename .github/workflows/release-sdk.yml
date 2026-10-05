@@ -1,4 +1,5 @@
-# The extension SDK's release: DemoViewer.NET.Modules.Abstractions and DemoViewer.NET.Extensions.Sdk, packed
+# The extension SDK's release: DemoViewer.NET.Modules.Abstractions, DemoViewer.NET.GameIcons,
+# DemoViewer.NET.Extensions.Sdk and DemoViewer.NET.Extensions.Sdk.Ui, packed
 # at the version Nerdbank.GitVersioning computes from src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json and
 # pushed to nuget.org.
 #
@@ -59,7 +60,7 @@ jobs:
         if: steps.version.outputs.publish == '1'
         run: |
           set -euo pipefail
-          for list in src/App/DemoViewer.NET.Modules.Abstractions/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk/PublicAPI.Unshipped.txt; do
+          for list in src/App/DemoViewer.NET.Modules.Abstractions/PublicAPI.Unshipped.txt src/GameIcons/DemoViewer.NET.GameIcons/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/PublicAPI.Unshipped.txt; do
             if grep -qv '^#nullable' "$list"; then
               echo "error: $list still has entries; run scripts/ship-public-api.sh and tag that commit" >&2
               exit 1
@@ -69,7 +70,9 @@ jobs:
       - name: Pack
         run: |
           dotnet pack src/App/DemoViewer.NET.Modules.Abstractions -c Release -o artifacts/sdk-packages
+          dotnet pack src/GameIcons/DemoViewer.NET.GameIcons -c Release -o artifacts/sdk-packages
           dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk -c Release -o artifacts/sdk-packages
+          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui -c Release -o artifacts/sdk-packages
           ls -l artifacts/sdk-packages
 
       - uses: actions/upload-artifact@v4

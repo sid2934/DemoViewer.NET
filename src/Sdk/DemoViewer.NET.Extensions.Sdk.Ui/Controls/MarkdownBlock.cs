@@ -9,7 +9,7 @@ using Avalonia.Media;
 
 #endregion
 
-namespace DemoViewer.NET.Controls;
+namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 
 /// <summary>
 ///     Renders a small, dependency-free subset of GitHub-flavored markdown: headings, paragraphs,

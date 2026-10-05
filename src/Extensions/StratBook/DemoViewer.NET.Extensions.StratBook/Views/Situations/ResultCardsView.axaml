@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
              xmlns:controls="using:DemoViewer.NET.Controls"
              x:Class="DemoViewer.NET.Views.Situations.ResultCardsView"
@@ -130,7 +131,7 @@
 
                                                 <!-- The end reason with its icon, and the clock at the matched tick. -->
                                                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
-                                                    <controls:GameIcon Grid.Column="0" Key="{Binding EndReasonIconKey}" IconHeight="10"
+                                                    <ui:GameIcon Grid.Column="0" Key="{Binding EndReasonIconKey}" IconHeight="10"
                                                                        Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
                                                     <TextBlock Grid.Column="1" Text="{Binding EndReasonText}" Classes="fact"
                                                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />

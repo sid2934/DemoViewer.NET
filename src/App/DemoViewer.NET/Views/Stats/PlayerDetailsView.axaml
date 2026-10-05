@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:stats="using:DemoViewer.NET.ViewModels.Stats"
@@ -45,7 +46,7 @@
              beside it already says which weapon it is. -->
         <DataTemplate x:Key="WeaponBarRowTemplate" x:DataType="stats:BarRowItem">
             <Grid ColumnDefinitions="34,72,150,Auto" Margin="0 2" ToolTip.Tip="{Binding Tooltip}">
-                <controls:GameIcon Grid.Column="0" IconHeight="11"
+                <ui:GameIcon Grid.Column="0" IconHeight="11"
                                    Key="{Binding Label, Converter={x:Static controls:WeaponIconKey.Key}}"
                                    Foreground="{DynamicResource TextMid}"
                                    HorizontalAlignment="Left" VerticalAlignment="Center"
