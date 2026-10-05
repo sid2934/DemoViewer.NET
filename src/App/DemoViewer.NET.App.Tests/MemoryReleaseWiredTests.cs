@@ -14,12 +14,12 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The close-demo memory gate, run with the shell WIRED the way the real app wires it:
-///     a real <see cref="DemoProcessingQueue" /> and <see cref="DemoEvaluationCoordinator" />.
+///     a real <see cref="DemoProcessingQueue" /> and <see cref="DemoScheduler" />.
 ///     <para>
 ///         <see cref="MemoryReleaseTests" /> leaves both null (the default ctor args), which is exactly why
 ///         it stayed green while the shipped app retained ~3.6 GB after a close: the open routes through
-///         <c>RequestForegroundAsync</c> and hands the parsed demo to a fire-and-forget
-///         <c>FanOutParsed</c>, and the queue keeps terminal entries in a 30-deep history. None of that
+///         the open item and hands the parsed demo to the open's pass run on a worker, and the queue keeps
+///         terminal entries in a 30-deep history. None of that
 ///         machinery exists in the unwired fixture, so no test could see a root that lives inside it.
 ///     </para>
 /// </summary>
@@ -38,13 +38,13 @@ public class MemoryReleaseWiredTests
         {
             HeavyJobGate gate = new();
             DemoProcessingQueue queue = new(gate, a => a());
-            DemoEvaluationCoordinator coordinator = new([], queue, () => []);
+            DemoScheduler coordinator = new([], queue, () => []);
 
             MainViewModel? vm = new(
                 library: TestLibraries.Empty(),
                 heavyJobGate: gate,
                 processingQueue: queue,
-                evaluationCoordinator: coordinator);
+                scheduler: coordinator);
 
             await vm.AutoLoadDemoAsync(demo);
             (parsedRef, frameRef) = Capture(vm);
@@ -94,12 +94,12 @@ public class MemoryReleaseWiredTests
         {
             HeavyJobGate gate = new();
             DemoProcessingQueue queue = new(gate, a => a());
-            DemoEvaluationCoordinator coordinator = new([], queue, () => []);
+            DemoScheduler coordinator = new([], queue, () => []);
             MainViewModel? vm = new(
                 library: TestLibraries.Empty(),
                 heavyJobGate: gate,
                 processingQueue: queue,
-                evaluationCoordinator: coordinator);
+                scheduler: coordinator);
 
             await vm.LoadDemoFromPathAsync(demo);
             parsedRef = Capture(vm).Parsed;

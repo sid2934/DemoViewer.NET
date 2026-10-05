@@ -65,7 +65,7 @@ public sealed record TagInstanceEdit(
 /// </summary>
 public sealed class SuggestedTagsService : IDemoEvaluator
 {
-    /// <summary>The queue owner tag and the coordinator's id.</summary>
+    /// <summary>The queue owner tag and the pass id.</summary>
     public const string EvaluatorId = "suggestedtags";
 
     /// <summary>
@@ -170,14 +170,14 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(SuggestedTagsLog.Category);
 
-    /// <summary>The coordinator, so a forced request can ask it to reconsider. Null in tests.</summary>
-    public DemoEvaluationCoordinator? Coordinator { get; set; }
+    /// <summary>The scheduler, so a forced request can ask for the demo again. Null in tests.</summary>
+    public DemoScheduler? Scheduler { get; set; }
 
     /// <summary>Whether proposals and verdicts outlive the process. False on the browser host.</summary>
     public bool IsPersistent => _proposals.IsPersistent && (_tags?.IsPersistent ?? false);
 
-    /// <summary>True while the coordinator has a build in flight.</summary>
-    public bool IsDetecting => Coordinator?.HasOutstanding(EvaluatorId) ?? false;
+    /// <summary>True while the scheduler has a build in flight.</summary>
+    public bool IsDetecting => Scheduler?.HasOutstanding(EvaluatorId) ?? false;
 
     /// <inheritdoc />
     public string Id => EvaluatorId;
@@ -191,7 +191,8 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     /// <inheritdoc />
     /// <remarks>
     ///     From the index row alone: the gate on, Round Facts rows present, the proposals missing or built
-    ///     under another fingerprint than the map's current one, and the sweep on or the demo forced.
+    ///     under another fingerprint than the map's current one, and the sweep on or the demo forced. The
+    ///     open demo is wanted whatever the opt-in says: its build runs on the parse the open paid for.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -213,11 +214,14 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             }
         }
 
-        return _background();
+        return _background() || IsOpen(path);
     }
 
     /// <inheritdoc />
-    /// <remarks>A demo without Round Facts rows yet, with the sweep on or the demo forced: the proposals follow the rows.</remarks>
+    /// <remarks>
+    ///     A demo without Round Facts rows yet, with the sweep on, the demo forced or the demo open: the
+    ///     proposals follow the rows.
+    /// </remarks>
     public bool WantsAfterUpstream(string path)
     {
         if (!_enabled() || HasInputs(_demoCache.TryGetIndex(path)))
@@ -238,7 +242,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             }
         }
 
-        return _background();
+        return _background() || IsOpen(path);
     }
 
     /// <inheritdoc />
@@ -257,26 +261,11 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    /// <remarks>
-    ///     The open demo is built on the parse its open paid for whatever the opt-in says;
-    ///     any other demo only when it would have been wanted, so the Library's tier-2 fan-out does not
-    ///     turn a sweep the user left off back on.
-    /// </remarks>
-    public void OnParsedOpportunistically(string path, ParsedDemo parsed)
-    {
-        if (Wants(path)
-            || (_enabled() && IsOpen(path) && !IsFailed(path) && NeedsBuild(_demoCache.TryGetIndex(path))))
-        {
-            Refresh(path, parsed);
-        }
-    }
-
-    /// <inheritdoc />
     public void OnFailed(string path) => ClearForced(path);
 
     /// <summary>
-    ///     The demos that would be submitted: the coordinator's candidate universe for this evaluator,
-    ///     newest first. Derived from the index, never stored.
+    ///     The demos the sweep or a force would submit, newest first, for the pending counts. Derived from
+    ///     the index, never stored.
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
@@ -317,7 +306,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             _forcedPaths.Add(path);
         }
 
-        Coordinator?.Consider(path);
+        Scheduler?.Request(path);
     }
 
     /// <summary>Whether a demo has what a build needs: a parse and Round Facts rows.</summary>
@@ -659,7 +648,7 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             if (!forced && record.IsSuggestionsCurrent(fingerprint)
                         && _proposals.TryRead(path) is not null)
             {
-                return; // a queued request the open's fan-out already satisfied
+                return; // a queued request the open's visit already satisfied
             }
 
             ClockIdentity clock = FrameClock.IdentityFor(parsed);

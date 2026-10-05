@@ -32,7 +32,7 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 /// </summary>
 public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 {
-    /// <summary>The queue owner tag and the coordinator's id for this evaluator.</summary>
+    /// <summary>The queue owner tag and the pass id for this evaluator.</summary>
     public const string EvaluatorId = "grenades";
 
     private static ILogger? _diagLog;
@@ -79,11 +79,11 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
 
-    /// <summary>The coordinator, so a forced request can ask it to reconsider. Null in tests.</summary>
-    public DemoEvaluationCoordinator? Coordinator { get; set; }
+    /// <summary>The scheduler, so a forced request can ask for the demo again. Null in tests.</summary>
+    public DemoScheduler? Scheduler { get; set; }
 
-    /// <summary>True while the coordinator has a walk in flight.</summary>
-    public bool IsIndexing => Coordinator?.HasOutstanding(EvaluatorId) ?? false;
+    /// <summary>True while the scheduler has a walk in flight.</summary>
+    public bool IsIndexing => Scheduler?.HasOutstanding(EvaluatorId) ?? false;
 
     /// <inheritdoc />
     public string Id => EvaluatorId;
@@ -95,6 +95,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     /// <remarks>
     ///     From the index row alone: the owning pack's gate on, a parsed demo whose grenades are missing,
     ///     stale under the walker version or the schema, and not failed, with the sweep on or the demo forced.
+    ///     The open demo is wanted whatever the opt-in says: its walk runs on the parse the open paid for.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -112,11 +113,14 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
             }
         }
 
-        return NeedsWalk(entry) && _backgroundIndex();
+        return NeedsWalk(entry) && (_backgroundIndex() || IsOpen(path));
     }
 
     /// <inheritdoc />
-    /// <remarks>A demo the Library has not parsed yet, with the sweep on or the demo forced: the walk follows the parse stamp.</remarks>
+    /// <remarks>
+    ///     A demo the Library has not parsed yet, with the sweep on, the demo forced or the demo open: the
+    ///     walk follows the parse stamp.
+    /// </remarks>
     public bool WantsAfterUpstream(string path)
     {
         if (!_enabled() || _demoCache.TryGetIndex(path) is { ParseSchema: > 0 })
@@ -126,7 +130,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
         lock (_gate)
         {
-            return _forcedPaths.Contains(path) || _backgroundIndex();
+            return _forcedPaths.Contains(path) || _backgroundIndex() || IsOpen(path);
         }
     }
 
@@ -146,29 +150,11 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    /// <remarks>
-    ///     The open demo is walked on the parse its open paid for whatever the opt-in says; any other
-    ///     demo only when it would have been wanted. Neither runs while the owning pack's gate is off.
-    /// </remarks>
-    public void OnParsedOpportunistically(string path, ParsedDemo parsed)
-    {
-        if (!_enabled())
-        {
-            return;
-        }
-
-        if (Wants(path) || (IsOpen(path) && NeedsWalk(_demoCache.TryGetIndex(path))))
-        {
-            Refresh(path, parsed);
-        }
-    }
-
-    /// <inheritdoc />
     public void OnFailed(string path) => ClearForced(path);
 
     /// <summary>
-    ///     The demos that would be submitted: the coordinator's candidate universe for this evaluator,
-    ///     newest first. Derived from the index, never stored.
+    ///     The demos the sweep or a force would submit, newest first, for the pending counts. Derived from
+    ///     the index, never stored.
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
@@ -236,7 +222,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
             _forcedPaths.Add(path);
         }
 
-        Coordinator?.Consider(path);
+        Scheduler?.Request(path);
     }
 
     private static bool NeedsWalk(DemoCacheIndexEntry? entry) =>

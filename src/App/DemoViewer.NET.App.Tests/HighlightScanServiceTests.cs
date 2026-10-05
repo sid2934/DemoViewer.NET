@@ -48,10 +48,10 @@ public class HighlightScanServiceTests
         "",
         DemoProfile.Unknown);
 
-    // Builds a scanner wired to a real queue THROUGH the coordinator, the production path (phase 3b): the
-    // coordinator submits the scanner's Wants'd rows, the queue (fake parser, no filesystem) drives the
-    // drain/gate, and the scanner's Evaluate does the per-row work via its processorOverride. The queue +
-    // coordinator are kept alive by scanner.Coordinator; tests dispose only the scanner.
+    // Builds a scanner wired to a real queue THROUGH the scheduler, the production path: the scheduler
+    // submits the scanner's Wants'd rows, the queue (fake parser, no filesystem) drives the drain/gate, and
+    // the scanner's Evaluate does the per-row work via its processorOverride. The queue + scheduler are kept
+    // alive by scanner.Scheduler; tests dispose only the scanner.
     private static HighlightScanService NewScanner(
         DemoCacheStore store,
         IHighlightHarvester harvester,
@@ -64,8 +64,8 @@ public class HighlightScanServiceTests
             _ => SyntheticDemo());
         HighlightScanService scanner = new(store, harvester, libraryDemoPaths, backgroundScanEnabled,
             a => a(), processorOverride);
-        DemoEvaluationCoordinator coordinator = new([scanner], queue, scanner.PendingPaths);
-        scanner.Coordinator = coordinator;
+        DemoScheduler coordinator = new([scanner], queue, scanner.PendingPaths);
+        scanner.Scheduler = coordinator;
         return scanner;
     }
 
@@ -277,37 +277,35 @@ public class HighlightScanServiceTests
     }
 
     [Test]
-    public async Task OnParsedOpportunistically_RunsAnalysisOnlyWhenOptInOn()
+    public async Task AMissingRow_IsWantedOnlyWithTheOptIn_AndAFreshRowNever()
     {
         DemoCacheStore store = new(null);
         FakeHarvester harvester = new();
         bool optIn = false;
         using HighlightScanService scanner = NewScanner(store, harvester,
             () => [],
-            () => optIn,
-            (_, _) => null);
+            () => optIn);
 
         ParsedDemo parsed = SyntheticDemo();
 
-        // Opt-in OFF: a missing row does the cheap fingerprint compare but must NOT run the full
-        // replay (library indexing stays single-pass), and writes no row.
-        scanner.OnParsedOpportunistically("/d/a.dem", parsed);
-        await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(0)
-            .Because("the piggyback analysis is gated behind the opt-in");
+        // Opt-in OFF: a missing row is not wanted, so no visit carries this pass and no row is written.
+        await Assert.That(scanner.Wants("/d/a.dem")).IsFalse().Because("the sweep is gated behind the opt-in");
         await Assert.That(store.TryLoadRecord("/d/a.dem")).IsNull().Because("no analysis, no row");
 
-        // Opt-in ON: the same missing row now drives the bare analysis (the fake records the call).
+        // Opt-in ON: the same missing row is wanted, and its turn on a visit runs the bare analysis.
         optIn = true;
-        scanner.OnParsedOpportunistically("/d/a.dem", parsed);
+        await Assert.That(scanner.Wants("/d/a.dem")).IsTrue();
+        scanner.Evaluate("/d/a.dem", parsed);
         await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(1)
-            .Because("with the opt-in on the piggyback runs a full replay");
+            .Because("with the opt-in on the sweep runs a bare replay");
 
-        // Fresh matching row (mtime/size 0 == missing-file identity, fingerprint fp-A@64): the fast
-        // path returns even with the opt-in on. The counter must not advance.
+        // Fresh matching row (mtime/size 0 == missing-file identity, fingerprint fp-A@64): not wanted even
+        // with the opt-in on, and its turn would skip. The counter must not advance.
         store.Upsert(IndexedRow("/d/fresh.dem", 0));
-        scanner.OnParsedOpportunistically("/d/fresh.dem", parsed);
+        await Assert.That(scanner.Wants("/d/fresh.dem")).IsFalse();
+        scanner.Evaluate("/d/fresh.dem", parsed);
         await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(1)
-            .Because("the fresh-row fast path skips analysis regardless of the opt-in");
+            .Because("a current row is skipped regardless of the opt-in");
     }
 
     [Test]

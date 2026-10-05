@@ -171,25 +171,6 @@ public class PassRegistryTests
     }
 
     [Test]
-    public async Task Resolve_PendingPathsUnion_IsTheUnionOfTheResolvedEvaluatorsPendingPaths()
-    {
-        PassRegistry registry = new();
-        registry.AddCoreEvaluator("library", () => new EvaluatorFake("library") { Pending = ["/a.dem", "/b.dem"] });
-        registry.AddCoreEvaluator("highlights", () => new EvaluatorFake("highlights") { Pending = ["/b.dem", "/c.dem"] });
-        registry.AddPacksLazily(() =>
-        {
-            // Disabled: its paths must not appear in the union, and its factory must not run.
-            registry.AddPackEvaluator("pack", () => throw new InvalidOperationException("must not run"),
-                [], () => false);
-        });
-
-        IReadOnlyList<string> union = [.. registry.Resolve().OfType<EvaluatorPassAdapter>()
-            .SelectMany(e => e.Evaluator.PendingPaths()).Distinct(StringComparer.OrdinalIgnoreCase)];
-
-        await Assert.That(union).IsEquivalentTo(["/a.dem", "/b.dem", "/c.dem"]);
-    }
-
-    [Test]
     public void Validate_Cycle_Throws()
     {
         PassRegistry registry = new();
@@ -375,7 +356,6 @@ public class PassRegistryTests
     private sealed class EvaluatorFake(string id) : IDemoEvaluator
     {
         public string Id { get; } = id;
-        public IReadOnlyList<string> Pending { get; init; } = [];
         public HashSet<string> Wanted { get; init; } = [];
         public HashSet<string> Upstream { get; init; } = [];
         public ForwardNeeds? Forward { get; init; }
@@ -395,8 +375,6 @@ public class PassRegistryTests
         public void EvaluateForward(string path, ForwardDemoResult pass) => EvaluatedForward.Add(path);
 
         public void OnFailed(string path) => Failed.Add(path);
-
-        public IReadOnlyList<string> PendingPaths() => Pending;
     }
 
     private sealed class Fake(string id, params string[] after) : IDemoPass

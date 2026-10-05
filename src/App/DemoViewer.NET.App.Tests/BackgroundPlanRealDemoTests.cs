@@ -97,7 +97,7 @@ public class BackgroundPlanRealDemoTests
         });
 
         new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity())
-            .OnParsedOpportunistically(path, parsed);
+            .Evaluate(path, parsed);
         outputs["round facts"] = JsonSerializer.Serialize(cache.TryLoadRecord(path)?.RoundFacts(), Json);
 
         RoundIndexStore index = new(null, cache);

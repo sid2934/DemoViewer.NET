@@ -29,7 +29,7 @@ public class QueryCanvasRealDemoTests
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         DemoCacheStore cache = new(null);
         RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        facts.OnParsedOpportunistically(path, parsed);
+        facts.Evaluate(path, parsed);
         RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
 
         using RoundIndexStore sidecars = new(null, cache);

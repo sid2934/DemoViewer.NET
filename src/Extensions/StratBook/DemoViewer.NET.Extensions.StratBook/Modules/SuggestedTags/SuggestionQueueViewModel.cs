@@ -248,12 +248,12 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
                 return;
             }
 
-            // Turning the sweep on is only useful if the coordinator hears about it: the backlog is
-            // derived, so one reconsider submits every demo that now wants a build.
+            // Turning the sweep on is only useful if the scheduler hears about it: the backlog is
+            // derived, so one re-check submits every demo that now wants a build.
             _writeBackground?.Invoke(value);
             if (value)
             {
-                _service?.Coordinator?.ConsiderAll();
+                _service?.Scheduler?.RecheckAll();
             }
         }
     }

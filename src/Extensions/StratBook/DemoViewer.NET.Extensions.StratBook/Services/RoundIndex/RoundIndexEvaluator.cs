@@ -30,7 +30,7 @@ namespace DemoViewer.NET.Services.RoundIndex;
 /// </summary>
 public sealed class RoundIndexEvaluator : IDemoEvaluator
 {
-    /// <summary>The queue owner tag and the coordinator's id for this evaluator.</summary>
+    /// <summary>The queue owner tag and the pass id for this evaluator.</summary>
     public const string EvaluatorId = "roundindex";
 
     private static ILogger? _diagLog;
@@ -82,11 +82,11 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(RoundIndexLog.Category);
 
-    /// <summary>The coordinator, so a retry or a rebuild can ask it to reconsider. Null in tests.</summary>
-    public DemoEvaluationCoordinator? Coordinator { get; set; }
+    /// <summary>The scheduler, so a retry or a rebuild can ask for the demo again. Null in tests.</summary>
+    public DemoScheduler? Scheduler { get; set; }
 
-    /// <summary>True while the coordinator has index work in flight.</summary>
-    public bool IsIndexing => Coordinator?.HasOutstanding(EvaluatorId) ?? false;
+    /// <summary>True while the scheduler has index work in flight.</summary>
+    public bool IsIndexing => Scheduler?.HasOutstanding(EvaluatorId) ?? false;
 
     /// <summary>
     ///     A demo's sidecar was written, raised synchronously on the evaluator's thread before the
@@ -154,25 +154,11 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    /// <remarks>
-    ///     Same as <see cref="Evaluate" /> when the demo is wanted, else a no-op: an interactive open
-    ///     indexes the opened demo on that parse, and the Library's tier-2 fan-out indexes a demo whose
-    ///     Round Facts landed one evaluator earlier in the same pass.
-    /// </remarks>
-    public void OnParsedOpportunistically(string path, ParsedDemo parsed)
-    {
-        if (Wants(path))
-        {
-            Refresh(path, parsed);
-        }
-    }
-
-    /// <inheritdoc />
     public void OnFailed(string path) => ClearForced(path);
 
     /// <summary>
-    ///     The demos whose index is missing or stale and would be submitted: the coordinator's
-    ///     candidate universe for this evaluator, newest first. Derived from the index, never stored.
+    ///     The demos whose index is missing or stale and would be submitted, newest first, for the strip's
+    ///     counts. Derived from the index, never stored.
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
@@ -227,7 +213,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             _forcedPaths.Add(path);
         }
 
-        Coordinator?.Consider(path);
+        Scheduler?.Request(path);
     }
 
     /// <summary>Re-queues every failed row: the strip's "Retry failed".</summary>
@@ -244,7 +230,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
     }
 
     /// <summary>
-    ///     Marks every index stale and asks the coordinator to reconsider the library: the strip's
+    ///     Marks every index stale and asks the scheduler to check the library again: the strip's
     ///     "Rebuild index". The stamp is cleared, not the sidecar, so the old rows keep answering
     ///     queries until each demo is rebuilt (the derived-backlog rule).
     /// </summary>
@@ -275,7 +261,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
         }
 
         _demoCache.SaveIndex();
-        Coordinator?.ConsiderAll();
+        Scheduler?.RecheckAll();
     }
 
     private bool NeedsIndex(DemoCacheIndexEntry? entry) =>
@@ -298,7 +284,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             {
                 // The row said Round Facts was written (that is why Wants picked this demo) but the
                 // sidecar has none: index.json was saved before a later write replaced the record. Left
-                // alone, Wants stays true and the coordinator re-parses this demo forever. Re-project the
+                // alone, Wants stays true and the scheduler re-parses this demo forever. Re-project the
                 // row from the sidecar so it stops claiming facts and Round Facts re-wants the demo.
                 if (record is not null && _demoCache.TryGetIndex(path)?.RoundFactsStamp() is { Schema: > 0 })
                 {
@@ -314,7 +300,7 @@ public sealed class RoundIndexEvaluator : IDemoEvaluator
             string fingerprint = RoundIndexFingerprint.Compose(_sources.Options, source);
             if (!forced && record.IsRoundIndexCurrent(fingerprint))
             {
-                return; // a queued request the Library's fan-out already satisfied
+                return; // a queued request an earlier visit already satisfied
             }
 
             RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(parsed, facts, _sources.Options, source,

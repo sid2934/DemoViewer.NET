@@ -81,12 +81,14 @@ public class GrenadeIndexEvaluatorTests
         cache.Upsert(RoundIndexTestData.ParsedRecord(Demo, sha: "abc"));
         GrenadeIndexEvaluator evaluator = new(cache, () => true, () => Demo, walk: OneSmoke, enabled: () => false);
 
-        await Assert.That(evaluator.Wants(Demo)).IsFalse();
-        await Assert.That(evaluator.PendingPaths()).IsEmpty();
-
-        evaluator.OnParsedOpportunistically(Demo, Parse());
-        await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull()
-            .Because("the open-demo walk is one of the opportunistic hooks the pack gate forces off");
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse()
+                .Because("the open demo's walk rides its Wants, which the pack gate forces off");
+            await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsFalse();
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
+            await Assert.That(GrenadeSidecar.TryReadRows(cache, Demo)).IsNull();
+        }
     }
 
     // Match Overview's "Index grenades" chip is core and the view model hides it when the pack is off
@@ -204,7 +206,6 @@ public class GrenadeIndexEvaluatorTests
         ParsedDemo narrowed = SyntheticParsedDemo.Create(tickCount: 5000, plan: DemoProcessingQueue.WithoutUserCommands);
 
         evaluator.Evaluate(Demo, narrowed);
-        evaluator.OnParsedOpportunistically(Demo, narrowed);
 
         using (Assert.Multiple())
         {
@@ -243,19 +244,20 @@ public class GrenadeIndexEvaluatorTests
     }
 
     [Test]
-    public async Task TheOpenDemo_IsWalkedOnItsOwnParseWithoutTheOptIn_AndNoOtherDemoIs()
+    public async Task TheOpenDemo_IsWantedWithoutTheOptIn_AndNoOtherDemoIs()
     {
         (DemoCacheStore cache, GrenadeIndexEvaluator evaluator) = Wire(open: "/D/MATCH.dem");
         cache.Upsert(RoundIndexTestData.ParsedRecord("/d/other.dem"));
 
-        evaluator.OnParsedOpportunistically("/d/other.dem", Parse());
-        evaluator.OnParsedOpportunistically(Demo, Parse());
+        await Assert.That(evaluator.Wants("/d/other.dem")).IsFalse()
+            .Because("another demo's visit does not turn the sweep the user left off back on");
+        await Assert.That(evaluator.Wants(Demo)).IsTrue().Because("the open demo is walked on the parse its open paid for");
+        evaluator.Evaluate(Demo, Parse());
 
         using (Assert.Multiple())
         {
             await Assert.That(cache.TryGetIndex(Demo)!.GrenadeState()).IsEqualTo(DemoAnalysisState.Indexed);
-            await Assert.That(cache.TryGetIndex("/d/other.dem")!.GrenadeState()).IsEqualTo(DemoAnalysisState.Pending)
-                .Because("a Library tier-2 pass does not turn the sweep the user left off back on");
+            await Assert.That(cache.TryGetIndex("/d/other.dem")!.GrenadeState()).IsEqualTo(DemoAnalysisState.Pending);
         }
     }
 

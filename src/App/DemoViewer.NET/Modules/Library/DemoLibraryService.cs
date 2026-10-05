@@ -51,18 +51,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         WriteIndented = true
     };
 
-    // The classes the final-state replay reads, passed as EntityTracker.StoreClassFilter so every other
-    // class is decoded-and-discarded (bits consumed, fields not stored) for a cheaper replay. The score
-    // reads CCSTeam; the coach flag reads m_iCoachingTeam off the controllers, in the same pass.
-    // Fan-out skip set for this evaluator's own tier-2 hand-off: when the Library slot hands its held
-    // parse to the OTHER evaluators (replacing the old Tier2DemoParsed piggyback), Library is the
-    // producer and must not be re-fed its own parse.
-    private static readonly IReadOnlySet<string> _fanOutSkipSelf =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "library"
-        };
-
     private readonly Dictionary<string, DemoLibraryCacheEntry> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _cacheLock = new();
     private readonly string? _dataPath; // library.json, or null on WASM
@@ -77,14 +65,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // construction, written on Add/Remove). Null → the legacy path where library.json owns the folder list.
     // The metadata cache stays in library.json either way.
 
-    // Paths with a tier-2 replay in flight RIGHT NOW, deduping the two RunTier2 callers (the queue's
-    // Evaluate and an interactive open's OnParsedOpportunistically) when they race the same demo: a second
-    // concurrent replay would be wasted work and could flip Indexed↔Failed on a throw.
+    // Paths with a tier-2 replay in flight RIGHT NOW: a second concurrent replay of the same demo would be
+    // wasted work and could flip Indexed↔Failed on a throw.
     private readonly HashSet<string> _tier2InProgress = new(StringComparer.OrdinalIgnoreCase);
 
     // Tier-2 backlog: _pendingFull is the working set of demos still needing a tier-2 parse (recomputed
-    // each rescan; the coordinator's Wants(path) reads its membership). The coordinator's own outstanding
-    // set prevents double-submit, so no separate _enqueued set is needed here.
+    // each rescan; Wants(path) reads its membership). The scheduler's own outstanding set prevents
+    // double-submit, so no separate _enqueued set is needed here.
     private readonly object _tier2Lock = new();
 
     // Diagnostics-pillar logger (v0.6.0, replaced Console.WriteLine, which a windowed Release build
@@ -156,12 +143,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// </summary>
     internal SettingsService? SettingsBacking { get; }
 
-    // The "one parse, many evaluators" coordinator. When set, this service
-    // is registered as an IDemoEvaluator and the coordinator owns submission + the CapacityAvailable
-    // re-feed. This service NEVER touches the queue directly. Null (tests) → the inline one-at-a-time
+    // The scheduler. When set, this service is registered as an IDemoEvaluator and the scheduler owns
+    // submission. This service NEVER touches the queue directly. Null (tests) → the inline one-at-a-time
     // path, behaviourally identical to the pre-queue null-gate path.
-    /// <summary>The evaluation coordinator that drives this service's tier-2 work; null → the inline path.</summary>
-    public DemoEvaluationCoordinator? Coordinator { get; set; }
+    /// <summary>The scheduler that drives this service's tier-2 work; null → the inline path.</summary>
+    public DemoScheduler? Scheduler { get; set; }
 
     /// <summary>The configured root folders (recursively scanned). Bound to the UI; mutate via the public methods.</summary>
     public ObservableCollection<string> Folders { get; } = [];
@@ -191,9 +177,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     Cheap membership test against the tier-2 backlog recorded at reconcile. The coordinator
-    ///     re-polls this on every CapacityAvailable, so it MUST go false once processed, which
-    ///     <see cref="ClearTier2Backlog" /> guarantees synchronously in both Evaluate and OnFailed.
+    ///     Cheap membership test against the tier-2 backlog recorded at reconcile. Asked again right before
+    ///     this evaluator's turn, so it MUST go false once processed, which <see cref="ClearTier2Backlog" />
+    ///     guarantees synchronously in both Evaluate and OnFailed.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -205,42 +191,25 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     Runs on a queue worker thread with the parse still held (the memory-safety window). Library
-    ///     is the SOLE producer of this parse, so it fans the held demo out to the OTHER evaluators (the
-    ///     Highlights piggyback replacement). The backlog is cleared SYNCHRONOUSLY here (not via the posted
-    ///     UI callback) so a CapacityAvailable re-poll that races this can't see the path as still-wanted and
-    ///     double-submit it.
+    ///     Runs on a queue worker thread with the parse still held (the memory-safety window): the queue's
+    ///     own read, or the shell's parse when the demo is being opened or is loaded. The backlog is cleared
+    ///     SYNCHRONOUSLY here (not via the posted UI callback) so a plan that races this can't see the path as
+    ///     still-wanted and double-submit it. A demo that is not a known-pending library entry (opened from
+    ///     outside every registered folder, or already indexed) is a no-op: a foreign demo is never injected
+    ///     into the library.
     /// </remarks>
-    public void Evaluate(string path, ParsedDemo parsed) => RunTier2(path, entry => IndexTier2Core(entry, parsed, true));
+    public void Evaluate(string path, ParsedDemo parsed) => RunTier2(path, entry => IndexTier2Core(entry, parsed));
 
     /// <inheritdoc />
     /// <remarks>
-    ///     An interactive open (or another evaluator's tier-2) already parsed this demo: index the
-    ///     Library card from THAT held parse instead of a second background parse. Guarded on tier-2 backlog
-    ///     membership: a demo that isn't a known-pending library entry (opened from outside every registered
-    ///     folder, or already indexed) is a no-op. We never inject a foreign demo into the library. When it
-    ///     IS pending this indexes it AND clears the backlog synchronously, so a subsequent coordinator
-    ///     re-poll sees <see cref="Wants" /> == false and never submits the redundant background parse.
-    ///     <para>
-    ///         Unlike <see cref="Evaluate" /> this does NOT re-fan the parse to the other evaluators: the
-    ///         coordinator's <see cref="DemoEvaluationCoordinator.FanOutParsed" /> that invoked this already
-    ///         decides the full fan-out set (and its skip list), so re-fanning here would double-feed them (e.g.
-    ///         a redundant Highlights re-analysis on open, on top of its own open-demo harvest).
-    ///     </para>
-    /// </remarks>
-    public void OnParsedOpportunistically(string path, ParsedDemo parsed) =>
-        RunTier2(path, entry => IndexTier2Core(entry, parsed, false));
-
-    /// <inheritdoc />
-    /// <remarks>
-    ///     Rules as well as the final state: this pass is the one a new demo's highlights and round facts
-    ///     ride through <see cref="DemoEvaluationCoordinator.FanOutForward" />.
+    ///     Rules as well as the final state: a new demo's highlights and round facts ride the same forward
+    ///     read on the same visit.
     /// </remarks>
     public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.FinalState | ForwardNeeds.Rules;
 
     /// <inheritdoc />
     public void EvaluateForward(string path, ForwardDemoResult pass) =>
-        RunTier2(path, entry => IndexTier2Core(entry, pass, true));
+        RunTier2(path, entry => IndexTier2Core(entry, pass));
 
     /// <inheritdoc />
     public void OnFailed(string path)
@@ -419,8 +388,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         Save();
 
         // No queue (WASM, and the inline test path): parse them here, one at a time, and await: the same
-        // shape RescanAsync uses when it has no Coordinator.
-        if (Coordinator is null)
+        // shape RescanAsync uses when it has no scheduler.
+        if (Scheduler is null)
         {
             foreach (DemoEntry target in targets)
             {
@@ -445,7 +414,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // populated cards at once, for hours, reads as the library breaking rather than topping up.
         foreach (DemoEntry target in targets)
         {
-            Coordinator.Consider(target.FilePath);
+            Scheduler.DemoChanged(target.FilePath);
         }
 
         return targets.Count;
@@ -531,12 +500,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         // Tier 2 (full parse → players/duration). Each parse holds a whole demo in RAM, so it runs
         // one demo at a time under the machine-wide invariant.
-        if (Coordinator is not null)
+        if (Scheduler is not null)
         {
-            // Coordinator path: record the backlog (its membership is this evaluator's Wants gate) and
-            // ask the coordinator to consider each. It submits ONE queue item per interested evaluator,
-            // coalesced by path, so Library + Highlights ride a single parse. RETURN; the queue owns the
-            // workers + drain + gate yielding, and each Evaluate persists the cache itself.
+            // Scheduler path: record the backlog (its membership is this evaluator's Wants gate) and tell
+            // the scheduler each demo changed. It plans ONE visit per demo carrying every interested pass,
+            // so Library + Highlights ride a single parse. RETURN; the queue owns the workers + drain + gate
+            // yielding, and each Evaluate persists the cache itself.
             List<DemoEntry> toConsider;
             lock (_tier2Lock)
             {
@@ -568,7 +537,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     _post(() => captured.State = DemoIndexState.Indexing);
                 }
 
-                Coordinator.Consider(captured.FilePath);
+                Scheduler.DemoChanged(captured.FilePath);
             }
 
             return;
@@ -593,9 +562,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         RaiseChanged();
     }
 
-    // Shared tier-2 body for both held-parse entry points. The in-progress guard dedupes the two callers
-    // when they race the same path (queue Evaluate + interactive-open fan-out): the second observes the
-    // path in flight and bails, leaving the first to index + clear the backlog.
+    // Shared tier-2 body for the retained and forward entry points. The in-progress guard dedupes two
+    // callers racing the same path: the second observes the path in flight and bails, leaving the first to
+    // index + clear the backlog.
     private void RunTier2(string path, Action<DemoEntry> index)
     {
         DemoEntry? entry;
@@ -628,8 +597,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     The current tier-2 backlog paths, a worker-readable snapshot for the coordinator's
-    ///     candidate universe (never enumerate the UI-bound <see cref="Entries" /> off-thread).
+    ///     The current tier-2 backlog paths, a worker-readable snapshot (never enumerate the UI-bound
+    ///     <see cref="Entries" /> off-thread).
     /// </summary>
     public IReadOnlyList<string> Tier2Backlog()
     {
@@ -638,9 +607,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return [.. _pendingFull.Keys];
         }
     }
-
-    /// <inheritdoc />
-    IReadOnlyList<string> IDemoEvaluator.PendingPaths() => Tier2Backlog();
 
     // Removes a path from the tier-2 backlog (worker thread, under the lock) and, when the backlog drains,
     // persists the tail (parity with the inline path's final Save, the every-12 Save in IndexTier2Core
@@ -986,7 +952,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         List<DemoEntry> staying = [.. Entries.Where(Unchanged)];
         foreach (DemoEntry changed in Entries.Where(e => wanted.ContainsKey(e.FilePath) && !Unchanged(e)))
         {
-            Coordinator?.ForgetFaults(changed.FilePath);
+            Scheduler?.ForgetFaults(changed.FilePath);
         }
 
         if (staying.Count == Entries.Count - 1)
@@ -1160,35 +1126,31 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
-        IndexTier2Core(entry, parsed, true);
+        IndexTier2Core(entry, parsed);
     }
 
-    // Post-parse tier-2 extraction (players / duration / map / final score) + optional fan-out to the OTHER
-    // evaluators + cache write. Runs with the ParsedDemo held, inside the queue's gate slot on the queue
-    // path, or inline on the legacy path. Self-contained failure handling so a throw marks ONLY this row
-    // Failed. fanOutToOthers is true when Library is the producer (background tier-2); false when the parse
-    // arrived opportunistically (the coordinator already handled the wider fan-out).
+    // Post-parse tier-2 extraction (players / duration / map / final score) + cache write. Runs with the
+    // ParsedDemo held, inside the queue's gate slot on the queue path, or inline on the legacy path.
+    // Self-contained failure handling so a throw marks ONLY this row Failed.
     //
     // Internal so the real-demo test can drive one entry through it without a folder scan, which would
     // mean linking or copying a demo into a temp library.
-    internal void IndexTier2Core(DemoEntry entry, ParsedDemo parsed, bool fanOutToOthers) =>
+    internal void IndexTier2Core(DemoEntry entry, ParsedDemo parsed) =>
         IndexTier2Core(entry, new Tier2Input(
             parsed.Players.Values, parsed.Duration.TotalSeconds, parsed.MapName, parsed.ServerName,
             parsed.Profile.SourceKind.ToString(), parsed.TickRate, parsed.TickCount, parsed.ServerStartTick,
             () => ClipRounds.Derive(parsed),
-            () => ExtractFinalState(parsed),
-            fanOutToOthers ? () => Coordinator?.FanOutParsed(entry.FilePath, parsed, _fanOutSkipSelf) : null));
+            () => ExtractFinalState(parsed)));
 
     // The same extraction off a forward pass: the pass already replayed the final state and derived the rounds.
-    internal void IndexTier2Core(DemoEntry entry, ForwardDemoResult pass, bool fanOutToOthers) =>
+    internal void IndexTier2Core(DemoEntry entry, ForwardDemoResult pass) =>
         IndexTier2Core(entry, new Tier2Input(
             pass.Demo.Players.Values, pass.Demo.Duration.TotalSeconds, pass.Demo.MapName, pass.Demo.ServerName,
             pass.Demo.Profile.SourceKind.ToString(), pass.Demo.TickRate, pass.Demo.TickCount, pass.Demo.ServerStartTick,
             () => pass.Rounds,
             () => pass.FinalState is { } s
                 ? (s.Ct, s.T, s.CtClan, s.TClan, s.CoachSlots)
-                : throw new InvalidOperationException("the forward pass read no final state"),
-            fanOutToOthers ? () => Coordinator?.FanOutForward(entry.FilePath, pass, _fanOutSkipSelf) : null));
+                : throw new InvalidOperationException("the forward pass read no final state")));
 
     private sealed record Tier2Input(
         IEnumerable<PlayerInfo> Players,
@@ -1200,8 +1162,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         int TickCount,
         int ServerStartTick,
         Func<IReadOnlyList<ClipRound>> Rounds,
-        Func<(int? Ct, int? T, string? CtClan, string? TClan, HashSet<int> CoachSlots)> FinalState,
-        Action? FanOut);
+        Func<(int? Ct, int? T, string? CtClan, string? TClan, HashSet<int> CoachSlots)> FinalState);
 
     private void IndexTier2Core(DemoEntry entry, Tier2Input parsed)
     {
@@ -1248,15 +1209,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             {
                 // score stays null; players/duration are already posted
             }
-
-            // Fan-out: when Library is the PRODUCER of this parse (background
-            // tier-2), hand the still-held parse to the OTHER evaluators (the highlight scanner) so a
-            // stale/missing highlights row refreshes on THIS parse instead of a second one, the generalized
-            // replacement for the old Tier2DemoParsed piggyback. Each evaluator is isolated inside
-            // FanOutParsed, so a scan failure never marks the LIBRARY row failed. Skipped when the parse
-            // arrived opportunistically (the coordinator's FanOutParsed already fanned to the others; re-
-            // fanning would double-feed them). Null coordinator (inline/legacy path, tests) → nothing to fan.
-            parsed.FanOut?.Invoke();
 
             // parsed drops out of scope here → GC can reclaim before the next parse.
         }

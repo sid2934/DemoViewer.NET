@@ -77,14 +77,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     private const int MaxContinueFrames = 200_000;
 
-    // Interactive-open fan-out skip set: Highlights is fed the open demo through the completed analysis run
-    // (OnOpenDemoEvaluated), a richer, re-analysis-free channel, so it is not re-fed on the open path.
-    private static readonly IReadOnlySet<string> _openFanOutSkip =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "highlights"
-        };
-
     // Fallback for a descriptor with no WorkspaceTabDescriptor.FeatureId of its own: maps its TabId
     // (e.g. "builtin.parser") to a FeatureCatalog tab id (e.g. "tab.parser"), built-ins only. A TabId
     // absent here, with no descriptor FeatureId, is never gated → always shown (fail-open); a mapped id
@@ -136,10 +128,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // that do not exercise the preview path.
     private readonly DemoCacheStore? _demoCache;
 
-    // The "one parse, many evaluators" coordinator. Used on an interactive
-    // open to fan the just-parsed demo out to the background evaluators, so an un-indexed library demo
-    // fills its card from THAT parse rather than a second background one. Null (designer / tests) → no fan-out.
-    private readonly DemoEvaluationCoordinator? _evaluationCoordinator;
+    // The demo scheduler. An interactive open asks it to plan the demo's visit, which then runs on the
+    // just-parsed demo, so an un-indexed library demo fills its card from THAT parse rather than a second
+    // background one. Null (designer / tests) → the open runs only the visits already queued for the demo.
+    private readonly DemoScheduler? _scheduler;
+
+    // Passes running on the loaded demo's parse through the queue's lease. Close waits for them.
+    private readonly ShellDemoHolds _holds = new();
+
+    // The loaded demo the queue may borrow: set once the load has the parse, cleared on unload. Read from
+    // queue workers, so it is one reference swap, never two fields.
+    private volatile HeldDemo? _heldDemo;
 
     // ── Feature gating ────────────────────────────────────────────────────────
     // The live show/hide authority for gated tabs. NULL on the designer / unit-test path (every existing
@@ -362,12 +361,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>The last valid frame index shown in the nav-strip box (reverts target on bad input).</summary>
     private int _navLastValidFrame;
 
-    // The library tier-2 fan-out started by the last open (LoadDemoFromBytesAsync). It reads the just-parsed
-    // ParsedDemo on a background thread, so it ROOTS the demo until it finishes, which is why a close
-    // immediately after an open used to leave RAM committed for a few seconds. CloseDemoAsync awaits this
-    // before its reclaim collection so the whole frame graph is unrooted when the GC runs. Not held across
-    // a reload (the new open's UnloadDemoState clears it; the old fan-out finishing late is harmless).
-    private Task? _openFanOutTask;
+    // The demo's visit started by the last open: its passes read the just-parsed ParsedDemo on a background
+    // thread, so it ROOTS the demo until it finishes, which is why a close immediately after an open used to
+    // leave RAM committed for a few seconds. CloseDemoAsync awaits this before its reclaim collection so the
+    // whole frame graph is unrooted when the GC runs. Not held across a reload (the new open's
+    // UnloadDemoState clears it; the old visit finishing late is harmless).
+    private Task? _openPassesTask;
 
     /// <summary>
     ///     Loaded-but-not-yet-applied session snapshot. We can't restore frame selection until a demo
@@ -446,7 +445,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private IStorageProvider? _storageProvider;
 
     // The in-flight team-name lookup. It holds no ParsedDemo (it only reads the library entry), but it
-    // awaits the fan-out, so it is tracked and awaited on close like _openFanOutTask.
+    // awaits the open's visit, so it is tracked and awaited on close like _openPassesTask.
     private Task? _teamNamesTask;
 
     // The per-run update-notice VM: created on first show, reused so the notes fetch happens once
@@ -507,10 +506,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     coalesces onto an in-flight parse, refuses during a reel). Null → the direct
     ///     <paramref name="heavyJobGate" /> path (designer / tests).
     /// </param>
-    /// <param name="evaluationCoordinator">
-    ///     The "one parse, many evaluators" coordinator. When supplied, an
-    ///     interactive open fans its just-parsed demo out to the background evaluators, so an
-    ///     un-indexed library demo fills its card from that parse instead of a second one. Null → no fan-out.
+    /// <param name="scheduler">
+    ///     The demo scheduler. When supplied, an interactive open plans the demo's visit and runs its passes
+    ///     on the just-parsed demo, so an un-indexed library demo fills its card from that parse instead of a
+    ///     second one. Null → the open runs only the visits already queued for the demo.
     /// </param>
     /// <param name="tourSampleLocator">
     ///     Resolves the bundled sample demo's path (the real app passes
@@ -539,7 +538,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SettingsService? settingsService = null, HeavyJobGate? heavyJobGate = null,
         HighlightScanService? highlightScanner = null,
         IDemoProcessingQueue? processingQueue = null,
-        DemoEvaluationCoordinator? evaluationCoordinator = null,
+        DemoScheduler? scheduler = null,
         Func<string?>? tourSampleLocator = null,
         DemoCacheStore? demoCache = null,
         IReadOnlyList<ILibraryContribution>? libraryContributions = null,
@@ -555,7 +554,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _heavyJobGate = heavyJobGate;
         _highlightScanner = highlightScanner;
         _processingQueue = processingQueue;
-        _evaluationCoordinator = evaluationCoordinator;
+        _scheduler = scheduler;
+        if (processingQueue is not null)
+        {
+            processingQueue.ShellDemo = new ShellDemoLease(this);
+        }
+
         // UI session-restore persistence: the Session section of the single config file. Null
         // settingsService (designer / older tests / WASM) → the store no-ops, so nothing is restored/saved.
         _sessionStore = new SessionStore(settingsService);
@@ -2901,6 +2905,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
             _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
             _moduleContext?.SetDemo(parsed); // expose the loaded demo to the first-party Workbench
+            _heldDemo = new HeldDemo(path, parsed);
             BuildUnknownMessageCensus(parsed);
             // Precompute round / event / tick boundary indices once,
             // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
@@ -2937,7 +2942,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Parity with the interactive load path: resume the walkthrough's deferred demo segment if a
             // first-run user's first demo arrives via CLI/debug auto-load. No-op unless the tour is awaiting.
             _tutorial.NotifyDemoLoaded();
-            open.Complete();
+            _openPassesTask = RunOpenVisitAsync(open, path, parsed);
         }
         catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
         {
@@ -3706,10 +3711,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void UnloadDemoState()
     {
         _demoBytes = null;
-        // Drop our handle to the previous open's fan-out (it may still be running on a reload: that is
+        // Drop our handle to the previous open's visit (it may still be running on a reload: that is
         // fine and pre-existing; it holds only the OLD demo, which is being replaced anyway). CloseDemoAsync
         // captures the handle before calling this, so the explicit-close await is unaffected.
-        _openFanOutTask = null;
+        _openPassesTask = null;
+        _heldDemo = null;
         _teamNamesTask = null;
         _allFrames = null;
         _loadedDemoPath = null;
@@ -3782,31 +3788,38 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(HasFile))]
     private async Task CloseDemoAsync()
     {
-        // Capture BEFORE UnloadDemoState nulls it. A running library tier-2 fan-out roots the ParsedDemo,
-        // so the reclaim collection below would free nothing while it is in flight. Awaiting it first makes
-        // the close deterministic: the whole frame graph is unrooted when the GC runs. For an already-indexed
-        // demo the fan-out is a near-instant skip; only a close that races a fresh demo's first indexing waits
-        // (rare), and the status line reflects it. Failures are swallowed: the fan-out already isolates them.
-        Task? fanOut = _openFanOutTask;
+        // Capture BEFORE UnloadDemoState nulls it. A running visit roots the ParsedDemo, so the reclaim
+        // collection below would free nothing while it is in flight. Awaiting it first makes the close
+        // deterministic: the whole frame graph is unrooted when the GC runs. For an already-indexed demo the
+        // visit is a near-instant skip; only a close that races a fresh demo's first indexing waits (rare),
+        // and the status line reflects it. Failures are swallowed: the queue already isolates them.
+        Task? passes = _openPassesTask;
         Task? teamNames = _teamNamesTask;
 
         UnloadDemoState();
         _moduleContext?.RaiseDemoReset();
 
-        if (fanOut is { IsCompleted: false })
+        if (passes is { IsCompleted: false })
         {
             StatusText = "Closing demo…";
             try
             {
-                await fanOut;
+                await passes;
             }
             catch
             {
-                // The fan-out isolates its own evaluator failures; nothing to surface on close.
+                // The queue isolates its own pass failures; nothing to surface on close.
             }
         }
 
-        // The team-name lookup awaits the same fan-out; drain it so nothing is left running past the close.
+        // A pass may still be running on the parse the queue borrowed; unload stopped new holds above.
+        if (!_holds.IsDrained)
+        {
+            StatusText = "Closing demo…";
+            await _holds.WhenDrainedAsync();
+        }
+
+        // The team-name lookup awaits the same visit; drain it so nothing is left running past the close.
         if (teamNames is { IsCompleted: false })
         {
             try
@@ -4034,9 +4047,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 return; // already indexed
             }
 
-            if (_openFanOutTask is { } fanOut)
+            if (_openPassesTask is { } passes)
             {
-                await fanOut.ConfigureAwait(true);
+                await passes.ConfigureAwait(true);
                 TryPushTeamNames(localPath);
             }
         }
@@ -4210,6 +4223,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
             _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
             _moduleContext?.SetDemo(parsed); // expose the loaded demo to the first-party Workbench
+            _heldDemo = localPath is null ? null : new HeldDemo(localPath, parsed);
             BuildUnknownMessageCensus(parsed);
             // Precompute round / event / tick boundary indices once,
             // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
@@ -4284,21 +4298,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             StatusText = $"{fileName}  —  {Frames.Count} frames  •  Select a frame";
             AppLog.DemoLoaded(DiagLog, fileName, Frames.Count);
 
-            // "One processing event": hand this just-parsed demo to
-            // the background evaluators so an un-indexed library demo fills its Library card from THIS parse
-            // instead of a redundant second background parse. Off the UI thread: the Library score replay is
-            // multi-second, and isolated (a handler failure never fails the open). `parsed` is immutable
-            // post-parse, so the concurrent read-only replay is safe. Highlights is skipped: it is fed the
-            // open demo through the completed analysis run (OnOpenDemoEvaluated), a re-analysis-free channel.
-            if (localPath is { } openPath && HasFile && _evaluationCoordinator is { } coordinator)
+            // The open is the demo's visit: the passes that want this demo run on THIS parse, off the UI
+            // thread, so an un-indexed library demo fills its Library card without a second parse. The
+            // queue isolates each pass; `parsed` is immutable post-parse, so the concurrent read is safe.
+            // Highlights declines the demo while its harvest from the analysis run above is being written.
+            if (localPath is { } openPath && HasFile)
             {
-                ParsedDemo openParsed = parsed;
-                // Tracked (not fire-and-forget) so CloseDemoAsync can await it before reclaiming: a
-                // running fan-out roots the demo, so an un-awaited close would free nothing.
-                _openFanOutTask = Task.Run(() => coordinator.FanOutParsed(openPath, openParsed, _openFanOutSkip));
                 open.Report(0.9, "Updating the library");
-                _ = _openFanOutTask.ContinueWith(_ => open.Complete(), CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                _openPassesTask = RunOpenVisitAsync(open, openPath, parsed);
             }
             else
             {
@@ -5088,5 +5095,113 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         public int FirstFrame { get; set; } = firstFrame;
         public int SampleSize { get; } = sampleSize;
         public int Count { get; set; } = 1;
+    }
+
+    // Runs the open demo's visit on the parse in hand and ends the open item when it is done. The scheduler
+    // plans the visit on the queue's worker, right before the queue takes the visits parked behind the open.
+    // Tracked (not fire-and-forget) so CloseDemoAsync can await it before reclaiming: a running pass roots
+    // the demo, so an un-awaited close would free nothing.
+    private async Task RunOpenVisitAsync(IDemoOpenTicket open, string path, ParsedDemo parsed)
+    {
+        DemoScheduler? scheduler = _scheduler;
+        try
+        {
+            await open.RunPassesAsync(parsed, scheduler is null ? null : () => scheduler.PlanOpenDemo(path)).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The queue isolates each pass; a failure of the run itself must not fail the open.
+            AppLog.DemoLoadFailed(DiagLog, "open-visit", ex.Message);
+        }
+        finally
+        {
+            open.Complete();
+        }
+    }
+
+    // The loaded demo as the queue sees it: one reference the lease reads without a lock.
+    private sealed record HeldDemo(string Path, ParsedDemo Parsed);
+
+    // The queue's view of the loaded demo. A hold is handed out only while that demo is loaded, and the
+    // close waits for every hold before it releases the parse.
+    private sealed class ShellDemoLease(MainViewModel shell) : IShellDemoLease
+    {
+        public IHeldParse? TryHold(string path) =>
+            shell._heldDemo is { } held && string.Equals(held.Path, path, StringComparison.OrdinalIgnoreCase)
+                ? shell._holds.Hold(held.Parsed)
+                : null;
+    }
+
+    // Counts the queue's holds on the loaded parse; a close awaits the count reaching zero.
+    private sealed class ShellDemoHolds
+    {
+        private readonly object _gate = new();
+        private int _count;
+        private TaskCompletionSource _drained = Completed();
+
+        public bool IsDrained
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _count == 0;
+                }
+            }
+        }
+
+        public IHeldParse Hold(ParsedDemo parsed)
+        {
+            lock (_gate)
+            {
+                if (_count++ == 0)
+                {
+                    _drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                }
+            }
+
+            return new Held(this, parsed);
+        }
+
+        public Task WhenDrainedAsync()
+        {
+            lock (_gate)
+            {
+                return _drained.Task;
+            }
+        }
+
+        private void Release()
+        {
+            lock (_gate)
+            {
+                if (--_count == 0)
+                {
+                    _drained.TrySetResult();
+                }
+            }
+        }
+
+        private static TaskCompletionSource Completed()
+        {
+            TaskCompletionSource done = new();
+            done.SetResult();
+            return done;
+        }
+
+        private sealed class Held(ShellDemoHolds owner, ParsedDemo parsed) : IHeldParse
+        {
+            private int _released;
+
+            public ParsedDemo Parsed => parsed;
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _released, 1) == 0)
+                {
+                    owner.Release();
+                }
+            }
+        }
     }
 }

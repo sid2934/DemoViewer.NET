@@ -44,7 +44,7 @@ public class StratEvidenceRealDemoTests
                 (TagStore.StratGroup, stratId.ToString("D")), (StratEvidence.RevisionGroup, "1"), (StratEvidence.OutcomeGroup, StratEvidence.OutcomeWon)))
         ]));
         using TagFactsRefresher refresher = new(tags, facts, _ => Sha, action => action());
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
 
         RoundFactsRows rows = facts.TryGet(path) ?? throw new InvalidOperationException("the evaluator wrote no rows");
         StratDocument strat = StratDocument.Create(stratId, StratOwner.Me(), parsed.MapName ?? "de_mirage", StratVocabulary.SideT, "execute", "real", Created);

@@ -28,7 +28,7 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
 ///     The live toggle in the real container: off to on runs the startup loads once and queues the
-///     re-poll, on to off cancels the pack's items by owner and releases what on built, on-off-on reloads, a
+///     re-check, on to off cancels the pack's items by owner and releases what on built, on-off-on reloads, a
 ///     flip mid-load cancels through the enable's token, the first-run wizard's answer drives the switch,
 ///     and shutdown after a release touches nothing. The queue is a double that runs each job inline (or holds
 ///     it, for the mid-load case) and records titles, owner cancels and parse submissions.
@@ -53,7 +53,7 @@ public class StratBookLiveToggleTests
     private static IExtension Pack => FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
 
     [Test]
-    public async Task OffToOn_RunsTheStartupLoadsOnce_QueuesTheReIndexPoll_AndTheCoordinatorReconsiders()
+    public async Task OffToOn_RunsTheStartupLoadsOnce_QueuesTheReCheck_AndTheSchedulerPlansTheDemo()
     {
         await WithContainer(Seed(packOn: false), async (provider, queue, settings) =>
         {
@@ -75,10 +75,10 @@ public class StratBookLiveToggleTests
                 await Assert.That(packs.IsOn(Pack)).IsTrue();
                 await Assert.That(string.Join(", ", queue.Titles.Take(_startupLabels.Length + 1)))
                     .IsEqualTo(string.Join(", ", _startupLabels.Append(ReIndexTitle)))
-                    .Because("the same loads startup runs, once, then the re-poll behind them; core's own reactions follow");
+                    .Because("the same loads startup runs, once, then the re-check behind them; core's own reactions follow");
                 await Assert.That(queue.Titles.Count(t => t == "Load: situations index")).IsEqualTo(1);
                 await Assert.That(queue.Parses.Select(p => p.Owner)).Contains(RoundIndexEvaluator.EvaluatorId)
-                    .Because("the re-poll made the coordinator submit the demo the round index now wants");
+                    .Because("the re-check made the scheduler submit the demo the round index now wants");
                 await Assert.That(instances.Situations).IsNotNull();
                 await Assert.That(instances.Grenades).IsNotNull();
                 await Assert.That(instances.Teams).IsNotNull();
@@ -260,7 +260,7 @@ public class StratBookLiveToggleTests
                 await Assert.That(packs.IsOn(Pack)).IsTrue();
                 await Assert.That(string.Join(", ", queue.Titles.Take(_startupLabels.Length + 1)))
                     .IsEqualTo(string.Join(", ", _startupLabels.Append(ReIndexTitle)))
-                    .Because("the wizard's accept is the enable, with the in-session re-poll behind the loads");
+                    .Because("the wizard's accept is the enable, with the in-session re-check behind the loads");
                 await Assert.That(instances.Situations).IsNotNull();
                 await Assert.That(instances.Grenades).IsNotNull();
             }
@@ -632,7 +632,7 @@ public class StratBookLiveToggleTests
     }
 
     // Runs every job inline on submit (so a load has run when OnEnabledAsync returns) unless Defer holds them;
-    // records titles, owner-wide cancels and parse submissions. Parses never run: the coordinator's submit is
+    // records titles, owner-wide cancels and parse submissions. Parses never run: the scheduler's submit is
     // the fact under test.
     private sealed class InlineQueue : IDemoProcessingQueue
     {
@@ -851,7 +851,7 @@ public class StratBookLiveToggleTests
                 try
                 {
                     QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
-                    provider.GetRequiredService<DemoEvaluationCoordinator>();
+                    provider.GetRequiredService<DemoScheduler>();
                     await body(provider, queue, provider.GetRequiredService<SettingsService>());
                 }
                 finally

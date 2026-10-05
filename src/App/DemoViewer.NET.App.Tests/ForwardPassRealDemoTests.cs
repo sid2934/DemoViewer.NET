@@ -131,7 +131,7 @@ public class ForwardPassRealDemoTests
         ParsedDemo parsed = BackgroundPlanRealDemoTests.ParseMapped(path, DemoProcessingQueue.WithoutUserCommands);
         Dictionary<string, string> written = Write(path, merged, (library, entry, highlights, facts) =>
         {
-            library.IndexTier2Core(entry, parsed, false);
+            library.IndexTier2Core(entry, parsed);
             highlights.Evaluate(path, parsed);
             facts.Evaluate(path, parsed);
         });
@@ -168,7 +168,7 @@ public class ForwardPassRealDemoTests
         ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, merged.Docs);
         Dictionary<string, string> written = Write(path, merged, (library, entry, highlights, facts) =>
         {
-            library.IndexTier2Core(entry, pass, false);
+            library.IndexTier2Core(entry, pass);
             highlights.EvaluateForward(path, pass);
             facts.EvaluateForward(path, pass);
         });

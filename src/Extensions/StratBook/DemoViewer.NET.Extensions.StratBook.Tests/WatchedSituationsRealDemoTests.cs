@@ -31,7 +31,7 @@ public class WatchedSituationsRealDemoTests
         {
             DemoCacheStore cache = new(null);
             RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-            facts.OnParsedOpportunistically(path, parsed);
+            facts.Evaluate(path, parsed);
             using RoundIndexStore sidecars = new(null, cache);
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
             RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true);

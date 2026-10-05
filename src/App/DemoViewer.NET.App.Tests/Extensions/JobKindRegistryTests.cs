@@ -52,7 +52,8 @@ public class JobKindRegistryTests
             (QueueJobKind.LibraryScan, "library", 4, false),
             (QueueJobKind.ExtensionUpdate, "extension update", 4, true),
             (QueueJobKind.DemoOpen, "open", 4, false),
-            (QueueJobKind.Extension, "extension", 4, false)
+            (QueueJobKind.Extension, "extension", 4, false),
+            (QueueJobKind.Scheduling, "scheduling", 4, true)
         ];
 
         await Assert.That(JobKindRegistry.CoreDescriptors.Select(d => d.Kind))

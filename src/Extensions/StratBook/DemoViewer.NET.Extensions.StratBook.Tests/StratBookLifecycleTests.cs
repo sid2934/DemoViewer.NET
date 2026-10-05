@@ -434,7 +434,7 @@ public class StratBookLifecycleTests
                 try
                 {
                     QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
-                    provider.GetRequiredService<DemoEvaluationCoordinator>();
+                    provider.GetRequiredService<DemoScheduler>();
                     await body(provider, recorder);
                 }
                 finally

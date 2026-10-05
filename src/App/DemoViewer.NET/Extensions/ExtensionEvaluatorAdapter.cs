@@ -7,7 +7,7 @@ using DemoViewer.NET.Services.DemoProcessing;
 
 namespace DemoViewer.NET.Extensions;
 
-/// <summary>An SDK evaluator on the app's demo fan-out.</summary>
+/// <summary>An SDK evaluator as one of the app's demo evaluators.</summary>
 internal sealed class ExtensionEvaluatorAdapter(IExtensionEvaluator inner) : IDemoEvaluator
 {
     public IExtensionEvaluator Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
@@ -26,6 +26,4 @@ internal sealed class ExtensionEvaluatorAdapter(IExtensionEvaluator inner) : IDe
         Inner.PriorityFor(path) == JobPriority.UserRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
 
     public long OrderHint(string path) => Inner.OrderHint(path);
-
-    public IReadOnlyList<string> PendingPaths() => Inner.PendingPaths();
 }

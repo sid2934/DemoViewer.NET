@@ -158,7 +158,6 @@ DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.Evaluate(string! path, CS2Demo
 DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.Id.get -> string!
 DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.OnFailed(string! path) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.OrderHint(string! path) -> long
-DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.PendingPaths() -> System.Collections.Generic.IReadOnlyList<string!>!
 DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.PriorityFor(string! path) -> DemoViewer.NET.Extensions.Sdk.JobPriority
 DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.ReadsUserCommands.get -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionEvaluator.Wants(string! path) -> bool

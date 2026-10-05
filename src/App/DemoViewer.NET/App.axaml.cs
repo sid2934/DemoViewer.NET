@@ -101,6 +101,10 @@ public class App : Application
             MainViewModel viewModel = services.GetRequiredService<MainViewModel>();
             WireDiagnosticsLogging(services, viewModel); // internal ILogger pillar -> Diagnostics tab + file
             LogExtensionStatuses();
+            // The one whole-library check of the session: every pass is asked about every known demo, off
+            // the UI thread, so work left from the last session or owed by a changed configuration starts
+            // without waiting for a demo to change. After that only events feed the scheduler.
+            services.GetRequiredService<DemoScheduler>().RecheckAll();
             // Drop an unfinished download and the staged versions the running copy supersedes. A
             // background queue item; nothing waits on it.
             _ = services.GetService<ExtensionUpdateService>()?.CleanupOnStartAsync();
@@ -676,11 +680,11 @@ public class App : Application
             ValidateOnBuild = true
         });
         QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
-        // Force-construct the coordinator so its wiring side-effect (library.Coordinator = it) runs before
-        // any rescan, independent of ValidateOnBuild's eager-construction behavior. ValidateEvaluators
-        // populates and sorts the evaluator registry right away, so a cycle or an unknown After id fails
-        // here, loudly, at startup, instead of waiting for the first real poll to find it.
-        provider.GetRequiredService<DemoEvaluationCoordinator>().ValidateEvaluators();
+        // Force-construct the scheduler so its wiring side-effect (library.Scheduler = it) runs before any
+        // rescan, independent of ValidateOnBuild's eager-construction behavior. ValidatePasses populates and
+        // sorts the pass registry right away, so a cycle or an unknown After id fails here, loudly, at
+        // startup, instead of waiting for the first plan to find it.
+        provider.GetRequiredService<DemoScheduler>().ValidatePasses();
         // Each pack whose feature id resolves on gets its lifecycle's startup loads. A pack that is off
         // never resolves its lifecycle, so none of this runs: no index load, no Team Identity rebuild, no
         // queue item.
@@ -870,8 +874,8 @@ public class App : Application
 
         // The demo-library indexer: the one internally-new'd store routed through the container, because
         // it now reads its folders from AppSettings.Library.Folders and writes them back via SettingsService.
-        // Its tier-2 full parses run through the DemoEvaluationCoordinator (registered below), not the queue
-        // directly ("one parse, many evaluators").
+        // Its tier-2 full parses run through the DemoScheduler (registered below), not the queue directly
+        // ("one parse, many evaluators").
         // The unified demo-information cache. Registered
         // ahead of the indexer because the indexer dual-writes tier 2 into it.
         services.AddSingleton(_ =>
@@ -959,23 +963,23 @@ public class App : Application
         services.AddSingleton(sp => new ReviewQueue(AppPaths.ConfigRoot,
             scheduleSave: QueueWork.Saves(sp.GetRequiredService<IDemoProcessingQueue>(), "Save: review queue", "review", "save:review-queue"),
             scheduleLoad: StartupLoad(sp, "Load: review queue", "review")));
-        // The "one parse, many evaluators" coordinator: the single submitter that asks the registered
-        // passes about a demo and submits them together as ONE visit, so the demo is read once. Library
-        // and Highlights are core, always on the visit; a pack's passes come from a PassRegistry built over
-        // its Pass contributions, ordered by declared After ids rather than a hand-written array. The
-        // registry reads PackContributionSet lazily, on the coordinator's first poll, not here: resolving
-        // it during this factory would run every pack's Contribute() during container build, well before
-        // anything needs it. A disabled pack's pass factories are never invoked here, so those services
-        // are not constructed by THIS path while the pack is off (a resident like SituationIndex or
-        // GrenadeIndex may still resolve one directly at StartPacks time; each such evaluator sets its own
-        // .Coordinator in its own factory, below). The candidate universe re-polled on CapacityAvailable
-        // is the UNION of the CURRENTLY resolved evaluators' PendingPaths. The ORDER is a contract (the
-        // round index reads the round facts written in the same visit) and is pinned by
-        // AppCompositionRootTests.
+        // The "one parse, many evaluators" scheduler: the single submitter that asks the registered passes
+        // about a demo and submits them together as ONE visit, so the demo is read once. Library and
+        // Highlights are core, always on the visit; a pack's passes come from a PassRegistry built over its
+        // Pass contributions, ordered by declared After ids rather than a hand-written array. The registry
+        // reads PackContributionSet lazily, on the scheduler's first plan, not here: resolving it during
+        // this factory would run every pack's Contribute() during container build, well before anything
+        // needs it. A disabled pack's pass factories are never invoked here, so those services are not
+        // constructed by THIS path while the pack is off (a resident like SituationIndex or GrenadeIndex
+        // may still resolve one directly at StartPacks time; each such evaluator sets its own .Scheduler in
+        // its own factory, below). The whole-library re-check reads the unified cache's index, which is
+        // worker-readable. The ORDER is a contract (the round index reads the round facts written in the
+        // same visit) and is pinned by AppCompositionRootTests.
         services.AddSingleton(sp =>
         {
             DemoLibraryService library = sp.GetRequiredService<DemoLibraryService>();
             HighlightScanService highlights = sp.GetRequiredService<HighlightScanService>();
+            DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
 
             PassRegistry registry = new();
             registry.AddCoreEvaluator(library.Id, () => library);
@@ -985,26 +989,10 @@ public class App : Application
             // Filled when the registry populates, before anything can fault.
             ConcurrentDictionary<string, ExtensionGuard> guardOf = new(StringComparer.Ordinal);
 
-            IEnumerable<string> PendingOf(IDemoPass pass)
-            {
-                if (pass is not EvaluatorPassAdapter adapter)
-                {
-                    return [];
-                }
-
-                if (!guardOf.TryGetValue(pass.Id, out ExtensionGuard? guard))
-                {
-                    return adapter.Evaluator.PendingPaths();
-                }
-
-                return guard.Run<IReadOnlyList<string>>("pending demos of " + pass.Id, adapter.Evaluator.PendingPaths, []);
-            }
-
-            DemoEvaluationCoordinator coordinator = new(
+            DemoScheduler scheduler = new(
                 registry.Resolve,
                 sp.GetRequiredService<IDemoProcessingQueue>(),
-                () => registry.Resolve().SelectMany(PendingOf).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
-                sp.GetRequiredService<MergedRulesBuild>().Forget,
+                () => cache.Index.Select(e => e.Path),
                 registry.Validate)
             {
                 Faulted = (id, _, ex) =>
@@ -1015,8 +1003,8 @@ public class App : Application
                     }
                 }
             };
-            library.Coordinator = coordinator;
-            highlights.Coordinator = coordinator;
+            library.Scheduler = scheduler;
+            highlights.Scheduler = scheduler;
 
             registry.AddPacksLazily(() =>
             {
@@ -1027,9 +1015,9 @@ public class App : Application
                     ExtensionGuard guard = contributions.Guard;
                     foreach (PassContribution contribution in contributions.Passes)
                     {
-                        // .Coordinator (where the evaluator type has one) is set by the evaluator's own DI
+                        // .Scheduler (where the evaluator type has one) is set by the evaluator's own DI
                         // factory, not here: a wrapper assignment only runs once something has already
-                        // polled, but GrenadeIndexEvaluator can also be built earlier, through GrenadeIndex
+                        // planned, but GrenadeIndexEvaluator can also be built earlier, through GrenadeIndex
                         // at StartPacks time.
                         guardOf[contribution.Id] = guard;
                         string id = contribution.Id;
@@ -1040,7 +1028,7 @@ public class App : Application
                 }
             });
 
-            return coordinator;
+            return scheduler;
         });
 
         // Recently-opened-demos store. SINGLETON: it holds the live in-memory recents list
@@ -1098,14 +1086,14 @@ public class App : Application
         // merged rules build the ruleset claims.
         services.AddSingleton(sp => new PackContributionSet(packs, sp));
 
-        // The live toggle: started by StartPacks, driven by the gate's Changed after that. The re-poll after a
-        // switch-on is the coordinator's capacity re-feed, run as a queue item. The browser never shows the
-        // wizard (NeedsFirstRun is always true there), so it never waits for it.
+        // The live toggle: started by StartPacks, driven by the gate's Changed after that. The re-check after
+        // a switch-on asks the scheduler to plan every demo again, run as a queue item. The browser never
+        // shows the wizard (NeedsFirstRun is always true there), so it never waits for it.
         services.AddSingleton(sp => new PackSwitch(packs,
             sp.GetRequiredService<IFeatureGate>(),
             pack => sp.GetKeyedService<IExtensionLifecycle>(pack.Id),
             sp.GetRequiredService<IDemoProcessingQueue>(),
-            () => sp.GetRequiredService<DemoEvaluationCoordinator>().ConsiderAll(),
+            () => sp.GetRequiredService<DemoScheduler>().RecheckAll(),
             () => !OperatingSystem.IsBrowser() && sp.GetRequiredService<SettingsService>().NeedsFirstRun,
             sp.GetRequiredService<ExtensionFaults>()));
 
@@ -1176,9 +1164,9 @@ public class App : Application
                 // The interactive open is submitted as the highest-priority
                 // awaitable foreground request on the global queue.
                 sp.GetRequiredService<IDemoProcessingQueue>(),
-                // The open fans its parse out to the background
-                // evaluators so an un-indexed library demo fills its card from THAT parse, not a second one.
-                sp.GetRequiredService<DemoEvaluationCoordinator>(),
+                // The open runs the demo's visit on its own parse, so an un-indexed library demo fills its
+                // card from THAT parse, not a second one.
+                sp.GetRequiredService<DemoScheduler>(),
                 // Bundled tour sample (assets/tour): the Library hero's "Try a sample match" CTA and the
                 // walkthrough gateway's empty-library target. Resolves null on WASM (no filesystem to walk).
                 TourDemoLocator.FindSampleDemo,
@@ -1271,8 +1259,8 @@ public class App : Application
         foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
             IExtension pack = contributions.Pack;
-            // Passes are consumed by the PassRegistry the DemoEvaluationCoordinator factory
-            // builds; job kinds by JobKindRegistry.Build(packs), DI-free like CommandRegistry.Build.
+            // Passes are consumed by the PassRegistry the DemoScheduler factory builds; job kinds by
+            // JobKindRegistry.Build(packs), DI-free like CommandRegistry.Build.
             // CommandRegistry.Default reads IExtension.Commands directly (no DI, so a bare-constructed
             // view model resolves pack chords in a headless test too). This is the consumer for the
             // IFirstPartyContributions.Commands(...) call: not a second registration, a check that the two

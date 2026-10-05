@@ -38,7 +38,7 @@ public class TagFactsRealDemoTests
         using TagFactsRefresher refresher = new(tags, facts, _ => Sha, action => action());
 
         // The evaluator's write raises Updated, which is the refresh.
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
 
         RoundFactsRows rows = facts.TryGet(path) ?? throw new InvalidOperationException("the evaluator wrote no rows");
         TagDocument refreshed = tags.TryLoad(Sha)!;

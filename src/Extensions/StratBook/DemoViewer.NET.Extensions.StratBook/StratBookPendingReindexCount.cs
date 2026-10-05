@@ -12,7 +12,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
 ///     The pack's answer for the Settings "N demos will be re-indexed in the background" notice:
-///     the union of every pack evaluator's own <c>PendingPaths()</c>, which already
+///     the union of every pack evaluator's own <c>PendingPaths()</c>, derived from the index, which already
 ///     honours each evaluator's own background-indexing opt-in. Built once per container, over the same
 ///     <see cref="IServiceProvider" /> every other <c>Contribute</c> closure captures, so
 ///     <c>SettingsViewModel</c> never needs to resolve these evaluators (or know this type exists) itself.

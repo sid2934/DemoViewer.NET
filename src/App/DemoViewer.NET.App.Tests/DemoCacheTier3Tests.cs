@@ -312,10 +312,10 @@ public class DemoCacheTier3Tests
     }
 
     /// <summary>
-    ///     A user's "Compute full stats" survives the Library piggyback beating it to the row.
+    ///     A user's "Compute full stats" survives another channel beating it to the row.
     ///     <para>
-    ///         Both owners coalesce onto ONE parse, and the Library's own evaluate fans out to
-    ///         <c>OnParsedOpportunistically</c>: a BARE run that upserts <c>Indexed</c>. The "row is no
+    ///         Both owners coalesce onto ONE parse, and the shell's own harvest of the open demo is a BARE
+    ///         run that upserts <c>Indexed</c>. The "row is no
     ///         longer Pending, don't waste the slot" skip was sound while every run was equivalent and became
     ///         wrong the moment bare and full stopped being the same thing: the press would be silently
     ///         consumed, the forced flag cleared, and the user left with highlights, no scoreboard, and no

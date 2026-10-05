@@ -299,15 +299,15 @@ public class DemoCachePackPayloadTests
                 "csgo", 0, 0, 0, "v", "", "", DemoProfile.Unknown);
         });
         StampedFake evaluator = new(cache, FakeFacet, 1, "fp-1");
-        using DemoEvaluationCoordinator coordinator = new([evaluator], queue, () => [Demo]);
+        using DemoScheduler coordinator = new([evaluator], queue, () => [Demo]);
 
-        coordinator.ConsiderAll();
+        coordinator.RecheckAll();
         await Task.Delay(50);
         await Assert.That(evaluator.Evaluated).IsEqualTo(0).Because("the stamp is current");
         await Assert.That(parses).IsEqualTo(0);
 
         cache.UpdateExisting(Demo, r => r.SetStamp(new PackStamp(FakeFacet, 1, "fp-0")));
-        coordinator.ConsiderAll();
+        coordinator.RecheckAll();
         DateTime deadline = DateTime.UtcNow.AddSeconds(5);
         while (evaluator.Evaluated == 0 && DateTime.UtcNow < deadline)
         {

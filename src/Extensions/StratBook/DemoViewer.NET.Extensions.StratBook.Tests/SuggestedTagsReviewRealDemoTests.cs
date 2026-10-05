@@ -43,7 +43,7 @@ public class SuggestedTagsReviewRealDemoTests
             Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
         });
         new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity())
-            .OnParsedOpportunistically(path, parsed);
+            .Evaluate(path, parsed);
 
         using ProposalStore proposals = new(null, cache);
         TagStore tags = new(null);

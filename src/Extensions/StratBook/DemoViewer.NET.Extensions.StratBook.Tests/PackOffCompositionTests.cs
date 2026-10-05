@@ -112,18 +112,18 @@ public class PackOffCompositionTests
         });
     }
 
-    // The evaluator registry is what is actually responsible for the four fields above staying null:
-    // it reads PackContributionSet lazily and never invokes a disabled pack's evaluator
-    // factory. Forcing a poll here (EvaluatorIds), something the test above never does, proves the
-    // gate itself rather than merely "nothing happened to construct them yet".
+    // The pass registry is what is actually responsible for the four fields above staying null: it reads
+    // PackContributionSet lazily and never invokes a disabled pack's evaluator factory. Resolving the pass
+    // list here (PassIds), something the test above never does, proves the gate itself rather than merely
+    // "nothing happened to construct them yet".
     [Test]
-    public async Task PackOff_PollingTheCoordinator_StillNeverConstructsThePacksFourEvaluators()
+    public async Task PackOff_ResolvingThePasses_StillNeverConstructsThePacksFourEvaluators()
     {
         await WithProvider(async provider =>
         {
-            DemoEvaluationCoordinator coordinator = provider.GetRequiredService<DemoEvaluationCoordinator>();
+            DemoScheduler coordinator = provider.GetRequiredService<DemoScheduler>();
 
-            await Assert.That(coordinator.EvaluatorIds).IsEquivalentTo(["library", "highlights"])
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights"])
                 .Because("the pack is off: its four evaluators are never in the fan-out");
 
             StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();

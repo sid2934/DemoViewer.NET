@@ -33,7 +33,7 @@ namespace DemoViewer.NET.Services.RoundFacts;
 /// </summary>
 public sealed class RoundFactsEvaluator : IDemoEvaluator
 {
-    /// <summary>The queue owner tag and the coordinator's id for this evaluator.</summary>
+    /// <summary>The queue owner tag and the pass id for this evaluator.</summary>
     public const string EvaluatorId = "roundfacts";
 
     // The rules fingerprint is tick-rate dependent and the backlog spans demos of several rates. 64 is
@@ -51,7 +51,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     private int _reportedAbsent;
 
     // Demos whose engine run produced no rows under a fingerprint, this session only. Nothing is written
-    // (an empty payload would read as current), so without this the coordinator re-parses them forever.
+    // (an empty payload would read as current), so without this the scheduler re-parses them forever.
     private readonly HashSet<string> _noRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _noRowsGate = new();
 
@@ -88,8 +88,8 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     /// <inheritdoc />
     /// <remarks>
     ///     Interested in a demo the Library has already parsed whose rows are missing or were written
-    ///     under another fingerprint. A demo the cache has never seen is the Library's to parse first;
-    ///     its tier-2 fan-out reaches <see cref="OnParsedOpportunistically" /> on that parse.
+    ///     under another fingerprint. A demo the cache has never seen is the Library's to parse first; this
+    ///     pass joins that visit through <see cref="WantsAfterUpstream" /> and runs once the Library has written.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -115,25 +115,14 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    /// <remarks>
-    ///     Not gated on <see cref="Wants" />: the Library's tier-2 slot fans out BEFORE it writes the
-    ///     record, so the row this refreshes may not exist yet. The common fresh case costs one
-    ///     fingerprint compare.
-    /// </remarks>
-    public void OnParsedOpportunistically(string path, ParsedDemo parsed) => Refresh(path, parsed);
-
-    /// <inheritdoc />
     public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.Rules;
 
     /// <inheritdoc />
     public void EvaluateForward(string path, ForwardDemoResult pass) => Refresh(path, pass);
 
-    /// <inheritdoc />
-    public void OnForwardOpportunistically(string path, ForwardDemoResult pass) => Refresh(path, pass);
-
     /// <summary>
-    ///     The demos whose rows are missing or stale under the current fingerprint: the coordinator's
-    ///     candidate universe for this evaluator. Derived from the index, never stored.
+    ///     The demos whose rows are missing or stale under the current fingerprint, for the pending counts.
+    ///     Derived from the index, never stored.
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {

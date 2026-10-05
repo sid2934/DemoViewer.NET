@@ -69,7 +69,10 @@ public enum QueueJobKind
     ///     A user opening a demo (<see cref="IDemoProcessingQueue.BeginOpen" />). It sits at the front, ignores
     ///     pause and the background switch, and no other heavy item starts while it is active.
     /// </summary>
-    DemoOpen
+    DemoOpen,
+
+    /// <summary>The scheduler asking every pass about the demos marked dirty, then submitting their visits. Light.</summary>
+    Scheduling
 }
 
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>
@@ -356,8 +359,8 @@ public interface IDemoProcessingQueue
     ///     Submits passes for one demo's visit, coalesced by path: a queued visit of the demo takes them, a
     ///     running one takes those its read can serve, and the demo is read once in the mode the passes on it
     ///     need. In the slot the passes run in <see cref="IDemoPass.After" /> order, each asked again first.
-    ///     Rejected under the same size cap as <see cref="SubmitBackground" />. The evaluation coordinator
-    ///     submits every demo through this member, so a stand-in queue must handle it.
+    ///     Rejected under the same size cap as <see cref="SubmitBackground" />. The scheduler submits every
+    ///     demo through this member, so a stand-in queue must handle it.
     /// </summary>
     IDemoQueueHandle SubmitVisit(DemoVisitRequest request);
 

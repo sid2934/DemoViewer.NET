@@ -46,8 +46,8 @@ public class SearchFiltersRealDemoTests
                 ComputedAtTicks = 1
             }
         });
-        facts.OnParsedOpportunistically(path, parsed);
-        evaluator.OnParsedOpportunistically(path, parsed);
+        facts.Evaluate(path, parsed);
+        evaluator.Evaluate(path, parsed);
         await Assert.That(index.IndexedDemoCount).IsEqualTo(1);
 
         SituationQuery all = new(parsed.MapName, [], []);

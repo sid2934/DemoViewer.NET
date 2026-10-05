@@ -11,13 +11,17 @@ public interface IExtensionEvaluator
     /// <summary>Unique across the app; prefix it with your extension id. Other evaluators order after it by this id.</summary>
     string Id { get; }
 
-    /// <summary>Whether <paramref name="path" /> still needs this evaluator. Called often: answer from memory.</summary>
+    /// <summary>
+    ///     Whether <paramref name="path" /> still needs this evaluator. Asked when the library adds or changes
+    ///     the demo, when the host re-checks the library, and again right before this evaluator's turn on the
+    ///     shared parse. Called often and off the UI thread: answer from memory.
+    /// </summary>
     bool Wants(string path);
 
     /// <summary>Reads the parsed demo. Runs on a queue thread; never touch the UI from here.</summary>
     void Evaluate(string path, ParsedDemo parsed);
 
-    /// <summary>The parse of <paramref name="path" /> failed. The next poll may ask again.</summary>
+    /// <summary>The parse of <paramref name="path" /> failed. The next check may ask again.</summary>
     void OnFailed(string path)
     {
     }
@@ -30,7 +34,4 @@ public interface IExtensionEvaluator
 
     /// <summary>Order among background demos; lower runs first.</summary>
     long OrderHint(string path) => 0;
-
-    /// <summary>Demos this evaluator wants that the library has not queued, such as after the extension was off.</summary>
-    IReadOnlyList<string> PendingPaths() => Array.Empty<string>();
 }

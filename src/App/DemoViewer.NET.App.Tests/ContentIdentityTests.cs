@@ -314,7 +314,7 @@ public class ContentIdentityTests
         try
         {
             using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache);
-            library.IndexTier2Core(entry, parsed, false);
+            library.IndexTier2Core(entry, parsed);
 
             string expected = DemoContentHash.Compute(path);
             using (Assert.Multiple())

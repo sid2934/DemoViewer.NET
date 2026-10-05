@@ -81,11 +81,11 @@ public class SuggestedTagsReviewTests
             () => true, () => false, openDemo: () => open, walk: _ => Walk(), utcNow: () => Now);
         h.Seed();
 
-        service.OnParsedOpportunistically(DemoPath, Parse());
-        await Assert.That(h.Proposals.TryRead(DemoPath)).IsNull().Because("another demo's tier-2 parse is not the open one");
+        await Assert.That(service.Wants(DemoPath)).IsFalse().Because("with the sweep off a demo that is not open joins no visit");
 
         open = DemoPath;
-        service.OnParsedOpportunistically(DemoPath, Parse());
+        await Assert.That(service.Wants(DemoPath)).IsTrue().Because("the open demo is built on the parse its open paid for");
+        service.Evaluate(DemoPath, Parse());
         await Assert.That(h.Proposals.TryRead(DemoPath)).IsNotNull();
     }
 

@@ -53,7 +53,6 @@ public class RoundIndexEvaluatorTests
             .Because("with the sweep off nothing follows");
         await Assert.That(evaluator.PendingPaths()).IsEmpty();
 
-        evaluator.OnParsedOpportunistically(Demo, Parse());
         evaluator.Evaluate(Demo, Parse());
 
         using (Assert.Multiple())
@@ -195,23 +194,23 @@ public class RoundIndexEvaluatorTests
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundIndexEvaluator evaluator = new(cache, store, sources, () => true, walk: _ => [], enabled: () => false);
 
-        await Assert.That(evaluator.Wants(Demo)).IsFalse();
-        await Assert.That(evaluator.PendingPaths()).IsEmpty();
-
-        evaluator.OnParsedOpportunistically(Demo, Parse());
-        await Assert.That(store.TryRead(Demo)).IsNull().Because("the opportunistic hand-off follows Wants, which the pack gate forces false");
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse();
+            await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsFalse()
+                .Because("the pack gate keeps the demo off every visit, so the index is never written");
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
+            await Assert.That(store.TryRead(Demo)).IsNull();
+        }
     }
 
     [Test]
-    public async Task WithBackgroundOff_OnlyForcedPathsAreWanted_AndTheHandOffIsGated()
+    public async Task WithBackgroundOff_OnlyForcedPathsAreWanted()
     {
         (DemoCacheStore cache, RoundIndexStore store, RoundIndexEvaluator evaluator) = Wire(background: false);
 
-        await Assert.That(evaluator.Wants(Demo)).IsFalse();
+        await Assert.That(evaluator.Wants(Demo)).IsFalse().Because("with the sweep off the demo joins no visit");
         await Assert.That(evaluator.PendingPaths()).IsEmpty();
-
-        evaluator.OnParsedOpportunistically(Demo, Parse());
-        await Assert.That(store.TryRead(Demo)).IsNull().Because("the hand-off is a no-op when the demo is not wanted");
 
         evaluator.Request(Demo);
         using (Assert.Multiple())
@@ -221,7 +220,7 @@ public class RoundIndexEvaluatorTests
             await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.UserRequested);
         }
 
-        evaluator.OnParsedOpportunistically(Demo, Parse());
+        evaluator.Evaluate(Demo, Parse());
         using (Assert.Multiple())
         {
             await Assert.That(store.TryRead(Demo)).IsNotNull();

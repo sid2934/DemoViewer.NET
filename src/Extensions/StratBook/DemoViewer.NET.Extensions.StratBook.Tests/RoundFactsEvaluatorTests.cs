@@ -98,7 +98,7 @@ public class RoundFactsEvaluatorTests
         int updates = 0;
         evaluator.Updated += _ => updates++;
 
-        evaluator.OnParsedOpportunistically(Demo, TwoRoundDemo());
+        evaluator.Evaluate(Demo, TwoRoundDemo());
         evaluator.Evaluate(Demo, TwoRoundDemo());
 
         using (Assert.Multiple())
@@ -121,7 +121,7 @@ public class RoundFactsEvaluatorTests
         int updates = 0;
         evaluator.Updated += _ => updates++;
 
-        evaluator.OnParsedOpportunistically(Demo, TwoRoundDemo());
+        evaluator.Evaluate(Demo, TwoRoundDemo());
         evaluator.Evaluate(Demo, TwoRoundDemo());
 
         using (Assert.Multiple())
@@ -137,7 +137,7 @@ public class RoundFactsEvaluatorTests
         packOn = true;
         await Assert.That(evaluator.Wants(Demo)).IsTrue();
         await Assert.That(evaluator.PendingPaths()).Contains(Demo);
-        evaluator.OnParsedOpportunistically(Demo, TwoRoundDemo());
+        evaluator.Evaluate(Demo, TwoRoundDemo());
 
         using (Assert.Multiple())
         {
@@ -187,7 +187,7 @@ public class RoundFactsEvaluatorTests
         await Assert.That(evaluator.Wants(Demo)).IsTrue();
         await Assert.That(evaluator.PendingPaths()).Contains(Demo);
 
-        evaluator.OnParsedOpportunistically(Demo, TwoRoundDemo());
+        evaluator.Evaluate(Demo, TwoRoundDemo());
         evaluator.Evaluate(Demo, TwoRoundDemo());
         DemoCacheRecord record = store.TryLoadRecord(Demo)!;
         DemoCacheIndexEntry entry = store.TryGetIndex(Demo)!;
@@ -263,7 +263,7 @@ public class RoundFactsEvaluatorTests
         await Assert.That(new RoundFactsEvaluator(store, source, new FakeIdentity(null)).WantsAfterUpstream(Demo)).IsFalse()
             .Because("no ruleset means nothing to run after the parse either");
 
-        evaluator.OnParsedOpportunistically(Demo, TwoRoundDemo());
+        evaluator.Evaluate(Demo, TwoRoundDemo());
 
         using (Assert.Multiple())
         {

@@ -235,10 +235,10 @@ public sealed class StratBookPack : IExtension
                 () => monitor?.CurrentValue.Situations.BackgroundIndex ?? true,
                 Host(sp).Post,
                 enabled: () => features.IsEnabled(PackFeatureId));
-            // Set here, not by the evaluator registry's lazy wrapper: SituationIndex resolves this
-            // directly at StartPacks time, before anything has polled the coordinator, so a wrapper-only
-            // assignment would leave Coordinator null and Request/RebuildAll silently no-op until then.
-            built.Coordinator = sp.GetRequiredService<DemoEvaluationCoordinator>();
+            // Set here, not by the pass registry's lazy wrapper: SituationIndex resolves this directly at
+            // StartPacks time, before anything has planned a visit, so a wrapper-only assignment would leave
+            // Scheduler null and Request/RebuildAll silently no-op until then.
+            built.Scheduler = sp.GetRequiredService<DemoScheduler>();
             return built;
         });
         services.AddSingleton(sp => new SituationIndex(
@@ -526,9 +526,9 @@ public sealed class StratBookPack : IExtension
                 () => Host(sp).Shell.CurrentDemoPath,
                 Host(sp).Post);
             sp.GetRequiredService<StratBookPackInstances>().SuggestedTags = built;
-            // Set here, not by the evaluator registry's lazy wrapper, which only runs once something has
-            // already polled the coordinator.
-            built.Coordinator = sp.GetRequiredService<DemoEvaluationCoordinator>();
+            // Set here, not by the pass registry's lazy wrapper, which only runs once something has already
+            // planned a visit.
+            built.Scheduler = sp.GetRequiredService<DemoScheduler>();
             return built;
         });
         // The tuning view's harness: stored counts for free, an in-memory re-run over a candidate
@@ -674,10 +674,10 @@ public sealed class StratBookPack : IExtension
                 () => monitor?.CurrentValue.Grenades.TrajectoryStride ?? 4,
                 enabled: () => features.IsEnabled(PackFeatureId));
             sp.GetRequiredService<StratBookPackInstances>().GrenadeWalk = built;
-            // Set here, not by the evaluator registry's lazy wrapper: GrenadeIndex resolves this directly
-            // at StartPacks time, before anything has polled the coordinator, so a wrapper-only assignment
-            // would leave Coordinator null and Request silently no-op until the first poll.
-            built.Coordinator = sp.GetRequiredService<DemoEvaluationCoordinator>();
+            // Set here, not by the pass registry's lazy wrapper: GrenadeIndex resolves this directly at
+            // StartPacks time, before anything has planned a visit, so a wrapper-only assignment would leave
+            // Scheduler null and Request silently no-op until the first plan.
+            built.Scheduler = sp.GetRequiredService<DemoScheduler>();
             return built;
         });
 
@@ -882,7 +882,7 @@ public sealed class StratBookPack : IExtension
         // the user overlay and the Workbench keep working on it.
         firstParty.Ruleset(RoundFactsFingerprint.RulesetId);
 
-        // The four pack evaluators on the demo fan-out, ordered to match the dependency chain
+        // The four pack evaluators on the demo visit, ordered to match the dependency chain
         // each one reads: Round Facts after the library write, Round Index after Round Facts' rows,
         // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing
         // the others write). The registry resolves this only while the pack is on, so these factories are

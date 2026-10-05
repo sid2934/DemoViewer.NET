@@ -58,7 +58,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
     [ObservableProperty]
     private int _indexedCount;
 
-    /// <summary>True while the coordinator has index work in flight.</summary>
+    /// <summary>True while the scheduler has index work in flight.</summary>
     [ObservableProperty]
     private bool _isIndexing;
 

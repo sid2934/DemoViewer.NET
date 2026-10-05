@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The pack-reaching half of the composition-root smoke test, split out of
 ///     <c>AppCompositionRootTests</c> in App.Tests: the hub layout, the evaluator fan-out order (on and
-///     off), the Situation/Grenade index coordinator wiring, and the pack-off evaluator/badge case. Each
+///     off), the Situation/Grenade index scheduler wiring, and the pack-off evaluator/badge case. Each
 ///     case builds the REAL container the same way the core file does; see that class for why
 ///     <see cref="NotInParallelAttribute" /> and the per-case temp config dir.
 /// </summary>
@@ -80,16 +80,16 @@ public class StratBookCompositionRootTests
         });
     }
 
-    // The fan-out order is a contract: an evaluator may read what the one before
-    // it wrote in the same pass, so the round index, when it lands, goes after round facts and reads them.
+    // The pass order is a contract: a pass may read what the one before it wrote on the same visit, so the
+    // round index, when it lands, goes after round facts and reads them.
     [Test]
-    public async Task EvaluatorFanOutOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTagsThenGrenades()
+    public async Task PassOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTagsThenGrenades()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
-            Services.DemoProcessing.DemoEvaluationCoordinator coordinator =
-                provider.GetRequiredService<Services.DemoProcessing.DemoEvaluationCoordinator>();
-            await Assert.That(coordinator.EvaluatorIds)
+            Services.DemoProcessing.DemoScheduler coordinator =
+                provider.GetRequiredService<Services.DemoProcessing.DemoScheduler>();
+            await Assert.That(coordinator.PassIds)
                 .IsEquivalentTo(new[]
                 {
                     "library", "highlights", Services.RoundFacts.RoundFactsEvaluator.EvaluatorId,
@@ -97,13 +97,13 @@ public class StratBookCompositionRootTests
                     Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
                     Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId
                 });
-            await Assert.That(coordinator.EvaluatorIds[2]).IsEqualTo("roundfacts");
+            await Assert.That(coordinator.PassIds[2]).IsEqualTo("roundfacts");
             // The index reads the rows Round Facts wrote in the same pass, so it must come after it.
-            await Assert.That(coordinator.EvaluatorIds[3]).IsEqualTo("roundindex");
+            await Assert.That(coordinator.PassIds[3]).IsEqualTo("roundindex");
             // Suggested Tags reads the index written in the same pass, so it comes last.
-            await Assert.That(coordinator.EvaluatorIds[4]).IsEqualTo("suggestedtags");
+            await Assert.That(coordinator.PassIds[4]).IsEqualTo("suggestedtags");
             // The grenade walk reads nothing the others write; last so it never delays one that does.
-            await Assert.That(coordinator.EvaluatorIds[5]).IsEqualTo("grenades");
+            await Assert.That(coordinator.PassIds[5]).IsEqualTo("grenades");
 
             // The order came from the registry's resolve: confirm it actually built the four pack
             // evaluators, not merely listed their ids.
@@ -117,15 +117,15 @@ public class StratBookCompositionRootTests
                 await Assert.That(instances.GrenadeWalk).IsNotNull();
             }
 
-            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Coordinator)
+            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Scheduler)
                 .IsSameReferenceAs(coordinator);
-            await Assert.That(provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>().Coordinator)
+            await Assert.That(provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>().Scheduler)
                 .IsSameReferenceAs(coordinator);
             await Assert.That(provider.GetRequiredService<Services.RoundFacts.IRoundFactsSource>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.RoundIndex.ISituationIndex>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.Provenance.IDemoProvenanceSource>()).IsNotNull();
             await Assert.That(provider.GetRequiredService<Services.Tags.TagFactsRefresher>()).IsNotNull();
-            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Coordinator)
+            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Scheduler)
                 .IsSameReferenceAs(coordinator);
         });
     }
@@ -134,15 +134,15 @@ public class StratBookCompositionRootTests
     // resolved order, and their factories are never invoked. Never GetRequiredService a pack evaluator
     // directly here, which would construct it regardless of the gate.
     [Test]
-    public async Task EvaluatorFanOutOrder_WithThePackOff_IsOnlyLibraryAndHighlights_AndBuildsNothingPackOwned()
+    public async Task PassOrder_WithThePackOff_IsOnlyLibraryAndHighlights_AndBuildsNothingPackOwned()
     {
         const string packOff = """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
-            Services.DemoProcessing.DemoEvaluationCoordinator coordinator =
-                provider.GetRequiredService<Services.DemoProcessing.DemoEvaluationCoordinator>();
+            Services.DemoProcessing.DemoScheduler coordinator =
+                provider.GetRequiredService<Services.DemoProcessing.DemoScheduler>();
 
-            await Assert.That(coordinator.EvaluatorIds).IsEquivalentTo(["library", "highlights"])
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights"])
                 .Because("the pack is off: its four evaluators are never in the fan-out");
 
             StratBookPackInstances instances =
@@ -162,19 +162,19 @@ public class StratBookCompositionRootTests
     }
 
     // RoundIndexEvaluator and GrenadeIndexEvaluator can be built through SituationIndex/GrenadeIndex, at
-    // StartPacks time, before the coordinator has ever polled. Their own factory must set .Coordinator;
+    // StartPacks time, before the scheduler has ever planned. Their own factory must set .Scheduler;
     // the registry's lazy wrapper is too late for this path.
     [Test]
-    public async Task SituationIndexAndGrenadeIndex_SetTheirEvaluatorsCoordinator_WithoutEverPollingTheCoordinator()
+    public async Task SituationIndexAndGrenadeIndex_SetTheirEvaluatorsScheduler_WithoutEverPlanningAVisit()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
             Services.RoundIndex.SituationIndex _ = provider.GetRequiredService<Services.RoundIndex.SituationIndex>();
             Modules.UtilityBook.GrenadeIndex __ = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndex>();
 
-            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Coordinator)
+            await Assert.That(provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>().Scheduler)
                 .IsNotNull();
-            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Coordinator)
+            await Assert.That(provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>().Scheduler)
                 .IsNotNull();
         });
     }

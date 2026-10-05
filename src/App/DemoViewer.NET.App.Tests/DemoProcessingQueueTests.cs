@@ -745,11 +745,11 @@ public class DemoProcessingQueueTests
         using DemoProcessingQueue queue = PlanQueue(plans);
         PlanEvaluator library = new("library", false) { Wanted = { "a.dem", "b.dem" } };
         PlanEvaluator grenades = new("grenades", true) { Wanted = { "b.dem" } };
-        using DemoEvaluationCoordinator coordinator = new([library, grenades], queue, () => []);
+        using DemoScheduler coordinator = new([library, grenades], queue, () => []);
 
         queue.Pause();
-        coordinator.Consider("a.dem");
-        coordinator.Consider("b.dem");
+        coordinator.DemoChanged("a.dem");
+        coordinator.DemoChanged("b.dem");
         queue.Resume();
         await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 2, "drain");
 
@@ -779,9 +779,9 @@ public class DemoProcessingQueueTests
             });
         PlanEvaluator library = new("library", false) { Wanted = { "a.dem" } };
         PlanEvaluator grenades = new("grenades", true) { Wanted = { "a.dem" } };
-        using DemoEvaluationCoordinator coordinator = new([library, grenades], queue, () => []);
+        using DemoScheduler coordinator = new([library, grenades], queue, () => []);
 
-        coordinator.Consider("a.dem");
+        coordinator.DemoChanged("a.dem");
         await WaitForAsync(() => queue.ActiveWorkerCount == 0 && plans.Count == 1 && !coordinator.HasOutstanding("grenades"),
             "drain");
 

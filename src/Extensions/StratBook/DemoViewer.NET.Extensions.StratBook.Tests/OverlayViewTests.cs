@@ -252,9 +252,9 @@ public class OverlayViewTests
             Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
         });
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        facts.OnParsedOpportunistically(path, parsed);
+        facts.Evaluate(path, parsed);
         RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
 
         RoundPositionsDocument positions = sidecars.TryReadPositions(path, sources.FingerprintFor(parsed.MapName!))
             ?? throw new InvalidOperationException("the evaluator wrote no positions");

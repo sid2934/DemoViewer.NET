@@ -49,7 +49,7 @@ public class TagMatrixRealDemoTests
         tags.Save(Document(Sha,
             [.. rounds.Select(r => Instance("execute", r.StartTickFrameClock + 64, r.StartTickFrameClock + 640))]));
         using TagFactsRefresher refresher = new(tags, facts, _ => Sha, action => action());
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
         RoundFactsRows rows = facts.TryGet(path) ?? throw new InvalidOperationException("the evaluator wrote no rows");
 
         ReviewQueue queue = new(null);

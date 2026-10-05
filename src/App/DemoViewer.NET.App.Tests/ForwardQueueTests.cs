@@ -117,10 +117,10 @@ public class ForwardQueueTests
         Evaluator library = new("library", ForwardNeeds.FinalState | ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         Evaluator highlights = new("highlights", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         Evaluator facts = new("roundfacts", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
-        using DemoEvaluationCoordinator coordinator = new([library, highlights, facts], queue, () => []);
+        using DemoScheduler coordinator = new([library, highlights, facts], queue, () => []);
 
         queue.Pause();
-        coordinator.Consider("a.dem");
+        coordinator.DemoChanged("a.dem");
         queue.Resume();
         await WaitForAsync(() => facts.Forward + highlights.Forward + library.Forward == 3, "all three owners");
         // The owners run before the entry is marked finished, on the worker.
@@ -152,10 +152,10 @@ public class ForwardQueueTests
             });
         Evaluator facts = new("roundfacts", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         Evaluator index = new("roundindex", null) { Wanted = { "a.dem" } };
-        using DemoEvaluationCoordinator coordinator = new([facts, index], queue, () => []);
+        using DemoScheduler coordinator = new([facts, index], queue, () => []);
 
         queue.Pause();
-        coordinator.Consider("a.dem");
+        coordinator.DemoChanged("a.dem");
         queue.Resume();
         await WaitForAsync(() => facts.Retained + index.Retained == 2, "both owners");
 
@@ -426,13 +426,13 @@ public class ForwardQueueTests
 
         RoundFactsEvaluator facts = new(store, new NoRows(), new Identity("after-merge"));
         using HighlightScanService highlights = new(store, new Harvester("fp"), () => [], () => true);
-        using DemoEvaluationCoordinator coordinator = new([highlights, facts], queue,
+        using DemoScheduler coordinator = new([highlights, facts], queue,
             () => [.. highlights.PendingPaths().Concat(facts.PendingPaths()).Distinct()]);
 
         await Assert.That(facts.PendingPaths().Count).IsEqualTo(demos);
         await Assert.That(highlights.PendingPaths()).IsEmpty().Because("the highlight fingerprint did not move");
 
-        coordinator.ConsiderAll();
+        coordinator.RecheckAll();
         await WaitForAsync(() => facts.PendingPaths().Count == 0 && queue.ActiveWorkerCount == 0, "every demo re-evaluated");
 
         using (Assert.Multiple())

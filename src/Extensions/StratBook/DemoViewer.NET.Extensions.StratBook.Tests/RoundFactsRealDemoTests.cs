@@ -33,7 +33,7 @@ public class RoundFactsRealDemoTests
     {
         DemoCacheStore store = new(null);
         RoundFactsEvaluator evaluator = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
         return store.RoundFactsOf(path)
                ?? throw new InvalidOperationException("the evaluator wrote no rows");
     }

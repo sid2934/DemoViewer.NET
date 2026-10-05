@@ -161,7 +161,7 @@ public class TeamIdentityRealDemoTests
         }
 
         await teams.Idle;
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
 
         Team? onT = teams.TeamOnSide(path, 2);
         Team? onCt = teams.TeamOnSide(path, 3);
