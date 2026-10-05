@@ -3,7 +3,6 @@
 using System.Runtime.ExceptionServices;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
@@ -286,7 +285,7 @@ public sealed class SuggestedTagsTuningService
     // The row and its Round Facts rows, or null when the demo has none: nothing bounds rounds and seats sides.
     private (LibraryDemo Record, RoundFactsRows Facts)? Inputs(string path) =>
         _library.Find(path) is { } record
-        && _suggestedTags.RoundFacts.TryGet(path) is { Schema: RoundFactsRecords.Schema } facts
+        && _suggestedTags.RoundFacts.TryGet(path) is { Schema: RoundFactsRows.CurrentSchema } facts
             ? (record, facts)
             : null;
 

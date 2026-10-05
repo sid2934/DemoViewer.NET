@@ -8,13 +8,11 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using Microsoft.Extensions.Logging;
-using DemoViewer.NET.Modules;
 
 #endregion
 
@@ -81,10 +79,10 @@ public sealed class SuggestedTagsService : IExtensionPass
 
     private readonly Func<bool> _background;
     private readonly IExtensionLibrary _library;
-    private readonly IRoundFactsSource _roundFacts;
+    private readonly IRoundFacts _roundFacts;
 
     /// <summary>The Round Facts rows the detectors read, for the tuning preview's re-runs.</summary>
-    internal IRoundFactsSource RoundFacts => _roundFacts;
+    internal IRoundFacts RoundFacts => _roundFacts;
     private readonly Func<bool> _enabled;
 
     // Demos whose build threw this session: not wanted again until a forced request, so one bad file is
@@ -135,7 +133,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <param name="utcNow">The clock verdicts and instances are stamped with.</param>
     public SuggestedTagsService(
         IExtensionLibrary library,
-        IRoundFactsSource roundFacts,
+        IRoundFacts roundFacts,
         ProposalStore proposals,
         TagStore? tags,
         SiteRegionStore regions,
@@ -532,9 +530,9 @@ public sealed class SuggestedTagsService : IExtensionPass
         // The facts a hand-made tag gets as it is made, so the Matrix can slice an accepted tag at once
         // rather than after the next rows rewrite.
         LibraryDemo? record = _library.Find(path);
-        if (record is not null && _roundFacts.TryGet(path) is { Schema: RoundFactsRecords.Schema } rows)
+        if (record is not null && _roundFacts.TryGet(path) is { Schema: RoundFactsRows.CurrentSchema } rows)
         {
-            TagFactsRefresher.RefreshInstance(instance, rows.Rounds, RoundFactsRecords.Schema, now);
+            TagFactsRefresher.RefreshInstance(instance, rows.Rounds, RoundFactsRows.CurrentSchema, now);
         }
 
         DemoIdentity demo = new(sha, document.Demo.FileName ?? Path.GetFileName(path),
@@ -653,7 +651,7 @@ public sealed class SuggestedTagsService : IExtensionPass
 
         try
         {
-            if (_library.Find(path) is not { } record || _roundFacts.TryGet(path) is not { Schema: RoundFactsRecords.Schema } facts)
+            if (_library.Find(path) is not { } record || _roundFacts.TryGet(path) is not { Schema: RoundFactsRows.CurrentSchema } facts)
             {
                 return; // nothing to bound rounds and seat sides with; Round Facts has not written this demo
             }
@@ -668,7 +666,7 @@ public sealed class SuggestedTagsService : IExtensionPass
                 return; // a queued request the open's visit already satisfied
             }
 
-            ClockIdentity clock = FrameClock.IdentityFor(parsed);
+            RoundFactsClock clock = RoundFactsClock.For(parsed);
             DetectionInputs inputs = BuildDetectionInputs(path, map, parsed, facts, record);
             SiteRegions regions = SiteRegions.Compose(map, null, table, profile);
             IReadOnlyList<TagProposal> proposals =
@@ -688,7 +686,7 @@ public sealed class SuggestedTagsService : IExtensionPass
                     FileName = fileName,
                     SizeBytes = record.FileSizeBytes
                 },
-                Clock = RoundFactsClocks.From(clock),
+                Clock = clock,
                 DetectorSet = new ProposalDetectorSet
                 {
                     Fingerprint = fingerprint,
@@ -786,7 +784,7 @@ public sealed class SuggestedTagsService : IExtensionPass
         entry is not null && HasInputs(entry) && !_proposals.IsCurrent(entry.FilePath, FingerprintFor(entry.MapName));
 
     private static bool HasInputs(LibraryDemo? entry) =>
-        entry is { State: >= LibraryDemoState.Parsed } && entry.Fact(RoundFactsRecords.FacetId) is { IsWritten: true };
+        entry is { State: >= LibraryDemoState.Parsed } && entry.Fact(RoundFactsRows.FacetId) is { IsWritten: true };
 
     private SiteRegionTable? TableFor(string? map)
     {

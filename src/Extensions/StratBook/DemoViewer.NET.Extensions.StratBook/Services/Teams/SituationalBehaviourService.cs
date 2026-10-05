@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
@@ -55,13 +54,13 @@ public sealed class SituationalBehaviourService
     private const int FallbackTickRate = 64;
 
     private readonly IExtensionLibrary _library;
-    private readonly IRoundFactsSource _roundFacts;
+    private readonly IRoundFacts _roundFacts;
     private readonly TeamIdentityService _teams;
 
     /// <param name="teams">Team Identity: the team's demos and its side per round.</param>
     /// <param name="library">The library: map and hash per demo, and the players.</param>
     /// <param name="roundFacts">The Round Facts rows per demo.</param>
-    public SituationalBehaviourService(TeamIdentityService teams, IExtensionLibrary library, IRoundFactsSource roundFacts)
+    public SituationalBehaviourService(TeamIdentityService teams, IExtensionLibrary library, IRoundFacts roundFacts)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(library);

@@ -1,7 +1,6 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
@@ -30,7 +29,7 @@ public static class RoundIndexFingerprint
 
         string fingerprint =
             $"ri{RoundIndexStore.Schema};cadence={options.CadenceSeconds.ToString(CultureInfo.InvariantCulture)}"
-            + $";token={PlaceCountToken.TokenVersion};rf={RoundFactsRecords.Schema};src={source.SourceId}";
+            + $";token={PlaceCountToken.TokenVersion};rf={RoundFactsRows.CurrentSchema};src={source.SourceId}";
         if (source.ZonesVersion is { } version)
         {
             fingerprint = $"{fingerprint};zv={version}";

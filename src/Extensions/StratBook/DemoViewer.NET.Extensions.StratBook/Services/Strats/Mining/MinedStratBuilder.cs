@@ -2,7 +2,6 @@
 
 using System.Globalization;
 using System.Text.Json;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion

@@ -4,7 +4,6 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +13,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The evaluator that writes the round index: an <see cref="IExtensionPass" /> on the tier-2
-///     fan-out, registered after <see cref="RoundFactsEvaluator" /> so it reads the rows that one wrote
+///     fan-out, registered after the Round Facts pass (<see cref="HostIds.RoundFactsPass" />) so it reads the rows that one wrote
 ///     in the same pass. Round Facts is rules-driven and has no extractor, so there is nothing to fall
 ///     back to: a demo is not wanted until its index row carries a Round Facts fingerprint, and the
 ///     index simply follows Round Facts by one pass and never races it.
@@ -35,8 +34,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
 
     private readonly Func<bool> _backgroundIndex;
     private readonly IExtensionLibrary _library;
-    private readonly Action<string>? _reprojectRow;
-    private readonly IRoundFactsSource _roundFacts;
+    private readonly IRoundFacts _roundFacts;
     private readonly Func<bool> _enabled;
 
     // Manual per-demo requests (a Retry on the strip): they submit regardless of the opt-in, but only
@@ -59,20 +57,15 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted. Defaults to always-on.</param>
-    /// <param name="reprojectRow">
-    ///     Asks Round Facts to rewrite a demo's library row from its record, for a row that claims rows the
-    ///     record does not hold; null leaves the row as it is.
-    /// </param>
     public RoundIndexEvaluator(
         IExtensionLibrary library,
-        IRoundFactsSource roundFacts,
+        IRoundFacts roundFacts,
         RoundIndexStore store,
         RoundIndexPlaceSources sources,
         Func<bool> backgroundIndex,
         Action<Action>? post = null,
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
-        Func<bool>? enabled = null,
-        Action<string>? reprojectRow = null)
+        Func<bool>? enabled = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(roundFacts);
@@ -81,7 +74,6 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         ArgumentNullException.ThrowIfNull(backgroundIndex);
         _library = library;
         _roundFacts = roundFacts;
-        _reprojectRow = reprojectRow;
         _store = store;
         _sources = sources;
         _backgroundIndex = backgroundIndex;
@@ -265,7 +257,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         && _store.Needs(entry.FilePath, _sources.FingerprintFor(entry.MapName));
 
     private static bool HasRoundFacts(LibraryDemo entry) =>
-        entry.Fact(RoundFactsRecords.FacetId) is { IsWritten: true };
+        entry.Fact(RoundFactsRows.FacetId) is { IsWritten: true };
 
     private void Refresh(string path, ParsedDemo parsed)
     {
@@ -279,16 +271,13 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         try
         {
             LibraryDemo? record = _library.Find(path);
-            if (record is null || _roundFacts.TryGet(path) is not { Schema: RoundFactsRecords.Schema } facts)
+            if (record is null || _roundFacts.TryGet(path) is not { Schema: RoundFactsRows.CurrentSchema } facts)
             {
                 // The row said Round Facts was written (that is why Wants picked this demo) but the
-                // record has none: index.json was saved before a later write replaced the record. Left
-                // alone, Wants stays true and every check re-parses this demo. Round Facts rewrites the
-                // row from the record, so it stops claiming rows and Round Facts wants the demo again.
-                if (record?.Fact(RoundFactsRecords.FacetId) is { Schema: > 0 })
+                // record has none. The host's read repairs that row, so Round Facts wants the demo again.
+                if (record?.Fact(RoundFactsRows.FacetId) is { Schema: > 0 })
                 {
                     RoundIndexLog.RowClaimedMissingFacts(Log, fileName);
-                    _reprojectRow?.Invoke(path);
                 }
 
                 return; // no round windows to sample within; Round Facts has not written this demo yet

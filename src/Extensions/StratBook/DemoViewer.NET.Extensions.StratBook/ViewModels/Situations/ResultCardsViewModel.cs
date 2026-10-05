@@ -12,7 +12,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.ViewModels;
@@ -72,7 +71,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
     private readonly Func<string, Func<Action, Task>> _run;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly IExtensionLibrary _library;
-    private readonly IRoundFactsSource? _roundFacts;
+    private readonly IRoundFacts? _roundFacts;
     private readonly Func<ISituationPlayback?> _playback;
     private readonly Action<Action> _post;
     private readonly Func<SituationThumbnailRenderer> _renderer;
@@ -129,7 +128,7 @@ public sealed partial class ResultCardsViewModel : ViewModelBase
         OverlayDocument? overlay = null,
         ReviewQueue? review = null,
         Func<string, Func<Action, Task>>? run = null,
-        IRoundFactsSource? roundFacts = null)
+        IRoundFacts? roundFacts = null)
     {
         _run = run ?? (_ => work => Task.Run(work));
         _roundFacts = roundFacts;

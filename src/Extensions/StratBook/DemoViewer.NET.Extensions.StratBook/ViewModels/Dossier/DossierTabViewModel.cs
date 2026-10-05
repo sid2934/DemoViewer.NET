@@ -17,7 +17,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels;
@@ -578,7 +577,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
                 DemoDataStamp? index = _roundIndex?.Stamp(demo.Path);
                 DemoDataStamp? grenades = _grenades?.Store.Stamp(demo.Path);
                 key.Append(CultureInfo.InvariantCulture,
-                    $"{entry.Modified.Ticks}/{entry.FileSizeBytes}/{entry.State}/{entry.CtSideWins}/{entry.TSideWins}/{entry.Fact(RoundFactsRecords.FacetId)?.Fingerprint}/{index?.Fingerprint}/{index?.WrittenAtTicks}/{grenades?.State ?? DemoDataState.Pending}/{grenades?.Count ?? 0}/{grenades?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
+                    $"{entry.Modified.Ticks}/{entry.FileSizeBytes}/{entry.State}/{entry.CtSideWins}/{entry.TSideWins}/{entry.Fact(RoundFactsRows.FacetId)?.Fingerprint}/{index?.Fingerprint}/{index?.WrittenAtTicks}/{grenades?.State ?? DemoDataState.Pending}/{grenades?.Count ?? 0}/{grenades?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
             }
         }
 

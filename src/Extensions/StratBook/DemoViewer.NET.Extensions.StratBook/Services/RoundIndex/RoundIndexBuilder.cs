@@ -2,9 +2,7 @@
 
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Modules;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion

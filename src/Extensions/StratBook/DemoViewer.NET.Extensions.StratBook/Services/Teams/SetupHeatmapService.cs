@@ -3,7 +3,6 @@
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
@@ -46,7 +45,7 @@ public sealed class SetupHeatmapService
     private const int FallbackTickRate = 64;
 
     private readonly IExtensionLibrary _library;
-    private readonly IRoundFactsSource _roundFacts;
+    private readonly IRoundFacts _roundFacts;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly RoundIndexStore _positions;
     private readonly TeamIdentityService _teams;
@@ -56,7 +55,7 @@ public sealed class SetupHeatmapService
     /// <param name="roundFacts">The Round Facts rows per demo.</param>
     /// <param name="positions">The round positions files.</param>
     /// <param name="fingerprintFor">The fingerprint current positions carry per map; a file under another is stale.</param>
-    public SetupHeatmapService(TeamIdentityService teams, IExtensionLibrary library, IRoundFactsSource roundFacts, RoundIndexStore positions,
+    public SetupHeatmapService(TeamIdentityService teams, IExtensionLibrary library, IRoundFacts roundFacts, RoundIndexStore positions,
         Func<string?, string> fingerprintFor)
     {
         ArgumentNullException.ThrowIfNull(teams);

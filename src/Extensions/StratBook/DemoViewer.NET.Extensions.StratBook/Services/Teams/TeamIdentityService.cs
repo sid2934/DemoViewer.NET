@@ -4,7 +4,6 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
 using System.Text.Json;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services;
 
@@ -59,7 +58,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     private readonly List<JoinSlot> _joins = [];
     private readonly Dictionary<string, DemoSideInput> _inputs = new(StringComparer.Ordinal);
     private readonly Action<Action> _post;
-    private readonly IRoundFactsSource? _roundFacts;
+    private readonly IRoundFacts? _roundFacts;
     private readonly Func<Action, Task> _run;
     private readonly string? _teamsPath;
     private readonly Func<Action, Task>? _scheduleLoad;
@@ -93,7 +92,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     public TeamIdentityService(
         string? configRoot,
         IExtensionLibrary library,
-        IRoundFactsSource? roundFacts = null,
+        IRoundFacts? roundFacts = null,
         Action<Action>? post = null,
         Func<Action, Task>? run = null,
         Func<Action, Task>? scheduleLoad = null,

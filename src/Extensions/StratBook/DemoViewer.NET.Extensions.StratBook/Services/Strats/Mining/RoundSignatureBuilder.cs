@@ -3,7 +3,6 @@
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
@@ -45,7 +44,7 @@ public sealed class RoundSignatureBuilder
 
     private readonly SignatureCache? _cache;
     private readonly IExtensionLibrary _library;
-    private readonly IRoundFactsSource _roundFacts;
+    private readonly IRoundFacts _roundFacts;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly Func<string, IReadOnlyList<MiningGrenade>>? _grenades;
     private readonly RoundIndexStore _positions;
@@ -58,7 +57,7 @@ public sealed class RoundSignatureBuilder
     /// <param name="grenades">A map's indexed grenades with their lineups; null when nothing is indexed.</param>
     /// <param name="teams">Team Identity, for the team on each side; null leaves every round unowned.</param>
     /// <param name="cache">Signatures from earlier builds; null reads every demo's files on every build.</param>
-    public RoundSignatureBuilder(IExtensionLibrary library, IRoundFactsSource roundFacts, RoundIndexStore positions, Func<string?, string> fingerprintFor,
+    public RoundSignatureBuilder(IExtensionLibrary library, IRoundFacts roundFacts, RoundIndexStore positions, Func<string?, string> fingerprintFor,
         Func<string, IReadOnlyList<MiningGrenade>>? grenades, TeamIdentityService? teams, SignatureCache? cache = null)
     {
         ArgumentNullException.ThrowIfNull(library);
@@ -215,7 +214,7 @@ public sealed class RoundSignatureBuilder
     // it: throws are attached fresh on every build.
     private string KeyFor(LibraryDemo entry, string map)
     {
-        LibraryFactState? facts = entry.Fact(RoundFactsRecords.FacetId);
+        LibraryFactState? facts = entry.Fact(RoundFactsRows.FacetId);
         string teams = "-";
         if (_teams is not null && _teams.GetAssignment(entry.FilePath) is { } assignment)
         {

@@ -8,7 +8,6 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
@@ -67,7 +66,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
 
     private readonly IExtensionLibrary _library;
-    private readonly IRoundFactsSource _roundFacts;
+    private readonly IRoundFacts _roundFacts;
     private readonly string? _detectedPath;
     private readonly Func<bool> _enabled;
     private readonly Func<string?, string> _fingerprintFor;
@@ -118,7 +117,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     ///     The owning pack's gate for the cache-quiet re-mine only; a user-requested <see cref="MineAsync()" />
     ///     always runs. Defaults to always-on.
     /// </param>
-    public StratMiningService(IExtensionLibrary library, IRoundFactsSource roundFacts, RoundIndexStore positions, Func<string?, string> fingerprintFor,
+    public StratMiningService(IExtensionLibrary library, IRoundFacts roundFacts, RoundIndexStore positions, Func<string?, string> fingerprintFor,
         GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags, string? cacheRoot,
         string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null,
         IExtensionJobs? jobs = null, Func<bool>? enabled = null, IExtensionPasses? passes = null)

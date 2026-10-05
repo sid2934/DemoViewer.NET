@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using System.Globalization;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
@@ -87,7 +86,7 @@ public sealed class PostPlantService
     private const int FallbackTickRate = 64;
 
     private readonly IExtensionLibrary _library;
-    private readonly IRoundFactsSource _roundFacts;
+    private readonly IRoundFacts _roundFacts;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly RoundIndexStore _positions;
     private readonly TeamIdentityService _teams;
@@ -97,7 +96,7 @@ public sealed class PostPlantService
     /// <param name="roundFacts">The Round Facts rows per demo.</param>
     /// <param name="positions">The round positions files, for the spots, the holds and the retakes.</param>
     /// <param name="fingerprintFor">The fingerprint current positions carry per map; a file under another is stale.</param>
-    public PostPlantService(TeamIdentityService teams, IExtensionLibrary library, IRoundFactsSource roundFacts, RoundIndexStore positions,
+    public PostPlantService(TeamIdentityService teams, IExtensionLibrary library, IRoundFacts roundFacts, RoundIndexStore positions,
         Func<string?, string> fingerprintFor)
     {
         ArgumentNullException.ThrowIfNull(teams);

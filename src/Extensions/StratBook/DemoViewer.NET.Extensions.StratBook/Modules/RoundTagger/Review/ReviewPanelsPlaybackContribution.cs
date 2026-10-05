@@ -15,7 +15,6 @@ using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Theming;
@@ -23,7 +22,6 @@ using DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 using DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
-using DemoViewer.NET.Modules;
 
 #endregion
 
@@ -119,7 +117,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         // a new tag its round's facts as it is made.
         TagSession session = new(context.GetService<TagStore>(),
             async path => library is null ? null : (await library.GetDetailAsync(path).ConfigureAwait(true))?.Rounds,
-            context.GetService<IRoundFactsSource>());
+            library?.Facts.RoundFacts);
         _session = session;
         _tagTrack = new TagTrack(session, _post);
 
@@ -305,7 +303,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
                 return; // unreadable, detached, or the user moved on while it hashed
             }
 
-            await session.AttachAsync(demo, FrameClock.IdentityFor(ctx), demoPath);
+            await session.AttachAsync(demo, RoundFactsClock.For(ctx).ToIdentity(), demoPath);
         }
         finally
         {

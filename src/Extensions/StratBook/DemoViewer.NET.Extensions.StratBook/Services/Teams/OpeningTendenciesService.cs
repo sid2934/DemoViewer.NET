@@ -3,7 +3,6 @@
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
@@ -73,7 +72,7 @@ public sealed class OpeningTendenciesService
     private const int FallbackTickRate = 64;
 
     private readonly IExtensionLibrary _library;
-    private readonly IRoundFactsSource _roundFacts;
+    private readonly IRoundFacts _roundFacts;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly GrenadeIndex _grenades;
     private readonly RoundIndexStore _positions;
@@ -85,7 +84,7 @@ public sealed class OpeningTendenciesService
     /// <param name="grenades">The Grenade Index: every thrown grenade's release and landing.</param>
     /// <param name="positions">The round positions files, for the lurk.</param>
     /// <param name="fingerprintFor">The fingerprint current positions carry per map; a file under another is stale.</param>
-    public OpeningTendenciesService(TeamIdentityService teams, IExtensionLibrary library, IRoundFactsSource roundFacts, GrenadeIndex grenades,
+    public OpeningTendenciesService(TeamIdentityService teams, IExtensionLibrary library, IRoundFacts roundFacts, GrenadeIndex grenades,
         RoundIndexStore positions, Func<string?, string> fingerprintFor)
     {
         ArgumentNullException.ThrowIfNull(teams);

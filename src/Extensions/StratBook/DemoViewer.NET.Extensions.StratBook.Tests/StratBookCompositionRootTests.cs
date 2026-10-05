@@ -100,7 +100,7 @@ public class StratBookCompositionRootTests
     // The pass order is a contract: a pass may read what the one before it wrote on the same visit, so the
     // round index, when it lands, goes after round facts and reads them.
     [Test]
-    public async Task PassOrder_IsLibraryThenHighlightsThenRoundFactsThenRoundIndexThenSuggestedTagsThenGrenadesThenClips()
+    public async Task PassOrder_IsLibraryThenHighlightsThenRoundFactsThenFactsThenRoundIndexThenSuggestedTagsThenGrenadesThenClips()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
@@ -109,21 +109,23 @@ public class StratBookCompositionRootTests
             await Assert.That(coordinator.PassIds)
                 .IsEquivalentTo(new[]
                 {
-                    "library", "highlights", DemoViewer.NET.Services.Facts.RoundFactsEvaluator.EvaluatorId,
+                    "library", "highlights", DemoViewer.NET.Services.Facts.RoundFactsEvaluator.EvaluatorId, DemoViewer.NET.Extensions.Sdk.HostIds.FactsPass,
                     DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.LineupClipPass.PassId
                 });
             await Assert.That(coordinator.PassIds[2]).IsEqualTo("roundfacts");
+            // The rulesets' tables, a core pass beside Round Facts.
+            await Assert.That(coordinator.PassIds[3]).IsEqualTo("facts");
             // The index reads the rows Round Facts wrote in the same pass, so it must come after it.
-            await Assert.That(coordinator.PassIds[3]).IsEqualTo("roundindex");
+            await Assert.That(coordinator.PassIds[4]).IsEqualTo("roundindex");
             // Suggested Tags reads the index written in the same pass, so it comes last.
-            await Assert.That(coordinator.PassIds[4]).IsEqualTo("suggestedtags");
+            await Assert.That(coordinator.PassIds[5]).IsEqualTo("suggestedtags");
             // The grenade walk reads nothing the others write; last so it never delays one that does.
-            await Assert.That(coordinator.PassIds[5]).IsEqualTo("grenades");
+            await Assert.That(coordinator.PassIds[6]).IsEqualTo("grenades");
             // Clips render from the grenades the walk just put in the index, on the same parse.
-            await Assert.That(coordinator.PassIds[6]).IsEqualTo("lineupclips");
+            await Assert.That(coordinator.PassIds[7]).IsEqualTo("lineupclips");
 
             // The order came from the registry's resolve: confirm it actually built the three pack
             // evaluators, not merely listed their ids.
@@ -161,7 +163,7 @@ public class StratBookCompositionRootTests
             Services.DemoProcessing.DemoScheduler coordinator =
                 provider.GetRequiredService<Services.DemoProcessing.DemoScheduler>();
 
-            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts"])
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts"])
                 .Because("the pack is off: its three evaluators are never in the fan-out");
 
             StratBookPackInstances instances =

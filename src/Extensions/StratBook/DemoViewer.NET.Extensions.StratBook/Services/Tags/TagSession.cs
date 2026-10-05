@@ -2,7 +2,6 @@
 
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
@@ -59,7 +58,7 @@ public sealed class TagSession : IDisposable
 
     private readonly Func<bool> _isBrowser;
     private readonly List<TagDelta> _redo = [];
-    private readonly IRoundFactsSource? _roundFacts;
+    private readonly IRoundFacts? _roundFacts;
     private readonly Func<string, Task<IReadOnlyList<LibraryRound>?>>? _roundsFor;
 
     // Saves are serialized, the annotation controller's reason: cancelling the debounce does not stop a
@@ -92,14 +91,14 @@ public sealed class TagSession : IDisposable
     ///     leaves <c>facts</c> to the refresher.
     /// </param>
     public TagSession(TagStore? store, Func<string, Task<IReadOnlyList<LibraryRound>?>>? roundsFor = null,
-        IRoundFactsSource? roundFacts = null)
+        IRoundFacts? roundFacts = null)
         : this(store, roundsFor, OperatingSystem.IsBrowser, () => DateTime.UtcNow, roundFacts)
     {
     }
 
     /// <summary>Test seam: the host predicate and the clock injected.</summary>
     internal TagSession(TagStore? store, Func<string, Task<IReadOnlyList<LibraryRound>?>>? roundsFor,
-        Func<bool> isBrowser, Func<DateTime> utcNow, IRoundFactsSource? roundFacts = null)
+        Func<bool> isBrowser, Func<DateTime> utcNow, IRoundFacts? roundFacts = null)
     {
         ArgumentNullException.ThrowIfNull(isBrowser);
         ArgumentNullException.ThrowIfNull(utcNow);

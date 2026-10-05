@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -122,7 +121,7 @@ public sealed partial class SituationsTabViewModel : ViewModelBase, IWorkspaceTa
         ReviewQueue? review = null,
         CalloutResolverSource? callouts = null,
         Func<string, Func<Action, Task>>? run = null,
-        IRoundFactsSource? roundFacts = null)
+        IRoundFacts? roundFacts = null)
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(library);

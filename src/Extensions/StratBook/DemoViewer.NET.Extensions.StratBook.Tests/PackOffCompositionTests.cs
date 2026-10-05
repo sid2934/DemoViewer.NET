@@ -121,7 +121,7 @@ public class PackOffCompositionTests
         {
             DemoScheduler coordinator = provider.GetRequiredService<DemoScheduler>();
 
-            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts"])
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts"])
                 .Because("the pack is off: its three evaluators are never in the fan-out");
 
             StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();

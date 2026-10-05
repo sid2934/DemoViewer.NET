@@ -88,21 +88,14 @@ public class RoundIndexEvaluatorTests
             await File.WriteAllTextAsync(first.SidecarPathFor(Demo)!, JsonSerializer.Serialize(stale));
 
             DemoCacheStore cache = new(root);
-            List<string> reprojected = [];
             RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), new RoundIndexStore(cache.Data()),
-                new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn), () => true, walk: _ => [],
-                reprojectRow: path =>
-                {
-                    reprojected.Add(path);
-                    cache.Upsert(cache.TryLoadRecord(path)!);
-                });
+                new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn), () => true, walk: _ => []);
             await Assert.That(evaluator.Wants(Demo)).IsTrue().Because("the stale row claims Round Facts");
 
             evaluator.Evaluate(Demo, Parse());
 
             using (Assert.Multiple())
             {
-                await Assert.That(reprojected).IsEquivalentTo([Demo]).Because("Round Facts owns the row's stamp, not the round index");
                 await Assert.That(evaluator.Wants(Demo)).IsFalse();
                 await Assert.That(cache.TryGetIndex(Demo)!.RoundFactsSchema()).IsEqualTo(0)
                     .Because("the row now matches the sidecar, so Round Facts wants the demo again");

@@ -175,8 +175,21 @@ public class StratBookLibraryTests
         "CachedPlayerInfo", "DemoAnalysisState", "DemoLibraryService", "LibraryTabViewModel", "Services.DemoCache"
     ];
 
+    private static readonly string[] _analysisTypes =
+    [
+        "Services.Facts", "IRoundFactsSource", "RoundFactsSource", "RoundFactsEvaluator", "RoundFactsRecords",
+        "MergedRulesBuild", "StampedRuleset", "FrameClock", "RulesRoundFactsRulesetIdentity"
+    ];
+
     [Test]
-    public async Task ThePack_ReadsTheLibraryThroughTheSdk_NotTheAppsDemoCache()
+    public async Task ThePack_ReadsTheLibraryThroughTheSdk_NotTheAppsDemoCache() =>
+        await Assert.That(await FindInPack(_cacheTypes)).IsEmpty();
+
+    [Test]
+    public async Task ThePack_ReadsRoundFactsThroughTheLibrarysFacts_NotTheAppsRulesOrClock() =>
+        await Assert.That(await FindInPack(_analysisTypes)).IsEmpty();
+
+    private static async Task<List<string>> FindInPack(IReadOnlyList<string> names)
     {
         string pack = Path.Combine(DemoTestHelper.FindRepoRoot()!, "src", "Extensions", "StratBook",
             "DemoViewer.NET.Extensions.StratBook");
@@ -191,12 +204,12 @@ public class StratBookLibraryTests
             }
 
             string code = WithoutComments(await File.ReadAllTextAsync(file));
-            found.AddRange(_cacheTypes
+            found.AddRange(names
                 .Where(name => Regex.IsMatch(code, $@"\b{Regex.Escape(name)}\b"))
                 .Select(name => $"{relative}: {name}"));
         }
 
-        await Assert.That(found).IsEmpty();
+        return found;
     }
 
     private static string WithoutComments(string source)

@@ -22,7 +22,6 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
@@ -228,13 +227,12 @@ public sealed class StratBookPack : IExtension
             IExtensionFeatures features = Host(sp).Features;
             RoundIndexEvaluator built = new(
                 Library(sp),
-                sp.GetRequiredService<IRoundFactsSource>(),
+                RoundFactsOf(sp),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 () => settings.SituationsBackgroundIndex,
                 Host(sp).Post,
-                enabled: () => features.IsEnabled(PackFeatureId),
-                reprojectRow: path => sp.GetRequiredService<RoundFactsEvaluator>().ReprojectRow(path));
+                enabled: () => features.IsEnabled(PackFeatureId));
             built.Passes = Host(sp).Passes;
             return built;
         });
@@ -242,7 +240,7 @@ public sealed class StratBookPack : IExtension
             Library(sp),
             sp.GetRequiredService<RoundIndexStore>(),
             sp.GetRequiredService<RoundIndexPlaceSources>(),
-            sp.GetRequiredService<IRoundFactsSource>(),
+            RoundFactsOf(sp),
             sp.GetRequiredService<IZonePlaceResolverSource>(),
             sp.GetRequiredService<RoundIndexEvaluator>(),
             Host(sp).Post));
@@ -274,7 +272,7 @@ public sealed class StratBookPack : IExtension
             IExtensionLibrary library = Library(sp);
             return new TagFactsRefresher(
                 sp.GetRequiredService<TagStore>(),
-                sp.GetRequiredService<IRoundFactsSource>(),
+                RoundFactsOf(sp),
                 path => library.Find(path)?.Sha256,
                 background: work => _ = Job(sp, "Tags: round facts", work, new JobOptions(BuiltInJobKinds.Save)));
         });
@@ -301,7 +299,7 @@ public sealed class StratBookPack : IExtension
             TeamIdentityService teams = new(
                 Paths(sp).ConfigRoot,
                 Library(sp),
-                sp.GetRequiredService<IRoundFactsSource>(),
+                RoundFactsOf(sp),
                 Host(sp).Post,
                 run: work => Job(sp, "Teams: update", work,
                     new JobOptions(StratBookJobKinds.Teams, Serial: TeamIdentityService.QueueSerial)),
@@ -372,7 +370,7 @@ public sealed class StratBookPack : IExtension
                 callouts: sp.GetRequiredService<CalloutResolverSource>(),
                 run: part => work => Job(sp, "Situations: " + part, work,
                     new JobOptions(Key: "section:situations:" + part, Preemptible: true)),
-                roundFacts: sp.GetRequiredService<IRoundFactsSource>());
+                roundFacts: RoundFactsOf(sp));
         });
 
         // The Review tab VM: a container singleton resolved lazily on first activation, opening clips
@@ -456,7 +454,7 @@ public sealed class StratBookPack : IExtension
             IExtensionFeatures features = Host(sp).Features;
             SuggestedTagsService built = new(
                 Library(sp),
-                sp.GetRequiredService<IRoundFactsSource>(),
+                RoundFactsOf(sp),
                 sp.GetRequiredService<ProposalStore>(),
                 sp.GetRequiredService<TagStore>(),
                 sp.GetRequiredService<SiteRegionStore>(),
@@ -507,7 +505,7 @@ public sealed class StratBookPack : IExtension
             IExtensionFeatures features = Host(sp).Features;
             StratMiningService mining = new(
                 Library(sp),
-                sp.GetRequiredService<IRoundFactsSource>(),
+                RoundFactsOf(sp),
                 sp.GetRequiredService<RoundIndexStore>(),
                 sp.GetRequiredService<RoundIndexPlaceSources>().FingerprintFor,
                 sp.GetRequiredService<GrenadeIndex>(),
@@ -670,7 +668,7 @@ public sealed class StratBookPack : IExtension
                 heatmaps: new SetupHeatmapService(
                     sp.GetRequiredService<TeamIdentityService>(),
                     Library(sp),
-                    sp.GetRequiredService<IRoundFactsSource>(),
+                    RoundFactsOf(sp),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
                 review: sp.GetRequiredService<ReviewQueue>(),
@@ -678,20 +676,20 @@ public sealed class StratBookPack : IExtension
                 openings: new OpeningTendenciesService(
                     sp.GetRequiredService<TeamIdentityService>(),
                     Library(sp),
-                    sp.GetRequiredService<IRoundFactsSource>(),
+                    RoundFactsOf(sp),
                     sp.GetRequiredService<GrenadeIndex>(),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
                 postPlant: new PostPlantService(
                     sp.GetRequiredService<TeamIdentityService>(),
                     Library(sp),
-                    sp.GetRequiredService<IRoundFactsSource>(),
+                    RoundFactsOf(sp),
                     sp.GetRequiredService<RoundIndexStore>(),
                     sources.FingerprintFor),
                 situational: new SituationalBehaviourService(
                     sp.GetRequiredService<TeamIdentityService>(),
                     Library(sp),
-                    sp.GetRequiredService<IRoundFactsSource>()),
+                    RoundFactsOf(sp)),
                 notes: sp.GetRequiredService<DossierNotesStore>(),
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 runSection: section => work => Job(sp, "Dossier: " + section, work,
@@ -746,6 +744,8 @@ public sealed class StratBookPack : IExtension
 
     // The demo library, read only.
     private static IExtensionLibrary Library(IServiceProvider sp) => Host(sp).Library;
+
+    private static IRoundFacts RoundFactsOf(IServiceProvider sp) => Library(sp).Facts.RoundFacts;
 
     // The per-demo data the host keeps, or the session's own where it keeps none (the browser).
     private static IExtensionDemoData Data(IServiceProvider sp) =>
@@ -889,7 +889,8 @@ public sealed class StratBookPack : IExtension
         // Create Strat From Round in 2D Playback: the round band's entry and the review pane, one
         // contribution. It resolves IStratCapture through the tab's context when a band is pressed, so the
         // gate above decides what the band offers; nothing is constructed here.
-        contributions.Playback(new CreateStratPlaybackContribution(contributions.Context.Post, contributions.Context.Jobs));
+        contributions.Playback(new CreateStratPlaybackContribution(contributions.Context.Post, contributions.Context.Jobs,
+            contributions.Context.Library.Facts.RoundFacts));
         firstParty.FirstPartyPlayback(new Modules.RoundTagger.Review.ReviewPanelsPlaybackContribution(Host(sp).Post, library: Library(sp)));
         firstParty.FirstPartyPlayback(new Modules.Situations.SituationsPlaybackContribution());
 

@@ -29,8 +29,28 @@ public sealed class RoundFactsSource : IRoundFactsSource
     /// <inheritdoc />
     public event Action<string>? Updated;
 
-    /// <inheritdoc />
-    public RoundFactsRows? TryGet(string demoPath) => _demoCache.RoundFactsOf(demoPath);
+    /// <summary>
+    ///     The demo's rows. A row whose stamp claims rows its record does not hold (an index saved before a
+    ///     later write replaced the record) is rewritten from the record here, so it stops claiming them and the
+    ///     Round Facts pass wants the demo again; left alone, every reader that trusts the row re-parses it.
+    /// </summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public RoundFactsRows? TryGet(string demoPath)
+    {
+        if (_demoCache.TryLoadRecord(demoPath) is not { } record)
+        {
+            return null;
+        }
+
+        if (record.RoundFacts is null && _demoCache.TryGetIndex(demoPath)?.RoundFactsStamp() is { Schema: > 0 }
+                                      && record.RoundFactsStamp() is not { Schema: > 0 })
+        {
+            _demoCache.Upsert(record);
+            _demoCache.SaveIndex();
+        }
+
+        return record.RoundFacts;
+    }
 
     /// <inheritdoc />
     public RoundFactsRows? TryGet(DemoCacheRecord record) => record.RoundFacts;

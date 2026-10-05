@@ -8,7 +8,6 @@ using Avalonia;
 using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
-using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;

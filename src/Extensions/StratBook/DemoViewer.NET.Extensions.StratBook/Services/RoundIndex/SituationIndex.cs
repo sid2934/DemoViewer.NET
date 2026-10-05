@@ -5,7 +5,6 @@ using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
 
@@ -34,7 +33,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
 
     private readonly IExtensionLibrary _library;
     private readonly RoundIndexEvaluator? _evaluator;
-    private readonly IRoundFactsSource? _facts;
+    private readonly IRoundFacts? _facts;
     private readonly object _gate = new();
     private readonly Dictionary<string, LoadedDemo> _loaded = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MapIndex> _maps = new(StringComparer.OrdinalIgnoreCase);
@@ -58,7 +57,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
         IExtensionLibrary library,
         RoundIndexStore store,
         RoundIndexPlaceSources sources,
-        IRoundFactsSource? facts = null,
+        IRoundFacts? facts = null,
         IZonePlaceResolverSource? zones = null,
         RoundIndexEvaluator? evaluator = null,
         Action<Action>? post = null)

@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
@@ -37,7 +36,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 public sealed class TagFactsRefresher : IExtensionResident, IDisposable
 {
     private readonly Action<Action> _background;
-    private readonly IRoundFactsSource _facts;
+    private readonly IRoundFacts _facts;
     private readonly Func<string, string?> _sha256For;
     private readonly TagStore _tags;
     private readonly Func<DateTime> _utcNow;
@@ -56,7 +55,7 @@ public sealed class TagFactsRefresher : IExtensionResident, IDisposable
     ///     synchronous one.
     /// </param>
     /// <param name="utcNow">The stamp's clock.</param>
-    public TagFactsRefresher(TagStore tags, IRoundFactsSource facts, Func<string, string?> sha256For,
+    public TagFactsRefresher(TagStore tags, IRoundFacts facts, Func<string, string?> sha256For,
         Action<Action>? background = null, Func<DateTime>? utcNow = null)
     {
         ArgumentNullException.ThrowIfNull(tags);

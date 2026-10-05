@@ -6,7 +6,6 @@ using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
@@ -25,7 +24,9 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 /// </summary>
 /// <param name="post">Marshals the walk's result onto the UI thread; synchronous when omitted (tests).</param>
 /// <param name="jobs">The queue the round's walk runs on; the pool when null (tests).</param>
-public sealed class CreateStratPlaybackContribution(Action<Action>? post = null, IExtensionJobs? jobs = null) : Sdk.Playback.IPlaybackContribution
+/// <param name="roundFacts">The library's Round Facts, which end the round's walk; none when null (tests).</param>
+public sealed class CreateStratPlaybackContribution(Action<Action>? post = null, IExtensionJobs? jobs = null, IRoundFacts? roundFacts = null)
+    : Sdk.Playback.IPlaybackContribution
 {
     /// <summary>The round band's menu entry.</summary>
     public const string Label = "Create strat from this round";
@@ -118,7 +119,7 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null,
         ClipRound round = rounds[at];
         int? windowEnd = at + 1 < rounds.Count ? rounds[at + 1].StartTickFrameClock : null;
         string? path = context.DemoPath;
-        RoundFacts? facts = path is null ? null : context.GetService<IRoundFactsSource>()?.RoundAt(path, round.StartTickFrameClock);
+        RoundFacts? facts = path is null ? null : roundFacts?.RoundAt(path, round.StartTickFrameClock);
         if (facts is not null && facts.Number != round.Number)
         {
             facts = null;
