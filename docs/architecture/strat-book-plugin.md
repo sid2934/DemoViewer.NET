@@ -560,9 +560,10 @@ through a command, or a resolved key that does nothing would read as handled any
 Action ids are strings end to end. Core ids stay bare: a core `Playback2DAction` member's name is its id,
 and the enum is a closed vocabulary the tab maps to at the edge. An extension's ids carry its extension id
 and a dot (`net.demoviewer.pack.stratbook.TagNote`); the registry refuses a third-party command without the
-prefix. The Strat Book's commands shipped under bare ids, so its pack declares an alias map
-(`StratBookCommands.Aliases`, read through the internal `ICommandAliases`) and override parsing resolves an
-old `TagNote=Ctrl+Shift+M` row to the current id. Ids are unique across the merged set ignoring case: a
+prefix. The Strat Book's commands shipped under bare ids, so the host keeps an alias table for it
+(`LegacyCommandIds`, keyed by extension id, never read for a third-party extension) and override parsing
+resolves an old `TagNote=Ctrl+Shift+M` row to the current id. The old ids live in the host's settings file,
+which is why the table is the host's and not the extension's. Ids are unique across the merged set ignoring case: a
 compiled-in pack that repeats one fails the registry build, a third-party command that does is reported in
 `CommandRegistry.Conflicts` and left out. Focus scopes beyond `playback2d` and `playback2d.tool` are declared
 by the extension (`IExtension.CommandScopes`, with the label Settings shows) and resolved by its own key
@@ -1720,15 +1721,16 @@ Rules as built:
   `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and `DemoViewer.NET.Extensions.StratBook.Tests`.
 - **App types it binds.** Besides the SDK packages, the extension binds four groups of app types, and
   `PackPlayback2DBindingTests` pins the list from its metadata with a reason per type. The first-party seam:
-  `IFirstPartyShellState`, `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`. Export, which stays
-  first-party: the export dialog and status view models, `ExportJobService` and its runner, `HeavyJobGate`,
-  `FfmpegDependency`, and `AppSettings`/`Playback2DSettings`/`SettingsService` for the dialog's saved choices.
-  The review queue: `ReviewQueue`. The strat canvas, which mounts the 2D tab's own host because the SDK's
-  `MapView` has no transport, timeline or ink yet: `Scene2DHost` and its `ISceneFrameHost`, `IGuidesHost`,
-  `ITokenEditingHost` and `IAnnotationSurface`, `ScenePointer`, the 2D keymap and binding types,
-  `ScenePaletteFactory`, `Playback2DTabViewModel` (one command forwards to it), the timeline view model,
-  control and band row, and the annotation controller and panel. One more, `ICommandAliases`, maps the
-  extension's pre-prefix command ids to its prefixed ones so saved keybind overrides keep working. The
+  `IFirstPartyShellState`, `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`, and
+  `FirstPartySceneExport` with `SceneExportDefaults`, which build the export dialog over the extension's scene,
+  seed it from the 2D export's saved folder and quality, and hold the managed ffmpeg folder and the theme
+  palette. Export, which stays first-party: the export dialog and status view models with their range and
+  size options, and `ExportJobService` with its runners and encoding. The review queue: `ReviewQueue`. The
+  strat canvas, which mounts the 2D tab's own host because the SDK's `MapView` has no transport, timeline,
+  ink or token editing: `Scene2DHost` and its `ISceneFrameHost`, `IGuidesHost`, `ITokenEditingHost` and
+  `IAnnotationSurface`, `ScenePointer`, `Playback2DKeymapProfile` (the canvas resolves its own keys),
+  the timeline view model, control and band row, and the annotation controller and panel, whose constructor
+  names `SettingsService`. The palette checks its hotkeys against `IExtensionContext.Keymap`. The
   generated-items inbox state (`GeneratedState`, `GeneratedInbox`, `GeneratedCounts`) and the atomic file
   writer live in the extension; it tells the user about new detected strats through the SDK's notifications.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
