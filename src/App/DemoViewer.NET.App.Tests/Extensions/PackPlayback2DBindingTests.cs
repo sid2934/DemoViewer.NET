@@ -21,7 +21,6 @@ public class PackPlayback2DBindingTests
 
     private const string Seam = "the first-party seam the container hands the pack";
     private const string StratCanvas = "the strat canvas mounts the 2D tab's scene host, timeline and ink";
-    private const string Aliases = "the pre-prefix command ids the user's overrides were saved under";
 
     private static readonly string[] UnpublishedAssemblies =
         ["DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Pipeline"];
@@ -34,7 +33,6 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.Configuration.SettingsService", Export),
         ("DemoViewer.NET.Extensions.FirstPartyExports", Seam),
         ("DemoViewer.NET.Extensions.FirstPartyHost", Seam),
-        ("DemoViewer.NET.Extensions.ICommandAliases", Aliases),
         ("DemoViewer.NET.Extensions.IFirstPartyExportChips", Seam),
         ("DemoViewer.NET.Extensions.IFirstPartyShellState", Seam),
         ("DemoViewer.NET.Extensions.ScenePointer", StratCanvas),
@@ -43,13 +41,9 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.Modules.Playback2D.IGuidesHost", StratCanvas),
         ("DemoViewer.NET.Modules.Playback2D.ISceneFrameHost", StratCanvas),
         ("DemoViewer.NET.Modules.Playback2D.ITokenEditingHost", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Playback2DBinding", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Playback2DBindingScope", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Playback2DKeymap", StratCanvas),
         ("DemoViewer.NET.Modules.Playback2D.Playback2DKeymapProfile", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Playback2DTabViewModel", StratCanvas),
         ("DemoViewer.NET.Modules.Playback2D.Scene2DHost", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.ScenePaletteFactory", StratCanvas),
+        ("DemoViewer.NET.Modules.Playback2D.ScenePaletteFactory", Export),
         ("DemoViewer.NET.Modules.Playback2D.Timeline.Playback2DTimelineViewModel", StratCanvas),
         ("DemoViewer.NET.Modules.Playback2D.Timeline.TimelineBandRow", StratCanvas),
         ("DemoViewer.NET.Services.Dependencies.FfmpegDependency", Export),

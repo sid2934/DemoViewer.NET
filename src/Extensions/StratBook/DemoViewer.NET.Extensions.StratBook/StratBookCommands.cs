@@ -1,7 +1,6 @@
 #region
 
 using Avalonia.Input;
-using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 #endregion
@@ -44,14 +43,14 @@ internal static class StratBookActions
     ///     While the Tag Palette has focus. Shadows both of the tab's scopes; the palette's own button hotkeys
     ///     are routed after its rows.
     /// </summary>
-    public static Playback2DBindingScope PaletteScope { get; } = new(Prefix + "palette");
+    public const string PaletteScope = Prefix + "palette";
 
     /// <summary>
     ///     While a proposal is selected in the Suggested Tags queue. Shadows both of the tab's scopes; the
     ///     palette scope still wins. J and K walk the Situations result set otherwise: both walks keep the
     ///     same keys, and the one on screen is the one they drive.
     /// </summary>
-    public static Playback2DBindingScope SuggestionScope { get; } = new(Prefix + "suggestion");
+    public const string SuggestionScope = Prefix + "suggestion";
 }
 
 /// <summary>
@@ -67,22 +66,15 @@ internal static class StratBookCommands
     /// <summary>The two focus scopes the commands name beyond the tab's own.</summary>
     public static IReadOnlyList<CommandScope> Scopes { get; } =
     [
-        new(StratBookActions.PaletteScope.Name, "while tagging"),
-        new(StratBookActions.SuggestionScope.Name, "while reviewing suggestions")
+        new(StratBookActions.PaletteScope, "while tagging"),
+        new(StratBookActions.SuggestionScope, "while reviewing suggestions")
     ];
-
-    /// <summary>
-    ///     The bare ids these commands shipped under before ids carried the pack's prefix, each to its id now.
-    ///     A user's override row keyed by a bare id still applies through this map.
-    /// </summary>
-    public static IReadOnlyDictionary<string, string> Aliases { get; } =
-        All.ToDictionary(c => c.Id[StratBookActions.Prefix.Length..], c => c.Id, StringComparer.Ordinal);
 
     private static CommandDescriptor[] Build()
     {
         const string always = "playback2d";
-        string palette = StratBookActions.PaletteScope.Name;
-        string suggestion = StratBookActions.SuggestionScope.Name;
+        const string palette = StratBookActions.PaletteScope;
+        const string suggestion = StratBookActions.SuggestionScope;
         return
         [
             Command(StratBookActions.FindRoundsLikeThis,
@@ -160,13 +152,9 @@ internal static class StratBookCommands
         ];
     }
 
-    // Run reaches whichever surface the key resolved against: the 2D Playback tab offers the id to the
-    // pack's contributions, and the strat canvas runs its own step and token actions.
+    // On the 2D Playback tab the id reaches the pack's contributions through their action handlers, not Run;
+    // Run serves the strat canvas, which runs its own step and token actions.
     private static CommandDescriptor Command(string id, string label, string scope, Key key, KeyModifiers modifiers) =>
-        new(id, label, scope, new KeyGesture(key, modifiers), ctx => ctx.Target switch
-        {
-            Playback2DTabViewModel tab => tab.ExecuteAction(id),
-            StratCanvasViewModel canvas => canvas.ExecuteAction(id),
-            _ => false
-        });
+        new(id, label, scope, new KeyGesture(key, modifiers),
+            ctx => ctx.Target is StratCanvasViewModel canvas && canvas.ExecuteAction(id));
 }

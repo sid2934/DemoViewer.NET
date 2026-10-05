@@ -7,7 +7,6 @@ using Avalonia.Media.Immutable;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
@@ -19,20 +18,14 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 /// <param name="GestureText">An action's gesture, such as <c>"Ctrl+Z"</c>; empty when unbound.</param>
 public sealed record PaletteKeymap(Func<Key, KeyModifiers, string?> ActionFor, Func<string, string> GestureText)
 {
-    /// <summary>The shipped keymap's palette keys.</summary>
-    public static PaletteKeymap Default { get; } = From(Playback2DKeymapProfile.Default);
-
-    /// <summary>The palette keys under a resolved keymap profile.</summary>
-    /// <param name="keymap">The profile.</param>
-    public static PaletteKeymap From(Playback2DKeymapProfile keymap)
-    {
-        ArgumentNullException.ThrowIfNull(keymap);
-        return new PaletteKeymap(
-            (key, modifiers) => keymap.TryResolveInScope(StratBookActions.PaletteScope, key, modifiers, out string? action)
-                ? action
-                : null,
-            keymap.GestureText);
-    }
+    /// <summary>The palette keys at the pack's shipped gestures, before the 2D tab hands over the user's keymap.</summary>
+    public static PaletteKeymap Default { get; } = new(
+        (key, modifiers) => StratBookCommands.All.FirstOrDefault(c => c.Scope == StratBookActions.PaletteScope
+                                                                      && c.DefaultChord is { } chord
+                                                                      && chord.Key == key && chord.KeyModifiers == modifiers)?.Id,
+        id => StratBookCommands.All.FirstOrDefault(c => c.Id == id)?.DefaultChord is { } chord
+            ? KeyGestureText.Format(chord.Key, chord.KeyModifiers)
+            : "");
 }
 
 /// <summary>One palette button as the panel shows it: its hotkey parsed once, its caption and its colour.</summary>
@@ -44,7 +37,7 @@ public sealed class TagPaletteButtonViewModel
         HasHotkey = TagPaletteHotkey.TryParse(button.Hotkey, out Key key, out KeyModifiers modifiers, out _);
         Key = key;
         Modifiers = modifiers;
-        HotkeyText = HasHotkey ? Playback2DKeymap.Format(key, modifiers) : "";
+        HotkeyText = HasHotkey ? KeyGestureText.Format(key, modifiers) : "";
         // Immutable, so a view model built off the UI thread (the headless render tests do) can hand it
         // to a Border without the compositor tripping VerifyAccess on a thread-bound brush.
         Swatch = button.ColorArgb is { } argb ? new ImmutableSolidColorBrush(Color.FromUInt32(argb)) : null;
@@ -92,7 +85,7 @@ public sealed class TagPaletteButtonViewModel
 ///         <b>Keys.</b> While <see cref="IsFocused" />, <see cref="TryHandleKey" /> takes the keymap's
 ///         palette-scoped rows first and then the open panel's hotkeys, ahead of the tab's tool and always
 ///         scopes. Every key the palette owns is data (the palette file) or a
-///         <see cref="Playback2DKeymap" /> row, so a user rebinds them in Settings like any other 2D key.
+///         keymap row, so a user rebinds them in Settings like any other 2D key.
 ///     </para>
 ///     <para>
 ///         <b>Clicks on the map</b> (Click To Tag Position). While the palette has focus a
@@ -244,11 +237,11 @@ public sealed partial class TagPaletteViewModel : ObservableObject, IDisposable
         ? $"{Gesture(StratBookActions.TagLabelMode)} back to tagging · "
           + $"{Gesture(StratBookActions.TagLabelGroupNext)} next group · "
           + $"{Gesture(StratBookActions.TagPaletteBack)} drop the pick, then leave · "
-          + $"{Gesture(nameof(Playback2DAction.Undo))} undo · click a tag's band: label it, again: the next one there"
+          + $"{Gesture("Undo")} undo · click a tag's band: label it, again: the next one there"
         : $"{Gesture(StratBookActions.FocusTagPalette)} focus · {Gesture(StratBookActions.TagPaletteBack)} back · "
           + $"{Gesture(StratBookActions.TagNote)} note · {Gesture(StratBookActions.TagClearSticky)} clear sticky · "
           + $"{Gesture(StratBookActions.TagLabelMode)} label mode · "
-          + $"{Gesture(nameof(Playback2DAction.Undo))} undo · click map: point, again: movement";
+          + $"{Gesture("Undo")} undo · click map: point, again: movement";
 
     /// <summary>Raised when the user picks a palette, with its id, so the tab can persist the choice.</summary>
     public event Action<string>? PaletteChosen;

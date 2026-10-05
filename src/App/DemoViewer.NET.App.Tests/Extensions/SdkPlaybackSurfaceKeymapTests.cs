@@ -25,7 +25,7 @@ public class SdkPlaybackSurfaceKeymapTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(surface.ActionFor(StratBookActions.PaletteScope.Name, Key.M, KeyModifiers.Control))
+            await Assert.That(surface.ActionFor(StratBookActions.PaletteScope, Key.M, KeyModifiers.Control))
                 .IsEqualTo(StratBookActions.TagNote);
             await Assert.That(surface.ActionFor("playback2d", Key.E, KeyModifiers.None)).IsEqualTo("NextRound");
             await Assert.That(surface.ActionFor("playback2d.tool", Key.Space, KeyModifiers.None)).IsEqualTo("HoldPan");

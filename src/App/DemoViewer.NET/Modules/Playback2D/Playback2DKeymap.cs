@@ -344,53 +344,10 @@ public static class Playback2DKeymap
         return false;
     }
 
-    // The ONE gesture formatter, in two spellings of the key: display text for human eyes, and the
-    // parseable form Playback2DKeymapProfile.Row persists (the arrow glyphs and "Esc" below would not
-    // survive KeyGesture.Parse). The modifier chain MUST stay shared: a second copy that drops Meta
-    // reads a macOS user's captured ⌘+K back as a bare "K" in every Settings row, reset chip, tooltip
-    // and refusal, indistinguishable from a DIFFERENT action bound to bare K.
-    public static string Format(Key key, KeyModifiers modifiers, bool display = true)
-    {
-        List<string> parts = new(5);
-        if (modifiers.HasFlag(KeyModifiers.Control))
-        {
-            parts.Add("Ctrl");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Shift))
-        {
-            parts.Add("Shift");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Alt))
-        {
-            parts.Add("Alt");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Meta))
-        {
-            parts.Add("Meta");
-        }
-
-        parts.Add(display ? KeyName(key) : key.ToString());
-        return string.Join("+", parts);
-    }
-
-    private static string KeyName(Key key) => key switch
-    {
-        Key.Left => "←",
-        Key.Right => "→",
-        Key.Up => "↑",
-        Key.Down => "↓",
-        Key.Escape => "Esc",
-        Key.Space => "Space",
-        Key.Home => "Home",
-        Key.Back => "Backspace",
-        Key.OemOpenBrackets => "[",
-        Key.OemCloseBrackets => "]",
-        Key.Enter => "Enter", // the same value as Key.Return, which is what ToString names it
-        _ => key.ToString()
-    };
+    // The one gesture formatter lives in the SDK so an extension shows gestures the same way. The parseable
+    // spelling is what Playback2DKeymapProfile.Row persists.
+    public static string Format(Key key, KeyModifiers modifiers, bool display = true) =>
+        KeyGestureText.Format(key, modifiers, display);
 
     private static Playback2DBinding[] BuildDefault() =>
     [

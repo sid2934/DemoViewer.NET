@@ -1688,3 +1688,29 @@ static DemoViewer.NET.Extensions.Sdk.Notification.operator !=(DemoViewer.NET.Ext
 static DemoViewer.NET.Extensions.Sdk.Notification.operator ==(DemoViewer.NET.Extensions.Sdk.Notification? left, DemoViewer.NET.Extensions.Sdk.Notification? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.NotificationAction.operator !=(DemoViewer.NET.Extensions.Sdk.NotificationAction? left, DemoViewer.NET.Extensions.Sdk.NotificationAction? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.NotificationAction.operator ==(DemoViewer.NET.Extensions.Sdk.NotificationAction? left, DemoViewer.NET.Extensions.Sdk.NotificationAction? right) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Keymap.get -> DemoViewer.NET.Extensions.Sdk.IExtensionKeymap!
+DemoViewer.NET.Extensions.Sdk.IExtensionKeymap
+DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.Bindings.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.KeymapBinding!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.BrowserReserved.get -> System.Collections.Generic.IReadOnlyList<Avalonia.Input.KeyGesture!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.ShellReserved.get -> System.Collections.Generic.IReadOnlyList<Avalonia.Input.KeyGesture!>!
+DemoViewer.NET.Extensions.Sdk.KeyGestureText
+DemoViewer.NET.Extensions.Sdk.KeymapBinding
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.KeymapBinding!
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.ActionId.get -> string!
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.ActionId.init -> void
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.Deconstruct(out string! ActionId, out string! Label, out string! Scope, out Avalonia.Input.KeyGesture! Gesture) -> void
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.Equals(DemoViewer.NET.Extensions.Sdk.KeymapBinding? other) -> bool
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.Gesture.get -> Avalonia.Input.KeyGesture!
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.Gesture.init -> void
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.KeymapBinding(string! ActionId, string! Label, string! Scope, Avalonia.Input.KeyGesture! Gesture) -> void
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.Label.get -> string!
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.Label.init -> void
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.Scope.get -> string!
+DemoViewer.NET.Extensions.Sdk.KeymapBinding.Scope.init -> void
+override DemoViewer.NET.Extensions.Sdk.KeymapBinding.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.KeymapBinding.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.KeymapBinding.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.KeyGestureText.Format(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) -> string!
+static DemoViewer.NET.Extensions.Sdk.KeyGestureText.Format(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers, bool display) -> string!
+static DemoViewer.NET.Extensions.Sdk.KeymapBinding.operator !=(DemoViewer.NET.Extensions.Sdk.KeymapBinding? left, DemoViewer.NET.Extensions.Sdk.KeymapBinding? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.KeymapBinding.operator ==(DemoViewer.NET.Extensions.Sdk.KeymapBinding? left, DemoViewer.NET.Extensions.Sdk.KeymapBinding? right) -> bool

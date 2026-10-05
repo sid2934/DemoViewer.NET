@@ -54,7 +54,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 ///     Review Queue are registered by the composition root, not here: core surfaces read them. Round Facts
 ///     is registered here: its ruleset rides the merged build only while the pack is on.
 /// </summary>
-public sealed class StratBookPack : IExtension, ICommandAliases
+public sealed class StratBookPack : IExtension
 {
     /// <summary>The umbrella gate id. A persisted override key.</summary>
     public const string PackFeatureId = "pack.stratbook";
@@ -82,8 +82,6 @@ public sealed class StratBookPack : IExtension, ICommandAliases
 
     /// <inheritdoc />
     public IEnumerable<CommandScope> CommandScopes => StratBookCommands.Scopes;
-
-    IReadOnlyDictionary<string, string> ICommandAliases.CommandAliases => StratBookCommands.Aliases;
 
     /// <inheritdoc />
     public IEnumerable<ExtensionJobKind> JobKinds => StratBookJobKinds.All;
@@ -289,7 +287,7 @@ public sealed class StratBookPack : IExtension, ICommandAliases
         // no directory and offers the built-in alone.
         services.AddSingleton(sp =>
         {
-            TagPaletteStore palettes = new(Paths(sp).EnsurePalettesDirectory());
+            TagPaletteStore palettes = new(Paths(sp).EnsurePalettesDirectory(), keymap: Host(sp).Keymap);
             palettes.Reload();
             return palettes;
         });

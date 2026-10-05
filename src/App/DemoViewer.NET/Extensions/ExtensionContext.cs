@@ -155,6 +155,8 @@ internal sealed class ExtensionContext : IExtensionContext
 
     public IExtensionNotifications Notifications { get; }
 
+    public IExtensionKeymap Keymap => HostKeymap.Instance;
+
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 
     public void Post(Action action)

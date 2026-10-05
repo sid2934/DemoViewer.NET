@@ -47,6 +47,9 @@ public interface IExtensionContext
     /// <summary>Short messages to the user, shown in a stack above the status strip for the session.</summary>
     IExtensionNotifications Notifications { get; }
 
+    /// <summary>The keymap as shipped, read only.</summary>
+    IExtensionKeymap Keymap { get; }
+
     /// <summary>A logger whose lines land in the app's diagnostics log, tagged with the extension.</summary>
     ILogger CreateLogger(string category);
 

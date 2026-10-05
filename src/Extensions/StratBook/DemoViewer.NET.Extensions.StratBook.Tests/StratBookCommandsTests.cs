@@ -195,7 +195,7 @@ public class StratBookCommandsTests
             await Assert.That(Playback2DActionIds.TryCore(command.Id, out _)).IsFalse();
         }
 
-        string[] stratBookNames = [.. StratBookCommands.Aliases.Keys];
+        string[] stratBookNames = [.. StratBookCommands.All.Select(c => c.Id[(StratBookPack.PackId.Length + 1)..])];
         await Assert.That(Enum.GetNames<Playback2DAction>().Intersect(stratBookNames)).IsEmpty()
             .Because("the core enum is a closed vocabulary; no Strat Book action may live in it");
     }
@@ -203,11 +203,13 @@ public class StratBookCommandsTests
     [Test]
     public async Task TheAliases_MapEveryBareIdTheCommandsShippedUnder_ToItsCurrentId()
     {
-        await Assert.That(StratBookCommands.Aliases.Count).IsEqualTo(_expected.Length);
+        StratBookPack pack = new();
+        IReadOnlyDictionary<string, string> aliases = LegacyCommandIds.For(pack, [.. pack.Commands]);
+        await Assert.That(aliases.Count).IsEqualTo(_expected.Length);
         foreach ((string action, _, _, _, _) in _expected)
         {
             string bare = action[(StratBookPack.PackId.Length + 1)..];
-            await Assert.That(StratBookCommands.Aliases[bare]).IsEqualTo(action);
+            await Assert.That(aliases[bare]).IsEqualTo(action);
             await Assert.That(CommandRegistry.Default.Canonical(bare)).IsEqualTo(action);
         }
     }
@@ -216,8 +218,8 @@ public class StratBookCommandsTests
     public async Task TheTwoFocusScopes_AreDeclared_AndLabelled()
     {
         await Assert.That(StratBookCommands.Scopes.Select(s => s.Id)).IsEquivalentTo([Palette, Suggestion]);
-        await Assert.That(CommandRegistry.Default.ScopeLabel(StratBookActions.PaletteScope)).IsEqualTo("while tagging");
-        await Assert.That(CommandRegistry.Default.ScopeLabel(StratBookActions.SuggestionScope))
+        await Assert.That(CommandRegistry.Default.ScopeLabel(new Playback2DBindingScope(StratBookActions.PaletteScope))).IsEqualTo("while tagging");
+        await Assert.That(CommandRegistry.Default.ScopeLabel(new Playback2DBindingScope(StratBookActions.SuggestionScope)))
             .IsEqualTo("while reviewing suggestions");
     }
 
@@ -229,7 +231,8 @@ public class StratBookCommandsTests
         string[] constants =
         [
             .. typeof(StratBookActions).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
-                .Where(f => f.IsLiteral && f.Name != nameof(StratBookActions.Prefix))
+                .Where(f => f.IsLiteral && f.Name != nameof(StratBookActions.Prefix)
+                            && f.Name != nameof(StratBookActions.PaletteScope) && f.Name != nameof(StratBookActions.SuggestionScope))
                 .Select(f => (string)f.GetRawConstantValue()!)
         ];
 

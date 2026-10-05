@@ -368,10 +368,10 @@ public class SuggestedTagsQueueTests
         {
             await Assert.That(keymap.TryResolve(Key.J, KeyModifiers.None, false, out string? j)).IsTrue();
             await Assert.That(j).IsEqualTo(StratBookActions.NextSituationResult).Because("J stays the result walk otherwise");
-            await Assert.That(keymap.TryResolveInScope(StratBookActions.SuggestionScope, Key.J,
+            await Assert.That(keymap.TryResolveInScope(new Playback2DBindingScope(StratBookActions.SuggestionScope), Key.J,
                 KeyModifiers.None, out string? sj)).IsTrue();
             await Assert.That(sj).IsEqualTo(StratBookActions.SuggestionNext);
-            await Assert.That(keymap.TryResolveInScope(StratBookActions.SuggestionScope, Key.K,
+            await Assert.That(keymap.TryResolveInScope(new Playback2DBindingScope(StratBookActions.SuggestionScope), Key.K,
                 KeyModifiers.None, out string? sk)).IsTrue();
             await Assert.That(sk).IsEqualTo(StratBookActions.SuggestionPrev);
 

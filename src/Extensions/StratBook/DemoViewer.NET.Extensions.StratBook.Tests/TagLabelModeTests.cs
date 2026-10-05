@@ -238,7 +238,7 @@ public class TagLabelModeTests
     public async Task TheLabelModeKeys_ArePaletteScoped_AndRebindable()
     {
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
-        await Assert.That(profile.TryResolveInScope(StratBookActions.PaletteScope, Key.L,
+        await Assert.That(profile.TryResolveInScope(new Playback2DBindingScope(StratBookActions.PaletteScope), Key.L,
             KeyModifiers.Control, out string? mode)).IsTrue();
         await Assert.That(mode).IsEqualTo(StratBookActions.TagLabelMode);
         await Assert.That(profile.TryResolve(Key.L, KeyModifiers.Control, false, out _)).IsFalse()
@@ -246,7 +246,7 @@ public class TagLabelModeTests
 
         using TagSession session = await Attached();
         using TagPaletteViewModel palette = Palette(session, () => 12_000);
-        palette.ApplyKeymap(PaletteKeymap.From(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected)));
+        palette.ApplyKeymap(PaletteKeymaps.From(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected)));
         await Assert.That(rejected).IsEmpty();
         await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsFalse();
         await Assert.That(Hit(palette, Key.L, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();

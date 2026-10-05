@@ -36,6 +36,9 @@ public class CommandRegistryTests
     private static readonly Func<IExtension, bool> CompiledIn = _ => false;
     private static readonly Func<IExtension, bool> ThirdParty = _ => true;
 
+    private static IReadOnlyDictionary<string, string> AliasesOf(IExtension pack, IReadOnlyList<CommandDescriptor> _) =>
+        pack is FakePack fake ? fake.Aliases : new Dictionary<string, string>();
+
     [Test]
     public async Task Build_WithAPack_AddsItsChordToEffectiveBindings_AtTheDeclaredScope()
     {
@@ -136,7 +139,7 @@ public class CommandRegistryTests
         CommandDescriptor fine = new(Fake + "Wave", "fine", "playback2d", new KeyGesture(Key.F10, KeyModifiers.None), _ => true);
         FakePack pack = new("pack.fake", [clash, core, fine]);
 
-        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: ThirdParty);
+        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: ThirdParty, legacyIds: AliasesOf);
 
         using (Assert.Multiple())
         {
@@ -225,7 +228,7 @@ public class CommandRegistryTests
         CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d", null, _ => true);
         FakePack pack = new("pack.fake", [command], aliases: new Dictionary<string, string> { ["AddStep"] = command.Id });
 
-        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: CompiledIn);
+        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: CompiledIn, legacyIds: AliasesOf);
 
         using (Assert.Multiple())
         {
@@ -242,9 +245,24 @@ public class CommandRegistryTests
         CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d", null, _ => true);
         FakePack pack = new("pack.fake", [command], aliases: new Dictionary<string, string> { ["AddStep"] = command.Id });
 
-        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: ThirdParty);
+        CommandRegistry registry = CommandRegistry.Build([pack], isThirdParty: ThirdParty, legacyIds: AliasesOf);
 
         await Assert.That(registry.Aliases).IsEmpty();
+    }
+
+    [Test]
+    public async Task LegacyIds_MapTheStratBooksBareIds_AndNoOtherExtensions()
+    {
+        CommandDescriptor step = new("net.demoviewer.pack.stratbook.AddStep", "insert a step", "playback2d", null, _ => true);
+        IExtension stratBook = new IdPack("net.demoviewer.pack.stratbook");
+        IExtension other = new IdPack("net.demoviewer.test.other");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(LegacyCommandIds.For(stratBook, [step])["AddStep"]).IsEqualTo(step.Id);
+            await Assert.That(LegacyCommandIds.For(stratBook, [step]).Count).IsEqualTo(1);
+            await Assert.That(LegacyCommandIds.For(other, [step])).IsEmpty();
+        }
     }
 
     [Test]
@@ -252,12 +270,12 @@ public class CommandRegistryTests
     {
         CommandDescriptor command = new(Fake + "AddStep", "insert a step", "playback2d", null, _ => true);
         FakePack shadow = new("pack.fake", [command], aliases: new Dictionary<string, string> { ["NextRound"] = command.Id });
-        Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build([shadow], isThirdParty: CompiledIn));
+        Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build([shadow], isThirdParty: CompiledIn, legacyIds: AliasesOf));
 
         CommandDescriptor theirs = new("net.demoviewer.test.pack.b.Step", "b", "playback2d", null, _ => true);
         FakePack other = new("pack.b", [theirs]);
         FakePack poacher = new("pack.fake", [command], aliases: new Dictionary<string, string> { ["Step"] = theirs.Id });
-        Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build([other, poacher], isThirdParty: CompiledIn));
+        Assert.Throws<InvalidOperationException>(() => CommandRegistry.Build([other, poacher], isThirdParty: CompiledIn, legacyIds: AliasesOf));
     }
 
     [Test]
@@ -371,8 +389,23 @@ public class CommandRegistryTests
         }
     }
 
+    private sealed class IdPack(string id) : IExtension
+    {
+        public string Id => id;
+        public string FeatureId => "pack.id";
+        public IEnumerable<ExtensionFeature> Features => [];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
+    }
+
     private sealed class FakePack(string featureId, CommandDescriptor[] commands, CommandScope[]? scopes = null,
-        Dictionary<string, string>? aliases = null) : IExtension, IManifestSource, ICommandAliases
+        Dictionary<string, string>? aliases = null) : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
@@ -387,7 +420,7 @@ public class CommandRegistryTests
 
         public IEnumerable<CommandScope> CommandScopes => scopes ?? [];
 
-        public IReadOnlyDictionary<string, string> CommandAliases => aliases ?? [];
+        public IReadOnlyDictionary<string, string> Aliases => aliases ?? [];
 
         public void Register(IServiceCollection services)
         {

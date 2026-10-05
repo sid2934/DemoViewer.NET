@@ -501,7 +501,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
         }
 
         return QueuePanel is { IsShown: true } && Queue is { HasSelection: true } queue && _surface is { } surface
-               && surface.ActionFor(StratBookActions.SuggestionScope.Name, key, modifiers) is { } action
+               && surface.ActionFor(StratBookActions.SuggestionScope, key, modifiers) is { } action
                && queue.Execute(action);
     }
 
@@ -803,7 +803,7 @@ public sealed class ReviewPanelsPlaybackContribution(Action<Action>? post = null
 
     // The palette's keys through the tab's keymap: its own scope's rows, and the gestures its hint line names.
     private static PaletteKeymap PaletteKeys(Sdk.Playback.IPlaybackSurface surface) => new(
-        (key, modifiers) => surface.ActionFor(StratBookActions.PaletteScope.Name, key, modifiers),
+        (key, modifiers) => surface.ActionFor(StratBookActions.PaletteScope, key, modifiers),
         action => surface.GestureHint(action) is { Length: > 3 } hint ? hint[2..^1] : "");
 
     // The floor a press names, from the tab's floors; the only floor when the press names none.

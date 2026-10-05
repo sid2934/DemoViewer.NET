@@ -290,7 +290,7 @@ public class TagPaletteTests
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
         await Assert.That(profile.TryResolve(Key.Escape, KeyModifiers.None, false, out string? outside)).IsTrue();
         await Assert.That(outside).IsEqualTo(nameof(Playback2DAction.ClearFollow)).Because("unfocused, Esc is still the tab's");
-        await Assert.That(profile.TryResolveInScope(StratBookActions.PaletteScope, Key.Escape,
+        await Assert.That(profile.TryResolveInScope(new Playback2DBindingScope(StratBookActions.PaletteScope), Key.Escape,
             KeyModifiers.None, out string? inside)).IsTrue();
         await Assert.That(inside).IsEqualTo(StratBookActions.TagPaletteBack);
     }
@@ -300,7 +300,7 @@ public class TagPaletteTests
     {
         using TagSession session = await Attached();
         using TagPaletteViewModel palette = Palette(session, () => 15_000);
-        palette.ApplyKeymap(PaletteKeymap.From(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected)));
+        palette.ApplyKeymap(PaletteKeymaps.From(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected)));
         await Assert.That(rejected).IsEmpty();
 
         Hit(palette, Key.D3);

@@ -17,14 +17,42 @@ namespace DemoViewer.NET.Extensions;
 public sealed record PackCommand(CommandDescriptor Command, string PackId, string PackFeatureId, string PackLabel);
 
 /// <summary>
-///     Bare command ids a compiled-in extension shipped before command ids carried the extension's prefix,
-///     each mapped to the id it has now. Override parsing reads them so a persisted row keyed by the old id
-///     still applies. Never read from a third-party extension.
+///     The bare command ids compiled-in extensions shipped before command ids carried the extension's prefix.
+///     Users' saved keybind overrides still name commands that way, so override parsing maps each bare id to
+///     the prefixed one. The host keeps this table because the old ids live in the host's settings file.
 /// </summary>
-public interface ICommandAliases
+public static class LegacyCommandIds
 {
-    /// <summary>Old id to current id. Each current id must be one of the extension's own commands.</summary>
-    IReadOnlyDictionary<string, string> CommandAliases { get; }
+    // Extensions whose every command once shipped as its id minus the extension's prefix.
+    private static readonly HashSet<string> _shippedBare = new(StringComparer.Ordinal) { "net.demoviewer.pack.stratbook" };
+
+    /// <summary>Old id to current id for <paramref name="pack" />'s commands; empty for every other extension.</summary>
+    /// <param name="pack">The extension.</param>
+    /// <param name="commands">The commands it contributes.</param>
+    public static IReadOnlyDictionary<string, string> For(IExtension pack, IReadOnlyList<CommandDescriptor> commands)
+    {
+        ArgumentNullException.ThrowIfNull(pack);
+        ArgumentNullException.ThrowIfNull(commands);
+        if (!_shippedBare.Contains(pack.Id))
+        {
+            return new Dictionary<string, string>();
+        }
+
+        string prefix = pack.Id + ".";
+        Dictionary<string, string> aliases = new(StringComparer.Ordinal);
+        foreach (CommandDescriptor command in commands)
+        {
+            if (IsPrefixed(command.Id, prefix))
+            {
+                aliases[command.Id[prefix.Length..]] = command.Id;
+            }
+        }
+
+        return aliases;
+    }
+
+    private static bool IsPrefixed(string? id, string prefix) =>
+        id is not null && id.Length > prefix.Length && id.StartsWith(prefix, StringComparison.Ordinal);
 }
 
 /// <summary>
@@ -120,12 +148,18 @@ public sealed class CommandRegistry
     ///     Whether a pack is a third-party extension. Null reads where its assembly was loaded from: a
     ///     third-party extension loads into its own <see cref="ExternalLoadContext" />.
     /// </param>
+    /// <param name="legacyIds">
+    ///     A compiled-in pack's old command ids, each to its current id. Null reads <see cref="LegacyCommandIds.For" />.
+    ///     Never asked of a third-party extension.
+    /// </param>
     /// <exception cref="InvalidOperationException">A compiled-in pack's command id, scope or alias is invalid.</exception>
     public static CommandRegistry Build(IReadOnlyList<IExtension> packs, Action<IExtension, Exception>? onFault = null,
-        Func<IExtension, bool>? isThirdParty = null)
+        Func<IExtension, bool>? isThirdParty = null,
+        Func<IExtension, IReadOnlyList<CommandDescriptor>, IReadOnlyDictionary<string, string>>? legacyIds = null)
     {
         ArgumentNullException.ThrowIfNull(packs);
         isThirdParty ??= IsLoadedExternally;
+        legacyIds ??= LegacyCommandIds.For;
 
         List<Playback2DBinding> bindings = [.. Playback2DKeymap.Default];
         List<PackCommand> packCommands = [];
@@ -150,7 +184,7 @@ public sealed class CommandRegistry
                 label = pack.Features.FirstOrDefault(f => f.Id == pack.FeatureId)?.Label ?? pack.FeatureId;
                 commands = [.. pack.Commands];
                 declaredScopes = [.. pack.CommandScopes];
-                declaredAliases = !thirdParty && pack is ICommandAliases legacy ? [.. legacy.CommandAliases] : [];
+                declaredAliases = thirdParty ? [] : [.. legacyIds(pack, commands)];
             }
             catch (Exception ex) when (onFault is not null && ex is not OutOfMemoryException)
             {
