@@ -22,7 +22,7 @@ public sealed class QueryCanvasHost : MapSceneHost
     private QueryCanvasViewModel? _vm;
 
     /// <inheritdoc />
-    protected override ToolKind PrimaryTool => _vm is null ? ToolKind.PanZoom : ToolKind.QueryToken;
+    protected override ToolKind PrimaryTool => _vm is null ? ToolKind.PanZoom : ToolKind.Map;
 
     /// <inheritdoc />
     protected override void AddLayers(SceneCompositor compositor)
@@ -86,7 +86,7 @@ public sealed class QueryCanvasHost : MapSceneHost
         }
 
         Router.Register(vm.Tool);
-        Router.SetActive(ToolKind.QueryToken);
+        Router.SetActive(ToolKind.Map);
         vm.MapChanged += OnMapChanged;
         vm.Document.Changed += OnDocumentChanged;
         vm.Overlay.Changed += OnDocumentChanged;

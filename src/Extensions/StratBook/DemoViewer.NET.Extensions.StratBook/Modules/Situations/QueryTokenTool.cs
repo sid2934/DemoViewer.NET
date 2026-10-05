@@ -62,7 +62,7 @@ public sealed class QueryTokenTool : IPointerTool
     public event Action<QueryPlaceHit?>? Dropped;
 
     /// <inheritdoc />
-    public ToolKind Kind => ToolKind.QueryToken;
+    public ToolKind Kind => ToolKind.Map;
 
     /// <inheritdoc />
     public bool OnPressed(in ToolPointerEvent e, IToolServices s)

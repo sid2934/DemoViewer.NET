@@ -21,10 +21,11 @@ public enum ToolKind
     Erase,
 
     /// <summary>
-    ///     The Situations tab's query canvas: places, moves and lifts place tokens. Registered only on
-    ///     that tab's host, so the playback surface never selects it and <c>LastTool</c> never holds it.
+    ///     A tool written against the published <see cref="Tools.IMapTool" /> contract, registered through a
+    ///     <see cref="MapToolAdapter" />: a map view's primary tool. Never selected by the playback toolbar, so
+    ///     <c>LastTool</c> never holds it.
     /// </summary>
-    QueryToken,
+    Map,
 
     /// <summary>Straight segment from press to release.</summary>
     Line,

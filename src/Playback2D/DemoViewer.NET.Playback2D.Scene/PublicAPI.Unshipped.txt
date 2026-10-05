@@ -753,6 +753,40 @@ DemoViewer.NET.Playback2D.Core.TokenRouteLine.Points.get -> System.Collections.G
 DemoViewer.NET.Playback2D.Core.TokenRouteLine.Team.get -> int
 DemoViewer.NET.Playback2D.Core.TokenRouteLine.Team.set -> void
 DemoViewer.NET.Playback2D.Core.TokenRouteLine.TokenRouteLine() -> void
+DemoViewer.NET.Playback2D.Core.Tools.IMapTool
+DemoViewer.NET.Playback2D.Core.Tools.IMapTool.OnCancelled(DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext! context) -> void
+DemoViewer.NET.Playback2D.Core.Tools.IMapTool.OnMoved(in DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent e, DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext! context) -> void
+DemoViewer.NET.Playback2D.Core.Tools.IMapTool.OnPressed(in DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent e, DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext! context) -> bool
+DemoViewer.NET.Playback2D.Core.Tools.IMapTool.OnReleased(in DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent e, DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext! context) -> void
+DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext
+DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext.PaneAt(SkiaSharp.SKPoint screen) -> DemoViewer.NET.Playback2D.Core.Levels.LevelPane?
+DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext.RequestRender() -> void
+DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext.WorldToScreen(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane, SkiaSharp.SKPoint world) -> SkiaSharp.SKPoint
+DemoViewer.NET.Playback2D.Core.Tools.IMapToolContext.WorldUnitsPerPixel(DemoViewer.NET.Playback2D.Core.Levels.LevelPane! pane) -> double
+DemoViewer.NET.Playback2D.Core.Tools.MapToolButton
+DemoViewer.NET.Playback2D.Core.Tools.MapToolButton.Left = 1 -> DemoViewer.NET.Playback2D.Core.Tools.MapToolButton
+DemoViewer.NET.Playback2D.Core.Tools.MapToolButton.Middle = 3 -> DemoViewer.NET.Playback2D.Core.Tools.MapToolButton
+DemoViewer.NET.Playback2D.Core.Tools.MapToolButton.None = 0 -> DemoViewer.NET.Playback2D.Core.Tools.MapToolButton
+DemoViewer.NET.Playback2D.Core.Tools.MapToolButton.Right = 2 -> DemoViewer.NET.Playback2D.Core.Tools.MapToolButton
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.Button.get -> DemoViewer.NET.Playback2D.Core.Tools.MapToolButton
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.Button.init -> void
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.MapToolEvent() -> void
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.Modifiers.get -> DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.Modifiers.init -> void
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.Pane.get -> DemoViewer.NET.Playback2D.Core.Levels.LevelPane?
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.Pane.init -> void
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.PaneLocal.get -> SkiaSharp.SKPoint
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.PaneLocal.init -> void
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.Screen.get -> SkiaSharp.SKPoint
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.Screen.init -> void
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.World.get -> SkiaSharp.SKPoint
+DemoViewer.NET.Playback2D.Core.Tools.MapToolEvent.World.init -> void
+DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers
+DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers.Alt = 4 -> DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers
+DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers.Control = 2 -> DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers
+DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers.None = 0 -> DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers
+DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers.Shift = 1 -> DemoViewer.NET.Playback2D.Core.Tools.MapToolModifiers
 DemoViewer.NET.Playback2D.Core.ViewportTransform
 DemoViewer.NET.Playback2D.Core.ViewportTransform.BaseScale.get -> double
 DemoViewer.NET.Playback2D.Core.ViewportTransform.CenterX.get -> double
