@@ -2,7 +2,6 @@
 
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.SuggestedTags;
@@ -27,7 +26,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
 
     private readonly DemoCacheStore? _cache;
     private readonly Func<bool> _enabled;
-    private readonly IFeatureGate? _gate;
+    private readonly IExtensionFeatures? _gate;
     private readonly Func<SuggestedInboxViewModel> _viewModelFactory;
 
     /// <param name="viewModelFactory">Builds the section's VM on first activation.</param>
@@ -42,7 +41,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
     ///     poll-on-read behaviour.
     /// </param>
     public SuggestedInboxModule(Func<SuggestedInboxViewModel> viewModelFactory, Func<bool> enabled, DemoCacheStore? cache = null,
-        IFeatureGate? gate = null)
+        IExtensionFeatures? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
@@ -92,7 +91,7 @@ public sealed class SuggestedInboxModule : IWorkspaceModule
             // leaving it until the next unrelated cache write; going on recomputes without waiting for one.
             if (_gate is { } gate)
             {
-                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(cache.Index.Sum(e => e.SuggestionCount())) : null;
+                gate.Changed += () => tab.Badge = _enabled() ? BadgeFor(cache.Index.Sum(e => e.SuggestionCount())) : null;
             }
         }
 

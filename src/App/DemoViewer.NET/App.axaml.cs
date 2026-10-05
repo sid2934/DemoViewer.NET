@@ -50,9 +50,6 @@ namespace DemoViewer.NET;
 /// <summary>App.</summary>
 public class App : Application
 {
-    /// <summary>Lineup Clip Render's folder under the config root.</summary>
-    public const string LineupClipDirectoryName = "lineup-clips";
-
     // Re-entrancy tripwire for BuildShell. Deliberately NOT [ThreadStatic]: the recursion it guards
     // against HOPS THREADS (ServiceProvider's StackGuard.RunOnEmptyStack moves to a fresh thread as the
     // stack deepens), so a per-thread flag would never see it. The shell is resolved on the UI thread, so
@@ -876,7 +873,8 @@ public class App : Application
         });
         services.AddSingleton<IDemoProcessingQueue>(sp => sp.GetRequiredService<DemoProcessingQueue>());
         services.AddSingleton(sp => new FirstPartyExports(sp.GetRequiredService<HeavyJobGate>(),
-            sp.GetRequiredService<IDemoProcessingQueue>()));
+            sp.GetRequiredService<IDemoProcessingQueue>(), sp.GetRequiredService<SettingsService>()));
+        services.AddSingleton(sp => new FirstPartyHost(sp.GetRequiredService<SettingsService>()));
 
         // The demo-library indexer: the one internally-new'd store routed through the container, because
         // it now reads its folders from AppSettings.Library.Folders and writes them back via SettingsService.

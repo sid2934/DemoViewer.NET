@@ -29,7 +29,7 @@ public static partial class Variants
             vm.Editor.Name = "Execute B";
             vm.Editor.TriggerText = "on the call";
             StratDocument document = vm.Session.Document!;
-            if (StratSpawnSource.LoadShipped("de_dust2")?.StartFor(document) is { } start)
+            if (StratSpawnSource.LoadShipped("de_dust2", null)?.StartFor(document) is { } start)
             {
                 vm.Session.Apply(StratStartBlock.Write(document, start));
             }
@@ -72,7 +72,7 @@ public static partial class Variants
             vm.Editor.Name = "B apps hit after contact";
             vm.Editor.TriggerText = "contact at B apps";
             StratDocument document = vm.Session.Document!;
-            if (StratSpawnSource.LoadShipped("de_mirage")?.StartFor(document) is { } start)
+            if (StratSpawnSource.LoadShipped("de_mirage", null)?.StartFor(document) is { } start)
             {
                 vm.Session.Apply(StratStartBlock.Write(document, start));
             }

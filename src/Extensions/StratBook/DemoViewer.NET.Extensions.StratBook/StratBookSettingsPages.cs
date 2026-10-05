@@ -28,6 +28,7 @@ internal static class StratBookSettingsPages
         () => new SuggestedTagsTuningViewModel(
             sp.GetRequiredService<SuggestedTagsTuningService>(),
             sp.GetRequiredService<ProfileStore>(),
-            OperatingSystem.IsBrowser()),
+            OperatingSystem.IsBrowser(),
+            sp.GetRequiredService<FirstPartyHost>().SuggestedTagsDirectory),
         () => new SuggestedTagsTuningView());
 }

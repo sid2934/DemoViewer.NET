@@ -3,6 +3,7 @@
 using System.Globalization;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
+using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Features;
@@ -189,7 +190,7 @@ public sealed class StratBookPack : IExtension
         // straight lines, on the canvas, the Detected preview and an export. On by default; off is the straight lines
         // and timing strats had before. Both hosts: the graph is built from the map's zones.json.
         new(
-            FeatureCatalog.StratRoutingFeatureId, ExtensionFeatureKind.SubFeature, "Token routing",
+            StratCanvasViewModel.RoutingFeatureId, ExtensionFeatureKind.SubFeature, "Token routing",
             "Move strat tokens along the map's walkways instead of in straight lines through walls.",
             StratBookModule.TabFeatureId, AudienceDefaults.Everyone)
     ];
@@ -215,14 +216,15 @@ public sealed class StratBookPack : IExtension
         // without a zones file, and every map on the browser host, answers "no zones" and the empirical
         // graph applies. Zone Baking itself (Services/Zones) is core; this adapter over it is the pack's,
         // since only the Round Index and the Strat Book read place graphs.
-        services.AddSingleton<IZonePlaceResolverSource>(new AssetZonePlaceResolverSource());
+        services.AddSingleton<IZonePlaceResolverSource>(sp =>
+            new AssetZonePlaceResolverSource(MapAssetBundleReader.FindBundleDirectory, () => Paths(sp).ZonesDirectory));
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
             return new RoundIndexPlaceSources(() => settings.TokenSource, sp.GetRequiredService<IZonePlaceResolverSource>());
         });
         services.AddSingleton(sp => new RoundIndexStore(
-            AppPaths.DemoCacheDir,
+            Paths(sp).CacheRoot,
             sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(sp =>
         {
@@ -261,7 +263,7 @@ public sealed class StratBookPack : IExtension
         // holds it. Null root (the browser) keeps tags in memory for the session.
         services.AddSingleton(sp =>
         {
-            TagStore tags = new(AppPaths.TagsDir, Host(sp).Post);
+            TagStore tags = new(Paths(sp).TagsDirectory, Host(sp).Post);
             // Shutdown flushes the index only when a factory built the store (StratBookLifecycle.OnShutdown).
             sp.GetRequiredService<StratBookPackInstances>().Tags = tags;
             return tags;
@@ -282,9 +284,9 @@ public sealed class StratBookPack : IExtension
         // The Tag Palette's vocabularies: the built-in palette plus <config>/palettes drop-ins, scanned on
         // first resolve (the 2D tab's construction) the way themes are scanned at startup. The browser has
         // no directory and offers the built-in alone.
-        services.AddSingleton(_ =>
+        services.AddSingleton(sp =>
         {
-            TagPaletteStore palettes = new(AppPaths.EnsurePalettesDirectory());
+            TagPaletteStore palettes = new(Paths(sp).EnsurePalettesDirectory());
             palettes.Reload();
             return palettes;
         });
@@ -299,7 +301,7 @@ public sealed class StratBookPack : IExtension
             // read enter the queue. The gate is not read here on purpose, since at container build the
             // first-run wizard has not asked yet.
             TeamIdentityService teams = new(
-                AppPaths.ConfigRoot,
+                Paths(sp).ConfigRoot,
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<IRoundFactsSource>(),
                 Host(sp).Post,
@@ -414,14 +416,13 @@ public sealed class StratBookPack : IExtension
         // and no files, so it gets no pack row.
         services.AddSingleton(sp =>
         {
-            IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
             TeamIdentityService teams = sp.GetRequiredService<TeamIdentityService>();
             return new ReviewQueueTabViewModel(
                 sp.GetRequiredService<ReviewQueue>(),
                 () => sp.GetService<ISituationPlayback>(),
                 exportPack: sp.GetService<FirstPartyExports>()?.PackExport,
-                packDirectory: monitor?.CurrentValue.Playback2D.ExportOutputDirectory,
+                packDirectory: sp.GetService<FirstPartyExports>()?.ExportOutputDirectory,
                 mapOf: clip => (clip.Sha256 is { } sha ? cache.TryGetIndexBySha256(sha) : null)?.Map
                                ?? cache.TryGetIndex(clip.DemoPath)?.Map,
                 teamName: id => teams.AllTeams.FirstOrDefault(t => t.Id == id || t.MergedFrom.Contains(id))?.Name);
@@ -445,7 +446,7 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton(sp =>
         {
             WatchedSituationsService watched = new(
-                AppPaths.ConfigRoot,
+                Paths(sp).ConfigRoot,
                 sp.GetRequiredService<ISituationIndex>(),
                 sp.GetRequiredService<DemoCacheStore>(),
                 sp.GetRequiredService<TeamIdentityService>(),
@@ -477,12 +478,12 @@ public sealed class StratBookPack : IExtension
         // come from <config>/suggested-tags/. The library sweep is its own opt-in, off by default;
         // the open demo, resolved at call time, is always built. Null roots (the
         // browser) keep all of it for the session.
-        services.AddSingleton(sp => new ProposalStore(AppPaths.DemoCacheDir, sp.GetRequiredService<DemoCacheStore>()));
-        services.AddSingleton(_ => new SiteRegionStore(AppPaths.SuggestedTagsDirectory));
+        services.AddSingleton(sp => new ProposalStore(Paths(sp).CacheRoot, sp.GetRequiredService<DemoCacheStore>()));
+        services.AddSingleton(sp => new SiteRegionStore(Paths(sp).SuggestedTagsDirectory));
         // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
         // on first read the way a theme drop-in folder is. A singleton so the evaluator's Func
         // and the tuning view's save reach the same in-memory Current.
-        services.AddSingleton(_ => new ProfileStore(AppPaths.SuggestedTagsDirectory));
+        services.AddSingleton(sp => new ProfileStore(Paths(sp).SuggestedTagsDirectory));
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
@@ -519,11 +520,12 @@ public sealed class StratBookPack : IExtension
         // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps
         // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
         // activation; its books are Team Identity's teams plus me.
-        services.AddSingleton(sp => new StratStore(AppPaths.StratsDir, Host(sp).Post));
+        services.AddSingleton(sp => new StratStore(Paths(sp).StratsDirectory, Host(sp).Post));
         // Callout Aliases: one resolver builder over the store's tables and the map's
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.
-        services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>()));
+        services.AddSingleton(sp => new CalloutResolverSource(sp.GetRequiredService<StratStore>(), MapAssetBundleReader.FindBundleDirectory,
+            () => Paths(sp).ZonesDirectory));
         // Strat Record Panel: the evidence rule over the Tag Store and Demo
         // Provenance Labels, one instance so the panel's live rebuild and any other future reader of a
         // strat's record agree on what "run / won / aborted" means.
@@ -544,8 +546,8 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<TeamIdentityService>(),
                 sp.GetRequiredService<StratStore>(),
                 sp.GetRequiredService<TagStore>(),
-                AppPaths.DemoCacheDir,
-                AppPaths.ConfigRoot,
+                Paths(sp).CacheRoot,
+                Paths(sp).ConfigRoot,
                 Host(sp).Post,
                 jobs: Host(sp).Jobs,
                 enabled: () => features.IsEnabled(PackFeatureId),
@@ -558,10 +560,10 @@ public sealed class StratBookPack : IExtension
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
             // The canvas (and the Detected preview's) fallback when nobody passes placesFor/routing
-            // explicitly: the real gate and zone source, not App.Services.
+            // explicitly: the extension's switches, the zone source and the user's keybind overrides.
+            FirstPartyHost paths = Paths(sp);
             StratCanvasServices canvasServices = new(
-                sp.GetService<IFeatureGate>(), sp.GetService<IZonePlaceResolverSource>(), sp.GetRequiredService<SettingsService>(),
-                Host(sp).Jobs);
+                Host(sp).Features, sp.GetService<IZonePlaceResolverSource>(), () => paths.KeybindOverrides, Host(sp).Jobs);
             return new StratBookTabViewModel(
                 sp.GetRequiredService<StratStore>(),
                 sp.GetRequiredService<TeamIdentityService>(),
@@ -575,7 +577,7 @@ public sealed class StratBookPack : IExtension
                 grenades: sp.GetRequiredService<GrenadeIndex>(),
                 mining: sp.GetRequiredService<StratMiningService>(),
                 playback: () => sp.GetService<ISituationPlayback>(),
-                spawns: new StratSpawnSource(),
+                spawns: new StratSpawnSource(map => StratSpawnSource.LoadShipped(map, Paths(sp).ZonesDirectory)),
                 layout: sp.GetRequiredService<StratBookLayout>(),
                 lineupMap: (map, asset) => UtilityBookFor(sp, map, asset),
                 canvasServices: canvasServices);
@@ -610,7 +612,6 @@ public sealed class StratBookPack : IExtension
                 return null!;
             }
 
-            SettingsService settings = sp.GetRequiredService<SettingsService>();
             Func<bool> liveSyncBusy = () => sp.GetService<MainViewModel>()?.LiveSync?.State.IsSessionActive == true;
             Func<bool> reelRunning = () => sp.GetService<MainViewModel>()?.ReelJob?.Status.IsRunning == true;
             FirstPartyExports? exports = sp.GetService<FirstPartyExports>();
@@ -618,8 +619,8 @@ public sealed class StratBookPack : IExtension
                 exports is null ? null : (runner, log) => exports.NewJob(runner, liveSyncBusy, reelRunning, log),
                 liveSyncBusy,
                 reelRunning,
-                () => settings.Current,
-                settings.Write,
+                () => exports?.Settings ?? new AppSettings(),
+                mutate => exports?.PersistSettings(mutate),
                 sp.GetRequiredService<StratBookExportChipSlot>().Mount,
                 path => Host(sp).Shell.RevealInFileManager(path));
         });
@@ -677,10 +678,10 @@ public sealed class StratBookPack : IExtension
 
         // The Opponent Dossier's veto history: manual entry only, beside teams.json. Null
         // config root (the browser) keeps entries in memory for the session.
-        services.AddSingleton(_ => new VetoHistoryStore(AppPaths.ConfigRoot));
+        services.AddSingleton(sp => new VetoHistoryStore(Paths(sp).ConfigRoot));
         // Dossier Editing And Export: the user's stars, rewritten lines, notes and summary per team, beside
         // the veto history; session-only on the browser the same way.
-        services.AddSingleton(_ => new DossierNotesStore(AppPaths.ConfigRoot));
+        services.AddSingleton(sp => new DossierNotesStore(Paths(sp).ConfigRoot));
         // The Dossier tab VM: a container singleton resolved lazily on first activation, over Team
         // Identity's own teams and the unified cache the Map Pool Record reads. The Setup Heatmaps read
         // the round index's positions files under the same fingerprint the Situations tab trusts, and
@@ -731,7 +732,7 @@ public sealed class StratBookPack : IExtension
             ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
             LineupClipService clips = new(
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
-                AppPaths.ConfigRoot is { } root ? Path.Combine(root, App.LineupClipDirectoryName) : null,
+                Paths(sp).ConfigRoot is { } root ? Path.Combine(root, LineupClipService.DirectoryName) : null,
                 () => settings.RenderLineupClips,
                 new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
@@ -762,6 +763,9 @@ public sealed class StratBookPack : IExtension
 
     // The pack's host context: the SDK's way into the shell, the gate, the queue and the UI thread.
     private static IExtensionContext Host(IServiceProvider sp) => sp.GetExtensionContext(PackId);
+
+    // Where the user's own work already lives, from before extensions had folders of their own.
+    private static FirstPartyHost Paths(IServiceProvider sp) => sp.GetRequiredService<FirstPartyHost>();
 
     // One processing-queue job through the context, owned by the pack's id.
     private static Task Job(IServiceProvider sp, string title, Action work, JobOptions options) =>
@@ -890,8 +894,9 @@ public sealed class StratBookPack : IExtension
             GrenadeIndexEvaluator.EvaluatorId);
 
 
-        // Every store and cache path the pack owns, and the "delete extension data" action over
-        // them: no filesystem on the browser, the same gate the two settings pages above take.
+        // Every store and cache path the pack owns outside its own folders: "delete extension data" removes
+        // them with the rest, then the stores the pack keeps live re-read what is left. No filesystem on the
+        // browser, the same gate the settings pages above take.
         if (!OperatingSystem.IsBrowser())
         {
             foreach (StoreDescriptor store in StratBookStores.All)
@@ -899,7 +904,7 @@ public sealed class StratBookPack : IExtension
                 contributions.Store(store);
             }
 
-            contributions.DataRemoval(new StratBookDataRemoval(sp));
+            contributions.DataDeleted(() => StratBookStores.ReloadLiveStores(sp));
         }
 
         // Create Strat From Round in 2D Playback: the round band's entry and the review pane, one
@@ -913,10 +918,10 @@ public sealed class StratBookPack : IExtension
         // while the section's own id is on: resolving WatchedSituationsService unconditionally would build
         // it (and, through its own ctor, the situation index and Team Identity) on every launch regardless
         // of the pack's gate.
-        IFeatureGate? situationsGate = sp.GetService<IFeatureGate>();
-        bool situationsOn = situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false;
+        IExtensionFeatures situationsGate = contributions.Context.Features;
+        bool situationsOn = situationsGate.IsEnabled(SituationsModule.TabFeatureId);
         contributions.Tabs(new SituationsModule(sp.GetRequiredService<SituationsTabViewModel>,
-            () => situationsGate?.IsEnabled(SituationsModule.TabFeatureId) ?? false,
+            () => situationsGate.IsEnabled(SituationsModule.TabFeatureId),
             situationsOn ? sp.GetRequiredService<WatchedSituationsService>() : null,
             situationsGate));
 
@@ -925,17 +930,17 @@ public sealed class StratBookPack : IExtension
 
         // The Review tab. Same gated-resolve shape as Situations: ReviewQueue is core (Reels uses it too),
         // but resolving it here regardless of the gate still queued its startup load on every launch.
-        IFeatureGate? reviewGate = sp.GetService<IFeatureGate>();
-        bool reviewOn = reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false;
+        IExtensionFeatures reviewGate = contributions.Context.Features;
+        bool reviewOn = reviewGate.IsEnabled(ReviewQueueModule.TabFeatureId);
         contributions.Tabs(new ReviewQueueModule(sp.GetRequiredService<ReviewQueueTabViewModel>,
-            () => reviewGate?.IsEnabled(ReviewQueueModule.TabFeatureId) ?? false,
+            () => reviewGate.IsEnabled(ReviewQueueModule.TabFeatureId),
             reviewOn ? sp.GetRequiredService<ReviewQueue>() : null,
             reviewGate));
 
         // The Suggested section. The badge reads the demo index, so it counts before the section opens.
-        IFeatureGate? suggestedGate = sp.GetService<IFeatureGate>();
+        IExtensionFeatures suggestedGate = contributions.Context.Features;
         contributions.Tabs(new SuggestedInboxModule(sp.GetRequiredService<SuggestedInboxViewModel>,
-            () => suggestedGate?.IsEnabled(SuggestedInboxModule.TabFeatureId) ?? false,
+            () => suggestedGate.IsEnabled(SuggestedInboxModule.TabFeatureId),
             sp.GetService<DemoCacheStore>(),
             suggestedGate));
 
@@ -964,7 +969,7 @@ public sealed class StratBookPack : IExtension
             sp.GetRequiredService<GrenadeIndex>(),
             sp.GetRequiredService<ISituationPlayback>(),
             demoDate: path => cache.TryGetIndex(path) is { ModifiedTicks: > 0 } entry ? new DateTime(entry.ModifiedTicks) : null,
-            clipDirectory: AppPaths.ConfigRoot is { } root ? Path.Combine(root, App.LineupClipDirectoryName) : null,
+            clipDirectory: Paths(sp).ConfigRoot is { } root ? Path.Combine(root, LineupClipService.DirectoryName) : null,
             background: work => _ = Job(sp, lockedMap is null ? "Utility Book" : "Lineup picker", work,
                 new JobOptions(Key: lockedMap is null ? "section:utility" : "section:lineup-picker", Preemptible: true)),
             post: Host(sp).Post,

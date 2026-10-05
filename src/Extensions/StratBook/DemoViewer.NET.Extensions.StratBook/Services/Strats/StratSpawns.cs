@@ -157,9 +157,9 @@ public sealed class StratSpawnSource
     private readonly Lock _gate = new();
     private readonly Dictionary<string, Task<StratSpawns?>> _maps = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Reads the shipped bundle's zones with the user's overlay, keyed on the bundle's floors.</summary>
+    /// <summary>Reads the shipped bundle's zones with no user overlay, keyed on the bundle's floors.</summary>
     public StratSpawnSource()
-        : this(LoadShipped)
+        : this(map => LoadShipped(map, null))
     {
     }
 
@@ -200,10 +200,11 @@ public sealed class StratSpawnSource
 
     /// <summary>A map's spawns from its bundle directory, levels keyed the way the strat canvas draws them.</summary>
     /// <param name="map">The map.</param>
-    public static StratSpawns? LoadShipped(string map)
+    /// <param name="overlayDirectory">The user's zones overlay folder, or null for none.</param>
+    public static StratSpawns? LoadShipped(string map, string? overlayDirectory)
     {
         string? dir = MapAssetBundleReader.FindBundleDirectory(map);
-        if (ZoneAssetPipeline.Load(dir, AppPaths.ZonesDirectory).Resolver?.Zones is not { } zones)
+        if (ZoneAssetPipeline.Load(dir, overlayDirectory).Resolver?.Zones is not { } zones)
         {
             return null;
         }

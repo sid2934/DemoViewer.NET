@@ -3,6 +3,7 @@
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -51,7 +52,7 @@ public class ParseOncePerDemoTests
         await WithApp(folder, async provider =>
         {
             DemoProcessingQueue queue = provider.GetRequiredService<DemoProcessingQueue>();
-            clips = Path.Combine(AppPaths.ConfigRoot!, App.LineupClipDirectoryName);
+            clips = Path.Combine(AppPaths.ConfigRoot!, LineupClipService.DirectoryName);
             await provider.GetRequiredService<DemoLibraryService>().RescanAsync();
             await SettleAsync(queue);
             provider.GetRequiredService<DemoScheduler>().RecheckAll();

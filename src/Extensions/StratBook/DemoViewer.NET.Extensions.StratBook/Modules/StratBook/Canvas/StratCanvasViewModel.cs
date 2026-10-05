@@ -10,7 +10,6 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
-using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
@@ -57,6 +56,9 @@ namespace DemoViewer.NET.Modules.StratBook.Canvas;
 /// </summary>
 public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrameHost, ITokenEditingHost, IGuidesHost, ITokenEditor, IDisposable
 {
+    /// <summary>The token routing switch. A persisted override key: never rename it.</summary>
+    public const string RoutingFeatureId = "stratbook.routing";
+
     /// <summary>World size of the square a map without a bundle is framed on, before any token is placed.</summary>
     private const double FallbackHalfExtent = 2048;
 
@@ -74,7 +76,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     private Task<StratSpawns?>? _spawns;
     private string? _spawnsMap;
     private readonly Action<Action> _post;
-    private readonly IFeatureGate? _gate;
+    private readonly IExtensionFeatures? _gate;
     private readonly Func<bool> _routing;
     private readonly StratSession _session;
     private readonly StepTrack _stepTrack = new();
@@ -145,7 +147,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         _post = post ?? (action => Dispatcher.UIThread.Post(action));
         // No gate injected (a headless test, a designer instance): routing stays off.
         _gate = routing is null ? lookups?.Gate : null;
-        _routing = routing ?? (() => _gate?.IsEnabled(FeatureCatalog.StratRoutingFeatureId) ?? false);
+        _routing = routing ?? (() => _gate?.IsEnabled(RoutingFeatureId) ?? false);
         if (_gate is not null)
         {
             _gate.Changed += OnGateChanged;
@@ -154,7 +156,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         IsReadOnly = readOnly;
         _mapLoader = mapLoader ?? MapAssetPipeline.TryLoad;
         _lookup = lookup;
-        _keybindOverrides = keybindOverrides ?? (() => lookups?.Settings?.Current.Playback2D.KeybindOverrides ?? []);
+        _keybindOverrides = keybindOverrides ?? (() => lookups?.KeybindOverrides?.Invoke() ?? []);
 
         // Session only by construction: the strat file is the persistence, so there is no sidecar, and no
         // settings either, so the canvas's tool choice never becomes the 2D tab's remembered tool.
@@ -1509,7 +1511,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     // The routing feature flipped in settings: reproject only when it changes what the canvas draws.
-    private void OnGateChanged(object? sender, EventArgs e) =>
+    private void OnGateChanged() =>
         _post(() =>
         {
             if (!_disposed && _routing() != _projectedRouting)

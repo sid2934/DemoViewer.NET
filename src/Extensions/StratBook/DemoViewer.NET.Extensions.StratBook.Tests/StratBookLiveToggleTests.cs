@@ -355,7 +355,7 @@ public class StratBookLiveToggleTests
 
     /// <summary>
     ///     The blocker: a re-enable landing right after <c>PackSwitch.Pending</c> resolves, but before
-    ///     <c>StratBookDataRemoval</c> calls the remover, used to run the delete against a fully live pack
+    ///     the host's removal calls the remover, used to run the delete against a fully live pack
     ///     and report success. <c>afterReleaseForTests</c> lands the re-enable at exactly that point (the
     ///     release and the re-enable's own attach both run inline on this container's queue double, so there
     ///     is nothing to pump between the hook and the outer re-check): the delete must abort, untouched.
@@ -376,7 +376,8 @@ public class StratBookLiveToggleTests
             string stratsFile = Path.Combine(stratsDir, "index.json");
             await File.WriteAllTextAsync(stratsFile, "{}");
 
-            StratBookDataRemoval removal = new(provider,
+            PackContributions contributions = provider.GetRequiredService<PackContributionSet>().Packs.Single(p => p.Pack.Id == StratBookPack.PackId);
+            HostDataRemoval removal = new(contributions, provider,
                 afterReleaseForTests: () => settings.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId)));
 
             ExtensionDataRemovalResult result = await removal.DeleteAsync();

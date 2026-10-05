@@ -24,9 +24,9 @@ public sealed class CalloutResolverSource
     private readonly Func<string?> _overlayDir;
     private readonly StratStore _store;
 
-    /// <param name="store">The alias tables.</param>
+    /// <param name="store">The alias tables. Bundles beside the executable and no user overlay.</param>
     public CalloutResolverSource(StratStore store)
-        : this(store, MapAssetBundleReader.FindBundleDirectory, () => AppPaths.ZonesDirectory)
+        : this(store, MapAssetBundleReader.FindBundleDirectory, () => null)
     {
     }
 

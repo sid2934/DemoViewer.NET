@@ -34,9 +34,9 @@ public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IEx
     private readonly Dictionary<string, Entry> _maps = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<string?> _overlayDir;
 
-    /// <summary>The composition root's source: bundles beside the executable, the overlay under the config root.</summary>
+    /// <summary>Bundles beside the executable and no user overlay.</summary>
     public AssetZonePlaceResolverSource()
-        : this(MapAssetBundleReader.FindBundleDirectory, () => AppPaths.ZonesDirectory)
+        : this(MapAssetBundleReader.FindBundleDirectory, () => null)
     {
     }
 

@@ -1,6 +1,12 @@
 #region
 
-using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Services.Strats.Mining;
+using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Services.Teams;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -53,4 +59,22 @@ internal static class StratBookStores
             "demos/*.grenades.json", "demos/*.grenades.paths.json"
         ], IsUserWork: false)
     ];
+
+    /// <summary>
+    ///     After "delete extension data": the stores that stay loaded while the pack is off re-read what is
+    ///     left, so switching back on in the same session shows nothing that was deleted and the next edit
+    ///     does not save it back.
+    /// </summary>
+    /// <param name="sp">The composition root.</param>
+    public static void ReloadLiveStores(IServiceProvider sp)
+    {
+        sp.GetService<StratStore>()?.RebuildIndexFromDisk();
+        sp.GetService<TagStore>()?.RebuildIndexFromDisk();
+        sp.GetService<TagPaletteStore>()?.Reload();
+        sp.GetService<DossierNotesStore>()?.Reload();
+        sp.GetService<VetoHistoryStore>()?.Reload();
+        sp.GetService<WatchedSituationsService>()?.Reload();
+        sp.GetService<StratMiningService>()?.ResetState();
+        sp.GetService<ProfileStore>()?.Reload();
+    }
 }

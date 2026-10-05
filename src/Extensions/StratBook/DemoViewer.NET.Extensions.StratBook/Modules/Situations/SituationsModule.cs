@@ -1,7 +1,6 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.ViewModels.Situations;
 using DemoViewer.NET.Views.Situations;
@@ -42,7 +41,7 @@ public sealed class SituationsModule : IWorkspaceModule
     private readonly Func<SituationsTabViewModel> _viewModelFactory;
     private readonly WatchedSituationsService? _watched;
     private readonly Func<bool> _enabled;
-    private readonly IFeatureGate? _gate;
+    private readonly IExtensionFeatures? _gate;
 
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
     /// <param name="watched">Watched Situations, for the badge; null when the pack was off at composition.</param>
@@ -55,7 +54,7 @@ public sealed class SituationsModule : IWorkspaceModule
     ///     value stale until the next unrelated <c>watched.Changed</c>. Null skips that push.
     /// </param>
     public SituationsModule(Func<SituationsTabViewModel> viewModelFactory, Func<bool> enabled, WatchedSituationsService? watched = null,
-        IFeatureGate? gate = null)
+        IExtensionFeatures? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
@@ -106,7 +105,7 @@ public sealed class SituationsModule : IWorkspaceModule
             // leaving it until the next unrelated service write; going on recomputes without waiting for one.
             if (_gate is { } gate)
             {
-                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(watched.NewCount) : null;
+                gate.Changed += () => tab.Badge = _enabled() ? BadgeFor(watched.NewCount) : null;
             }
         }
 

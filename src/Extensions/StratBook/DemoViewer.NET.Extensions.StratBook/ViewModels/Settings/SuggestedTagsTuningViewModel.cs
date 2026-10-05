@@ -5,7 +5,6 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels;
 
 #endregion
@@ -120,8 +119,11 @@ public sealed partial class SuggestedTagsTuningViewModel : ViewModelBase
     /// <param name="tuning">The harness; null hides the section (browser, or an unwired test).</param>
     /// <param name="profiles">Where a save lands; null hides the section.</param>
     /// <param name="isBrowser">Whether the host is the WASM head (no tuning view there either way).</param>
-    public SuggestedTagsTuningViewModel(SuggestedTagsTuningService? tuning, ProfileStore? profiles, bool isBrowser = false)
+    /// <param name="profileFolderPath">The folder holding the profile, for the "open folder" link; null hides it.</param>
+    public SuggestedTagsTuningViewModel(SuggestedTagsTuningService? tuning, ProfileStore? profiles, bool isBrowser = false,
+        string? profileFolderPath = null)
     {
+        ProfileFolderPath = profileFolderPath;
         _tuning = tuning;
         _profiles = profiles;
         CanManageTuning = !isBrowser && tuning is not null && profiles is not null;
@@ -142,7 +144,7 @@ public sealed partial class SuggestedTagsTuningViewModel : ViewModelBase
     public ObservableCollection<TuningParameterRow> ParameterRows { get; } = [];
 
     /// <summary>The folder <c>profile.json</c> lives in, for the hint text; null on the browser.</summary>
-    public string? ProfileFolderPath { get; } = AppPaths.SuggestedTagsDirectory;
+    public string? ProfileFolderPath { get; }
 
     /// <summary>Re-reads the stored table: verdict counts and recall/precision at the SAVED profile.</summary>
     [RelayCommand]

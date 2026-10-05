@@ -357,9 +357,8 @@ public class StratRoutingTests
         }
     }
 
-    // With no explicit routing func, the canvas falls back to an injected gate (constructor
-    // lookup, not App.Services) and reprojects when it fires Changed, the same way the old
-    // App.Services-backed fallback did.
+    // With no explicit routing func, the canvas falls back to the injected feature switches and
+    // reprojects when they fire Changed.
     [Test]
     public async Task AnInjectedGate_DrivesRoutingReactively_WithNoExplicitRoutingFunc()
     {
@@ -553,13 +552,11 @@ public class StratRoutingTests
     }
 
     // Ignores featureId: the canvas asks for one id, and the test only needs one on/off switch.
-    private sealed class FakeFeatureGate : IFeatureGate
+    private sealed class FakeFeatureGate : IExtensionFeatures
     {
         public bool Enabled { get; set; }
-        public UserCategory Category => UserCategory.Developer;
-        public int HiddenCount => 0;
         public bool IsEnabled(string featureId) => Enabled;
-        public event EventHandler? Changed;
-        public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+        public event Action? Changed;
+        public void Raise() => Changed?.Invoke();
     }
 }

@@ -51,6 +51,7 @@ public class StratBookPackTests
         "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
         // The export seam the pack renders Pack Export and strat exports through.
         "DemoViewer.NET.Extensions.FirstPartyExports",
+        "DemoViewer.NET.Extensions.FirstPartyHost",
         // The extension host: the job-kind registry, the shell hub and the pack's own context.
         "DemoViewer.NET.Extensions.JobKindRegistry",
         "DemoViewer.NET.Extensions.ExtensionShellHub",

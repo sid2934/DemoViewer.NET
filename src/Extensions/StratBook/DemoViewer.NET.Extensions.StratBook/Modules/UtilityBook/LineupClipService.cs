@@ -72,6 +72,9 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
     /// <summary>The file in the clip directory listing evicted pair stems, one per line.</summary>
     public const string EvictedFileName = "evicted.txt";
 
+    /// <summary>The clips folder under the config root. The user's renders: kept until they delete the extension's data.</summary>
+    public const string DirectoryName = "lineup-clips";
+
     /// <summary>
     ///     How long a pair must go unplanned before the sweep deletes it. A re-index drops a demo's rows for
     ///     a moment, and its lineups with them.

@@ -77,18 +77,14 @@ public class SuggestedInboxModuleTests
             .Because("the gate's own Changed recomputes going on, without waiting for a cache write");
     }
 
-    private sealed class FakeGate : IFeatureGate
+    private sealed class FakeGate : IExtensionFeatures
     {
         public Dictionary<string, bool> Answers { get; } = new(StringComparer.Ordinal);
 
-        public UserCategory Category => UserCategory.Developer;
-
-        public int HiddenCount => 0;
-
         public bool IsEnabled(string featureId) => !Answers.TryGetValue(featureId, out bool value) || value;
 
-        public event EventHandler? Changed;
+        public event Action? Changed;
 
-        public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
+        public void RaiseChanged() => Changed?.Invoke();
     }
 }

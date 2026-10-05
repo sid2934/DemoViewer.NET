@@ -2,7 +2,6 @@
 
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.ViewModels.Review;
@@ -45,7 +44,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
     private readonly ReviewQueue? _queue;
     private readonly Func<ReviewQueueTabViewModel> _viewModelFactory;
     private readonly Func<bool> _enabled;
-    private readonly IFeatureGate? _gate;
+    private readonly IExtensionFeatures? _gate;
 
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
     /// <param name="queue">The shared queue, for the badge; null when the pack was off at composition.</param>
@@ -58,7 +57,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
     ///     value stale until the next unrelated <c>queue.Changed</c>. Null skips that push.
     /// </param>
     public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, Func<bool> enabled, ReviewQueue? queue = null,
-        IFeatureGate? gate = null)
+        IExtensionFeatures? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
@@ -109,7 +108,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
             // leaving it until the next unrelated queue write; going on recomputes without waiting for one.
             if (_gate is { } gate)
             {
-                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(queue.UnreviewedCount) : null;
+                gate.Changed += () => tab.Badge = _enabled() ? BadgeFor(queue.UnreviewedCount) : null;
             }
         }
 
