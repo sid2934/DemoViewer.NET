@@ -92,12 +92,18 @@ public interface IExtensionDemoData
     /// <summary>False in the browser build, where nothing is kept.</summary>
     bool IsAvailable { get; }
 
-    /// <summary>The stamp of <paramref name="facet" /> for the demo at <paramref name="demoPath" />, or null when there is none.</summary>
+    /// <summary>
+    ///     The stamp of <paramref name="facet" /> for the demo at <paramref name="demoPath" />, or null when there is
+    ///     none or the path is only matched to known content by fingerprint and no full read has confirmed it yet.
+    /// </summary>
     /// <param name="demoPath">The demo's path.</param>
     /// <param name="facet">The facet.</param>
     DemoDataStamp? Stamp(string demoPath, string facet);
 
-    /// <summary>Every stamp of <paramref name="facet" />.</summary>
+    /// <summary>
+    ///     Every stamp of <paramref name="facet" /> held at a confirmed path. A stamp whose demo is seen only at a
+    ///     path matched by fingerprint is left out until a full read confirms that path.
+    /// </summary>
     /// <param name="facet">The facet.</param>
     IReadOnlyList<DemoDataStamp> Stamps(string facet);
 
