@@ -196,16 +196,17 @@ public sealed class DemoScheduler : IDisposable
     /// </summary>
     public bool IsFaulted(string passId, string path)
     {
-        string demo = DemoKey(path);
+        string[] keys = KeysOf(path);
         lock (_lock)
         {
-            return _faulted.Contains((passId, demo));
+            return keys.Any(k => _faulted.Contains((passId, k)));
         }
     }
 
     /// <summary>
     ///     Clears every pass's fault for <paramref name="path" />: the file changed, so the bytes a pass threw
-    ///     on are gone and each one may be offered the demo again.
+    ///     on are gone and each one may be offered the demo again. Another path still holding those bytes keeps
+    ///     its own fault.
     /// </summary>
     public void ForgetFaults(string path)
     {
@@ -259,6 +260,11 @@ public sealed class DemoScheduler : IDisposable
             _dirty[demo] = (path, level);
         }
     }
+
+    // A path's demo key changes when its file is first hashed, so the outstanding and fault sets hold a pass
+    // under the path and the key both, and a lookup by either finds it.
+    private string[] KeysOf(string path) =>
+        DemoKey(path) is var key && !string.Equals(key, path, StringComparison.OrdinalIgnoreCase) ? [key, path] : [path];
 
     // A key resolver that throws must not stop a mark or a plan; the path stands in.
     private string DemoKey(string path)
@@ -412,14 +418,15 @@ public sealed class DemoScheduler : IDisposable
 
     // Plans one demo: the closure of interested passes, the level the highest of them or the caller asks for,
     // one visit. A demo the queue refuses goes back on the dirty set for the next capacity event.
-    // The demo key is taken once, here: a visit that hashes the file changes the path's key before it ends.
+    // The keys are taken once, here: a visit that hashes the file changes the path's key before it ends.
     private void Plan(string demoKey, string path, PassLevel level, IReadOnlyList<IDemoPass> passes)
     {
         VisitedDemo demo = new(path);
+        string[] keys = [.. KeysOf(path).Append(demoKey).Distinct(StringComparer.OrdinalIgnoreCase)];
         List<IDemoPass> candidates;
         lock (_lock)
         {
-            candidates = [.. passes.Where(p => !_faulted.Contains((p.Id, demoKey)))];
+            candidates = [.. passes.Where(p => !keys.Any(k => _faulted.Contains((p.Id, k))))];
         }
 
         List<IDemoPass> planned = VisitPlanner.Plan(candidates, demo, level, (pass, ex) => ReportFault(pass.Id, path, ex));
@@ -449,8 +456,13 @@ public sealed class DemoScheduler : IDisposable
 
             foreach (IDemoPass pass in planned)
             {
-                if (_outstanding.Add((pass.Id, demoKey)))
+                if (!keys.Any(k => _outstanding.Contains((pass.Id, k))))
                 {
+                    foreach (string key in keys)
+                    {
+                        _outstanding.Add((pass.Id, key));
+                    }
+
                     submitting.Add(pass);
                 }
             }
@@ -467,7 +479,7 @@ public sealed class DemoScheduler : IDisposable
         }
 
         IDemoQueueHandle handle = _queue.SubmitVisit(new DemoVisitRequest(path, level, submitting, orderHint,
-            Path.GetFileName(path), (pass, outcome, error) => PassEnded(demoKey, path, pass, outcome, error)));
+            Path.GetFileName(path), (pass, outcome, error) => PassEnded(keys, path, pass, outcome, error)));
 
         if (handle.State == DemoQueueItemState.Rejected)
         {
@@ -475,7 +487,10 @@ public sealed class DemoScheduler : IDisposable
             {
                 foreach (IDemoPass pass in submitting)
                 {
-                    _outstanding.Remove((pass.Id, demoKey));
+                    foreach (string key in keys)
+                    {
+                        _outstanding.Remove((pass.Id, key));
+                    }
                 }
 
                 if (!_dirty.TryGetValue(demoKey, out (string Path, PassLevel Level) current) || level > current.Level)
@@ -493,15 +508,20 @@ public sealed class DemoScheduler : IDisposable
 
     // Runs in the queue's slot. Clears the outstanding entry either way so a demo that becomes interesting
     // again can be planned again; a throw puts the pass on the session's skip list for that demo.
-    private void PassEnded(string demoKey, string path, IDemoPass pass, PassOutcome outcome, Exception? error)
+    private void PassEnded(string[] keys, string path, IDemoPass pass, PassOutcome outcome, Exception? error)
     {
         PassFinished?.Invoke(path, pass.Id, outcome);
+        string[] faultKeys = outcome == PassOutcome.Failed ? [.. keys.Concat(KeysOf(path)).Distinct(StringComparer.OrdinalIgnoreCase)] : [];
         lock (_lock)
         {
-            _outstanding.Remove((pass.Id, demoKey));
-            if (outcome == PassOutcome.Failed)
+            foreach (string key in keys)
             {
-                _faulted.Add((pass.Id, demoKey));
+                _outstanding.Remove((pass.Id, key));
+            }
+
+            foreach (string key in faultKeys)
+            {
+                _faulted.Add((pass.Id, key));
             }
         }
 

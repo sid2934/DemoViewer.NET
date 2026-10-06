@@ -532,7 +532,7 @@ public class DemoSchedulerTests
     }
 
     [Test]
-    public async Task AFaultThroughOnePath_SkipsTheOther_AndForgettingThroughEitherClearsIt()
+    public async Task AFaultThroughOnePath_SkipsTheOther_AndForgettingAChangedPathClearsOnlyIt()
     {
         int parses = 0;
         using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline,
@@ -557,7 +557,43 @@ public class DemoSchedulerTests
         }
 
         scheduler.ForgetFaults("/smb/demo.dem");
-        await Assert.That(scheduler.IsFaulted("thrower", "/nfs/demo.dem")).IsFalse();
+        using (Assert.Multiple())
+        {
+            await Assert.That(scheduler.IsFaulted("thrower", "/smb/demo.dem")).IsFalse();
+            await Assert.That(scheduler.IsFaulted("thrower", "/nfs/demo.dem")).IsTrue()
+                .Because("the file that changed was the other one; these bytes are the ones the pass threw on");
+        }
+    }
+
+    [Test]
+    public async Task ADemoHashedDuringItsVisit_KeepsItsFault_AndIsNotReplanned()
+    {
+        int parses = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline,
+            _ =>
+            {
+                Interlocked.Increment(ref parses);
+                return Synthetic();
+            });
+        ConcurrentDictionary<string, string> hashes = new(StringComparer.OrdinalIgnoreCase);
+        Fake thrower = new("thrower", onEvaluate: p =>
+        {
+            hashes[p] = "content-1";
+            throw new InvalidOperationException("boom");
+        });
+        using DemoScheduler scheduler = new([thrower], queue, () => ["/x/demo.dem"],
+            path => hashes.TryGetValue(path, out string? key) ? key : path);
+
+        scheduler.DemoChanged("/x/demo.dem");
+        await WaitFor(() => thrower.Count == 1 && !scheduler.HasOutstanding("thrower"), "the throwing run");
+        scheduler.RecheckAll();
+        await Task.Delay(120);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scheduler.IsFaulted("thrower", "/x/demo.dem")).IsTrue();
+            await Assert.That(parses).IsEqualTo(1).Because("the fault holds under the key the hash gave the path");
+        }
     }
 
     [Test]

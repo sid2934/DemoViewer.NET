@@ -47,9 +47,10 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
 
     private int _reportedAbsent;
 
-    // Demos whose engine run produced no rows under a fingerprint, this session only, by demo key so another
-    // path of the same bytes is not tried again. Nothing is written (an empty payload would read as current),
-    // so without this the scheduler re-parses them forever.
+    // Demos whose engine run produced no rows under a fingerprint, this session only. Held by path and by demo
+    // key: the key of a path changes once its file is hashed, and another path of the same bytes must not be
+    // tried again. Nothing is written (an empty payload would read as current), so without this the scheduler
+    // re-parses them forever.
     private readonly HashSet<string> _noRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _noRowsGate = new();
 
@@ -198,6 +199,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
             {
                 lock (_noRowsGate)
                 {
+                    _noRows.Add(fingerprint + "|" + path);
                     _noRows.Add(NoRowsKey(path, fingerprint));
                 }
 
@@ -231,7 +233,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     {
         lock (_noRowsGate)
         {
-            return _noRows.Contains(NoRowsKey(path, fingerprint));
+            return _noRows.Contains(fingerprint + "|" + path) || _noRows.Contains(NoRowsKey(path, fingerprint));
         }
     }
 

@@ -161,6 +161,20 @@ public class RoundFactsEvaluatorTests
     }
 
     [Test]
+    public async Task NoRowsBeforeTheHashWasKnown_IsStillNotRetried_OnceItIs()
+    {
+        DemoCacheStore store = StoreWithParsedDemo();
+        store.UpdateExisting(Demo, r => r.Sha256 = null);
+        CountingSource source = new(RoundFactsTable.Unavailable("round_facts: the ruleset produced no round_facts table"));
+        RoundFactsEvaluator evaluator = new(store, source, new FakeIdentity("rf-A"));
+
+        evaluator.Evaluate(Demo, TwoRoundDemo());
+        store.UpdateExisting(Demo, r => r.Sha256 = "abc");
+
+        await Assert.That(evaluator.Wants(Demo)).IsFalse().Because("hashing the file does not make it a new demo");
+    }
+
+    [Test]
     public async Task RowsAreWrittenOnce_UnderTheFingerprint_WithTheClockHeader()
     {
         DemoCacheStore store = StoreWithParsedDemo();

@@ -49,7 +49,8 @@ public sealed class RecordPassRunner : IDisposable
     private readonly object _lock = new();
     private readonly HashSet<string> _dirty = new(StringComparer.OrdinalIgnoreCase);
 
-    // Keyed by the store's demo key, so every path of one demo shares them.
+    // Keyed by the store's demo key, so every path of one demo shares them. A fault is also held under the
+    // path it was visited by: that path's key changes once its file is hashed.
     private readonly HashSet<(string Pass, string Demo)> _faulted = new(PassDemoKeyComparer.Instance);
     private readonly Dictionary<(string Pass, string Demo), DemoCacheIndexEntry> _ranOn = new(PassDemoKeyComparer.Instance);
     private readonly Func<IReadOnlyList<IRecordPass>> _passes;
@@ -113,7 +114,7 @@ public sealed class RecordPassRunner : IDisposable
         string demo = _store.DemoKeyOf(path);
         lock (_lock)
         {
-            return _faulted.Contains((passId, demo));
+            return _faulted.Contains((passId, demo)) || _faulted.Contains((passId, path));
         }
     }
 
@@ -314,6 +315,7 @@ public sealed class RecordPassRunner : IDisposable
                 lock (_lock)
                 {
                     _faulted.Add((pass.Id, demo));
+                    _faulted.Add((pass.Id, entry.Path));
                 }
 
                 Report(pass, path, ex);
@@ -330,7 +332,7 @@ public sealed class RecordPassRunner : IDisposable
         {
             lock (_lock)
             {
-                if (_faulted.Contains((pass.Id, demo))
+                if (_faulted.Contains((pass.Id, demo)) || _faulted.Contains((pass.Id, entry.Path))
                     || (_ranOn.TryGetValue((pass.Id, demo), out DemoCacheIndexEntry? ran) && ReferenceEquals(ran, entry)))
                 {
                     continue;
@@ -347,6 +349,7 @@ public sealed class RecordPassRunner : IDisposable
                 lock (_lock)
                 {
                     _faulted.Add((pass.Id, demo));
+                    _faulted.Add((pass.Id, entry.Path));
                 }
 
                 Report(pass, entry.Path, ex);
