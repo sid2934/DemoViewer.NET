@@ -3,6 +3,7 @@
 using System.Text.RegularExpressions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Tools;
 using SkiaSharp;
 
@@ -198,4 +199,54 @@ internal sealed class EmptySceneLayer : ISceneLayer
     public void Dispose()
     {
     }
+}
+
+/// <summary>
+///     An extension's <see cref="IPointerTool" /> on a scene view, every call run as the extension's. A throw
+///     is reported and the sample dropped; the event is a ref struct, so the calls cannot go through a lambda.
+/// </summary>
+internal sealed class GuardedPointerTool(IPointerTool inner, ExtensionGuard guard) : IPointerTool
+{
+    public IPointerTool Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
+
+    public ToolKind Kind => Inner.Kind;
+
+    public bool OnPressed(in ToolPointerEvent e, IToolServices s)
+    {
+        try
+        {
+            return Inner.OnPressed(in e, s);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            guard.Report("pointer tool", ex, FaultKind.Recurring);
+            return false;
+        }
+    }
+
+    public void OnMoved(in ToolPointerEvent e, IToolServices s)
+    {
+        try
+        {
+            Inner.OnMoved(in e, s);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            guard.Report("pointer tool", ex, FaultKind.Recurring);
+        }
+    }
+
+    public void OnReleased(in ToolPointerEvent e, IToolServices s)
+    {
+        try
+        {
+            Inner.OnReleased(in e, s);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            guard.Report("pointer tool", ex, FaultKind.Recurring);
+        }
+    }
+
+    public void OnCancelled(IToolServices s) => guard.Run("pointer tool", () => Inner.OnCancelled(s), FaultKind.Recurring);
 }

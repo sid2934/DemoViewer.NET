@@ -576,6 +576,31 @@ public class InputToolRouterTests
         };
     }
 
+    [Test]
+    public async Task Unregister_ActiveToolFallsBackToPan_AReplacedKindIsLeftAlone_AndPanStays()
+    {
+        (InputToolRouter router, FakeToolServices _, PaneSet _) = Build();
+        InertTool first = new(ToolKind.Token);
+        router.Register(first);
+        router.SetActive(ToolKind.Token);
+
+        router.Unregister(first);
+        await Assert.That(router.ActiveKind).IsEqualTo(ToolKind.PanZoom);
+        await Assert.That(router.Active).IsTypeOf<PanZoomTool>();
+
+        InertTool second = new(ToolKind.Token);
+        router.Register(first);
+        router.Register(second);
+        router.SetActive(ToolKind.Token);
+        router.Unregister(first);
+        await Assert.That(router.Active).IsSameReferenceAs(second).Because("the kind belongs to a later tool now");
+
+        router.SetActive(ToolKind.PanZoom);
+        IPointerTool pan = router.Active;
+        router.Unregister(pan);
+        await Assert.That(router.Active).IsSameReferenceAs(pan).Because("pan/zoom cannot be dropped");
+    }
+
     private static (InputToolRouter Router, FakeToolServices Services, PaneSet Panes) Build()
     {
         (MapSpace _, PaneSet panes) = AnnotationFakes.Panes(new SKSize(600, 400),

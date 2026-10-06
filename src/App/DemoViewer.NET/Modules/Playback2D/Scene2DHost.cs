@@ -177,6 +177,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     /// <param name="tool">The tool.</param>
     public void AddTool(IPointerTool tool) => Router.Register(tool);
 
+    /// <summary>Drops a tool added with <see cref="AddTool" />; the router pans if it was active.</summary>
+    /// <param name="tool">The tool.</param>
+    public void RemoveTool(IPointerTool tool) => Router.Unregister(tool);
+
+    /// <summary>The panes as last arranged, one per floor on screen.</summary>
+    public IReadOnlyList<LevelPane> Panes => _panes.Panes;
+
     /// <summary>
     ///     Registers a scene layer on this host only, built fresh by <paramref name="layer" /> now and
     ///     again every time a release rebuilds the compositor. <paramref name="layerId" /> must match
@@ -207,6 +214,24 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             _compositor.Remove(layerId);
             _compositor.Add(layer());
         }
+    }
+
+    /// <summary>Drops a layer added with <see cref="AddLayer" />. Any other id is left alone.</summary>
+    /// <param name="layerId">The layer's id.</param>
+    public void RemoveLayer(string layerId)
+    {
+        ArgumentNullException.ThrowIfNull(layerId);
+        if (!_extraLayers.Remove(layerId) || _released)
+        {
+            return;
+        }
+
+        using (_gate.Enter())
+        {
+            _compositor.Remove(layerId);
+        }
+
+        InvalidateVisual();
     }
 
     /// <summary>The layout policy. <c>SingleLayout</c> can replace it here.</summary>

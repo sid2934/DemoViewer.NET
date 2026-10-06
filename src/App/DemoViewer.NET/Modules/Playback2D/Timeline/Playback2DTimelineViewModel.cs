@@ -111,6 +111,12 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// <summary>The lanes added through <see cref="RegisterLane" />, in registration order.</summary>
     public IReadOnlyList<ILaneHandle> Lanes => _lanes;
 
+    /// <summary>The markers the enabled tracks built, in frame order, before the screen folds neighbours.</summary>
+    internal IReadOnlyList<TimelineMarker> BuiltMarkers => _builtMarkers;
+
+    /// <summary>The rounds-row bands the enabled tracks built, in registration order.</summary>
+    internal IReadOnlyList<TimelineBand> BuiltBands => _builtBands;
+
     /// <summary>The data the bands were last built from, or null before the first <see cref="Rebuild" />.</summary>
     public ITimelineData? Data => _data;
 
