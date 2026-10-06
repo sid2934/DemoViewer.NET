@@ -13,7 +13,8 @@ namespace DemoViewer.NET.Extensions.Sdk;
 /// </summary>
 /// <param name="Id">
 ///     The id sections name as their host, and the strip tab's id. Stored in the user's session, so it must
-///     never change. It may not be a host id the app or another extension already uses.
+///     never change. It may not be a host id the app or another extension already uses. Starts with the
+///     extension's id and a dot; a third-party id that does not is left out and logged.
 /// </param>
 /// <param name="Header">The strip header.</param>
 /// <param name="Order">The strip position among the main tabs; the host's own tabs sit below 10.</param>
@@ -104,7 +105,7 @@ public interface IStatusChipSource : INotifyPropertyChanged
 }
 
 /// <summary>A chip on the status strip, drawn by the host from the state the extension supplies.</summary>
-/// <param name="Id">Unique across the app. Never shown.</param>
+/// <param name="Id">Unique across the app. Never shown. Starts with the extension's id and a dot; a third-party id that does not is left out and logged.</param>
 /// <param name="Source">The chip's state.</param>
 /// <param name="FeatureId">Shown only while this feature is on; null for while the extension is on.</param>
 public sealed record StatusChipContribution(string Id, IStatusChipSource Source, string? FeatureId = null);

@@ -141,6 +141,12 @@ internal sealed class SdkPlaybackSurface : SdkP.IPlaybackSurface, IDisposable
     public IDisposable AddToolbarItem(SdkP.ToolbarItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
+        if (!_guard.Scope.OwnsId(item.Id))
+        {
+            _guard.Report("toolbar item", new ArgumentException($"'{item.Id}' does not start with '{_guard.Scope.Id}.', so it is left out."));
+            return new Registration(static () => { });
+        }
+
         Func<SdkP.PlaybackMoment, bool> run = _guard.Wrap("toolbar item", item.Run, false);
         ToolbarItem mirrored = new(item.Id, item.Label, item.Tooltip,
             frame => run(new SdkP.PlaybackMoment(frame.Time.Tick, frame.Time.FrameIndex, frame)), item.ActionId, item.Order,

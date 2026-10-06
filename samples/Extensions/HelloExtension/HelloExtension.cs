@@ -39,7 +39,7 @@ public sealed class HelloExtension : IExtension
     public const string GreetedNotification = "hello.greeted";
 
     /// <summary>The hub tab's id, which its sections name as their host.</summary>
-    public const string HubId = "hello.hub";
+    public const string HubId = ExtensionId + ".hub";
 
     public string Id => ExtensionId;
 
@@ -72,7 +72,7 @@ public sealed class HelloExtension : IExtension
         contributions.HubTab(new HubTabContribution(HubId, "Hello hub", 51, "HELLO"));
         contributions.Tabs(new HelloHubModule());
         HelloChip chip = services.GetRequiredService<HelloChip>();
-        contributions.StatusChip(new StatusChipContribution("hello.chip", chip));
+        contributions.StatusChip(new StatusChipContribution(ExtensionId + ".chip", chip));
 
         // A page under Settings, Extensions that the host draws from this list and stores in context.Settings.
         contributions.SettingsSchema(new SettingsSchema("hello.settings", "HELLO",
@@ -92,7 +92,7 @@ public sealed class HelloExtension : IExtension
 
         // A job that names the demo runs on that demo's parse: the shell's when the demo is open. The chip
         // shows the demo greeted; it may be told from any thread.
-        contributions.DemoAction(new DemoAction("hello.greet", "Say hello", "Greets this demo with its frame count",
+        contributions.DemoAction(new DemoAction(ExtensionId + ".greet", "Say hello", "Greets this demo with its frame count",
             _ => true,
             path =>
             {
@@ -426,7 +426,7 @@ internal sealed class HelloPlayback : IPlaybackContribution
     {
         ArgumentNullException.ThrowIfNull(surface);
         // Naming the action makes Shift+H run the button too, while the extension is on.
-        _item = surface.AddToolbarItem(new ToolbarItem("hello.where", "Where am I?",
+        _item = surface.AddToolbarItem(new ToolbarItem(HelloExtension.ExtensionId + ".where", "Where am I?",
             $"Logs the tick shown{surface.GestureHint(HelloExtension.WhereAction)}",
             moment => moment.Tick >= 0, HelloExtension.WhereAction));
         // Filed by the host as ext.dev.example.hello.rings, beside the tab's own layers.

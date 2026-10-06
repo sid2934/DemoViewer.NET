@@ -192,6 +192,25 @@ public class ExtensionIsolationTests
         }
     }
 
+    [Test]
+    public async Task AThirdPartyIdWithoutItsExtensionsPrefix_IsLeftOut()
+    {
+        OwnsOneFeature pack = new();
+        ExtensionGuard guard = ExtensionGuard.Standalone(pack);
+        PackContributions contributions = new(pack, () => null!, guard: guard);
+
+        contributions.DemoAction(new DemoAction("hello.greet", "Greet", "", _ => true, _ => { }));
+        contributions.HubTab(new HubTabContribution("hello.hub", "Hub", 50, "HUB"));
+        contributions.DemoAction(new DemoAction("dev.example.owner.greet", "Greet", "", _ => true, _ => { }));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(contributions.DemoActions.Select(a => a.Action.Id)).IsEquivalentTo(["dev.example.owner.greet"]);
+            await Assert.That(contributions.HubTabs).IsEmpty();
+            await Assert.That(guard.Faults.StateOf(pack.FeatureId).Count).IsEqualTo(2);
+        }
+    }
+
     private sealed class OwnsOneFeature : IExtension
     {
         public const string Sub = "dev.example.owner.sub";

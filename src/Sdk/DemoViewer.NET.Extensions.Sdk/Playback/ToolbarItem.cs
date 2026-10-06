@@ -11,7 +11,7 @@ public sealed class ToolbarItem : INotifyPropertyChanged
     private string _tooltip;
 
     /// <summary>Creates the item.</summary>
-    /// <param name="id">Unique within the tab.</param>
+    /// <param name="id">Unique within the tab. Starts with the extension's id and a dot; a third-party id that does not is left out and logged.</param>
     /// <param name="label">The button text.</param>
     /// <param name="tooltip">The button tooltip.</param>
     /// <param name="run">Runs it at the moment shown; true when it acted.</param>

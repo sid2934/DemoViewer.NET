@@ -433,13 +433,13 @@ public class HostTabContributionTests
         {
             using ExternalHello hello = ExternalHelloShell();
             MainViewModel vm = hello.Shell;
-            List<string> texts = RenderedTexts(vm, "hello.hub");
-            HubTabViewModel hub = vm.HostViewModel("hello.hub")!;
+            List<string> texts = RenderedTexts(vm, "dev.example.hello.hub");
+            HubTabViewModel hub = vm.HostViewModel("dev.example.hello.hub")!;
             using (Assert.Multiple())
             {
                 await Assert.That(AssemblyLoadContext.GetLoadContext(hello.Set.Packs.Single().Pack.GetType().Assembly))
                     .IsTypeOf<ExternalLoadContext>();
-                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("hello.hub");
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains("dev.example.hello.hub");
                 await Assert.That(hub.Sections.Sections.Select(s => s.Header)).IsEquivalentTo(_helloSections,
                     TUnit.Assertions.Enums.CollectionOrdering.Matching);
                 await Assert.That(hub.Sections.Sections.All(s => ExtensionGuards.For(s) is not null)).IsTrue()

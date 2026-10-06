@@ -70,6 +70,14 @@ public sealed class ExtensionScope
     }
 
     /// <summary>
+    ///     True when <paramref name="id" />, a chip, hub, demo action or toolbar item id, may be this extension's:
+    ///     it starts with the extension's id and a dot. The extensions the app ships keep their own names.
+    /// </summary>
+    public bool OwnsId(string id) =>
+        Id.StartsWith(Loading.ExternalExtensions.ReservedIdPrefix, StringComparison.Ordinal)
+        || id.StartsWith(Id + ".", StringComparison.Ordinal);
+
+    /// <summary>
     ///     <paramref name="requested" /> when it is one of this extension's own features, else its master switch.
     ///     A contribution gated on a feature it does not own would stay live after this extension is switched off.
     /// </summary>

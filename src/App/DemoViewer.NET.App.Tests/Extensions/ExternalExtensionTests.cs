@@ -301,7 +301,7 @@ public class ExternalExtensionTests
                     await Assert.That(tab.TabId).IsEqualTo("hello.tab");
                     await Assert.That(tab.FeatureId).IsEqualTo("tab.hello");
                     await Assert.That(view).IsNotNull();
-                    await Assert.That(contributed.DemoActions.Single().Action.Id).IsEqualTo("hello.greet");
+                    await Assert.That(contributed.DemoActions.Single().Action.Id).IsEqualTo("dev.example.hello.greet");
                     await Assert.That(contributed.DemoActions.Single().FeatureId).IsEqualTo("pack.hello")
                         .Because("an action with no feature of its own shows under the extension's master switch");
                     await Assert.That(contributed.PlaybackContributions.Single()).IsTypeOf<SdkPlaybackContribution>();
@@ -309,7 +309,7 @@ public class ExternalExtensionTests
                         .Because("the UI kit resolves from the app, so the extension embeds the host's own map view");
                     await Assert.That(layers).IsEquivalentTo(["ext.dev.example.hello.rings"]);
                     await Assert.That(vm.Surface.Layers).IsEmpty().Because("the detach took the layer with it");
-                    await Assert.That(contributed.HubTabs.Single().Id).IsEqualTo("hello.hub");
+                    await Assert.That(contributed.HubTabs.Single().Id).IsEqualTo("dev.example.hello.hub");
                     await Assert.That(contributed.StatusChips.Single().FeatureId).IsEqualTo("pack.hello");
                 }
 

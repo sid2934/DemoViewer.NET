@@ -96,7 +96,11 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `ReindexEstimate` | The count behind "N demos will be re-indexed" when the extension is switched back on. |
 
 Each contribution shows only while the extension's master switch is on, and while its own feature id is on
-when it names one.
+when it names one. That feature must be one your extension declares; naming another is logged and the
+contribution follows your master switch instead.
+
+Hub, status chip, demo action and toolbar item ids are shared across every extension, so each starts with your
+extension's id and a dot (`dev.example.hello.chip`). One that does not is left out and logged.
 
 A section can also join a published hub: name `HostIds.LibraryTab` (the Library's view switch, which the app
 owns) or `HostIds.StratBookHub` (the Strat Book rail) as its `HostId`. The Strat Book rail belongs to the Strat

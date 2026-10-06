@@ -114,6 +114,11 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentException.ThrowIfNullOrWhiteSpace(hub.Id);
         ArgumentNullException.ThrowIfNull(hub.Header);
         ArgumentNullException.ThrowIfNull(hub.RailLabel);
+        if (!OwnsId("hub tab", hub.Id))
+        {
+            return;
+        }
+
         _hubTabs.Add(ContributedHub.For(hub with { FeatureId = _guard.OwnFeature("hub tab", hub.FeatureId) }, Pack.Id, Pack.FeatureId, _guard));
     }
 
@@ -186,6 +191,18 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         }, null)));
     }
 
+    // Ids that are global across extensions carry the owner's id, so two extensions never lose one to the other.
+    private bool OwnsId(string site, string id)
+    {
+        if (_guard.Scope.OwnsId(id))
+        {
+            return true;
+        }
+
+        _guard.Report(site, new ArgumentException($"'{id}' does not start with '{Pack.Id}.', so it is left out."));
+        return false;
+    }
+
     private bool ListedInManifest(string rulesetId)
     {
         try
@@ -247,6 +264,11 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentNullException.ThrowIfNull(chip);
         ArgumentException.ThrowIfNullOrWhiteSpace(chip.Id);
         ArgumentNullException.ThrowIfNull(chip.Source);
+        if (!OwnsId("status chip", chip.Id))
+        {
+            return;
+        }
+
         _statusChips.Add(new HostStatusChip(chip, _guard.OwnFeature("status chip", chip.FeatureId), _guard, _toUiThread));
     }
 
@@ -376,6 +398,11 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public void DemoAction(DemoAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
+        if (!OwnsId("demo action", action.Id))
+        {
+            return;
+        }
+
         Func<string, bool> isAvailable = _guard.Wrap("demo action availability", action.IsAvailable, false);
         Action<string> run = _guard.Wrap("demo action", action.Run);
         string featureId = _guard.OwnFeature("demo action", action.FeatureId);

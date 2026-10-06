@@ -7,7 +7,7 @@ namespace DemoViewer.NET.Extensions.Sdk;
 public sealed class DemoAction
 {
     /// <summary>Creates the action.</summary>
-    /// <param name="id">Unique across the app.</param>
+    /// <param name="id">Unique across the app. Starts with the extension's id and a dot; a third-party id that does not is left out and logged.</param>
     /// <param name="label">The button text.</param>
     /// <param name="tooltip">The button tooltip.</param>
     /// <param name="isAvailable">Whether the demo at the given path should offer it now. Called on the UI thread.</param>
