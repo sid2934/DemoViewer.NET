@@ -317,7 +317,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
     {
         if (row is not null)
         {
-            _teams.AcceptSuggestion(row.Id);
+            Apply("Accepting the suggestion…", () => _teams.AcceptSuggestion(row.Id));
         }
     }
 
@@ -326,7 +326,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
     {
         if (row is not null)
         {
-            _teams.DismissSuggestion(row.Id);
+            Apply("Dismissing the suggestion…", () => _teams.DismissSuggestion(row.Id));
         }
     }
 
@@ -340,11 +340,11 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
 
         if (row.Id.StartsWith("me:", StringComparison.Ordinal))
         {
-            _teams.RestoreMeSuggestion();
+            Apply("Restoring the suggestion…", _teams.RestoreMeSuggestion);
         }
         else
         {
-            _teams.RestoreSuggestion(row.Id);
+            Apply("Restoring the suggestion…", () => _teams.RestoreSuggestion(row.Id));
         }
     }
 
@@ -378,18 +378,21 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
 
         SquadHint = "";
         IsEditingSquad = false;
-        _teams.SetSquad(picked);
+        Apply("Saving the squad…", () => _teams.SetSquad(picked));
     }
 
     [RelayCommand]
-    private void SaveMyAccounts() =>
-        _teams.SetMyAccounts([.. MyAccountsText.Split([',', ';', ' ', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)]);
+    private void SaveMyAccounts()
+    {
+        List<string> accounts = [.. MyAccountsText.Split([',', ';', ' ', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+        Apply("Saving your accounts…", () => _teams.SetMyAccounts(accounts));
+    }
 
     [RelayCommand]
-    private void ConfirmMeSuggestion() => _teams.ConfirmMeSuggestion();
+    private void ConfirmMeSuggestion() => Apply("Saving your account…", _teams.ConfirmMeSuggestion);
 
     [RelayCommand]
-    private void DismissMeSuggestion() => _teams.DismissMeSuggestion();
+    private void DismissMeSuggestion() => Apply("Dismissing the suggestion…", _teams.DismissMeSuggestion);
 
     [RelayCommand]
     private Task OpenDemo(DemoRow? row) => row is not null && _openDemo is not null ? _openDemo(row.Path) : Task.CompletedTask;

@@ -857,7 +857,12 @@ public sealed class StratBookPack : IExtension
                 "Queue this demo's grenade walk: every throw with its lineup and landing point. It runs in the background and never opens the demo",
                 path => !string.Equals(path, context.Shell.CurrentDemoPath, StringComparison.OrdinalIgnoreCase)
                         && !sp.GetRequiredService<GrenadeIndexEvaluator>().IsCurrent(path),
-                path => sp.GetRequiredService<GrenadeIndexEvaluator>().Request(path)));
+                // Lifting a failed stamp writes the per-demo index, so the press runs as a queue item.
+                path => _ = context.Jobs.RunAsync("Index grenades: " + Path.GetFileName(path), _ =>
+                {
+                    sp.GetRequiredService<GrenadeIndexEvaluator>().Request(path);
+                    return Task.CompletedTask;
+                }, new JobOptions(BuiltInJobKinds.Save, JobPriority.UserRequested))));
         }
 
         // The Library's Team filter and provenance chip, each resolving its service lazily on first use.

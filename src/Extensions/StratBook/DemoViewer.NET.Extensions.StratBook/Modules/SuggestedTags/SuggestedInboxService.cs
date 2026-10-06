@@ -96,22 +96,44 @@ public sealed class SuggestedInboxService : IDisposable
     }
 
     /// <summary>Accepts as proposed into that demo's tag document. False when it is not pending or was not written.</summary>
-    public bool Accept(SuggestedInboxItem item) =>
-        After(item, _suggestions.Accept(item.DemoPath, item.Entry.Proposal.Id, null, item.Sha256));
+    public Task<bool> AcceptAsync(SuggestedInboxItem item) =>
+        VerdictAsync("Suggested tags: accept", item, () => _suggestions.Accept(item.DemoPath, item.Entry.Proposal.Id, null, item.Sha256));
 
     /// <summary>Dismisses: the proposal is not offered again until restored.</summary>
-    public bool Dismiss(SuggestedInboxItem item) => After(item, _suggestions.Reject(item.DemoPath, item.Entry.Proposal.Id, item.Sha256));
+    public Task<bool> DismissAsync(SuggestedInboxItem item) =>
+        VerdictAsync("Suggested tags: dismiss", item, () => _suggestions.Reject(item.DemoPath, item.Entry.Proposal.Id, item.Sha256));
 
     /// <summary>Offers a dismissed proposal again.</summary>
-    public bool Restore(SuggestedInboxItem item) => After(item, _suggestions.Restore(item.DemoPath, item.Entry.Proposal.Id, item.Sha256));
+    public Task<bool> RestoreAsync(SuggestedInboxItem item) =>
+        VerdictAsync("Suggested tags: restore", item, () => _suggestions.Restore(item.DemoPath, item.Entry.Proposal.Id, item.Sha256));
 
-    private bool After(SuggestedInboxItem item, bool written)
+    // A verdict reads and writes the demo's proposals, verdicts and tags, so it runs as a queue item the user
+    // asked for, never on the UI thread.
+    private async Task<bool> VerdictAsync(string title, SuggestedInboxItem item, Func<bool> write)
     {
         ArgumentNullException.ThrowIfNull(item);
-        if (written)
+        bool written = false;
+        void Work()
         {
-            ReadDemo(item.DemoPath);
-            Publish();
+            written = write();
+            if (written)
+            {
+                ReadDemo(item.DemoPath);
+                Publish();
+            }
+        }
+
+        if (_jobs is null)
+        {
+            await _run(Work).ConfigureAwait(true);
+        }
+        else
+        {
+            await _jobs.RunAsync(title, _ =>
+            {
+                Work();
+                return Task.CompletedTask;
+            }, new JobOptions(StratBookJobKinds.SuggestionsInbox, JobPriority.UserRequested)).ConfigureAwait(true);
         }
 
         return written;
