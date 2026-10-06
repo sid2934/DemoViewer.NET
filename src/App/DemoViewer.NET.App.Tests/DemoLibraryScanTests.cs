@@ -2,6 +2,8 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -62,7 +64,7 @@ public class DemoLibraryScanTests
             svc.FolderReader = new ScriptedReader { FailRead = d => d == root ? new IOException("Operation timed out") : null };
             await svc.RescanAsync();
 
-            await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo([a, gone]);
+            await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(a, gone));
         }
         finally
         {
@@ -180,7 +182,7 @@ public class DemoLibraryScanTests
             using (Assert.Multiple())
             {
                 await Assert.That(svc.Entries.Count).IsEqualTo(1);
-                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo([first, copy]);
+                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(first, copy));
             }
         }
         finally
@@ -189,7 +191,205 @@ public class DemoLibraryScanTests
         }
     }
 
+    [Test]
+    public async Task AFastFolder_ShowsItsDemos_WhileASlowOneIsStillListing()
+    {
+        string fast = NewTempDir();
+        string slow = NewTempDir();
+        GatedReader reader = new(slow);
+        try
+        {
+            string a = WriteDemo(fast, "a.dem", 3);
+            string b = WriteDemo(slow, "b.dem", 4);
+            using DemoLibraryService svc = new(_inline, SeedLibrary(fast, [slow, fast]));
+            svc.FolderReader = reader;
+            svc.Timing = Timing(TimeSpan.FromSeconds(30));
+
+            Task scan = svc.RescanAsync();
+            await WaitForAsync(() => EntryPaths(svc).Contains(a), "the fast folder's demo");
+            await Assert.That(scan.IsCompleted).IsFalse().Because("the slow folder has not answered yet");
+
+            reader.Release();
+            await scan.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(EntryPaths(svc)).IsEquivalentTo(Sorted(a, b));
+        }
+        finally
+        {
+            reader.Release();
+            Cleanup(fast);
+            Cleanup(slow);
+        }
+    }
+
+    [Test]
+    public async Task AFolderThatDoesNotAnswer_IsNotReached_IsNotReadAgainWhileHung_AndIsListedWhenItAnswers()
+    {
+        string fast = NewTempDir();
+        string slow = NewTempDir();
+        GatedReader reader = new(slow);
+        try
+        {
+            string a = WriteDemo(fast, "a.dem", 3);
+            string b = WriteDemo(slow, "b.dem", 4);
+            string gone = Path.Combine(slow, "gone.dem");
+            string dataPath = SeedLibrary(fast, [slow, fast], Row(b), Row(gone, 5));
+            using DemoLibraryService svc = new(_inline, dataPath);
+            svc.FolderReader = reader;
+            svc.Timing = Timing(TimeSpan.FromMilliseconds(300));
+
+            await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            using (Assert.Multiple())
+            {
+                await Assert.That(EntryPaths(svc)).IsEquivalentTo([a]);
+                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(b, gone)).Because("nothing under it is pruned");
+            }
+
+            await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(reader.BlockedReads).IsEqualTo(1).Because("the hung read is waited on, not repeated");
+
+            reader.Release();
+            await WaitForAsync(() => EntryPaths(svc).Contains(b), "the folder listed again once its read answered");
+            await WaitForAsync(() => !CachedPaths(svc, dataPath).Contains(gone), "the reached folder's deleted demo pruned");
+        }
+        finally
+        {
+            reader.Release();
+            Cleanup(fast);
+            Cleanup(slow);
+        }
+    }
+
+    [Test]
+    public async Task ANewerRescan_StopsTheOlderOnesListing_InsteadOfQueueingBehindIt()
+    {
+        string slow = NewTempDir();
+        GatedReader reader = new(slow);
+        try
+        {
+            string b = WriteDemo(slow, "b.dem", 4);
+            using DemoLibraryService svc = new(_inline, SeedLibrary(slow, [slow]));
+            svc.FolderReader = reader;
+            svc.Timing = Timing(TimeSpan.FromSeconds(30));
+
+            Task first = svc.RescanAsync();
+            await WaitForAsync(() => reader.BlockedReads == 1, "the first scan's read");
+            Task second = svc.RescanAsync();
+            await first.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(300);
+            using (Assert.Multiple())
+            {
+                await Assert.That(second.IsCompleted).IsFalse();
+                await Assert.That(reader.BlockedReads).IsEqualTo(1)
+                    .Because("the second scan waits on the first one's read instead of starting another beside it");
+            }
+
+            reader.Release();
+            await second.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(EntryPaths(svc)).IsEquivalentTo([b]);
+        }
+        finally
+        {
+            reader.Release();
+            Cleanup(slow);
+        }
+    }
+
+    [Test]
+    public async Task AFolderThatHasNotAnswered_HoldsNoQueueLane()
+    {
+        string slow = NewTempDir();
+        GatedReader reader = new(slow);
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ => throw new InvalidOperationException("nothing is parsed here"));
+        try
+        {
+            WriteDemo(slow, "b.dem", 4);
+            using DemoLibraryService svc = new(_inline, SeedLibrary(slow, [slow]));
+            svc.FolderReader = reader;
+            svc.QueueOverride = queue;
+            svc.Timing = Timing(TimeSpan.FromSeconds(30));
+
+            Task scan = svc.RescanAsync();
+            await WaitForAsync(() => reader.BlockedReads == 1, "the hung read");
+            await WaitForAsync(() => !queue.Snapshot().Any(s => s.Kind == QueueJobKind.LibraryListing
+                                                               && s.State == DemoQueueItemState.Running),
+                "the listing slice to end while its read is outstanding");
+
+            Task heavy = QueueWork.Run(queue, QueueJobKind.LibraryScan, "other heavy job", "test", _ => { });
+            Task light = QueueWork.Run(queue, QueueJobKind.SectionCompute, "other light job", "test", _ => { });
+            await Task.WhenAll(heavy, light).WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.That(scan.IsCompleted).IsFalse();
+
+            reader.Release();
+            await scan.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            reader.Release();
+            Cleanup(slow);
+        }
+    }
+
     // ── Helpers ──
+
+    // Blocks every read of one directory until released.
+    internal sealed class GatedReader(string blocked) : ILibraryFolderReader
+    {
+        private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _blockedReads;
+
+        public int BlockedReads => Volatile.Read(ref _blockedReads);
+
+        public void Release() => _gate.TrySetResult();
+
+        public string ResolveRoot(string folder) => FileSystemLibraryFolderReader.Instance.ResolveRoot(folder);
+
+        public LibraryDirectoryListing Read(string directory)
+        {
+            if (directory == blocked)
+            {
+                Interlocked.Increment(ref _blockedReads);
+                _gate.Task.Wait(TimeSpan.FromMinutes(1));
+            }
+
+            return FileSystemLibraryFolderReader.Instance.Read(directory);
+        }
+    }
+
+    private static string[] Sorted(params string[] paths) => [.. paths.Order(StringComparer.Ordinal)];
+
+    private static LibraryScanTiming Timing(TimeSpan noAnswer) =>
+        new(TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(50), noAnswer);
+
+    // Entries is mutated on whichever thread the inline post runs on.
+    private static string[] EntryPaths(DemoLibraryService svc)
+    {
+        while (true)
+        {
+            try
+            {
+                return [.. svc.Entries.Select(e => e.FilePath).Order(StringComparer.Ordinal)];
+            }
+            catch (InvalidOperationException)
+            {
+                // modified mid-read: read again
+            }
+        }
+    }
+
+    private static async Task WaitForAsync(Func<bool> condition, string what)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException($"timed out waiting for {what}");
+            }
+
+            await Task.Delay(10);
+        }
+    }
 
     internal sealed class ScriptedReader : ILibraryFolderReader
     {

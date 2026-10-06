@@ -166,8 +166,9 @@ internal sealed class LibraryRootWalk
                 ? new Answer(_reader.ResolveRoot(read.Directory), null, null)
                 : new Answer(null, _reader.Read(read.Directory), null);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // Whatever a read throws, the directory was not listed.
             return new Answer(null, null, ex);
         }
     }
@@ -229,4 +230,15 @@ internal sealed class LibraryRootWalk
 
     /// <summary>What the call returned, or the error it threw.</summary>
     internal sealed record Answer(string? Root, LibraryDirectoryListing? Listing, Exception? Error);
+}
+
+/// <summary>How the library's folder walk waits on the file system.</summary>
+/// <param name="SliceBudget">How long one queue slice keeps reading before it yields the lane.</param>
+/// <param name="InJobWait">How long a slice waits on one read before it ends and waits outside the queue.</param>
+/// <param name="NoAnswer">How long one read may go unanswered before its folder counts as not reached.</param>
+internal sealed record LibraryScanTiming(TimeSpan SliceBudget, TimeSpan InJobWait, TimeSpan NoAnswer)
+{
+    // An automount answers its first read once the mount is up, which takes seconds, not tens of them.
+    public static LibraryScanTiming Default { get; } =
+        new(TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(200), TimeSpan.FromSeconds(20));
 }

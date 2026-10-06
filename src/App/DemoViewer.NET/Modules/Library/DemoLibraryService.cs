@@ -92,7 +92,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // answer this scan still covers the rows under its real path.
     private readonly Dictionary<string, string> _resolvedRoots = new(StringComparer.Ordinal);
 
+    // Each registered folder's latest read, so a walk never starts a read beside one that has not answered.
+    private readonly Dictionary<string, Task> _outstanding = new(StringComparer.Ordinal);
+
     private CancellationTokenSource? _scanCts;
+    private volatile bool _disposed;
 
     /// <param name="post">
     ///     Marshals an action onto the UI thread. Defaults to <c>Dispatcher.UIThread.Post</c> in the app;
@@ -143,6 +147,14 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     /// <summary>The file-system calls the folder walk makes. Test seam.</summary>
     internal ILibraryFolderReader FolderReader { get; set; } = FileSystemLibraryFolderReader.Instance;
+
+    /// <summary>The queue the scan's work runs on; null uses <see cref="QueueWork.Ambient" />. Test seam.</summary>
+    internal IDemoProcessingQueue? QueueOverride { get; set; }
+
+    /// <summary>How long the folder walk waits on a read. Test seam.</summary>
+    internal LibraryScanTiming Timing { get; set; } = LibraryScanTiming.Default;
+
+    private IDemoProcessingQueue? Queue => QueueOverride ?? QueueWork.Ambient;
 
     /// <summary>
     ///     The settings service this indexer is folder-backed by, or <c>null</c> on the legacy path.
@@ -257,6 +269,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     public void Dispose()
     {
         // The coordinator owns the CapacityAvailable subscription now: nothing queue-side to detach here.
+        _disposed = true;
         _scanCts?.Cancel();
         _scanCts?.Dispose();
         _scanCts = null;
@@ -413,131 +426,324 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     Re-enumerates all folders, reconciles <see cref="Entries" /> (adds new, drops missing, applies
-    ///     cache hits), then enriches uncached demos in the background (tier 1 map first, then tier 2 full parse).
+    ///     Re-lists all folders, reconciles <see cref="Entries" /> (adds new, drops missing, applies cache
+    ///     hits), then enriches uncached demos in the background (tier 1 map first, then tier 2 full parse).
+    ///     <para>
+    ///         Each folder is walked on its own, in short light queue slices, so a slow or hung folder holds
+    ///         up neither the other folders nor the queue: a folder that finishes early shows its demos at
+    ///         once, and a read that gives no answer within <see cref="LibraryScanTiming.NoAnswer" /> ends that
+    ///         folder's walk as not reached. A newer rescan stops this one's walks. Copies are found after
+    ///         every folder is listed, in their own jobs, and only same-size files without a cached hash
+    ///         wait on them for their full parse.
+    ///     </para>
     /// </summary>
     public async Task RescanAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         _scanCts?.Cancel();
         CancellationTokenSource cts = _scanCts = new CancellationTokenSource();
         CancellationToken ct = cts.Token;
 
-        List<(string Path, long Size, DateTime Modified)> primaries;
-        Dictionary<string, IReadOnlyList<string>> shadowFolders;
+        string[] folders = _folderSnapshot;
+        List<DemoEntry> needMap = [];
+        List<DemoEntry> needFull = [];
         ScanScope scope;
+        HashSet<string> unresolved;
         try
         {
-            // Enumerate (path-canonicalized), then collapse byte-identical COPIES at different real
-            // paths onto one primary (content dedup), cheap via a size pre-filter (only same-size
-            // files are hashed) with the hash cached on the metadata row.
-            (ScanScope Scope, (List<(string, long, DateTime)> Primaries, Dictionary<string, IReadOnlyList<string>> Shadows) Identities)? scan =
-                await QueueWork.RunAsync<(ScanScope, (List<(string, long, DateTime)>, Dictionary<string, IReadOnlyList<string>>))?>(
-                    QueueWork.Ambient, QueueJobKind.LibraryScan, "Library: find demos", "library", () =>
-                    {
-                        ScanScope listed = ListFolders(ct);
-                        return (listed, ResolveContentIdentities(listed.Files, ct));
-                    }, null).WaitAsync(ct).ConfigureAwait(false);
-            if (scan is not { } done)
+            System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+            Dictionary<Task<LibraryRootWalk>, string> listing = [];
+            foreach (string folder in folders)
             {
-                return; // removed from the queue before it ran
+                listing[WalkAsync(new LibraryRootWalk(folder, FolderReader), ct)] = folder;
             }
 
-            scope = done.Scope;
-            (primaries, shadowFolders) = done.Identities;
+            List<(LibraryRootWalk Walk, bool Reached)> settled = [];
+            while (listing.Count > 0)
+            {
+                Task<LibraryRootWalk> finished = await Task.WhenAny(listing.Keys).ConfigureAwait(false);
+                listing.Remove(finished);
+                LibraryRootWalk walk = await finished.ConfigureAwait(false);
+                bool reached = Settle(walk);
+                settled.Add((walk, reached));
+
+                // Show what is listed so far without waiting for slower folders; their entries stay as they are.
+                if (listing.Count > 0 && walk.Demos.Count > 0)
+                {
+                    ScanScope partial = Fold(settled);
+                    (List<(string, long, DateTime)> shown, Dictionary<string, IReadOnlyList<string>> shownShadows, _) =
+                        ResolveContentIdentities(partial.Files);
+                    string[] stillListing = [.. listing.Values.Select(KnownRoot)];
+                    await PostAsync(() => Reconcile(shown, shownShadows, needMap, [], null, stillListing, null))
+                        .ConfigureAwait(false);
+                    RaiseChanged();
+                }
+            }
+
+            scope = Fold(settled);
+            AppLog.LibraryScanListed(DiagLog, scope.Files.Count, scope.ReachedRoots.Length, folders.Length,
+                clock.ElapsedMilliseconds);
+
+            (List<(string Path, long Size, DateTime Modified)> primaries, Dictionary<string, IReadOnlyList<string>> shadowFolders,
+                unresolved) = ResolveContentIdentities(scope.Files);
+            ct.ThrowIfCancellationRequested();
+            await PostAsync(() => Reconcile(primaries, shadowFolders, needMap, needFull, scope, [], unresolved))
+                .ConfigureAwait(false);
+            RaiseChanged();
+
+            await IndexHeadersAsync(needMap, ct).ConfigureAwait(false);
+            EnlistTier2(needFull, true);
+
+            if (unresolved.Count > 0)
+            {
+                await HashCopiesAsync(scope.Files.Where(f => unresolved.Contains(f.Path)), ct).ConfigureAwait(false);
+                (primaries, shadowFolders, _) = ResolveContentIdentities(scope.Files);
+                List<DemoEntry> moreMap = [], moreFull = [];
+                await PostAsync(() => Reconcile(primaries, shadowFolders, moreMap, moreFull, null, [], null))
+                    .ConfigureAwait(false);
+                RaiseChanged();
+                await IndexHeadersAsync(moreMap, ct).ConfigureAwait(false);
+                EnlistTier2(moreFull, false);
+            }
         }
         catch (OperationCanceledException)
         {
             return;
         }
 
-        if (ct.IsCancellationRequested)
+        if (Scheduler is null)
+        {
+            // No scheduler (tests that only list folders): tier 2 is left pending; nothing reads a demo outside the queue.
+            Save();
+            RaiseChanged();
+        }
+    }
+
+    // Tier 1 (cheap header -> map/server). Light parallelism: it only reads ~256 KB per file.
+    private async Task IndexHeadersAsync(List<DemoEntry> needMap, CancellationToken ct)
+    {
+        if (needMap.Count == 0)
         {
             return;
         }
 
-        List<DemoEntry> needMap = new();
-        List<DemoEntry> needFull = new();
-        await PostAsync(() => Reconcile(primaries, shadowFolders, needMap, needFull, scope));
-        RaiseChanged();
-
-        if (ct.IsCancellationRequested)
-        {
-            return;
-        }
-
-        // Tier 1 (cheap header → map/server). Light parallelism: it only reads ~256 KB per file.
-        try
-        {
-            await QueueWork.Run(QueueWork.Ambient, QueueJobKind.LibraryScan, "Library: read demo headers", "library", _ =>
+        List<DemoEntry> batch = [.. needMap.Distinct()];
+        needMap.Clear();
+        await QueueWork.Run(Queue, QueueJobKind.LibraryScan, "Library: read demo headers", "library", _ =>
+            {
+                try
                 {
-                    try
+                    Parallel.ForEach(batch, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
+                        IndexTier1);
+                }
+                catch (OperationCanceledException)
+                {
+                    // A newer rescan replaced this one; the wait below returns for it.
+                }
+            })
+            .WaitAsync(ct).ConfigureAwait(false);
+        RaiseChanged();
+    }
+
+    // Tier 2 (full parse -> players/duration). Each parse holds a whole demo in RAM, so it runs one demo at a
+    // time under the machine-wide invariant. The backlog's membership is this evaluator's Wants gate; the
+    // scheduler plans ONE visit per demo carrying every interested pass, and the queue owns the rest.
+    private void EnlistTier2(List<DemoEntry> needFull, bool replace)
+    {
+        if (Scheduler is not { } scheduler)
+        {
+            return;
+        }
+
+        List<DemoEntry> toConsider;
+        lock (_tier2Lock)
+        {
+            if (replace)
+            {
+                _pendingFull.Clear();
+            }
+
+            foreach (DemoEntry entry in needFull)
+            {
+                _pendingFull[entry.FilePath] = entry;
+                _awaitingIndex.Remove(entry.FilePath);
+            }
+
+            toConsider = replace ? [.. _pendingFull.Values] : needFull;
+        }
+
+        foreach (DemoEntry entry in toConsider)
+        {
+            DemoEntry captured = entry;
+
+            // Only a row with nothing to show gets the "being analyzed" signal at SUBMIT time. The real one is
+            // posted when the parse actually starts (IndexTier2Core); DemoEntry.IsIndexing is unique, and the
+            // half-score repair enlists already-indexed rows that must not all pulse at once.
+            if (captured.State != DemoIndexState.Indexed)
+            {
+                _post(() => captured.State = DemoIndexState.Indexing);
+            }
+
+            scheduler.DemoChanged(captured.FilePath);
+        }
+    }
+
+    // Same-size files without a cached hash, one job per file so a demo parse can run between them.
+    private async Task HashCopiesAsync(IEnumerable<(string Path, long Size, DateTime Modified)> files, CancellationToken ct)
+    {
+        foreach ((string path, long size, DateTime modified) in files)
+        {
+            ct.ThrowIfCancellationRequested();
+            await QueueWork.Run(Queue, QueueJobKind.LibraryScan, "Library: find copies", "library", _ =>
+                {
+                    if (!ct.IsCancellationRequested)
                     {
-                        Parallel.ForEach(needMap, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
-                            IndexTier1);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        // A newer rescan replaced this one; the wait below returns for it.
+                        GetOrComputeSha(path, size, modified);
                     }
                 })
                 .WaitAsync(ct).ConfigureAwait(false);
         }
+    }
+
+    // One folder's walk, a light queue slice at a time. The blocking call runs on the pool so a slice can stop
+    // waiting for it; while it is outstanding no queue item is running for this folder.
+    private async Task<LibraryRootWalk> WalkAsync(LibraryRootWalk walk, CancellationToken ct)
+    {
+        // A read an earlier walk left behind answers before this folder is touched again, so a hung mount
+        // costs one blocked thread rather than one per rescan.
+        if (Outstanding(walk.Folder) is { } earlier && !await AnswersInTimeAsync(earlier, ct).ConfigureAwait(false))
+        {
+            walk.GiveUp($"a read from an earlier scan has not answered in {Timing.NoAnswer.TotalSeconds:0.#} s");
+            return walk;
+        }
+
+        WalkSlice slice = new();
+        while (!walk.Done)
+        {
+            ct.ThrowIfCancellationRequested();
+            SliceEnd end = SliceEnd.Stopped;
+            await QueueWork.Run(Queue, QueueJobKind.LibraryListing, "Library: list " + walk.Folder, "library", jobCt =>
+                {
+                    using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(ct, jobCt);
+                    end = RunSlice(walk, slice, linked.Token);
+                })
+                .WaitAsync(ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+
+            if (end == SliceEnd.Stopped)
+            {
+                walk.GiveUp("its listing was stopped in the queue");
+            }
+            else if (end == SliceEnd.Waiting && slice.InFlight is { } waiting
+                     && !await AnswersInTimeAsync(waiting.Answer, ct, waiting.Started).ConfigureAwait(false))
+            {
+                walk.GiveUp($"{waiting.Read.Directory} gave no answer in {Timing.NoAnswer.TotalSeconds:0.#} s");
+                RescanOnLateAnswer(walk.Folder, waiting.Answer);
+            }
+        }
+
+        return walk;
+    }
+
+    // Runs inside a light queue item. Ends after the slice budget, or when a read has not answered within the
+    // in-job wait; the caller then waits for it outside the queue.
+    private SliceEnd RunSlice(LibraryRootWalk walk, WalkSlice slice, CancellationToken ct)
+    {
+        System.Diagnostics.Stopwatch budget = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (slice.InFlight is null)
+                {
+                    if (walk.Next() is not { } read)
+                    {
+                        return SliceEnd.Done;
+                    }
+
+                    Task<LibraryRootWalk.Answer> started = Task.Run(() => walk.Execute(read), CancellationToken.None);
+                    slice.InFlight = (read, started, DateTime.UtcNow);
+                    lock (_outstanding)
+                    {
+                        _outstanding[walk.Folder] = started;
+                    }
+                }
+
+                (LibraryRootWalk.Read pending, Task<LibraryRootWalk.Answer> answer, _) = slice.InFlight.Value;
+                if (!answer.Wait(Timing.InJobWait, ct))
+                {
+                    return SliceEnd.Waiting;
+                }
+
+                slice.InFlight = null;
+                walk.Complete(pending, answer.Result);
+                if (budget.Elapsed >= Timing.SliceBudget)
+                {
+                    return walk.Done ? SliceEnd.Done : SliceEnd.Yielded;
+                }
+            }
+        }
         catch (OperationCanceledException)
         {
-            return;
+            return SliceEnd.Stopped;
         }
+    }
 
-        RaiseChanged();
-
-        // Tier 2 (full parse → players/duration). Each parse holds a whole demo in RAM, so it runs
-        // one demo at a time under the machine-wide invariant.
-        if (Scheduler is not null)
+    // True when the read answers within the no-answer bound counted from when it started.
+    private async Task<bool> AnswersInTimeAsync(Task answer, CancellationToken ct, DateTime? started = null)
+    {
+        TimeSpan left = Timing.NoAnswer - (DateTime.UtcNow - (started ?? DateTime.UtcNow));
+        if (left > TimeSpan.Zero && !answer.IsCompleted)
         {
-            // Scheduler path: record the backlog (its membership is this evaluator's Wants gate) and tell
-            // the scheduler each demo changed. It plans ONE visit per demo carrying every interested pass,
-            // so Library + Highlights ride a single parse. RETURN; the queue owns the workers + drain + gate
-            // yielding, and each Evaluate persists the cache itself.
-            List<DemoEntry> toConsider;
-            lock (_tier2Lock)
-            {
-                _pendingFull.Clear();
-                foreach (DemoEntry entry in needFull)
-                {
-                    _pendingFull[entry.FilePath] = entry;
-                    _awaitingIndex.Remove(entry.FilePath);
-                }
-
-                toConsider = [.. _pendingFull.Values];
-            }
-
-            foreach (DemoEntry entry in toConsider)
-            {
-                DemoEntry captured = entry;
-
-                // Only a row with nothing to show gets the "being analyzed" signal at SUBMIT time. The real
-                // one is posted when the parse actually starts (IndexTier2Core), and DemoEntry.IsIndexing is
-                // documented as unique: "the indexer runs one demo at a time, so at most one entry is ever
-                // true", which is what the card's animated bar and the row's pulsing dot mean.
-                //
-                // Marking the whole backlog Indexing up front always broke that, but it was invisible while
-                // the backlog was a handful of new demos. The half-score repair enlists ALREADY-INDEXED rows,
-                // 552 of them on the reference library, and those have real players, duration and a map
-                // to show. Pulsing every card in the library at once, for hours, to re-derive one field
-                // each, reads as the app having lost the library rather than as it quietly topping up.
-                if (captured.State != DemoIndexState.Indexed)
-                {
-                    _post(() => captured.State = DemoIndexState.Indexing);
-                }
-
-                Scheduler.DemoChanged(captured.FilePath);
-            }
-
-            return;
+            await Task.WhenAny(answer, Task.Delay(left, ct)).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
         }
 
-        // No scheduler (tests that only list folders): tier 2 is left pending; nothing reads a demo outside the queue.
-        Save();
-        RaiseChanged();
+        return answer.IsCompleted;
+    }
+
+    private Task? Outstanding(string folder)
+    {
+        lock (_outstanding)
+        {
+            if (_outstanding.TryGetValue(folder, out Task? task) && task.IsCompleted)
+            {
+                _outstanding.Remove(folder);
+                return null;
+            }
+
+            return task;
+        }
+    }
+
+    // A late answer to a read that timed out means the folder is up now; it is listed again.
+    private void RescanOnLateAnswer(string folder, Task<LibraryRootWalk.Answer> answer) =>
+        _ = answer.ContinueWith(t =>
+            {
+                if (!_disposed && t.Result.Error is null && _folderSnapshot.Contains(folder))
+                {
+                    _post(() => _ = RescanAsync());
+                }
+            }, CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+    private enum SliceEnd
+    {
+        Done,
+        Yielded,
+        Waiting,
+        Stopped
+    }
+
+    // The read a walk has handed to the pool and not yet applied.
+    private sealed class WalkSlice
+    {
+        public (LibraryRootWalk.Read Read, Task<LibraryRootWalk.Answer> Answer, DateTime Started)? InFlight { get; set; }
     }
 
     // Shared tier-2 body for the retained and forward entry points. The in-progress guard dedupes two
@@ -606,60 +812,56 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     // ── Enumeration + reconciliation ──────────────────────────────────────────
 
-    // Walks every registered folder a directory at a time and reports which ones were REACHED, meaning
-    // their whole walk completed. That distinction is the whole safety property of the stale-row prune
-    // below: a folder on a detached volume, an automount that is not up yet, or a listing that failed
-    // partway looks exactly like a folder whose demos were deleted, if all one has is the file list.
-    private ScanScope ListFolders(CancellationToken ct)
+    // A folder counts as REACHED only when its whole walk completed. That distinction is the whole safety
+    // property of the stale-row prune below: a folder on a detached volume, an automount that is not up yet,
+    // or a listing that failed partway looks exactly like a folder whose demos were deleted, if all one has
+    // is the file list.
+    //
+    // Records a finished walk's real path, logs its outcome, and says whether it was reached.
+    private bool Settle(LibraryRootWalk walk)
     {
-        List<LibraryRootWalk> walks = [.. _folderSnapshot.Select(f => new LibraryRootWalk(f, FolderReader))];
-        foreach (LibraryRootWalk walk in walks)
+        if (walk.Root is { } root)
         {
-            while (walk.Next() is { } read)
+            lock (_resolvedRoots)
             {
-                ct.ThrowIfCancellationRequested();
-                walk.Complete(read, walk.Execute(read));
+                _resolvedRoots[walk.Folder] = root;
             }
         }
 
-        return Summarize(walks);
+        if (!walk.Reached)
+        {
+            AppLog.LibraryFolderUnreached(DiagLog, walk.Folder, walk.UnreachedReason ?? "its listing did not finish");
+            return false;
+        }
+
+        foreach ((string directory, string reason) in walk.UnreachedDirectories)
+        {
+            AppLog.LibraryDirectoryUnreached(DiagLog, walk.Folder, directory, reason);
+        }
+
+        if (walk.Demos.Count == 0 && CachedRowsUnder(walk.Root!) is var cached and > 0)
+        {
+            AppLog.LibraryFolderListedEmpty(DiagLog, walk.Folder, cached);
+            return false;
+        }
+
+        AppLog.LibraryFolderListed(DiagLog, walk.Folder, walk.Demos.Count, (long)walk.Elapsed.TotalMilliseconds);
+        return true;
     }
 
-    // Folds finished walks into one listing and the prune's scope, and logs each folder's outcome.
-    private ScanScope Summarize(List<LibraryRootWalk> walks)
+    // Folds settled walks into one listing and the prune's scope.
+    private ScanScope Fold(List<(LibraryRootWalk Walk, bool Reached)> walks)
     {
         List<(string Path, long Size, DateTime Modified)> files = [];
         HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
         List<string> reached = [], unreachedDirectories = [], known = [];
         bool everyRootKnown = true;
-        TimeSpan longest = TimeSpan.Zero;
 
-        foreach (LibraryRootWalk walk in walks)
+        foreach ((LibraryRootWalk walk, bool isReached) in walks)
         {
-            longest = walk.Elapsed > longest ? walk.Elapsed : longest;
-            string? root = walk.Root;
-            lock (_resolvedRoots)
-            {
-                if (root is not null)
-                {
-                    _resolvedRoots[walk.Folder] = root;
-                }
-                else if (_resolvedRoots.TryGetValue(walk.Folder, out string? remembered))
-                {
-                    root = remembered;
-                }
-            }
-
-            if (root is not null)
-            {
-                known.Add(root);
-            }
-            else
-            {
-                known.Add(FullPathOrSelf(walk.Folder));
-                // Rows sit under the folder's real path, which nothing has told this scan yet.
-                everyRootKnown &= walk.Missing;
-            }
+            known.Add(walk.Root ?? KnownRoot(walk.Folder));
+            // Rows sit under the folder's real path, which nothing has told this session yet.
+            everyRootKnown &= walk.Root is not null || walk.Missing || HasResolved(walk.Folder);
 
             // Overlapping registrations list the same file twice; the first listing keeps it.
             foreach ((string Path, long Size, DateTime Modified) demo in walk.Demos)
@@ -670,30 +872,31 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 }
             }
 
-            if (!walk.Reached)
+            if (isReached)
             {
-                AppLog.LibraryFolderUnreached(DiagLog, walk.Folder, walk.UnreachedReason ?? "its listing did not finish");
-                continue;
+                reached.Add(walk.Root!);
+                unreachedDirectories.AddRange(walk.UnreachedDirectories.Select(d => d.Directory));
             }
-
-            foreach ((string directory, string reason) in walk.UnreachedDirectories)
-            {
-                AppLog.LibraryDirectoryUnreached(DiagLog, walk.Folder, directory, reason);
-                unreachedDirectories.Add(directory);
-            }
-
-            if (walk.Demos.Count == 0 && CachedRowsUnder(walk.Root!) is var cached and > 0)
-            {
-                AppLog.LibraryFolderListedEmpty(DiagLog, walk.Folder, cached);
-                continue;
-            }
-
-            AppLog.LibraryFolderListed(DiagLog, walk.Folder, walk.Demos.Count, (long)walk.Elapsed.TotalMilliseconds);
-            reached.Add(walk.Root!);
         }
 
-        AppLog.LibraryScanListed(DiagLog, files.Count, reached.Count, walks.Count, (long)longest.TotalMilliseconds);
         return new ScanScope(files, [.. reached], [.. unreachedDirectories], [.. known], everyRootKnown);
+    }
+
+    // A registered folder's real path as last resolved, without touching the file system.
+    private string KnownRoot(string folder)
+    {
+        lock (_resolvedRoots)
+        {
+            return _resolvedRoots.TryGetValue(folder, out string? root) ? root : FullPathOrSelf(folder);
+        }
+    }
+
+    private bool HasResolved(string folder)
+    {
+        lock (_resolvedRoots)
+        {
+            return _resolvedRoots.ContainsKey(folder);
+        }
     }
 
     // Rows in either cache under a folder's real path.
@@ -866,10 +1069,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // share an EXACT byte size are hashed (byte-identical ⟹ equal size, so a unique-size file can have no
     // twin), and the SHA is cached on the metadata row (path,size,mtime) so rescans don't re-read files.
     // Returns the primaries (one per content group, the lexicographically-smallest path, a stable choice)
-    // plus, per primary, the OTHER folders holding a copy (for the "＋N copies" card hint). Runs off-thread.
+    // plus, per primary, the OTHER folders holding a copy (for the "＋N copies" card hint).
+    //
+    // Reads no file: a same-size file without a cached hash is returned as Unresolved and stands alone until
+    // HashCopiesAsync has hashed it.
     private (List<(string Path, long Size, DateTime Modified)> Primaries,
-        Dictionary<string, IReadOnlyList<string>> ShadowFolders) ResolveContentIdentities(
-            List<(string Path, long Size, DateTime Modified)> files, CancellationToken ct)
+        Dictionary<string, IReadOnlyList<string>> ShadowFolders, HashSet<string> Unresolved) ResolveContentIdentities(
+            List<(string Path, long Size, DateTime Modified)> files)
     {
         // Size pre-filter: hash a file's bytes only when another discovered file shares its exact size.
         Dictionary<long, int> countBySize = new();
@@ -879,10 +1085,15 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
 
         Dictionary<string, string?> shaByPath = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> unresolved = new(StringComparer.OrdinalIgnoreCase);
         foreach ((string path, long size, DateTime modified) in files)
         {
-            ct.ThrowIfCancellationRequested();
-            shaByPath[path] = countBySize[size] >= 2 ? GetOrComputeSha(path, size, modified) : null;
+            string? sha = countBySize[size] >= 2 ? CachedSha(path, size, modified) : null;
+            shaByPath[path] = sha;
+            if (sha is null && countBySize[size] >= 2)
+            {
+                unresolved.Add(path);
+            }
         }
 
         // Group by content identity: a non-null SHA groups copies together; a null SHA (unique size, or a
@@ -925,7 +1136,18 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
         }
 
-        return (primaries, shadowFolders);
+        return (primaries, shadowFolders, unresolved);
+    }
+
+    private string? CachedSha(string path, long size, DateTime modified)
+    {
+        lock (_cacheLock)
+        {
+            return _cache.TryGetValue(path, out DemoLibraryCacheEntry? c)
+                   && c.Size == size && c.ModifiedTicks == modified.Ticks
+                ? c.Sha256
+                : null;
+        }
     }
 
     // Returns the cached SHA-256 (lowercase hex) for a file when the (path,size,mtime) key still matches,
@@ -957,7 +1179,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private void Reconcile(
         List<(string Path, long Size, DateTime Modified)> primaries,
         Dictionary<string, IReadOnlyList<string>> shadowFolders,
-        List<DemoEntry> needMap, List<DemoEntry> needFull, ScanScope scope)
+        List<DemoEntry> needMap, List<DemoEntry> needFull, ScanScope? scope, string[] keepUnder,
+        HashSet<string>? holdBack)
     {
         Dictionary<string, (long Size, DateTime Modified)> wanted = new(StringComparer.OrdinalIgnoreCase);
         foreach ((string path, long size, DateTime modified) in primaries)
@@ -970,11 +1193,22 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // mtime since it was added. A changed file comes back below as a new entry and is indexed again.
         // One Reset for the lot: every collection change re-runs the Library tab's filters, sort and
         // provenance over the whole library.
+        // Entries under a folder still being listed are left exactly as they are.
         bool Unchanged(DemoEntry e) =>
             wanted.TryGetValue(e.FilePath, out (long Size, DateTime Modified) now)
-            && now.Size == e.FileSizeBytes && now.Modified.Ticks == e.Modified.Ticks;
+                ? now.Size == e.FileSizeBytes && now.Modified.Ticks == e.Modified.Ticks
+                : keepUnder.Any(r => IsUnder(e.FilePath, r));
 
         List<DemoEntry> staying = [.. Entries.Where(Unchanged)];
+        lock (_tier2Lock)
+        {
+            foreach (DemoEntry gone in Entries.Where(e => !Unchanged(e)))
+            {
+                _pendingFull.Remove(gone.FilePath);
+                _awaitingIndex.Remove(gone.FilePath);
+            }
+        }
+
         foreach (DemoEntry changed in Entries.Where(e => wanted.ContainsKey(e.FilePath) && !Unchanged(e)))
         {
             Scheduler?.ForgetFaults(changed.FilePath);
@@ -989,7 +1223,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             Entries.ReplaceAll(staying);
         }
 
-        PruneStaleCacheRows(scope);
+        if (scope is not null)
+        {
+            PruneStaleCacheRows(scope);
+        }
+
         DropRekeyedCacheRows(wanted);
 
         Dictionary<string, DemoEntry> byPath = Entries.ToDictionary(e => e.FilePath, StringComparer.OrdinalIgnoreCase);
@@ -1022,7 +1260,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                         needMap.Add(kept);
                     }
 
-                    needFull.Add(kept);
+                    // A possible copy waits for its hash, so only one of a pair is ever parsed.
+                    if (holdBack?.Contains(path) != true)
+                    {
+                        needFull.Add(kept);
+                    }
                 }
 
                 continue;
@@ -1068,7 +1310,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // render incorrectly into a fresh full-library re-parse of ~575 demos on the next launch.
             if (entry.State != DemoIndexState.Indexed || cached is not { ScoreComputed: true })
             {
-                needFull.Add(entry);
+                if (holdBack?.Contains(path) != true)
+                {
+                    needFull.Add(entry);
+                }
+
                 lock (_tier2Lock)
                 {
                     _awaitingIndex.Add(path);

@@ -59,7 +59,7 @@ public enum QueueJobKind
     /// </summary>
     Extension,
 
-    /// <summary>The library's folder walk, copy detection and header reads. Runs with the background switch off.</summary>
+    /// <summary>The library's copy detection and header reads. Runs with the background switch off.</summary>
     LibraryScan,
 
     /// <summary>An extension feed check, a download being staged, or the staging cleanup at startup. Light.</summary>
@@ -75,7 +75,13 @@ public enum QueueJobKind
     Scheduling,
 
     /// <summary>The record passes reading cached records, no demo file. Light.</summary>
-    RecordPass
+    RecordPass,
+
+    /// <summary>
+    ///     A slice of one library folder's walk. Light: it holds no heavy slot, and a folder read that does not
+    ///     answer within a moment ends the slice instead of holding the lane while it waits.
+    /// </summary>
+    LibraryListing
 }
 
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>
