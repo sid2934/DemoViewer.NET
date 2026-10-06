@@ -793,6 +793,8 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     internal DemoCacheIndexEntry Copy() => (DemoCacheIndexEntry)MemberwiseClone();
 
     // This row as seen from one of its locations. Lists are shared with the row, never mutated in place.
+    // An unconfirmed location shows the content's data but not its hash: a store joined by hash must not
+    // take bytes nobody has read as that content.
     internal DemoCacheIndexEntry At(DemoLocation location)
     {
         DemoCacheIndexEntry view = (DemoCacheIndexEntry)MemberwiseClone();
@@ -800,6 +802,12 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
         view.Size = location.Size;
         view.ModifiedTicks = location.ModifiedTicks;
         view.SidecarKeys = null;
+        if (!location.Confirmed)
+        {
+            view.Sha256 = null;
+            view.ContentFingerprint = null;
+        }
+
         return view;
     }
 }
@@ -810,6 +818,8 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
 /// <param name="Path">The file's path.</param>
 /// <param name="Confirmed">
 ///     True when the bytes at <paramref name="Path" /> were read in full and hashed to the row's content id.
+///     False when only the file's <see cref="DemoContentFingerprint" /> matched the row's: the path shows the
+///     row's data, but its index view carries no hash and a write there starts a record of its own.
 /// </param>
 /// <param name="Size">The file's size when last seen, in bytes.</param>
 /// <param name="ModifiedTicks">The file's write time when last seen, in the writer's tick convention.</param>

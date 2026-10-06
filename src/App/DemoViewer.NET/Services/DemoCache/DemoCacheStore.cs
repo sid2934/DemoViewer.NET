@@ -190,8 +190,8 @@ public sealed class DemoCacheStore
 
     /// <summary>
     ///     What identifies the demo at <paramref name="path" />: its content id when a row lists the path with
-    ///     one, else the path itself. Two paths of one hashed demo answer the same; compare with
-    ///     <see cref="StringComparer.OrdinalIgnoreCase" />, as paths are compared everywhere here.
+    ///     one and the path's bytes were confirmed, else the path itself. Two paths of one hashed demo answer the
+    ///     same; compare with <see cref="StringComparer.OrdinalIgnoreCase" />, as paths are compared everywhere here.
     /// </summary>
     /// <param name="path">A demo path.</param>
     public string DemoKeyOf(string path)
@@ -199,7 +199,10 @@ public sealed class DemoCacheStore
         ArgumentNullException.ThrowIfNull(path);
         lock (_gate)
         {
-            return _keyByPath.TryGetValue(path, out string? key) && !IsProvisional(_rows[key]) ? key : path;
+            return _keyByPath.TryGetValue(path, out string? key) && !IsProvisional(_rows[key])
+                                                                 && LocationIn(_rows[key], path)?.Confirmed == true
+                ? key
+                : path;
         }
     }
 
@@ -329,7 +332,8 @@ public sealed class DemoCacheStore
     /// <summary>
     ///     The primary index row for a content id, or null when no indexed row carries it. A content id is
     ///     <see cref="Playback2D.Pipeline.DemoContentHash" />'s lowercase-hex SHA-256 of the whole file; a row that has not been
-    ///     hashed yet is invisible here and only reachable by <see cref="TryGetIndex" />.
+    ///     hashed yet is invisible here and only reachable by <see cref="TryGetIndex" />, and so is a row no
+    ///     path of which has been confirmed to hold those bytes.
     ///     <para>
     ///         One row holds every path with those bytes. It is seen from the ordinally smallest confirmed
     ///         path, the same primary the library shows as the card (<c>DemoLibraryService.ResolveContentIdentities</c>),
@@ -347,15 +351,16 @@ public sealed class DemoCacheStore
         lock (_gate)
         {
             return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && !IsProvisional(row)
+                                                                              && row.Locations.Any(l => l.Confirmed)
                 ? _index.GetValueOrDefault(row.Path)
                 : null;
         }
     }
 
     /// <summary>
-    ///     The row for a content id seen from each of its paths, primary first (<see cref="TryGetByContentId" />'s
-    ///     pick), the rest in ordinal path order. Empty when no row carries it. A snapshot: later writes do not
-    ///     change it.
+    ///     The row for a content id seen from each of its confirmed paths, primary first
+    ///     (<see cref="TryGetByContentId" />'s pick), the rest in ordinal path order. Empty when no row carries it.
+    ///     A snapshot: later writes do not change it.
     /// </summary>
     /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
     public IReadOnlyList<DemoCacheIndexEntry> RowsForContentId(string? contentId)
@@ -372,7 +377,12 @@ public sealed class DemoCacheStore
                 return [];
             }
 
-            List<DemoCacheIndexEntry> rows = [.. row.Locations.Select(l => _index[l.Path])];
+            List<DemoCacheIndexEntry> rows = [.. row.Locations.Where(l => l.Confirmed).Select(l => _index[l.Path])];
+            if (rows.Count == 0)
+            {
+                return [];
+            }
+
             int primary = rows.FindIndex(r => string.Equals(r.Path, row.Path, StringComparison.Ordinal));
             if (primary > 0)
             {
@@ -381,6 +391,154 @@ public sealed class DemoCacheStore
             }
 
             return rows;
+        }
+    }
+
+    /// <summary>
+    ///     Lists <paramref name="path" /> as an unconfirmed location of the hashed row
+    ///     <paramref name="contentId" />: the file's fingerprint matched the row's, and nothing has read it in
+    ///     full. Writes only the index. Does nothing when a row already lists the path or no hashed row carries
+    ///     the content id.
+    /// </summary>
+    /// <param name="contentId">The content id the fingerprint matched.</param>
+    /// <param name="path">The file the fingerprint was taken from.</param>
+    /// <param name="size">The file's size when fingerprinted.</param>
+    /// <param name="modifiedTicks">The file's write time when fingerprinted, in the library's tick convention.</param>
+    /// <returns>True when the path was attached.</returns>
+    public bool AttachUnconfirmed(string contentId, string path, long size, long modifiedTicks)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(contentId);
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        lock (_rmwGate)
+        {
+            lock (_gate)
+            {
+                if (_keyByPath.ContainsKey(path) || !_rows.TryGetValue(contentId, out DemoCacheIndexEntry? row)
+                                                 || IsProvisional(row))
+                {
+                    return false;
+                }
+
+                List<DemoLocation> locations =
+                [
+                    .. row.Locations,
+                    new DemoLocation(path, false, size, modifiedTicks, DateTime.UtcNow.Ticks)
+                ];
+                Link(contentId, Shape(row.Copy(), locations, row.SidecarKeys));
+            }
+        }
+
+        RaiseChanged(path);
+        return true;
+    }
+
+    /// <summary>
+    ///     Settles a path against a content hash just read from its whole file. A path its row lists without
+    ///     confirmation becomes confirmed when the hash and size agree with the row. A path of a hashed row whose
+    ///     bytes hash to something else leaves that row, as <see cref="Remove" /> would take it, so the next
+    ///     write there starts a record of its own and the row keeps every other path and its data. A path with
+    ///     no row, or a row not hashed yet, is left alone.
+    /// </summary>
+    /// <param name="path">The file that was read.</param>
+    /// <param name="contentId">The hash of the bytes read.</param>
+    /// <param name="size">The number of bytes read.</param>
+    /// <returns>False when the path left its row.</returns>
+    public bool ConfirmLocation(string path, string contentId, long size)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentException.ThrowIfNullOrEmpty(contentId);
+        lock (_rmwGate)
+        {
+            bool split;
+            lock (_gate)
+            {
+                if (!_keyByPath.TryGetValue(path, out string? key) || IsProvisional(_rows[key])
+                    || LocationIn(_rows[key], path) is not { } here)
+                {
+                    return true;
+                }
+
+                split = !string.Equals(key, contentId, StringComparison.Ordinal) || here.Size != size;
+                if (!split)
+                {
+                    if (here.Confirmed)
+                    {
+                        return true;
+                    }
+
+                    DemoCacheIndexEntry row = _rows[key];
+                    List<DemoLocation> locations =
+                    [
+                        .. row.Locations.Where(l => !SamePath(l.Path, path)),
+                        here with { Confirmed = true, LastSeenUtcTicks = DateTime.UtcNow.Ticks }
+                    ];
+                    Link(key, Shape(row.Copy(), locations, row.SidecarKeys));
+                }
+            }
+
+            if (split)
+            {
+                RemoveCore(path);
+                return false;
+            }
+        }
+
+        RaiseChanged(path);
+        return true;
+    }
+
+    /// <summary>
+    ///     Stores a fingerprint on a hashed row that has none, read from one of its confirmed paths. Does nothing
+    ///     when the path is not a confirmed location of a hashed row, the row already has one, or the sizes differ.
+    /// </summary>
+    /// <param name="path">A confirmed path of the row.</param>
+    /// <param name="fingerprint">The fingerprint just read from it.</param>
+    internal void SetFingerprint(string path, DemoContentFingerprint fingerprint)
+    {
+        ArgumentNullException.ThrowIfNull(fingerprint);
+        lock (_rmwGate)
+        {
+            string key;
+            lock (_gate)
+            {
+                if (!_keyByPath.TryGetValue(path, out string? k) || IsProvisional(_rows[k])
+                    || _rows[k].ContentFingerprint is not null
+                    || LocationIn(_rows[k], path) is not { Confirmed: true } here || here.Size != fingerprint.Size)
+                {
+                    return;
+                }
+
+                key = k;
+            }
+
+            if (TryLoadRecord(path, false) is { } record && string.Equals(record.Sha256, key, StringComparison.Ordinal))
+            {
+                record.ContentFingerprint = fingerprint;
+                Upsert(record);
+            }
+        }
+    }
+
+    /// <summary>The hashed row listing <paramref name="path" />, and that path's location, or null.</summary>
+    /// <param name="path">A demo path.</param>
+    internal (string ContentId, DemoLocation Location)? LocationOf(string path)
+    {
+        lock (_gate)
+        {
+            return _keyByPath.TryGetValue(path, out string? key) && !IsProvisional(_rows[key])
+                                                                 && LocationIn(_rows[key], path) is { } here
+                ? (key, here)
+                : null;
+        }
+    }
+
+    /// <summary>Every hashed row: its content id, its fingerprint when it has one, and every path it lists.</summary>
+    internal IReadOnlyList<(string ContentId, DemoContentFingerprint? Fingerprint, IReadOnlyList<DemoLocation> Locations)>
+        KnownContents()
+    {
+        lock (_gate)
+        {
+            return [.. _rows.Where(r => !IsProvisional(r.Value)).Select(r => (r.Key, r.Value.ContentFingerprint, r.Value.Locations))];
         }
     }
 
@@ -626,7 +784,7 @@ public sealed class DemoCacheStore
     /// </summary>
     public DemoCacheRecord LoadOrCreate(string path, long size, long modifiedTicks)
     {
-        DemoCacheRecord? existing = TryLoadRecord(path);
+        DemoCacheRecord? existing = TryLoadOwnRecord(path);
 
         // A record whose file no longer matches describes a DIFFERENT demo at the same path: the user
         // replaced or re-downloaded it. Keeping any tier would attribute the old match's rosters and score to
@@ -712,7 +870,7 @@ public sealed class DemoCacheStore
 
         lock (_rmwGate)
         {
-            DemoCacheRecord? record = TryLoadRecord(path);
+            DemoCacheRecord? record = TryLoadOwnRecord(path);
             if (record is null)
             {
                 FileInfo info = new(path);
@@ -794,7 +952,9 @@ public sealed class DemoCacheStore
                 DemoCacheIndexEntry? oldRow = oldKey is null ? null : _rows.GetValueOrDefault(oldKey);
                 DemoCacheIndexEntry? target = _rows.GetValueOrDefault(newKey);
                 List<DemoLocation> locations = [.. (target?.Locations ?? []).Where(l => !SamePath(l.Path, path))];
-                locations.Add(new DemoLocation(path, true, record.Size, record.ModifiedTicks, DateTime.UtcNow.Ticks));
+                // Only ConfirmLocation confirms a path a fingerprint attached: a write is no full read.
+                bool confirmed = target is null || LocationIn(target, path)?.Confirmed != false;
+                locations.Add(new DemoLocation(path, confirmed, record.Size, record.ModifiedTicks, DateTime.UtcNow.Ticks));
                 // A new row writes under the path's key until a saved index names the content id: without
                 // the index only that name leads back to the file.
                 List<string> keys = target is null ? [StableKey(path)] : [.. WriteKeys(target)];
@@ -1714,6 +1874,24 @@ public sealed class DemoCacheStore
         }
 
         return [.. FileKeys(row).Concat(row.Locations.Select(l => StableKey(l.Path))).Distinct(StringComparer.Ordinal)];
+    }
+
+    private static DemoLocation? LocationIn(DemoCacheIndexEntry row, string path) =>
+        row.Locations.FirstOrDefault(l => SamePath(l.Path, path));
+
+    // A writer's starting point. The bytes at an unconfirmed path may not be the row's, so a write there
+    // starts from nothing rather than carry the row's tiers onto whatever the file really holds.
+    private DemoCacheRecord? TryLoadOwnRecord(string path)
+    {
+        lock (_gate)
+        {
+            if (_keyByPath.TryGetValue(path, out string? key) && LocationIn(_rows[key], path) is { Confirmed: false })
+            {
+                return null;
+            }
+        }
+
+        return TryLoadRecord(path);
     }
 
     // Under _gate.
