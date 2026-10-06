@@ -12,8 +12,8 @@ namespace DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 ///     A status chip: a dot and a neutral label bound to a <see cref="StatusChipViewModel" /> that opens a
 ///     <c>card-flyout</c> for detail and actions. The dot colour resolves from a palette token through a bound
 ///     state-to-class selector, so it re-themes live; the label is always the neutral <c>TextMid</c> token and
-///     carries the state in words. Click or Enter runs <see cref="StatusChipViewModel.PrimaryAction" /> and opens the
-///     flyout when there is <see cref="StatusChipViewModel.FlyoutContent" /> to show.
+///     carries the state in words. Click or Enter opens the flyout when there is
+///     <see cref="StatusChipViewModel.FlyoutContent" /> to show, else runs <see cref="StatusChipViewModel.PrimaryAction" />.
 /// </summary>
 public partial class StatusChip : UserControl
 {
@@ -24,6 +24,16 @@ public partial class StatusChip : UserControl
     {
         InitializeComponent();
         DataContextChanged += (_, _) => Attach(DataContext as StatusChipViewModel);
+        Body.Click += (_, _) => RunAction();
+    }
+
+    // The flyout is the click's answer when it has content, so looking at progress never runs the action.
+    private void RunAction()
+    {
+        if (_viewModel is { FlyoutContent: null, PrimaryAction: { } action } && action.CanExecute(null))
+        {
+            action.Execute(null);
+        }
     }
 
     private void Attach(StatusChipViewModel? viewModel)

@@ -152,7 +152,7 @@ public class StatusChipContributionTests
         });
 
     [Test]
-    public async Task AChipsClick_RunsItsAction_AndOpensAFlyoutOnlyWhenThereIsContent() =>
+    public async Task AChipsClick_OpensItsFlyout_OrRunsItsActionWhenThereIsNone() =>
         await HeadlessSession.RunOnUi(async () =>
         {
             CountingCommand action = new();
@@ -160,14 +160,22 @@ public class StatusChipContributionTests
             StatusChip control = new() { DataContext = model };
             Button body = control.FindControl<Button>("Body")!;
 
+            body.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
             using (Assert.Multiple())
             {
-                await Assert.That(body.Command).IsSameReferenceAs(action);
+                await Assert.That(action.Runs).IsEqualTo(1);
                 await Assert.That(body.Flyout).IsNull().Because("an empty card is never opened");
             }
 
             model.FlyoutContent = new object();
-            await Assert.That(body.Flyout).IsNotNull();
+            body.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+            using (Assert.Multiple())
+            {
+                await Assert.That(body.Flyout).IsNotNull();
+                await Assert.That(action.Runs).IsEqualTo(1).Because("a chip with a flyout opens it and runs nothing");
+                await Assert.That(body.IsEnabled).IsTrue();
+            }
+
             model.FlyoutContent = null;
             await Assert.That(body.Flyout).IsNull();
         });
@@ -288,6 +296,8 @@ public class StatusChipContributionTests
 
     private sealed class CountingCommand : ICommand
     {
+        public int Runs;
+
         public event EventHandler? CanExecuteChanged
         {
             add { }
@@ -296,9 +306,7 @@ public class StatusChipContributionTests
 
         public bool CanExecute(object? parameter) => true;
 
-        public void Execute(object? parameter)
-        {
-        }
+        public void Execute(object? parameter) => Runs++;
     }
 
     private sealed class ThrowingCommand : ICommand

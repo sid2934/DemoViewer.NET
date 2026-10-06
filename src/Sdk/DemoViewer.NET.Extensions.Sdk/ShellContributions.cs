@@ -94,7 +94,10 @@ public interface IStatusChipSource : INotifyPropertyChanged
     /// <summary>The chip's tooltip, or null.</summary>
     string? Tooltip { get; }
 
-    /// <summary>What a click on the chip runs, or null for a chip that only opens its flyout.</summary>
+    /// <summary>
+    ///     What a click on a chip with no <see cref="FlyoutContent" /> runs, or null. A chip with a flyout opens it
+    ///     instead.
+    /// </summary>
     ICommand? PrimaryAction { get; }
 
     /// <summary>

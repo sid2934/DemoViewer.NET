@@ -21,10 +21,10 @@
         the word carries the state and the dot is a redundant colour cue.
     -->
 
-    <!-- Chip body: a ghost button [dot][label]. Click / Enter runs the primary action and opens the flyout;
-         the code-behind attaches the flyout only while there is content to show. -->
+    <!-- Chip body: a ghost button [dot][label]. Click / Enter opens the flyout when there is content to show,
+         else runs the primary action; the code-behind decides which. -->
     <Button x:Name="Body" Classes="ghost" Padding="8 2" MinHeight="0" VerticalAlignment="Center"
-            ToolTip.Tip="{Binding Tooltip}" Command="{Binding PrimaryAction}">
+            ToolTip.Tip="{Binding Tooltip}">
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <Ellipse Classes="dot" Width="9" Height="9"
                      Classes.stateOff="{Binding IsStateOff}"
