@@ -3,16 +3,41 @@ namespace DemoViewer.NET.Extensions.Sdk;
 /// <summary>
 ///     A demo as the Library lists it: one row of the library's index, which the host keeps in memory. Reading
 ///     one opens no file. Lists compare by reference, so two reads of an unchanged row are the same instance.
+///     <para>
+///         A demo is its content (<see cref="Sha256" />), not its path. Copies of one file in several folders, or
+///         one share mounted at two paths, are one row with several <see cref="Locations" />. Key what you keep
+///         per demo on <see cref="Sha256" /> once it is set; a path only says where the bytes are today.
+///     </para>
 /// </summary>
-/// <param name="FilePath">Full path: the key every other store uses.</param>
+/// <param name="FilePath">
+///     Where the Library shows the demo: the first of <see cref="Locations" />. Every path in
+///     <see cref="Locations" /> answers the same row, and a path can change on a rescan while the demo stays.
+/// </param>
 /// <param name="FileName">The file name.</param>
 /// <param name="MapName">The map, once the demo is indexed.</param>
 /// <param name="Modified">The file's last write time, local.</param>
 /// <param name="FileSizeBytes">The file's size.</param>
 public sealed record LibraryDemo(string FilePath, string FileName, string? MapName, DateTime Modified, long FileSizeBytes)
 {
-    /// <summary>Lowercase hex SHA-256 of the file, or null until the library has hashed it.</summary>
+    private readonly IReadOnlyList<string>? _locations;
+
+    /// <summary>
+    ///     Lowercase hex SHA-256 of the file: the demo's identity, the key the library and
+    ///     <see cref="IExtensionDemoData" /> keep its data under. Null until the library has read the file at
+    ///     <see cref="FilePath" /> in full.
+    /// </summary>
     public string? Sha256 { get; init; }
+
+    /// <summary>
+    ///     Every path the library has confirmed holds these bytes, <see cref="FilePath" /> first, the rest in
+    ///     ordinal order. Just <see cref="FilePath" /> while <see cref="Sha256" /> is null. A path matched to the
+    ///     demo without a full read is not listed until a read confirms it; it is its own row until then.
+    /// </summary>
+    public IReadOnlyList<string> Locations
+    {
+        get => _locations ?? [FilePath];
+        init => _locations = value is { Count: > 0 } ? value : null;
+    }
 
     /// <summary>The server name from the demo's header, or null.</summary>
     public string? Server { get; init; }
@@ -239,7 +264,11 @@ public enum LibraryChangeKind
 }
 
 /// <summary>One change to the library.</summary>
-/// <param name="Path">The demo, or null when many demos changed at once; the kind is then <see cref="LibraryChangeKind.Updated" />.</param>
+/// <param name="Path">
+///     The demo's <see cref="LibraryDemo.FilePath" />, or null when many demos changed at once; the kind is then
+///     <see cref="LibraryChangeKind.Updated" />. A path joining or leaving a demo that has others is reported that
+///     way too, as it can change which path the demo is shown at.
+/// </param>
 /// <param name="Kind">What changed.</param>
 public sealed record LibraryChange(string? Path, LibraryChangeKind Kind);
 
@@ -252,16 +281,25 @@ public sealed record LibraryChange(string? Path, LibraryChangeKind Kind);
 /// </summary>
 public interface IExtensionLibrary
 {
-    /// <summary>Every demo in the library, as of now. A new list after any change; the same list until then.</summary>
+    /// <summary>
+    ///     Every demo in the library, as of now, one row per demo however many paths hold it. A new list after any
+    ///     change; the same list until then.
+    /// </summary>
     IReadOnlyList<LibraryDemo> Demos { get; }
 
-    /// <summary>The demo at <paramref name="path" />, compared ignoring case, or null.</summary>
-    /// <param name="path">The demo's path.</param>
+    /// <summary>
+    ///     The demo with <paramref name="path" /> among its <see cref="LibraryDemo.Locations" />, compared ignoring
+    ///     case, or null. Any of a demo's paths answers the same row, seen from its <see cref="LibraryDemo.FilePath" />.
+    ///     A path matched to a known demo without a full read answers a row of its own with no
+    ///     <see cref="LibraryDemo.Sha256" />. A path the library no longer lists answers null, though the demo's
+    ///     data may be kept for a while in case its file comes back.
+    /// </summary>
+    /// <param name="path">Any path of the demo.</param>
     LibraryDemo? Find(string path);
 
     /// <summary>
-    ///     The demo whose content hashes to <paramref name="sha256" />, or null. Two copies of one demo answer
-    ///     with the one the Library shows: the path that sorts first.
+    ///     The demo whose content hashes to <paramref name="sha256" />, or null when no path the library lists is
+    ///     confirmed to hold it. Copies of one demo are one row, seen from the path the Library shows.
     /// </summary>
     /// <param name="sha256">Lowercase hex SHA-256.</param>
     LibraryDemo? FindBySha256(string sha256);
@@ -275,7 +313,7 @@ public interface IExtensionLibrary
     ///     file read and no parse. Called off the UI thread it reads before returning; called on the UI thread it
     ///     reads as a job on the processing queue.
     /// </summary>
-    /// <param name="path">The demo's path.</param>
+    /// <param name="path">Any path of the demo.</param>
     /// <param name="cancellationToken">Stops the wait.</param>
     Task<LibraryDemoDetail?> GetDetailAsync(string path, CancellationToken cancellationToken = default);
 

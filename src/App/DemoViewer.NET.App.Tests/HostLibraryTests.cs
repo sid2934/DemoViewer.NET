@@ -187,6 +187,59 @@ public class HostLibraryTests
     }
 
     [Test]
+    public async Task Locations_ListEveryConfirmedPath_PrimaryFirst_AndAnUnconfirmedPathIsARowOfItsOwn()
+    {
+        (DemoCacheStore store, HostLibrary library) = Make();
+        store.Upsert(Parsed("/smb/one.dem"));
+        store.Upsert(Parsed("/nfs/one.dem"));
+        store.Upsert(Parsed("/m/two.dem", sha: null));
+        // Sorts before the primary, and only a fingerprint matched it.
+        await Assert.That(store.AttachUnconfirmed(Sha, "/a/one.dem", 100, 638000000000000000)).IsTrue();
+
+        LibraryDemo one = library.FindBySha256(Sha)!;
+        LibraryDemo unconfirmed = library.Find("/a/one.dem")!;
+        LibraryDemo unhashed = library.Find("/m/two.dem")!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(one.FilePath).IsEqualTo("/nfs/one.dem");
+            await Assert.That(one.Locations).IsEquivalentTo(["/nfs/one.dem", "/smb/one.dem"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(library.Find("/SMB/one.dem")).IsSameReferenceAs(one);
+            await Assert.That(library.Demos.Single(d => d.Sha256 == Sha)).IsSameReferenceAs(one);
+            await Assert.That(unconfirmed.Sha256).IsNull();
+            await Assert.That(unconfirmed.Locations).IsEquivalentTo(["/a/one.dem"]);
+            await Assert.That(unhashed.Locations).IsEquivalentTo(["/m/two.dem"]);
+        }
+    }
+
+    [Test]
+    public async Task ADemoNoPathListsAnyMore_IsFoundByNeitherPathNorHash_AndComesBackWithItsPath()
+    {
+        (DemoCacheStore store, HostLibrary library) = Make();
+        store.Upsert(Parsed("/nfs/one.dem"));
+        store.Upsert(Parsed("/smb/one.dem"));
+
+        store.Detach("/smb/one.dem");
+        await Assert.That(library.Find("/nfs/one.dem")!.Locations).IsEquivalentTo(["/nfs/one.dem"]);
+
+        store.Detach("/nfs/one.dem");
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.IsOrphaned(Sha)).IsTrue();
+            await Assert.That(library.Find("/nfs/one.dem")).IsNull();
+            await Assert.That(library.FindBySha256(Sha)).IsNull();
+            await Assert.That(library.Demos).IsEmpty();
+        }
+
+        await Assert.That(store.Reattach("/nfs/one.dem", 100, 638000000000000000)).IsTrue();
+        LibraryDemo back = library.FindBySha256(Sha)!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(back.FilePath).IsEqualTo("/nfs/one.dem");
+            await Assert.That(back.CtScore).IsEqualTo(13);
+        }
+    }
+
+    [Test]
     public async Task AWriteThroughASecondPath_IsReportedUnderThePrimary_AndANewPathIsLibraryWide()
     {
         (DemoCacheStore store, HostLibrary library) = Make();

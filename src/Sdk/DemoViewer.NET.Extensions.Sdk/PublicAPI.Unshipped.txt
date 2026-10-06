@@ -543,6 +543,8 @@ DemoViewer.NET.Extensions.Sdk.LibraryDemo.FilePath.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.FileSizeBytes.get -> long
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.FileSizeBytes.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.LibraryDemo(string! FilePath, string! FileName, string? MapName, System.DateTime Modified, long FileSizeBytes) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.Locations.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.LibraryDemo.Locations.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.MapName.get -> string?
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.MapName.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryDemo.Modified.get -> System.DateTime

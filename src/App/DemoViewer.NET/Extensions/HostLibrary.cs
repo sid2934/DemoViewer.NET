@@ -262,6 +262,7 @@ internal sealed class HostLibrary : IExtensionLibrary
         new(entry.Path, Path.GetFileName(entry.Path), entry.Map, new DateTime(entry.ModifiedTicks, DateTimeKind.Local), entry.Size)
         {
             Sha256 = entry.Sha256,
+            Locations = LocationsOf(entry),
             Server = entry.Server,
             SourceKind = entry.SourceKind,
             DurationSeconds = entry.DurationSeconds,
@@ -289,6 +290,23 @@ internal sealed class HostLibrary : IExtensionLibrary
                 _ => DemoDataState.Pending
             }, s.Count))]
         };
+
+    // The row's own path first, then its other confirmed paths. A view with no hash vouches for no other path,
+    // and an empty list leaves the row its own path alone.
+    private static List<string> LocationsOf(DemoCacheIndexEntry entry)
+    {
+        if (string.IsNullOrEmpty(entry.Sha256))
+        {
+            return [];
+        }
+
+        List<string> paths = [entry.Path];
+        paths.AddRange(entry.Locations
+            .Where(l => l.Confirmed && !string.Equals(l.Path, entry.Path, StringComparison.OrdinalIgnoreCase))
+            .Select(l => l.Path)
+            .Order(StringComparer.Ordinal));
+        return paths;
+    }
 
     // An id the row cannot carry as a number is not a SteamID64; the side lists it never.
     private static List<LibrarySidePlayer>? Side(List<IndexSidePlayer>? players) =>
@@ -404,8 +422,9 @@ internal sealed class HostLibrary : IExtensionLibrary
 
     private static bool OnlyFactsMoved(LibraryDemo before, LibraryDemo after) =>
         !before.Facts.SequenceEqual(after.Facts)
-        && before with { PlayerNames = after.PlayerNames, CtPlayers = after.CtPlayers, TPlayers = after.TPlayers, Facts = after.Facts } == after
+        && before with { PlayerNames = after.PlayerNames, CtPlayers = after.CtPlayers, TPlayers = after.TPlayers, Facts = after.Facts, Locations = after.Locations } == after
         && before.PlayerNames.SequenceEqual(after.PlayerNames, StringComparer.Ordinal)
+        && before.Locations.SequenceEqual(after.Locations, StringComparer.Ordinal)
         && SameSide(before.CtPlayers, after.CtPlayers)
         && SameSide(before.TPlayers, after.TPlayers);
 
