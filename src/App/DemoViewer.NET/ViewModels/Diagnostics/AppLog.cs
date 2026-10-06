@@ -173,8 +173,8 @@ internal static partial class AppLog
     public static partial void LibraryScanListed(ILogger logger, int count, int reached, int total, long elapsedMs);
 
     [LoggerMessage(EventId = 35, Level = LogLevel.Information,
-        Message = "Library scan finished: {count} demo(s) listed, {hashed} left to hash for copies, {pending} waiting on a full parse, in {elapsedMs} ms")]
-    public static partial void LibraryScanFinished(ILogger logger, int count, int hashed, int pending, long elapsedMs);
+        Message = "Library scan finished: {count} demo(s) listed, {unmatched} left to fingerprint for copies, {pending} waiting on a full parse, in {elapsedMs} ms")]
+    public static partial void LibraryScanFinished(ILogger logger, int count, int unmatched, int pending, long elapsedMs);
 
     /// <summary>A folder's header reads ended early; its unread demos are read on the next scan.</summary>
     [LoggerMessage(EventId = 37, Level = LogLevel.Warning,
@@ -182,8 +182,13 @@ internal static partial class AppLog
     public static partial void LibraryHeadersLeftUnread(ILogger logger, string folder, int count, string reason);
 
     [LoggerMessage(EventId = 36, Level = LogLevel.Information,
-        Message = "Library copies resolved: {hashed} file(s) hashed, {copies} copy(ies) folded into another card, in {elapsedMs} ms")]
-    public static partial void LibraryCopiesResolved(ILogger logger, int hashed, int copies, long elapsedMs);
+        Message = "Library copies resolved: {fingerprinted} file(s) fingerprinted, {copies} copy(ies) folded into another card, in {elapsedMs} ms")]
+    public static partial void LibraryCopiesResolved(ILogger logger, int fingerprinted, int copies, long elapsedMs);
+
+    /// <summary>A folder's fingerprint reads ended early; its unread demos wait for the next scan.</summary>
+    [LoggerMessage(EventId = 38, Level = LogLevel.Warning,
+        Message = "Library folder {folder}: {count} demo(s) left without a fingerprint: {reason}. They are read on the next scan")]
+    public static partial void LibraryFingerprintsLeftUnread(ILogger logger, string folder, int count, string reason);
 
     /// <summary>
     ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI

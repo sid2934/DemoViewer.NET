@@ -47,9 +47,10 @@ public partial class DemoEntry : ObservableObject
     private string? _demoVersion;
 
     // ── Content dedup ──
-    // Other folders that hold a byte-identical copy of THIS demo. This entry is the primary (the
-    // lexicographically-smallest path across the copies); the shadows are not shown as their own cards
-    // (appear once) and are not processed separately (processed once). Empty when the demo is unique.
+    // Other folders that hold a copy of THIS demo: one whose full hash agrees, or whose fingerprint matches
+    // until something reads it in full. This entry is the primary (a confirmed path before an unconfirmed
+    // one, then the ordinally smallest); the shadows are not shown as their own cards (appear once) and are
+    // not processed separately (processed once). Empty when the demo is unique.
     [ObservableProperty]
     private IReadOnlyList<string> _duplicateFolders = [];
 
@@ -101,6 +102,12 @@ public partial class DemoEntry : ObservableObject
 
     /// <summary>Absolute path to the .dem file (identity).</summary>
     public required string FilePath { get; init; }
+
+    /// <summary>
+    ///     The content id whose cached row filled this card instead of a parse of <see cref="FilePath" />, or null
+    ///     when the card was filled from this path's own metadata.
+    /// </summary>
+    internal string? FilledFrom { get; set; }
 
     /// <summary>File name (no directory).</summary>
     public required string FileName { get; init; }

@@ -648,6 +648,8 @@ public class DemoLibraryServiceTests
                     return SyntheticDemo();
                 });
             using DemoLibraryService svc = new(_inline, Path.Combine(dir1, "library.json"));
+            // Past the settle window, or two just-written copies have no fingerprint to match on.
+            svc.Time = new Extensions.ManualClock { Now = DateTimeOffset.UtcNow.AddHours(1) };
             using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
             svc.Scheduler = coord;
 
