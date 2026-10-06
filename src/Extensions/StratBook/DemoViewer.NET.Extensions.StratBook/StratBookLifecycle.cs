@@ -140,8 +140,17 @@ internal sealed class StratBookLifecycle : IExtensionLifecycle
     }
 
     // Optional so a lifecycle built over a bare container still releases and flushes.
-    private ILogger Log() =>
-        _sp.GetKeyedService<IExtensionContext>(StratBookPack.PackId)?.CreateLogger("Lifecycle") ?? NullLogger.Instance;
+    private ILogger Log()
+    {
+        try
+        {
+            return _sp.GetExtensionContext(StratBookPack.PackId).CreateLogger("Lifecycle");
+        }
+        catch (InvalidOperationException)
+        {
+            return NullLogger.Instance;
+        }
+    }
 
     // Dependents first (reverse build order): a watcher leaves the index before the index empties and raises.
     private void Release()

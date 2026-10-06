@@ -1216,7 +1216,8 @@ public class App : Application
         foreach (IExtension pack in packs)
         {
             IExtension owner = pack;
-            services.AddKeyedSingleton<IExtensionContext>(owner.Id, (sp, _) => new ExtensionContext(owner, sp));
+            services.AddKeyedSingleton<IExtensionContext>(ExtensionContextAccess.KeyFor(owner.Id),
+                (sp, _) => new ExtensionContext(owner, sp));
         }
         services.AddSingleton<IExtensionContextAccess>(sp => new ExtensionContextAccess(sp, packs));
 

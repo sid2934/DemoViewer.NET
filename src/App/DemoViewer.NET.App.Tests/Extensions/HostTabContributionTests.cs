@@ -411,7 +411,7 @@ public class HostTabContributionTests
 
         ServiceCollection services = new();
         services.AddSingleton<ExtensionShellHub>();
-        services.AddKeyedSingleton<IExtensionContext>(hello.Id, (sp, _) => new ExtensionContext(hello, sp));
+        services.AddKeyedSingleton<IExtensionContext>(ExtensionContextAccess.KeyFor(hello.Id), (sp, _) => new ExtensionContext(hello, sp));
         hello.Register(services);
         ServiceProvider provider = services.BuildServiceProvider();
         PackContributionSet set = new([hello], provider);

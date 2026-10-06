@@ -34,6 +34,9 @@ internal sealed class ExtensionContextAccess : IExtensionContextAccess
                 $"'{other.Id}' asked for the context of '{extensionId}'. An extension can only resolve its own context.");
         }
 
-        return _services.GetRequiredKeyedService<IExtensionContext>(extensionId);
+        return _services.GetRequiredKeyedService<IExtensionContext>(KeyFor(extensionId));
     }
+
+    /// <summary>The service key <paramref name="extensionId" />'s context is registered under.</summary>
+    public static object KeyFor(string extensionId) => new ExtensionContextKey(extensionId);
 }

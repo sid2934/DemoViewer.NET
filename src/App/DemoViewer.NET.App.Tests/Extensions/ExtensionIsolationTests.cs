@@ -25,7 +25,7 @@ public class ExtensionIsolationTests
         StratBookPack stratBook = new();
         ServiceCollection services = new();
         IExtensionContext stubContext = DispatchProxy.Create<IExtensionContext, NullProxy>();
-        services.AddKeyedSingleton(stub.Id, stubContext);
+        services.AddKeyedSingleton(ExtensionContextAccess.KeyFor(stub.Id), stubContext);
         using ServiceProvider provider = services.BuildServiceProvider();
         ExtensionContextAccess access = new(provider, [stub, stratBook]);
 
@@ -39,6 +39,8 @@ public class ExtensionIsolationTests
                 .Because("the extension's own code resolves its context");
             await Assert.That(access.Resolve(stub.Id, typeof(App).Assembly)).IsSameReferenceAs(stubContext)
                 .Because("the app's own code is no extension");
+            await Assert.That(provider.GetKeyedService<IExtensionContext>(stub.Id)).IsNull()
+                .Because("a lookup by the plain id skips the owner check, so it finds nothing");
         }
     }
 

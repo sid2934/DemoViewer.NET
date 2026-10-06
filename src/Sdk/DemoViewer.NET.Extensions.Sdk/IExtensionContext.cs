@@ -180,9 +180,16 @@ public static class ExtensionServiceProviderExtensions
         Assembly caller = Assembly.GetCallingAssembly();
         return services.GetService<IExtensionContextAccess>() is { } access
             ? access.Resolve(extensionId, caller)
-            : services.GetRequiredKeyedService<IExtensionContext>(extensionId);
+            : services.GetRequiredKeyedService<IExtensionContext>(new ExtensionContextKey(extensionId));
     }
 }
+
+/// <summary>
+///     The key the host registers each context under. A lookup by the plain id string finds nothing, so
+///     <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" /> and its owner check are the only way in.
+/// </summary>
+/// <param name="ExtensionId">The extension's id.</param>
+internal sealed record ExtensionContextKey(string ExtensionId);
 
 /// <summary>
 ///     The host's check on <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" />: resolves the
