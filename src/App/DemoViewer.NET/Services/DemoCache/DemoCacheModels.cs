@@ -705,7 +705,8 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
 ///     How one store hands a demo to another. Derived stores key by <see cref="StableKey" /> (the cache
 ///     sidecar rule) and user-truth stores key by <see cref="Sha256" /> (a moved file keeps its tags), so a
 ///     consumer crossing that line needs both in hand rather than converting keys on its own: the bridges
-///     are <see cref="DemoCacheStore.TryGetIndex" /> and <see cref="DemoCacheStore.TryGetIndexBySha256" />.
+///     are <see cref="DemoCacheStore.TryGetIndex" /> and <see cref="DemoCacheStore.TryGetByContentId" />
+///     (<see cref="DemoCacheStore.TryGetIndexBySha256" /> is the same lookup).
 ///     Defined here, beside the index row it is projected from, so every store agrees on the shape.
 /// </summary>
 /// <param name="Path">The demo's path as the library knows it.</param>

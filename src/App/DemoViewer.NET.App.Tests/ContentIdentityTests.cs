@@ -13,6 +13,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -99,6 +100,113 @@ public class ContentIdentityTests
         }
     }
 
+    [Test]
+    public async Task TryGetByContentId_AgreesWithTheHashLookup_ThroughEveryMutation_OnDisk() =>
+        await AgreesThroughEveryMutation(TempRoot());
+
+    [Test]
+    public async Task TryGetByContentId_AgreesWithTheHashLookup_ThroughEveryMutation_InMemory() =>
+        await AgreesThroughEveryMutation(null);
+
+    [Test]
+    public async Task RowsForContentId_IsASnapshot_PrimaryFirst()
+    {
+        DemoCacheStore store = new(null);
+        store.Upsert(Record("/demos/z.dem", "sha-1"));
+        store.Upsert(Record("/demos/B.dem", "sha-1"));
+        store.Upsert(Record("/demos/a.dem", "sha-1"));
+
+        IReadOnlyList<DemoCacheIndexEntry> rows = store.RowsForContentId("sha-1");
+        store.Remove("/demos/a.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rows.Select(r => r.Path))
+                .IsEquivalentTo(["/demos/B.dem", "/demos/a.dem", "/demos/z.dem"], CollectionOrdering.Matching)
+                .Because("ordinal, so an upper-case path sorts first exactly as the primary pick does");
+            await Assert.That(rows[0].Path).IsEqualTo(store.TryGetByContentId("sha-1")!.Path);
+            await Assert.That(store.RowsForContentId("sha-1")).HasCount(2)
+                .Because("a later remove shows in a fresh call, never in a list already handed out");
+        }
+    }
+
+    // One mutation sequence, checked after every step against the hash lookup and against the expected path,
+    // so agreement with a wrong answer still fails.
+    private static async Task AgreesThroughEveryMutation(string? root)
+    {
+        string[] ids = ["sha-1", "sha-2", "sha-none", ""];
+
+        async Task Check(DemoCacheStore store, string id, string? expectedPath)
+        {
+            DemoCacheIndexEntry? byContent = store.TryGetByContentId(id);
+            await Assert.That(byContent?.Path).IsEqualTo(expectedPath).Because($"content id '{id}'");
+            await Assert.That(byContent?.Path).IsEqualTo(store.TryGetIndexBySha256(id)?.Path);
+            IReadOnlyList<DemoCacheIndexEntry> rows = store.RowsForContentId(id);
+            await Assert.That(rows.Count == 0 ? null : rows[0].Path).IsEqualTo(expectedPath);
+        }
+
+        async Task CheckAll(DemoCacheStore store, string? sha1, string? sha2)
+        {
+            using (Assert.Multiple())
+            {
+                await Check(store, "sha-1", sha1);
+                await Check(store, "sha-2", sha2);
+                foreach (string id in ids[2..])
+                {
+                    await Check(store, id, null);
+                }
+
+                await Assert.That(store.TryGetByContentId(null)).IsNull();
+                await Assert.That(store.RowsForContentId(null)).IsEmpty();
+            }
+        }
+
+        try
+        {
+            DemoCacheStore store = new(root);
+            await CheckAll(store, null, null);
+
+            store.Upsert(Record("/demos/c.dem", null));
+            await CheckAll(store, null, null);
+
+            store.Upsert(Record("/demos/b.dem", "sha-1"));
+            store.Upsert(Record("/demos/a.dem", "sha-1"));
+            await CheckAll(store, "/demos/a.dem", null);
+            await Assert.That(store.RowsForContentId("sha-1")).HasCount(2);
+
+            if (root is not null)
+            {
+                store.SaveIndex();
+                store = new DemoCacheStore(root);
+                await CheckAll(store, "/demos/a.dem", null);
+            }
+
+            store.Remove("/demos/a.dem");
+            await CheckAll(store, "/demos/b.dem", null);
+
+            store.Upsert(Record("/demos/b.dem", "sha-2"));
+            await CheckAll(store, null, "/demos/b.dem");
+
+            store.Update("/demos/c.dem", 1000, 2000, r => r.Sha256 = "sha-2");
+            await CheckAll(store, null, "/demos/b.dem");
+            await Assert.That(store.RowsForContentId("sha-2").Select(r => r.Path))
+                .IsEquivalentTo(["/demos/b.dem", "/demos/c.dem"], CollectionOrdering.Matching);
+
+            store.Remove("/demos/b.dem");
+            await CheckAll(store, null, "/demos/c.dem");
+
+            store.Remove("/demos/c.dem");
+            await CheckAll(store, null, null);
+        }
+        finally
+        {
+            if (root is not null && Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
     /// <summary>
     ///     An <c>index.json</c> written before any row carried a hash has no <c>Sha256</c> property at all. It
     ///     must load as "not hashed yet", never as corrupt, or every library would re-index from nothing.
@@ -134,11 +242,18 @@ public class ContentIdentityTests
                 await Assert.That(store.Index).HasCount(1);
             }
 
+            await Assert.That(store.TryGetByContentId("sha-old")).IsNull()
+                .Because("an unhashed row is reachable by path only");
+
             // And the row is still writable in the new shape: a tier-2 pass fills the hash in place.
             store.Update("/demos/old.dem", 10, 20, r => r.Sha256 = "sha-old");
             store.SaveIndex();
-            await Assert.That(new DemoCacheStore(root).TryGetIndexBySha256("sha-old")!.Path)
-                .IsEqualTo("/demos/old.dem");
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(reopened.TryGetIndexBySha256("sha-old")!.Path).IsEqualTo("/demos/old.dem");
+                await Assert.That(reopened.TryGetByContentId("sha-old")!.Path).IsEqualTo("/demos/old.dem");
+            }
         }
         finally
         {

@@ -231,39 +231,85 @@ public sealed class DemoCacheStore
 
     /// <summary>
     ///     The index row carrying a content hash, or null when no indexed demo has it (never hashed yet,
-    ///     or not in the library). The bridge from a user-truth store keyed by hash back to a path.
-    ///     <para>
-    ///         Two rows with one hash are a copied demo; the lexicographically-smallest path wins, which is
-    ///         the primary the library shows as the card (<c>DemoLibraryService.ResolveContentIdentities</c>),
-    ///         so both sides of the join name the same file.
-    ///     </para>
+    ///     or not in the library). The bridge from a user-truth store keyed by hash back to a path. Same
+    ///     answer as <see cref="TryGetByContentId" />.
     /// </summary>
     /// <param name="sha256">Lowercase-hex SHA-256 of the demo's bytes.</param>
-    public DemoCacheIndexEntry? TryGetIndexBySha256(string sha256)
+    public DemoCacheIndexEntry? TryGetIndexBySha256(string sha256) => TryGetByContentId(sha256);
+
+    /// <summary>
+    ///     The primary index row for a content id, or null when no indexed row carries it. A content id is
+    ///     <see cref="Playback2D.Pipeline.DemoContentHash" />'s lowercase-hex SHA-256 of the whole file; a row that has not been
+    ///     hashed yet is invisible here and only reachable by <see cref="TryGetIndex" />.
+    ///     <para>
+    ///         Several rows under one id are copies of one demo. The ordinally smallest path wins, the same
+    ///         primary the library shows as the card (<c>DemoLibraryService.ResolveContentIdentities</c>), so
+    ///         a store joined by hash and the card name the same file.
+    ///     </para>
+    /// </summary>
+    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
+    public DemoCacheIndexEntry? TryGetByContentId(string? contentId)
     {
-        if (string.IsNullOrEmpty(sha256))
+        if (string.IsNullOrEmpty(contentId))
         {
             return null;
         }
 
         lock (_gate)
         {
-            if (!_pathsBySha.TryGetValue(sha256, out HashSet<string>? paths))
+            return _pathsBySha.TryGetValue(contentId, out HashSet<string>? paths)
+                ? _index.GetValueOrDefault(PrimaryOf(paths))
+                : null;
+        }
+    }
+
+    /// <summary>
+    ///     Every index row carrying a content id, primary first (<see cref="TryGetByContentId" />'s pick),
+    ///     the rest in ordinal path order. Empty when no row carries it. A snapshot: later writes do not
+    ///     change it.
+    /// </summary>
+    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
+    public IReadOnlyList<DemoCacheIndexEntry> RowsForContentId(string? contentId)
+    {
+        if (string.IsNullOrEmpty(contentId))
+        {
+            return [];
+        }
+
+        lock (_gate)
+        {
+            if (!_pathsBySha.TryGetValue(contentId, out HashSet<string>? paths))
             {
-                return null;
+                return [];
             }
 
-            string? primary = null;
+            List<DemoCacheIndexEntry> rows = new(paths.Count);
             foreach (string path in paths)
             {
-                if (primary is null || string.CompareOrdinal(path, primary) < 0)
+                if (_index.TryGetValue(path, out DemoCacheIndexEntry? entry))
                 {
-                    primary = path;
+                    rows.Add(entry);
                 }
             }
 
-            return primary is null ? null : _index.GetValueOrDefault(primary);
+            rows.Sort((a, b) => string.CompareOrdinal(a.Path, b.Path));
+            return rows;
         }
+    }
+
+    // Under _gate. Ordinal over a case-insensitive set: the library's card picks its primary the same way.
+    private static string PrimaryOf(HashSet<string> paths)
+    {
+        string? primary = null;
+        foreach (string path in paths)
+        {
+            if (primary is null || string.CompareOrdinal(path, primary) < 0)
+            {
+                primary = path;
+            }
+        }
+
+        return primary!;
     }
 
     /// <summary>
