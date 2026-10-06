@@ -239,6 +239,25 @@ public class StratBookCommandsTests
         await Assert.That(constants).IsEquivalentTo(StratBookCommands.All.Select(c => c.Id));
     }
 
+    // The canvas names core actions by string, so a renamed core action would leave its keys dead.
+    [Test]
+    public async Task EveryCoreActionTheCanvasRuns_IsABindingInTheShippedKeymap()
+    {
+        System.Reflection.FieldInfo[] fields =
+            typeof(CoreActions).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        string[] scopes = [nameof(CoreActions.Scope), nameof(CoreActions.ToolScope)];
+        string[] actions = [.. fields.Where(f => f.IsLiteral && !scopes.Contains(f.Name)).Select(f => (string)f.GetRawConstantValue()!)];
+        HostKeymap keymap = HostKeymap.Instance;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(actions.Length).IsGreaterThanOrEqualTo(17);
+            await Assert.That(actions.Except(keymap.Bindings.Select(b => b.ActionId))).IsEmpty();
+            await Assert.That(keymap.Bindings.Any(b => b.Scope == CoreActions.Scope)).IsTrue();
+            await Assert.That(keymap.Bindings.Any(b => b.Scope == CoreActions.ToolScope)).IsTrue();
+        }
+    }
+
     /// <summary>
     ///     A core rebind refused because a pack row already holds the gesture names the owning pack, so
     ///     the refusal means something even while that row is hidden (the Strat Book extension off and

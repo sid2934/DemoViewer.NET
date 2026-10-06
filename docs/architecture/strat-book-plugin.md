@@ -323,10 +323,11 @@ trades its one-off `TryTagPositionAt(level,
 x, y)` for a default-`false` `TryPointerPreHandler(ScenePointer pointer)`; `Scene2DHost.OnPointerPressed` builds
 one `ScenePointer` per primary press not diverted to pan (Space, Ctrl, the middle button) and offers it to the
 bound host before the router. `Playback2DTabViewModel` forwards its `TryPointerPreHandler` to
-`Surface.TryHandlePointerPress`, which tries every `AddPointerPreHandler` registration in order; the strat
-canvas implements it as `ISceneFrameHost.TryPointerPreHandler(pointer) => TryTagPositionAt(pointer.Level,
-pointer.WorldX, pointer.WorldY)`, an explicit forwarder that keeps its own public `TryTagPositionAt` (Set On
-Map) exactly as the ~30 strat canvas tests call it. `ScenePointer.Zones` is a `Func<PlaceResolver?>`, not a
+`Surface.TryHandlePointerPress`, which tries every `AddPointerPreHandler` registration in order. The strat
+canvas is not a frame host: the UI kit's `SceneView` adapts its `ISceneSource` to one, turning each
+`ScenePointer` into a `ScenePress`, and the canvas implements `ISceneSource.OnPress(press) =>
+TryTagPositionAt(press.Level, press.WorldX, press.WorldY)`, an explicit forwarder that keeps its own public
+`TryTagPositionAt` (Set On Map) exactly as the ~30 strat canvas tests call it. `ScenePointer.Zones` is a `Func<PlaceResolver?>`, not a
 value: the review contribution's old `OnMapClick` read `surface.Zones` only after the focus checks passed, and
 an eager field would force `LoadedMapAsset.ZoneLoad` on every pan click instead.
 
