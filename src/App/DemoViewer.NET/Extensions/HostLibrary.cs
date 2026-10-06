@@ -291,16 +291,15 @@ internal sealed class HostLibrary : IExtensionLibrary
             }, s.Count))]
         };
 
-    // The row's own path first, then its other confirmed paths. A view with no hash vouches for no other path,
-    // and an empty list leaves the row its own path alone.
+    // The row's own path first, then its other confirmed paths. A view with no hash vouches for no other path.
     private static List<string> LocationsOf(DemoCacheIndexEntry entry)
     {
+        List<string> paths = [entry.Path];
         if (string.IsNullOrEmpty(entry.Sha256))
         {
-            return [];
+            return paths;
         }
 
-        List<string> paths = [entry.Path];
         paths.AddRange(entry.Locations
             .Where(l => l.Confirmed && !string.Equals(l.Path, entry.Path, StringComparison.OrdinalIgnoreCase))
             .Select(l => l.Path)

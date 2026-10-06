@@ -155,14 +155,18 @@ public class HostLibraryTests
         }
 
         store.Remove("/d/one.dem");
+        store.Upsert(Parsed("/d/four.dem", sha: null));
+        store.UpdateExisting("/d/four.dem", r => r.SetStamp(new PackStamp("roundfacts", 1, "fp")));
 
         await Assert.That(changes).IsEquivalentTo([
             new LibraryChange("/d/one.dem", LibraryChangeKind.Added),
             new LibraryChange("/d/one.dem", LibraryChangeKind.Updated),
             new LibraryChange("/d/one.dem", LibraryChangeKind.FactsUpdated),
             new LibraryChange(null, LibraryChangeKind.Updated),
-            new LibraryChange("/d/one.dem", LibraryChangeKind.Removed)
-        ]);
+            new LibraryChange("/d/one.dem", LibraryChangeKind.Removed),
+            new LibraryChange("/d/four.dem", LibraryChangeKind.Added),
+            new LibraryChange("/d/four.dem", LibraryChangeKind.FactsUpdated)
+        ], TUnit.Assertions.Enums.CollectionOrdering.Matching);
         await Assert.That(library.Find("/d/two.dem")!.Fact("roundfacts")).IsNull();
     }
 
