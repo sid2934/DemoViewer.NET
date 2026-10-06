@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -58,7 +59,9 @@ public class UnconfirmedLocationTests
             await Assert.That(store.SameDemo(A, B)).IsFalse();
             await Assert.That(store.TryGetByContentId(Sha)?.Path).IsEqualTo(A);
             await Assert.That(store.RowsForContentId(Sha).Select(r => r.Path)).IsEquivalentTo([A]);
-            await Assert.That(store.TryGetPrimary(B)?.Path).IsEqualTo(A);
+            await Assert.That(store.TryGetPrimary(B)?.Path).IsEqualTo(B).Because("an unconfirmed path is not the primary's demo");
+            await Assert.That(store.TryGetPrimary(B)?.Sha256).IsNull();
+            await Assert.That(store.TryGetPrimary(A)?.Path).IsEqualTo(A);
             await Assert.That(store.Contents.Count).IsEqualTo(1);
         }
     }
@@ -80,7 +83,7 @@ public class UnconfirmedLocationTests
     }
 
     [Test]
-    public async Task AWriteAtAnAttachedPath_StartsARecordOfItsOwn_AndLeavesTheRowAlone()
+    public async Task AWriteAtAnAttachedPathThatCannotBeRead_StartsARecordOfItsOwn_AndLeavesTheRowAlone()
     {
         DemoCacheStore store = Attached();
 
@@ -97,6 +100,74 @@ public class UnconfirmedLocationTests
             await Assert.That(atA?.Scoreboard?.Count).IsEqualTo(1);
             await Assert.That(atA?.Map).IsEqualTo("de_nuke");
             await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A]);
+        }
+    }
+
+    // Whatever writes at a path has just read it: the write hashes it first, so the last path of a demo is
+    // never taken out of its row, and its data never deleted, by a write that only had to read the file.
+    [Test]
+    public async Task AWriteAtTheLastAttachedPath_HashesItFirst_AndKeepsTheRowsData()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-unconfirmed-{Guid.NewGuid():N}");
+        string files = Directory.CreateDirectory(Path.Combine(root, "files")).FullName;
+        try
+        {
+            byte[] bytes = [.. Enumerable.Range(0, 1000).Select(i => (byte)i)];
+            string a = Path.Combine(files, "a.dem");
+            string b = Path.Combine(files, "b.dem");
+            File.WriteAllBytes(b, bytes);
+            string sha = DemoContentHash.Compute(bytes);
+            DemoCacheStore store = new(Path.Combine(root, "cache"));
+            DemoCacheRecord record = Analysed(a);
+            record.SetContentHash(sha, null);
+            store.Upsert(record);
+            store.AttachUnconfirmed(sha, b, 1000, 3000);
+            store.Remove(a);
+            store.SaveIndex();
+
+            store.UpdateExisting(b, r => r.Server = "from b");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.LocationOf(b)?.ContentId).IsEqualTo(sha);
+                await Assert.That(store.LocationOf(b)?.Location.Confirmed).IsTrue();
+                await Assert.That(store.TryLoadRecord(b)?.Scoreboard.Count).IsEqualTo(1);
+                await Assert.That(store.TryLoadRecord(b)?.Server).IsEqualTo("from b");
+                await Assert.That(File.Exists(Path.Combine(root, "cache", "demos", sha + DemoCacheStore.RecordSuffix))).IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task AWriteAtAnAttachedPathHoldingOtherBytes_HashesIt_AndStartsARecordOfItsOwn()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-unconfirmed-{Guid.NewGuid():N}");
+        string files = Directory.CreateDirectory(Path.Combine(root, "files")).FullName;
+        try
+        {
+            string b = Path.Combine(files, "b.dem");
+            File.WriteAllBytes(b, new byte[1000]);
+            DemoCacheStore store = new(Path.Combine(root, "cache"));
+            store.Upsert(Analysed(A));
+            store.AttachUnconfirmed(Sha, b, 1000, 3000);
+
+            store.UpdateExisting(b, r => r.Server = "from b");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.LocationOf(b)).IsNull();
+                await Assert.That(store.TryLoadRecord(b)?.Scoreboard).IsEmpty();
+                await Assert.That(store.TryLoadRecord(A)?.Scoreboard.Count).IsEqualTo(1);
+                await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A]);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
         }
     }
 

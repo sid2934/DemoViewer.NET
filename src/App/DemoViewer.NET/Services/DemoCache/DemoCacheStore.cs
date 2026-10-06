@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CS2DemoKit.Analysis.Diagnostics;
+using DemoViewer.NET.Playback2D.Pipeline;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -177,14 +178,20 @@ public sealed class DemoCacheStore
 
     /// <summary>
     ///     The row listing <paramref name="path" />, seen from the row's primary path, or null when no row lists
-    ///     it. The same instance <see cref="Contents" /> holds for that demo until the row changes.
+    ///     it. The same instance <see cref="Contents" /> holds for that demo until the row changes. A path whose
+    ///     bytes are not confirmed to be the row's is seen from itself, as <see cref="TryGetIndex" /> sees it.
     /// </summary>
     /// <param name="path">Any path of the demo.</param>
     public DemoCacheIndexEntry? TryGetPrimary(string path)
     {
         lock (_gate)
         {
-            return _keyByPath.TryGetValue(path, out string? key) ? _index[_rows[key].Path] : null;
+            if (!_keyByPath.TryGetValue(path, out string? key))
+            {
+                return null;
+            }
+
+            return LocationIn(_rows[key], path) is { Confirmed: false } ? _index[path] : _index[_rows[key].Path];
         }
     }
 
@@ -784,6 +791,7 @@ public sealed class DemoCacheStore
     /// </summary>
     public DemoCacheRecord LoadOrCreate(string path, long size, long modifiedTicks)
     {
+        SettleBeforeWrite(path);
         DemoCacheRecord? existing = TryLoadOwnRecord(path);
 
         // A record whose file no longer matches describes a DIFFERENT demo at the same path: the user
@@ -867,6 +875,7 @@ public sealed class DemoCacheStore
     public void UpdateExisting(string path, Action<DemoCacheRecord> mutate)
     {
         ArgumentNullException.ThrowIfNull(mutate);
+        SettleBeforeWrite(path);
 
         lock (_rmwGate)
         {
@@ -905,6 +914,11 @@ public sealed class DemoCacheStore
         }
 
         string path = record.Path;
+        if (!Monitor.IsEntered(_rmwGate))
+        {
+            SettleBeforeWrite(path);
+        }
+
         string newKey = RowKeyFor(path, record.Sha256);
         lock (_rmwGate)
         {
@@ -1047,6 +1061,7 @@ public sealed class DemoCacheStore
     /// </summary>
     public void Update(string path, long size, long modifiedTicks, Action<DemoCacheRecord> mutate)
     {
+        SettleBeforeWrite(path);
         lock (_rmwGate)
         {
             DemoCacheRecord record = LoadOrCreate(path, size, modifiedTicks);
@@ -1878,6 +1893,36 @@ public sealed class DemoCacheStore
 
     private static DemoLocation? LocationIn(DemoCacheIndexEntry row, string path) =>
         row.Locations.FirstOrDefault(l => SamePath(l.Path, path));
+
+    // A write at an unconfirmed path hashes the file first. Whatever writes there has just read it, so the read
+    // is warm, and without it the write could only start a record of its own, taking the path out of the row
+    // and, when it was the row's last path, the row's files with it. Outside the write gate: the read is long.
+    private void SettleBeforeWrite(string path)
+    {
+        lock (_gate)
+        {
+            if (!_keyByPath.TryGetValue(path, out string? key) || IsProvisional(_rows[key])
+                || LocationIn(_rows[key], path) is not { Confirmed: false })
+            {
+                return;
+            }
+        }
+
+        long size;
+        try
+        {
+            size = new FileInfo(path).Length;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return;
+        }
+
+        if (DemoContentHash.TryCompute(path) is { } sha)
+        {
+            ConfirmLocation(path, sha, size);
+        }
+    }
 
     // A writer's starting point. The bytes at an unconfirmed path may not be the row's, so a write there
     // starts from nothing rather than carry the row's tiers onto whatever the file really holds.
