@@ -573,6 +573,41 @@ public class DemoLibraryScanTests
     }
 
     [Test]
+    public async Task ANewerRescan_StopsTheOlderOnesHeaderReads_AndWaitsOnTheHungRead()
+    {
+        string slow = NewTempDir();
+        GatedHeaderReader headers = new(slow);
+        try
+        {
+            string b = WriteDemo(slow, "b.dem", 4);
+            using DemoLibraryService svc = new(_inline, SeedLibrary(slow, [slow]));
+            svc.HeaderReader = headers;
+            svc.Timing = Timing(TimeSpan.FromSeconds(30));
+
+            Task first = svc.RescanAsync();
+            await WaitForAsync(() => headers.BlockedReads == 1, "the first scan's header read");
+            Task second = svc.RescanAsync();
+            await first.WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.Delay(300);
+            using (Assert.Multiple())
+            {
+                await Assert.That(second.IsCompleted).IsFalse();
+                await Assert.That(headers.BlockedReads).IsEqualTo(1)
+                    .Because("the second scan waits on the first one's read instead of starting another beside it");
+            }
+
+            headers.Release();
+            await second.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(Map(svc, b)).IsEqualTo("de_b");
+        }
+        finally
+        {
+            headers.Release();
+            Cleanup(slow);
+        }
+    }
+
+    [Test]
     public async Task AHeaderReadThatThrows_LeavesTheDemoToItsFullParse_AndFailsNoQueueItem()
     {
         string root = NewTempDir();
