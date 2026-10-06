@@ -159,6 +159,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <summary>How long the folder walk and the header reads wait on the file system. Test seam.</summary>
     internal LibraryScanTiming Timing { get; set; } = LibraryScanTiming.Default;
 
+    /// <summary>The clock a file's settle window is measured against. Test seam.</summary>
+    internal TimeProvider Time { get; set; } = TimeProvider.System;
+
     private IDemoProcessingQueue? Queue => QueueOverride ?? QueueWork.Ambient;
 
     /// <summary>
@@ -1381,27 +1384,45 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // Returns the cached SHA-256 (lowercase hex) for a file when the (path,size,mtime) key still matches,
-    // else streams the bytes through the shared helper and writes the result back onto the metadata row.
-    // Null on an I/O failure. A reconcile caller then treats the file as its own singleton (never wrongly
-    // deduped); the tier-2 caller leaves the cache record's hash as it was.
-    private string? GetOrComputeSha(string path, long size, DateTime modified)
+    // else streams the bytes once for the hash and the fingerprint and writes the hash back onto the metadata
+    // row. Null on an I/O failure. A reconcile caller then treats the file as its own singleton (never wrongly
+    // deduped); the tier-2 caller leaves the cache record's hash as it was. A cached hash has no fingerprint.
+    private (string? Sha256, DemoContentFingerprint? Fingerprint) GetOrComputeSha(string path, long size,
+        DateTime modified)
     {
         lock (_cacheLock)
         {
             if (_cache.TryGetValue(path, out DemoLibraryCacheEntry? c)
                 && c.Size == size && c.ModifiedTicks == modified.Ticks && c.Sha256 is not null)
             {
-                return c.Sha256;
+                return (c.Sha256, null);
             }
         }
 
-        string? sha = DemoContentHash.TryCompute(path);
+        (string? sha, DemoContentFingerprint? fingerprint) = DemoContentFingerprint.TryComputeWithContentHash(path, Time);
         if (sha is not null)
         {
             UpsertCache(path, c => c.Sha256 = sha);
         }
 
-        return sha;
+        return (sha, fingerprint?.Size == size ? fingerprint : null);
+    }
+
+    // The fingerprint to store beside a hash tier 2 took from the metadata row. Null when the record already
+    // holds one for that hash, so a re-index reads nothing extra.
+    private DemoContentFingerprint? FingerprintForCachedSha(DemoEntry entry, string sha)
+    {
+        if (_demoCache is null
+            || _demoCache.TryGetIndex(entry.FilePath) is { ContentFingerprint: not null } row
+            && row.MatchesFile(entry.FileSizeBytes, entry.Modified.Ticks)
+            && string.Equals(row.Sha256, sha, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        // The parse has just streamed the file, so both windows are read from the page cache.
+        DemoContentFingerprint? fingerprint = DemoContentFingerprint.TryCompute(entry.FilePath, Time);
+        return fingerprint?.Size == entry.FileSizeBytes ? fingerprint : null;
     }
 
     // Runs on the post (UI) thread. `primaries` are the deduped demos (one per content group);
@@ -1794,10 +1815,15 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // after a move or a re-download is only one the index already knows by content. Tier 2 is the
         // pass that has just streamed the whole file through the parser, so the second read is served
         // warm from the page cache; the (path,size,mtime) row makes a rescan free.
-        string? sha = GetOrComputeSha(entry.FilePath, entry.FileSizeBytes, entry.Modified);
+        (string? sha, DemoContentFingerprint? fingerprint) =
+            GetOrComputeSha(entry.FilePath, entry.FileSizeBytes, entry.Modified);
+        if (sha is not null && fingerprint is null)
+        {
+            fingerprint = FingerprintForCachedSha(entry, sha);
+        }
 
         WriteTier2ToDemoCache(entry, parsed, map, duration, ctScore, tScore, ctClan, tClan, cachedPlayers, rounds,
-            sha);
+            sha, fingerprint);
 
         // Persist periodically so a long scan's progress survives an app close, and nudge the VM so
         // the player/map filters grow during a long sequential scan (its end may be an hour away).
@@ -1827,7 +1853,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // projection threw; every other field is still worth writing.
     private void WriteTier2ToDemoCache(DemoEntry entry, Tier2Input parsed, string? map, double duration,
         int? ctScore, int? tScore, string? ctClan, string? tClan,
-        List<CachedPlayerInfo>? players, List<CachedRound>? rounds, string? sha256)
+        List<CachedPlayerInfo>? players, List<CachedRound>? rounds, string? sha256,
+        DemoContentFingerprint? fingerprint)
     {
         if (_demoCache is null)
         {
@@ -1847,7 +1874,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 // than erasing a key some sidecar may already be joined on.
                 if (sha256 is not null)
                 {
-                    record.Sha256 = sha256;
+                    record.SetContentHash(sha256, fingerprint);
                 }
 
                 record.Server = parsed.ServerName;

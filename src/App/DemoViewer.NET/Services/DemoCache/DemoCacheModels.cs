@@ -238,6 +238,13 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     /// <summary>Content hash: the dedup key. Null until something has computed it.</summary>
     public string? Sha256 { get; set; }
 
+    /// <summary>
+    ///     The cheap fingerprint taken in the same read as <see cref="Sha256" />. Null when that read could
+    ///     not vouch for it (the file was not settled), or the hash came from an older build.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DemoContentFingerprint? ContentFingerprint { get; set; }
+
     // ── T1 header ────────────────────────────────────────────────────────────
     public TierStamp Header { get; set; } = new();
 
@@ -333,6 +340,23 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
+
+    /// <summary>
+    ///     Sets <see cref="Sha256" /> and the fingerprint taken in the same read. A null fingerprint keeps the
+    ///     stored one only while the hash is unchanged: a fingerprint never outlives the hash it was taken with.
+    /// </summary>
+    /// <param name="sha256">The content hash just computed or confirmed.</param>
+    /// <param name="fingerprint">The fingerprint from that read, or null when it could not vouch for one.</param>
+    public void SetContentHash(string sha256, DemoContentFingerprint? fingerprint)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sha256);
+        if (fingerprint is not null || !string.Equals(Sha256, sha256, StringComparison.Ordinal))
+        {
+            ContentFingerprint = fingerprint;
+        }
+
+        Sha256 = sha256;
+    }
 
     /// <summary>The stamp with <paramref name="id" />, or null when the facet was never written.</summary>
     /// <param name="id">The facet id (<see cref="PackStamp.Id" />).</param>
@@ -468,6 +492,7 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         Size = Size,
         ModifiedTicks = ModifiedTicks,
         Sha256 = Sha256,
+        ContentFingerprint = ContentFingerprint,
         Map = Map,
         Server = Server,
         DemoVersion = DemoVersion,
@@ -549,6 +574,10 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     public long Size { get; set; }
     public long ModifiedTicks { get; set; }
     public string? Sha256 { get; set; }
+
+    /// <summary>See <see cref="DemoCacheRecord.ContentFingerprint" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DemoContentFingerprint? ContentFingerprint { get; set; }
 
     public string? Map { get; set; }
     public string? Server { get; set; }
@@ -698,8 +727,10 @@ public sealed class DemoCacheIndexFile
     ///     sidecars are gzipped <c>&lt;key&gt;.json.gz</c>; a version-1 <c>&lt;key&gt;.json</c> is still read.
     ///     3: parsed rows carry each side's players (<see cref="DemoCacheIndexEntry.CtPlayers" />) and the
     ///     rounds each side won; a row loaded from an older index has neither until its record is read again.
+    ///     4: a row may carry its <see cref="DemoCacheIndexEntry.ContentFingerprint" />; an older row has none
+    ///     until its content hash is next computed.
     /// </summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public int Version { get; set; } = CurrentVersion;
 

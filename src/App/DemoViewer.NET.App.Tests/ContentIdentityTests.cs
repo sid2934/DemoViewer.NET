@@ -147,6 +147,63 @@ public class ContentIdentityTests
     }
 
     [Test]
+    public async Task TheFingerprint_RoundTripsThroughTheSidecarAndTheIndex_AndAnUnsetOneIsNotWritten()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoContentFingerprint fingerprint = new(1000, 4 << 20, new string('a', 64), new string('b', 64));
+            DemoCacheStore store = new(root);
+            DemoCacheRecord withPrint = Record("/demos/a.dem", "sha-a");
+            withPrint.ContentFingerprint = fingerprint;
+            store.Upsert(withPrint);
+            store.Upsert(Record("/demos/b.dem", "sha-b"));
+            store.SaveIndex();
+
+            DemoCacheStore reopened = new(root);
+            string indexJson = await File.ReadAllTextAsync(Path.Combine(root, "index.json"));
+            using (Assert.Multiple())
+            {
+                await Assert.That(reopened.TryGetIndex("/demos/a.dem")!.ContentFingerprint).IsEqualTo(fingerprint);
+                await Assert.That(reopened.TryLoadRecord("/demos/a.dem")!.ContentFingerprint).IsEqualTo(fingerprint);
+                await Assert.That(reopened.TryGetIndex("/demos/b.dem")!.ContentFingerprint).IsNull();
+                await Assert.That(indexJson.Split("ContentFingerprint").Length - 1).IsEqualTo(1)
+                    .Because("a row without a fingerprint costs the index nothing");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task SetContentHash_KeepsAFingerprintOnlyWhileItsHashStands()
+    {
+        DemoContentFingerprint first = new(1000, 4 << 20, new string('a', 64), new string('b', 64));
+        DemoContentFingerprint second = first with { Tail = new string('c', 64) };
+        DemoCacheRecord record = Record("/demos/a.dem", null);
+
+        record.SetContentHash("sha-1", first);
+        await Assert.That(record.ContentFingerprint).IsEqualTo(first);
+
+        record.SetContentHash("sha-1", null);
+        await Assert.That(record.ContentFingerprint).IsEqualTo(first)
+            .Because("the same hash read again without a fingerprint still describes the same bytes");
+
+        record.SetContentHash("sha-1", second);
+        await Assert.That(record.ContentFingerprint).IsEqualTo(second);
+
+        record.SetContentHash("sha-2", null);
+        using (Assert.Multiple())
+        {
+            await Assert.That(record.Sha256).IsEqualTo("sha-2");
+            await Assert.That(record.ContentFingerprint).IsNull()
+                .Because("a fingerprint left beside a new hash would point at the old content");
+        }
+    }
+
+    [Test]
     public async Task DemoRef_ProjectsAnIndexRow()
     {
         DemoRef r = DemoRef.From(new DemoCacheIndexEntry
@@ -313,10 +370,25 @@ public class ContentIdentityTests
         DemoCacheStore cache = new(null);
         try
         {
+            string expected = DemoContentHash.Compute(path);
+
+            // A clock standing at the file's own write time: the hash is still taken, the fingerprint is not.
+            DemoCacheStore unsettledCache = new(null);
+            using (DemoLibraryService unsettled = new(a => a(), libraryJson + ".unsettled", demoCache: unsettledCache))
+            {
+                unsettled.Time = new AppTests.Extensions.ManualClock { Now = file.LastWriteTimeUtc };
+                unsettled.IndexTier2Core(entry, parsed);
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(unsettledCache.TryGetIndex(path)!.Sha256).IsEqualTo(expected);
+                await Assert.That(unsettledCache.TryGetIndex(path)!.ContentFingerprint).IsNull();
+            }
+
             using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache);
             library.IndexTier2Core(entry, parsed);
 
-            string expected = DemoContentHash.Compute(path);
             using (Assert.Multiple())
             {
                 await Assert.That(entry.State).IsEqualTo(DemoIndexState.Indexed);
@@ -326,10 +398,30 @@ public class ContentIdentityTests
                 await Assert.That(cache.TryGetIndexBySha256(expected)!.Path).IsEqualTo(path)
                     .Because("a store keyed by hash can find the file again");
             }
+
+            // The demo under test is never rewritten, so it is settled and its fingerprint is deterministic.
+            DemoContentFingerprint? fingerprint = DemoContentFingerprint.TryCompute(path, TimeProvider.System);
+            await Assert.That(fingerprint).IsNotNull();
+            await Assert.That(cache.TryGetIndex(path)!.ContentFingerprint).IsEqualTo(fingerprint)
+                .Because("the fingerprint rides the read that took the hash");
+
+            // The second pass takes the hash from the metadata row and keeps the stored fingerprint.
+            library.IndexTier2Core(entry, parsed);
+            await Assert.That(cache.TryLoadRecord(path)!.ContentFingerprint).IsEqualTo(fingerprint);
+
+            // A cached hash beside a record with no fingerprint (an older build's row) gets one taken.
+            cache.Update(path, entry.FileSizeBytes, entry.Modified.Ticks, r => r.ContentFingerprint = null);
+            library.IndexTier2Core(entry, parsed);
+            using (Assert.Multiple())
+            {
+                await Assert.That(cache.TryGetIndex(path)!.ContentFingerprint).IsEqualTo(fingerprint);
+                await Assert.That(cache.TryGetIndex(path)!.Sha256).IsEqualTo(expected);
+            }
         }
         finally
         {
             File.Delete(libraryJson);
+            File.Delete(libraryJson + ".unsettled");
         }
     }
 
