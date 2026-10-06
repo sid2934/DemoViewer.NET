@@ -9,7 +9,11 @@ public static class HostIds
     /// </summary>
     public const string LibraryTab = "builtin.library";
 
-    /// <summary>The Strat Book tab, a hub: a section naming it as its <c>HostId</c> joins the Strat Book rail.</summary>
+    /// <summary>
+    ///     The Strat Book tab, a hub the Strat Book extension declares, not the app: a section naming it as its
+    ///     <c>HostId</c> joins the Strat Book rail. The hub exists only while the Strat Book is loaded and on, so
+    ///     such a section is hidden while it is off and left out, with a log line, when it is not loaded.
+    /// </summary>
     public const string StratBookHub = "stratbook.hub";
 
     /// <summary>The Match Overview tab.</summary>
