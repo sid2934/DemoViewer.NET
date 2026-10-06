@@ -50,6 +50,26 @@ public partial class DemoQueueItem : ObservableObject
     [ObservableProperty]
     private string? _detail;
 
+    /// <summary>A queued item's place in its lane's start order, from 0; null once it runs or ends.</summary>
+    [ObservableProperty]
+    private int? _startRank;
+
+    /// <summary>The item runs in the light lane; its <see cref="StartRank" /> counts that lane only.</summary>
+    [ObservableProperty]
+    private bool _light;
+
+    /// <summary>The user moved it to the top of its lane; cleared when it starts.</summary>
+    [ObservableProperty]
+    private bool _promoted;
+
+    /// <summary>What keeps a queued item from starting when its turn comes.</summary>
+    [ObservableProperty]
+    private DemoQueueHold _hold;
+
+    /// <summary>Order of ending, newest highest; 0 while active.</summary>
+    [ObservableProperty]
+    private long _endedSeq;
+
     /// <summary>Stable item identity (the <see cref="IDemoProcessingQueue.RemoveByUser" /> key).</summary>
     public required Guid Id { get; init; }
 

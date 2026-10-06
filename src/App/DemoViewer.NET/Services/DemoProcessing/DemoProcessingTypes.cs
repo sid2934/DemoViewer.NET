@@ -222,9 +222,31 @@ public sealed record QueueJobRequest(
     string? ExtensionKind = null,
     PassLevel? Level = null);
 
+/// <summary>Why a queued item may not start when its turn comes.</summary>
+public enum DemoQueueHold
+{
+    /// <summary>Nothing holds it.</summary>
+    None,
+
+    /// <summary>Background work is paused; it starts after Resume.</summary>
+    Paused,
+
+    /// <summary>Background processing is off in Settings; it starts once it is back on.</summary>
+    BackgroundOff,
+
+    /// <summary>A visit of the demo being opened: it runs on that open's parse.</summary>
+    OnOpen
+}
+
 /// <summary>
 ///     An immutable, thread-safe snapshot of one queue item (for code/tests that must read state
 ///     without touching the UI-thread-bound <see cref="IDemoProcessingQueue.Items" /> mirror).
+///     <para>
+///         <c>StartRank</c> is a queued item's place in the order its lane will start it, from 0, and null once
+///         it runs or ends; the heavy and light lanes rank separately (<c>Light</c>). <c>Promoted</c> is set
+///         by <c>Promote</c> until the item starts. <c>Hold</c> says what keeps it
+///         from starting when its turn comes. <c>EndedSeq</c> grows with each item that ends, 0 while active.
+///     </para>
 /// </summary>
 public sealed record DemoQueueItemSnapshot(
     Guid Id,
@@ -237,7 +259,12 @@ public sealed record DemoQueueItemSnapshot(
     QueueJobKind Kind = QueueJobKind.DemoProcessing,
     double? Progress = null,
     string? Detail = null,
-    string? ExtensionKind = null);
+    string? ExtensionKind = null,
+    int? StartRank = null,
+    bool Light = false,
+    bool Promoted = false,
+    DemoQueueHold Hold = DemoQueueHold.None,
+    long EndedSeq = 0);
 
 /// <summary>A handle to a submitted background item: read its state, await completion, or cancel it.</summary>
 public interface IDemoQueueHandle
