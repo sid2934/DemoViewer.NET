@@ -105,7 +105,7 @@ public class ParseOncePerDemoTests
                 await SettleAsync(queue);
 
                 await AssertEachReadOnce(provider, queue, folder);
-                await AssertRanOnTheRead(provider, outcomes, folder);
+                await AssertRanOnTheRead(provider, outcomes, folder, roundIndex: false);
             }, configDir: config);
         }
         finally
@@ -236,7 +236,9 @@ public class ParseOncePerDemoTests
         }
     }
 
-    private static async Task AssertRanOnTheRead(IServiceProvider provider, PassOutcomes outcomes, string folder)
+    // The round index keeps its own store; a session that kept it has nothing for the index to redo.
+    private static async Task AssertRanOnTheRead(IServiceProvider provider, PassOutcomes outcomes, string folder,
+        bool roundIndex = true)
     {
         DemoCacheStore cache = provider.GetRequiredService<DemoCacheStore>();
         using (Assert.Multiple())
@@ -246,7 +248,7 @@ public class ParseOncePerDemoTests
                 await Assert.That(outcomes.Of(demo, "library")).IsEquivalentTo([PassOutcome.Ran]).Because($"{demo}: library");
                 await Assert.That(outcomes.Of(demo, RoundFactsEvaluator.EvaluatorId)).IsEquivalentTo([PassOutcome.Ran])
                     .Because($"{demo}: round facts ran on the Library's read instead of sitting it out");
-                if (cache.TryGetIndex(demo)?.HasRoundFacts() == true)
+                if (roundIndex && cache.TryGetIndex(demo)?.HasRoundFacts() == true)
                 {
                     await Assert.That(outcomes.Of(demo, RoundIndexEvaluator.EvaluatorId)).IsEquivalentTo([PassOutcome.Ran])
                         .Because($"{demo}: the round index ran on the same read as the rows it indexes");
