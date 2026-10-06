@@ -212,6 +212,45 @@ public class ContentKeyedCacheTests
         }
     }
 
+    /// <summary>
+    ///     The re-keyed index saved and the app closed before the pass ran: the next launch still knows which
+    ///     rows have files under an old name, and the pass moves them.
+    /// </summary>
+    [Test]
+    public async Task ARekeyedIndexSavedBeforeThePass_StillNamesTheOldKeys()
+    {
+        string root = TempRoot();
+        try
+        {
+            WriteVersion4(root, (Analysed("/m/a.dem", "sha-a"), "note a"), (Record("/m/b.dem", null), null));
+            await Assert.That(new DemoCacheStore(root).TrySaveIndex()).IsTrue();
+
+            DemoCacheStore store = new(root);
+            string pathKey = DemoCacheStore.StableKey("/m/a.dem");
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.UnsettledRows()).IsEquivalentTo(["sha-a"]);
+                await Assert.That(store.ContentKeyMigrationVersion).IsEqualTo(0);
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Scoreboard).HasCount(1);
+                await Assert.That(store.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("note a");
+            }
+
+            ContentKeyMigrationResult result = await ContentKeyMigration.RunAsync(store);
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Completed).IsTrue();
+                await Assert.That(result.Settled).IsEqualTo(1);
+                await Assert.That(Files(root).Any(f => f.StartsWith(pathKey, StringComparison.Ordinal))).IsFalse();
+                await Assert.That(Files(root)).Contains("sha-a.json.gz");
+                await Assert.That(Files(root)).Contains("sha-a" + Suffix);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     [Test]
     public async Task AHashLearnedLater_MovesTheRecordAndItsSiblings_OnlyOnceTheIndexIsSaved()
     {
