@@ -1210,8 +1210,8 @@ public sealed class DemoCacheStore
 
     /// <summary>
     ///     Forgets a demo path at once: the explicit delete. The row and its files go only with its last path;
-    ///     another path to the same bytes keeps everything. A path an orphaned row last had takes that row and
-    ///     its files with it.
+    ///     another path to the same bytes keeps everything. A path orphaned rows last had takes those rows and
+    ///     their files with it.
     /// </summary>
     public void Remove(string path)
     {
@@ -1243,9 +1243,8 @@ public sealed class DemoCacheStore
         string? owner;
         lock (_gate)
         {
-            owner = _keyByPath.TryGetValue(path, out string? k)
-                    && (_rows[k].Locations.Count > 1 || (keepContent && !IsProvisional(_rows[k])))
-                    && _rows[k].SidecarKeys?.Contains(pathKey) == true
+            owner = _keyByPath.TryGetValue(path, out string? k) && _rows[k].Locations.Count > 1
+                                                                 && _rows[k].SidecarKeys?.Contains(pathKey) == true
                 ? k
                 : null;
         }
@@ -1257,6 +1256,7 @@ public sealed class DemoCacheStore
 
         bool removed = false;
         DemoCacheIndexEntry? dropped = null;
+        List<DemoCacheIndexEntry> alsoDropped = [];
         lock (_gate)
         {
             if (_keyByPath.TryGetValue(path, out string? key))
@@ -1271,7 +1271,13 @@ public sealed class DemoCacheStore
                 }
                 else if (keepContent && !IsProvisional(row))
                 {
-                    Link(key, Orphan(row, DateTime.UtcNow.Ticks));
+                    // Files still under the path's key move at the next index save, or before a write there.
+                    DemoCacheIndexEntry orphan = Orphan(row, DateTime.UtcNow.Ticks);
+                    Link(key, orphan);
+                    if (orphan.SidecarKeys is not null)
+                    {
+                        _settleAfterSave.Add(key);
+                    }
                 }
                 else
                 {
@@ -1279,18 +1285,27 @@ public sealed class DemoCacheStore
                     Forget(key);
                 }
             }
-            else if (!keepContent && OrphanKeyAt(path) is { } orphanKey)
+            else if (!keepContent)
             {
-                dropped = _rows[orphanKey];
-                Unlink(orphanKey);
-                Forget(orphanKey);
-                removed = true;
+                List<string> orphans = [.. _rows.Where(r => RemembersPath(r.Value, path)).Select(r => r.Key)];
+                dropped = orphans.Count > 0 ? _rows[orphans[0]] : null;
+                foreach (string orphanKey in orphans)
+                {
+                    if (orphanKey != orphans[0])
+                    {
+                        alsoDropped.Add(_rows[orphanKey]);
+                    }
+
+                    Unlink(orphanKey);
+                    Forget(orphanKey);
+                    removed = true;
+                }
             }
         }
 
         if (dropped is not null)
         {
-            DeleteFiles(FileKeys(dropped));
+            DeleteFiles([.. alsoDropped.Prepend(dropped).SelectMany(FileKeys).Distinct(StringComparer.Ordinal)]);
         }
         else if (!removed)
         {
@@ -1320,9 +1335,18 @@ public sealed class DemoCacheStore
         {
             lock (_gate)
             {
-                if (_keyByPath.ContainsKey(path) || OrphanKeyAt(path) is not { } key
-                                                 || _rows[key].DetachedLocations?.FirstOrDefault(l => SamePath(l.Path, path)) is not { } was
-                                                 || was.Size != size || was.ModifiedTicks != modifiedTicks)
+                if (_keyByPath.ContainsKey(path))
+                {
+                    return false;
+                }
+
+                (string key, DemoLocation was) = _rows
+                    .Where(r => r.Value.IsOrphaned)
+                    .SelectMany(r => (r.Value.DetachedLocations ?? []).Select(l => (r.Key, l)))
+                    .Where(x => SamePath(x.l.Path, path) && x.l.Size == size && x.l.ModifiedTicks == modifiedTicks)
+                    .OrderByDescending(x => _rows[x.Key].OrphanedSinceUtcTicks)
+                    .FirstOrDefault();
+                if (key is null)
                 {
                     return false;
                 }
@@ -2309,19 +2333,15 @@ public sealed class DemoCacheStore
         }
     }
 
-    // Under _gate. The orphaned row that last had the path, or null.
-    private string? OrphanKeyAt(string path)
-    {
-        foreach ((string key, DemoCacheIndexEntry row) in _rows)
-        {
-            if (row.IsOrphaned && (SamePath(row.Path, path) || row.DetachedLocations?.Any(l => SamePath(l.Path, path)) == true))
-            {
-                return key;
-            }
-        }
+    // Under _gate. The most recently orphaned row that had the path, or null.
+    private string? OrphanKeyAt(string path) =>
+        _rows.Where(r => RemembersPath(r.Value, path))
+            .OrderByDescending(r => r.Value.OrphanedSinceUtcTicks)
+            .Select(r => r.Key)
+            .FirstOrDefault();
 
-        return null;
-    }
+    private static bool RemembersPath(DemoCacheIndexEntry row, string path) =>
+        row.IsOrphaned && (SamePath(row.Path, path) || row.DetachedLocations?.Any(l => SamePath(l.Path, path)) == true);
 
     // Under _gate. The only writers of the row maps, so the path lookup and the views move with the rows.
     private void Link(string key, DemoCacheIndexEntry row)

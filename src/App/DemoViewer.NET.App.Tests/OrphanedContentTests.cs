@@ -232,6 +232,64 @@ public class OrphanedContentTests
     }
 
     [Test]
+    public async Task AnOrphanWhoseFilesSitUnderItsPathsKey_KeepsThem_WhenAnotherFileIsWrittenThere()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore store = new(root);
+            // No index save yet: a new row's files are still under the path's key.
+            store.Upsert(Analysed("/m/a.dem", "sha-a"));
+            store.WriteSibling("/m/a.dem", Suffix, "facts");
+            store.Detach("/m/a.dem");
+            store.Update("/m/a.dem", 50, 60, DemoCacheStore.StampHeader);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Analysis.IsPresent).IsFalse();
+                await Assert.That(store.TryReadSibling("/m/a.dem", Suffix)).IsNull();
+                await Assert.That(store.TryGetOrphan("sha-a")).IsNotNull();
+            }
+
+            store.AttachUnconfirmed("sha-a", "/n/a.dem", 1000, 2000);
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryGetIndex("/n/a.dem")!.Tier).IsEqualTo(DemoCacheTier.Analysis);
+                await Assert.That(store.TryReadSibling("/n/a.dem", Suffix)).IsEqualTo("facts");
+            }
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
+    [Test]
+    public async Task TwoOrphansThatHadOnePath_AreToldApartByTheFilesStamps()
+    {
+        DemoCacheStore store = new(null);
+        store.Upsert(Analysed("/m/a.dem", "sha-old", 1000, 2000));
+        store.Detach("/m/a.dem");
+        store.Upsert(Analysed("/m/a.dem", "sha-new", 1500, 3000));
+        store.Detach("/m/a.dem");
+
+        await Assert.That(store.Reattach("/m/a.dem", 1000, 2000)).IsTrue();
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.TryGetIndex("/m/a.dem")!.Sha256).IsEqualTo("sha-old");
+            await Assert.That(store.TryGetOrphan("sha-new")).IsNotNull();
+        }
+
+        store.Detach("/m/a.dem");
+        store.Remove("/m/a.dem");
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.HoldsContent("sha-old")).IsFalse().Because("an explicit remove takes every orphan that had the path");
+            await Assert.That(store.HoldsContent("sha-new")).IsFalse();
+        }
+    }
+
+    [Test]
     public async Task TheSweep_DeletesOnlyOrphansPastTheGracePeriod()
     {
         string root = TempRoot();
