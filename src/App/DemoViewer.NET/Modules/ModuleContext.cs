@@ -5,6 +5,7 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.ViewModels.Playback;
@@ -334,9 +335,16 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
             return (T?)resolve();
         }
 
+        // The container answers only for an extension's own types while that extension is on. A host type is
+        // never reachable this way: the host's services are not a module's to resolve.
+        if (_services is null || _faults?.Owner(typeof(T).Assembly) is not { } owner)
+        {
+            return null;
+        }
+
         try
         {
-            return _services?.GetService<T>();
+            return _services.GetService<IFeatureGate>()?.IsEnabled(owner.FeatureId) == false ? null : _services.GetService<T>();
         }
         catch (ObjectDisposedException)
         {
