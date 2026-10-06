@@ -42,7 +42,7 @@ package version, embed the result in the assembly and copy it beside the DLL:
 }
 ```
 
-- `id` is reverse-DNS and permanent. Ids starting with `net.demoviewer.` are reserved for the app's own
+- `id` is lowercase reverse-DNS (`[a-z0-9._-]`) and permanent. Ids starting with `net.demoviewer.` are reserved for the app's own
   extensions and never load from a third party.
 - `requiresHost` is the SDK range you built against. The app refuses an extension whose range it does not
   satisfy.
@@ -358,8 +358,9 @@ byte[]? payload = data.Read(demoPath, "rounds", Schema, Fingerprint);
 than one file under one stamp; `MarkFailed`, `ClearFailed`, `Invalidate` and `SetCount` change a stamp alone.
 The browser build keeps no per-demo data: `IsAvailable` is false.
 
-"Delete extension data" in Settings switches the extension off, then removes your folders, your per-demo data
-and the stores you declared, and calls what you registered with `DataDeleted`.
+"Delete extension data" in Settings switches the extension off, then removes your folders, your settings, your
+per-demo data and the stores you declared, and calls what you registered with `DataDeleted`. A declared store's
+paths must start with your id (`<id>.json`, `<id>-old/`); one that does not is dropped and logged.
 
 ## Installing
 

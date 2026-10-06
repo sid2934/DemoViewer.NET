@@ -102,7 +102,7 @@ public sealed partial record ExtensionManifest(
         string id = Required(dto.Id, "id");
         if (!IsValidId(id))
         {
-            throw new ExtensionManifestException($"'id' must be a reverse-DNS name; got '{id}'.");
+            throw new ExtensionManifestException($"'id' must be a lowercase reverse-DNS name; got '{id}'.");
         }
 
         string assembly = Required(dto.Assembly, "assembly");
@@ -151,14 +151,15 @@ public sealed partial record ExtensionManifest(
     }
 
     /// <summary>
-    ///     The id rule the manifest and the feed share: reverse-DNS over <c>[A-Za-z0-9._-]</c>, starting
-    ///     with a letter or digit. The id names a folder under the config root, and the loader skips dot
-    ///     folders, so a leading dot is refused here rather than hidden there.
+    ///     The id rule the manifest and the feed share: reverse-DNS over <c>[a-z0-9._-]</c>, starting
+    ///     with a letter or digit. The id names folders and files under the config root, and the loader skips
+    ///     dot folders, so a leading dot is refused here rather than hidden there. Lowercase only: macOS and
+    ///     Windows ignore case in paths, so two ids that differ only in case would share one store.
     /// </summary>
     public static bool IsValidId(string? id) =>
         id is not null && IdPattern().IsMatch(id) && id.Contains('.', StringComparison.Ordinal);
 
-    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$")]
+    [GeneratedRegex("^[a-z0-9][a-z0-9._-]*$")]
     private static partial Regex IdPattern();
 
     private static string Required(string? value, string member) =>

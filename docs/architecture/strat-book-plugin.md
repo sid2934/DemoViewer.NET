@@ -1075,7 +1075,7 @@ the signed zip is what the trust policy judges.
 
 | Member | Required | Meaning |
 |---|---|---|
-| `id` | yes | The extension id; every entry's manifest must carry it. Only `[A-Za-z0-9._-]`, since it names a folder. |
+| `id` | yes | The extension id; every entry's manifest must carry it. Only lowercase `[a-z0-9._-]`, since it names folders and the filesystem may ignore case. |
 | `entries` | yes | Every published version, in any order; parsed highest first. At most 500. |
 | `entries[].version` | yes | SemVer 2.0; must equal the manifest's `version`. No two entries share one. |
 | `entries[].manifest` | yes | The section 2.7 manifest, so the app can judge a version before downloading it. Parsed by the same strict parser; must name `id`. |
