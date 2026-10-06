@@ -2521,8 +2521,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         try
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(_dataPath)!);
-            File.WriteAllText(_dataPath, JsonSerializer.Serialize(data, _jsonOptions));
+            AtomicFile.WriteAllText(_dataPath, JsonSerializer.Serialize(data, _jsonOptions));
         }
         catch
         {

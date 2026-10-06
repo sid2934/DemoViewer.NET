@@ -1029,6 +1029,59 @@ public class DemoLibraryServiceTests
         }
     }
 
+    /// <summary>
+    ///     A save killed between writing its temporary file and replacing library.json leaves the previous
+    ///     file whole: the next start loads it and ignores the stray temporary file, and a reader holding the
+    ///     old file open through the next save still reads the old file, not a truncated rewrite of it.
+    /// </summary>
+    [Test]
+    public async Task ASaveKilledBeforeItsRename_LeavesThePreviousLibraryJson_AndTheNextSaveReplacesItWhole()
+    {
+        string cfgDir = NewTempDir();
+        string folder = NewTempDir();
+        string libJson = Path.Combine(cfgDir, "library.json");
+        string stray = Path.Combine(cfgDir, ".library.json." + Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            WriteLegacyLibraryJson(libJson, folder);
+            byte[] previous = await File.ReadAllBytesAsync(libJson);
+            await File.WriteAllTextAsync(stray, "{\"SchemaVersion\":");
+
+            using DemoLibraryService svc = new(_inline, libJson);
+            await Assert.That(svc.Folders.Contains(folder)).IsTrue()
+                .Because("the previous library.json loads; the half-written temporary file is not read");
+
+            byte[] seenByReader;
+            await using (FileStream reader = new(libJson, FileMode.Open, FileAccess.Read,
+                             FileShare.ReadWrite | FileShare.Delete))
+            {
+                svc.Save();
+                using MemoryStream copy = new();
+                await reader.CopyToAsync(copy);
+                seenByReader = copy.ToArray();
+            }
+
+            svc.Save();
+            DemoLibraryData? saved = JsonSerializer.Deserialize<DemoLibraryData>(await File.ReadAllTextAsync(libJson));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(seenByReader).IsEquivalentTo(previous)
+                    .Because("the save replaces library.json; it never rewrites the open file in place");
+                await Assert.That(saved?.Folders).IsNotNull();
+                await Assert.That(saved!.Folders).Contains(folder);
+                await Assert.That(Directory.GetFiles(cfgDir).Order())
+                    .IsEquivalentTo(new[] { libJson, stray }.Order())
+                    .Because("a save leaves no temporary file of its own");
+            }
+        }
+        finally
+        {
+            Cleanup(cfgDir);
+            Cleanup(folder);
+        }
+    }
+
     private static string NewTempDir()
     {
         string dir = Path.Combine(Path.GetTempPath(), "dvlibcfg_" + Guid.NewGuid().ToString("N"));
