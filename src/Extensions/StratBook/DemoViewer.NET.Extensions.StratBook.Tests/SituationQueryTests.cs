@@ -417,7 +417,7 @@ public class SituationQueryTests
         RoundIndexDocument other = DocA();
         other.Demo.Sha256 = "def";
         Indexed(h.Cache, h.Sidecars, DemoA, other, sha: "abc");
-        Indexed(h.Cache, h.Sidecars, DemoB, DocB(), sha: "same");
+        Indexed(h.Cache, h.Sidecars, DemoB, DocB(), sha: "bbb");
         RoundIndexDocument matching = DocC();
         matching.Demo.Sha256 = "same";
         Indexed(h.Cache, h.Sidecars, DemoC, matching, sha: "same");
