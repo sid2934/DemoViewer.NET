@@ -39,7 +39,8 @@ public class SidecarFormatTests
                 kills: [RoundIndexTestData.Kill(n * 10_000 + 500, 6), RoundIndexTestData.Kill(n * 10_000 + 900, 2)]));
         }
 
-        DemoCacheRecord record = RoundIndexTestData.ParsedRecord(path, "de_nuke", "sha-1", RoundIndexTestData.Facts([.. rounds]));
+        DemoCacheRecord record = RoundIndexTestData.ParsedRecord(path, "de_nuke", "sha-" + Path.GetFileNameWithoutExtension(path),
+            RoundIndexTestData.Facts([.. rounds]));
         for (int slot = 1; slot <= 10; slot++)
         {
             record.Players.Add(new CachedPlayerInfo { Slot = slot, Name = $"player {slot}", SteamId64 = $"7656119800000{slot:D4}", Team = slot <= 5 ? 3 : 2 });
