@@ -202,6 +202,58 @@ public class AnalysisFactsTests
     }
 
     [Test]
+    public async Task FactsWrittenThroughOnePath_ReadThroughAnother_AcrossTheRenameAndAReopen()
+    {
+        string fixture = WriteFixture((FactsRuleset, FactsYaml));
+        string root = Path.Combine(Path.GetTempPath(), "dv-facts-copies-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            MergedRulesBuild rules = new(() => WithFixture(fixture),
+                () => [StampedRuleset.Core(RoundFactsFingerprint.RulesetId), new StampedRuleset(FactsRuleset, "dev.example.x", () => true)]);
+            StampedFacts stamped = new(rules);
+            const string nfs = "/nfs/a.dem";
+            const string smb = "/smb/a.dem";
+            string fingerprint = stamped.Fingerprint(FactsRuleset, 64)!;
+            FactKey key = new(FactsRuleset, FactsTable);
+
+            DemoCacheStore cache = new(root);
+            cache.Upsert(new DemoCacheRecord
+            {
+                Path = nfs, Size = 1, Sha256 = "sha-a", Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
+            });
+            cache.WriteSiblingBytes(nfs, StampedFacts.Suffix(key), FactsCodec.Encode(
+                new FactTable(key, fingerprint, StampedFacts.Schema, "player_match", ["slot"], ["k"], new Dictionary<string, string>(), [])));
+            cache.UpdateExisting(nfs, r => r.SetStamp(new PackStamp(StampedFacts.StampId(FactsRuleset), StampedFacts.Schema, fingerprint)));
+            cache.Update(smb, 1, 0, r => r.Sha256 = "sha-a");
+            cache.SaveIndex();
+
+            AnalysisFacts facts = new(cache, stamped, new RoundFactsSource(cache));
+            DemoCacheStore reopened = new(root);
+            AnalysisFacts reread = new(reopened, stamped, new RoundFactsSource(reopened));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(cache.TryGetIndex(smb)!.Locations).HasCount(2);
+                await Assert.That(Directory.GetFiles(Path.Combine(root, "demos")).Select(Path.GetFileName).All(n => n!.StartsWith("sha-a.", StringComparison.Ordinal)))
+                    .IsTrue().Because("the saved index named the hash, so the files moved to it");
+                await Assert.That(facts.Status(smb, key)).IsEqualTo(FactStatus.Current);
+                await Assert.That(facts.TryGet(smb, key)).IsNotNull();
+                await Assert.That(new FactsEvaluator(cache, stamped).Wants(smb)).IsFalse()
+                    .Because("the other path's facts are this demo's");
+                await Assert.That(reread.TryGet(smb, key)).IsNotNull();
+            }
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Test]
     public async Task AnOwnerThatIsOff_TakesItsFactsOffTheLibraryRows_AndTheirQuery()
     {
         string fixture = WriteFixture((FactsRuleset, FactsYaml));

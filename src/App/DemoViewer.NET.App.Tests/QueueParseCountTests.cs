@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
@@ -50,6 +51,23 @@ public class QueueParseCountTests
         {
             await Assert.That(queue.ParseCount(Demo)).IsEqualTo(2).Because("both paths hold the same content");
             await Assert.That(queue.ParseCounts()["abc"]).IsEqualTo(2);
+        }
+    }
+
+    [Test]
+    public async Task TwoPathsTheCacheHoldsAsOneDemo_AreCountedTogether_ThroughTheCachesLookup()
+    {
+        DemoCacheStore cache = new(null);
+        cache.Upsert(new DemoCacheRecord { Path = Demo, Size = 1, Sha256 = "sha-m" });
+        cache.Upsert(new DemoCacheRecord { Path = "/smb/match.dem", Size = 1, Sha256 = "sha-m" });
+        using DemoProcessingQueue queue = Queue(path => cache.TryGetIndex(path)?.Sha256);
+        await queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Backlog, [new TestPass("library")])).Completion;
+        await queue.SubmitVisit(new DemoVisitRequest("/SMB/match.dem", PassLevel.Backlog, [new TestPass("library")])).Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.ParseCount("/smb/match.dem")).IsEqualTo(2);
+            await Assert.That(queue.ParseCounts().Keys).IsEquivalentTo(["sha-m"]);
         }
     }
 
