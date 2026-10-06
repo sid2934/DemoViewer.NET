@@ -15,9 +15,9 @@ namespace DemoViewer.NET.Extensions.StratBook;
 /// <summary>
 ///     Every store and cache path the pack owns outside its own folders, read by both
 ///     <see cref="StratBookPack.Contribute" /> (the loop that reports them) and the pack test's writer-coverage
-///     check. The user's own work stays where users have it. The cache entries marked "old layout" are where
-///     older builds kept what the extension's per-demo data holds now; nothing writes them, and "delete
-///     extension data" still removes them. <c>review-queue.json</c> is not here: the Review Queue is core, since
+///     check. The user's own work stays where users have it. The entries marked "old layout" are where older
+///     builds kept what the extension's own folders and per-demo data hold now; nothing writes them, and
+///     "delete extension data" still removes them. <c>review-queue.json</c> is not here: the Review Queue is core, since
 ///     Reels uses it.
 /// </summary>
 internal static class StratBookStores
@@ -34,11 +34,14 @@ internal static class StratBookStores
         new("watched-situations", "Watched Situations", StoreRoot.Config, ["watched-situations.json"], IsUserWork: true),
         new("veto-history", "Veto history", StoreRoot.Config, ["veto-history.json"], IsUserWork: true),
         new("dossier-notes", "Dossier notes", StoreRoot.Config, ["dossier-notes.json"], IsUserWork: true),
-        new("strat-mining-state", "Strat Mining (dismissed and promoted)", StoreRoot.Config, ["strat-mining.json"], IsUserWork: true),
 
-        // ── Cache root: regenerable ──────────────────────────────────────────────
-        new("strat-mining-cache", "Strat Mining detections", StoreRoot.Cache, ["strat-mining"], IsUserWork: false),
-        new("team-index", "Team index", StoreRoot.Cache, ["team-index.json"], IsUserWork: false),
+        // ── Config root: the old layout, copied once into the extension's own folder ──
+        new("strat-mining-state", "Strat Mining dismissed and promoted (old layout)", StoreRoot.Config, ["strat-mining.json"],
+            IsUserWork: true),
+
+        // ── Cache root: the old layout of what the extension's own cache folder holds now ──
+        new("strat-mining-cache", "Strat Mining detections (old layout)", StoreRoot.Cache, ["strat-mining"], IsUserWork: false),
+        new("team-index", "Team index (old layout)", StoreRoot.Cache, ["team-index.json"], IsUserWork: false),
 
         // ── Cache root: the old layout, read once or not at all ─────────────────
         new("round-index", "Round Index (old layout)", StoreRoot.Cache, ["round-index"], IsUserWork: false),

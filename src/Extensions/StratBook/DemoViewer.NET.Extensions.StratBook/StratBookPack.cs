@@ -291,17 +291,19 @@ public sealed class StratBookPack : IExtension
             return palettes;
         });
 
-        // Team Identity: teams as data over the library's sides. Two files under the config root, the
-        // user's teams.json beside settings.json and the derived team-index.json under cache/; the
-        // service lifts side keys off the library's change events and replays clustering off the UI thread.
-        // Round Facts is the join SideAtRound reads. Null config root (the browser) makes it session-only.
+        // Team Identity: teams as data over the library's sides. Two files: the user's teams.json where it
+        // has always been, and the derived team-index.json in the extension's own cache folder, rebuilt
+        // when missing. The service lifts side keys off the library's change events and replays clustering
+        // off the UI thread. Round Facts is the join SideAtRound reads. No teams file (the browser) makes it
+        // session-only.
         services.AddSingleton(sp =>
         {
             // Built detached and unread: the pack's lifecycle attaches it, and only then does its file
             // read enter the queue. The gate is not read here on purpose, since at container build the
             // first-run wizard has not asked yet.
             TeamIdentityService teams = new(
-                Paths(sp).ConfigRoot,
+                new TeamIdentityFiles(Paths(sp).TeamsFile,
+                    StoredFile.In(Host(sp).Storage, StoreRoot.Cache, TeamIdentityService.IndexFileName)),
                 Library(sp),
                 RoundFactsOf(sp),
                 Host(sp).Post,
@@ -410,11 +412,11 @@ public sealed class StratBookPack : IExtension
         // Watched Situations: the saved queries in watched-situations.json beside teams.json, re-run
         // over one demo on the index's Indexed hook and over the library at the watermark on every
         // other change. A container singleton so the module's badge and the tab's list share one
-        // state; null config root (the browser) keeps the list for the session.
+        // state; no file (the browser) keeps the list for the session.
         services.AddSingleton(sp =>
         {
             WatchedSituationsService watched = new(
-                Paths(sp).ConfigRoot,
+                Paths(sp).WatchedSituationsFile,
                 sp.GetRequiredService<ISituationIndex>(),
                 Library(sp),
                 sp.GetRequiredService<TeamIdentityService>(),
@@ -516,8 +518,7 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<TeamIdentityService>(),
                 sp.GetRequiredService<StratStore>(),
                 sp.GetRequiredService<TagStore>(),
-                Paths(sp).CacheRoot,
-                Paths(sp).ConfigRoot,
+                MiningFiles(sp),
                 Host(sp).Post,
                 jobs: Host(sp).Jobs,
                 enabled: () => features.IsEnabled(PackFeatureId),
@@ -645,13 +646,12 @@ public sealed class StratBookPack : IExtension
         // uses. It loads once at startup off the UI thread and merges each demo as the evaluator writes it.
         services.AddSingleton(sp =>
         {
-            string? legacyLineups = Paths(sp).CacheRoot is { } cacheRoot ? Path.Combine(cacheRoot, GrenadeLineupStore.FileName) : null;
             GrenadeIndex index = new(
                 Library(sp),
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 sp.GetRequiredService<GrenadeIndexEvaluator>(),
                 Host(sp).Post,
-                lineups: GrenadeLineupStore.In(Host(sp).Storage, legacyLineups),
+                lineups: GrenadeLineupStore.In(Host(sp).Storage, Paths(sp).ReadLegacyGrenadeLineups),
                 scheduleSave: drain => Job(sp, "Save: grenade lineups", drain,
                     new JobOptions(BuiltInJobKinds.Save, Key: "save:grenade-lineups")));
             sp.GetRequiredService<StratBookPackInstances>().Record(index);
@@ -659,12 +659,12 @@ public sealed class StratBookPack : IExtension
         });
         services.AddSingleton(sp => UtilityBookFor(sp, null, null));
 
-        // The Opponent Dossier's veto history: manual entry only, beside teams.json. Null
-        // config root (the browser) keeps entries in memory for the session.
-        services.AddSingleton(sp => new VetoHistoryStore(Paths(sp).ConfigRoot));
+        // The Opponent Dossier's veto history: manual entry only, beside teams.json. No file (the
+        // browser) keeps entries in memory for the session.
+        services.AddSingleton(sp => new VetoHistoryStore(Paths(sp).VetoHistoryFile));
         // Dossier Editing And Export: the user's stars, rewritten lines, notes and summary per team, beside
         // the veto history; session-only on the browser the same way.
-        services.AddSingleton(sp => new DossierNotesStore(Paths(sp).ConfigRoot));
+        services.AddSingleton(sp => new DossierNotesStore(Paths(sp).DossierNotesFile));
         // The Dossier tab VM: a container singleton resolved lazily on first activation, over Team
         // Identity's own teams and the unified cache the Map Pool Record reads. The Setup Heatmaps read
         // the round index's positions files under the same fingerprint the Situations tab trusts, and
@@ -720,7 +720,7 @@ public sealed class StratBookPack : IExtension
             ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
             LineupClipService clips = new(
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
-                Paths(sp).ConfigRoot is { } root ? Path.Combine(root, LineupClipService.DirectoryName) : null,
+                Paths(sp).LineupClipsDirectory,
                 () => settings.RenderLineupClips,
                 new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
@@ -750,6 +750,17 @@ public sealed class StratBookPack : IExtension
 
     // Where the user's own work already lives, from before extensions had folders of their own.
     private static FirstPartyHost Paths(IServiceProvider sp) => sp.GetRequiredService<FirstPartyHost>();
+
+    // Strat Mining's files in the extension's own folders. The detections rebuild on the next mine; the
+    // user's dismissed and promoted patterns are copied once from where an older build kept them.
+    private static StratMiningFiles MiningFiles(IServiceProvider sp)
+    {
+        IExtensionStorage storage = Host(sp).Storage;
+        return new StratMiningFiles(
+            StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.DetectedPath),
+            StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.SignaturesPath),
+            StoredFile.In(storage, StoreRoot.Config, StratMiningFiles.StatePath, Paths(sp).ReadLegacyStratMiningState));
+    }
 
     // The demo library, read only.
     private static IExtensionLibrary Library(IServiceProvider sp) => Host(sp).Library;
@@ -949,7 +960,7 @@ public sealed class StratBookPack : IExtension
             sp.GetRequiredService<GrenadeIndex>(),
             sp.GetRequiredService<ISituationPlayback>(),
             demoDate: path => library.Find(path) is { Modified.Ticks: > 0 } entry ? new DateTime(entry.Modified.Ticks) : null,
-            clipDirectory: Paths(sp).ConfigRoot is { } root ? Path.Combine(root, LineupClipService.DirectoryName) : null,
+            clipDirectory: Paths(sp).LineupClipsDirectory,
             background: work => _ = Job(sp, lockedMap is null ? "Utility Book" : "Lineup picker", work,
                 new JobOptions(Key: lockedMap is null ? "section:utility" : "section:lineup-picker", Preemptible: true)),
             post: Host(sp).Post,

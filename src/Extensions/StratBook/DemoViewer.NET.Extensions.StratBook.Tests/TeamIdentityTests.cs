@@ -63,7 +63,7 @@ public class TeamIdentityTests
     private static (DemoCacheStore Cache, TeamIdentityService Teams) Fresh(string? root = null, IRoundFactsSource? facts = null)
     {
         DemoCacheStore cache = new(root is null ? null : Path.Combine(root, "cache"));
-        TeamIdentityService teams = new(root, cache.Library(), facts, run: _inline);
+        TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), facts, run: _inline);
         return (cache, teams);
     }
 

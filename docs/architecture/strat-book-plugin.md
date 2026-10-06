@@ -1728,9 +1728,15 @@ Rules as built:
   seed it from the 2D export's saved folder and quality, and hold the managed ffmpeg folder and the theme
   palette. Export, which stays first-party: the export dialog and status view models with their range and
   size options, and `ExportJobService` with its runners and encoding. The review queue: `ReviewQueue`.
-  One app type falls outside those groups: `FirstPartyHost`, the folders the user's strats, tags, palettes,
-  Suggested Tags profile and lineup clips already live in. That work stays where users have it, so the
-  extension reads and writes those folders in place rather than through `IExtensionContext.Storage`. Nothing else: the strat canvas is an `ISceneSource` drawn by the UI kit's `SceneView`, with its scrubber a
+  One app type falls outside those groups: `FirstPartyHost`, one member per store of the user's own work:
+  strats, tags, teams, watched situations, veto history, dossier notes, palettes, the Suggested Tags profile
+  and lineup clips. That work stays where users have it, so the extension reads and writes those files and
+  folders in place rather than through `IExtensionContext.Storage`. It also holds the zones overlay folder,
+  read only, and two one-time reads of files an older build kept elsewhere (the grenade lineups and Strat
+  Mining's dismissed and promoted patterns), which the extension copies into its own folders. It has no root
+  folder: what the extension can rebuild (Strat Mining's detections and signatures, the team index) lives in
+  its own folders through `IExtensionContext.Storage`, and `FirstPartyHostSurfaceTests` pins the member list
+  with a reason for each. Nothing else: the strat canvas is an `ISceneSource` drawn by the UI kit's `SceneView`, with its scrubber a
   `SceneTimeline` shown by `TimelineView`, and it resolves keys and names gestures through
   `IExtensionContext.Keymap` (`ActionFor`, `GestureText`, `Changed`), so the user's rebinds reach it without
   the settings file. Its tool row (`StratCanvasTools`) is its own, over a plain `AnnotationSession`. The

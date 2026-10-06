@@ -33,11 +33,11 @@ public sealed record CachedSignature(
 public sealed record DemoSignatures(string? Sha256, IReadOnlyList<CachedSignature> Signatures);
 
 /// <summary>
-///     Per-demo mining signatures, kept in memory and in <c>&lt;cache&gt;/strat-mining/signatures.json.gz</c>, so a
-///     re-mine reads files only for demos whose inputs changed. An entry is valid only under the exact key it was
-///     built with. Null path keeps it in memory. Not thread-safe: one mine at a time uses it.
+///     Per-demo mining signatures, kept in memory and in a gzipped file of the extension's cache, so a re-mine
+///     reads files only for demos whose inputs changed. An entry is valid only under the exact key it was built
+///     with. A null file keeps it in memory. Not thread-safe: one mine at a time uses it.
 /// </summary>
-public sealed class SignatureCache(string? path)
+public sealed class SignatureCache(StoredFile? file)
 {
     /// <summary>The file's shape version.</summary>
     public const int SchemaVersion = 1;
@@ -89,7 +89,7 @@ public sealed class SignatureCache(string? path)
     /// <summary>Writes the file when anything changed since it was read or last written.</summary>
     public void Save()
     {
-        if (!_dirty || path is null)
+        if (!_dirty || file is null)
         {
             _dirty = false;
             return;
@@ -97,11 +97,13 @@ public sealed class SignatureCache(string? path)
 
         try
         {
-            AtomicFile.Write(path, stream =>
+            using MemoryStream buffer = new();
+            using (GZipStream gzip = new(buffer, CompressionLevel.Fastest, leaveOpen: true))
             {
-                using GZipStream gzip = new(stream, CompressionLevel.Fastest, leaveOpen: true);
                 JsonSerializer.Serialize(gzip, new CacheFile(SchemaVersion, Entries), JsonOptions);
-            });
+            }
+
+            file.Write(buffer.ToArray());
             _dirty = false;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -112,11 +114,16 @@ public sealed class SignatureCache(string? path)
 
     private Dictionary<string, Entry> Read()
     {
-        if (path is not null && File.Exists(path))
+        if (file is not null)
         {
             try
             {
-                using FileStream stream = File.OpenRead(path);
+                if (file.Read() is not { } bytes)
+                {
+                    return new Dictionary<string, Entry>(StringComparer.Ordinal);
+                }
+
+                using MemoryStream stream = new(bytes, writable: false);
                 using GZipStream gzip = new(stream, CompressionMode.Decompress);
                 if (JsonSerializer.Deserialize<CacheFile>(gzip, JsonOptions) is { SchemaVersion: SchemaVersion, Demos: { } demos })
                 {

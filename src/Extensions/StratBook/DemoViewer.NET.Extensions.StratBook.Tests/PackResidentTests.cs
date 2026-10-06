@@ -119,7 +119,7 @@ public class PackResidentTests
         {
             DemoCacheStore cache = new(null);
             int scheduled = 0;
-            using TeamIdentityService teams = new(root, cache.Library(), run: work =>
+            using TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), run: work =>
             {
                 work();
                 return Task.CompletedTask;
@@ -181,7 +181,7 @@ public class PackResidentTests
             };
 
             // An attached service writes the user's file, then goes away.
-            using (TeamIdentityService writer = new(root, cache.Library(), run: inline, scheduleLoad: inline))
+            using (TeamIdentityService writer = new(TestFiles.Teams(root), cache.Library(), run: inline, scheduleLoad: inline))
             {
                 writer.SetSquad(["76561198000000001", "76561198000000002"], "us");
             }
@@ -194,7 +194,7 @@ public class PackResidentTests
             // Detached from the start, the way the shell builds it before the wizard has asked. A read that
             // reaches it anyway (a mutator's own Ensure stands in for a stale queued "Load: teams" here)
             // reads nothing, and what the mutator then computes over nothing reaches no file.
-            using TeamIdentityService teams = new(root, cache.Library(), run: inline, scheduleLoad: inline, loadAtStart: false);
+            using TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), run: inline, scheduleLoad: inline, loadAtStart: false);
             teams.SetSquad(["76561198000000009", "76561198000000010"], "not us");
             using (Assert.Multiple())
             {

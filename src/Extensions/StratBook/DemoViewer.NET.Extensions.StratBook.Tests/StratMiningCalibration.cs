@@ -42,7 +42,7 @@ public class StratMiningCalibration
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
         using GrenadeIndex grenades = new(demoCache.Library(), zones);
         grenades.Load();
-        TeamIdentityService teams = new(root, demoCache.Library(), new CachedFacts(demoCache));
+        TeamIdentityService teams = new(TestFiles.Teams(root), demoCache.Library(), new CachedFacts(demoCache));
         await teams.StartAsync();
 
         Console.WriteLine($"[mine] teams={teams.AllTeams.Count} " + string.Join(", ", teams.AllTeams.Select(t => $"{t.Name}:{teams.DemosOf(t.Id).Count}")));
@@ -102,7 +102,7 @@ public class StratMiningCalibration
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
         using GrenadeIndex grenades = new(demoCache.Library(), zones);
         grenades.Load();
-        TeamIdentityService teams = new(root, demoCache.Library(), new CachedFacts(demoCache));
+        TeamIdentityService teams = new(TestFiles.Teams(root), demoCache.Library(), new CachedFacts(demoCache));
         await teams.StartAsync();
         string scratch = Path.Combine(Path.GetTempPath(), "dv-mine-cost-" + Guid.NewGuid().ToString("N"));
         try
@@ -115,7 +115,7 @@ public class StratMiningCalibration
                 {
                     service?.Dispose();
                     service = new StratMiningService(demoCache.Library(), demoCache.RoundFacts(), positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
-                        scratch, null, run: a =>
+                        TestFiles.Mining(scratch, null), run: a =>
                         {
                             a();
                             return Task.CompletedTask;
@@ -174,7 +174,7 @@ public class StratMiningCalibration
         GrenadeIndex grenades, TeamIdentityService teams)
     {
         using StratMiningService service = new(demoCache.Library(), demoCache.RoundFacts(), positions, sources.FingerprintFor, grenades, teams, new StratStore(null), null,
-            null, null, run: a =>
+            null, run: a =>
             {
                 a();
                 return Task.CompletedTask;

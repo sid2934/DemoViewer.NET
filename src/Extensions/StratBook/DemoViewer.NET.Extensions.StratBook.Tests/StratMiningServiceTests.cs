@@ -131,7 +131,7 @@ public class StratMiningServiceTests
 
         public StratMiningService Service(Func<Action, Task>? run = null, Func<bool>? enabled = null) =>
             new(Cache.Library(), Cache.RoundFacts(), Positions, _sources.FingerprintFor, null, null, Strats, Tags,
-                Path.Combine(Root, "cache"), Root, run: run ?? _inline, enabled: enabled)
+                TestFiles.Mining(Path.Combine(Root, "cache"), Root), run: run ?? _inline, enabled: enabled)
             { QuietDelay = Timeout.InfiniteTimeSpan };
 
         public void Dispose()

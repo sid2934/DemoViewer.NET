@@ -126,12 +126,12 @@ public class StratBookStoresTests
         File.WriteAllText(Path.Combine(configRoot, WatchedSituationsService.FileName), "{}");
 
         // veto-history.json: real API.
-        new VetoHistoryStore(configRoot).Add(new VetoEntry { OpponentTeamId = Guid.NewGuid(), Order = 0, Map = "de_dust2" });
+        new VetoHistoryStore(Path.Combine(configRoot, VetoHistoryStore.FileName)).Add(new VetoEntry { OpponentTeamId = Guid.NewGuid(), Order = 0, Map = "de_dust2" });
 
         // dossier-notes.json: real API.
-        new DossierNotesStore(configRoot).AddNote(Guid.NewGuid(), "a note");
+        new DossierNotesStore(Path.Combine(configRoot, DossierNotesStore.FileName)).AddNote(Guid.NewGuid(), "a note");
 
-        // strat-mining.json: StratMiningService's user-truth file; its own doc comment fixes this path.
+        // strat-mining.json: the old layout of Strat Mining's user file, copied once into the extension's folder.
         File.WriteAllText(Path.Combine(configRoot, "strat-mining.json"), "{}");
 
         // round-index/ and suggestions/: the old layout, written by older builds.
@@ -140,11 +140,11 @@ public class StratBookStoresTests
         Directory.CreateDirectory(Path.Combine(cacheRoot, "suggestions"));
         File.WriteAllText(Path.Combine(cacheRoot, "suggestions", "a.json"), "{}");
 
-        // strat-mining/: StratMiningService's derived cache; its own doc comment fixes this path.
+        // strat-mining/: the old layout of Strat Mining's derived cache.
         Directory.CreateDirectory(Path.Combine(cacheRoot, "strat-mining"));
         File.WriteAllText(Path.Combine(cacheRoot, "strat-mining", "detected.json"), "{}");
 
-        // team-index.json: TeamIdentityService's derived cache; its own doc comment fixes this path.
+        // team-index.json: the old layout of Team Identity's derived index.
         File.WriteAllText(Path.Combine(cacheRoot, "team-index.json"), "{}");
 
         // grenade-lineups.json.gz: the old layout's file, in the format the lineup store reads.

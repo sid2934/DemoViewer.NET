@@ -52,7 +52,7 @@ public class StratBookPackTests
         "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
         // The export seam the pack renders Pack Export and strat exports through.
         "DemoViewer.NET.Extensions.FirstPartyExports",
-        // The folders the user's strats, tags, palettes and profiles already live in.
+        // Where the user's own work already lives, one member per store, and the read-only zones overlay.
         "DemoViewer.NET.Extensions.FirstPartyHost",
         // The extension host: the job-kind registry, the shell hub, the first-party shell state and export
         // chips it serves, the notification center, and the pack's own context.

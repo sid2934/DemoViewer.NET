@@ -76,25 +76,25 @@ public sealed class GrenadeLineupStore
     }
 
     /// <summary>
-    ///     The store in the extension's own cache folder. When that has no file yet and <paramref name="legacyFile" />
-    ///     reads as a lineup document, its bytes are copied over first. The browser build, which has no folders,
+    ///     The store in the extension's own cache folder. When that has no file yet and <paramref name="legacy" />
+    ///     returns a lineup document, its bytes are copied over first. The browser build, which has no folders,
     ///     keeps the lineups in memory.
     /// </summary>
     /// <param name="storage">The extension's files.</param>
-    /// <param name="legacyFile">Where an older build kept the file, or null.</param>
-    public static GrenadeLineupStore In(IExtensionStorage storage, string? legacyFile)
+    /// <param name="legacy">Reads the file where an older build kept it, or null when there is none.</param>
+    public static GrenadeLineupStore In(IExtensionStorage storage, Func<byte[]?>? legacy)
     {
         ArgumentNullException.ThrowIfNull(storage);
         return new GrenadeLineupStore(() =>
         {
             byte[]? bytes = storage.ReadAsync(StoreRoot.Cache, FileName).GetAwaiter().GetResult();
-            if (bytes is not null || legacyFile is null || ReadFile(legacyFile) is not { } legacy || Parse(legacy) is null)
+            if (bytes is not null || legacy is null || ReadLegacy(legacy) is not { } old || Parse(old) is null)
             {
                 return bytes;
             }
 
-            storage.WriteAtomicAsync(StoreRoot.Cache, FileName, legacy).GetAwaiter().GetResult();
-            return legacy;
+            storage.WriteAtomicAsync(StoreRoot.Cache, FileName, old).GetAwaiter().GetResult();
+            return old;
         }, bytes => storage.WriteAtomicAsync(StoreRoot.Cache, FileName, bytes).GetAwaiter().GetResult());
     }
 
@@ -180,6 +180,18 @@ public sealed class GrenadeLineupStore
         try
         {
             return _read() is { } bytes ? Parse(bytes) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static byte[]? ReadLegacy(Func<byte[]?> read)
+    {
+        try
+        {
+            return read();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

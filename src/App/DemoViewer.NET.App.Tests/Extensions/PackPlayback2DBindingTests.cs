@@ -18,7 +18,7 @@ public class PackPlayback2DBindingTests
     private const string Export = "video and clip export stays first-party";
     private const string ReviewQueue = "the review queue stays first-party";
     private const string ShellState = "Live Sync and reel state, which an export must not start beside";
-    private const string UserFolders = "the folders the user's Strat Book work already lives in, which stay where users have them";
+    private const string UserFolders = "the user's Strat Book work, which stays where users have it, one member per store (FirstPartyHostSurfaceTests pins them)";
 
     private static readonly string[] UnpublishedAssemblies =
         ["DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Pipeline"];

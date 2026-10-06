@@ -57,7 +57,7 @@ public class DeferredStoreLoadTests
         try
         {
             DemoCacheStore cache = new(Path.Combine(root, "cache"));
-            TeamIdentityService first = new(root, cache.Library(), run: _inline);
+            TeamIdentityService first = new(TestFiles.Teams(root), cache.Library(), run: _inline);
             await first.StartAsync();
             using (cache.BeginBatch())
             {
@@ -70,7 +70,7 @@ public class DeferredStoreLoadTests
             first.Dispose();
 
             Action? queuedRead = null;
-            TeamIdentityService second = new(root, cache.Library(), run: _inline, scheduleLoad: read =>
+            TeamIdentityService second = new(TestFiles.Teams(root), cache.Library(), run: _inline, scheduleLoad: read =>
             {
                 queuedRead = read; // the queue has not got to it yet
                 return Task.CompletedTask;
@@ -80,7 +80,7 @@ public class DeferredStoreLoadTests
             second.Rename(ids[0], "Renamed early");
             queuedRead!(); // the queue item runs later and finds the read done
 
-            TeamIdentityService third = new(root, cache.Library(), run: _inline);
+            TeamIdentityService third = new(TestFiles.Teams(root), cache.Library(), run: _inline);
             using (Assert.Multiple())
             {
                 await Assert.That(ids.Count).IsGreaterThanOrEqualTo(2);

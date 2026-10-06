@@ -141,7 +141,7 @@ public class GrenadeStoreTests
 
             DemoViewer.NET.Extensions.ExtensionContext.StorageView storage = new("dev.example.lineups", Path.Combine(root, "config"),
                 Path.Combine(root, "cache"));
-            GrenadeLineupStore copied = GrenadeLineupStore.In(storage, legacy);
+            GrenadeLineupStore copied = GrenadeLineupStore.In(storage, () => File.ReadAllBytes(legacy));
             using (Assert.Multiple())
             {
                 await Assert.That(copied.For(Map).Anchors.Single()).IsEqualTo(anchor);
@@ -152,7 +152,7 @@ public class GrenadeStoreTests
             // The copy is the store now: a change there is what the next start reads, not the old file.
             copied.For(Map).Anchors.Clear();
             copied.Save();
-            GrenadeLineupStore reopened = GrenadeLineupStore.In(storage, legacy);
+            GrenadeLineupStore reopened = GrenadeLineupStore.In(storage, () => File.ReadAllBytes(legacy));
             await Assert.That(reopened.For(Map).Anchors).IsEmpty();
         }
         finally

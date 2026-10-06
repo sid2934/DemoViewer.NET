@@ -342,7 +342,7 @@ public class StratBookPackBaselineTests
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
         long afterGrenades = GC.GetTotalMemory(true);
 
-        using TeamIdentityService teams = new(dir, demoCache.Library(), new CachedFacts(demoCache));
+        using TeamIdentityService teams = new(TestFiles.Teams(dir), demoCache.Library(), new CachedFacts(demoCache));
         await teams.StartAsync();
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
         long afterTeams = GC.GetTotalMemory(true);

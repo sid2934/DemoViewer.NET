@@ -100,7 +100,7 @@ public class StratBookLibraryTests
             writer.Upsert(Record("/d/a.dem", 638000000000000000, Ids(10), Ids(20)));
             writer.Upsert(Record("/d/b.dem", 638000000100000000, Ids(10), Ids(30)));
             writer.SaveIndex();
-            using (TeamIdentityService first = new(root, writer.Library(), run: _inline))
+            using (TeamIdentityService first = new(TestFiles.Teams(root), writer.Library(), run: _inline))
             {
                 await first.StartAsync();
                 await Assert.That(first.DemoCount).IsEqualTo(2);
@@ -122,7 +122,7 @@ public class StratBookLibraryTests
             IExtensionLibrary library = cache.Library();
             await Assert.That(library.Find("/d/a.dem")!.CtPlayers).IsNull();
 
-            using TeamIdentityService teams = new(root, library, run: _inline);
+            using TeamIdentityService teams = new(TestFiles.Teams(root), library, run: _inline);
             await teams.StartAsync();
             TeamAssignment? before = teams.GetAssignment("/d/a.dem");
             await Assert.That(teams.DemoCount).IsEqualTo(2).Because("a row without sides keeps what the team index holds");

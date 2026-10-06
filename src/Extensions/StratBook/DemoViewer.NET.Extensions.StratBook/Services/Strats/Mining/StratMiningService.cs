@@ -29,13 +29,29 @@ public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid?
 /// <summary>A previewed strat's save: the strat, or null; PatternChanged when the pattern moved since the preview.</summary>
 public sealed record PromoteResult(StratDocument? Document, bool PatternChanged);
 
+/// <summary>Where Strat Mining keeps its files; a null file is kept in memory.</summary>
+/// <param name="Detected">The last mine's patterns, rebuilt by every mine.</param>
+/// <param name="Signatures">The per-demo round signatures, rebuilt for a demo whose inputs changed.</param>
+/// <param name="State">The user's dismissed and promoted patterns, <c>strat-mining.json</c>.</param>
+public sealed record StratMiningFiles(StoredFile? Detected, StoredFile? Signatures, StoredFile? State)
+{
+    /// <summary>The detected file under the extension's cache folder.</summary>
+    public const string DetectedPath = "strat-mining/detected.json";
+
+    /// <summary>The signature cache under the extension's cache folder.</summary>
+    public const string SignaturesPath = "strat-mining/signatures.json.gz";
+
+    /// <summary>The user's choices under the extension's config folder.</summary>
+    public const string StatePath = "strat-mining.json";
+}
+
 /// <summary>
 ///     Strat Mining's inbox (owner, 2026-09-27): mines the library from cached files, keeps what it found, and turns
 ///     a pattern into a strat only when the user promotes it.
 ///     <para>
-///         Two files. <c>&lt;cache&gt;/strat-mining/detected.json</c> is derived and rebuilt by every mine;
-///         <c>&lt;config&gt;/strat-mining.json</c> is user truth (dismissed and promoted pattern keys), so a re-mine
-///         never brings back what the user put away. Null roots keep both in memory.
+///         Three files (<see cref="StratMiningFiles" />). The detected patterns and the signature cache are derived
+///         and rebuilt by a mine; <c>strat-mining.json</c> is user truth (dismissed and promoted pattern keys), so a
+///         re-mine never brings back what the user put away. A missing file is kept in memory.
 ///     </para>
 ///     <para>
 ///         After the first mine, a change to the demo cache or the Grenade Index re-mines once things go quiet
@@ -66,7 +82,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
 
     private readonly IExtensionLibrary _library;
     private readonly IRoundFacts _roundFacts;
-    private readonly string? _detectedPath;
+    private readonly StoredFile? _detected;
     private readonly Func<bool> _enabled;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly object _gate = new();
@@ -78,7 +94,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     private int _minesInFlight;
     private readonly Func<Action, Task> _run;
     private readonly RoundSignatureBuilder _signatures;
-    private readonly string? _statePath;
+    private readonly StoredFile? _stateFile;
     private readonly StratStore _strats;
     private readonly TagStore? _tags;
     private readonly TeamIdentityService? _teams;
@@ -103,8 +119,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     /// <param name="teams">Team Identity; null leaves every pattern unowned.</param>
     /// <param name="strats">Where a promoted pattern is saved.</param>
     /// <param name="tags">Where a promoted pattern's runs are written; null writes none.</param>
-    /// <param name="cacheRoot">The demo cache directory; null keeps the detected patterns in memory.</param>
-    /// <param name="configRoot">The config root; null keeps dismissals and promotions in memory.</param>
+    /// <param name="files">Where the detected patterns, the signature cache and the user's choices are kept; null keeps all three in memory.</param>
     /// <param name="post">UI-thread marshal for <see cref="Changed" />.</param>
     /// <param name="run">Runs a mine off the UI thread; defaults to <see cref="Task.Run(Action)" />.</param>
     /// <param name="jobs">The processing queue a mine runs in; null mines on <paramref name="run" /> directly.</param>
@@ -117,8 +132,8 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
     ///     always runs. Defaults to always-on.
     /// </param>
     public StratMiningService(IExtensionLibrary library, IRoundFacts roundFacts, RoundIndexStore positions, Func<string?, string> fingerprintFor,
-        GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags, string? cacheRoot,
-        string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null,
+        GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags,
+        StratMiningFiles? files, Action<Action>? post = null, Func<Action, Task>? run = null,
         IExtensionJobs? jobs = null, Func<bool>? enabled = null, IExtensionPasses? passes = null)
     {
         ArgumentNullException.ThrowIfNull(library);
@@ -134,8 +149,8 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         _teams = teams;
         _strats = strats;
         _tags = tags;
-        _detectedPath = cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "detected.json");
-        _statePath = configRoot is null ? null : Path.Combine(configRoot, "strat-mining.json");
+        _detected = files?.Detected;
+        _stateFile = files?.State;
         _post = post ?? (action => action());
         _run = run ?? Task.Run;
         _jobs = jobs;
@@ -143,7 +158,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         _enabled = enabled ?? (() => true);
         _signatures = new RoundSignatureBuilder(library, roundFacts, positions, fingerprintFor,
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
-            new SignatureCache(cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "signatures.json.gz")));
+            new SignatureCache(files?.Signatures));
         Load();
         Attach();
     }
@@ -978,11 +993,11 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         lock (_gate)
         {
             change(_state);
-            if (_statePath is not null && StateUsable())
+            if (_stateFile is not null && StateUsable())
             {
                 try
                 {
-                    AtomicFile.WriteAllText(_statePath, JsonSerializer.Serialize(_state, JsonOptions));
+                    _stateFile.Write(JsonSerializer.SerializeToUtf8Bytes(_state, JsonOptions));
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
@@ -999,9 +1014,9 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
 
     private void Save(IReadOnlyList<MinedPattern> patterns)
     {
-        if (_detectedPath is not null)
+        if (_detected is not null)
         {
-            AtomicFile.WriteAllText(_detectedPath, JsonSerializer.Serialize(
+            _detected.Write(JsonSerializer.SerializeToUtf8Bytes(
                 new DetectedFile(SchemaVersion, DateTime.UtcNow, [.. patterns]), JsonOptions));
         }
     }
@@ -1011,9 +1026,8 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         LoadState();
         try
         {
-            if (_detectedPath is not null && File.Exists(_detectedPath)
-                                          && JsonSerializer.Deserialize<DetectedFile>(File.ReadAllText(_detectedPath), JsonOptions) is
-                                              { SchemaVersion: SchemaVersion } file)
+            if (_detected?.Read() is { } bytes
+                && JsonSerializer.Deserialize<DetectedFile>(bytes, JsonOptions) is { SchemaVersion: SchemaVersion } file)
             {
                 MinedUtc = file.MinedUtc;
                 Publish(file.Patterns);
@@ -1039,21 +1053,20 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
 
     private void LoadState()
     {
-        if (_statePath is null)
+        if (_stateFile is null)
         {
             return;
         }
 
         try
         {
-            if (!File.Exists(_statePath))
+            if (_stateFile.Read() is not { } json)
             {
                 _stateUnread = false;
                 StateProblem = null;
                 return;
             }
 
-            string json = File.ReadAllText(_statePath);
             MiningState? state;
             try
             {
@@ -1061,13 +1074,13 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
             }
             catch (JsonException ex)
             {
-                RefuseState($"{_statePath} is not readable ({ex.Message}). Move it aside and restart to start a new one.");
+                RefuseState($"{_stateFile.Name} is not readable ({ex.Message}). Move it aside and restart to start a new one.");
                 return;
             }
 
             if (state is null || state.SchemaVersion > StateSchemaVersion)
             {
-                RefuseState($"{_statePath} is at schema {state?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads. Use the newer build, or move the file aside and restart.");
+                RefuseState($"{_stateFile.Name} is at schema {state?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads. Use the newer build, or move the file aside and restart.");
                 return;
             }
 
@@ -1087,7 +1100,7 @@ public sealed class StratMiningService : IExtensionResident, IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _stateUnread = true;
-            StateProblem = $"{_statePath} could not be opened ({ex.Message}). Changes are kept for this session and saved once it opens.";
+            StateProblem = $"{_stateFile.Name} could not be opened ({ex.Message}). Changes are kept for this session and saved once it opens.";
         }
     }
 

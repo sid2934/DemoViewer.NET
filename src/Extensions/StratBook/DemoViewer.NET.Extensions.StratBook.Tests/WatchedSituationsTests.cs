@@ -66,13 +66,13 @@ public class WatchedSituationsTests
             ];
 
             WatchedSituation saved;
-            using (WatchedSituationsService first = new(root, h.Index, h.Cache.Library(), now: () => 5000))
+            using (WatchedSituationsService first = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => 5000))
             {
                 saved = first.Watch("  their A hold  ", "de_nuke", tokens, SituationTolerance.Adjacent, filters);
                 first.Watch("", "de_dust2", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
             }
 
-            using WatchedSituationsService second = new(root, h.Index, h.Cache.Library(), now: () => 9000);
+            using WatchedSituationsService second = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => 9000);
             WatchedSituation loaded = second.Watches[0];
             JsonDocument json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, WatchedSituationsService.FileName)));
 
@@ -100,7 +100,7 @@ public class WatchedSituationsTests
             }
 
             second.Remove(saved.Id);
-            using WatchedSituationsService third = new(root, h.Index, h.Cache.Library());
+            using WatchedSituationsService third = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library());
             await Assert.That(third.Watches.Select(w => w.Map)).IsEquivalentTo(["de_dust2"]);
         }
         finally
@@ -123,7 +123,7 @@ public class WatchedSituationsTests
             await File.WriteAllTextAsync(path, "{ not json");
             using Harness h = new();
 
-            using WatchedSituationsService service = new(root, h.Index, h.Cache.Library());
+            using WatchedSituationsService service = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library());
             service.Watch("kept for the session", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
 
             using (Assert.Multiple())
@@ -149,7 +149,7 @@ public class WatchedSituationsTests
         try
         {
             using Harness h = new();
-            using WatchedSituationsService service = new(root, h.Index, h.Cache.Library(), now: () => Before);
+            using WatchedSituationsService service = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before);
             int raised = 0;
             service.Changed += () => raised++;
 
@@ -201,7 +201,7 @@ public class WatchedSituationsTests
 
             // The restart path: a fresh service reads the same file and counts at the watermark through
             // the index stamps, with no Indexed event, and lands on the same number.
-            using (WatchedSituationsService restarted = new(root, h.Index, h.Cache.Library(), now: () => Before))
+            using (WatchedSituationsService restarted = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before))
             {
                 using (Assert.Multiple())
                 {
@@ -221,7 +221,7 @@ public class WatchedSituationsTests
                 await Assert.That(service.Watches.Single().WatermarkTicks).IsGreaterThanOrEqualTo(newest);
             }
 
-            using (WatchedSituationsService restarted = new(root, h.Index, h.Cache.Library(), now: () => Before))
+            using (WatchedSituationsService restarted = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before))
             {
                 await Assert.That(restarted.NewCount).IsEqualTo(0).Because("the seen watermark survives a restart");
             }

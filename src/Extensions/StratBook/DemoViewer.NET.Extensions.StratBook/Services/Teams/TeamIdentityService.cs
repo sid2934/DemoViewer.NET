@@ -10,14 +10,19 @@ using DemoViewer.NET.Extensions.Sdk;
 
 namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
+/// <summary>Where Team Identity keeps its files.</summary>
+/// <param name="Teams">The user's <c>teams.json</c>; null keeps both files in memory.</param>
+/// <param name="Index">The derived index; null rebuilds it every session.</param>
+public sealed record TeamIdentityFiles(string? Teams, StoredFile? Index);
+
 /// <summary>
 ///     Teams as data: who played in which demo, which team is us, and who the opponent was.
 ///     <para>
 ///         <b>Two files, one rule.</b> What the user authored is truth and lives in
 ///         <c>&lt;config&gt;/teams.json</c> beside <c>settings.json</c>: names, the us mark, rosters with
 ///         their fixed five and extended-core snapshot, merges, tombstones, overrides, the me accounts.
-///         What clustering derived is a cache and lives in <c>&lt;config&gt;/cache/team-index.json</c>:
-///         every side key, its assignment, the members table. The index is rebuilt from the sidecars when
+///         What clustering derived is a cache and lives in the extension's own cache folder as
+///         <c>team-index.json</c>: every side key, its assignment, the members table. The index is rebuilt from the sidecars when
 ///         it is missing or behind; the user file is refused, never overwritten, when it cannot be read.
 ///     </para>
 ///     <para>
@@ -30,7 +35,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 ///         incremental and the rebuilt index identical.
 ///     </para>
 ///     <para>
-///         <b>Browser host.</b> No config root, so both files are session-only and the Teams panel says so.
+///         <b>Browser host.</b> No files, so both are session-only and the Teams panel says so.
 ///     </para>
 /// </summary>
 public sealed class TeamIdentityService : IExtensionResident, IDisposable
@@ -41,15 +46,18 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     /// <summary>The library size from which the me suggestion is offered.</summary>
     public const int MeSuggestionMinDemos = 20;
 
-    private const string TeamsFileName = "teams.json";
+    /// <summary>The user's file.</summary>
+    public const string TeamsFileName = "teams.json";
 
     // Dossier builds and search filters walk one or two demos at a time, round by round.
     private const int SideJoinCapacity = 4;
-    private const string IndexFileName = "team-index.json";
+
+    /// <summary>The derived index, under the extension's cache folder.</summary>
+    public const string IndexFileName = "team-index.json";
 
     private readonly IExtensionLibrary _library;
     private readonly object _gate = new();
-    private readonly string? _indexPath;
+    private readonly StoredFile? _indexFile;
 
     // Keyed on the library row INSTANCE: the library hands out a new row whenever the demo's record is
     // written, so a cached join never outlives the record it was built from. Under _joinGate.
@@ -78,7 +86,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     /// <summary>False until teams.json and the index have been read; the tabs show a loading line meanwhile.</summary>
     public bool IsLoaded => _load.IsDone;
 
-    /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
+    /// <param name="files">The user's file and the derived index, or null for a session-only store (the browser, tests).</param>
     /// <param name="library">The demo library the side keys come from.</param>
     /// <param name="roundFacts">The per-round rows <see cref="SideAtRound" /> joins; null answers null.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
@@ -89,7 +97,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     ///     nothing of its index belongs in memory. A mutator still reads the files first.
     /// </param>
     public TeamIdentityService(
-        string? configRoot,
+        TeamIdentityFiles? files,
         IExtensionLibrary library,
         IRoundFacts? roundFacts = null,
         Action<Action>? post = null,
@@ -102,11 +110,8 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         _roundFacts = roundFacts;
         _post = post ?? (action => action());
         _run = run ?? (action => Task.Run(action));
-        if (configRoot is not null)
-        {
-            _teamsPath = Path.Combine(configRoot, TeamsFileName);
-            _indexPath = Path.Combine(configRoot, "cache", IndexFileName);
-        }
+        _teamsPath = files?.Teams;
+        _indexFile = _teamsPath is null ? null : files?.Index;
 
         _scheduleLoad = scheduleLoad;
         _load = NewLoad();
@@ -1627,9 +1632,9 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
         try
         {
-            if (_indexPath is not null && File.Exists(_indexPath))
+            if (_indexFile?.Read() is { } bytes)
             {
-                TeamIndexFile? index = JsonSerializer.Deserialize<TeamIndexFile>(File.ReadAllText(_indexPath), TeamsFile.JsonOptions);
+                TeamIndexFile? index = JsonSerializer.Deserialize<TeamIndexFile>(bytes, TeamsFile.JsonOptions);
                 if (index is { SchemaVersion: TeamIndexFile.CurrentSchema })
                 {
                     _index = index;
@@ -1679,14 +1684,14 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
     private void SaveIndex()
     {
-        if (_indexPath is null || !_attached)
+        if (_indexFile is null || !_attached)
         {
             return;
         }
 
         try
         {
-            AtomicFile.WriteAllText(_indexPath, JsonSerializer.Serialize(_index, TeamsFile.JsonOptions));
+            _indexFile.Write(JsonSerializer.SerializeToUtf8Bytes(_index, TeamsFile.JsonOptions));
         }
         catch (Exception)
         {

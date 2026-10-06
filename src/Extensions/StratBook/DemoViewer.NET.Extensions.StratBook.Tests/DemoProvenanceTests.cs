@@ -75,7 +75,7 @@ public class DemoProvenanceTests
     private static (DemoCacheStore Cache, TeamIdentityService Teams, DemoProvenanceSource Source) Fresh(string? root = null)
     {
         DemoCacheStore cache = new(root is null ? null : Path.Combine(root, "cache"));
-        TeamIdentityService teams = new(root, cache.Library(), run: _inline);
+        TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), run: _inline);
         return (cache, teams, new DemoProvenanceSource(cache.Library(), teams));
     }
 

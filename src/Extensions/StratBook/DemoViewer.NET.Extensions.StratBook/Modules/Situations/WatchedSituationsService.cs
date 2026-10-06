@@ -35,14 +35,14 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 ///         set of keys would have frozen the watch at the day it was made.
 ///     </para>
 ///     <para>
-///         Persistence follows <c>teams.json</c>: whole-file atomic writes under the config root, a file
-///         that cannot be read is refused and never overwritten, and a null root (the browser, tests)
+///         Persistence follows <c>teams.json</c>: whole-file atomic writes, a file that cannot be read is
+///         refused and never overwritten, and a null path (the browser, tests)
 ///         keeps the watches for the session only.
 ///     </para>
 /// </summary>
 public sealed class WatchedSituationsService : IExtensionResident, IDisposable
 {
-    /// <summary>The file under the config root.</summary>
+    /// <summary>The file's name.</summary>
     public const string FileName = "watched-situations.json";
 
     private readonly IExtensionLibrary _library;
@@ -62,7 +62,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     private WatchedSituationsFile _file = new();
     private bool _refused;
 
-    /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
+    /// <param name="path">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
     /// <param name="index">The in-memory situation index the watches run against.</param>
     /// <param name="library">The index rows the filter's demo set and the stamps read.</param>
     /// <param name="teams">Team Identity, for the opponent and our-side fields; null leaves both inert.</param>
@@ -70,7 +70,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
     /// <param name="now">The clock a watermark is set from, UTC ticks; defaults to <see cref="DateTime.UtcNow" />. Tests pin it.</param>
     public WatchedSituationsService(
-        string? configRoot,
+        string? path,
         ISituationIndex index,
         IExtensionLibrary library,
         TeamIdentityService? teams = null,
@@ -86,13 +86,13 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
         _provenance = provenance;
         _post = post ?? (action => action());
         _now = now ?? (() => DateTime.UtcNow.Ticks);
-        _path = configRoot is null ? null : Path.Combine(configRoot, FileName);
+        _path = path;
 
         Load();
         Attach();
     }
 
-    /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
+    /// <summary>True when nothing persists: the browser host, and tests without a file.</summary>
     public bool IsSessionOnly => _path is null;
 
     /// <summary>
