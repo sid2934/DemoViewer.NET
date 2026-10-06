@@ -98,7 +98,7 @@ public class CommandRegistryTests
             .IsEqualTo("a.AddStep").Because("the earlier pack's row already claimed the chord");
     }
 
-    // An id outside the core enum is an ordinary action id now; only a collision is refused.
+    // An id outside the core enum is an ordinary action id; only a collision is refused.
     [Test]
     public async Task Build_ACommandIdOutsideTheCoreEnum_JoinsTheKeymap()
     {

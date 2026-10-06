@@ -97,7 +97,8 @@ public sealed record SessionPayload(
     // Services or the pack, and because this is the shape the PACK wrote, not a core concept.
     private const string LegacyStratBookPackId = "net.demoviewer.pack.stratbook";
 
-    // The Strat Book hub's id. Its rail state used to live in the pack's blob as "RailCollapsed".
+    // The Strat Book hub's id. Its rail state is also read from the pack's blob under the legacy key
+    // "RailCollapsed", which older files carry.
     private const string LegacyStratBookHubId = "stratbook.hub";
 
     // A file written before Packs existed carried the Strat Book pack's layout flat as "StratBook". Folded

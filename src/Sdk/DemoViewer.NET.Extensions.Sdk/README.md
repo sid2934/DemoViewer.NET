@@ -9,8 +9,9 @@ this package and nothing else of the app's.
 Views that should look like the app take `DemoViewer.NET.Extensions.Sdk.Ui` as well: the app's shared controls,
 the palette token and style class names, and the view-model base the host resolves views for.
 
-The 2D map's scene types are in `DemoViewer.NET.Playback2D.Scene`: the frame, the layer contract, floors,
-places and the world-to-screen transform, over SkiaSharp.
+The 2D map's scene types come with the `DemoViewer.NET.Playback2D.Scene` package, under the
+`DemoViewer.NET.Playback2D.Core` namespaces (`.Compositing`, `.Levels`, `.Tools` and others): the frame, the
+layer contract, floors, places and the world-to-screen transform, over SkiaSharp.
 
 ## Project
 
@@ -128,7 +129,7 @@ gives the same answer for the point pressed. `PlacesVersion` changes when the us
 it beside a place you store to know when to look the place up again.
 
 A toolbar item's `PlaybackMoment` and a pointer handler's `PlaybackPointer` carry the frame on screen
-(`Frame`, a `Scene2DFrame` from `DemoViewer.NET.Playback2D.Scene`): the players' markers, grenades and clock.
+(`Frame`, a `DemoViewer.NET.Playback2D.Core.Scene2DFrame`): the players' markers, grenades and clock.
 It is valid only during the call; the tab refills it for the next frame.
 
 `AddLayer(id, factory)` draws an `ISceneLayer` on the tab's map among its own layers. The host files it as

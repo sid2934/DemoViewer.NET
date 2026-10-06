@@ -358,8 +358,8 @@ through the surface. The token tool and guides layer stay core-registered instea
 a strat frame host and cost nothing. Code keeps the word "pack" for the type names; user-facing copy says
 "extension".
 
-**As built, not on `IPlaybackSurface` but on the UI kit's `SceneView`.** Nothing contributes a
-layer or a tool to the 2D Playback tab yet, so `IPlaybackSurface.AddLayer`/`AddTool` are still unbuilt; the
+**As built, not on `IPlaybackSurface` but on the UI kit's `SceneView`.** `IPlaybackSurface.AddLayer` and
+`AddTool` are built (`SdkPlaybackSurface` files each under the extension's id and guards every call), but the
 strat canvas does not go through a pack contribution or `IPlaybackSurface` at all; its own `StratCanvasView`
 mounts a `SceneView` (`<ui:SceneView x:Name="Scene" />`) and hands it the canvas as its `ISceneSource`. The
 app draws each `SceneView` with a private `Scene2DHost` (`HostedSceneView`), distinct from the Playback2D
@@ -462,15 +462,16 @@ different-signature override would shadow it (CS0108) and risk double-persisting
 (`StratBookPack.PackId`, `"net.demoviewer.pack.stratbook"`), a new trailing nullable parameter;
 `ModuleTabs` is unchanged. `MainViewModel.RestoreSession`/`SnapshotSession` walk the existing `_hosts` list
 (unconditional, pack-on or off, built once in `BuildWorkspaceTabs`) and read/write each host's blob by
-`SessionPackId`, gated on `host.Tab.FeatureId` (the pack's umbrella gate, as `PackContributions.HostTab`
+`SessionPackId`, gated on `host.Tab.FeatureId` (the pack's umbrella gate, as `PackContributions.HubTab`
 stamps it) through `_gate?.IsEnabled(...)`. A pre-`Packs` file's top-level `StratBook` member folds once
 into `Packs` under the pack's id via `IJsonOnDeserialized`/`[JsonExtensionData]` on `SessionPayload`, the
 same mechanism the demo cache record's own pack-payload fold uses; `SessionPayload` keeps its own literal copy of the
 id string (`Models` cannot depend on `Services` or on the pack) rather than naming `StratBookPack.PackId`.
-An already-present `Packs` entry for that id wins. `StratBookHubViewModel` implements the three members
-over `StratBookLayout` (now in the extension project,
-with `StratBookLayoutState`), whose `RestoreSessionState(JsonElement)` reads `RailCollapsed`/`ListCollapsed`
-independently and accepts only `True`/`False`, so a missing member, a wrong-typed one, or a non-object
+An already-present `Packs` entry for that id wins. The hub itself is the host's `HubTabViewModel`, built from
+the Strat Book's `HubTab` contribution; its rail state is kept per hub id in `SessionPayload.Hubs`, and a
+legacy `RailCollapsed` in the pack's blob is folded into that once. `StratBookLayout` (in the extension
+project, with `StratBookLayoutState`) keeps the Strats list's state; its `RestoreSessionState(JsonElement)`
+reads `ListCollapsed` and accepts only `True`/`False`, so a missing member, a wrong-typed one, or a non-object
 blob leaves that pane as it is instead of throwing or discarding the rest.
 
 Since superseded: the hub is a public `HubTabContribution` the host draws, and `IHostTabViewModel` is gone.

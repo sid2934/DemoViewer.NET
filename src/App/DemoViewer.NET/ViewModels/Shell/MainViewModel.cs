@@ -369,11 +369,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>The last valid frame index shown in the nav-strip box (reverts target on bad input).</summary>
     private int _navLastValidFrame;
 
-    // The demo's visit started by the last open: its passes read the just-parsed ParsedDemo on a background
-    // thread, so it ROOTS the demo until it finishes, which is why a close immediately after an open used to
-    // leave RAM committed for a few seconds. CloseDemoAsync awaits this before its reclaim collection so the
-    // whole frame graph is unrooted when the GC runs. Not held across a reload (the new open's
-    // UnloadDemoState clears it; the old visit finishing late is harmless).
+    // The demo's visit started by the last open. Its passes read the parsed demo on a background thread and
+    // root it until they finish, so CloseDemoAsync awaits this before its reclaim GC. Cleared by the next
+    // open's UnloadDemoState; the old visit finishing late is harmless.
     private Task? _openPassesTask;
 
     /// <summary>

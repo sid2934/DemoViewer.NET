@@ -203,8 +203,8 @@ public class DemoCachePackPayloadTests
                 await Assert.That(entry.Stamp(SuggestedTagsService.EvaluatorId)!.Count).IsEqualTo(3);
                 await Assert.That(entry.Stamp(RoundIndexEvaluator.EvaluatorId)!.ComputedAtTicks).IsEqualTo(100);
 
-                // The round index, the proposals and the grenades keep their stamps in the per-demo data now: the
-                // folded stamps on the record are not theirs any more, so each rebuilds the demo once.
+                // The round index, the proposals and the grenades keep their stamps in the per-demo data, not on the
+                // record, so the folded record stamps make each one rebuild the demo once.
                 await Assert.That(roundIndex.Wants(Demo)).IsTrue();
                 await Assert.That(suggestions.Wants(Demo)).IsTrue();
                 await Assert.That(grenades.Wants(Demo)).IsTrue();

@@ -54,7 +54,8 @@ IDisposable tool = map.AddTool(pick);
 map.SetPrimaryTool(pick);
 ```
 
-A layer is an `ISceneLayer` and a tool an `IMapTool`, both from `DemoViewer.NET.Playback2D.Scene`. The primary
+A layer is an `ISceneLayer` (`DemoViewer.NET.Playback2D.Core.Compositing`) and a tool an `IMapTool`
+(`DemoViewer.NET.Playback2D.Core.Tools`), both in the `DemoViewer.NET.Playback2D.Scene` package. The primary
 tool gets every press the view does not pan; a left press it refuses pans the map, and Space, Control, the
 middle button and the wheel always pan and zoom. `EscapePressed` fires for Escape with no gesture to cancel.
 `PaneAt(point)`, `Panes` and `Space` give the panes and floors for a hit test of your own, and `Invalidate`

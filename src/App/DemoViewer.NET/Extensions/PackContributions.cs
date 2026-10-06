@@ -79,8 +79,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     /// <summary>Record passes, in contribution order.</summary>
     public IReadOnlyList<RecordPassContribution> RecordPasses => _recordPasses;
 
-    /// <summary>Job kinds, in contribution order.</summary>
-
     /// <summary>Commands, in contribution order. Named apart from the <see cref="Commands(IEnumerable{CommandDescriptor})" /> method the interface declares.</summary>
     public IReadOnlyList<CommandDescriptor> ContributedCommands => _commands;
 
