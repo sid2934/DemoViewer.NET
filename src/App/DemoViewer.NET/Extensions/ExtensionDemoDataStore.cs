@@ -25,6 +25,12 @@ namespace DemoViewer.NET.Extensions;
 ///         A demo that leaves the library loses its files, unless another demo in the library has the same
 ///         content. Files keyed by a path hash move to the content hash once the library knows it.
 ///     </para>
+///     <para>
+///         The lock guards only the in-memory index. The index file is written and dropped files are deleted
+///         after it is released, so <see cref="Stamp" /> and <see cref="Stamps" /> never wait on disk. On the UI
+///         thread they also never load the index: before it is loaded they answer nothing, queue the load, and
+///         raise <see cref="Changed" /> once it is in.
+///     </para>
 /// </summary>
 internal sealed class ExtensionDemoDataStore : IExtensionDemoData
 {
@@ -45,17 +51,26 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
     private readonly string? _extensionVersion;
     private readonly object _gate = new();
     private readonly DemoCacheStore _library;
+    private readonly object _loadGate = new();
+    private readonly Func<bool> _onUiThread;
+    private readonly Action<Action>? _loadInBackground;
     private readonly Action<Action> _post;
     private readonly string _root;
+    private readonly object _saveGate = new();
     private Dictionary<(string Key, string Facet), Entry>? _entries;
+    private int _loadQueued;
+    private long _savedVersion;
+    private long _version;
 
     /// <param name="extensionId">The extension the data belongs to.</param>
     /// <param name="extensionCacheFolder">The extension's own cache folder; the store lives in its <see cref="DirectoryName" /> subfolder.</param>
     /// <param name="library">The library: a demo's content hash, and which demos are still in it.</param>
     /// <param name="post">Runs a change notice on the UI thread.</param>
     /// <param name="extensionVersion">The extension's version, recorded in every header.</param>
+    /// <param name="onUiThread">True on the UI thread, where a stamp read never loads the index. Null: never.</param>
+    /// <param name="loadInBackground">Runs the index load off the UI thread. Null loads on the caller's thread.</param>
     public ExtensionDemoDataStore(string extensionId, string extensionCacheFolder, DemoCacheStore library, Action<Action> post,
-        string? extensionVersion)
+        string? extensionVersion, Func<bool>? onUiThread = null, Action<Action>? loadInBackground = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(extensionId);
         ArgumentException.ThrowIfNullOrEmpty(extensionCacheFolder);
@@ -66,6 +81,8 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
         _library = library;
         _post = post;
         _extensionVersion = extensionVersion;
+        _onUiThread = onUiThread ?? (static () => false);
+        _loadInBackground = loadInBackground;
         _library.Changed += OnLibraryChanged;
     }
 
@@ -82,19 +99,58 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
     {
         ArgumentException.ThrowIfNullOrEmpty(demoPath);
         ExtensionFolders.SafeName(facet);
+        if (!ReadyForStamps())
+        {
+            return null;
+        }
+
         lock (_gate)
         {
-            return Find(demoPath, facet)?.ToStamp();
+            return Lookup(_entries!, demoPath, facet)?.ToStamp();
         }
     }
 
     public IReadOnlyList<DemoDataStamp> Stamps(string facet)
     {
         ExtensionFolders.SafeName(facet);
+        if (!ReadyForStamps())
+        {
+            return [];
+        }
+
         lock (_gate)
         {
-            return [.. Entries().Values.Where(e => string.Equals(e.Facet, facet, StringComparison.Ordinal)).Select(e => e.ToStamp())];
+            return [.. _entries!.Values.Where(e => string.Equals(e.Facet, facet, StringComparison.Ordinal)).Select(e => e.ToStamp())];
         }
+    }
+
+    // Loads the index here off the UI thread; on it, queues the load once and answers false until it is in.
+    private bool ReadyForStamps()
+    {
+        if (Volatile.Read(ref _entries) is not null)
+        {
+            return true;
+        }
+
+        if (!_onUiThread() || _loadInBackground is null)
+        {
+            EnsureLoaded();
+            return true;
+        }
+
+        if (Interlocked.Exchange(ref _loadQueued, 1) == 0)
+        {
+            _loadInBackground(() =>
+            {
+                Interlocked.Exchange(ref _loadQueued, 0);
+                if (EnsureLoaded())
+                {
+                    Raise(null);
+                }
+            });
+        }
+
+        return false;
     }
 
     public byte[]? Read(string demoPath, string facet, int schema, string? fingerprint, string? part = null) =>
@@ -113,11 +169,15 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             ExtensionFolders.SafeName(part);
         }
 
+        EnsureLoaded();
         string? key;
+        IndexFile? save;
         lock (_gate)
         {
-            key = Find(demoPath, facet)?.Key;
+            key = Find(demoPath, facet, out save)?.Key;
         }
+
+        Save(save);
 
         if (key is null)
         {
@@ -170,18 +230,23 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             demoPath, _extensionVersion, now), write.Payload.Span);
 
         Entry entry = new(key, write.Facet, demoPath, sha, write.Schema, write.Fingerprint, DemoDataState.Written, now, write.Count);
+        EnsureLoaded();
+        List<(string Key, string Facet)> dropped = [];
+        IndexFile save;
         lock (_gate)
         {
             Dictionary<(string, string), Entry> entries = Entries();
-            if (sha is not null)
+            if (sha is not null && entries.Remove((PathKey(demoPath), write.Facet)))
             {
-                Drop(entries, (PathKey(demoPath), write.Facet));
+                dropped.Add((PathKey(demoPath), write.Facet));
             }
 
             entries[(key, write.Facet)] = entry;
-            SaveIndex();
+            save = Snapshot();
         }
 
+        DeleteFiles(dropped);
+        Save(save);
         Raise(demoPath);
         return entry.ToStamp();
     }
@@ -204,6 +269,8 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             return;
         }
 
+        EnsureLoaded();
+        IndexFile save;
         lock (_gate)
         {
             Dictionary<(string Key, string Facet), Entry> entries = Entries();
@@ -215,9 +282,10 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
                 }
             }
 
-            SaveIndex();
+            save = Snapshot();
         }
 
+        Save(save);
         Raise(null);
 
         static Entry Stale(Entry e) => e with
@@ -231,18 +299,25 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
     {
         ArgumentException.ThrowIfNullOrEmpty(demoPath);
         ExtensionFolders.SafeName(facet);
+        EnsureLoaded();
+        IndexFile? save;
+        (string Key, string Facet)? id = null;
         lock (_gate)
         {
-            if (Find(demoPath, facet) is not { } entry)
+            if (Find(demoPath, facet, out save) is { } entry)
             {
-                return;
+                id = (entry.Key, facet);
+                Entries().Remove(id.Value);
+                save = Snapshot();
             }
-
-            Drop(Entries(), (entry.Key, facet));
-            SaveIndex();
         }
 
-        Raise(demoPath);
+        Save(save);
+        if (id is { } removed)
+        {
+            DeleteFiles([removed]);
+            Raise(demoPath);
+        }
     }
 
     /// <summary>Forgets every stamp after the folder was deleted from outside, and tells the extension once.</summary>
@@ -260,37 +335,57 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
     {
         ArgumentException.ThrowIfNullOrEmpty(demoPath);
         ExtensionFolders.SafeName(facet);
+        EnsureLoaded();
+        IndexFile? save;
+        bool changedAny = false;
         lock (_gate)
         {
-            Entry? entry = Find(demoPath, facet);
-            if (entry is null)
+            Entry? entry = Find(demoPath, facet, out save);
+            if (entry is null && create)
             {
-                if (!create)
-                {
-                    return;
-                }
-
                 string? sha = Sha256Of(demoPath);
                 entry = new Entry(KeyFor(demoPath, sha), facet, demoPath, sha, 0, null, DemoDataState.Pending, 0, 0);
             }
 
-            Entry changed = change(entry);
-            if (changed == entry && Entries().ContainsKey((entry.Key, facet)))
+            if (entry is not null)
             {
-                return;
+                Entry changed = change(entry);
+                if (changed != entry || !Entries().ContainsKey((entry.Key, facet)))
+                {
+                    Entries()[(entry.Key, facet)] = changed;
+                    save = Snapshot();
+                    changedAny = true;
+                }
             }
-
-            Entries()[(entry.Key, facet)] = changed;
-            SaveIndex();
         }
 
-        Raise(demoPath);
+        Save(save);
+        if (changedAny)
+        {
+            Raise(demoPath);
+        }
     }
 
-    // Called under the lock. The content hash's entry, else the path's; a path entry whose demo now has a
-    // known hash moves over to it, files and all.
-    private Entry? Find(string demoPath, string facet)
+    // Called under the lock. The content hash's entry, else the path's, reported under the hash once the
+    // library knows it; the files move on the next read or write. Opens no file.
+    private Entry? Lookup(Dictionary<(string Key, string Facet), Entry> entries, string demoPath, string facet)
     {
+        string? sha = Sha256Of(demoPath);
+        if (sha is not null && entries.TryGetValue((sha, facet), out Entry? bySha))
+        {
+            return bySha;
+        }
+
+        return entries.GetValueOrDefault((PathKey(demoPath), facet)) is { } byPath && sha is not null
+            ? byPath with { Key = sha, Sha256 = sha }
+            : entries.GetValueOrDefault((PathKey(demoPath), facet));
+    }
+
+    // Called under the lock, never from a stamp read. The content hash's entry, else the path's; a path entry
+    // whose demo now has a known hash moves over to it, files and all, and the index to save comes back.
+    private Entry? Find(string demoPath, string facet, out IndexFile? save)
+    {
+        save = null;
         Dictionary<(string Key, string Facet), Entry> entries = Entries();
         string? sha = Sha256Of(demoPath);
         if (sha is not null && entries.TryGetValue((sha, facet), out Entry? bySha))
@@ -325,7 +420,7 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
 
         entries.Remove((pathKey, facet));
         entries[(sha, facet)] = moved;
-        SaveIndex();
+        save = Snapshot();
         return moved;
     }
 
@@ -352,19 +447,22 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             .ToList();
     }
 
-    // Called under the lock. Removes the entry and its files; a file that will not delete is left for the next sweep.
-    private void Drop(Dictionary<(string Key, string Facet), Entry> entries, (string Key, string Facet) id)
+    // Outside the lock. The files of entries already gone from the index; one that will not delete is left
+    // for the next rebuild to find without an entry.
+    private void DeleteFiles(IEnumerable<(string Key, string Facet)> ids)
     {
-        entries.Remove(id);
-        foreach (string file in FilesOf(id.Facet, id.Key))
+        foreach ((string key, string facet) in ids)
         {
-            try
+            foreach (string file in FilesOf(facet, key))
             {
-                File.Delete(file);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                AppLog.ExtensionStoreWriteFailed(Log, _extensionId, file, ex.Message);
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    AppLog.ExtensionStoreWriteFailed(Log, _extensionId, file, ex.Message);
+                }
             }
         }
     }
@@ -372,7 +470,8 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
     // A demo the library dropped takes its files along, unless another demo in the library has its content.
     private void OnLibraryChanged(string? path)
     {
-        bool changed = false;
+        List<(string Key, string Facet)> dropped = [];
+        IndexFile? save = null;
         lock (_gate)
         {
             if (_entries is null)
@@ -380,19 +479,25 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
                 return; // nothing loaded, nothing to keep in step; the load sweeps
             }
 
-            changed = Sweep(path);
+            if (Sweep(_entries, path, dropped))
+            {
+                save = Snapshot();
+            }
         }
 
-        if (changed)
+        if (save is null)
         {
-            Raise(path);
+            return;
         }
+
+        DeleteFiles(dropped);
+        Save(save);
+        Raise(path);
     }
 
-    // Called under the lock. Null sweeps every entry.
-    private bool Sweep(string? path)
+    // Called under the lock. Null sweeps every entry. What it drops is added to dropped, to delete outside the lock.
+    private bool Sweep(Dictionary<(string Key, string Facet), Entry> entries, string? path, List<(string Key, string Facet)> dropped)
     {
-        Dictionary<(string Key, string Facet), Entry> entries = Entries();
         bool changed = false;
         foreach (((string Key, string Facet) id, Entry entry) in entries.ToList())
         {
@@ -412,15 +517,11 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             }
             else
             {
-                Drop(entries, id);
+                entries.Remove(id);
+                dropped.Add(id);
             }
 
             changed = true;
-        }
-
-        if (changed)
-        {
-            SaveIndex();
         }
 
         return changed;
@@ -434,21 +535,50 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
         }
     }
 
-    // Called under the lock.
-    private Dictionary<(string Key, string Facet), Entry> Entries()
+    // Called under the lock, after EnsureLoaded. A Reset in between loads again here.
+    private Dictionary<(string Key, string Facet), Entry> Entries() => _entries ??= LoadIndex() ?? RebuildIndex();
+
+    // Outside the lock. Reads the index, or rebuilds it from the file headers, without holding the lock a stamp
+    // read takes. True when this call loaded it.
+    private bool EnsureLoaded()
     {
-        if (_entries is not null)
+        if (Volatile.Read(ref _entries) is not null)
         {
-            return _entries;
+            return false;
         }
 
-        _entries = LoadIndex() ?? RebuildIndex();
-        if (_library.Count > 0)
+        lock (_loadGate)
         {
-            Sweep(null);
-        }
+            if (Volatile.Read(ref _entries) is not null)
+            {
+                return false;
+            }
 
-        return _entries;
+            Dictionary<(string Key, string Facet), Entry> loaded = LoadIndex() ?? RebuildIndex();
+            List<(string Key, string Facet)> dropped = [];
+            IndexFile? save = null;
+            lock (_gate)
+            {
+                if (_entries is not null)
+                {
+                    return false;
+                }
+
+                if (_library.Count > 0 && Sweep(loaded, null, dropped))
+                {
+                    Volatile.Write(ref _entries, loaded);
+                    save = Snapshot();
+                }
+                else
+                {
+                    Volatile.Write(ref _entries, loaded);
+                }
+            }
+
+            DeleteFiles(dropped);
+            Save(save);
+            return true;
+        }
     }
 
     private Dictionary<(string Key, string Facet), Entry>? LoadIndex()
@@ -531,11 +661,32 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
         return entries;
     }
 
-    // Called under the lock.
-    private void SaveIndex()
+    // Called under the lock: the index as it is now, numbered so an older snapshot never overwrites a newer one.
+    private IndexFile Snapshot() => new(Format, [.. _entries!.Values]) { Sequence = ++_version };
+
+    // Outside the lock. Null saves nothing.
+    private void Save(IndexFile? index)
+    {
+        if (index is null)
+        {
+            return;
+        }
+
+        lock (_saveGate)
+        {
+            if (index.Sequence <= _savedVersion)
+            {
+                return;
+            }
+
+            _savedVersion = index.Sequence;
+            WriteIndex(index);
+        }
+    }
+
+    private void WriteIndex(IndexFile index)
     {
         string file = Path.Combine(_root, IndexFileName);
-        IndexFile index = new(Format, [.. _entries!.Values]);
         try
         {
             AtomicFile.Write(file, stream =>
@@ -615,7 +766,11 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
         public DemoDataStamp ToStamp() => new(DemoPath, Sha256, Facet, Schema, Fingerprint, State, WrittenAtTicks, Count);
     }
 
-    private sealed record IndexFile(int Version, List<Entry> Entries);
+    private sealed record IndexFile(int Version, List<Entry> Entries)
+    {
+        [JsonIgnore]
+        public long Sequence { get; init; }
+    }
 }
 
 /// <summary>The browser build's per-demo data: nothing is kept, and every read finds nothing.</summary>

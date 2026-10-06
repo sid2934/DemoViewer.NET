@@ -166,6 +166,42 @@ public class ExtensionDemoDataStoreTests
     }
 
     [Test]
+    public async Task OnTheUiThread_AStampReadNeverLoadsTheIndex_ItQueuesTheLoadAndIsToldWhenItIsIn()
+    {
+        string root = NewRoot();
+        try
+        {
+            DemoCacheStore library = new(null);
+            Seed(library, Demo, "AAAA");
+            NewStore(root, library).Write(Demo, Rounds("one"));
+            List<Action> queued = [];
+            string id = "dev.example.data";
+            ExtensionDemoDataStore store = new(id, Path.Combine(root, ExtensionFolders.DataDirectoryName, id), library, a => a(), "1.2.3",
+                onUiThread: () => true, loadInBackground: queued.Add);
+            List<string?> told = [];
+            store.Changed += told.Add;
+
+            DemoDataStamp? before = store.Stamp(Demo, "rounds");
+            IReadOnlyList<DemoDataStamp> none = store.Stamps("rounds");
+            store.Stamp(Demo, "rounds");
+            await Assert.That(queued.Count).IsEqualTo(1).Because("one load is queued however often the UI asks");
+            queued[0]();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(before).IsNull();
+                await Assert.That(none).IsEmpty();
+                await Assert.That(told).IsEquivalentTo([(string?)null]);
+                await Assert.That(store.Stamp(Demo, "rounds")?.IsCurrent(1, "fp-1")).IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
     public async Task ADemoWrittenBeforeItsHashWasKnown_MovesToItsHash()
     {
         string root = NewRoot();

@@ -52,6 +52,11 @@ public class StratBookLiveToggleTests
         "Load: grenade index"
     ];
 
+    // The host's own load of the per-demo data index, queued whenever the UI first asks for a stamp; not one
+    // of the pack's startup loads, and left out of their order.
+    private static IEnumerable<string> PackTitles(IEnumerable<string> titles) =>
+        titles.Where(t => !string.Equals(t, "Load: per-demo data", StringComparison.Ordinal));
+
     private static IExtension Pack => FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
 
     [Test]
@@ -75,7 +80,7 @@ public class StratBookLiveToggleTests
             using (Assert.Multiple())
             {
                 await Assert.That(packs.IsOn(Pack)).IsTrue();
-                await Assert.That(string.Join(", ", queue.Titles.Take(_startupLabels.Length + 1)))
+                await Assert.That(string.Join(", ", PackTitles(queue.Titles).Take(_startupLabels.Length + 1)))
                     .IsEqualTo(string.Join(", ", _startupLabels.Append(ReIndexTitle)))
                     .Because("the same loads startup runs, once, then the re-check behind them; core's own reactions follow");
                 await Assert.That(queue.Titles.Count(t => t == "Load: situations index")).IsEqualTo(1);
@@ -174,7 +179,7 @@ public class StratBookLiveToggleTests
             using (Assert.Multiple())
             {
                 await Assert.That(packs.IsOn(Pack)).IsTrue();
-                await Assert.That(string.Join(", ", queue.Titles.Skip(before).Take(_startupLabels.Length + 1)))
+                await Assert.That(string.Join(", ", PackTitles(queue.Titles.Skip(before)).Take(_startupLabels.Length + 1)))
                     .IsEqualTo(string.Join(", ", _startupLabels.Append(ReIndexTitle)))
                     .Because("the second enable runs the startup loads again, in the same order");
                 await Assert.That(situations.IsReady).IsTrue();
@@ -258,7 +263,7 @@ public class StratBookLiveToggleTests
             using (Assert.Multiple())
             {
                 await Assert.That(packs.IsOn(Pack)).IsTrue();
-                await Assert.That(string.Join(", ", queue.Titles.Take(_startupLabels.Length + 1)))
+                await Assert.That(string.Join(", ", PackTitles(queue.Titles).Take(_startupLabels.Length + 1)))
                     .IsEqualTo(string.Join(", ", _startupLabels.Append(ReIndexTitle)))
                     .Because("the wizard's accept is the enable, with the in-session re-check behind the loads");
                 await Assert.That(instances.Situations).IsNotNull();

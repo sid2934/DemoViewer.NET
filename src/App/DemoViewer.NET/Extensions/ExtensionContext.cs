@@ -128,7 +128,11 @@ internal sealed class ExtensionContext : IExtensionContext
         string? version = extension.GetType().Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         _data = new Lazy<IExtensionDemoData>(() => AppPaths.DemoCacheDir is { } cache
             ? new ExtensionDemoDataStore(extension.Id, Path.Combine(cache, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extension.Id)),
-                services.GetRequiredService<DemoCacheStore>(), Post, version)
+                services.GetRequiredService<DemoCacheStore>(), Post, version, Dispatcher.UIThread.CheckAccess,
+                services.GetService<IDemoProcessingQueue>() is { } queue
+                    ? load => _ = QueueWork.Run(queue, QueueJobKind.StoreLoad, "Load: per-demo data", _logPrefix,
+                        _ => load(), key: "extension-data-load:" + extension.Id)
+                    : null)
             : UnavailableDemoData.Instance);
         _library = new Lazy<IExtensionLibrary>(() => new ExtensionLibraryView(
             HostLibrary.For(services.GetRequiredService<DemoCacheStore>(), services.GetService<IDemoProcessingQueue>(),
