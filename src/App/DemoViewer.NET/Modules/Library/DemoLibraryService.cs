@@ -546,6 +546,31 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             Save();
             RaiseChanged();
         }
+        else if (groups.Unresolved.Count == 0)
+        {
+            try
+            {
+                await SaveScanAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // the newer rescan saves
+            }
+        }
+    }
+
+    // A scan's attaches and prunes change only the unified cache's index, and a scan that enlists no parse
+    // reaches no other save before the app closes. Without a scheduler the caller saves.
+    private async Task SaveScanAsync(CancellationToken ct)
+    {
+        if (Scheduler is null)
+        {
+            Save();
+            return;
+        }
+
+        await QueueWork.Run(Queue, QueueJobKind.LibraryListing, "Library: save the scan", "library", _ => Save())
+            .WaitAsync(ct).ConfigureAwait(false);
     }
 
     /// <summary>The latest scan's copy detection; completes when its copies are resolved or it is cancelled. Test seam.</summary>
@@ -561,7 +586,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
             List<(string Path, long Size, DateTime Modified)> reads =
                 [.. files.Where(f => groups.Unresolved.Contains(f.Path)), .. groups.KnownToFingerprint];
-            HashSet<string> unread = await FingerprintAsync(reads, ct).ConfigureAwait(false);
+            HashSet<string> unread;
+            using (_demoCache?.BeginBatch())
+            {
+                unread = await FingerprintAsync(reads, ct).ConfigureAwait(false);
+            }
+
             ContentGroups placed = ResolveContentIdentities(files);
             List<DemoEntry> needMap = [], needFull = [];
             await PostAsync(() => Reconcile(placed.Primaries, placed.ShadowFolders, needMap, needFull, null, [], unread, null))
@@ -582,10 +612,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
             AppLog.LibraryCopiesResolved(DiagLog, reads.Count - unread.Count, files.Count - placed.Primaries.Count,
                 clock.ElapsedMilliseconds);
-            if (Scheduler is null)
-            {
-                Save();
-            }
+            await SaveScanAsync(ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -1448,6 +1475,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         Dictionary<string, (string Key, bool Confirmed)> keyByPath = new(StringComparer.OrdinalIgnoreCase);
         HashSet<string> unresolved = new(StringComparer.OrdinalIgnoreCase);
+        // One change event for the scan's attaches, not one per file.
+        using IDisposable? batch = _demoCache?.BeginBatch();
         foreach ((string path, long size, DateTime modified) in files)
         {
             if (KnownIdentity(path, size, modified) is { } known)

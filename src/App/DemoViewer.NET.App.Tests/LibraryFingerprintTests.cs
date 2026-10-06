@@ -51,7 +51,7 @@ public class LibraryFingerprintTests
         private readonly DemoScheduler _scheduler;
         private readonly DemoProcessingQueue _queue;
 
-        public Library(string dataDir, DemoCacheStore store)
+        public Library(string dataDir, DemoCacheStore store, string? dataPath = null)
         {
             Store = store;
             _queue = new DemoProcessingQueue(new HeavyJobGate(), a => a(), path =>
@@ -59,7 +59,7 @@ public class LibraryFingerprintTests
                 Parses.AddOrUpdate(path, 1, (_, n) => n + 1);
                 return SyntheticDemo();
             });
-            Service = new DemoLibraryService(_inline, Path.Combine(dataDir, $"library-{Guid.NewGuid():N}.json"),
+            Service = new DemoLibraryService(_inline, dataPath ?? Path.Combine(dataDir, $"library-{Guid.NewGuid():N}.json"),
                 demoCache: store)
             {
                 Time = Settled,
@@ -151,6 +151,54 @@ public class LibraryFingerprintTests
         {
             Cleanup(nfs);
             Cleanup(smb);
+        }
+    }
+
+    // A scan that attaches and parses nothing still saves, so the next launch reads neither file again.
+    [Test]
+    public async Task AnAttachedCopy_IsKnownAfterARestart_WithoutBeingReadAgain()
+    {
+        string nfs = NewTempDir();
+        string smb = NewTempDir();
+        string cache = NewTempDir();
+        try
+        {
+            byte[] bytes = Bytes(5);
+            Write(nfs, "m.dem", bytes);
+            string onSmb = Write(smb, "m.dem", bytes);
+            string sha = DemoContentHash.Compute(bytes);
+            string dataPath = Path.Combine(cache, "library.json");
+            using (Library first = new(cache, new DemoCacheStore(cache), dataPath))
+            {
+                await first.Service.AddFoldersAsync([nfs]);
+                await WaitForAsync(() => first.Store.TryGetByContentId(sha) is { ContentFingerprint: not null }
+                                         && first.Service.Tier2Backlog().Count == 0,
+                    "the first mount indexed");
+                await first.Service.AddFoldersAsync([smb]);
+                await first.Service.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
+                await Assert.That(first.Store.LocationOf(onSmb)?.ContentId).IsEqualTo(sha);
+            }
+
+            using Library second = new(cache, new DemoCacheStore(cache), dataPath);
+            await second.Service.RescanAsync();
+            await second.Service.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitForAsync(() => second.Service.Entries is [{ State: DemoIndexState.Indexed, HasDuplicates: true }],
+                "the card and its copy, from the saved cache");
+            await Task.Delay(150);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(second.Store.LocationOf(onSmb)?.Location.Confirmed).IsFalse();
+                await Assert.That(second.Reader.WindowReads(onSmb)).IsEqualTo(0);
+                await Assert.That(second.Reader.FullReads(onSmb)).IsEqualTo(0);
+                await Assert.That(second.TotalParses).IsEqualTo(0);
+            }
+        }
+        finally
+        {
+            Cleanup(nfs);
+            Cleanup(smb);
+            Cleanup(cache);
         }
     }
 
