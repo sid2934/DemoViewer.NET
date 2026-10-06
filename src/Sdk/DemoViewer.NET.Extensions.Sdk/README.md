@@ -173,9 +173,12 @@ For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extens
   inside the folder, and a crash mid-write leaves the previous file instead of a torn one. The browser build
   has no folders.
 - `Notifications`: short messages to the user, drawn as a small stack above the status strip. See below.
-- `Keymap`: the shipped keymap, read only: every default binding with its scope, and the gestures the shell and
-  the browser take first. Check a key your extension assigns on its own, such as a hotkey in a file the user
-  edits, against it. `KeyGestureText.Format` writes a gesture the way the rest of the app does.
+- `Keymap`: the app's one keymap, read only. `Bindings` is every default binding with its scope, and
+  `ShellReserved` and `BrowserReserved` the gestures the shell and the browser take first; check a key your
+  extension assigns on its own, such as a hotkey in a file the user edits, against them. `ActionFor` and
+  `GestureText` read the user's keymap with their rebinds applied, for a surface of your own that resolves
+  keys itself, and `Changed` fires on the UI thread after a rebind. `KeyGestureText.Format` writes a gesture
+  the way the rest of the app does.
 - `CreateLogger` and `Post`.
 
 `JobScope` covers code that has no job context at hand: `JobScope.UserAction()` puts the jobs queued inside it

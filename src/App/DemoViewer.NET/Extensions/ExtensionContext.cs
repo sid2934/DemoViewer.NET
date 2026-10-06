@@ -5,6 +5,7 @@ using System.Reflection;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services;
@@ -16,6 +17,7 @@ using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 #endregion
 
@@ -99,6 +101,7 @@ internal sealed class ExtensionContext : IExtensionContext
     private readonly Lazy<IExtensionDemoData> _data;
     private readonly Lazy<IExtensionLibrary> _library;
     private readonly ExtensionGuard _guard;
+    private readonly HostKeymap _keymap;
     private readonly string _logPrefix;
 
     public ExtensionContext(IExtension extension, IServiceProvider services)
@@ -118,6 +121,10 @@ internal sealed class ExtensionContext : IExtensionContext
         Settings = new ExtensionSettingsStore(extension.Id, AppPaths.ConfigRoot, Post);
         Notifications = services.GetService<NotificationCenter>()?.For(_guard, CreateLogger("Notifications"))
                         ?? new NotificationCenter(Post).For(_guard, CreateLogger("Notifications"));
+        _keymap = new HostKeymap(() => CommandRegistry.Default.EffectiveBindings,
+            () => services.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? []);
+        // The settings watcher raises on a thread-pool thread for an edit of the file.
+        services.GetService<IOptionsMonitor<AppSettings>>()?.OnChange(_ => Post(_keymap.Refresh));
         string? version = extension.GetType().Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         _data = new Lazy<IExtensionDemoData>(() => AppPaths.DemoCacheDir is { } cache
             ? new ExtensionDemoDataStore(extension.Id, Path.Combine(cache, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extension.Id)),
@@ -155,7 +162,7 @@ internal sealed class ExtensionContext : IExtensionContext
 
     public IExtensionNotifications Notifications { get; }
 
-    public IExtensionKeymap Keymap => HostKeymap.Instance;
+    public IExtensionKeymap Keymap => _keymap;
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 

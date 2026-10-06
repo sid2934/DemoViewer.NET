@@ -7,9 +7,10 @@ using Avalonia.Input;
 namespace DemoViewer.NET.Extensions.Sdk;
 
 /// <summary>
-///     The keymap as shipped: every default binding, the core table's and every extension's, and the gestures no
-///     action can take. For checking keys an extension assigns on its own, such as hotkeys in a file the user
-///     edits, against what the keymap already uses.
+///     The app's one keymap. <see cref="Bindings" /> is the table as shipped, for checking keys an extension
+///     assigns on its own, such as hotkeys in a file the user edits, against what the keymap already uses.
+///     <see cref="ActionFor" /> and <see cref="GestureText" /> read the user's keymap, their rebinds applied, for a
+///     surface of your own that resolves keys itself; a 2D Playback contribution asks its surface instead.
 /// </summary>
 public interface IExtensionKeymap
 {
@@ -24,6 +25,23 @@ public interface IExtensionKeymap
 
     /// <summary>Gestures a browser takes before the page sees them. A key bound to one never fires in the browser build.</summary>
     IReadOnlyList<KeyGesture> BrowserReserved { get; }
+
+    /// <summary>
+    ///     The action a key is bound to in <paramref name="scope" /> under the user's keymap, or null. A surface
+    ///     that hosts the 2D tools asks <c>"playback2d.tool"</c> first while a tool is active, then
+    ///     <c>"playback2d"</c>, which is the order the 2D Playback tab resolves in.
+    /// </summary>
+    /// <param name="scope">A <see cref="CommandScope.Id" />, or <c>"playback2d"</c> or <c>"playback2d.tool"</c>.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers held.</param>
+    string? ActionFor(string scope, Key key, KeyModifiers modifiers);
+
+    /// <summary>The user's gesture for an action as display text, such as <c>"Ctrl+Z"</c>, or an empty string when unbound.</summary>
+    /// <param name="actionId">The action's id.</param>
+    string GestureText(string actionId);
+
+    /// <summary>Raised on the UI thread after the user rebinds a key. Refresh labels that show gestures.</summary>
+    event Action? Changed;
 }
 
 /// <summary>One shipped binding of the keymap.</summary>

@@ -1714,3 +1714,6 @@ static DemoViewer.NET.Extensions.Sdk.KeyGestureText.Format(Avalonia.Input.Key ke
 static DemoViewer.NET.Extensions.Sdk.KeyGestureText.Format(Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers, bool display) -> string!
 static DemoViewer.NET.Extensions.Sdk.KeymapBinding.operator !=(DemoViewer.NET.Extensions.Sdk.KeymapBinding? left, DemoViewer.NET.Extensions.Sdk.KeymapBinding? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.KeymapBinding.operator ==(DemoViewer.NET.Extensions.Sdk.KeymapBinding? left, DemoViewer.NET.Extensions.Sdk.KeymapBinding? right) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.ActionFor(string! scope, Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) -> string?
+DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.GestureText(string! actionId) -> string!
