@@ -2,6 +2,7 @@
 
 using System.Text;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using Microsoft.Extensions.DependencyInjection;
@@ -92,8 +93,37 @@ public class HostDataRemovalTests
         await Assert.That(facts!.Paths).IsEquivalentTo([$"demos/*.facts.{RulesetContribution.QualifiedId(id, "kills")}.json.gz"]);
     }
 
-    private sealed class Pack(string id) : IExtension
+    [Test]
+    public async Task ARulesetTheManifestDoesNotList_IsDroppedAndReported()
     {
+        string id = "dev.example.unlisted." + Guid.NewGuid().ToString("N")[..8];
+        Pack pack = new(id);
+        ServiceCollection services = new();
+        services.AddSingleton<ExtensionShellHub>();
+        await using ServiceProvider sp = services.BuildServiceProvider();
+        ExtensionGuard guard = ExtensionGuard.Standalone(pack);
+        PackContributions contributions = new(pack, () => new ExtensionContext(pack, sp), guard: guard);
+
+        contributions.Ruleset(new RulesetContribution("deaths", () => new MemoryStream()));
+        contributions.Ruleset(new RulesetContribution("kills", () => new MemoryStream()));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(contributions.Rulesets.Select(r => r.RulesetId))
+                .IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")]);
+            await Assert.That(guard.Faults.StateOf(pack.FeatureId).Count).IsEqualTo(1);
+        }
+    }
+
+    private sealed class Pack(string id) : IExtension, IManifestSource
+    {
+        public ExtensionManifest Manifest { get; } = ExtensionManifest.Parse($$"""
+            {
+              "id": "{{id}}", "name": "Remove", "version": "1.0.0", "assembly": "Remove.dll", "entryType": "Remove.Pack",
+              "requiresHost": "^1.0", "requiresCs2DemoKit": "0.13.0-beta0001", "rulesets": ["kills"]
+            }
+            """);
+
         public string Id => id;
         public string FeatureId => "pack." + id;
         public IEnumerable<ExtensionFeature> Features => [];

@@ -167,6 +167,15 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             return;
         }
 
+        // Safe mode keeps a user's overlay apart by the ids the manifests list, read before any extension loads,
+        // so a ruleset the manifest does not list could not be told apart there.
+        if (!ListedInManifest(ruleset.Id))
+        {
+            _guard.Report("ruleset", new ArgumentException(
+                $"'{ruleset.Id}' is not listed under 'rulesets' in the extension's manifest.", nameof(ruleset)));
+            return;
+        }
+
         string id = RulesetContribution.QualifiedId(Pack.Id, ruleset.Id);
         Func<Stream> open = ruleset.Yaml;
         _rulesets.Add(new ContributedRuleset(id, Pack.Id, ruleset.FeatureId ?? Pack.FeatureId, () => _guard.Run<string?>("ruleset " + id, () =>
@@ -175,6 +184,18 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             using StreamReader reader = new(stream);
             return reader.ReadToEnd();
         }, null)));
+    }
+
+    private bool ListedInManifest(string rulesetId)
+    {
+        try
+        {
+            return ExtensionManifests.Of(Pack).Rulesets.Contains(rulesetId, StringComparer.Ordinal);
+        }
+        catch (Manifest.ExtensionManifestException)
+        {
+            return false;
+        }
     }
 
     /// <inheritdoc />

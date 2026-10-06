@@ -308,7 +308,7 @@ The Authoring tab lists your ruleset beside the shipped files, tagged with your 
 there, its problems show in the check like any file's, and Save As under its id writes the user's override.
 
 List the names in `extension.json`, so the host keeps them apart from the highlights even when the extension
-does not load:
+does not load. A ruleset the manifest does not list is left out and logged against the extension:
 
 ```json
 "rulesets": ["kills"]
