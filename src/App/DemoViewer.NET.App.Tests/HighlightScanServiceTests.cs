@@ -10,6 +10,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Highlights;
 
 #endregion
 
@@ -190,6 +191,46 @@ public class HighlightScanServiceTests
             await Assert.That(store.TryLoadRecord("/demos/stale.dem")!.AnalysisState)
                 .IsEqualTo(DemoAnalysisState.Indexed);
         }
+    }
+
+    [Test]
+    public async Task Backlog_ListsADemoHeldAtTwoPathsOnce()
+    {
+        DemoCacheStore store = new(null);
+        FakeHarvester harvester = new();
+        DemoCacheRecord stale = IndexedRow("/smb/stale.dem", 0, fingerprint: "OLD@64");
+        stale.Sha256 = "sha-stale";
+        store.Upsert(stale);
+        DemoCacheRecord copy = IndexedRow("/nfs/stale.dem", 0, fingerprint: "OLD@64");
+        copy.Sha256 = "sha-stale";
+        store.Upsert(copy);
+
+        using HighlightScanService scanner = NewScanner(store, harvester, () => ["/nfs/stale.dem"], () => false,
+            (_, _) => null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scanner.PendingPaths()).IsEquivalentTo(["/nfs/stale.dem"]);
+            await Assert.That(scanner.QueueLength).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task TheStatusCounts_CountADemoHeldAtTwoPathsOnce()
+    {
+        DemoCacheStore store = new(null);
+        foreach (string path in new[] { "/smb/bad.dem", "/nfs/bad.dem" })
+        {
+            DemoCacheRecord failed = IndexedRow(path, 0);
+            failed.Sha256 = "sha-bad";
+            failed.AnalysisState = DemoAnalysisState.Failed;
+            store.Upsert(failed);
+        }
+
+        using HighlightScanService scanner = NewScanner(store, new FakeHarvester(), () => [], () => false, (_, _) => null);
+        HighlightScanStatusViewModel status = new(scanner, store);
+
+        await Assert.That(status.FailedCount).IsEqualTo(1);
     }
 
     // Demos scanned before Round Facts became a core stamped ruleset carry the pinned fingerprint; they stay

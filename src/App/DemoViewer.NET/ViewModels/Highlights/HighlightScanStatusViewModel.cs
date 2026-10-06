@@ -166,7 +166,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
         // waiting for the first user with two failed demos.
         List<string> failed =
         [
-            .. _store.Index.Where(r => r.AnalysisState == DemoAnalysisState.Failed).Select(r => r.Path)
+            .. _store.Contents.Where(r => r.AnalysisState == DemoAnalysisState.Failed).Select(r => r.Path)
         ];
         foreach (string path in failed)
         {
@@ -186,7 +186,7 @@ public sealed partial class HighlightScanStatusViewModel : ViewModelBase, IDispo
         // The backlog is DERIVED now: the scanner owns the rule (fingerprint + tier state), so asking it is
         // the only way these counts and its own queue can never disagree.
         IReadOnlyList<string> queued = _scanner.PendingPaths();
-        IReadOnlyList<DemoCacheIndexEntry> rows = _store.Index;
+        IReadOnlyList<DemoCacheIndexEntry> rows = _store.Contents;
         Dictionary<string, DemoCacheIndexEntry> byPath = new(StringComparer.OrdinalIgnoreCase);
         foreach (DemoCacheIndexEntry entry in rows)
         {

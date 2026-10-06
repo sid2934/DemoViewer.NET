@@ -325,7 +325,8 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         string? fingerprint = TryFingerprint();
         Dictionary<string, long> wanted = new(StringComparer.OrdinalIgnoreCase);
 
-        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
+        // One entry per demo: its other paths hold the same bytes and share its record.
+        foreach (DemoCacheIndexEntry entry in _demoCache.Contents)
         {
             if (entry.NeedsAnalysis(fingerprint))
             {
