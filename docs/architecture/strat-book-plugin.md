@@ -1729,8 +1729,8 @@ Rules as built:
   palette. Export, which stays first-party: the export dialog and status view models with their range and
   size options, and `ExportJobService` with its runners and encoding. The review queue: `ReviewQueue`.
   One app type falls outside those groups: `FirstPartyHost`, the folders the user's strats, tags, palettes,
-  Suggested Tags profile and lineup clips already live in. The extension reads and writes them in place
-  rather than through `IExtensionContext.Storage` until that data moves. Nothing else: the strat canvas is an `ISceneSource` drawn by the UI kit's `SceneView`, with its scrubber a
+  Suggested Tags profile and lineup clips already live in. That work stays where users have it, so the
+  extension reads and writes those folders in place rather than through `IExtensionContext.Storage`. Nothing else: the strat canvas is an `ISceneSource` drawn by the UI kit's `SceneView`, with its scrubber a
   `SceneTimeline` shown by `TimelineView`, and it resolves keys and names gestures through
   `IExtensionContext.Keymap` (`ActionFor`, `GestureText`, `Changed`), so the user's rebinds reach it without
   the settings file. Its tool row (`StratCanvasTools`) is its own, over a plain `AnnotationSession`. The

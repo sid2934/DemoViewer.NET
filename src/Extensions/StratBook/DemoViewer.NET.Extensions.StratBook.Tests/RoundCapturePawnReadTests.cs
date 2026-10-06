@@ -58,11 +58,11 @@ public class RoundCapturePawnReadTests
         }
 
         await Assert.That(compared).IsGreaterThan(100);
-        await Assert.That(full).IsGreaterThan(compared / 4).Because("most sampled frames hold ten identified players");
+        await Assert.That(full).IsGreaterThan(compared / 4).Because("live rounds fill a quarter of the demo or more, ten identified players each");
         GC.KeepAlive(demo);
     }
 
-    // The read Create Strat From Round made through the scene snapshot before it read the tracker directly.
+    // The same read through the export pipeline's scene snapshot, the reference the tracker read is held to.
     private static List<CapturedPawn> ThroughSnapshot(EntityTracker tracker, TrackerSceneSnapshot snapshot)
     {
         List<CapturedPawn> pawns = [];
