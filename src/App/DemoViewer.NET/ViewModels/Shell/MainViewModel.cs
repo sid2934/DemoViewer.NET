@@ -1924,6 +1924,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///         reports exactly which half it holds.
     ///     </para>
     /// </summary>
+    // The open has the whole file in hand, so its hash settles a path the library attached by fingerprint
+    // alone. Must run before anything writes the open's results to the cache under that path.
+    private string HashAndConfirm(string? localPath, byte[] rawBytes)
+    {
+        string key = DemoContentHash.Compute(rawBytes);
+        if (localPath is { Length: > 0 })
+        {
+            _demoCache?.ConfirmLocation(localPath, key, rawBytes.LongLength);
+        }
+
+        return key;
+    }
+
     private void WriteTier3ScoreboardToCache(string? localPath, MetricTable? gameTable, int roundCount)
     {
         if (_demoCache is null || gameTable is null || localPath is not { Length: > 0 })
@@ -2907,7 +2920,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it:
             // it keys the graph breakpoints and is published to modules, and computing it here costs no
             // wall time on the load. See LoadDemoFromBytesAsync for the same shape.
-            Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
+            Task<string> demoKeyTask = Task.Run(() => HashAndConfirm(path, rawBytes));
             // The same open item as the interactive funnel. During a reel render the parse throws
             // ReelInProgressException, which the failure handling below surfaces.
             ParsedDemo parsed = await open.ParseAsync(rawBytes);
@@ -4216,7 +4229,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // keys the persisted graph breakpoints and is published on the module context, where the
             // annotation, breakpoint and tag stores join on it; hashing here costs no wall time on the load,
             // and hashing once here is what lets every module read the value instead of hashing again.
-            Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
+            Task<string> demoKeyTask = Task.Run(() => HashAndConfirm(localPath, rawBytes));
             ParsedDemo parsed = await open.ParseAsync(rawBytes);
 
             // Fill the Match Overview quick facts + rosters from the parsed result and advance its stage strip
