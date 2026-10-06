@@ -352,6 +352,46 @@ public class PackDataRemoverTests
     }
 
     [Test]
+    public async Task Delete_StripsADemoHeldAtTwoPaths_Once_AndEveryPathLosesTheStamp()
+    {
+        string cacheRoot = TempRoot("strip-copies");
+        try
+        {
+            DemoCacheStore store = new(cacheRoot);
+            foreach (string path in new[] { "/nfs/a.dem", "/smb/a.dem" })
+            {
+                DemoCacheRecord record = ParsedRecord(path, sha: "sha-a");
+                record.Packs[PackId] = System.Text.Json.JsonSerializer.SerializeToElement("mine");
+                record.SetStamp(new PackStamp("facet-a", 1, "fp-a"));
+                store.Upsert(record);
+            }
+
+            store.SaveIndex();
+            await Assert.That(store.TryGetIndex("/smb/a.dem")!.Locations).HasCount(2);
+
+            PackDataRemover remover = new(store, null, null);
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
+
+            DemoCacheStore reopened = new(cacheRoot);
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.RecordsUpdated).IsEqualTo(1).Because("two paths of one demo are one record");
+                foreach (string path in new[] { "/nfs/a.dem", "/smb/a.dem" })
+                {
+                    await Assert.That(reopened.TryGetIndex(path)!.PackStamps).IsEmpty();
+                    await Assert.That(reopened.TryLoadRecord(path)!.Packs.ContainsKey(PackId)).IsFalse();
+                }
+
+                await Assert.That(reopened.TryGetIndex("/smb/a.dem")!.Locations.All(l => l.Confirmed)).IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
+        }
+    }
+
+    [Test]
     public async Task Delete_SkipsARowWhoseSidecarDoesNotLoad_RatherThanFabricatingOne()
     {
         string cacheRoot = TempRoot("missing-sidecar");

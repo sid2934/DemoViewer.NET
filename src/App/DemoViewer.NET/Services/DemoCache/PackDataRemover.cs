@@ -360,16 +360,17 @@ public sealed class PackDataRemover
     // Strips packId's payload and every stamp whose id is in facetIds from every record that has one, and
     // the mirrored index row with it (DemoCacheStore.Upsert re-derives DemoCacheIndexEntry.PackStamps from
     // the record on every write). A row whose sidecar will not load is skipped: UpdateExisting would create
-    // a fresh record for a path that has none, which a delete must never do.
+    // a fresh record for a path that has none, which a delete must never do. One write per demo, through its
+    // primary path: every path of a demo shares the record.
     private int StripRecords(string packId, IReadOnlyList<string> facetIds)
     {
         HashSet<string> facets = new(facetIds, StringComparer.Ordinal);
         int updated = 0;
         using (store.BeginBatch())
         {
-            foreach (DemoCacheIndexEntry entry in store.Index)
+            foreach (DemoCacheIndexEntry entry in store.Contents)
             {
-                if (!entry.PackStamps.Any(s => facets.Contains(s.Id)) || store.TryLoadRecord(entry.Path) is null)
+                if (!entry.PackStamps.Any(s => facets.Contains(s.Id)) || store.TryLoadRecord(entry.Path, false) is null)
                 {
                     continue;
                 }
