@@ -172,6 +172,10 @@ internal static partial class AppLog
         Message = "Library scan listed {count} demo(s) from {reached} of {total} folder(s) in {elapsedMs} ms")]
     public static partial void LibraryScanListed(ILogger logger, int count, int reached, int total, long elapsedMs);
 
+    [LoggerMessage(EventId = 35, Level = LogLevel.Information,
+        Message = "Library scan finished: {count} demo(s) listed, {hashed} hashed for copies, {pending} waiting on a full parse, in {elapsedMs} ms")]
+    public static partial void LibraryScanFinished(ILogger logger, int count, int hashed, int pending, long elapsedMs);
+
     /// <summary>
     ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI
     ///     shows clean text, THIS carries the full exception into the Diagnostics tab + file.

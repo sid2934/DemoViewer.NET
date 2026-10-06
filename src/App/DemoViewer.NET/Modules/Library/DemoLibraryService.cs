@@ -509,6 +509,14 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 await IndexHeadersAsync(moreMap, ct).ConfigureAwait(false);
                 EnlistTier2(moreFull, false);
             }
+
+            int pending;
+            lock (_tier2Lock)
+            {
+                pending = _pendingFull.Count;
+            }
+
+            AppLog.LibraryScanFinished(DiagLog, scope.Files.Count, unresolved.Count, pending, clock.ElapsedMilliseconds);
         }
         catch (OperationCanceledException)
         {
