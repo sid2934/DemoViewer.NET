@@ -441,8 +441,9 @@ public interface IDemoProcessingQueue
     /// <summary>
     ///     The user moves a queued item to the top: it starts next in its lane once the running item there
     ///     finishes, ahead of every priority, and the newest promotion goes first. It preempts nothing, and
-    ///     pause and the background switch still hold it. Cleared when it starts. False when the item is not
-    ///     queued, is an open or a compaction, or waits to run on an open's parse.
+    ///     pause and the background switch still hold it, and a user's item submitted after it does not stop
+    ///     running work to go first. Cleared when it starts. False when the item is not queued, is an open, a
+    ///     compaction or a light item, or waits to run on an open's parse.
     /// </summary>
     bool Promote(Guid itemId) => false;
 

@@ -250,6 +250,40 @@ public class QueueStartOrderTests
     }
 
     [Test]
+    public async Task AUserRequest_AfterAPromotion_DoesNotStopTheRunningItem()
+    {
+        using Rig rig = new();
+        // A Background job: a user's item alone would stop it. With a promotion ahead it must not.
+        (IDemoQueueHandle blocker, TaskCompletionSource release) = rig.Blocker(DemoJobPriority.Background);
+        await WaitForAsync(() => rig.Started.Contains("blocker"), "the blocker to start");
+        rig.Parse("a.dem", 1);
+        rig.Queue.Promote(rig.Id("a.dem"));
+        rig.Parse("u.dem", 9, DemoJobPriority.UserRequested);
+
+        await Task.Delay(50);
+        await Assert.That(blocker.State).IsEqualTo(DemoQueueItemState.Running);
+        release.SetResult();
+        await WaitForAsync(() => rig.Started.Count == 3 && rig.Queue.QueuedCount + rig.Queue.RunningCount == 0, "drain");
+        using (Assert.Multiple())
+        {
+            await Assert.That(blocker.State).IsEqualTo(DemoQueueItemState.Completed);
+            await Assert.That(string.Join(",", rig.Started)).IsEqualTo("blocker,a.dem,u.dem");
+        }
+    }
+
+    [Test]
+    public async Task Promote_RefusesALightItem()
+    {
+        using Rig rig = new();
+        rig.Queue.Pause();
+        IDemoQueueHandle save = rig.Queue.SubmitJob(new QueueJobRequest(QueueJobKind.StoreSave, "save", "store",
+            DemoJobPriority.Background, _ => Task.CompletedTask));
+        await Assert.That(rig.Queue.Promote(save.Id)).IsFalse();
+        await Assert.That(rig.Item("save").Light).IsTrue();
+        rig.Queue.Resume();
+    }
+
+    [Test]
     public async Task APromotion_SurvivesALaterUserRequest_ThatWouldOtherwiseOutrankIt()
     {
         using Rig rig = new();
