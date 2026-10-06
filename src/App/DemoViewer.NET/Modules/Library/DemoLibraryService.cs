@@ -433,8 +433,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///         up neither the other folders nor the queue: a folder that finishes early shows its demos at
     ///         once, and a read that gives no answer within <see cref="LibraryScanTiming.NoAnswer" /> ends that
     ///         folder's walk as not reached. A newer rescan stops this one's walks. Copies are found after
-    ///         every folder is listed, in their own jobs, and only same-size files without a cached hash
-    ///         wait on them for their full parse.
+    ///         every folder is listed, in their own jobs that the returned task does not wait for, and only
+    ///         same-size files without a cached hash wait on them for their full parse.
     ///     </para>
     /// </summary>
     public async Task RescanAsync()
@@ -498,18 +498,6 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             await IndexHeadersAsync(needMap, ct).ConfigureAwait(false);
             EnlistTier2(needFull, true);
 
-            if (unresolved.Count > 0)
-            {
-                await HashCopiesAsync(scope.Files.Where(f => unresolved.Contains(f.Path)), ct).ConfigureAwait(false);
-                (primaries, shadowFolders, _) = ResolveContentIdentities(scope.Files);
-                List<DemoEntry> moreMap = [], moreFull = [];
-                await PostAsync(() => Reconcile(primaries, shadowFolders, moreMap, moreFull, null, [], null))
-                    .ConfigureAwait(false);
-                RaiseChanged();
-                await IndexHeadersAsync(moreMap, ct).ConfigureAwait(false);
-                EnlistTier2(moreFull, false);
-            }
-
             int pending;
             lock (_tier2Lock)
             {
@@ -517,6 +505,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
 
             AppLog.LibraryScanFinished(DiagLog, scope.Files.Count, unresolved.Count, pending, clock.ElapsedMilliseconds);
+
+            // Not awaited: the hash jobs rank behind every demo parse just enlisted, so the scan's callers
+            // would otherwise wait out the whole parse backlog.
+            if (unresolved.Count > 0)
+            {
+                CopiesResolved = ResolveCopiesAsync(scope.Files, unresolved, ct);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -528,6 +523,35 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // No scheduler (tests that only list folders): tier 2 is left pending; nothing reads a demo outside the queue.
             Save();
             RaiseChanged();
+        }
+    }
+
+    /// <summary>The latest scan's copy detection; completes when its copies are resolved or it is cancelled. Test seam.</summary>
+    internal Task CopiesResolved { get; private set; } = Task.CompletedTask;
+
+    private async Task ResolveCopiesAsync(List<(string Path, long Size, DateTime Modified)> files, HashSet<string> unresolved,
+        CancellationToken ct)
+    {
+        try
+        {
+            System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
+            await HashCopiesAsync(files.Where(f => unresolved.Contains(f.Path)), ct).ConfigureAwait(false);
+            (List<(string Path, long Size, DateTime Modified)> primaries, Dictionary<string, IReadOnlyList<string>> shadowFolders, _) =
+                ResolveContentIdentities(files);
+            List<DemoEntry> needMap = [], needFull = [];
+            await PostAsync(() => Reconcile(primaries, shadowFolders, needMap, needFull, null, [], null)).ConfigureAwait(false);
+            RaiseChanged();
+            await IndexHeadersAsync(needMap, ct).ConfigureAwait(false);
+            EnlistTier2(needFull, false);
+            AppLog.LibraryCopiesResolved(DiagLog, unresolved.Count, files.Count - primaries.Count, clock.ElapsedMilliseconds);
+            if (Scheduler is null)
+            {
+                Save();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // a newer rescan resolves them
         }
     }
 

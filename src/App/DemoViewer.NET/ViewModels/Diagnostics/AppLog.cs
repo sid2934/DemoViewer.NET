@@ -173,8 +173,12 @@ internal static partial class AppLog
     public static partial void LibraryScanListed(ILogger logger, int count, int reached, int total, long elapsedMs);
 
     [LoggerMessage(EventId = 35, Level = LogLevel.Information,
-        Message = "Library scan finished: {count} demo(s) listed, {hashed} hashed for copies, {pending} waiting on a full parse, in {elapsedMs} ms")]
+        Message = "Library scan finished: {count} demo(s) listed, {hashed} left to hash for copies, {pending} waiting on a full parse, in {elapsedMs} ms")]
     public static partial void LibraryScanFinished(ILogger logger, int count, int hashed, int pending, long elapsedMs);
+
+    [LoggerMessage(EventId = 36, Level = LogLevel.Information,
+        Message = "Library copies resolved: {hashed} file(s) hashed, {copies} copy(ies) folded into another card, in {elapsedMs} ms")]
+    public static partial void LibraryCopiesResolved(ILogger logger, int hashed, int copies, long elapsedMs);
 
     /// <summary>
     ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI

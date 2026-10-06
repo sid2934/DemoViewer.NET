@@ -238,7 +238,8 @@ internal sealed class LibraryRootWalk
 /// <param name="NoAnswer">How long one read may go unanswered before its folder counts as not reached.</param>
 internal sealed record LibraryScanTiming(TimeSpan SliceBudget, TimeSpan InJobWait, TimeSpan NoAnswer)
 {
-    // An automount answers its first read once the mount is up, which takes seconds, not tens of them.
+    // One read lists a whole directory and stats every entry; a cold NFS directory of 300+ demos takes
+    // seconds. The wait happens outside the queue, so a long bound only delays a hung folder's verdict.
     public static LibraryScanTiming Default { get; } =
-        new(TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(200), TimeSpan.FromSeconds(20));
+        new(TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(200), TimeSpan.FromSeconds(60));
 }

@@ -178,6 +178,7 @@ public class DemoLibraryScanTests
 
             using DemoLibraryService svc = new(_inline, dataPath);
             await svc.RescanAsync();
+            await svc.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
 
             using (Assert.Multiple())
             {
@@ -327,6 +328,37 @@ public class DemoLibraryScanTests
         {
             reader.Release();
             Cleanup(slow);
+        }
+    }
+
+    // Hash jobs rank behind every demo parse the scan enlists; the scan must not wait them out.
+    [Test]
+    public async Task ARescan_DoesNotWaitForCopyHashing_BehindABusyHeavyLane()
+    {
+        string root = NewTempDir();
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ => throw new InvalidOperationException("nothing is parsed here"));
+        TaskCompletionSource busy = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            string first = WriteDemo(root, "a/m.dem", 6, 9);
+            string copy = WriteDemo(root, "b/m.dem", 6, 9);
+            using DemoLibraryService svc = new(_inline, SeedLibrary(root, [root], Row(first), Row(copy)));
+            svc.QueueOverride = queue;
+            Task heavy = QueueWork.Run(queue, QueueJobKind.LibraryScan, "busy heavy job", "test", token => busy.Task.Wait(token));
+
+            await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(svc.CopiesResolved.IsCompleted).IsFalse();
+
+            busy.TrySetResult();
+            await heavy.WaitAsync(TimeSpan.FromSeconds(10));
+            await svc.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(svc.Entries.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            busy.TrySetResult();
+            Cleanup(root);
         }
     }
 
