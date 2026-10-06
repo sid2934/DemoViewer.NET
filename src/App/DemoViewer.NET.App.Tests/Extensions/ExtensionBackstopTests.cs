@@ -15,7 +15,8 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     The backstops on a headless UI thread, with this test assembly standing in for an extension: a click
 ///     handler that throws through the dispatcher is caught and counted, a binding getter that throws leaves the
 ///     view running, a binding error is logged against the extension and never counted, and a view whose
-///     constructor throws inside layout is replaced by the placeholder.
+///     constructor throws inside layout is replaced by the placeholder. A faulted task nobody observed is
+///     attributed and counted.
 /// </summary>
 [NotInParallel]
 [Category("Render")]
@@ -48,6 +49,37 @@ public class ExtensionBackstopTests
                 window.Close();
             }
         });
+
+    [Test]
+    public async Task AFaultedTaskNobodyObserved_IsAttributedToTheExtension_AndCounted() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FaultRig rig = new();
+            using IDisposable backstops = ExtensionBackstops.Install(rig.Faults);
+
+            Abandon();
+            for (int i = 0; i < 20 && rig.Faults.StateOf("pack.fake").Count == 0; i++)
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                await Task.Delay(10);
+            }
+
+            ExtensionFaultState state = rig.Faults.StateOf("pack.fake");
+            using (Assert.Multiple())
+            {
+                await Assert.That(state.Count).IsGreaterThanOrEqualTo(1);
+                await Assert.That(state.LastSite).IsEqualTo("background task");
+            }
+        });
+
+    // A task this assembly's code faults and drops without observing; the wait does not observe it.
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void Abandon()
+    {
+        Task task = Task.Run(() => throw new InvalidOperationException("abandoned"));
+        ((IAsyncResult)task).AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+    }
 
     // Avalonia's binding engine catches a getter's throw and logs nothing for it: the view keeps running and
     // the fault is not counted.
