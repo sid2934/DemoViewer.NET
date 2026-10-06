@@ -156,6 +156,45 @@ public class SceneViewTests
     }
 
     [Test]
+    public async Task AnExtensionsSource_WhoseMembersThrow_ReadsAsEmpty_AndIsReported()
+    {
+        HostLibraryTests.LibraryTestExtension extension = new();
+        ExtensionGuard guard = ExtensionGuard.Standalone(extension);
+        HostedSceneView.SourceFrameHost host = new(new ThrowingSource(), guard);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(host.CurrentFrame).IsSameReferenceAs(Scene2DFrame.Empty);
+            await Assert.That(host.MapAsset).IsNull();
+            await Assert.That(host.AnnotationSession).IsNull();
+            await Assert.That(host.IsAnnotationsEnabled).IsFalse();
+            await Assert.That(host.ShowViewCones).IsFalse();
+            await Assert.That(host.TokenEditor).IsNull();
+            await Assert.That(guard.Faults.StateOf(extension.FeatureId).Count).IsGreaterThanOrEqualTo(1);
+        }
+
+        host.Detach();
+    }
+
+    [Test]
+    public async Task AnExtensionsOwnTrack_ThatThrows_BuildsNothing_AndIsReported()
+    {
+        HostLibraryTests.LibraryTestExtension extension = new();
+        ExtensionGuard guard = ExtensionGuard.Standalone(extension);
+        GuardedTimelineTrack track = new(new ThrowingTrack(), guard);
+        FakeTimelineData data = new(100);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(track.Id).IsEqualTo(guard.Scope.Id + ".track");
+            await Assert.That(track.IsAvailable(data)).IsFalse();
+            await Assert.That(track.BuildMarkers(data)).IsEmpty();
+            await Assert.That(track.BuildBands(data)).IsEmpty();
+            await Assert.That(guard.Faults.StateOf(extension.FeatureId).Count).IsGreaterThanOrEqualTo(1);
+        }
+    }
+
+    [Test]
     public async Task ATimeline_BuildsItsTracks_SeeksInsideItsClock_AndClearsOnNull()
     {
         using SceneTimeline timeline = new();
@@ -286,6 +325,44 @@ public class SceneViewTests
 
         public void Dispose()
         {
+        }
+    }
+
+    private sealed class ThrowingSource : ISceneSource
+    {
+        public Scene2DFrame Frame => throw new InvalidOperationException("frame");
+
+        public IMapAsset? MapAsset => throw new InvalidOperationException("map");
+
+        public AnnotationSession? Ink => throw new InvalidOperationException("ink");
+
+        public bool ShowViewCones => throw new InvalidOperationException("cones");
+
+        public ITokenEditor? TokenEditor => throw new InvalidOperationException("tokens");
+
+        public event Action? FrameUpdated
+        {
+            add { }
+            remove { }
+        }
+    }
+
+    private sealed class ThrowingTrack : ITimelineTrack
+    {
+        public string Id => throw new InvalidOperationException("id");
+
+        public string DisplayName => throw new InvalidOperationException("name");
+
+        public bool IsAvailable(ITimelineData data) => throw new InvalidOperationException("available");
+
+        public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) => throw new InvalidOperationException("markers");
+
+        public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) => throw new InvalidOperationException("bands");
+
+        public event Action? MarkersChanged
+        {
+            add { }
+            remove { }
         }
     }
 

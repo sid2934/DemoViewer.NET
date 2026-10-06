@@ -161,30 +161,37 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
     ///     An <see cref="ISceneSource" /> as the scene host reads it. The host discovers its frame host through
     ///     its DataContext, so this is what the host's DataContext is set to.
     /// </summary>
-    private sealed class SourceFrameHost : ISceneFrameHost, ITokenEditingHost
+    internal sealed class SourceFrameHost : ISceneFrameHost, ITokenEditingHost
     {
         private readonly ExtensionGuard? _guard;
 
         public SourceFrameHost(ISceneSource source)
+            : this(source, ExtensionFaults.Current is { } faults && faults.Owner(source.GetType().Assembly) is { } owner
+                ? faults.GuardFor(owner)
+                : null)
+        {
+        }
+
+        /// <summary>A source read under <paramref name="guard" />, or as it is when that is null.</summary>
+        public SourceFrameHost(ISceneSource source, ExtensionGuard? guard)
         {
             Source = source;
-            _guard = ExtensionFaults.Current is { } faults && faults.Owner(source.GetType().Assembly) is { } owner
-                ? faults.GuardFor(owner)
-                : null;
+            _guard = guard;
             source.FrameUpdated += OnFrameUpdated;
         }
 
         public ISceneSource Source { get; }
 
-        public Scene2DFrame CurrentFrame => Source.Frame;
+        // The host reads these on every render, so a throwing member is a recurring site, not a counted one.
+        public Scene2DFrame CurrentFrame => Read(() => Source.Frame, Scene2DFrame.Empty) ?? Scene2DFrame.Empty;
 
-        public IMapAsset? MapAsset => Source.MapAsset;
+        public IMapAsset? MapAsset => Read(() => Source.MapAsset, null);
 
         public VisibilityEngine? VisionEngine => null;
 
-        public AnnotationSession? AnnotationSession => Source.Ink;
+        public AnnotationSession? AnnotationSession => Read(() => Source.Ink, null);
 
-        public bool IsAnnotationsEnabled => Source.Ink is not null;
+        public bool IsAnnotationsEnabled => AnnotationSession is not null;
 
         public bool ShowRadar => true;
 
@@ -196,13 +203,13 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
 
         public bool ShowBombRing => false;
 
-        public bool ShowViewCones => Source.ShowViewCones;
+        public bool ShowViewCones => Read(() => Source.ShowViewCones, false);
 
         public bool ShowZones => false;
 
         public PlaceResolver? Zones => null;
 
-        public ITokenEditor? TokenEditor => Source.TokenEditor;
+        public ITokenEditor? TokenEditor => Read(() => Source.TokenEditor, null);
 
         public event Action? FrameUpdated;
 
@@ -228,7 +235,11 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
                 : _guard.Run("scene source", () => Source.OnPress(converted), false, FaultKind.Recurring);
         }
 
-        private void OnFrameUpdated() => FrameUpdated?.Invoke();
+        // The host's handlers touch the visual tree, so a raise from a worker is posted to the UI thread.
+        private void OnFrameUpdated() => UiThreadMarshal.Run(() => FrameUpdated?.Invoke());
+
+        private T Read<T>(Func<T> member, T fallback) =>
+            _guard is null ? member() : _guard.Run("scene source", member, fallback, FaultKind.Recurring);
 
         private static KeyModifiers Convert(ToolModifiers modifiers)
         {
@@ -260,6 +271,7 @@ internal sealed class HostedSceneView : Control, ISceneViewBackend, IDisposable
 internal sealed class HostedTimeline : ITimelineBackend
 {
     private readonly Playback2DTimelineViewModel _timeline = new() { IsVisible = true };
+    private readonly Dictionary<ITimelineTrack, ITimelineTrack> _tracks = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Creates the timeline and forwards its seeks.</summary>
     public HostedTimeline()
@@ -283,10 +295,31 @@ internal sealed class HostedTimeline : ITimelineBackend
     public event Action<int>? SeekRequested;
 
     /// <inheritdoc />
-    public void RegisterTrack(ITimelineTrack track) => _timeline.RegisterTrack(track);
+    public void RegisterTrack(ITimelineTrack track)
+    {
+        if (_tracks.ContainsKey(track))
+        {
+            return;
+        }
+
+        ITimelineTrack registered = ExtensionFaults.Current is { } faults && faults.Owner(track.GetType().Assembly) is { } owner
+            ? new GuardedTimelineTrack(track, faults.GuardFor(owner))
+            : track;
+        _tracks[track] = registered;
+        _timeline.RegisterTrack(registered);
+    }
 
     /// <inheritdoc />
-    public void UnregisterTrack(ITimelineTrack track) => _timeline.UnregisterTrack(track);
+    public void UnregisterTrack(ITimelineTrack track)
+    {
+        if (!_tracks.Remove(track, out ITimelineTrack? registered))
+        {
+            return;
+        }
+
+        _timeline.UnregisterTrack(registered);
+        (registered as GuardedTimelineTrack)?.Detach();
+    }
 
     /// <inheritdoc />
     public void Rebuild(ITimelineData? data) => _timeline.Rebuild(data);
@@ -302,6 +335,45 @@ internal sealed class HostedTimeline : ITimelineBackend
 
     /// <inheritdoc />
     public void Dispose() => _timeline.Dispose();
+}
+
+/// <summary>
+///     An extension's own timeline track with every call into it run as the extension's. A throwing build
+///     draws nothing for that track.
+/// </summary>
+internal sealed class GuardedTimelineTrack : ITimelineTrack
+{
+    private readonly ExtensionGuard _guard;
+    private readonly ITimelineTrack _inner;
+
+    // The id and name are read once: the timeline reads them on every rebuild.
+    public GuardedTimelineTrack(ITimelineTrack inner, ExtensionGuard guard)
+    {
+        _inner = inner;
+        _guard = guard;
+        Id = guard.Run("timeline track", () => inner.Id, guard.Scope.Id + ".track");
+        DisplayName = guard.Run("timeline track", () => inner.DisplayName, guard.Scope.Name);
+        guard.Run("timeline track", () => _inner.MarkersChanged += OnChanged);
+    }
+
+    public string Id { get; }
+
+    public string DisplayName { get; }
+
+    public event Action? MarkersChanged;
+
+    public bool IsAvailable(ITimelineData data) =>
+        _guard.Run("timeline track", () => _inner.IsAvailable(data), false);
+
+    public IReadOnlyList<TimelineMarker> BuildMarkers(ITimelineData data) =>
+        _guard.Run("timeline track", () => _inner.BuildMarkers(data), []);
+
+    public IReadOnlyList<TimelineBand> BuildBands(ITimelineData data) =>
+        _guard.Run("timeline track", () => _inner.BuildBands(data), []);
+
+    public void Detach() => _guard.Run("timeline track", () => _inner.MarkersChanged -= OnChanged);
+
+    private void OnChanged() => UiThreadMarshal.Run(() => MarkersChanged?.Invoke());
 }
 
 /// <summary>Installs the renderers the SDK's map, scene and timeline controls are built over.</summary>
