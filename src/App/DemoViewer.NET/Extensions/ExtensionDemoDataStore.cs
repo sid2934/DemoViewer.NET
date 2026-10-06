@@ -506,7 +506,9 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
                 continue;
             }
 
-            if (_library.TryGetIndex(entry.DemoPath) is not null)
+            // A path now holding other bytes no longer leads to this entry: a read there looks up the new hash.
+            if (_library.TryGetIndex(entry.DemoPath) is { } row
+                && (entry.Sha256 is null || string.Equals(row.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)))
             {
                 continue;
             }

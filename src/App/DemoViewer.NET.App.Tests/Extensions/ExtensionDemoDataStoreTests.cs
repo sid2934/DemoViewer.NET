@@ -263,6 +263,43 @@ public class ExtensionDemoDataStoreTests
     }
 
     [Test]
+    public async Task AFacetWrittenThroughOnePath_ReadsThroughTheOther_AndFollowsTheBytesWhenAPathIsReplaced()
+    {
+        string root = NewRoot();
+        try
+        {
+            DemoCacheStore library = new(null);
+            Seed(library, Demo, "aaaa");
+            Seed(library, "/mnt/a.dem", "aaaa");
+            ExtensionDemoDataStore store = NewStore(root, library);
+            store.Write(Demo, Rounds("a"));
+
+            await Assert.That(Encoding.UTF8.GetString(store.Read("/mnt/a.dem", "rounds", 1, "fp-1")!)).IsEqualTo("a");
+
+            // The file at the written path is replaced by another match: its data goes with the bytes.
+            library.Update(Demo, 11, 21, r => r.Sha256 = "cccc");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.Stamp(Demo, "rounds")).IsNull();
+                await Assert.That(store.Stamps("rounds").Single().DemoPath).IsEqualTo("/mnt/a.dem");
+                await Assert.That(Encoding.UTF8.GetString(store.Read("/mnt/a.dem", "rounds", 1, "fp-1")!)).IsEqualTo("a");
+            }
+
+            library.Update("/mnt/a.dem", 11, 21, r => r.Sha256 = "dddd");
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.Stamps("rounds")).IsEmpty().Because("no path in the library holds those bytes any more");
+                await Assert.That(Directory.GetFiles(Path.Combine(store.Root, "rounds"))).IsEmpty();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
     public async Task TwoExtensions_KeepApart_AndAFacetNameCannotLeaveTheFolder()
     {
         string root = NewRoot();
