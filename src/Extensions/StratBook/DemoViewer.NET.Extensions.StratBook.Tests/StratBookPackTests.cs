@@ -62,6 +62,7 @@ public class StratBookPackTests
         "DemoViewer.NET.Extensions.IFirstPartyExportChips",
         "DemoViewer.NET.Extensions.NotificationCenter",
         "DemoViewer.NET.Extensions.Sdk.IExtensionContext",
+        "DemoViewer.NET.Extensions.Sdk.IExtensionContextAccess",
         // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
