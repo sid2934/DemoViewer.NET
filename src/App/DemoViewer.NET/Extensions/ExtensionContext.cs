@@ -114,7 +114,7 @@ internal sealed class ExtensionContext : IExtensionContext
         _guard = services.GetService<ExtensionFaults>()?.GuardFor(extension) ?? ExtensionGuard.Standalone(extension);
         Features = new GateView(services.GetService<IFeatureGate>(), _guard);
         Jobs = new ExtensionJobs(extension.Id, () => services.GetService<IDemoProcessingQueue>(),
-            () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default, _guard, Post);
+            () => services.GetService<JobKindRegistry>() ?? JobKindRegistry.Default, _guard, Post, Dispatcher.UIThread.CheckAccess);
         Passes = new ExtensionPasses(extension.Id, () => services.GetService<DemoScheduler>(), Post);
         Shell = new ShellView(services.GetRequiredService<ExtensionShellHub>(), _guard);
         Storage = new StorageView(extension.Id);
@@ -357,16 +357,17 @@ internal sealed class ExtensionContext : IExtensionContext
 ///     its own job only, and a job's completion is told on the UI thread through the extension's post.
 /// </summary>
 internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueue?> queue, Func<JobKindRegistry> kinds,
-    ExtensionGuard? guard = null, Action<Action>? post = null)
+    ExtensionGuard? guard = null, Action<Action>? post = null, Func<bool>? onUiThread = null)
     : IExtensionJobs
 {
+    private readonly Func<bool> _onUiThread = onUiThread ?? (static () => true);
     private readonly Action<Action> _post = post ?? (static a => a());
 
     public IJobHandle Enqueue(JobRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
         (QueueJobKind kind, string? extensionKind) = Resolve(request.Options.Kind);
-        JobPriority priority = JobScope.IsUserAction ? JobPriority.UserRequested : request.Options.Priority;
+        JobPriority priority = JobScope.IsUserAction ? JobPriority.UserRequested : Granted(request.Options.Priority);
         JobHandle handle = new(_post);
         if (request.DemoPath is { } path)
         {
@@ -458,6 +459,7 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
         ArgumentNullException.ThrowIfNull(work);
         options ??= new JobOptions();
         (QueueJobKind kind, string? extensionKind) = Resolve(options.Kind);
+        options = options with { Priority = JobScope.IsUserAction ? JobPriority.UserRequested : Granted(options.Priority) };
 
         QueueJobRequest request = new(kind, title, extensionId, PriorityOf(options.Priority), ctx => Counted(ctx, work), options.Key,
             ReplacePending: options.Key is not null, Preemptible: options.Preemptible, Serial: options.Serial,
@@ -466,6 +468,11 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
     }
 
     public void CancelAll() => queue()?.CancelOwned(extensionId);
+
+    // User-requested is a click's level: asked for from the UI thread or inside a job a click started. Asked for
+    // from background code, it is the backlog's, so an extension cannot put its own backlog ahead of the user's.
+    private JobPriority Granted(JobPriority asked) =>
+        asked == JobPriority.UserRequested && !_onUiThread() ? JobPriority.Backlog : asked;
 
     private static DemoJobPriority PriorityOf(JobPriority priority) =>
         priority == JobPriority.UserRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
@@ -508,7 +515,7 @@ internal sealed class ExtensionJobs(string extensionId, Func<IDemoProcessingQueu
             return (core, null);
         }
 
-        if (kinds().IsDeclared(kindId))
+        if (kinds().IsDeclaredBy(kindId, extensionId))
         {
             return (QueueJobKind.Extension, kindId);
         }

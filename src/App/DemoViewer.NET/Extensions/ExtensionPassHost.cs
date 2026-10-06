@@ -119,11 +119,12 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
     public void OnFailed(VisitedDemo demo, Exception failure) =>
         _guard.Run("pass " + Id + " failure handler", () => Inner.OnFailed(demo.Path));
 
+    // At most the backlog's level. A demo the user asked for is planned at user-requested level by the request
+    // itself, so a pass cannot lift its own whole-library backlog ahead of the user's work.
     public PassLevel LevelFor(VisitedDemo demo) =>
         Inner.PriorityFor(demo.Path) switch
         {
-            JobPriority.UserRequested => PassLevel.UserRequested,
-            JobPriority.Backlog => PassLevel.Backlog,
+            JobPriority.UserRequested or JobPriority.Backlog => PassLevel.Backlog,
             _ => PassLevel.Background
         };
 

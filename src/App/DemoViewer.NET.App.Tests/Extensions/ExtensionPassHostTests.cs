@@ -129,8 +129,9 @@ public class ExtensionPassHostTests
         await Assert.That(inner.Kept!.DemoPath).IsEqualTo(Demo);
     }
 
+    // A pass cannot lift a demo past the backlog itself; the user's own request is what plans one at user level.
     [Test]
-    public async Task APassAskingForUserPriority_PutsTheVisitAtUserLevel()
+    public async Task APassAskingForUserPriority_GetsTheBacklogsLevel_AndARequestGetsTheUsers()
     {
         (_, ExtensionGuard guard) = Guard();
         FakePass inner = new() { Priority = JobPriority.UserRequested };
@@ -142,8 +143,14 @@ public class ExtensionPassHostTests
         await WaitForAsync(() => inner.Runs == 1 && queue.Snapshot().Any(s => s.Kind == QueueJobKind.DemoProcessing && s.State == DemoQueueItemState.Completed),
             "the visit");
 
+        await Assert.That(host.LevelFor(new VisitedDemo(Demo))).IsEqualTo(PassLevel.Backlog);
         await Assert.That(queue.Snapshot().Single(s => s.Kind == QueueJobKind.DemoProcessing).Priority)
-            .IsEqualTo(DemoJobPriority.UserRequested);
+            .IsNotEqualTo(DemoJobPriority.UserRequested);
+
+        scheduler.Request(Demo);
+        await WaitForAsync(() => inner.Runs == 2, "the requested visit");
+        await Assert.That(queue.Snapshot().Where(s => s.Kind == QueueJobKind.DemoProcessing).Select(s => s.Priority))
+            .Contains(DemoJobPriority.UserRequested);
     }
 
     [Test]

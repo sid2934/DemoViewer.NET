@@ -70,7 +70,10 @@ public interface IExtensionPass
     {
     }
 
-    /// <summary>How urgent <paramref name="demoPath" /> is: <see cref="JobPriority.UserRequested" /> for one the user asked for.</summary>
+    /// <summary>
+    ///     How urgent <paramref name="demoPath" /> is. The host plans it at backlog level at most; a demo the user
+    ///     asked for goes through <see cref="IExtensionPasses.Request" />, which plans it at user-requested level.
+    /// </summary>
     JobPriority PriorityFor(string demoPath) => JobPriority.Background;
 
     /// <summary>Order among demos of one priority; higher runs sooner (the file's write time, for newest first).</summary>

@@ -14,7 +14,11 @@ public enum JobPriority
     /// </summary>
     Backlog,
 
-    /// <summary>Work a click asked for: it goes to the front and stops background work.</summary>
+    /// <summary>
+    ///     Work a click asked for: it goes to the front and stops background work. Granted only to a job queued
+    ///     from the UI thread or from inside a job a click started; queued from background code, it runs as
+    ///     <see cref="Backlog" />.
+    /// </summary>
     UserRequested
 }
 

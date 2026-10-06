@@ -47,12 +47,14 @@ public sealed class JobKindRegistry
 
     private readonly IReadOnlyDictionary<QueueJobKind, JobKindDescriptor> _byKind;
     private readonly IReadOnlyDictionary<string, JobKindDescriptor> _byExtensionKind;
+    private readonly IReadOnlyDictionary<string, string> _ownerOf;
 
     private JobKindRegistry(IReadOnlyDictionary<QueueJobKind, JobKindDescriptor> byKind,
-        IReadOnlyDictionary<string, JobKindDescriptor> byExtensionKind)
+        IReadOnlyDictionary<string, JobKindDescriptor> byExtensionKind, IReadOnlyDictionary<string, string> ownerOf)
     {
         _byKind = byKind;
         _byExtensionKind = byExtensionKind;
+        _ownerOf = ownerOf;
     }
 
     /// <summary>Built once from the compatible compiled-in packs (<see cref="FeaturePacks.Compatible" />).</summary>
@@ -89,6 +91,7 @@ public sealed class JobKindRegistry
         }
 
         Dictionary<string, JobKindDescriptor> byExtensionKind = new(StringComparer.Ordinal);
+        Dictionary<string, string> ownerOf = new(StringComparer.Ordinal);
         foreach (IExtension pack in packs)
         {
             foreach (ExtensionJobKind declared in pack.JobKinds)
@@ -100,10 +103,12 @@ public sealed class JobKindRegistry
                     throw new InvalidOperationException(
                         $"Extension '{pack.Id}' job kind '{declared.Id}' is already declared by the host or another extension.");
                 }
+
+                ownerOf[declared.Id] = pack.Id;
             }
         }
 
-        return new JobKindRegistry(byKind, byExtensionKind);
+        return new JobKindRegistry(byKind, byExtensionKind, ownerOf);
     }
 
     /// <summary>
@@ -118,6 +123,10 @@ public sealed class JobKindRegistry
 
     /// <summary>True when <paramref name="extensionKind" /> is a kind an extension declared.</summary>
     public bool IsDeclared(string extensionKind) => _byExtensionKind.ContainsKey(extensionKind);
+
+    /// <summary>True when the extension <paramref name="extensionId" /> declared <paramref name="extensionKind" />.</summary>
+    public bool IsDeclaredBy(string extensionKind, string extensionId) =>
+        _ownerOf.TryGetValue(extensionKind, out string? owner) && string.Equals(owner, extensionId, StringComparison.Ordinal);
 
     /// <summary>The queue row's chip text.</summary>
     public string Label(QueueJobKind kind, string? extensionKind = null) => Descriptor(kind, extensionKind).Label;

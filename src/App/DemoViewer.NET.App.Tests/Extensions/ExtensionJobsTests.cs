@@ -282,11 +282,40 @@ public class ExtensionJobsTests
         await Assert.That(result.Status).IsEqualTo(JobStatus.Cancelled);
     }
 
-    private sealed class Pack(string id) : IExtension
+    [Test]
+    public async Task AJobKindAnotherExtensionDeclared_IsRefused()
+    {
+        using Rig rig = new();
+        JobKindRegistry kinds = JobKindRegistry.Build([new Pack("dev.example.one", "dev.example.one.light")]);
+        ExtensionJobs two = new("dev.example.two", () => rig.Queue, () => kinds);
+        ExtensionJobs one = new("dev.example.one", () => rig.Queue, () => kinds);
+
+        Assert.Throws<ArgumentException>(() => two.Enqueue(new JobRequest("borrowed", _ => Task.CompletedTask,
+            new JobOptions("dev.example.one.light"))));
+        await one.RunAsync("own", _ => Task.CompletedTask, new JobOptions("dev.example.one.light")).WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(kinds.IsDeclaredBy("dev.example.one.light", "dev.example.two")).IsFalse();
+    }
+
+    [Test]
+    public async Task UserPriority_AskedForFromBackgroundCode_RunsAtTheBacklogsLevel()
+    {
+        using Rig rig = new();
+        rig.Queue.Pause();
+        ExtensionJobs jobs = new("dev.example.one", () => rig.Queue, () => JobKindRegistry.Default, onUiThread: static () => false);
+
+        jobs.Enqueue(new JobRequest("background ask", _ => Task.CompletedTask, new JobOptions(Priority: JobPriority.UserRequested)));
+
+        await Assert.That(rig.Queue.Snapshot().Single(s => s.DisplayName == "background ask").Priority)
+            .IsEqualTo(DemoJobPriority.Background);
+        rig.Queue.Resume();
+    }
+
+    private sealed class Pack(string id, string? jobKind = null) : IExtension
     {
         public string Id => id;
         public string FeatureId => "pack." + id;
         public IEnumerable<ExtensionFeature> Features => [];
+        public IEnumerable<ExtensionJobKind> JobKinds => jobKind is null ? [] : [new ExtensionJobKind(jobKind, "light", true)];
 
         public void Register(IServiceCollection services)
         {
