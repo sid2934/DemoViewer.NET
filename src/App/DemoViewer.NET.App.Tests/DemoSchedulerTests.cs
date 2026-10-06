@@ -68,6 +68,27 @@ public class DemoSchedulerTests
     }
 
     [Test]
+    public async Task APlanningItemRemovedBeforeItStarts_DoesNotStopTheNextChangeFromPlanning()
+    {
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, _ => Synthetic());
+        Fake a = new("a");
+        using DemoScheduler scheduler = new([a], queue, () => Array.Empty<string>());
+
+        queue.Pause();
+        scheduler.DemoChanged("/x/one.dem");
+        await WaitFor(() => queue.Snapshot().Any(i => i.Kind == QueueJobKind.Scheduling), "the queued planning item");
+        Guid removed = queue.Snapshot().Single(i => i.Kind == QueueJobKind.Scheduling).Id;
+        queue.RemoveByUser(removed);
+        await WaitFor(() => queue.Snapshot().All(i => i.Id != removed || i.State != DemoQueueItemState.Queued),
+            "the planning item's removal");
+        queue.Resume();
+
+        scheduler.DemoChanged("/x/two.dem");
+        await WaitFor(() => a.Count == 2, "both demos, the removed item's included");
+        await Assert.That(a.Evaluated.Order()).IsEquivalentTo(["/x/one.dem", "/x/two.dem"]);
+    }
+
+    [Test]
     public async Task DemoChanged_SkipsAPassThatDoesNotWantTheDemo()
     {
         int parses = 0;

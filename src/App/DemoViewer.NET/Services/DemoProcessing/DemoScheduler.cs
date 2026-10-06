@@ -1,3 +1,9 @@
+#region
+
+using System.Runtime.CompilerServices;
+
+#endregion
+
 namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
@@ -237,8 +243,24 @@ public sealed class DemoScheduler : IDisposable
             _planQueued = true;
         }
 
-        _ = QueueWork.Run(_queue, QueueJobKind.Scheduling, PlanTitle, "scheduler", Drain,
-            userRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background, PlanKey);
+        // A planning item the user removes before it starts never drains; the next mark must still queue one.
+        StrongBox<bool> started = new(false);
+        _ = QueueWork.Run(_queue, QueueJobKind.Scheduling, PlanTitle, "scheduler", token =>
+                {
+                    started.Value = true;
+                    Drain(token);
+                },
+                userRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background, PlanKey)
+            .ContinueWith(_ =>
+            {
+                if (!started.Value)
+                {
+                    lock (_lock)
+                    {
+                        _planQueued = false;
+                    }
+                }
+            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     private void OnCapacityAvailable()
@@ -408,6 +430,11 @@ public sealed class DemoScheduler : IDisposable
                 {
                     _dirty[path] = level;
                 }
+            }
+
+            foreach (IDemoPass pass in submitting)
+            {
+                RaiseOutstanding(pass.Id);
             }
         }
     }
