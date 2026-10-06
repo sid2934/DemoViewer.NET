@@ -416,3 +416,66 @@ DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.Lookup(string! key, float pix
 DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapIcons.MapIcons() -> void
 static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.RenderPng(DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame, DemoViewer.NET.Playback2D.Core.Levels.IMapAsset? map, System.Collections.Generic.IReadOnlyList<string!>! layerIds, DemoViewer.NET.Playback2D.Core.ViewportTransform camera, SkiaSharp.SKSizeI size, DemoViewer.NET.Playback2D.Core.Overlay.OverlayDocument? overlay = null) -> byte[]!
 static DemoViewer.NET.Extensions.Sdk.Ui.Controls.MapAssets.TryLoad(string? mapName) -> DemoViewer.NET.Playback2D.Core.Levels.IMapAsset?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.Frame.get -> DemoViewer.NET.Playback2D.Core.Scene2DFrame!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.FrameUpdated -> System.Action?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.Ink.get -> DemoViewer.NET.Playback2D.Core.Annotations.AnnotationSession?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.MapAsset.get -> DemoViewer.NET.Playback2D.Core.Levels.IMapAsset?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.OnLevelsMoved(System.Collections.Generic.IReadOnlyDictionary<double, double>! zMinMap) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.OnPress(DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress! press) -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.ShowViewCones.get -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource.TokenEditor.get -> DemoViewer.NET.Playback2D.Core.Input.ITokenEditor?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Deconstruct(out DemoViewer.NET.Playback2D.Core.Levels.MapLevel! Level, out double WorldX, out double WorldY, out Avalonia.Point Screen, out Avalonia.Input.KeyModifiers Modifiers) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Equals(DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress? other) -> bool
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Level.get -> DemoViewer.NET.Playback2D.Core.Levels.MapLevel!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Level.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Modifiers.get -> Avalonia.Input.KeyModifiers
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Modifiers.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.ScenePress(DemoViewer.NET.Playback2D.Core.Levels.MapLevel! Level, double WorldX, double WorldY, Avalonia.Point Screen, Avalonia.Input.KeyModifiers Modifiers) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Screen.get -> Avalonia.Point
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Screen.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.WorldX.get -> double
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.WorldX.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.WorldY.get -> double
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.WorldY.init -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.Bands.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Timeline.TimelineBand>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.Dispose() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.Markers.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarker>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.Rebuild(DemoViewer.NET.Playback2D.Core.Timeline.ITimelineData? data) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.RegisterTrack(DemoViewer.NET.Playback2D.Core.Timeline.ITimelineTrack! track) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.RequestSeek(int frameIndex) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.SceneTimeline() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.SeekRequested -> System.Action<int>?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.TotalFrames.get -> int
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.UnregisterTrack(DemoViewer.NET.Playback2D.Core.Timeline.ITimelineTrack! track) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline.UpdatePlayhead(int frameIndex, int tick) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.ActiveTool.get -> DemoViewer.NET.Playback2D.Core.Input.ToolKind
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.AddLayer(string! id, System.Func<DemoViewer.NET.Playback2D.Core.Compositing.ISceneLayer!>! layer) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.AddTool(DemoViewer.NET.Playback2D.Core.Input.IPointerTool! tool) -> System.IDisposable!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.CancelGesture() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.CompleteTextEdit(string? text) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Fit() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Invalidate() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.PaneAt(Avalonia.Point point) -> DemoViewer.NET.Playback2D.Core.Levels.LevelPane?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Panes.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!>!
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SceneView() -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SetActiveTool(DemoViewer.NET.Playback2D.Core.Input.ToolKind kind) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SetHoldPan(bool held) -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Source.get -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.Source.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.TextEditRequested -> System.Action<Avalonia.Point, double>?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.TimelineView
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.TimelineView.Timeline.get -> DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline?
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.TimelineView.Timeline.set -> void
+DemoViewer.NET.Extensions.Sdk.Ui.Controls.TimelineView.TimelineView() -> void
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.operator !=(DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress? left, DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress.operator ==(DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress? left, DemoViewer.NET.Extensions.Sdk.Ui.Controls.ScenePress? right) -> bool
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneView.SourceProperty -> Avalonia.StyledProperty<DemoViewer.NET.Extensions.Sdk.Ui.Controls.ISceneSource?>!
+static readonly DemoViewer.NET.Extensions.Sdk.Ui.Controls.TimelineView.TimelineProperty -> Avalonia.StyledProperty<DemoViewer.NET.Extensions.Sdk.Ui.Controls.SceneTimeline?>!

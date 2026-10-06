@@ -42,6 +42,7 @@
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\GlobalUsings.cs" Link="GlobalUsings.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\CompiledInPacks.cs" Link="CompiledInPacks.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SessionIsolation.cs" Link="SessionIsolation.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SdkSceneHostsInstall.cs" Link="SdkSceneHostsInstall.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\TestAppBuilder.cs" Link="TestAppBuilder.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Playback2DTimelineHeadlessSupport.cs" Link="Playback2DTimelineHeadlessSupport.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SyntheticParsedDemo.cs" Link="SyntheticParsedDemo.cs"/>
