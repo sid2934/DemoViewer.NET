@@ -159,7 +159,61 @@ public sealed class DemoCacheStore
         }
     }
 
-    /// <summary>Number of demos known to the index.</summary>
+    /// <summary>
+    ///     One row per demo, seen from its primary path (<see cref="TryGetByContentId" />'s pick); a demo not
+    ///     hashed yet is its own row. What a walk doing per-demo work iterates: <see cref="Index" /> holds a
+    ///     view per path, so a demo with two copies appears there twice. A snapshot, safe to enumerate off-lock.
+    /// </summary>
+    public IReadOnlyList<DemoCacheIndexEntry> Contents
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _rows.Values.Select(r => _index[r.Path])];
+            }
+        }
+    }
+
+    /// <summary>
+    ///     The row listing <paramref name="path" />, seen from the row's primary path, or null when no row lists
+    ///     it. The same instance <see cref="Contents" /> holds for that demo until the row changes.
+    /// </summary>
+    /// <param name="path">Any path of the demo.</param>
+    public DemoCacheIndexEntry? TryGetPrimary(string path)
+    {
+        lock (_gate)
+        {
+            return _keyByPath.TryGetValue(path, out string? key) ? _index[_rows[key].Path] : null;
+        }
+    }
+
+    /// <summary>
+    ///     What identifies the demo at <paramref name="path" />: its content id when a row lists the path with
+    ///     one, else the path itself. Two paths of one hashed demo answer the same; compare with
+    ///     <see cref="StringComparer.OrdinalIgnoreCase" />, as paths are compared everywhere here.
+    /// </summary>
+    /// <param name="path">A demo path.</param>
+    public string DemoKeyOf(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        lock (_gate)
+        {
+            return _keyByPath.TryGetValue(path, out string? key) && !IsProvisional(_rows[key]) ? key : path;
+        }
+    }
+
+    /// <summary>True when both paths are one demo: the same path, or two paths a hashed row lists.</summary>
+    /// <param name="a">A demo path.</param>
+    /// <param name="b">Another demo path.</param>
+    public bool SameDemo(string a, string b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+        return SamePath(a, b) || string.Equals(DemoKeyOf(a), DemoKeyOf(b), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Number of paths known to the index; <see cref="Contents" /> counts demos.</summary>
     public int Count
     {
         get
@@ -607,11 +661,14 @@ public sealed class DemoCacheStore
     ///         visible hitch on a button press, and it scales with the library.
     ///     </para>
     /// </summary>
-    /// <param name="where">Index-row predicate; null loads everything the index knows about.</param>
+    /// <param name="where">
+    ///     Predicate over <see cref="Contents" />: one record per demo, read from its primary path. Null loads
+    ///     every demo the index knows about.
+    /// </param>
     public List<DemoCacheRecord> LoadRecords(Func<DemoCacheIndexEntry, bool>? where = null)
     {
         List<DemoCacheRecord> records = [];
-        foreach (DemoCacheIndexEntry entry in Index)
+        foreach (DemoCacheIndexEntry entry in Contents)
         {
             if (where is not null && !where(entry))
             {

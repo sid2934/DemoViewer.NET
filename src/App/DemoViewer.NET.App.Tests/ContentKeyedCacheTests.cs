@@ -527,4 +527,48 @@ public class ContentKeyedCacheTests
             }
         }
     }
+
+    [Test]
+    public async Task Contents_ListsADemoOnce_FromItsPrimary_AndLoadRecordsReadsEachDemoOnce()
+    {
+        DemoCacheStore store = new(null);
+        store.Upsert(Record("/n/x.dem", "sha-x"));
+        store.Upsert(Record("/m/x.dem", "sha-x"));
+        store.Upsert(Record("/m/y.dem", null));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.Index).HasCount(3).Because("the index still holds a view per path");
+            await Assert.That(store.Contents.Select(e => e.Path))
+                .IsEquivalentTo(["/m/x.dem", "/m/y.dem"], CollectionOrdering.Any);
+            await Assert.That(store.LoadRecords().Select(r => r.Path))
+                .IsEquivalentTo(["/m/x.dem", "/m/y.dem"], CollectionOrdering.Any);
+            await Assert.That(store.TryGetPrimary("/n/x.dem")!.Path).IsEqualTo("/m/x.dem");
+            await Assert.That(store.TryGetPrimary("/n/X.DEM")).IsSameReferenceAs(store.TryGetPrimary("/m/x.dem"));
+            await Assert.That(store.TryGetPrimary("/m/z.dem")).IsNull();
+        }
+    }
+
+    [Test]
+    public async Task DemoKeyOf_IsTheHashForAHashedPath_AndThePathOtherwise()
+    {
+        DemoCacheStore store = new(null);
+        store.Upsert(Record("/n/x.dem", "sha-x"));
+        store.Upsert(Record("/m/x.dem", "sha-x"));
+        store.Upsert(Record("/m/y.dem", null));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.DemoKeyOf("/n/x.dem")).IsEqualTo("sha-x");
+            await Assert.That(store.DemoKeyOf("/M/X.dem")).IsEqualTo("sha-x");
+            await Assert.That(store.DemoKeyOf("/m/y.dem")).IsEqualTo("/m/y.dem");
+            await Assert.That(store.DemoKeyOf("/m/z.dem")).IsEqualTo("/m/z.dem");
+            await Assert.That(store.SameDemo("/n/x.dem", "/m/x.dem")).IsTrue();
+            await Assert.That(store.SameDemo("/m/y.dem", "/M/Y.dem")).IsTrue();
+            await Assert.That(store.SameDemo("/m/x.dem", "/m/y.dem")).IsFalse();
+        }
+
+        store.Remove("/n/x.dem");
+        await Assert.That(store.SameDemo("/n/x.dem", "/m/x.dem")).IsFalse().Because("a path no row lists is only itself");
+    }
 }
