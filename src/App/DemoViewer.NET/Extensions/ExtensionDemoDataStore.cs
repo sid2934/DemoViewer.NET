@@ -22,8 +22,9 @@ namespace DemoViewer.NET.Extensions;
 ///     followed by the payload. <c>index.json.gz</c> holds one stamp per demo and facet so a staleness check
 ///     opens no data file; a missing or unreadable index is rebuilt from the file headers.
 ///     <para>
-///         A demo that leaves the library loses its files, unless another demo in the library has the same
-///         content. Files keyed by a path hash move to the content hash once the library knows it.
+///         A demo that leaves the library keeps its files while another path holds its content or the cache
+///         keeps it orphaned; they go with the content's row. Files keyed by a path hash move to the content
+///         hash once the library knows it.
 ///     </para>
 ///     <para>
 ///         The lock guards only the in-memory index. The index file is written and dropped files are deleted

@@ -250,8 +250,29 @@ handle.Completed += result => Status = result.Status.ToString();
 clans, player names, the players on each side, how far the demo has been read (`State`) and the facts written
 for it (`Facts`). `Demos`, `Find`, `FindBySha256` and `Query` read memory only and are safe on any thread; an
 unchanged demo is the same row instance on every read. `Changed` is raised on the UI thread with the demo's
-path, or with a null path when many demos changed at once, and says whether a demo was added, removed or
+`FilePath`, or with a null path when many demos changed at once, and says whether a demo was added, removed or
 updated, or only had its facts rewritten.
+
+A demo is its content, not its path. `Sha256` is its identity once the library has read the file in full;
+copies of one file, or one share mounted at two paths, are one row whose `Locations` lists every path confirmed
+to hold those bytes, `FilePath` (the one the Library shows) first. `Find` answers the same row for any of them,
+so a path the shell has open can differ from the `FilePath` a change names. Match by content, or through
+`Find`, not by comparing paths:
+
+```csharp
+library.Changed += change =>
+{
+    string? open = shell.CurrentDemoPath;
+    if (change.Path is null || (open is not null && library.Find(open)?.Locations.Contains(change.Path, StringComparer.OrdinalIgnoreCase) == true))
+    {
+        Refresh();
+    }
+};
+```
+
+A path the library matched to a known demo without a full read is a row of its own with no `Sha256` until a
+read confirms it. A demo whose every path left the library is not found, though the library keeps its data for
+a while in case the file comes back.
 
 `GetDetailAsync` reads one demo's record: the roster with slots and SteamIDs, and where each round starts. It
 reads no demo file. Off the UI thread it reads before it returns; on the UI thread it reads as a job.
@@ -266,12 +287,14 @@ contributions.RecordPass("dev.example.rosters", () => new RosterPass());
 sealed class RosterPass : IExtensionRecordPass
 {
     public string Id => "dev.example.rosters";
-    public bool Wants(LibraryDemo demo) => demo.State >= LibraryDemoState.Parsed && !Seen(demo.FilePath);
-    public void Run(LibraryDemoDetail detail, CancellationToken ct) => Remember(detail.Demo.FilePath, detail.Players);
+    public bool Wants(LibraryDemo demo) => demo.State >= LibraryDemoState.Parsed && demo.Sha256 is { } sha && !Seen(sha);
+    public void Run(LibraryDemoDetail detail, CancellationToken ct) => Remember(detail.Demo.Sha256!, detail.Players);
 }
 ```
 
-A record pass runs again on a demo only when its row changes. One that throws is skipped for that demo for the
+Keyed by `Sha256`, the pass reads a demo once however many copies the library holds; a row with no hash yet is
+asked again when the hash lands, since that changes the row. A record pass runs again on a demo only when its
+row changes. One that throws is skipped for that demo for the
 rest of the session and counted against the extension.
 
 ## Analysis facts
@@ -345,10 +368,14 @@ next demo the library visits.
 ## Per-demo data
 
 `context.Data` keeps what you compute for a demo, so the next session finds it without reading the demo again.
-Data is kept per facet (a name for one kind of data) and follows the demo's content: a moved or renamed demo
-keeps it, and a demo that leaves the library takes it along. Each write records a schema and a fingerprint (what
-the data was computed from); a read that asks for another schema or fingerprint finds nothing, so a new version
-of your pass rebuilds rather than reads stale data.
+Data is kept per facet (a name for one kind of data) under the demo's content hash. Methods take a path, and any
+of the demo's `Locations` reads and writes the same facet: a moved or renamed demo, a copy, or a second mount of
+the same share keeps it. A facet written before the library hashed the demo follows the content once the hash
+is known. A path matched to a known demo without a full read reads as absent until a read confirms it. When a
+demo's last path leaves the library its data is kept while the library keeps the demo, and comes back with the
+file; it goes when the library lets the demo go or the user deletes it. Each write records a schema and a
+fingerprint (what the data was computed from); a read that asks for another schema or fingerprint finds
+nothing, so a new version of your pass rebuilds rather than reads stale data.
 
 ```csharp
 public DemoInterest Interest(string demoPath) =>

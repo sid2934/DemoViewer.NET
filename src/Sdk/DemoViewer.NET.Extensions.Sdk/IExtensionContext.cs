@@ -40,7 +40,7 @@ public interface IExtensionContext
     /// <summary>The extension's own settings, which a <see cref="SettingsSchema" /> page edits.</summary>
     IExtensionSettings Settings { get; }
 
-    /// <summary>The extension's per-demo data, kept by the host.</summary>
+    /// <summary>The extension's per-demo data, kept by the host under each demo's content.</summary>
     IExtensionDemoData Data { get; }
 
     /// <summary>The demo library, read only.</summary>
@@ -81,7 +81,10 @@ public interface IExtensionFeatures
 /// <summary>The open demo and the shell's navigation. Call from the UI thread.</summary>
 public interface IExtensionShell
 {
-    /// <summary>The path of the demo the shell has open, or null.</summary>
+    /// <summary>
+    ///     The path of the demo the shell has open, or null. It may be any of the demo's
+    ///     <see cref="LibraryDemo.Locations" />, not the one the library shows it at.
+    /// </summary>
     string? CurrentDemoPath { get; }
 
     /// <summary>Raised on the UI thread after the open demo changes.</summary>
