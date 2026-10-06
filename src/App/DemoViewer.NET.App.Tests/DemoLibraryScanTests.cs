@@ -363,6 +363,122 @@ public class DemoLibraryScanTests
     }
 
     [Test]
+    public async Task AListingSliceTheUserRemovesWhileQueued_LeavesItsFolderUnreached_AndTheScanCompletes()
+    {
+        string stopped = NewTempDir();
+        string other = NewTempDir();
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ => throw new InvalidOperationException("nothing is parsed here"));
+        try
+        {
+            string a = WriteDemo(stopped, "a.dem", 3);
+            string gone = Path.Combine(stopped, "gone.dem");
+            string c = WriteDemo(other, "c.dem", 4);
+            string dataPath = SeedLibrary(other, [stopped, other], Row(a), Row(gone, 5));
+            using DemoLibraryService svc = new(_inline, dataPath);
+            svc.QueueOverride = queue;
+
+            queue.Pause();
+            Task scan = svc.RescanAsync();
+            DemoQueueItemSnapshot? slice = null;
+            await WaitForAsync(() => (slice = ListingSlice(queue, stopped, DemoQueueItemState.Queued)) is not null
+                                     && ListingSlice(queue, other, DemoQueueItemState.Queued) is not null,
+                "both folders' first listing slice");
+            queue.RemoveByUser(slice!.Id);
+            queue.Resume();
+
+            await scan.WaitAsync(TimeSpan.FromSeconds(10));
+            using (Assert.Multiple())
+            {
+                await Assert.That(EntryPaths(svc)).IsEquivalentTo([c]);
+                await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(a, gone))
+                    .Because("a folder whose listing was stopped is no evidence that anything under it is gone");
+            }
+        }
+        finally
+        {
+            queue.Resume();
+            Cleanup(stopped);
+            Cleanup(other);
+        }
+    }
+
+    [Test]
+    public async Task AListingSliceTheUserStopsWhileItWaitsOnARead_EndsAtOnce_AndPrunesNothing()
+    {
+        string slow = NewTempDir();
+        GatedReader reader = new(slow);
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ => throw new InvalidOperationException("nothing is parsed here"));
+        try
+        {
+            string b = WriteDemo(slow, "b.dem", 4);
+            string gone = Path.Combine(slow, "gone.dem");
+            string dataPath = SeedLibrary(slow, [slow], Row(b), Row(gone, 5));
+            using DemoLibraryService svc = new(_inline, dataPath);
+            svc.FolderReader = reader;
+            svc.QueueOverride = queue;
+            svc.Timing = new LibraryScanTiming(TimeSpan.FromMilliseconds(100), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60));
+
+            Task scan = svc.RescanAsync();
+            await WaitForAsync(() => reader.BlockedReads == 1, "the hung read");
+            DemoQueueItemSnapshot? slice = null;
+            await WaitForAsync(() => (slice = ListingSlice(queue, slow, DemoQueueItemState.Running)) is not null,
+                "the slice waiting on the read inside the queue");
+            queue.RemoveByUser(slice!.Id);
+
+            await scan.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(CachedPaths(svc, dataPath)).IsEquivalentTo(Sorted(b, gone));
+        }
+        finally
+        {
+            reader.Release();
+            Cleanup(slow);
+        }
+    }
+
+    [Test]
+    public async Task AReadThatThrowsSomethingOtherThanAnIOError_CountsAsNotReached_AndFailsNoQueueItem()
+    {
+        string root = NewTempDir();
+        string odd = NewTempDir();
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ => throw new InvalidOperationException("nothing is parsed here"));
+        try
+        {
+            string kept = WriteDemo(root, "ok/a.dem", 3);
+            string gone = Path.Combine(Path.GetDirectoryName(kept)!, "gone.dem");
+            string hidden = WriteDemo(root, "bad/b.dem", 4);
+            string bad = Path.GetDirectoryName(hidden)!;
+            string unresolved = WriteDemo(odd, "c.dem", 5);
+            string dataPath = SeedLibrary(root, [root, odd], Row(kept), Row(gone, 9), Row(hidden), Row(unresolved));
+
+            using DemoLibraryService svc = new(_inline, dataPath);
+            svc.QueueOverride = queue;
+            svc.FolderReader = new ScriptedReader
+            {
+                FailRead = d => d == bad ? new InvalidOperationException("the handle went away") : null,
+                FailResolve = f => f == odd ? new NotSupportedException("no such provider") : null
+            };
+            await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+            string[] rows = CachedPaths(svc, dataPath);
+            using (Assert.Multiple())
+            {
+                await Assert.That(rows).Contains(hidden);
+                await Assert.That(rows).Contains(unresolved);
+                await Assert.That(rows).DoesNotContain(gone).Because("the rest of the first folder was read");
+                await Assert.That(queue.Snapshot().Any(i => i.State == DemoQueueItemState.Failed)).IsFalse();
+            }
+        }
+        finally
+        {
+            Cleanup(root);
+            Cleanup(odd);
+        }
+    }
+
+    [Test]
     public async Task AHeaderReadThatHasNotAnswered_HoldsNoQueueLane_WhileAnotherFolderIsRead()
     {
         string fast = NewTempDir();
@@ -512,6 +628,10 @@ public class DemoLibraryScanTests
             return new LibraryDemoHeader("de_" + Path.GetFileNameWithoutExtension(path), "server", "1");
         }
     }
+
+    private static DemoQueueItemSnapshot? ListingSlice(DemoProcessingQueue queue, string folder, DemoQueueItemState state) =>
+        queue.Snapshot().FirstOrDefault(s => s.Kind == QueueJobKind.LibraryListing && s.State == state
+                                             && s.DisplayName == "Library: list " + folder);
 
     private static DemoEntry Entry(DemoLibraryService svc, string path)
     {
