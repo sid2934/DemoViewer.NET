@@ -39,6 +39,22 @@ public sealed class ExtensionGuard(ExtensionFaults faults, ExtensionScope scope)
     public Task<T> RunAsync<T>(string site, Func<Task<T>> body, T fallback, CancellationToken own = default) =>
         Faults.RunAsync(Scope, site, body, fallback, own);
 
+    /// <summary>
+    ///     The feature a contribution at <paramref name="site" /> is gated on: <paramref name="requested" /> when the
+    ///     extension owns it, its master switch when it names none. Naming another owner's feature is reported and
+    ///     gated on the master switch instead.
+    /// </summary>
+    public string OwnFeature(string site, string? requested)
+    {
+        string own = Scope.OwnFeature(requested);
+        if (requested is not null && !string.Equals(own, requested, StringComparison.Ordinal))
+        {
+            Report(site, new ArgumentException($"'{requested}' is not one of {Scope.Id}'s features; gated on {own} instead."));
+        }
+
+        return own;
+    }
+
     /// <summary>Reports a fault the caller caught itself.</summary>
     public void Report(string site, Exception exception, FaultKind kind = FaultKind.Counted) =>
         Faults.Report(Scope, site, exception, kind);

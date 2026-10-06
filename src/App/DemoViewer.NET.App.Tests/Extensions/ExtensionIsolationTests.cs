@@ -172,6 +172,47 @@ public class ExtensionIsolationTests
         }
     }
 
+    [Test]
+    public async Task AContributionGatedOnAFeatureItDoesNotOwn_FollowsTheExtensionsSwitch_AndIsReported()
+    {
+        OwnsOneFeature pack = new();
+        ExtensionGuard guard = ExtensionGuard.Standalone(pack);
+        PackContributions contributions = new(pack, () => null!, guard: guard);
+
+        contributions.DemoAction(new DemoAction("dev.example.owner.core", "Core", "", _ => true, _ => { }, "playback2d"));
+        contributions.DemoAction(new DemoAction("dev.example.owner.own", "Own", "", _ => true, _ => { }, OwnsOneFeature.Sub));
+        contributions.DemoAction(new DemoAction("dev.example.owner.none", "None", "", _ => true, _ => { }));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(contributions.DemoActions.Select(a => a.FeatureId))
+                .IsEquivalentTo([pack.FeatureId, OwnsOneFeature.Sub, pack.FeatureId], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(guard.Faults.StateOf(pack.FeatureId).Count).IsEqualTo(1)
+                .Because("only the contribution naming another owner's feature is reported");
+        }
+    }
+
+    private sealed class OwnsOneFeature : IExtension
+    {
+        public const string Sub = "dev.example.owner.sub";
+        public string Id => "dev.example.owner";
+        public string FeatureId => "dev.example.owner";
+
+        public IEnumerable<ExtensionFeature> Features =>
+        [
+            new(FeatureId, ExtensionFeatureKind.Extension, "Owner", "", null, AudienceDefaults.Everyone),
+            new(Sub, ExtensionFeatureKind.SubFeature, "Sub", "", FeatureId, AudienceDefaults.Everyone)
+        ];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
+    }
+
     public class NullProxy : DispatchProxy
     {
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => null;

@@ -114,7 +114,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentException.ThrowIfNullOrWhiteSpace(hub.Id);
         ArgumentNullException.ThrowIfNull(hub.Header);
         ArgumentNullException.ThrowIfNull(hub.RailLabel);
-        _hubTabs.Add(ContributedHub.For(hub, Pack.Id, Pack.FeatureId, _guard));
+        _hubTabs.Add(ContributedHub.For(hub with { FeatureId = _guard.OwnFeature("hub tab", hub.FeatureId) }, Pack.Id, Pack.FeatureId, _guard));
     }
 
     /// <inheritdoc />
@@ -178,7 +178,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
         string id = RulesetContribution.QualifiedId(Pack.Id, ruleset.Id);
         Func<Stream> open = ruleset.Yaml;
-        _rulesets.Add(new ContributedRuleset(id, Pack.Id, ruleset.FeatureId ?? Pack.FeatureId, () => _guard.Run<string?>("ruleset " + id, () =>
+        _rulesets.Add(new ContributedRuleset(id, Pack.Id, _guard.OwnFeature("ruleset", ruleset.FeatureId), () => _guard.Run<string?>("ruleset " + id, () =>
         {
             using Stream stream = open();
             using StreamReader reader = new(stream);
@@ -211,7 +211,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         Func<Control> view = page.ViewFactory;
         _settingsPages.Add(page with
         {
-            FeatureId = page.FeatureId ?? Pack.FeatureId,
+            FeatureId = _guard.OwnFeature("settings page", page.FeatureId),
             ViewModelFactory = () =>
             {
                 object? built = _guard.Run<object?>("settings page view model", () => viewModel(), null);
@@ -247,7 +247,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentNullException.ThrowIfNull(chip);
         ArgumentException.ThrowIfNullOrWhiteSpace(chip.Id);
         ArgumentNullException.ThrowIfNull(chip.Source);
-        _statusChips.Add(new HostStatusChip(chip, chip.FeatureId ?? Pack.FeatureId, _guard, _toUiThread));
+        _statusChips.Add(new HostStatusChip(chip, _guard.OwnFeature("status chip", chip.FeatureId), _guard, _toUiThread));
     }
 
     /// <inheritdoc />
@@ -268,7 +268,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public void Library(ILibraryContribution contribution)
     {
         ArgumentNullException.ThrowIfNull(contribution);
-        string featureId = _guard.Run("library contribution", () => contribution.FeatureId, null) ?? Pack.FeatureId;
+        string featureId = _guard.OwnFeature("library contribution", _guard.Run("library contribution", () => contribution.FeatureId, null));
         _library.Add(new HostLibraryContribution(contribution, featureId, _toUiThread, _guard));
     }
 
@@ -378,9 +378,10 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentNullException.ThrowIfNull(action);
         Func<string, bool> isAvailable = _guard.Wrap("demo action availability", action.IsAvailable, false);
         Action<string> run = _guard.Wrap("demo action", action.Run);
-        DemoAction guarded = new(action.Id, action.Label, action.Tooltip, isAvailable, run, action.FeatureId);
+        string featureId = _guard.OwnFeature("demo action", action.FeatureId);
+        DemoAction guarded = new(action.Id, action.Label, action.Tooltip, isAvailable, run, featureId);
         action.Changed += guarded.NotifyChanged;
-        _demoActions.Add(new GatedDemoAction(guarded, action.FeatureId ?? Pack.FeatureId) { ToUiThread = _toUiThread });
+        _demoActions.Add(new GatedDemoAction(guarded, featureId) { ToUiThread = _toUiThread });
     }
 
 
