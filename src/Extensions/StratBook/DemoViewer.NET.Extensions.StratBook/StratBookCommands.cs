@@ -54,6 +54,37 @@ internal static class StratBookActions
 }
 
 /// <summary>
+///     The core actions the strat canvas runs and names in its hints, by the ids the keymap carries them under.
+///     The host resolves them under the user's keymap like any other id.
+/// </summary>
+internal static class CoreActions
+{
+    public const string TogglePlay = "TogglePlay";
+    public const string StepBack = "StepBack";
+    public const string StepForward = "StepForward";
+    public const string SpeedUp = "SpeedUp";
+    public const string SpeedDown = "SpeedDown";
+    public const string Undo = "Undo";
+    public const string Redo = "Redo";
+    public const string HoldPan = "HoldPan";
+    public const string CancelGesture = "CancelGesture";
+    public const string ClearAnnotations = "ClearAnnotations";
+    public const string ToolDraw = "ToolDraw";
+    public const string ToolErase = "ToolErase";
+    public const string ToolLine = "ToolLine";
+    public const string ToolArrow = "ToolArrow";
+    public const string ToolRect = "ToolRect";
+    public const string ToolEllipse = "ToolEllipse";
+    public const string ToolText = "ToolText";
+
+    /// <summary>The keymap scope every surface resolves in.</summary>
+    public const string Scope = "playback2d";
+
+    /// <summary>The scope resolved first while a pointer tool is active; it shadows <see cref="Scope" />.</summary>
+    public const string ToolScope = "playback2d.tool";
+}
+
+/// <summary>
 ///     The Strat Book extension's keymap commands and the focus scopes they name. The tab hands a resolved
 ///     id to the pack's playback contributions through their action handlers; the strat canvas runs its own
 ///     through <see cref="StratCanvasViewModel.ExecuteAction(string)" />.

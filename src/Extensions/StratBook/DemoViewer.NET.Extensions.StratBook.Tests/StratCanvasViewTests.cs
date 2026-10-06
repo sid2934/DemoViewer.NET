@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -29,7 +30,7 @@ namespace DemoViewer.NET.AppTests;
 public class StratCanvasViewTests
 {
     [Test]
-    public async Task TheView_BindsTheCanvasAsTheHostsFrameHost_AndRoutesItsKeys()
+    public async Task TheView_DrawsTheCanvasAsItsSceneSource_AndRoutesItsKeys()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -43,7 +44,7 @@ public class StratCanvasViewTests
             Playback2DTimelineHarness.Pump();
 
             Scene2DHost host = view.GetVisualDescendants().OfType<Scene2DHost>().Single();
-            await Assert.That(host.FrameHost).IsSameReferenceAs(canvas);
+            await Assert.That(view.GetVisualDescendants().OfType<SceneView>().Single().Source).IsSameReferenceAs(canvas);
 
             // ] then V: the first step is shown, and the token tool is on the host's router.
             window.KeyPressQwerty(PhysicalKey.BracketRight, RawInputModifiers.None);
@@ -69,8 +70,8 @@ public class StratCanvasViewTests
     }
 
     /// <summary>
-    ///     On the tab the canvas sits beside the step table, and opening a strat is what binds it: the host
-    ///     under the tab finds the canvas, not the tab's own view-model, which is not a frame host.
+    ///     On the tab the canvas sits beside the step table, and opening a strat is what binds it: the scene
+    ///     under the tab draws the canvas, not the tab's own view-model.
     /// </summary>
     [Test]
     public async Task OnTheStratBookTab_OpeningAStrat_BindsTheCanvas()
@@ -90,11 +91,11 @@ public class StratCanvasViewTests
             window.Show();
             Playback2DTimelineHarness.Pump();
 
-            Scene2DHost host = view.GetVisualDescendants().OfType<Scene2DHost>().Single();
+            SceneView scene = view.GetVisualDescendants().OfType<SceneView>().Single();
             using (Assert.Multiple())
             {
                 await Assert.That(tab.HasOpenStrat).IsTrue();
-                await Assert.That(host.FrameHost).IsSameReferenceAs(tab.Canvas);
+                await Assert.That(scene.Source).IsSameReferenceAs(tab.Canvas);
                 await Assert.That(tab.Canvas.Projection!.Path.Count).IsEqualTo(5);
             }
 
@@ -113,7 +114,7 @@ public class StratCanvasViewTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (StratStore _, StratSession session) = Opened(FiveSteps());
-            using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+            using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
                 placesFor: _ => Task.FromResult<IZonePlaceResolver?>(new StratMapFirstTests.EverywhereIs("Hut")), post: a => a());
 
             StratCanvasView view = new() { DataContext = canvas };
@@ -231,7 +232,7 @@ public class StratCanvasViewTests
             Playback2DTimelineHarness.Pump();
             canvas.SelectStep(session.Document!.Steps[1].Id);
             Playback2DTimelineHarness.Pump();
-            await Assert.That(canvas.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
+            await Assert.That(canvas.Tools.ActiveTool).IsEqualTo(ToolKind.PanZoom);
 
             Scene2DHost host = view.GetVisualDescendants().OfType<Scene2DHost>().Single();
             Point Screen(double x, double y)
@@ -255,7 +256,7 @@ public class StratCanvasViewTests
                 await Assert.That(session.UndoDepth).IsEqualTo(1);
                 await Assert.That(moved.X!.Value).IsGreaterThan(600);
                 await Assert.That(session.Document!.Steps[1].Positions.Single(p => p.Slot == "A").X).IsEqualTo(600);
-                await Assert.That(canvas.Annotations.ActiveTool).IsEqualTo(ToolKind.PanZoom);
+                await Assert.That(canvas.Tools.ActiveTool).IsEqualTo(ToolKind.PanZoom);
             }
 
             // Empty map: the camera moves and the strat does not.
@@ -272,7 +273,7 @@ public class StratCanvasViewTests
             }
 
             // The pen keeps its own press: a stroke from the token, which stays put.
-            canvas.Annotations.SelectTool(ToolKind.Draw);
+            canvas.Tools.SelectTool(ToolKind.Draw);
             Playback2DTimelineHarness.Pump();
             Point a2 = Screen(600, 0);
             window.MouseDown(a2, MouseButton.Left);

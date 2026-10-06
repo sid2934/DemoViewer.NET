@@ -1,19 +1,18 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas"
-             xmlns:pb="using:DemoViewer.NET.Modules.Playback2D"
-             xmlns:tl="using:DemoViewer.NET.Views.Playback2D"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              x:Class="DemoViewer.NET.Extensions.StratBook.Views.StratBook.StratCanvasView"
              x:DataType="vm:StratCanvasViewModel"
              Focusable="True">
 
     <!--
       THE STEP AUTHORING CANVAS: the open strat on the 2D scene with no demo behind
-      it. The tool row, the step transport and the path picker on top; the scene host in the middle, bound to
-      the canvas view-model as its frame host and token editor; the scrubber at the bottom, one marker per
-      step and one per stroke.
+      it. The tool row, the step transport and the path picker on top; the scene in the middle, drawing the
+      canvas view-model as its source with the canvas as its token editor; the scrubber at the bottom, one
+      marker per step and one per stroke.
 
-      Keys go through the shared Playback2D keymap (with the user's overrides) while the canvas has focus:
+      Keys go through the one keymap (with the user's rebinds) while the canvas has focus:
       Esc also ends Set On Map without writing.
       V token, D draw, X erase, A T L R O the shapes, Space play, [ ] steps, Shift+N add a step, Ctrl+D
       duplicate it, Ctrl+Delete delete it, Ctrl+X clear its strokes, Ctrl+Z and Ctrl+Shift+Z the strat's
@@ -27,14 +26,14 @@
         <!-- Tools. The same glyphs as the 2D tab's annotation toolbar; the token tool is this canvas's own. -->
         <WrapPanel Grid.Row="0" Orientation="Horizontal" ItemSpacing="6" LineSpacing="4" Margin="0 0 0 6">
             <ToggleButton Padding="8,2" Content="✋" IsVisible="{Binding !IsReadOnly}"
-                          IsChecked="{Binding Annotations.IsPanZoomSelected, Mode=OneWay}"
-                          Command="{Binding Annotations.SelectPanZoomCommand}"
+                          IsChecked="{Binding Tools.IsPanZoomSelected, Mode=OneWay}"
+                          Command="{Binding Tools.SelectPanZoomCommand}"
                           ToolTip.Tip="Pan / zoom" />
             <ToggleButton Padding="8,2" Content="◉"
                           IsVisible="{Binding !IsReadOnly}"
                           IsChecked="{Binding IsTokenToolSelected, Mode=OneWay}"
                           Command="{Binding SelectTokenToolCommand}"
-                          ToolTip.Tip="{Binding TokenToolTip}" />
+                          ToolTip.Tip="{Binding Tools.TokenToolTip}" />
             <!-- Alt+drag's twin, for a window manager that takes Alt+drag: the next drag pins its token. -->
             <ToggleButton x:Name="PinToggle" Padding="8,2" Content="Pin" FontSize="11"
                           IsVisible="{Binding !IsReadOnly}"
@@ -42,39 +41,39 @@
                           ToolTip.Tip="Pin the next token drag to an exact spot, as Alt+drag does: a placed chip on the step, cleared with its ✕" />
             <ToggleButton Padding="8,2" Content="✎"
                           IsVisible="{Binding !IsReadOnly}"
-                          IsChecked="{Binding Annotations.IsDrawSelected, Mode=OneWay}"
-                          Command="{Binding Annotations.SelectDrawCommand}"
-                          ToolTip.Tip="{Binding Annotations.DrawToolTip}" />
+                          IsChecked="{Binding Tools.IsDrawSelected, Mode=OneWay}"
+                          Command="{Binding Tools.SelectDrawCommand}"
+                          ToolTip.Tip="{Binding Tools.DrawToolTip}" />
             <ToggleButton Padding="8,2" Content="⌫"
                           IsVisible="{Binding !IsReadOnly}"
-                          IsChecked="{Binding Annotations.IsEraseSelected, Mode=OneWay}"
-                          Command="{Binding Annotations.SelectEraseCommand}"
-                          ToolTip.Tip="{Binding Annotations.EraseToolTip}" />
+                          IsChecked="{Binding Tools.IsEraseSelected, Mode=OneWay}"
+                          Command="{Binding Tools.SelectEraseCommand}"
+                          ToolTip.Tip="{Binding Tools.EraseToolTip}" />
             <ToggleButton Padding="8,2" Content="➚"
                           IsVisible="{Binding !IsReadOnly}"
-                          IsChecked="{Binding Annotations.IsArrowSelected, Mode=OneWay}"
-                          Command="{Binding Annotations.SelectArrowCommand}"
-                          ToolTip.Tip="{Binding Annotations.ArrowToolTip}" />
+                          IsChecked="{Binding Tools.IsArrowSelected, Mode=OneWay}"
+                          Command="{Binding Tools.SelectArrowCommand}"
+                          ToolTip.Tip="{Binding Tools.ArrowToolTip}" />
             <ToggleButton Padding="8,2" Content="T"
                           IsVisible="{Binding !IsReadOnly}"
-                          IsChecked="{Binding Annotations.IsTextSelected, Mode=OneWay}"
-                          Command="{Binding Annotations.SelectTextCommand}"
-                          ToolTip.Tip="{Binding Annotations.TextToolTip}" />
+                          IsChecked="{Binding Tools.IsTextSelected, Mode=OneWay}"
+                          Command="{Binding Tools.SelectTextCommand}"
+                          ToolTip.Tip="{Binding Tools.TextToolTip}" />
             <ToggleButton Padding="8,2" Content="╱"
                           IsVisible="{Binding !IsReadOnly}"
-                          IsChecked="{Binding Annotations.IsLineSelected, Mode=OneWay}"
-                          Command="{Binding Annotations.SelectLineCommand}"
-                          ToolTip.Tip="{Binding Annotations.LineToolTip}" />
+                          IsChecked="{Binding Tools.IsLineSelected, Mode=OneWay}"
+                          Command="{Binding Tools.SelectLineCommand}"
+                          ToolTip.Tip="{Binding Tools.LineToolTip}" />
             <ToggleButton Padding="8,2" Content="▭"
                           IsVisible="{Binding !IsReadOnly}"
-                          IsChecked="{Binding Annotations.IsRectSelected, Mode=OneWay}"
-                          Command="{Binding Annotations.SelectRectCommand}"
-                          ToolTip.Tip="{Binding Annotations.RectToolTip}" />
+                          IsChecked="{Binding Tools.IsRectSelected, Mode=OneWay}"
+                          Command="{Binding Tools.SelectRectCommand}"
+                          ToolTip.Tip="{Binding Tools.RectToolTip}" />
             <ToggleButton Padding="8,2" Content="◯"
                           IsVisible="{Binding !IsReadOnly}"
-                          IsChecked="{Binding Annotations.IsEllipseSelected, Mode=OneWay}"
-                          Command="{Binding Annotations.SelectEllipseCommand}"
-                          ToolTip.Tip="{Binding Annotations.EllipseToolTip}" />
+                          IsChecked="{Binding Tools.IsEllipseSelected, Mode=OneWay}"
+                          Command="{Binding Tools.SelectEllipseCommand}"
+                          ToolTip.Tip="{Binding Tools.EllipseToolTip}" />
             <!-- Set On Map: the selected step's place from a click, for the field its verb uses. -->
             <ToggleButton Content="{Binding SetPlaceText}" FontSize="11" Padding="8 3"
                           IsVisible="{Binding CanSetPlace}"
@@ -118,10 +117,10 @@
                        Foreground="{DynamicResource TextMid}" />
         </WrapPanel>
 
-        <!-- The scene. The host finds the canvas through its DataContext, which is this view's. -->
+        <!-- The scene. The code-behind hands it the canvas, this view's DataContext, as its source. -->
         <Border Grid.Row="2" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" ClipToBounds="True">
             <Panel>
-                <pb:Scene2DHost x:Name="Host" />
+                <ui:SceneView x:Name="Scene" />
 
                 <!-- A token drag's label beside the pointer: who, the field it writes and what it becomes, then the keys. -->
                 <Canvas x:Name="DragLabelLayer" IsHitTestVisible="False">
@@ -146,6 +145,6 @@
             </Panel>
         </Border>
 
-        <tl:TimelineControl Grid.Row="3" DataContext="{Binding Timeline}" Margin="0 6 0 0" />
+        <ui:TimelineView Grid.Row="3" Timeline="{Binding Timeline}" Margin="0 6 0 0" />
     </Grid>
 </UserControl>

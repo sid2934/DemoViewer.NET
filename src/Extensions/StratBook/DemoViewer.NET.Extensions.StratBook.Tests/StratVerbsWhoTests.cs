@@ -393,7 +393,7 @@ public class StratVerbsWhoTests
     {
         StratDocument document = StratCanvasTestData.FiveSteps();
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [], post: a => a());
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped, post: a => a());
 
         // Step 2 is A's move: no watching, so a runner faces its run.
         canvas.SelectStep(document.Steps[1].Id);
@@ -425,7 +425,7 @@ public class StratVerbsWhoTests
         document.Steps[1].Verb = "hold";
         document.Steps[1].To = new PlaceRef { Place = "Hut" };
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
         canvas.LinesShownApart = id => id == document.Steps[1].Id;
         canvas.SelectStep(document.Steps[1].Id);
@@ -462,7 +462,7 @@ public class StratVerbsWhoTests
         document.Steps[3].Verb = "lurk";
         document.Steps[3].To = null;
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
 
         canvas.SelectStep(document.Steps[1].Id);
@@ -676,7 +676,7 @@ public class StratVerbsWhoTests
         document.Steps[0].Positions = [new StepPosition { Slot = "E", X = 50, Y = 50, LevelMinZ = -512 }, StratCanvasTestData.Position("A", 150, 50)];
         document.Steps[0].Positions[1].LevelMinZ = -512;
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
         canvas.Transport.Seek(0);
 

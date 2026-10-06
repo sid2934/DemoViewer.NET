@@ -331,7 +331,7 @@ public class StratRoutingTests
         StratDocument document = ExecuteB(map);
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         bool routing = false;
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(map), post: a => a(), routing: () => routing);
 
         StratSceneProjection off = canvas.Projection!;
@@ -367,7 +367,7 @@ public class StratRoutingTests
         StratDocument document = ExecuteB(map);
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         FakeFeatureGate gate = new();
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(map), post: a => a(),
             lookups: new StratCanvasServices(gate, null, null));
 
@@ -386,7 +386,7 @@ public class StratRoutingTests
         ZonePlaceResolverAdapter map = Map(Dust2);
         StratDocument document = Sent("de_dust2", "TSpawn", "move", "LongDoors", -99968, map);
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(map), post: a => a(), routing: () => true);
         TokenTrack a = canvas.Projection!.Tracks.Single(t => t.Slot == "A");
         int arrive = a.Keyframes[^1].Tick;

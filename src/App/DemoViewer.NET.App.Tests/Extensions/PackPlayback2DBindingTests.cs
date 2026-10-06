@@ -20,7 +20,6 @@ public class PackPlayback2DBindingTests
     private const string DemoFrames = "demo-to-frame adaptation stays first-party";
 
     private const string Seam = "the first-party seam the container hands the pack";
-    private const string StratCanvas = "the strat canvas mounts the 2D tab's scene host, timeline and ink";
 
     private static readonly string[] UnpublishedAssemblies =
         ["DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Pipeline"];
@@ -28,23 +27,12 @@ public class PackPlayback2DBindingTests
     /// <summary>Every app type the pack may bind, with the reason. Anything else of the app goes through the SDK.</summary>
     private static readonly (string Type, string Reason)[] AllowedApp =
     [
-        ("DemoViewer.NET.Configuration.SettingsService", StratCanvas),
         ("DemoViewer.NET.Extensions.FirstPartyExports", Seam),
         ("DemoViewer.NET.Extensions.FirstPartyHost", Seam),
         ("DemoViewer.NET.Extensions.FirstPartySceneExport", Seam),
         ("DemoViewer.NET.Extensions.IFirstPartyExportChips", Seam),
         ("DemoViewer.NET.Extensions.IFirstPartyShellState", Seam),
         ("DemoViewer.NET.Extensions.SceneExportDefaults", Seam),
-        ("DemoViewer.NET.Extensions.ScenePointer", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Annotations.AnnotationSessionController", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.IAnnotationSurface", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.IGuidesHost", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.ISceneFrameHost", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.ITokenEditingHost", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Playback2DKeymapProfile", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Scene2DHost", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Timeline.Playback2DTimelineViewModel", StratCanvas),
-        ("DemoViewer.NET.Modules.Playback2D.Timeline.TimelineBandRow", StratCanvas),
         ("DemoViewer.NET.Services.Export.ExportEncoding", Export),
         ("DemoViewer.NET.Services.Export.ExportJobService", Export),
         ("DemoViewer.NET.Services.Export.ExportRefusedException", Export),
@@ -53,13 +41,11 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.Services.Export.IExportRunner", Export),
         ("DemoViewer.NET.Services.Export.SceneExportRunner", Export),
         ("DemoViewer.NET.Services.Review.ReviewQueue", ReviewQueue),
-        ("DemoViewer.NET.ViewModels.Playback2D.AnnotationsPanelViewModel", StratCanvas),
         ("DemoViewer.NET.ViewModels.Playback2D.ExportDialogScene", Export),
         ("DemoViewer.NET.ViewModels.Playback2D.ExportRangeOption", Export),
         ("DemoViewer.NET.ViewModels.Playback2D.ExportSizeOption", Export),
         ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportDialogViewModel", Export),
         ("DemoViewer.NET.ViewModels.Playback2D.Playback2DExportStatusViewModel", Export),
-        ("DemoViewer.NET.Views.Playback2D.TimelineControl", StratCanvas),
     ];
 
     /// <summary>Every type the pack may bind in an unpublished Playback2D assembly, with the reason.</summary>
@@ -75,7 +61,6 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Rendering.CpuSurfaceProvider", Export),
         ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Rendering.IRenderSurfaceProvider", Export),
         ("DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Core.Rendering.RenderSurfaceProviderFactory", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Annotations.AnnotationStore", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Assets.LoadedMapAsset", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Assets.MapAssetPipeline", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Export.SceneExportSession", Export),

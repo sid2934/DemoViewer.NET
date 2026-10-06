@@ -540,10 +540,9 @@ public sealed class StratBookPack : IExtension
         {
             IExtensionLibrary library = Library(sp);
             // The canvas (and the Detected preview's) fallback when nobody passes placesFor/routing
-            // explicitly: the extension's switches, the zone source and the user's keybind overrides.
-            FirstPartyHost paths = Paths(sp);
+            // explicitly: the extension's switches, the zone source and the user's keymap.
             StratCanvasServices canvasServices = new(
-                Host(sp).Features, sp.GetService<IZonePlaceResolverSource>(), () => paths.KeybindOverrides, Host(sp).Jobs);
+                Host(sp).Features, sp.GetService<IZonePlaceResolverSource>(), Host(sp).Keymap, Host(sp).Jobs);
             return new StratBookTabViewModel(
                 sp.GetRequiredService<StratStore>(),
                 sp.GetRequiredService<TeamIdentityService>(),

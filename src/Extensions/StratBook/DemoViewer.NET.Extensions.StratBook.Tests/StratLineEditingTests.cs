@@ -171,7 +171,7 @@ public class StratLineEditingTests
         document.Steps[1].To = null;
         document.Steps[1].Assignments = [new StepAssignment { Slot = "A" }, new StepAssignment { Slot = "C" }];
         (StratStore _, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
         canvas.LinesShownApart = _ => true;
         canvas.SelectStep(document.Steps[1].Id);
@@ -197,7 +197,7 @@ public class StratLineEditingTests
         StratDocument document = FiveSteps();
         document.Steps[0].Verb = "hold";
         (StratStore _, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [], post: a => a());
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped, post: a => a());
         canvas.SelectStep(document.Steps[0].Id);
 
         // B at (100, 0) facing 0: well inside its cone, off its stub, is a turn; the disc is a move.

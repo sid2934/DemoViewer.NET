@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using System.Text.Json.Nodes;
 using Avalonia.Input;
 using DemoViewer.NET.Extensions.StratBook;
@@ -84,7 +85,7 @@ public class StratCanvasTests
 
         // Scrub back to the middle of step 1's window: A halfway along its move, B and C still where step 1
         // put them (the stationary rule), and the frame is a jump.
-        canvas.Timeline.RequestSeekToFrame((Step1 + Step2) / 2);
+        canvas.Timeline.RequestSeek((Step1 + Step2) / 2);
         using (Assert.Multiple())
         {
             await Assert.That(canvas.Transport.Tick).IsEqualTo((Step1 + Step2) / 2);
@@ -95,7 +96,7 @@ public class StratCanvasTests
         }
 
         // B moves only in step 2's window, the segment ending at its next entry.
-        canvas.Timeline.RequestSeekToFrame((Step2 + Step3) / 2);
+        canvas.Timeline.RequestSeek((Step2 + Step3) / 2);
         await Assert.That(Marker(canvas, "B").WorldY).IsEqualTo(450f);
         await Assert.That(Marker(canvas, "C").WorldY).IsEqualTo(0f);
 
@@ -103,7 +104,7 @@ public class StratCanvasTests
         // the last step with every token where step 5 put it.
         canvas.ExecuteAction(StratBookActions.PrevStep);
         await Assert.That(canvas.Transport.Tick).IsEqualTo(Step2);
-        canvas.Timeline.RequestSeekToFrame(Step1);
+        canvas.Timeline.RequestSeek(Step1);
         await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.TogglePlay))).IsTrue();
         await Assert.That(canvas.IsPlaying).IsTrue();
 
@@ -135,14 +136,14 @@ public class StratCanvasTests
         List<(float X, float Y)> forward = [];
         for (int tick = Step1; tick <= Step5; tick += 160)
         {
-            canvas.Timeline.RequestSeekToFrame(tick);
+            canvas.Timeline.RequestSeek(tick);
             forward.Add((Marker(canvas, "B").WorldX, Marker(canvas, "B").WorldY));
         }
 
         List<(float X, float Y)> backward = [];
         for (int tick = Step1 + (Step5 - Step1) / 160 * 160; tick >= Step1; tick -= 160)
         {
-            canvas.Timeline.RequestSeekToFrame(tick);
+            canvas.Timeline.RequestSeek(tick);
             backward.Add((Marker(canvas, "B").WorldX, Marker(canvas, "B").WorldY));
         }
 
@@ -155,7 +156,7 @@ public class StratCanvasTests
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.Timeline.RequestSeekToFrame(Step2 + 10);
+        canvas.Timeline.RequestSeek(Step2 + 10);
         await Assert.That(canvas.ActiveStepIndex).IsEqualTo(1);
 
         List<IReadOnlyList<PatchOp>> applied = [];
@@ -202,7 +203,7 @@ public class StratCanvasTests
         document.Steps[1].Verb = "hold";
         (StratStore _, StratSession session) = Opened(document);
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.Timeline.RequestSeekToFrame(Step2);
+        canvas.Timeline.RequestSeek(Step2);
 
         canvas.BeginDrag("D", TokenGrip.Body);
         canvas.MoveTo("D", new SKPoint(999, 999), 0);
@@ -257,8 +258,8 @@ public class StratCanvasTests
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.Timeline.RequestSeekToFrame(Step2 + 100);
-        AnnotationSession ink = canvas.AnnotationSession!;
+        canvas.Timeline.RequestSeek(Step2 + 100);
+        AnnotationSession ink = canvas.Ink;
 
         // What a shape tool does: one gesture, one element stamped with the session's envelope.
         AnnotationElement arrow = new(Guid.NewGuid(), AnnotationKind.Arrow, AnnotationStyle.Default,
@@ -301,7 +302,7 @@ public class StratCanvasTests
         ];
         (StratStore _, StratSession session) = Opened(document);
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        AnnotationDocument ink = canvas.AnnotationSession!.Document;
+        AnnotationDocument ink = canvas.Ink.Document;
 
         List<IReadOnlyList<PatchOp>> applied = [];
         session.OpsApplied += applied.Add;
@@ -333,7 +334,7 @@ public class StratCanvasTests
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
-        canvas.Timeline.RequestSeekToFrame(Step2 + 320);
+        canvas.Timeline.RequestSeek(Step2 + 320);
 
         // Shift+N: a step after the active one, at the playhead's round-clock time, made active.
         await Assert.That(canvas.ExecuteAction(StratBookActions.AddStep)).IsTrue();
@@ -347,7 +348,7 @@ public class StratCanvasTests
         }
 
         // Ctrl+D on step 1: its positions and strokes 5 s later, the strokes under new ids.
-        canvas.Timeline.RequestSeekToFrame(Step1);
+        canvas.Timeline.RequestSeek(Step1);
         await Assert.That(canvas.ExecuteAction(StratBookActions.DuplicateStep)).IsTrue();
         StratStep copy = session.Document!.Steps[1];
         using (Assert.Multiple())
@@ -364,7 +365,7 @@ public class StratCanvasTests
         await Assert.That(session.Document.Steps[0].Strokes.Count).IsEqualTo(1);
 
         // Ctrl+Delete on step 2 of the original takes the branch that hangs from it too.
-        canvas.Timeline.RequestSeekToFrame(canvas.Projection!.Ticks[2]);
+        canvas.Timeline.RequestSeek(canvas.Projection!.Ticks[2]);
         await Assert.That(canvas.ActiveStep!.Id).IsEqualTo(StratTestData.StepId(2));
         await Assert.That(canvas.ExecuteAction(StratBookActions.DeleteStep)).IsTrue();
         using (Assert.Multiple())
@@ -406,10 +407,10 @@ public class StratCanvasTests
         }
 
         // Step 3 is skipped, so B never walks to its peek spot, and A goes from step 2's spot to step 4's.
-        canvas.Timeline.RequestSeekToFrame(Step4);
+        canvas.Timeline.RequestSeek(Step4);
         await Assert.That(Marker(canvas, "B").WorldY).IsEqualTo(0f);
         await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(1800f);
-        canvas.Timeline.RequestSeekToFrame((Step2 + Step4) / 2);
+        canvas.Timeline.RequestSeek((Step2 + Step4) / 2);
         await Assert.That(Marker(canvas, "A").WorldX).IsEqualTo(1200f);
 
         canvas.SelectedPath = canvas.PathOptions[0];
@@ -487,17 +488,18 @@ public class StratCanvasTests
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null,
-            () => [Playback2DKeymapProfile.Row(StratBookActions.ToolToken, Key.U, KeyModifiers.None)]);
+            StratTestKeymap.WithOverrides(Playback2DKeymapProfile.Row(StratBookActions.ToolToken, Key.U, KeyModifiers.None)));
 
-        await Assert.That(canvas.Keymap.TryResolve(Key.U, KeyModifiers.None, false, out string? action)).IsTrue();
+        string? action = canvas.ResolveKey(Key.U, KeyModifiers.None);
         await Assert.That(action).IsEqualTo(StratBookActions.ToolToken);
+        await Assert.That(canvas.Tools.TokenToolTip).Contains("(U)").Because("the hint names the user's key");
         await Assert.That(canvas.ExecuteAction(action!)).IsTrue();
         await Assert.That(canvas.IsTokenToolSelected).IsTrue();
         await Assert.That(canvas.IsToolActive).IsTrue().Because("the token tool shadows Space and Esc like any tool");
     }
 
     [Test]
-    public async Task TheCanvas_IsAFrameHostWithNoDemo()
+    public async Task TheCanvas_IsASceneSourceWithNoDemo()
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         using StratCanvasViewModel canvas = Canvas(session, new ManualTicker());
@@ -506,8 +508,8 @@ public class StratCanvasTests
         using (Assert.Multiple())
         {
             await Assert.That(canvas.TokenEditor).IsSameReferenceAs(canvas);
-            await Assert.That(canvas.IsAnnotationsEnabled).IsTrue();
-            await Assert.That(canvas.VisionEngine).IsNull();
+            await Assert.That(((ISceneSource)canvas).Ink).IsSameReferenceAs(canvas.Ink).Because("the strat's ink is always drawn");
+            await Assert.That(canvas.ShowViewCones).IsTrue();
             await Assert.That(canvas.CurrentFrame.Map.NetworkedBounds).IsNotNull();
             await Assert.That(canvas.CurrentFrame.Map.ObservedBounds).IsEqualTo(canvas.CurrentFrame.Map.NetworkedBounds!.Value);
             await Assert.That(canvas.CurrentFrame.Map.MapName).IsEqualTo("de_mirage");
@@ -519,5 +521,5 @@ public class StratCanvasTests
     }
 
     private static AnnotationElement Ink(StratCanvasViewModel canvas, Guid id) =>
-        canvas.AnnotationSession!.Document.Elements.Single(e => e.Id == id);
+        canvas.Ink.Document.Elements.Single(e => e.Id == id);
 }

@@ -38,6 +38,8 @@ Namespace `DemoViewer.NET.Extensions.Sdk.Ui.Controls`, in XAML
 | `GifView` | An animated GIF from a file path. |
 | `ParseLinkChip`, `OpenExternal` | A monospace link that opens a file in the user's editor or a URL in the browser. |
 | `MapView` | A CS2 map with pan and zoom, your layers and your pointer tool. See below. |
+| `SceneView`, `ISceneSource` | The 2D scene over frames of your own: markers, trails, utility, ink with the drawing tools, your layers and tools. See below. |
+| `SceneTimeline`, `TimelineView` | A scrub bar over a frame clock of your own, with band and marker rows from your tracks. See below. |
 
 ### MapView
 
@@ -58,6 +60,28 @@ middle button and the wheel always pan and zoom. `EscapePressed` fires for Escap
 `PaneAt(point)`, `Panes` and `Space` give the panes and floors for a hit test of your own, and `Invalidate`
 repaints after something a layer draws changed. The radar's and the floor label's ids are the view's own.
 Layers and tools survive the view leaving and re-entering the tree; the factories run again when it rebuilds.
+
+### SceneView and SceneTimeline
+
+`SceneView` draws what moves: set `Source` to an `ISceneSource`, usually your view model, and raise its
+`FrameUpdated` on the UI thread whenever `Frame` or anything else it exposes changes. Publish a new
+`Scene2DFrame` each time rather than changing one in place, since the render thread replays the frame it was
+handed. `MapAsset` gives the floors and radar art (from `MapAssets.TryLoad`, or null for the grid), and `Ink`
+an `AnnotationSession` the drawing tools edit; select a tool with `SetActiveTool` and drive hold-to-pan and
+cancel from your keys with `SetHoldPan` and `CancelGesture`. A press goes to `ISceneSource.OnPress` first and
+to the active tool only if you refuse it. The text tool raises `TextEditRequested`; show an editor there and
+hand the result to `CompleteTextEdit`. `AddLayer` and `AddTool` work as on `MapView`, and the scene's own
+layer ids are refused.
+
+`SceneTimeline` is the model of a scrub bar, owned by the view model: register `ITimelineTrack`s, `Rebuild`
+with the clock's `ITimelineData`, move the playhead with `UpdatePlayhead` and seek when `SeekRequested` fires.
+`TimelineView` shows it; bind its `Timeline` to yours. Both controls need the app, and outside it they draw
+nothing and a timeline holds nothing.
+
+To resolve keys on a surface of your own, ask `IExtensionContext.Keymap.ActionFor(scope, key, modifiers)`,
+the tool scope first while a tool is active, and name gestures in your hints with `GestureText`. Refresh the
+hints on `Changed`, and subscribe only while your view is on screen: the keymap lives as long as your
+extension.
 
 To draw a map without a view, `MapAssets.TryLoad("de_mirage")` loads the map's floors, radar images and places
 as an `IMapAsset` you dispose, and `MapAssets.RenderPng` draws a `Scene2DFrame` to a PNG the way the app's

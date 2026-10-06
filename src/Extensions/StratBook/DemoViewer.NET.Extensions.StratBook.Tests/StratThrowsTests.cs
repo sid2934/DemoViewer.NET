@@ -37,7 +37,7 @@ public class StratThrowsTests
         using LineupOriginSource origins = new(index, a => a());
         origins.Load(Map);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
 
         StratExportCapture capture = canvas.CaptureForExport()!;
@@ -81,7 +81,7 @@ public class StratThrowsTests
         using LineupOriginSource origins = new(index, a => a());
         origins.Load(Map);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
 
         StratExportCapture capture = canvas.CaptureForExport()!;
@@ -217,7 +217,6 @@ public class StratThrowsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(canvas.ShowTrails).IsTrue();
             await Assert.That(flying.Trails.Single().Points.Count).IsGreaterThanOrEqualTo(2);
             await Assert.That(Smokes(flying)).IsEqualTo(0);
             await Assert.That(Smokes(smoked)).IsEqualTo(1);

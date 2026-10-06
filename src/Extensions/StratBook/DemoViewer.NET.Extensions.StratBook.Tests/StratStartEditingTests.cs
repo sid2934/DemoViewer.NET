@@ -99,11 +99,8 @@ public class StratStartEditingTests
     }
 
     private static StratCanvasViewModel Canvas(StratSession session, Func<string, Task<StratSpawns?>>? spawns = null) =>
-        new(session, _ => null, new ManualTicker(), null, () => [],
-            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a(), spawnsFor: spawns)
-        {
-            Timeline = { PixelWidth = 6000 }
-        };
+        new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a(), spawnsFor: spawns);
 
     private static StratEditorViewModel Editor(StratSession session, StratCanvasViewModel canvas)
     {

@@ -47,7 +47,7 @@ public class StratThrowOriginTests
         three.Actor = "B";
         three.Utility = new UtilityRef { Kind = "smoke", LineupId = lineup.Id };
         (StratStore store, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
 
         StratExportCapture capture = canvas.CaptureForExport()!;
@@ -79,7 +79,7 @@ public class StratThrowOriginTests
         document.Steps[2].Actor = "B";
         document.Steps[2].Utility = new UtilityRef { Kind = "smoke", LineupId = lineup.Id };
         (StratStore store, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
 
         TokenKeyframe before = BAt(canvas);
@@ -111,9 +111,9 @@ public class StratThrowOriginTests
         using LineupOriginSource origins = new(index, a => a());
         origins.Load(Map);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
-        canvas.Timeline.RequestSeekToFrame(StepThreeTick + 10);
+        canvas.Timeline.RequestSeek(StepThreeTick + 10);
         List<IReadOnlyList<PatchOp>> applied = [];
         session.OpsApplied += applied.Add;
         int depth = session.UndoDepth;
@@ -139,9 +139,9 @@ public class StratThrowOriginTests
         ConcurrentQueue<Action> posted = new();
         using LineupOriginSource origins = new(index, posted.Enqueue);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
-        canvas.Timeline.RequestSeekToFrame(330);
+        canvas.Timeline.RequestSeek(330);
 
         canvas.BeginDrag("A", TokenGrip.Body);
         for (int i = 0; i < 500 && posted.IsEmpty; i++)

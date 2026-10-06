@@ -23,8 +23,8 @@ restart. Data on disk is untouched; re-enabling backfills whatever indexing was 
 
 The public contract is the `DemoViewer.NET.Extensions.Sdk` package (`src/Sdk/DemoViewer.NET.Extensions.Sdk`,
 author guide in its README): `IExtension`, `IExtensionContributions`, `IExtensionContext` (jobs, passes, the
-library and its facts, storage, settings, notifications) and the SDK's playback types, with the UI kit
-(`DemoViewer.NET.Extensions.Sdk.Ui`, including the embeddable `MapView`) and the scene contract
+library and its facts, storage, settings, notifications, the keymap) and the SDK's playback types, with the UI kit
+(`DemoViewer.NET.Extensions.Sdk.Ui`, including the embeddable `MapView`, `SceneView` and `SceneTimeline`) and the scene contract
 (`DemoViewer.NET.Playback2D.Scene`) beside it. Surfaces the SDK does not carry (export, the review queue, the
 user-work folders) stay first-party as `IFirstPartyShellState`, `IFirstPartyExportChips`,
 `FirstPartyExports` and `FirstPartyHost`, app types the Strat Book resolves from the container and an
@@ -357,17 +357,18 @@ through the surface. The token tool and guides layer stay core-registered instea
 a strat frame host and cost nothing. Code keeps the word "pack" for the type names; user-facing copy says
 "extension".
 
-**As built, not on `IPlaybackSurface` but on `Scene2DHost` directly.** Nothing contributes a
+**As built, not on `IPlaybackSurface` but on the UI kit's `SceneView`.** Nothing contributes a
 layer or a tool to the 2D Playback tab yet, so `IPlaybackSurface.AddLayer`/`AddTool` are still unbuilt; the
 strat canvas does not go through a pack contribution or `IPlaybackSurface` at all; its own `StratCanvasView`
-mounts a private `Scene2DHost` instance directly in its XAML (`<pb:Scene2DHost x:Name="Host" />`), distinct
-from the Playback2D tab's. `Scene2DHost` gained the same two members, narrower: `AddTool(IPointerTool tool)`
-is `Router.Register(tool)`; `AddLayer(string layerId, Func<ISceneLayer> layer)` adds the layer once,
-immediately, and keeps the factory so a release/rebuild (a re-parent, a re-template) can rebuild it the way
-the fixed layer set already rebuilds itself. Both are called exactly once, from `StratCanvasView`'s
-constructor, right after `FindControl<Scene2DHost>("Host")`: `host.AddTool(new TokenTool())` and
-`host.AddLayer(SceneLayerIds.Guides, () => new GuideLayer(() => (host.FrameHost as IGuidesHost)?.Guides ??
-SceneGuides.None))`. Nothing calls either for the Playback2D tab's own host, so pack off (and the regular
+mounts a `SceneView` (`<ui:SceneView x:Name="Scene" />`) and hands it the canvas as its `ISceneSource`. The
+app draws each `SceneView` with a private `Scene2DHost` (`HostedSceneView`), distinct from the Playback2D
+tab's, whose frame host answers from the source and fixes the toggles a source does not carry. `SceneView`
+has the same two members, each returning a removal: `AddTool(IPointerTool tool)` registers the tool on the
+host's router; `AddLayer(string id, Func<ISceneLayer> layer)` adds the layer once, immediately, and keeps the
+factory so a release/rebuild (a re-parent, a re-template) can rebuild it the way the fixed layer set already
+rebuilds itself. Both are called exactly once, from `StratCanvasView`'s constructor:
+`_scene.AddTool(new TokenTool())` and `_scene.AddLayer(SceneLayerIds.Guides, () => new GuideLayer(() =>
+_bound?.Guides ?? SceneGuides.None))`. Nothing calls either for the Playback2D tab's own host, so pack off (and the regular
 tab, pack on) carries neither: not inert-and-present as before, but absent. `TokenTool` and `GuideLayer` are
 pure consumers of core contracts (`IPointerTool`, `ISceneLayer`) and move to the extension with the rest of
 the Playback2D Core/Pipeline split; `ITokenEditor` and `SceneGuides` do not, because `IToolServices.Tokens` and the new `IGuidesHost`
@@ -1711,26 +1712,26 @@ Rules as built:
 - **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal
   seams App.Tests reaches) and nothing to the extension itself; no Playback2D assembly grants it either, which
   `PackBoundaryTests` pins. The extension builds on public types: the SDK, the UI kit's `MapView` for the
-  Query Canvas and the Utility Book map, the published scene contract, `Scene2DHost.AddTool`/`AddLayer`/
-  `FrameHost` for the strat canvas, and the first-party seam (`IFirstPartyShellState`,
+  Query Canvas and the Utility Book map, the UI kit's `SceneView` and `SceneTimeline` for the strat canvas,
+  the published scene contract, and the first-party seam (`IFirstPartyShellState`,
   `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`, `FirstPartySceneExport`). The strat frame source builds a frame shell per
   call over its pooled lists instead of refilling `Scene2DFrame`'s internals. In the two unpublished
   Playback2D assemblies it binds only export, clip export and Review Queue types, which
   `PackPlayback2DBindingTests` reads from its metadata against a list with a reason per type; maps, map
   pictures and icons come from the UI kit's `MapAssets` and `MapIcons`. The extension grants
   `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and `DemoViewer.NET.Extensions.StratBook.Tests`.
-- **App types it binds.** Besides the SDK packages, the extension binds four groups of app types, and
+- **App types it binds.** Besides the SDK packages, the extension binds three groups of app types, and
   `PackPlayback2DBindingTests` pins the list from its metadata with a reason per type. The first-party seam:
   `IFirstPartyShellState`, `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`, and
   `FirstPartySceneExport` with `SceneExportDefaults`, which build the export dialog over the extension's scene,
   seed it from the 2D export's saved folder and quality, and hold the managed ffmpeg folder and the theme
   palette. Export, which stays first-party: the export dialog and status view models with their range and
-  size options, and `ExportJobService` with its runners and encoding. The review queue: `ReviewQueue`. The
-  strat canvas, which mounts the 2D tab's own host because the SDK's `MapView` has no transport, timeline,
-  ink or token editing: `Scene2DHost` and its `ISceneFrameHost`, `IGuidesHost`, `ITokenEditingHost` and
-  `IAnnotationSurface`, `ScenePointer`, `Playback2DKeymapProfile` (the canvas resolves its own keys),
-  the timeline view model, control and band row, and the annotation controller and panel, whose constructor
-  names `SettingsService`. The palette checks its hotkeys against `IExtensionContext.Keymap`. The
+  size options, and `ExportJobService` with its runners and encoding. The review queue: `ReviewQueue`.
+  Nothing else: the strat canvas is an `ISceneSource` drawn by the UI kit's `SceneView`, with its scrubber a
+  `SceneTimeline` shown by `TimelineView`, and it resolves keys and names gestures through
+  `IExtensionContext.Keymap` (`ActionFor`, `GestureText`, `Changed`), so the user's rebinds reach it without
+  the settings file. Its tool row (`StratCanvasTools`) is its own, over a plain `AnnotationSession`. The
+  palette checks its hotkeys against the same keymap. The
   generated-items inbox state (`GeneratedState`, `GeneratedInbox`, `GeneratedCounts`) and the atomic file
   writer live in the extension; it tells the user about new detected strats through the SDK's notifications.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app

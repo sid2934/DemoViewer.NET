@@ -2,18 +2,12 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia.Input;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Input;
-using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.Playback2D.Annotations;
-using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
@@ -23,7 +17,6 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
-using DemoViewer.NET.ViewModels.Playback2D;
 using SkiaSharp;
 
 #endregion
@@ -32,7 +25,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 /// <summary>
 ///     The Step Authoring canvas in the Strat Book tab: the open strat projected
-///     onto the 2D scene with no demo behind it. It is the frame host <see cref="Scene2DHost" /> binds, the
+///     onto the 2D scene with no demo behind it. It is the source the view's <see cref="SceneView" /> draws, the
 ///     token editor <see cref="TokenTool" /> drags through, and the keymap executor the tab's keys reach.
 ///     <para>
 ///         <b>One history, the session's.</b> Nothing here keeps an undo stack. A
@@ -53,7 +46,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 ///     </para>
 ///     <para>UI-thread affine, like the session it edits.</para>
 /// </summary>
-public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrameHost, ITokenEditingHost, IGuidesHost, ITokenEditor, IDisposable
+public sealed partial class StratCanvasViewModel : ObservableObject, ISceneSource, ITokenEditor, IDisposable
 {
     /// <summary>The token routing switch. A persisted override key: never rename it.</summary>
     public const string RoutingFeatureId = "stratbook.routing";
@@ -64,11 +57,10 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <summary>World distance between the tokens <see cref="PlaceTokensCommand" /> lays out.</summary>
     private const double PlacementSpacing = 96;
 
-    private readonly AnnotationSessionController _ink;
+    private readonly AnnotationSession _ink;
     private readonly AnnotationTrack _inkTrack;
     private readonly Func<Guid, StratDocument?>? _lookup;
     private readonly Func<string?, IMapAsset?> _mapLoader;
-    private readonly Func<IEnumerable<string>> _keybindOverrides;
     private readonly LineupOriginSource? _lineupOrigins;
     private readonly Func<string, Task<IZonePlaceResolver?>> _placesFor;
     private readonly Func<string, Task<StratSpawns?>>? _spawnsFor;
@@ -112,7 +104,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <param name="mapLoader">Loads a map's bundle by name; the baked assets when omitted, null for none.</param>
     /// <param name="ticker">The transport's clock source; a dispatcher timer when omitted.</param>
     /// <param name="lookup">Reads another strat for a branch into it; null plays in-strat branches only.</param>
-    /// <param name="keybindOverrides">The user's keymap rows; the settings file's when omitted.</param>
+    /// <param name="keymap">The user's keymap, for the canvas's keys and hints; <paramref name="lookups" />'s when omitted, and no keys resolve without one.</param>
     /// <param name="readOnly">Plays the strat without editing it: no tools, no token drag, no step edits.</param>
     /// <param name="lineupOrigins">Puts a throw's actor at its lineup's throw origin; null projects none.</param>
     /// <param name="placesFor">
@@ -128,13 +120,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     A map's spawns, for an older strat's start (<see cref="StratStartBlock.Effective" />); null reads no spawns.
     /// </param>
     /// <param name="lookups">
-    ///     The feature gate, zone place resolver and settings a caller two hops up resolved from the app; null
+    ///     The feature gate, zone place resolver and keymap a caller two hops up resolved from the host; null
     ///     members (and a null bundle) mean the same as before: routing off, the baked-in place resolver, no
-    ///     keybind overrides.
+    ///     keymap.
     /// </param>
     public StratCanvasViewModel(StratSession session, Func<string?, IMapAsset?>? mapLoader = null,
         IStratTicker? ticker = null, Func<Guid, StratDocument?>? lookup = null,
-        Func<IEnumerable<string>>? keybindOverrides = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null,
+        IExtensionKeymap? keymap = null, bool readOnly = false, LineupOriginSource? lineupOrigins = null,
         Func<string, Task<IZonePlaceResolver?>>? placesFor = null, Action<Action>? post = null, Func<bool>? routing = null,
         Func<string, Task<StratSpawns?>>? spawnsFor = null, StratCanvasServices? lookups = null)
     {
@@ -155,23 +147,22 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         IsReadOnly = readOnly;
         _mapLoader = mapLoader ?? MapAssets.TryLoad;
         _lookup = lookup;
-        _keybindOverrides = keybindOverrides ?? (() => lookups?.KeybindOverrides?.Invoke() ?? []);
+        Keymap = keymap ?? lookups?.Keymap;
 
         // Session only by construction: the strat file is the persistence, so there is no sidecar, and no
         // settings either, so the canvas's tool choice never becomes the 2D tab's remembered tool.
         Transport = new StratTransport(ticker);
         Transport.Changed += OnTransportChanged;
 
-        _ink = new AnnotationSessionController(null, null);
-        Annotations = new AnnotationsPanelViewModel(_ink, () => Transport.Tick);
-        Annotations.PropertyChanged += OnAnnotationsPropertyChanged;
+        _ink = new AnnotationSession(new AnnotationDocument());
+        Tools = new StratCanvasTools(_ink);
+        Tools.PropertyChanged += OnToolsPropertyChanged;
         _ink.Document.Changed += OnInkChanged;
 
         _inkTrack = new AnnotationTrack(_ink.Document);
         Timeline.RegisterTrack(_stepTrack);
         Timeline.RegisterTrack(_inkTrack);
         Timeline.SeekRequested += OnSeekRequested;
-        Timeline.IsVisible = true;
 
         RefreshKeymap();
         _session.Changed += OnSessionChanged;
@@ -183,14 +174,14 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         Reproject();
     }
 
-    /// <summary>The tool row and ink pickers, over a session-only annotation controller.</summary>
-    public AnnotationsPanelViewModel Annotations { get; }
+    /// <summary>The tool row, over the session-only ink.</summary>
+    public StratCanvasTools Tools { get; }
 
     /// <summary>The private clock.</summary>
     public StratTransport Transport { get; }
 
     /// <summary>The scrubber: steps and strokes on the strat frame clock.</summary>
-    public Playback2DTimelineViewModel Timeline { get; } = new();
+    public SceneTimeline Timeline { get; } = new();
 
     /// <summary>The token tracks the scene samples. Replaced slot by slot as the strat or a drag changes.</summary>
     public TokenTrackSet Tracks { get; } = new();
@@ -198,8 +189,8 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     /// <summary>The current projection, or null with no strat open.</summary>
     public StratSceneProjection? Projection => _projection;
 
-    /// <summary>The resolved keymap: the shared table with the user's overrides on top.</summary>
-    public Playback2DKeymapProfile Keymap { get; private set; } = Playback2DKeymapProfile.Default;
+    /// <summary>The user's keymap, or null when the canvas has none: then no key resolves and the hints show no gestures.</summary>
+    public IExtensionKeymap? Keymap { get; }
 
     /// <summary>The paths the canvas can play: the main line and one per branch.</summary>
     public ObservableCollection<StratPathOption> PathOptions { get; } = [];
@@ -271,7 +262,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     Whether a tool other than pan is selected, or Set On Map is waiting for a click: what makes the keymap's
     ///     tool scope shadow Space and Esc.
     /// </summary>
-    public bool IsToolActive => Annotations.ActiveTool != ToolKind.PanZoom || IsSettingPlace || _drag is not null;
+    public bool IsToolActive => Tools.ActiveTool != ToolKind.PanZoom || IsSettingPlace || _drag is not null;
 
     /// <summary>
     ///     The slot whose line is selected on the active step: the chosen one when the step has a line for it, else its
@@ -370,57 +361,35 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             : StratPlaceTarget.None;
     }
 
-    public bool IsTokenToolSelected => Annotations.ActiveTool == ToolKind.Token;
-
-    /// <summary>The token button's hint, with the resolved key.</summary>
-    public string TokenToolTip =>
-        "Token tool" + (Keymap.GestureText(StratBookActions.ToolToken) is { Length: > 0 } key ? $" ({key})" : "")
-                     + ": drag a token to place it at the active step; drag its heading stub to turn it";
+    public bool IsTokenToolSelected => Tools.ActiveTool == ToolKind.Token;
 
     public string PlayGlyph => Transport.IsPlaying ? "⏸" : "▶";
 
     public string SpeedText => Transport.Speed.ToString("0.##", CultureInfo.InvariantCulture) + "×";
 
-    // ── ISceneFrameHost, IGuidesHost, ITokenEditingHost ─────────────────────────────────────────────
+    // ── ISceneSource ─────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The frame the scene shows: a copy of the source's frame at the playhead.</summary>
+    public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
 
     /// <inheritdoc />
-    public Scene2DFrame CurrentFrame { get; private set; } = Scene2DFrame.Empty;
+    Scene2DFrame ISceneSource.Frame => CurrentFrame;
 
     /// <inheritdoc />
     public IMapAsset? MapAsset { get; private set; }
 
-    /// <inheritdoc />
+    /// <summary>The editing guides the view's guide layer draws for the current frame.</summary>
     /// <remarks>Replaced whole on each publish, never changed in place: the render thread reads it.</remarks>
     public SceneGuides Guides { get; private set; } = SceneGuides.None;
 
-    /// <summary>No cones: a strat has no collision solve to run and no players to see from.</summary>
-    public VisibilityEngine? VisionEngine => null;
+    /// <summary>The strat's ink: always drawn, since it is the strat's content and not an overlay.</summary>
+    public AnnotationSession Ink => _ink;
 
     /// <inheritdoc />
-    public AnnotationSession? AnnotationSession => _ink.Session;
-
-    /// <summary>
-    ///     Always on: the ink is the strat's content, not an overlay, so the 2D tab's annotations gate does not
-    ///     apply to it.
-    /// </summary>
-    public bool IsAnnotationsEnabled => true;
-
-    public bool ShowRadar => true;
-
-    public bool ShowTrails => true;
-
-    public bool ShowAreaEffects => true;
-
-    public bool ShowVision => false;
-
-    public bool ShowBombRing => false;
+    AnnotationSession? ISceneSource.Ink => _ink;
 
     /// <summary>Each token shows where it looks; on the editing canvas a drag of the cone turns it.</summary>
     public bool ShowViewCones => true;
-
-    public bool ShowZones => false;
-
-    public PlaceResolver? Zones => null;
 
     /// <inheritdoc />
     public ITokenEditor? TokenEditor => IsReadOnly ? null : this;
@@ -432,7 +401,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     ///     Rebases the projected ink onto a moved level set without touching the strat: the strat's
     ///     <c>levelMinZ</c> values are the truth, and a bundle's floors rarely move. A migration, so no undo.
     /// </summary>
-    public void ApplyAnnotationLevelRebuild(IReadOnlyDictionary<double, double> zMinMap)
+    public void OnLevelsMoved(IReadOnlyDictionary<double, double> zMinMap)
     {
         _syncingInk = true;
         try
@@ -480,8 +449,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     /// <inheritdoc />
-    bool ISceneFrameHost.TryPointerPreHandler(ScenePointer press) =>
-        TryTagPositionAt(press.Level, press.WorldX, press.WorldY);
+    bool ISceneSource.OnPress(ScenePress press) => TryTagPositionAt(press.Level, press.WorldX, press.WorldY);
 
     /// <summary>
     ///     Makes a step the active one: pauses, moves the playhead to the step's time, and keeps that step active
@@ -641,15 +609,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             _gate.Changed -= OnGateChanged;
         }
 
-        Annotations.PropertyChanged -= OnAnnotationsPropertyChanged;
+        Tools.PropertyChanged -= OnToolsPropertyChanged;
         _ink.Document.Changed -= OnInkChanged;
         Transport.Changed -= OnTransportChanged;
         Timeline.SeekRequested -= OnSeekRequested;
         Transport.Dispose();
         Timeline.Dispose();
         _inkTrack.Dispose();
-        Annotations.Dispose();
-        _ink.Dispose();
         ReplaceMapAsset(null);
     }
 
@@ -661,23 +627,28 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         _stepTrack.Update(_projection, _session.Document, _callouts);
     }
 
-    /// <summary>Re-reads the user's keymap overrides: on construction and each time the tab is shown.</summary>
-    public void RefreshKeymap()
+    /// <summary>
+    ///     Re-reads the hints' gestures from the keymap: on construction, each time the tab is shown, and on a
+    ///     rebind while the view is on screen. The view holds that subscription, not this model: the keymap
+    ///     outlives a pack toggle, and a handler on it would keep a dropped canvas alive.
+    /// </summary>
+    public void RefreshKeymap() => Tools.ApplyKeymap(Keymap);
+
+    /// <summary>
+    ///     The action a key resolves to under the user's keymap, or null. The tool scope is asked first while a
+    ///     tool is active, as on the 2D tab; with no keymap nothing resolves.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers held.</param>
+    public string? ResolveKey(Key key, KeyModifiers modifiers)
     {
-        IEnumerable<string> overrides;
-        try
+        if (Keymap is not { } keymap)
         {
-            overrides = _keybindOverrides();
-        }
-        catch (Exception)
-        {
-            overrides = [];
+            return null;
         }
 
-        Keymap = Playback2DKeymapProfile.FromOverrides(overrides, out _);
-        Annotations.ApplyKeymap(Keymap);
-        OnPropertyChanged(nameof(Keymap));
-        OnPropertyChanged(nameof(TokenToolTip));
+        return (IsToolActive ? keymap.ActionFor(CoreActions.ToolScope, key, modifiers) : null)
+               ?? keymap.ActionFor(CoreActions.Scope, key, modifiers);
     }
 
     // ── Keymap executor ──────────────────────────────────────────────────────────────────────────
@@ -696,58 +667,58 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         }
 
         // Handled, not ignored: an unhandled Ctrl+Z would bubble to the tab and undo the book's open strat.
-        if (IsReadOnly && action is not (nameof(Playback2DAction.TogglePlay) or nameof(Playback2DAction.StepBack)
-                or nameof(Playback2DAction.StepForward) or nameof(Playback2DAction.SpeedUp)
-                or nameof(Playback2DAction.SpeedDown) or StratBookActions.PrevStep or StratBookActions.NextStep))
+        if (IsReadOnly && action is not (CoreActions.TogglePlay or CoreActions.StepBack
+                or CoreActions.StepForward or CoreActions.SpeedUp
+                or CoreActions.SpeedDown or StratBookActions.PrevStep or StratBookActions.NextStep))
         {
-            return action is nameof(Playback2DAction.Undo) or nameof(Playback2DAction.Redo)
-                or nameof(Playback2DAction.ClearAnnotations) or StratBookActions.AddStep
-                or StratBookActions.DuplicateStep or StratBookActions.DeleteStep or nameof(Playback2DAction.ToolDraw)
-                or nameof(Playback2DAction.ToolErase) or nameof(Playback2DAction.ToolLine)
-                or nameof(Playback2DAction.ToolArrow) or nameof(Playback2DAction.ToolRect)
-                or nameof(Playback2DAction.ToolEllipse) or nameof(Playback2DAction.ToolText)
+            return action is CoreActions.Undo or CoreActions.Redo
+                or CoreActions.ClearAnnotations or StratBookActions.AddStep
+                or StratBookActions.DuplicateStep or StratBookActions.DeleteStep or CoreActions.ToolDraw
+                or CoreActions.ToolErase or CoreActions.ToolLine
+                or CoreActions.ToolArrow or CoreActions.ToolRect
+                or CoreActions.ToolEllipse or CoreActions.ToolText
                 or StratBookActions.ToolToken;
         }
 
         switch (action)
         {
-            case nameof(Playback2DAction.TogglePlay):
+            case CoreActions.TogglePlay:
                 Transport.TogglePlay();
                 return true;
-            case nameof(Playback2DAction.StepBack):
+            case CoreActions.StepBack:
                 return Transport.Step(-1);
-            case nameof(Playback2DAction.StepForward):
+            case CoreActions.StepForward:
                 return Transport.Step(1);
-            case nameof(Playback2DAction.SpeedUp):
+            case CoreActions.SpeedUp:
                 return Transport.StepSpeed(1);
-            case nameof(Playback2DAction.SpeedDown):
+            case CoreActions.SpeedDown:
                 return Transport.StepSpeed(-1);
 
-            case nameof(Playback2DAction.ToolDraw):
+            case CoreActions.ToolDraw:
                 return Toggle(ToolKind.Draw);
-            case nameof(Playback2DAction.ToolErase):
+            case CoreActions.ToolErase:
                 return Toggle(ToolKind.Erase);
-            case nameof(Playback2DAction.ToolLine):
+            case CoreActions.ToolLine:
                 return Toggle(ToolKind.Line);
-            case nameof(Playback2DAction.ToolArrow):
+            case CoreActions.ToolArrow:
                 return Toggle(ToolKind.Arrow);
-            case nameof(Playback2DAction.ToolRect):
+            case CoreActions.ToolRect:
                 return Toggle(ToolKind.Rect);
-            case nameof(Playback2DAction.ToolEllipse):
+            case CoreActions.ToolEllipse:
                 return Toggle(ToolKind.Ellipse);
-            case nameof(Playback2DAction.ToolText):
+            case CoreActions.ToolText:
                 return Toggle(ToolKind.Text);
             case StratBookActions.ToolToken:
                 return Toggle(ToolKind.Token);
 
             // The strat's history, not the annotation document's: there is one, and a gesture in flight
             // finishes first, the rule the annotation document keeps for its own stack.
-            case nameof(Playback2DAction.Undo):
+            case CoreActions.Undo:
                 return !IsGestureOpen && _session.Undo();
-            case nameof(Playback2DAction.Redo):
+            case CoreActions.Redo:
                 return !IsGestureOpen && _session.Redo();
 
-            case nameof(Playback2DAction.ClearAnnotations):
+            case CoreActions.ClearAnnotations:
                 return ClearActiveStepStrokes();
             case StratBookActions.AddStep:
                 CancelOpenDrag();
@@ -769,7 +740,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     }
 
     [RelayCommand]
-    private void TogglePlay() => ExecuteAction(nameof(Playback2DAction.TogglePlay));
+    private void TogglePlay() => ExecuteAction(CoreActions.TogglePlay);
 
     [RelayCommand]
     private void PrevStep() => ExecuteAction(StratBookActions.PrevStep);
@@ -800,7 +771,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
     {
         if (!IsReadOnly)
         {
-            Annotations.SelectTool(ToolKind.Token);
+            Tools.SelectTool(ToolKind.Token);
         }
     }
 
@@ -1629,7 +1600,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
         SyncInk(projection.Elements);
 
         WorldBounds bounds = MapAsset is { } asset ? asset.RadarBounds : BoundsFor(projection);
-        _source = new StratFrameSource(new StratSceneSpec(Tracks, projection.Schedule, _ink.Session, projection.Labels,
+        _source = new StratFrameSource(new StratSceneSpec(Tracks, projection.Schedule, _ink, projection.Labels,
             document.Map, MapAsset is { } radarAsset ? radarAsset.DescribeRadars() : [], bounds, null,
             projection.Utility, projection.RoundSeconds, 0, projection.ContentEndTick, StepSchedule.TicksPerSecond, 1)
         {
@@ -1983,13 +1954,13 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
 
     private bool Toggle(ToolKind kind)
     {
-        Annotations.SelectTool(Annotations.ActiveTool == kind ? ToolKind.PanZoom : kind);
+        Tools.SelectTool(Tools.ActiveTool == kind ? ToolKind.PanZoom : kind);
         return true;
     }
 
-    private void OnAnnotationsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnToolsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AnnotationsPanelViewModel.ActiveTool))
+        if (e.PropertyName == nameof(StratCanvasTools.ActiveTool))
         {
             OnPropertyChanged(nameof(IsToolActive));
             OnPropertyChanged(nameof(IsTokenToolSelected));
@@ -2040,7 +2011,7 @@ public sealed partial class StratCanvasViewModel : ObservableObject, ISceneFrame
             }
 
             StepWindow active = projection.Schedule.Windows[index];
-            AnnotationSession session = _ink.Session;
+            AnnotationSession session = _ink;
             session.DefaultVisibility = EnvelopeMode.Custom;
             session.FadeInTicks = projection.Canvas.FadeInTicks;
             session.FadeOutTicks = projection.Canvas.FadeOutTicks;

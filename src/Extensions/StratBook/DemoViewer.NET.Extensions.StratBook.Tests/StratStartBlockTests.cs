@@ -291,11 +291,8 @@ public class StratStartBlockTests
     }
 
     private static StratCanvasViewModel Canvas(StratSession session) =>
-        new(session, _ => null, new ManualTicker(), null, () => [],
-            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a())
-        {
-            Timeline = { PixelWidth = 6000 }
-        };
+        new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
 
     private static void Drag(StratCanvasViewModel canvas, string slot, double x, double y, TokenGrip grip = TokenGrip.Body)
     {

@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services;
 
 #endregion
@@ -11,10 +10,9 @@ namespace DemoViewer.NET.Extensions;
 ///     What a first-party extension reads of the app beyond the SDK. The folders are where the Strat Book kept
 ///     the user's own work (strats, tags, teams, palettes, the Suggested Tags profile, lineup clips) and its
 ///     shared caches before extensions had folders of their own; that data stays where users have it. The zones
-///     overlay and the keybind overrides are the app's own settings, read only.
+///     overlay is the app's own, read only.
 /// </summary>
-/// <param name="settings">The app's settings.</param>
-public sealed class FirstPartyHost(SettingsService settings)
+public sealed class FirstPartyHost
 {
     private readonly string? _palettes = AppPaths.PalettesDirectory;
 
@@ -55,7 +53,4 @@ public sealed class FirstPartyHost(SettingsService settings)
 
         return _palettes;
     }
-
-    /// <summary>The user's 2D Playback keybind overrides.</summary>
-    public IReadOnlyList<string> KeybindOverrides => settings.Current.Playback2D.KeybindOverrides;
 }

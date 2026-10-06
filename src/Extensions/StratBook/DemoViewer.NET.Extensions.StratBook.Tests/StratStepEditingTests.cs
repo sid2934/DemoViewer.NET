@@ -164,7 +164,7 @@ public class StratStepEditingTests
         }
 
         // The canvas's Add step, with the throw step active, carries the same way.
-        vm.Canvas.Timeline.RequestSeekToFrame(vm.Canvas.Projection!.Ticks[1]);
+        vm.Canvas.Timeline.RequestSeek(vm.Canvas.Projection!.Ticks[1]);
         vm.Canvas.AddStepCommand.Execute(null);
         StratStep fromCanvas = vm.Session.Document!.Steps[2];
         await Assert.That(fromCanvas.Positions.Single(p => p.Slot == "B").X).IsEqualTo(Math.Round(origin.X, 2));

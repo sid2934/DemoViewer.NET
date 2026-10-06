@@ -207,7 +207,7 @@ public class StratAssignmentsFacingTests
         StratDocument document = Watching(new StepWatch { Places = ["Ramp"] });
         TaskCompletionSource<IZonePlaceResolver?> zones = new();
         (StratStore _, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [], readOnly: true,
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped, readOnly: true,
             placesFor: _ => zones.Task, post: a => a());
 
         await Assert.That(YawAt(canvas.Tracks.Get("B")!, Two)).IsEqualTo(10f).Because("no centres until the zones load");

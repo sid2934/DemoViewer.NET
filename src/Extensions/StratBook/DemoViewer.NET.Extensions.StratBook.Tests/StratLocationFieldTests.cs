@@ -226,9 +226,8 @@ public partial class StratLocationFieldTests
         Func<string, Task<IZonePlaceResolver?>>? places = null)
     {
         (StratStore _, StratSession session) = Opened(document);
-        StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: places ?? (_ => Task.FromResult<IZonePlaceResolver?>(SyntheticZones())), post: a => a());
-        canvas.Timeline.PixelWidth = 6000;
         StratEditorViewModel editor = new(session);
         editor.Project();
         return (session, canvas, new StratStepSelection(editor, canvas));
@@ -384,7 +383,7 @@ public partial class StratLocationFieldTests
         }
 
         (StratStore _, StratSession readOnly) = Opened(FiveSteps());
-        using StratCanvasViewModel preview = new(readOnly, _ => null, new ManualTicker(), null, () => [], readOnly: true);
+        using StratCanvasViewModel preview = new(readOnly, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped, readOnly: true);
         await Assert.That(preview.BeginSetPlace(new StratLocationField(readOnly.Document!.Steps[1].Id, null, StratLocationKind.From))).IsFalse();
     }
 

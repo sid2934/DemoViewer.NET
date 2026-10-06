@@ -45,11 +45,8 @@ public class StratDragFieldsTests
     }
 
     private static StratCanvasViewModel Canvas(StratSession session) =>
-        new(session, _ => null, new ManualTicker(), null, () => [],
-            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a())
-        {
-            Timeline = { PixelWidth = 6000 }
-        };
+        new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a());
 
     private static string Json(StratSession session) => StratHistory.ToNode(session.Document!).ToJsonString();
 
@@ -257,7 +254,7 @@ public class StratDragFieldsTests
 
         // E rotated at 1:45 (tick 640) and is walking to Ramp.
         const int end = 650;
-        canvas.Timeline.RequestSeekToFrame(end);
+        canvas.Timeline.RequestSeek(end);
         string before = Json(session);
         Drag(canvas, "E", 20, 80);
         StepLurk written = session.Document!.Steps[1].Lurk!;
@@ -332,7 +329,7 @@ public class StratDragFieldsTests
         StratDocument document = Strat(Step(110, "A", "move", Place("Ramp")));
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         using StratCanvasViewModel canvas = Canvas(session);
-        canvas.Timeline.RequestSeekToFrame(S1 + 20);
+        canvas.Timeline.RequestSeek(S1 + 20);
         await Assert.That(canvas.Projection!.RunAt("A", S1 + 20)).IsNotNull();
         string before = Json(session);
 
@@ -357,7 +354,7 @@ public class StratDragFieldsTests
         StratDocument document = Strat(Step(110, "A", "move", Place("Ramp")));
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         using StratCanvasViewModel canvas = Canvas(session);
-        canvas.Timeline.RequestSeekToFrame(S1 + 20);
+        canvas.Timeline.RequestSeek(S1 + 20);
         Drag(canvas, "A", 60, 90);
         Drag(canvas, "A", 300, 300);
         using (Assert.Multiple())
@@ -476,7 +473,7 @@ public class StratDragFieldsTests
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         using StratCanvasViewModel canvas = Canvas(session);
         int end = canvas.Projection!.ContentEndTick;
-        canvas.Timeline.RequestSeekToFrame(end);
+        canvas.Timeline.RequestSeek(end);
 
         // E stands on Ramp, its last area: the drop is lurk area 1, already walked past at this playhead.
         Drag(canvas, "E", 20, 20);
@@ -488,7 +485,7 @@ public class StratDragFieldsTests
             await Assert.That(earlier.At.X).IsLessThan(100f).Because("the ring is at Hut, the new first area");
         }
 
-        canvas.Timeline.RequestSeekToFrame(end - 1);
+        canvas.Timeline.RequestSeek(end - 1);
         await Assert.That(canvas.Guides.Pins.Any(p => p.Earlier)).IsFalse().Because("it goes when the playhead moves");
     }
 
@@ -500,7 +497,7 @@ public class StratDragFieldsTests
         StratDocument document = Strat(all);
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         using StratCanvasViewModel canvas = Canvas(session);
-        canvas.Timeline.RequestSeekToFrame(S1 + 20);
+        canvas.Timeline.RequestSeek(S1 + 20);
         await Assert.That(canvas.Projection!.RunAt("A", S1 + 20)).IsNotNull();
 
         Drag(canvas, "A", 300, 300);
@@ -520,7 +517,7 @@ public class StratDragFieldsTests
         StratDocument document = Strat(Step(110, "A", "move", Place("Ramp")), Step(100, "B", "move", Place("Ramp")));
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         using StratCanvasViewModel canvas = Canvas(session);
-        canvas.Timeline.RequestSeekToFrame(S2 + 20);
+        canvas.Timeline.RequestSeek(S2 + 20);
         await Assert.That(canvas.ActiveStepIndex).IsEqualTo(2);
         await Assert.That(canvas.Projection!.RunAt("A", S2 + 20)).IsNull().Because("A has long arrived");
 
