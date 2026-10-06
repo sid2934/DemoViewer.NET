@@ -15,9 +15,9 @@ namespace DemoViewer.NET.Extensions;
 ///     "Delete extension data" for one extension. The extension is switched off first and its release awaited,
 ///     so nothing it still holds is deleted from under it; the gate is read again before the delete is queued
 ///     and once more inside the queued job, so a switch back on in between cancels the delete untouched.
-///     Then it deletes the extension's own folders (config and cache, the per-demo data included), the
-///     stores it declared, its payload, its passes' stamps on the demo cache records and the analysis facts
-///     of its rulesets, or runs the extension's own removal when it contributed one. Afterwards the per-demo
+///     Then it deletes the extension's own folders (config and cache, the per-demo data included), its
+///     settings file, the stores it declared, its payload, its passes' stamps on the demo cache records and the
+///     analysis facts of its rulesets, or runs the extension's own removal when it contributed one. Afterwards the per-demo
 ///     index is forgotten and the extension's after-delete callbacks run on the UI thread.
 /// </summary>
 internal sealed class HostDataRemoval : IExtensionDataRemoval
@@ -51,6 +51,8 @@ internal sealed class HostDataRemoval : IExtensionDataRemoval
             [
                 new StoreDescriptor("extension-files", "Extension files", StoreRoot.Config, [folder], IsUserWork: true),
                 new StoreDescriptor("extension-cache", "Extension cache", StoreRoot.Cache, [folder], IsUserWork: false),
+                new StoreDescriptor("extension-settings", "Extension settings", StoreRoot.Config,
+                    [ExtensionSettingsStore.DirectoryName + "/" + ExtensionFolders.SafeName(_pack.Pack.Id) + ".json"], IsUserWork: true),
                 .. _pack.Rulesets.Select(r => new StoreDescriptor(StampedFacts.StampId(r.RulesetId), "Analysis facts of " + r.RulesetId,
                     StoreRoot.Cache, ["demos/*" + StampedFacts.RulesetSuffix(r.RulesetId)], IsUserWork: false)),
                 .. _pack.Stores
@@ -92,6 +94,7 @@ internal sealed class HostDataRemoval : IExtensionDataRemoval
         if (result.Ran)
         {
             (_pack.Context.Data as ExtensionDemoDataStore)?.Reset();
+            (_pack.Context.Settings as ExtensionSettingsStore)?.Reset();
             _pack.RaiseDataDeleted();
         }
 

@@ -52,7 +52,9 @@ public interface IExtensionContributions
 
     /// <summary>
     ///     A folder or file the extension owns outside its own folders, listed and removed by "Delete extension
-    ///     data". The extension's own folders, its per-demo data included, are always listed.
+    ///     data". The extension's own folders, its per-demo data and its settings are always listed. Each path's
+    ///     first segment must be the extension's id, the id and ".json", or start with the id and '-'; a store
+    ///     that names anything else is dropped and logged against the extension.
     /// </summary>
     void Store(StoreDescriptor store);
 

@@ -269,8 +269,78 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentException.ThrowIfNullOrWhiteSpace(store.Id);
+        ArgumentNullException.ThrowIfNull(store.Paths);
+        // "Delete extension data" removes every path listed, so a path that reaches past the extension's own
+        // files drops the store rather than deleting what belongs to the app or another extension.
+        if (StoreRefusal(Pack.Id, store) is { } refusal)
+        {
+            _guard.Report("store", new ArgumentException($"Store '{store.Id}' is refused: {refusal}.", nameof(store)));
+            return;
+        }
+
         _stores.Add(store);
     }
+
+    /// <summary>
+    ///     Why <paramref name="store" /> may not be listed for <paramref name="packId" />, or null. A third-party
+    ///     extension may name only paths whose first segment is its id, its id and ".json", or starts with its id
+    ///     and '-'. An extension
+    ///     the app ships may name any path except the folders the host keeps for itself and every extension, and
+    ///     a <c>demos/*</c> pattern only when its suffix cannot match a demo's record.
+    /// </summary>
+    internal static string? StoreRefusal(string packId, StoreDescriptor store)
+    {
+        bool shipped = packId.StartsWith(ExternalExtensions.ReservedIdPrefix, StringComparison.Ordinal);
+        foreach (string raw in store.Paths)
+        {
+            string path = (raw ?? "").Replace('\\', '/').Trim();
+            string first = path.Split('/')[0];
+            if (first.Length == 0 || first is "." or ".." || first.Contains('*', StringComparison.Ordinal))
+            {
+                return $"'{raw}' does not name a file or folder";
+            }
+
+            if (!shipped)
+            {
+                if (!string.Equals(first, packId, StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(first, packId + ".json", StringComparison.OrdinalIgnoreCase)
+                    && !first.StartsWith(packId + "-", StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"'{raw}' is not named after the extension's id '{packId}'";
+                }
+
+                continue;
+            }
+
+            string[] reserved = store.Root == StoreRoot.Config ? ReservedConfigNames : ReservedCacheNames;
+            if (reserved.Contains(first, StringComparer.OrdinalIgnoreCase))
+            {
+                return $"'{raw}' is a folder the app keeps";
+            }
+
+            if (string.Equals(first, "demos", StringComparison.OrdinalIgnoreCase) && store.Root == StoreRoot.Cache)
+            {
+                int star = path.IndexOf('*', StringComparison.Ordinal);
+                string suffix = star < 0 ? "" : path[(star + 1)..];
+                if (star < 0 || !suffix.StartsWith('.') || Services.DemoCache.DemoCacheStore.RecordSuffix.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)
+                    || ".json".EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"'{raw}' would reach the demo cache's own records";
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // What the host and every extension share under each root; no store may name one.
+    private static readonly string[] ReservedConfigNames =
+    [
+        ExtensionFolders.DataDirectoryName, ExtensionSettingsStore.DirectoryName, ExtensionLoader.ExtensionsDirectoryName,
+        "cache", "logs", "themes", "zones", "settings.json"
+    ];
+
+    private static readonly string[] ReservedCacheNames = [ExtensionFolders.DataDirectoryName];
 
     /// <inheritdoc />
     public void DataRemoval(IExtensionDataRemoval removal)

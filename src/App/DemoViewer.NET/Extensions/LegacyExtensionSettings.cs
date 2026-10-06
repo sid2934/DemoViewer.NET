@@ -17,6 +17,11 @@ namespace DemoViewer.NET.Extensions;
 /// </summary>
 internal static class LegacyExtensionSettings
 {
+    // Imported values whose file could not be written, by settings file path. The next write of settings.json
+    // drops them from there, so the extension's store takes them over and saves them itself.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, JsonObject> Unsaved =
+        new(StringComparer.Ordinal);
+
     /// <summary>The Strat Book's id.</summary>
     public const string StratBookId = "net.demoviewer.pack.stratbook";
 
@@ -82,12 +87,15 @@ internal static class LegacyExtensionSettings
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // The extension starts from its defaults; the old values stay in settings.json for the next launch.
+                Unsaved[path] = values;
             }
         }
 
         return written;
     }
+
+    /// <summary>The imported values for the settings file at <paramref name="path" /> that could not be written, once.</summary>
+    public static JsonObject? TakeUnsaved(string path) => Unsaved.TryRemove(path, out JsonObject? values) ? values : null;
 
     // A hand-edited settings.json may carry "true" or "4" as strings, which the configuration binder accepted.
     private static JsonNode? Normalize(JsonNode? node)

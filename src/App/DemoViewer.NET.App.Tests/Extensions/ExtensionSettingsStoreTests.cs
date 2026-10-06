@@ -99,20 +99,47 @@ public class ExtensionSettingsStoreTests
     }
 
     [Test]
-    public async Task AnUnreadableFile_ReadsAsEmpty_AndTheNextWriteReplacesIt()
+    public async Task AFileThatDoesNotParse_IsSetAside_AndTheNextWriteStartsAFreshOne()
     {
         string root = NewRoot();
         try
         {
             string file = ExtensionSettingsStore.PathFor(root, "dev.example.settings");
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            await File.WriteAllTextAsync(file, "{ not json");
+            await File.WriteAllTextAsync(file, "{ \"kept\": 1, not json");
 
             ExtensionSettingsStore store = new("dev.example.settings", root, a => a());
             await Assert.That(store.Get("flag", false)).IsFalse();
             store.Set("flag", true);
 
-            await Assert.That(JsonNode.Parse(await File.ReadAllTextAsync(file))!["flag"]!.GetValue<bool>()).IsTrue();
+            string[] aside = Directory.GetFiles(Path.GetDirectoryName(file)!, Path.GetFileName(file) + ".unreadable-*");
+            using (Assert.Multiple())
+            {
+                await Assert.That(JsonNode.Parse(await File.ReadAllTextAsync(file))!["flag"]!.GetValue<bool>()).IsTrue();
+                await Assert.That(aside.Length).IsEqualTo(1);
+                await Assert.That(await File.ReadAllTextAsync(aside[0])).Contains("\"kept\": 1")
+                    .Because("the unreadable file is kept for the user, not overwritten");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task AfterReset_TheStoreRereadsTheDisk()
+    {
+        string root = NewRoot();
+        try
+        {
+            ExtensionSettingsStore store = new("dev.example.settings", root, a => a());
+            store.Set("flag", true);
+            File.Delete(ExtensionSettingsStore.PathFor(root, "dev.example.settings"));
+
+            store.Reset();
+
+            await Assert.That(store.Get("flag", false)).IsFalse();
         }
         finally
         {
@@ -188,6 +215,38 @@ public class ExtensionSettingsStoreTests
                 await Assert.That(store.Get("tagPalette.id", "cs2-default")).IsEqualTo("team-palette");
                 await Assert.That(store.Get("review.mode", false)).IsTrue();
                 await Assert.That(store.Get("suggestedTags.background", false)).IsFalse();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task AnImportThatCannotBeWritten_IsKeptForTheStore_ThroughTheNextWriteOfSettingsJson()
+    {
+        string root = NewRoot();
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "settings.json"), """
+                { "Situations": { "BackgroundIndex": false } }
+                """);
+            // A file where the folder belongs makes the import's write fail.
+            string blocker = Path.Combine(root, ExtensionSettingsStore.DirectoryName);
+            await File.WriteAllTextAsync(blocker, "");
+            SettingsService settings = new(root);
+
+            await Assert.That(LegacyExtensionSettings.Import(settings, root)).IsEqualTo(0);
+            settings.Write(s => s.Playback2D.ExportQuality = "best");
+            File.Delete(blocker);
+
+            ExtensionSettingsStore store = new(LegacyExtensionSettings.StratBookId, root, a => a());
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.Get("situations.backgroundIndex", true)).IsFalse();
+                await Assert.That(File.Exists(ExtensionSettingsStore.PathFor(root, LegacyExtensionSettings.StratBookId))).IsTrue()
+                    .Because("the store saves what the import could not");
             }
         }
         finally

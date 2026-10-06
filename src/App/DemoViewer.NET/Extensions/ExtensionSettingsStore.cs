@@ -15,8 +15,9 @@ namespace DemoViewer.NET.Extensions;
 /// <summary>
 ///     One extension's settings file, <c>&lt;config&gt;/extension-settings/&lt;id&gt;.json</c>: a flat JSON object
 ///     read on first use and rewritten whole on every change. A null config root (the browser) keeps the
-///     values in memory for the session. A file that does not parse reads as empty and is replaced by the
-///     next write.
+///     values in memory for the session. A file that does not parse is renamed aside and the extension starts
+///     from its defaults; a file that cannot be read is never overwritten that session, so one bad read does not
+///     cost every other stored value.
 /// </summary>
 internal sealed class ExtensionSettingsStore : IExtensionSettings
 {
@@ -34,6 +35,7 @@ internal sealed class ExtensionSettingsStore : IExtensionSettings
     private readonly string? _path;
     private readonly Action<Action> _post;
     private Action<string>? _changed;
+    private bool _holdWrites;
     private JsonObject? _values;
 
     /// <param name="extensionId">The extension the file belongs to.</param>
@@ -145,6 +147,16 @@ internal sealed class ExtensionSettingsStore : IExtensionSettings
         }
     }
 
+    /// <summary>Forgets the values held in memory, so the next read comes from disk. Used after the file is deleted.</summary>
+    public void Reset()
+    {
+        lock (_gate)
+        {
+            _values = null;
+            _holdWrites = false;
+        }
+    }
+
     // Called under the lock.
     private JsonObject Values()
     {
@@ -159,27 +171,70 @@ internal sealed class ExtensionSettingsStore : IExtensionSettings
             return _values;
         }
 
+        // Values a failed one-time import kept in memory: saved here so they survive this session.
+        if (_path is not null && LegacyExtensionSettings.TakeUnsaved(_path) is { } unsaved)
+        {
+            _values = unsaved;
+            Save(unsaved);
+            return _values;
+        }
+
         _values = [];
         return _values;
     }
 
     private JsonObject Read(string path)
     {
+        string text;
         try
         {
-            return JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? [];
+            text = File.ReadAllText(path);
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            _holdWrites = true;
             AppLog.ExtensionStoreUnreadable(Log, _extensionId, path, ex.Message);
             return [];
+        }
+
+        string problem;
+        try
+        {
+            if (JsonNode.Parse(text) is JsonObject values)
+            {
+                return values;
+            }
+
+            problem = "the file does not hold a JSON object";
+        }
+        catch (JsonException ex)
+        {
+            problem = ex.Message;
+        }
+
+        AppLog.ExtensionStoreUnreadable(Log, _extensionId, path, problem);
+        SetAside(path);
+        return [];
+    }
+
+    // Keeps a file that does not parse for the user to recover by hand. When the rename fails the file stays,
+    // and nothing overwrites it this session.
+    private void SetAside(string path)
+    {
+        try
+        {
+            File.Move(path, path + ".unreadable-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss", System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _holdWrites = true;
         }
     }
 
     // Called under the lock. A failed write keeps the value in memory for the session and says so in the log.
     private void Save(JsonObject values)
     {
-        if (_path is null)
+        if (_path is null || _holdWrites)
         {
             return;
         }
