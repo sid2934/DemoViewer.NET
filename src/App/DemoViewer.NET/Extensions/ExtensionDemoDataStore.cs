@@ -120,7 +120,14 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
 
         lock (_gate)
         {
-            return [.. _entries!.Values.Where(e => string.Equals(e.Facet, facet, StringComparison.Ordinal)).Select(e => e.ToStamp())];
+            // An entry held at an unconfirmed path is not that path's data until a full read confirms it.
+            return
+            [
+                .. _entries!.Values
+                    .Where(e => string.Equals(e.Facet, facet, StringComparison.Ordinal)
+                                && _library.LocationOf(e.DemoPath) is not { Location.Confirmed: false })
+                    .Select(e => e.ToStamp())
+            ];
         }
     }
 
@@ -519,6 +526,11 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             if (entry.Sha256 is not null && _library.TryGetIndexBySha256(entry.Sha256) is { } other)
             {
                 entries[id] = entry with { DemoPath = other.Path };
+            }
+            else if (entry.Sha256 is not null && _library.PathOfAnyLocation(entry.Sha256) is { } unconfirmed)
+            {
+                // Kept for a full read of that path to confirm; a read through it stays absent until then.
+                entries[id] = entry with { DemoPath = unconfirmed };
             }
             else
             {

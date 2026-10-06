@@ -402,6 +402,20 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
+    ///     The path the hashed row for a content id is seen from, whether or not any of its paths is confirmed,
+    ///     or null when no hashed row carries it. Says only that the content may still be in the library; an
+    ///     unconfirmed path can hold other bytes, so nothing joined by hash reads through it.
+    /// </summary>
+    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
+    internal string? PathOfAnyLocation(string contentId)
+    {
+        lock (_gate)
+        {
+            return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && !IsProvisional(row) ? row.Path : null;
+        }
+    }
+
+    /// <summary>
     ///     Lists <paramref name="path" /> as an unconfirmed location of the hashed row
     ///     <paramref name="contentId" />: the file's fingerprint matched the row's, and nothing has read it in
     ///     full. Writes only the index. Does nothing when a row already lists the path or no hashed row carries

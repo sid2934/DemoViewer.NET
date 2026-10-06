@@ -263,6 +263,51 @@ public class ExtensionDemoDataStoreTests
     }
 
     [Test]
+    public async Task AFacetWhoseOnlyRemainingPathIsUnconfirmed_IsKept_AndReadsThereOnceAFullReadConfirmsIt()
+    {
+        string root = NewRoot();
+        try
+        {
+            const string copy = "/mnt/share/a.dem";
+            DemoCacheStore library = new(null);
+            Seed(library, Demo, "aaaa");
+            await Assert.That(library.AttachUnconfirmed("aaaa", copy, 10, 20)).IsTrue();
+            ExtensionDemoDataStore store = NewStore(root, library);
+            store.Write(Demo, Rounds("a"));
+
+            // The confirmed mount goes away; the fingerprint-matched one is all that is left.
+            library.Remove(Demo);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(File.Exists(Path.Combine(store.Root, "rounds", "aaaa.json.gz"))).IsTrue();
+                await Assert.That(File.Exists(Path.Combine(store.Root, "rounds", "aaaa.positions.json.gz"))).IsTrue();
+                await Assert.That(store.Stamp(copy, "rounds")).IsNull().Because("an unconfirmed path may hold other bytes");
+                await Assert.That(store.Read(copy, "rounds", 1, "fp-1")).IsNull();
+                await Assert.That(store.Stamps("rounds")).IsEmpty();
+            }
+
+            // A store reopened over the same index keeps it too: the load sweeps every entry.
+            ExtensionDemoDataStore reopened = NewStore(root, library);
+            await Assert.That(reopened.Stamps("rounds")).IsEmpty();
+            await Assert.That(File.Exists(Path.Combine(store.Root, "rounds", "aaaa.json.gz"))).IsTrue();
+
+            await Assert.That(library.ConfirmLocation(copy, "aaaa", 10)).IsTrue();
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.Stamp(copy, "rounds")).IsNotNull();
+                await Assert.That(Encoding.UTF8.GetString(store.Read(copy, "rounds", 1, "fp-1")!)).IsEqualTo("a");
+                await Assert.That(store.Stamps("rounds").Single().DemoPath).IsEqualTo(copy);
+                await Assert.That(Encoding.UTF8.GetString(reopened.Read(copy, "rounds", 1, "fp-1")!)).IsEqualTo("a");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
     public async Task AFacetWrittenThroughOnePath_ReadsThroughTheOther_AndFollowsTheBytesWhenAPathIsReplaced()
     {
         string root = NewRoot();
