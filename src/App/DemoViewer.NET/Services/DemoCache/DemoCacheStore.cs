@@ -705,6 +705,27 @@ public sealed class DemoCacheStore
                 record.FillMissingFrom(existing);
             }
 
+            // A row that keeps other paths may still hold its files under this path's key. They move off it
+            // before this path writes there, or the new bytes overwrite the other paths' record and siblings.
+            string pathKey = StableKey(path);
+            List<string> claimants;
+            lock (_gate)
+            {
+                bool leaving = oldKey is not null && oldKey != newKey
+                    && _rows.TryGetValue(oldKey, out DemoCacheIndexEntry? leavingRow)
+                    && leavingRow.Locations.Any(l => !SamePath(l.Path, path));
+                claimants = [.. _rows
+                    .Where(r => r.Key != newKey && (r.Key != oldKey || leaving)
+                                && r.Value.SidecarKeys?.Contains(pathKey) == true)
+                    .Select(r => r.Key)];
+            }
+
+            bool writeFile = true;
+            foreach (string claimant in claimants)
+            {
+                writeFile &= ReleaseKey(claimant, pathKey);
+            }
+
             DemoCacheIndexEntry? dropped = null;
             DemoCacheIndexEntry row;
             lock (_gate)
@@ -759,7 +780,11 @@ public sealed class DemoCacheStore
                 _lastRecordBytes = bytes;
             }
 
-            WriteSidecar(path, bytes);
+            if (writeFile)
+            {
+                WriteSidecar(path, bytes);
+            }
+
             if (_cacheRoot is null)
             {
                 // Nothing persists, so nothing has to land before the old names go.
@@ -857,6 +882,21 @@ public sealed class DemoCacheStore
 
     private void RemoveCore(string path)
     {
+        string pathKey = StableKey(path);
+        string? owner;
+        lock (_gate)
+        {
+            owner = _keyByPath.TryGetValue(path, out string? k) && _rows[k].Locations.Count > 1
+                && _rows[k].SidecarKeys?.Contains(pathKey) == true
+                    ? k
+                    : null;
+        }
+
+        if (owner is not null)
+        {
+            ReleaseKey(owner, pathKey);
+        }
+
         bool removed = false;
         DemoCacheIndexEntry? dropped = null;
         lock (_gate)
@@ -1044,6 +1084,71 @@ public sealed class DemoCacheStore
         }
 
         return ok;
+    }
+
+    /// <summary>
+    ///     Moves a row's files off one of its older keys onto the next key it keeps, then saves the index, so a
+    ///     path leaving the row can write under its own key without touching the row's files.
+    /// </summary>
+    /// <returns>False when a file could not move or the index could not be saved.</returns>
+    private bool ReleaseKey(string rowKey, string key)
+    {
+        while (true)
+        {
+            DemoCacheIndexEntry row;
+            List<string> keys;
+            string target;
+            lock (_gate)
+            {
+                if (!_rows.TryGetValue(rowKey, out row!) || row.SidecarKeys is null || !row.SidecarKeys.Contains(key))
+                {
+                    return true;
+                }
+
+                keys = row.SidecarKeys;
+                target = keys.FirstOrDefault(k => k != key) ?? FileKeyOf(row);
+            }
+
+            if (string.Equals(target, key, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            object[] stripes = [.. new[] { key, target }.Select(StripeIndex).Distinct().Order().Select(i => _fileStripes[i])];
+            EnterAll(stripes);
+            try
+            {
+                lock (_gate)
+                {
+                    if (!ReferenceEquals(_rows.GetValueOrDefault(rowKey), row))
+                    {
+                        continue;
+                    }
+                }
+
+                if (!MoveKey(key, target, keys[0] == key))
+                {
+                    return false;
+                }
+
+                lock (_gate)
+                {
+                    DemoCacheIndexEntry released = Shape(row.Copy(), [.. row.Locations], [.. keys.Where(k => k != key)]);
+                    Link(rowKey, released);
+                    if (released.SidecarKeys is null)
+                    {
+                        _settleAfterSave.Remove(rowKey);
+                    }
+                }
+            }
+            finally
+            {
+                ExitAll(stripes);
+            }
+
+            // The saved index must stop naming the old key before anything else is written under it.
+            return IndexPath is not { } indexPath || WriteIndex(indexPath, out _);
+        }
     }
 
     // Moves every file named <source>.* to <target>.*. Caller holds both stripes.

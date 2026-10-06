@@ -332,6 +332,113 @@ public class ContentKeyedCacheTests
         }
     }
 
+    /// <summary>
+    ///     A path leaving a row whose files still sit under that path's key: the row's other paths keep their
+    ///     record and siblings, before a save, after a crash, and after the rename pass.
+    /// </summary>
+    [Test]
+    [Arguments("/m/a.dem", "/m/b.dem")]
+    [Arguments("/m/b.dem", "/m/a.dem")]
+    public async Task AFileModifiedInPlace_BeforeItsRowSettled_LeavesTheOtherPathsFiles(string modified, string kept)
+    {
+        string root = TempRoot();
+        try
+        {
+            WriteVersion4(root,
+                (Record("/m/a.dem", "sha-x"), "from a"),
+                (Analysed("/m/b.dem", "sha-x"), "from b"));
+
+            DemoCacheStore store = new(root);
+            store.Update(modified, 5000, 6000, r => r.SetContentHash("sha-new", null));
+            store.WriteSibling(modified, Suffix, "new bytes");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryLoadRecord(kept)!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(store.TryReadSibling(kept, Suffix)).IsEqualTo("from b");
+                await Assert.That(store.TryLoadRecord(modified)!.Analysis.IsPresent).IsFalse();
+                await Assert.That(store.TryReadSibling(modified, Suffix)).IsEqualTo("new bytes");
+            }
+
+            DemoCacheStore crashed = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(crashed.TryLoadRecord(kept)!.Scoreboard.Single().Kills).IsEqualTo(21)
+                    .Because("the index on disk never names the modified path's key for the kept row's files");
+                await Assert.That(crashed.TryReadSibling(kept, Suffix)).IsEqualTo("from b");
+            }
+
+            store.SaveIndex();
+            DemoCacheStore reopened = new(root);
+            ContentKeyMigrationResult result = await ContentKeyMigration.RunAsync(reopened, batchSize: 1);
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Failed).IsEqualTo(0);
+                await Assert.That(reopened.TryLoadRecord(kept)!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(reopened.TryReadSibling(kept, Suffix)).IsEqualTo("from b");
+                await Assert.That(reopened.TryGetByContentId("sha-new")!.Path).IsEqualTo(modified);
+                await Assert.That(reopened.TryReadSibling(modified, Suffix)).IsEqualTo("new bytes");
+                await Assert.That(reopened.TryLoadRecord(modified)!.Analysis.IsPresent).IsFalse();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    ///     Copies upserted in one session share the first path's key until a save. That path leaving, by a
+    ///     rewrite or a remove and a new file, never overwrites the copy's record.
+    /// </summary>
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task APathLeavingAnUnsavedRow_NeverOverwritesTheCopysRecord(bool removeFirst)
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Upsert(Analysed("/m/a.dem", "sha-old"));
+            store.Upsert(Analysed("/m/copy.dem", "sha-old"));
+            store.WriteSibling("/m/copy.dem", Suffix, "old bytes");
+
+            if (removeFirst)
+            {
+                store.Remove("/m/a.dem");
+                store.Upsert(Record("/m/a.dem", null, "de_inferno", 5000, 6000));
+            }
+            else
+            {
+                store.Update("/m/a.dem", 5000, 6000, r => r.SetContentHash("sha-new", null));
+            }
+
+            store.WriteSibling("/m/a.dem", Suffix, "new bytes");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryLoadRecord("/m/copy.dem")!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(store.TryReadSibling("/m/copy.dem", Suffix)).IsEqualTo("old bytes");
+                await Assert.That(store.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("new bytes");
+            }
+
+            store.SaveIndex();
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(reopened.TryLoadRecord("/m/copy.dem")!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(reopened.TryReadSibling("/m/copy.dem", Suffix)).IsEqualTo("old bytes");
+                await Assert.That(reopened.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("new bytes");
+                await Assert.That(reopened.TryLoadRecord("/m/a.dem")!.Scoreboard).IsEmpty();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     /// <summary>A copy reaching the hash at a lower tier joins the row and erases nothing the row holds.</summary>
     [Test]
     [Arguments(true)]
