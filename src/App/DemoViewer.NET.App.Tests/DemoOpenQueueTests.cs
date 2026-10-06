@@ -222,6 +222,26 @@ public class DemoOpenQueueTests
     }
 
     [Test]
+    public async Task AnOpen_WithRoomBesideARunningParseWithoutUserCommands_StillWaitsForItsPasses()
+    {
+        using Rig rig = new();
+        rig.Gate.MaxConcurrency = 2;
+        rig.Queue.SubmitBackground(new DemoProcessingRequest("/d/a.dem", "library", DemoJobPriority.Background, 0,
+            _ => { }, DisplayName: "a.dem", NeedsUserCommands: false));
+        await rig.ParseStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        using IDemoOpenTicket open = rig.Queue.BeginOpen("/d/a.dem", "a.dem");
+        Task<ParsedDemo> parse = open.ParseAsync(Bytes);
+        await Task.Delay(200);
+        await Assert.That(Volatile.Read(ref rig.ByteParses)).IsEqualTo(0)
+            .Because("two full parses of one demo are never resident together");
+        rig.Release.SetResult();
+
+        await parse.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(rig.ByteParses).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task ASecondOpen_ReplacesAWaitingOne()
     {
         using Rig rig = new();

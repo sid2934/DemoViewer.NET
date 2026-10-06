@@ -431,6 +431,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Running && !e.Finalizing
         && !e.Forward && e.UserCommands && PathEquals(e.Path, path));
 
+    // A running retained parse of this demo, passes included, that an open cannot take: it skips user commands.
+    private Entry? UnjoinableParseLocked(string path) => _entries.FirstOrDefault(e =>
+        e.Kind == QueueJobKind.DemoProcessing && e.State == DemoQueueItemState.Running
+        && !e.Forward && !e.UserCommands && PathEquals(e.Path, path));
+
     // ── User opens ───────────────────────────────────────────────────────
 
     public IDemoOpenTicket BeginOpen(string? path, string fileName)
@@ -509,6 +514,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private async Task<ParsedDemo> ParseForOpenAsync(Entry entry, ReadOnlyMemory<byte> bytes, CancellationToken ct)
     {
         Task<ParsedDemo>? joined = null;
+        Task? unjoinable = null;
         lock (_sync)
         {
             ThrowIfOpenEndedLocked(entry, ct);
@@ -522,6 +528,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
             else
             {
+                // A running retained parse of this demo that skips user commands cannot serve the open. The
+                // parser takes no token, so the open waits for it rather than hold a second parse beside it.
+                unjoinable = entry.Path.Length > 0 ? UnjoinableParseLocked(entry.Path)?.Completion.Task : null;
                 entry.WaitingForSlot = true;
             }
         }
@@ -530,6 +539,28 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (joined is not null)
         {
             return await joined.WaitAsync(ct).ConfigureAwait(false);
+        }
+
+        if (unjoinable is not null)
+        {
+            try
+            {
+                await unjoinable.WaitAsync(ct).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                lock (_sync)
+                {
+                    entry.WaitingForSlot = false;
+                }
+
+                throw;
+            }
+
+            lock (_sync)
+            {
+                ThrowIfOpenEndedLocked(entry, ct);
+            }
         }
 
         IDisposable slot;
@@ -1285,6 +1316,18 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (incoming.Priority < DemoJobPriority.UserRequested || incoming.State != DemoQueueItemState.Queued)
         {
             return null;
+        }
+
+        // An open stops the forward read of its own demo first, at any lane width: that read comes back as the
+        // open's visit instead of reading the file beside the open's parse.
+        if (incoming.Kind == QueueJobKind.DemoOpen && incoming.Path.Length > 0
+            && _entries.FirstOrDefault(e =>
+                e.State == DemoQueueItemState.Running && e.Kind == QueueJobKind.DemoProcessing && e.Forward
+                && e.Preemptible && !e.Preempted && !e.CancelRequested && !e.Finalizing
+                && e.Priority < DemoJobPriority.Foreground && PathEquals(e.Path, incoming.Path)) is { } sameDemo)
+        {
+            sameDemo.Preempted = true;
+            return sameDemo.Cancel;
         }
 
         bool light = IsLight(incoming);
