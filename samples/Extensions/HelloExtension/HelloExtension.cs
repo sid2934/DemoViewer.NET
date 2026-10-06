@@ -151,7 +151,7 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
         };
         _context.Library.Changed += change =>
         {
-            if (change.Path is null || string.Equals(change.Path, _openDemo, StringComparison.OrdinalIgnoreCase))
+            if (change.Path is null || IsOpenDemo(change.Path))
             {
                 ReadKills();
             }
@@ -212,6 +212,12 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
         });
     }
 
+    // A change names the path the library shows the demo at, and the shell may have opened another copy of it.
+    private bool IsOpenDemo(string path) =>
+        _openDemo is { } open
+        && (string.Equals(path, open, StringComparison.OrdinalIgnoreCase)
+            || _context.Library.Find(open)?.Locations.Contains(path, StringComparer.OrdinalIgnoreCase) == true);
+
     // The stamp comes from the store's index, so this opens no file and is safe on the UI thread.
     public bool HasFrameCount(string path) => FrameCountPass.Count(_context.Data, path) is not null;
 
@@ -246,7 +252,8 @@ public static class HelloFacts
 
 /// <summary>
 ///     Counts the frames of the demo the shell has open, on the parse its open already read, and keeps the count
-///     as the demo's own data: the next session finds it without reading the demo again.
+///     as the demo's own data: the next session finds it without reading the demo again, and so does a copy of
+///     the demo at another path, since the data keys on the demo's content.
 /// </summary>
 internal sealed class FrameCountPass(HelloTabViewModel tab, IExtensionDemoData data) : IExtensionPass
 {
