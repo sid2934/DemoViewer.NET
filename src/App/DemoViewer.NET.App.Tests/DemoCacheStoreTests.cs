@@ -406,7 +406,9 @@ public class DemoCacheStoreTests
         {
             DemoCacheStore store = new(root);
             store.Upsert(Record("/demos/seen.dem"));
-            store.Upsert(Record("/demos/other.dem"));
+            DemoCacheRecord other = Record("/demos/other.dem");
+            other.Sha256 = "sha-other";
+            store.Upsert(other);
 
             await Assert.That(store.TryLoadRecord("/demos/seen.dem")).IsNotNull();
             File.Delete(store.SidecarPathFor("/demos/seen.dem")!);
