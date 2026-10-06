@@ -967,11 +967,11 @@ public interface IRoundFacts
     int Schema { get; }
 
     /// <summary>One demo's rows, or null when none were written. Reads the demo's record: call it off the UI thread.</summary>
-    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="demoPath">Any path of the demo.</param>
     RoundFactsRows? TryGet(string demoPath);
 
     /// <summary>The round whose window holds <paramref name="frameClockTick" />, or null before the first freeze end or without rows.</summary>
-    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="demoPath">Any path of the demo.</param>
     /// <param name="frameClockTick">Frame clock.</param>
     RoundFacts? RoundAt(string demoPath, int frameClockTick);
 
@@ -979,7 +979,7 @@ public interface IRoundFacts
     ///     The labels of one round, absolute per side. The tick-anchored group (<c>phase</c>, <c>manCount.*</c>) is
     ///     present only when <paramref name="atTick" /> is given. Empty when the demo has no rows or no such round.
     /// </summary>
-    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="demoPath">Any path of the demo.</param>
     /// <param name="round">The round number.</param>
     /// <param name="atTick">The tick the phase group is read at, or null.</param>
     IReadOnlyList<FactLabel> FactsFor(string demoPath, int round, int? atTick = null);

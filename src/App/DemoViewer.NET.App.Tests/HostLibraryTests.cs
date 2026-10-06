@@ -211,6 +211,7 @@ public class HostLibraryTests
             await Assert.That(library.Demos.Single(d => d.Sha256 == Sha)).IsSameReferenceAs(one);
             await Assert.That(unconfirmed.Sha256).IsNull();
             await Assert.That(unconfirmed.Locations).IsEquivalentTo(["/a/one.dem"]);
+            await Assert.That(library.Demos.Select(d => d.FilePath)).DoesNotContain("/a/one.dem");
             await Assert.That(unhashed.Locations).IsEquivalentTo(["/m/two.dem"]);
         }
     }

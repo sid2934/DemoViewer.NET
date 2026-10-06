@@ -31,7 +31,9 @@ public sealed record LibraryDemo(string FilePath, string FileName, string? MapNa
     /// <summary>
     ///     Every path the library has confirmed holds these bytes, <see cref="FilePath" /> first, the rest in
     ///     ordinal order. Just <see cref="FilePath" /> while <see cref="Sha256" /> is null. A path matched to the
-    ///     demo without a full read is not listed until a read confirms it; it is its own row until then.
+    ///     demo without a full read is not listed until a read confirms it. Until then
+    ///     <see cref="IExtensionLibrary.Find" /> answers that path with a row of its own with no hash, which
+    ///     <see cref="IExtensionLibrary.Demos" /> lists only when it is the only path the library has for the demo.
     /// </summary>
     public IReadOnlyList<string> Locations
     {
@@ -290,9 +292,10 @@ public interface IExtensionLibrary
     /// <summary>
     ///     The demo with <paramref name="path" /> among its <see cref="LibraryDemo.Locations" />, compared ignoring
     ///     case, or null. Any of a demo's paths answers the same row, seen from its <see cref="LibraryDemo.FilePath" />.
-    ///     A path matched to a known demo without a full read answers a row of its own with no
-    ///     <see cref="LibraryDemo.Sha256" />. A path the library no longer lists answers null, though the demo's
-    ///     data may be kept for a while in case its file comes back.
+    ///     A path matched to a known demo without a full read answers a row of that path alone with no
+    ///     <see cref="LibraryDemo.Sha256" />, not listed in <see cref="Demos" /> while the demo has a confirmed
+    ///     path. A path the library no longer lists answers null, though the demo's data may be kept for a while in
+    ///     case its file comes back.
     /// </summary>
     /// <param name="path">Any path of the demo.</param>
     LibraryDemo? Find(string path);

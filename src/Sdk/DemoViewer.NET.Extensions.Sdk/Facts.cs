@@ -225,12 +225,12 @@ public interface IAnalysisFacts
     IReadOnlyList<FactKey> Declared { get; }
 
     /// <summary>Where <paramref name="key" /> stands for the demo at <paramref name="demoPath" />.</summary>
-    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="demoPath">Any path of the demo.</param>
     /// <param name="key">The output.</param>
     FactStatus Status(string demoPath, FactKey key);
 
     /// <summary>True when <see cref="Status" /> is <see cref="FactStatus.Current" />.</summary>
-    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="demoPath">Any path of the demo.</param>
     /// <param name="key">The output.</param>
     bool IsCurrent(string demoPath, FactKey key);
 
@@ -238,12 +238,12 @@ public interface IAnalysisFacts
     ///     The table as last written for the demo, current or stale, or null when none is: absent, never written,
     ///     or an output only a full analysis produces.
     /// </summary>
-    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="demoPath">Any path of the demo.</param>
     /// <param name="key">The output.</param>
     FactTable? TryGet(string demoPath, FactKey key);
 
     /// <summary>The highlights the library's scan found in the demo; empty when it has not scanned it.</summary>
-    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="demoPath">Any path of the demo.</param>
     IReadOnlyList<LibraryHighlight> Highlights(string demoPath);
 
     /// <summary>The per-round, per-side rows of the core <c>round_facts</c> ruleset.</summary>

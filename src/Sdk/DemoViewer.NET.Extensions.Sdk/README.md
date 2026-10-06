@@ -270,8 +270,9 @@ library.Changed += change =>
 };
 ```
 
-A path the library matched to a known demo without a full read is a row of its own with no `Sha256` until a
-read confirms it. A demo whose every path left the library is not found, though the library keeps its data for
+A path the library matched to a known demo without a full read is not in `Locations` until a read confirms it.
+`Find` answers it with a row of that path alone and no `Sha256`, which `Demos` lists only when the demo has no
+confirmed path. A demo whose every path left the library is not found, though the library keeps its data for
 a while in case the file comes back.
 
 `GetDetailAsync` reads one demo's record: the roster with slots and SteamIDs, and where each round starts. It
