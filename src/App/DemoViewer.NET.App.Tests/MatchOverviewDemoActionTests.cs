@@ -132,7 +132,7 @@ public class MatchOverviewDemoActionTests
     {
         FaultRig rig = new();
         bool throwOnAsk = true;
-        DemoAction action = new("fake.index", "Index", "tip",
+        DemoAction action = new("pack.fake.index", "Index", "tip",
             _ => throwOnAsk ? throw new InvalidOperationException("ask") : true,
             _ => throw new InvalidOperationException("run"));
         PackContributions contributions = new(new StubExtension(Feature), () => null!, null, rig.Guard);

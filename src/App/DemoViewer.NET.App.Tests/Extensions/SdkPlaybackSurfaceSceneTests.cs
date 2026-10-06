@@ -163,7 +163,7 @@ public class SdkPlaybackSurfaceSceneTests
         using SdkPlaybackSurface surface = new(inner, new FaultRig().Guard);
         Scene2DFrame? ranWith = null;
         Scene2DFrame? pressedWith = null;
-        using IDisposable item = surface.AddToolbarItem(new SdkP.ToolbarItem("x", "X", "", moment =>
+        using IDisposable item = surface.AddToolbarItem(new SdkP.ToolbarItem("pack.fake.x", "X", "", moment =>
         {
             ranWith = moment.Frame;
             return true;
