@@ -282,11 +282,10 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     }
 
     /// <summary>
-    ///     Why <paramref name="store" /> may not be listed for <paramref name="packId" />, or null. A third-party
-    ///     extension may name only paths whose first segment is its id, its id and ".json", or starts with its id
-    ///     and '-'. An extension
-    ///     the app ships may name any path except the folders the host keeps for itself and every extension, and
-    ///     a <c>demos/*</c> pattern only when its suffix cannot match a demo's record.
+    ///     Why <paramref name="store" /> may not be listed for <paramref name="packId" />, or null. No store names
+    ///     a folder the host keeps for itself and every extension. A third-party extension may name only paths
+    ///     whose first segment is its id, its id and ".json", or starts with its id and '-'. An extension the app
+    ///     ships may name other paths, and a <c>demos/*</c> pattern only when its suffix cannot match a record.
     /// </summary>
     internal static string? StoreRefusal(string packId, StoreDescriptor store)
     {
@@ -300,6 +299,12 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
                 return $"'{raw}' does not name a file or folder";
             }
 
+            string[] reserved = store.Root == StoreRoot.Config ? ReservedConfigNames : ReservedCacheNames;
+            if (reserved.Contains(first, StringComparer.OrdinalIgnoreCase))
+            {
+                return $"'{raw}' is a folder the app keeps";
+            }
+
             if (!shipped)
             {
                 if (!string.Equals(first, packId, StringComparison.OrdinalIgnoreCase)
@@ -310,12 +315,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
                 }
 
                 continue;
-            }
-
-            string[] reserved = store.Root == StoreRoot.Config ? ReservedConfigNames : ReservedCacheNames;
-            if (reserved.Contains(first, StringComparer.OrdinalIgnoreCase))
-            {
-                return $"'{raw}' is a folder the app keeps";
             }
 
             if (string.Equals(first, "demos", StringComparison.OrdinalIgnoreCase) && store.Root == StoreRoot.Cache)
