@@ -77,6 +77,7 @@ public class ExtensionIsolationTests
     [Arguments("dev.example.store", StoreRoot.Cache, "demos", false)]
     [Arguments("dev.example.store", StoreRoot.Config, "dev.example.storex.json", false)]
     [Arguments("dev.example.store", StoreRoot.Config, "../dev.example.store", false)]
+    [Arguments("settings.json", StoreRoot.Config, "settings.json", false)]
     [Arguments("net.demoviewer.pack.x", StoreRoot.Config, "strats", true)]
     [Arguments("net.demoviewer.pack.x", StoreRoot.Cache, "demos/*.grenades.json.gz", true)]
     [Arguments("net.demoviewer.pack.x", StoreRoot.Config, "extension-settings", false)]
@@ -124,6 +125,48 @@ public class ExtensionIsolationTests
                 .IsEqualTo(LoadFailure.ReferencesApp);
             await Assert.That(ExternalExtensions.CheckAppReference(candidate, typeof(IExtension).Assembly)).IsNull()
                 .Because("the SDK is the contract an extension builds against");
+        }
+    }
+
+    [Test]
+    [NotInParallel]
+    public async Task APassThatTakesACorePassesId_FailsItsExtensionsStartup_NotTheApps()
+    {
+        TakesTheFactsPass pack = new();
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            ServiceCollection services = App.ComposeServices(new Services.DesktopWindowService(() => null), [pack]);
+            await using ServiceProvider provider = services.BuildServiceProvider();
+            ExtensionFaults faults = provider.GetRequiredService<ExtensionFaults>();
+
+            provider.GetRequiredService<Services.DemoProcessing.DemoScheduler>().ValidatePasses();
+
+            await Assert.That(faults.StartupFailed(pack.Id)).IsTrue();
+        });
+    }
+
+    private sealed class TakesTheFactsPass : IExtension
+    {
+        public string Id => "dev.example.facts-thief";
+        public string FeatureId => "dev.example.facts-thief";
+        public IEnumerable<ExtensionFeature> Features => [];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services) =>
+            contributions.Pass(HostIds.FactsPass, () => new NoPass());
+    }
+
+    private sealed class NoPass : IExtensionPass
+    {
+        public string Id => HostIds.FactsPass;
+
+        public DemoInterest Interest(string demoPath) => DemoInterest.No;
+
+        public void Run(IPassContext context)
+        {
         }
     }
 

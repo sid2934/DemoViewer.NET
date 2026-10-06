@@ -52,6 +52,69 @@ public sealed class PassRegistry
         Action<Exception>? onFault = null) =>
         Add(id, factory, after, enabled, onFault);
 
+    /// <summary>
+    ///     One pack's passes from the <see cref="AddPacksLazily" /> delegate, added together or not at all. They
+    ///     are refused when an id is already registered or repeated, when an After id is neither registered nor
+    ///     one of the group's own, or when adding them makes a cycle. A refused group leaves the registry as it
+    ///     was, so one pack's bad declaration never stops the others or the app.
+    /// </summary>
+    /// <param name="passes">The pack's passes.</param>
+    /// <param name="enabled">Whether the pack is on right now.</param>
+    /// <param name="onFault">Told when one of the pack's factories throws or builds a mismatched pass.</param>
+    /// <returns>Null when added, or why the group was refused.</returns>
+    public string? TryAddPackPasses(IReadOnlyList<(string Id, Func<IDemoPass> Factory, IReadOnlyList<string> After)> passes,
+        Func<bool> enabled, Func<string, Action<Exception>>? onFault = null)
+    {
+        ArgumentNullException.ThrowIfNull(passes);
+        ArgumentNullException.ThrowIfNull(enabled);
+        lock (_gate)
+        {
+            HashSet<string> own = new(StringComparer.Ordinal);
+            foreach ((string id, Func<IDemoPass> factory, IReadOnlyList<string> after) in passes)
+            {
+                if (string.IsNullOrWhiteSpace(id) || factory is null || after is null)
+                {
+                    return "a pass has no id, factory or After list";
+                }
+
+                if (_entries.ContainsKey(id) || !own.Add(id))
+                {
+                    return $"pass id '{id}' is already registered";
+                }
+            }
+
+            foreach ((string id, _, IReadOnlyList<string> after) in passes)
+            {
+                if (after.FirstOrDefault(dep => !_entries.ContainsKey(dep) && !own.Contains(dep)) is { } unknown)
+                {
+                    return $"pass '{id}' runs after '{unknown}', which is not a registered pass id";
+                }
+            }
+
+            foreach ((string id, Func<IDemoPass> factory, IReadOnlyList<string> after) in passes)
+            {
+                Add(id, factory, after, enabled, onFault?.Invoke(id));
+            }
+
+            try
+            {
+                SortedIds();
+                return null;
+            }
+            catch (InvalidOperationException ex)
+            {
+                foreach ((string id, _, _) in passes)
+                {
+                    _entries.Remove(id);
+                    _declaredOrder.Remove(id);
+                }
+
+                _sortedIds = null;
+                return ex.Message;
+            }
+        }
+    }
+
     /// <summary>A pack evaluator, wrapped as a pass with one adapter per instance.</summary>
     public void AddPackEvaluator(string id, Func<IDemoEvaluator> factory, IReadOnlyList<string> after, Func<bool> enabled,
         Action<Exception>? onFault = null) =>

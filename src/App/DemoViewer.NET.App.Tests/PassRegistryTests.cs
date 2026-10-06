@@ -56,6 +56,38 @@ public class PassRegistryTests
     }
 
     [Test]
+    public async Task APacksPasses_ThatReuseAnId_NameAnUnknownAfter_OrMakeACycle_AreRefused_AndTheRestStillResolve()
+    {
+        PassRegistry registry = new();
+        registry.AddCore("facts", () => new Fake("facts"));
+        string? taken = null, unknown = null, cycle = null, good = null;
+        registry.AddPacksLazily(() =>
+        {
+            taken = registry.TryAddPackPasses([("facts", () => new Fake("facts"), [])], () => true);
+            unknown = registry.TryAddPackPasses([("ext.a", () => new Fake("ext.a", "nowhere"), ["nowhere"])], () => true);
+            cycle = registry.TryAddPackPasses(
+            [
+                ("ext.b", () => new Fake("ext.b", "ext.c"), ["ext.c"]),
+                ("ext.c", () => new Fake("ext.c", "ext.b"), ["ext.b"])
+            ], () => true);
+            good = registry.TryAddPackPasses([("ext.d", () => new Fake("ext.d", "facts"), ["facts"])], () => true);
+        });
+
+        registry.Validate();
+        IReadOnlyList<IDemoPass> resolved = registry.Resolve();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(taken).IsNotNull();
+            await Assert.That(unknown).IsNotNull();
+            await Assert.That(cycle).IsNotNull();
+            await Assert.That(good).IsNull();
+            await Assert.That(resolved.Select(p => p.Id))
+                .IsEquivalentTo(["facts", "ext.d"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
     public void Resolve_UnknownAfterId_Throws()
     {
         PassRegistry registry = new();

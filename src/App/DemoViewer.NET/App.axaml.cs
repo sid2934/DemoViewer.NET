@@ -1098,25 +1098,47 @@ public class App : Application
             highlights.Scheduler = scheduler;
             scheduler.Records = sp.GetRequiredService<RecordPassRunner>();
 
+            // A pack's passes go in together or not at all. A group whose After names another pack's pass waits
+            // for that pack; whatever is still refused when nothing more can be added fails its extension's
+            // startup, and the app starts without it.
             registry.AddPacksLazily(() =>
             {
                 IFeatureGate? features = sp.GetService<IFeatureGate>();
-                foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
+                List<PackContributions> pending = [.. sp.GetRequiredService<PackContributionSet>().Packs.Where(c => c.Passes.Count > 0)];
+                Dictionary<PackContributions, string> refused = [];
+                bool progress = true;
+                while (pending.Count > 0 && progress)
                 {
-                    IExtension pack = contributions.Pack;
-                    ExtensionGuard guard = contributions.Guard;
-                    foreach (PassContribution contribution in contributions.Passes)
+                    progress = false;
+                    foreach (PackContributions contributions in pending.ToArray())
                     {
-                        // .Scheduler (where the evaluator type has one) is set by the evaluator's own DI
-                        // factory, not here: a wrapper assignment only runs once something has already
-                        // planned, but GrenadeIndexEvaluator can also be built earlier, through GrenadeIndex
-                        // at StartPacks time.
-                        guardOf[contribution.Id] = guard;
-                        string id = contribution.Id;
-                        registry.AddPackPass(contribution.Id, contribution.Factory, contribution.After,
+                        IExtension pack = contributions.Pack;
+                        ExtensionGuard guard = contributions.Guard;
+                        string? refusal = registry.TryAddPackPasses(
+                            [.. contributions.Passes.Select(c => (c.Id, c.Factory, c.After))],
                             () => features?.IsEnabled(pack.FeatureId) ?? true,
-                            ex => guard.Report("build pass " + id, ex));
+                            id => ex => guard.Report("build pass " + id, ex));
+                        if (refusal is not null)
+                        {
+                            refused[contributions] = refusal;
+                            continue;
+                        }
+
+                        foreach (PassContribution contribution in contributions.Passes)
+                        {
+                            guardOf[contribution.Id] = guard;
+                        }
+
+                        refused.Remove(contributions);
+                        pending.Remove(contributions);
+                        progress = true;
                     }
+                }
+
+                foreach (PackContributions contributions in pending)
+                {
+                    contributions.Guard.Faults.FailStartup(contributions.Guard.Scope, "passes",
+                        new InvalidOperationException(refused[contributions]));
                 }
             });
 
