@@ -121,7 +121,6 @@ public sealed class HelloExtension : IExtension
                     });
                 };
             }));
-        contributions.Commands(Commands);
         contributions.Playback(new HelloPlayback());
     }
 }

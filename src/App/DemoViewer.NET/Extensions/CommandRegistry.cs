@@ -388,37 +388,6 @@ public sealed class CommandRegistry
         return false;
     }
 
-    /// <summary>
-    ///     Whether two command lists agree on id, scope and default chord, position by position.
-    ///     <see cref="CommandDescriptor.Run" /> and <see cref="CommandDescriptor.CanRun" /> are delegates
-    ///     and compare by reference, so they are deliberately excluded. This is the check the composition
-    ///     root runs between a pack's <c>Contribute(...)</c> call and its <see cref="IExtension.Commands" />
-    ///     property, so the two channels cannot drift apart.
-    /// </summary>
-    public static bool CommandsMatch(IReadOnlyList<CommandDescriptor> a, IReadOnlyList<CommandDescriptor> b)
-    {
-        ArgumentNullException.ThrowIfNull(a);
-        ArgumentNullException.ThrowIfNull(b);
-
-        if (a.Count != b.Count)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < a.Count; i++)
-        {
-            if (!string.Equals(a[i].Id, b[i].Id, StringComparison.Ordinal)
-                || !string.Equals(a[i].Scope, b[i].Scope, StringComparison.Ordinal)
-                || a[i].DefaultChord?.Key != b[i].DefaultChord?.Key
-                || a[i].DefaultChord?.KeyModifiers != b[i].DefaultChord?.KeyModifiers)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     // A third-party extension is the only kind loaded into an ExternalLoadContext.
     private static bool IsLoadedExternally(IExtension pack) =>
         AssemblyLoadContext.GetLoadContext(pack.GetType().Assembly) is ExternalLoadContext;

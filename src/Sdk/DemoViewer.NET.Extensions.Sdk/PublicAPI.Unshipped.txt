@@ -317,7 +317,6 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContext.Settings.get -> DemoViewer.NET.E
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Shell.get -> DemoViewer.NET.Extensions.Sdk.IExtensionShell!
 DemoViewer.NET.Extensions.Sdk.IExtensionContext.Storage.get -> DemoViewer.NET.Extensions.Sdk.IExtensionStorage!
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions
-DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Commands(System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.CommandDescriptor!>! commands) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Context.get -> DemoViewer.NET.Extensions.Sdk.IExtensionContext!
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DataDeleted(System.Action! afterDelete) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DataRemoval(DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval! removal) -> void

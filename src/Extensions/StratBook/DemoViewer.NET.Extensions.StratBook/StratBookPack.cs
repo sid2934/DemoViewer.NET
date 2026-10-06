@@ -818,8 +818,6 @@ public sealed class StratBookPack : IExtension
         ArgumentNullException.ThrowIfNull(services);
         IServiceProvider sp = services;
 
-        contributions.Commands(StratBookCommands.All);
-
         // The hub every section below sits on. The host draws it; the pack keeps the Strats list's
         // collapsed state in the session through it.
         contributions.HubTab(HubTab(sp.GetRequiredService<StratBookLayout>()));

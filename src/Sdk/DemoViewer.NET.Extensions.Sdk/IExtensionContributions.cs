@@ -35,9 +35,6 @@ public interface IExtensionContributions
     /// <summary>A ruleset the host runs with the highlights on every demo; its tables become library facts.</summary>
     void Ruleset(RulesetContribution ruleset);
 
-    /// <summary>Commands for the keymap, in addition to <see cref="IExtension.Commands" />.</summary>
-    void Commands(IEnumerable<CommandDescriptor> commands);
-
     /// <summary>A page in Settings with controls of the extension's own.</summary>
     void SettingsPage(SettingsPageContribution page);
 

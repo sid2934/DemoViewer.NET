@@ -43,7 +43,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly List<ContributedHub> _hubTabs = [];
     private readonly List<PassContribution> _passes = [];
     private readonly List<RecordPassContribution> _recordPasses = [];
-    private readonly List<CommandDescriptor> _commands = [];
     private readonly List<SettingsPageContribution> _settingsPages = [];
     private readonly List<HostStatusChip> _statusChips = [];
     private readonly List<IReindexEstimate> _reindexEstimates = [];
@@ -78,9 +77,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
     /// <summary>Record passes, in contribution order.</summary>
     public IReadOnlyList<RecordPassContribution> RecordPasses => _recordPasses;
-
-    /// <summary>Commands, in contribution order. Named apart from the <see cref="Commands(IEnumerable{CommandDescriptor})" /> method the interface declares.</summary>
-    public IReadOnlyList<CommandDescriptor> ContributedCommands => _commands;
 
     /// <summary>Settings pages, in contribution order, each stamped with a gate id.</summary>
     public IReadOnlyList<SettingsPageContribution> SettingsPages => _settingsPages;
@@ -179,13 +175,6 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             using StreamReader reader = new(stream);
             return reader.ReadToEnd();
         }, null)));
-    }
-
-    /// <inheritdoc />
-    public void Commands(IEnumerable<CommandDescriptor> commands)
-    {
-        ArgumentNullException.ThrowIfNull(commands);
-        _commands.AddRange(commands);
     }
 
     /// <inheritdoc />

@@ -87,7 +87,6 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `RecordPass` | An `IExtensionRecordPass` that runs over what the library already holds for a demo, without a parse. |
 | `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts. |
-| `Commands` / `IExtension.Commands` | Key-bound commands the user can rebind, and `IExtension.CommandScopes` for their focus scopes. |
 | `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
 | `SettingsPage` | A page under Settings, Extensions with controls of your own. |
 | `Playback` | Lanes, panes, panels, toolbar items, mode toggles, map layers, map tools and key or action handlers in 2D Playback. |
@@ -105,7 +104,8 @@ or another extension uses; a second declaration of an id is left out and logged.
 
 ## Keys
 
-The app has one keymap. A command's id starts with your extension's id and a dot (`dev.example.hello.where`);
+The app has one keymap. Declare your commands in `IExtension.Commands`, the only place the keymap reads them
+from. A command's id starts with your extension's id and a dot (`dev.example.hello.where`);
 core actions keep bare ids such as `TogglePlay`. A command whose id lacks the prefix, or repeats an id already
 taken (ignoring case), is left out and listed in Settings with the reason. The user's rebinding is stored
 against the id, so never rename one.

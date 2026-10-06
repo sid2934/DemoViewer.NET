@@ -1436,29 +1436,8 @@ public class App : Application
         // contributes and their order.
         foreach (PackContributions contributions in sp.GetRequiredService<PackContributionSet>().Packs)
         {
-            IExtension pack = contributions.Pack;
-            // Passes are consumed by the PassRegistry the DemoScheduler factory builds; job kinds by
-            // JobKindRegistry.Build(packs), DI-free like CommandRegistry.Build.
-            // CommandRegistry.Default reads IExtension.Commands directly (no DI, so a bare-constructed
-            // view model resolves pack chords in a headless test too). This is the consumer for the
-            // IExtensionContributions.Commands(...) call: not a second registration, a check that the two
-            // channels agree (CommandRegistry.CommandsMatch) so they cannot drift apart.
-            // A mismatch, or a Commands getter that throws, keeps the extension off for the session: its
-            // keymap rows and its modules would disagree.
-            ExtensionGuard guard = contributions.Guard;
-            bool match = guard.Run("commands", () => CommandRegistry.CommandsMatch(contributions.ContributedCommands, [.. pack.Commands]),
-                false);
-            if (!match)
-            {
-                if (!guard.Faults.StartupFailed(pack.Id))
-                {
-                    guard.Faults.FailStartup(guard.Scope, "commands", new InvalidOperationException(
-                        $"Pack '{pack.Id}' contributed different commands through Contribute than its Commands property declares."));
-                }
-
-                continue;
-            }
-
+            // An extension's keymap rows come from IExtension.Commands alone, read DI-free by
+            // CommandRegistry.Default, so a bare-constructed view model resolves them in a headless test too.
             foreach (IWorkspaceModule module in contributions.Modules)
             {
                 registry.Register(module);
