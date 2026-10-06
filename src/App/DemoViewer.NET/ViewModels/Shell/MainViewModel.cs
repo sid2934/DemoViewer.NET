@@ -1849,12 +1849,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Only this demo's own write, or a bulk change that may include it. Re-rendering on every unrelated
-        // write would mean browsing the Library during a background index cost a sidecar read and a full
-        // page rebuild per demo indexed, and since the rebuild recreates the highlight groups, every group
-        // the user had collapsed would pop back open under them.
-        if (changedPath is not null
-            && !string.Equals(changedPath, path, StringComparison.OrdinalIgnoreCase))
+        // Only this demo's own write, through any of its paths, or a bulk change that may include it.
+        // Re-rendering on every unrelated write would mean browsing the Library during a background index
+        // cost a sidecar read and a full page rebuild per demo indexed, and since the rebuild recreates the
+        // highlight groups, every group the user had collapsed would pop back open under them.
+        if (changedPath is not null && !_demoCache.SameDemo(changedPath, path))
         {
             return;
         }
@@ -1994,10 +1993,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Never replace the page for the demo that is actually open: the live render is strictly richer
-        // than its own cached record, and a selection is not a request to leave it.
-        if (_loadedDemoPath is { Length: > 0 } open
-            && string.Equals(open, entry.FilePath, StringComparison.OrdinalIgnoreCase))
+        // Never replace the page for the demo that is actually open, opened through this path or another
+        // holding the same bytes: the live render is strictly richer than its own cached record, and a
+        // selection is not a request to leave it.
+        if (_loadedDemoPath is { Length: > 0 } open && _demoCache.SameDemo(open, entry.FilePath))
         {
             return;
         }
