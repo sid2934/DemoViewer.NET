@@ -130,19 +130,27 @@ public sealed class RecentFilesStore
 
     // Restores the persisted recents (most-recent-first as written) from the consolidated config file's
     // Recents section, or an empty list if none / unavailable. SettingsService.LoadRecents also runs the
-    // one-time import of a legacy recent-files.json.
+    // one-time import of a legacy recent-files.json. A section older than RecentsFormatVersion is rewritten
+    // once, normalized and stamped.
     private List<RecentFile> Load()
     {
         List<RecentFile> loaded = _settings?.LoadRecents().ToList() ?? [];
+        int raw = loaded.Count;
 
-        // Defensive: drop any malformed entries with a blank path, and honour the cap even if an
-        // externally-edited file over-fills it.
+        // Normalized on every load, not only by the migration: an older build can still write the section,
+        // and it de-dupes by path alone.
         loaded.RemoveAll(r => r is null || string.IsNullOrEmpty(r.Path));
-        HashSet<string> seen = new(StringComparer.Ordinal);
-        loaded.RemoveAll(r => r.Sha256 is { Length: > 0 } sha && !seen.Add(sha));
+        HashSet<string> seenPaths = new(_pathComparer);
+        HashSet<string> seenHashes = new(StringComparer.Ordinal);
+        loaded.RemoveAll(r => !seenPaths.Add(r.Path) || (r.Sha256 is { Length: > 0 } sha && !seenHashes.Add(sha)));
         if (loaded.Count > MaxRecent)
         {
             loaded.RemoveRange(MaxRecent, loaded.Count - MaxRecent);
+        }
+
+        if (raw > 0 && _settings is not null && _settings.LoadRecentsVersion() < SettingsService.RecentsFormatVersion)
+        {
+            _settings.SaveRecents(loaded);
         }
 
         return loaded;

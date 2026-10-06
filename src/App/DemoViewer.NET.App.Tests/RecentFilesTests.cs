@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json.Nodes;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
@@ -221,6 +222,102 @@ public class RecentFilesTests
 
             RecentFilesStore store = NewStore(dir);
             await Assert.That(store.Items.Select(r => r.Path)).IsEquivalentTo(["/smb/m.dem", "/nfs/x.dem"], CollectionOrdering.Matching);
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task Load_AnUnmarkedSection_IsRewrittenOnceNormalized_AndStamped()
+    {
+        string dir = NewConfigDir();
+        string file = Path.Combine(dir, "settings.json");
+        try
+        {
+            File.WriteAllText(file, """
+                {
+                  "Theme": "Light",
+                  "Recents": [
+                    { "Path": "/smb/m.dem", "MapName": null, "OpenedAtUtc": "2026-09-03T10:00:00Z", "Sha256": "sha-m" },
+                    { "Path": "/nfs/m.dem", "MapName": null, "OpenedAtUtc": "2026-09-02T10:00:00Z", "Sha256": "sha-m" },
+                    { "Path": "/nfs/X.dem", "MapName": null, "OpenedAtUtc": "2026-09-01T10:00:00Z" },
+                    { "Path": "/nfs/x.dem", "MapName": null, "OpenedAtUtc": "2026-08-01T10:00:00Z" }
+                  ]
+                }
+                """);
+
+            _ = NewStore(dir);
+            JsonObject migrated = (JsonObject)JsonNode.Parse(File.ReadAllText(file))!;
+            await Assert.That((int)migrated["RecentsVersion"]!).IsEqualTo(SettingsService.RecentsFormatVersion);
+            await Assert.That(migrated["Recents"]!.AsArray().Select(r => (string)r!["Path"]!))
+                .IsEquivalentTo(["/smb/m.dem", "/nfs/X.dem"], CollectionOrdering.Matching);
+            await Assert.That((string)migrated["Theme"]!).IsEqualTo("Light");
+
+            string after = File.ReadAllText(file);
+            _ = NewStore(dir);
+            await Assert.That(File.ReadAllText(file)).IsEqualTo(after).Because("a stamped section is not rewritten");
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task Load_AnEmptyConfig_WritesNothing()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            RecentFilesStore store = NewStore(dir);
+            await Assert.That(store.Items.Count).IsEqualTo(0);
+            await Assert.That(File.Exists(Path.Combine(dir, "settings.json"))).IsFalse();
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task LegacyRecentFilesImport_IsStamped()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "recent-files.json"), """
+                [ { "Path": "/demos/legacy.dem", "MapName": "de_nuke", "OpenedAtUtc": "2026-09-01T10:00:00Z" } ]
+                """);
+
+            RecentFilesStore store = NewStore(dir);
+            await Assert.That(store.Items.Count).IsEqualTo(1);
+            await Assert.That(new SettingsService(dir).LoadRecentsVersion()).IsEqualTo(SettingsService.RecentsFormatVersion);
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task RecentsMarker_SurvivesAPreferenceWrite_AndANewerOneIsNotLowered()
+    {
+        string dir = NewConfigDir();
+        string file = Path.Combine(dir, "settings.json");
+        try
+        {
+            NewStore(dir).RecordOpen("/demos/a.dem", null, "sha-a");
+            SettingsService settings = new(dir);
+            settings.Write(s => s.Theme = "Light");
+            await Assert.That(new SettingsService(dir).LoadRecentsVersion()).IsEqualTo(SettingsService.RecentsFormatVersion);
+
+            JsonObject newer = (JsonObject)JsonNode.Parse(File.ReadAllText(file))!;
+            newer["RecentsVersion"] = SettingsService.RecentsFormatVersion + 1;
+            File.WriteAllText(file, newer.ToJsonString());
+            NewStore(dir).RecordOpen("/demos/b.dem", null);
+            await Assert.That(new SettingsService(dir).LoadRecentsVersion()).IsEqualTo(SettingsService.RecentsFormatVersion + 1);
         }
         finally
         {

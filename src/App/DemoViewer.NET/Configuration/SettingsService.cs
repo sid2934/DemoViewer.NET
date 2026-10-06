@@ -34,6 +34,13 @@ public sealed class SettingsService
 {
     private const string SettingsFileName = "settings.json";
     private const string EnvPrefix = "DEMOVIEWER_";
+    private const string RecentsVersionKey = "RecentsVersion";
+
+    /// <summary>
+    ///     The format of the <c>Recents</c> section this build writes, stamped beside it as <c>RecentsVersion</c>.
+    ///     2: entries may carry a content hash and are unique by it. A section with no marker predates that.
+    /// </summary>
+    public const int RecentsFormatVersion = 2;
 
     // Reused per CA1869: constructing JsonSerializerOptions per call is expensive.
     private static readonly JsonSerializerOptions _serializerOptions = new()
@@ -254,12 +261,38 @@ public sealed class SettingsService
 
         try
         {
-            WriteSection("Recents", recents.ToList());
+            // One write carries the rows and their marker, so a crash leaves either the old section unmarked or
+            // the new one marked. A marker a newer build wrote is never lowered.
+            JsonObject file = ReadFileObject();
+            file["Recents"] = JsonSerializer.SerializeToNode(recents.ToList(), _serializerOptions);
+            file[RecentsVersionKey] = Math.Max(ReadVersion(file), RecentsFormatVersion);
+            WriteObject(file);
         }
         catch
         {
             // Best-effort, like the pre-consolidation RecentFilesStore: a write failure during a demo-open
             // must never crash the app. The reactive preference Write path keeps rethrowing.
+        }
+    }
+
+    /// <summary>
+    ///     The <c>RecentsVersion</c> marker stored beside the <c>Recents</c> section, or 0 when there is none
+    ///     (a section written before <see cref="RecentsFormatVersion" />, or no file). WASM/fileless: 0.
+    /// </summary>
+    public int LoadRecentsVersion() => _settingsPath is null ? 0 : ReadVersion(ReadFileObject());
+
+    private static int ReadVersion(JsonObject file)
+    {
+        try
+        {
+            return file.TryGetPropertyValue(RecentsVersionKey, out JsonNode? node) && node is JsonValue value
+                                                                                && value.TryGetValue(out int version)
+                ? version
+                : 0;
+        }
+        catch
+        {
+            return 0;
         }
     }
 
