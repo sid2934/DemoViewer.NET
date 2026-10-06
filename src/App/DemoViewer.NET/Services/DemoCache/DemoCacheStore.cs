@@ -63,6 +63,7 @@ public sealed class DemoCacheStore
 
     // Rows whose files moved key in this session; their old names go after the next index save. Under _gate.
     private readonly HashSet<string> _settleAfterSave = new(StringComparer.Ordinal);
+    private readonly object _indexWriteGate = new();
 
     /// <summary>
     ///     Record store used when there is no cache root: the browser host, and tests. Keyed by file key.
@@ -720,10 +721,13 @@ public sealed class DemoCacheStore
                     .Select(r => r.Key)];
             }
 
-            bool writeFile = true;
             foreach (string claimant in claimants)
             {
-                writeFile &= ReleaseKey(claimant, pathKey);
+                if (!ReleaseKey(claimant, pathKey))
+                {
+                    // Nothing changes: the path keeps its old row and stamps, so the next drift check retries.
+                    return;
+                }
             }
 
             DemoCacheIndexEntry? dropped = null;
@@ -780,10 +784,7 @@ public sealed class DemoCacheStore
                 _lastRecordBytes = bytes;
             }
 
-            if (writeFile)
-            {
-                WriteSidecar(path, bytes);
-            }
+            WriteSidecar(path, bytes);
 
             if (_cacheRoot is null)
             {
@@ -988,6 +989,15 @@ public sealed class DemoCacheStore
 
     private bool WriteIndex(string indexPath, out List<string> settle)
     {
+        // Snapshots land in the order they were taken: an older one written last would name keys already left.
+        lock (_indexWriteGate)
+        {
+            return WriteIndexCore(indexPath, out settle);
+        }
+    }
+
+    private bool WriteIndexCore(string indexPath, out List<string> settle)
+    {
         try
         {
             DemoCacheIndexFile file;
@@ -1087,10 +1097,11 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     Moves a row's files off one of its older keys onto the next key it keeps, then saves the index, so a
-    ///     path leaving the row can write under its own key without touching the row's files.
+    ///     Moves a row's files off one of its older keys onto the next key it keeps, or a spare key when that
+    ///     fails, then saves the index, so a path leaving the row can write under its own key without touching
+    ///     the row's files.
     /// </summary>
-    /// <returns>False when a file could not move or the index could not be saved.</returns>
+    /// <returns>False when a file is still under the key or the index could not be saved.</returns>
     private bool ReleaseKey(string rowKey, string key)
     {
         while (true)
@@ -1115,6 +1126,7 @@ public sealed class DemoCacheStore
             }
 
             object[] stripes = [.. new[] { key, target }.Select(StripeIndex).Distinct().Order().Select(i => _fileStripes[i])];
+            bool released = true;
             EnterAll(stripes);
             try
             {
@@ -1126,18 +1138,33 @@ public sealed class DemoCacheStore
                     }
                 }
 
-                if (!MoveKey(key, target, keys[0] == key))
+                bool first = keys[0] == key;
+                List<string> rest = [.. keys.Where(k => k != key)];
+                if (!MoveKey(key, target, first))
                 {
-                    return false;
+                    // Whatever could not reach the target goes under a key no other row can name.
+                    string spare = "m-" + Guid.NewGuid().ToString("N");
+                    released = MoveKey(key, spare, first);
+                    rest = first
+                        ? [spare, target, .. rest.Where(k => k != target)]
+                        : [.. rest, spare];
+                    if (!released)
+                    {
+                        rest.Insert(first ? 0 : rest.Count, key);
+                    }
                 }
 
                 lock (_gate)
                 {
-                    DemoCacheIndexEntry released = Shape(row.Copy(), [.. row.Locations], [.. keys.Where(k => k != key)]);
-                    Link(rowKey, released);
-                    if (released.SidecarKeys is null)
+                    DemoCacheIndexEntry shaped = Shape(row.Copy(), [.. row.Locations], rest);
+                    Link(rowKey, shaped);
+                    if (shaped.SidecarKeys is null)
                     {
                         _settleAfterSave.Remove(rowKey);
+                    }
+                    else
+                    {
+                        _settleAfterSave.Add(rowKey);
                     }
                 }
             }
@@ -1147,7 +1174,8 @@ public sealed class DemoCacheStore
             }
 
             // The saved index must stop naming the old key before anything else is written under it.
-            return IndexPath is not { } indexPath || WriteIndex(indexPath, out _);
+            bool saved = IndexPath is not { } indexPath || WriteIndex(indexPath, out _);
+            return released && saved;
         }
     }
 

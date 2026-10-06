@@ -439,6 +439,41 @@ public class ContentKeyedCacheTests
         }
     }
 
+    /// <summary>A row whose own name cannot be written still moves off the leaving path's key.</summary>
+    [Test]
+    public async Task APathLeavingAnUnsavedRow_WhenTheRowsNameIsBlocked_StillLeavesTheCopysRecord()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Upsert(Analysed("/m/a.dem", "sha-old"));
+            store.Upsert(Analysed("/m/copy.dem", "sha-old"));
+            store.WriteSibling("/m/copy.dem", Suffix, "old bytes");
+            Directory.CreateDirectory(Path.Combine(Demos(root), "sha-old" + DemoCacheStore.RecordSuffix));
+
+            store.Update("/m/a.dem", 5000, 6000, r => r.Map = "de_inferno");
+            store.WriteSibling("/m/a.dem", Suffix, "new bytes");
+            store.SaveIndex();
+
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryLoadRecord("/m/copy.dem")!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(store.TryReadSibling("/m/copy.dem", Suffix)).IsEqualTo("old bytes");
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Map).IsEqualTo("de_inferno");
+                await Assert.That(reopened.TryLoadRecord("/m/copy.dem")!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(reopened.TryReadSibling("/m/copy.dem", Suffix)).IsEqualTo("old bytes");
+                await Assert.That(reopened.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("new bytes");
+                await Assert.That(reopened.TryLoadRecord("/m/a.dem")!.Scoreboard).IsEmpty();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     /// <summary>A copy reaching the hash at a lower tier joins the row and erases nothing the row holds.</summary>
     [Test]
     [Arguments(true)]
