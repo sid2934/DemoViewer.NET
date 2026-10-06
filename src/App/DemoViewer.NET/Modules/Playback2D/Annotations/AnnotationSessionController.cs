@@ -690,7 +690,7 @@ public sealed class AnnotationSessionController : IDisposable
             DemoIdentity demo;
             lock (_saveGate)
             {
-                _demo ??= AnnotationStore.IdentityFor(demoPath);
+                _demo ??= _store.IdentityOf(demoPath);
                 demo = _demo;
             }
 

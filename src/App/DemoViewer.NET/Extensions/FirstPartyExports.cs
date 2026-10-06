@@ -22,7 +22,12 @@ namespace DemoViewer.NET.Extensions;
 /// <param name="gate">The heavy-job gate.</param>
 /// <param name="queue">The processing queue.</param>
 /// <param name="settings">The app's settings, which hold the export choices; null where nothing persists them.</param>
-public sealed class FirstPartyExports(HeavyJobGate gate, IDemoProcessingQueue queue, SettingsService? settings = null)
+/// <param name="contentHash">
+///     A demo's content hash when the cache knows it, so an annotation lookup reads no demo file; null hashes
+///     the file.
+/// </param>
+public sealed class FirstPartyExports(HeavyJobGate gate, IDemoProcessingQueue queue, SettingsService? settings = null,
+    Func<string, string?>? contentHash = null)
 {
     /// <summary>The app's settings as they stand: the export choices the 2D export shares.</summary>
     public AppSettings Settings => settings?.Current ?? new AppSettings();
@@ -62,7 +67,8 @@ public sealed class FirstPartyExports(HeavyJobGate gate, IDemoProcessingQueue qu
                 using PackClipRenderer clips = new(
                     (path, leaseCt) => DemoJob.LeaseAsync(queue, path, "pack export", PackExportQueue.Owner,
                         PassLevel.UserRequested, leaseCt),
-                    new AnnotationStore(AppPaths.ConfigRoot),
+                    new AnnotationStore(AppPaths.ConfigRoot,
+                        path => contentHash?.Invoke(path) is { Length: > 0 } known ? known : AnnotationStore.ComputeDemoKey(path)),
                     log: line => PackExportLog.Line(log, line));
                 PackExporter exporter = new(clips, new PackEncoder(log: line => PackExportLog.Encoder(log, line)),
                     log: line => PackExportLog.Line(log, line));

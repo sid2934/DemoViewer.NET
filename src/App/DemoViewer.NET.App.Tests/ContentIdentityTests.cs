@@ -438,6 +438,45 @@ public class ContentIdentityTests
         });
     }
 
+    /// <summary>
+    ///     A demo whose folder cannot take a sidecar is keyed in app data by the hash the open already took,
+    ///     so the tab never streams the demo file (a full read on a network folder) to name the sidecar.
+    /// </summary>
+    [Test]
+    public async Task TheTab_KeysAnAppDataSidecarByTheOpenDemosHash_WithoutReadingTheFile()
+    {
+        if (AppPaths.ConfigRoot is null)
+        {
+            throw new SkipTestException("no app-data root on this host");
+        }
+
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            string hash = new('e', 64);
+            Playback2DFakeContext ctx = new()
+            {
+                TickRate = 64,
+                TotalFrames = 2_000,
+                FirstTick = 1,
+                LastTick = 4_000,
+                Gate = new FakeModuleFeatureGate(),
+                DemoPath = Path.Combine(Path.GetTempPath(), "dv-no-such-folder-" + Guid.NewGuid().ToString("N"), "match.dem"),
+                DemoSha256 = hash
+            };
+
+            Playback2DTabViewModel vm = new();
+            vm.OnActivated(ctx);
+
+            DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (!vm.Annotations.StatusText.Contains(hash, StringComparison.Ordinal) && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(15);
+            }
+
+            await Assert.That(vm.Annotations.StatusText).Contains(hash + AnnotationStore.SidecarExtension);
+        });
+    }
+
     private static DemoFrame[] Frames(params int[] ticks)
     {
         DemoFrame[] frames = new DemoFrame[ticks.Length];

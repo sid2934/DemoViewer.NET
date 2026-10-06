@@ -47,7 +47,7 @@ public class AnnotationStoreTests
     public async Task Save_UnwritableDemoDir_FallsBackToAppData()
     {
         using TempTree tree = new();
-        AnnotationStore store = new(tree.AppData);
+        AnnotationStore store = new(tree.AppData, _ => "abc123");
 
         // A demo whose directory does not exist stands in for the read-only Steam replay folder: the
         // probe fails the same way, which is the branch under test.
@@ -61,7 +61,50 @@ public class AnnotationStoreTests
         await Assert.That(saved).IsTrue();
         await Assert.That(store.ResolvePath(unreachable)!.StartsWith(tree.AppData, StringComparison.Ordinal))
             .IsTrue();
+        await Assert.That(Path.GetFileName(store.ResolvePath(unreachable)!)).IsEqualTo("abc123" + AnnotationStore.SidecarExtension);
         await Assert.That(File.Exists(store.ResolvePath(unreachable)!)).IsTrue();
+    }
+
+    [Test]
+    public async Task AppData_IsKeyedByTheResolversHash_SoTwoPathsOfOneDemoShareIt_AndNoFileIsRead()
+    {
+        using TempTree tree = new();
+        List<string> asked = [];
+        AnnotationStore store = new(tree.AppData, path =>
+        {
+            asked.Add(path);
+            return "same-bytes";
+        });
+        string nfs = Path.Combine(tree.Root, "nfs-gone", "match.dem");
+        string smb = Path.Combine(tree.Root, "smb-gone", "match.dem");
+
+        await store.SaveAsync(nfs, store.IdentityOf(nfs), tree.Clock, [AnnotationFakes.Stroke()]);
+        AnnotationLoadResult loaded = await store.LoadAsync(smb, tree.Clock);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.ResolvePath(smb)).IsEqualTo(store.ResolvePath(nfs));
+            await Assert.That(loaded.Elements).HasCount().EqualTo(1);
+            await Assert.That(store.IdentityOf(nfs).Sha256).IsEqualTo("same-bytes")
+                .Because("neither path exists: the identity came from the resolver, not a read");
+            await Assert.That(asked).Contains(smb);
+        }
+    }
+
+    [Test]
+    public async Task AppData_WithNoKnownHash_HasNoFile_RatherThanOneEveryDemoShares()
+    {
+        using TempTree tree = new();
+        AnnotationStore store = new(tree.AppData, _ => "");
+        string unreachable = Path.Combine(tree.Root, "no-such-folder", "match.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.ResolveLocation(unreachable)).IsEqualTo(AnnotationStoreLocation.AppData);
+            await Assert.That(store.ResolvePath(unreachable)).IsNull();
+            await Assert.That(await store.SaveAsync(unreachable, tree.Demo, tree.Clock, [AnnotationFakes.Stroke()])).IsFalse();
+            await Assert.That(Directory.Exists(Path.Combine(tree.AppData, "annotations"))).IsFalse();
+        }
     }
 
     [Test]

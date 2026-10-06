@@ -35,6 +35,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
 using DemoViewer.NET.Playback2D.Pipeline.Vision;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Facts;
@@ -343,7 +344,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         // descriptor's ViewModelFactory is a bare new(), and a headless test builds this with no
         // container at all. No store and no settings means annotations still work, session only.
         _annotationController = new AnnotationSessionController(
-            TryResolveAnnotationStore(), TryResolveSettings());
+            TryResolveAnnotationStore(AnnotationDemoKey), TryResolveSettings());
         _annotationController.LoadRecentColors();
 
         Annotations = new AnnotationsPanelViewModel(_annotationController,
@@ -1180,17 +1181,36 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     }
 
     // The store needs an app-data root for its fallback location and the App's cached demo hash for its
-    // key; both come from the container when there is one. Pipeline must not reference the App, so the
-    // App is the side that knows AppPaths.
-    private static AnnotationStore? TryResolveAnnotationStore()
+    // key. Pipeline must not reference the App, so the App is the side that knows AppPaths.
+    private static AnnotationStore? TryResolveAnnotationStore(Func<string, string> demoKey)
     {
         try
         {
-            return new AnnotationStore(AppPaths.ConfigRoot);
+            return new AnnotationStore(AppPaths.ConfigRoot, demoKey);
         }
         catch (Exception)
         {
             return null;
+        }
+    }
+
+    // Never hashes: the store calls this from the UI thread, and the demo may be on a network folder. The open
+    // demo's hash is on the context; any other path is looked up in the cache; unknown is empty.
+    private string AnnotationDemoKey(string demoPath)
+    {
+        if (_context is { DemoSha256: { Length: > 0 } open } context
+            && string.Equals(context.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return open;
+        }
+
+        try
+        {
+            return App.Services?.GetService<DemoCacheStore>()?.TryGetIndex(demoPath)?.Sha256 ?? "";
+        }
+        catch (Exception)
+        {
+            return "";
         }
     }
 
