@@ -263,6 +263,55 @@ public class ExtensionDemoDataStoreTests
     }
 
     [Test]
+    public async Task ADemoDetachedFromTheLibrary_KeepsItsFacets_UntilTheSweep_AndReadsThemAgainOnceItsPathIsBack()
+    {
+        string root = NewRoot();
+        try
+        {
+            const string unhashed = "/demos/new.dem";
+            DemoCacheStore library = new(null);
+            Seed(library, Demo, "aaaa");
+            Seed(library, Other, "bbbb");
+            Seed(library, unhashed, null);
+            ExtensionDemoDataStore store = NewStore(root, library);
+            store.Write(Demo, Rounds("a"));
+            store.Write(Other, Rounds("b"));
+            store.Write(unhashed, Rounds("n"));
+
+            library.Detach(Demo);
+            library.Detach(Other);
+            library.Detach(unhashed);
+            ExtensionDemoDataStore reopened = NewStore(root, library);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.Stamps("rounds")).IsEmpty().Because("no path in the library holds them");
+                await Assert.That(reopened.Stamps("rounds")).IsEmpty();
+                await Assert.That(Directory.GetFiles(Path.Combine(store.Root, "rounds")).Select(Path.GetFileName))
+                    .DoesNotContain(f => f!.StartsWith("p-", StringComparison.Ordinal))
+                    .Because("the unhashed demo's facet goes with it");
+                await Assert.That(File.Exists(Path.Combine(store.Root, "rounds", "aaaa.json.gz"))).IsTrue();
+                await Assert.That(File.Exists(Path.Combine(store.Root, "rounds", "bbbb.positions.json.gz"))).IsTrue();
+            }
+
+            await Assert.That(library.Reattach(Demo, 10, 20)).IsTrue();
+            await Assert.That(Encoding.UTF8.GetString(store.Read(Demo, "rounds", 1, "fp-1")!)).IsEqualTo("a");
+
+            library.ExpireOrphans(DateTime.UtcNow.AddDays(30), TimeSpan.FromDays(14));
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.Stamps("rounds").Single().DemoPath).IsEqualTo(Demo);
+                await Assert.That(File.Exists(Path.Combine(store.Root, "rounds", "bbbb.json.gz"))).IsFalse();
+                await Assert.That(File.Exists(Path.Combine(store.Root, "rounds", "bbbb.positions.json.gz"))).IsFalse();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
     public async Task AFacetWhoseOnlyRemainingPathIsUnconfirmed_IsKept_AndReadsThereOnceAFullReadConfirmsIt()
     {
         string root = NewRoot();
@@ -335,8 +384,12 @@ public class ExtensionDemoDataStoreTests
             using (Assert.Multiple())
             {
                 await Assert.That(store.Stamps("rounds")).IsEmpty().Because("no path in the library holds those bytes any more");
-                await Assert.That(Directory.GetFiles(Path.Combine(store.Root, "rounds"))).IsEmpty();
+                await Assert.That(Directory.GetFiles(Path.Combine(store.Root, "rounds"))).IsNotEmpty()
+                    .Because("the cache keeps the bytes' row orphaned, and the facet with it");
             }
+
+            library.ExpireOrphans(DateTime.UtcNow.AddDays(30), TimeSpan.FromDays(14));
+            await Assert.That(Directory.GetFiles(Path.Combine(store.Root, "rounds"))).IsEmpty();
         }
         finally
         {

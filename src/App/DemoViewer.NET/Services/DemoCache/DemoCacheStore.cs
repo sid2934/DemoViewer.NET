@@ -436,6 +436,21 @@ public sealed class DemoCacheStore
         }
     }
 
+    /// <summary>True when the store holds a row for the content id and no path lists it.</summary>
+    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
+    public bool IsOrphaned(string? contentId)
+    {
+        if (string.IsNullOrEmpty(contentId))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && row.IsOrphaned;
+        }
+    }
+
     /// <summary>The content id of the orphaned row that last had <paramref name="path" />, or null.</summary>
     /// <param name="path">A demo path no row lists.</param>
     public string? OrphanAt(string path)

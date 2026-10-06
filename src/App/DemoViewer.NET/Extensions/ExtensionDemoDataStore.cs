@@ -120,12 +120,14 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
 
         lock (_gate)
         {
-            // An entry held at an unconfirmed path is not that path's data until a full read confirms it.
+            // An entry held at an unconfirmed path is not that path's data until a full read confirms it, and an
+            // orphaned demo's entry is no path's.
             return
             [
                 .. _entries!.Values
                     .Where(e => string.Equals(e.Facet, facet, StringComparison.Ordinal)
-                                && _library.LocationOf(e.DemoPath) is not { Location.Confirmed: false })
+                                && _library.LocationOf(e.DemoPath) is not { Location.Confirmed: false }
+                                && !IsOrphaned(e))
                     .Select(e => e.ToStamp())
             ];
         }
@@ -431,6 +433,11 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
         return moved;
     }
 
+    private bool IsOrphaned(Entry entry) =>
+        entry.Sha256 is not null
+            ? _library.IsOrphaned(entry.Sha256)
+            : _library.TryGetIndex(entry.DemoPath) is null && _library.OrphanAt(entry.DemoPath) is not null;
+
     private string? Sha256Of(string demoPath) =>
         _library.TryGetIndex(demoPath)?.Sha256 is { Length: > 0 } sha ? sha.ToLowerInvariant() : null;
 
@@ -474,7 +481,8 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
         }
     }
 
-    // A demo the library dropped takes its files along, unless another demo in the library has its content.
+    // A demo the library dropped takes its files along, unless another demo in the library has its content or
+    // the cache still holds it orphaned.
     private void OnLibraryChanged(string? path)
     {
         List<(string Key, string Facet)> dropped = [];
@@ -531,6 +539,11 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             {
                 // Kept for a full read of that path to confirm; a read through it stays absent until then.
                 entries[id] = entry with { DemoPath = unconfirmed };
+            }
+            else if (entry.Sha256 is not null ? _library.HoldsContent(entry.Sha256) : _library.OrphanAt(entry.DemoPath) is not null)
+            {
+                // Orphaned: no path lists the demo, and the cache keeps it for a path to come back.
+                continue;
             }
             else
             {
