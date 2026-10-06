@@ -593,8 +593,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         {
             // The open reads the whole file and records it under its hash, so an unconfirmed location is safe
             // here and the stale entry is replaced rather than pruned.
-            string? moved = LocationsOf(item.Sha256)
-                .FirstOrDefault(p => !string.Equals(p, item.Path, StringComparison.OrdinalIgnoreCase) && File.Exists(p));
+            string? moved = OtherLocationsOf(item.Sha256, item.Path).FirstOrDefault(File.Exists);
             if (moved is null)
             {
                 _recentFiles?.Remove(item.Path); // stale entry → prune (fires Changed → RefreshRecentFiles)
@@ -628,7 +627,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
                     r.OpenedAtUtc,
                     r.Sha256,
                     // From the library's own record only: a stat per candidate here would run on the UI thread.
-                    !exists && canStat && LocationsOf(r.Sha256).Count > 0));
+                    !exists && canStat && OtherLocationsOf(r.Sha256, r.Path).Any()));
             }
         }
 
@@ -636,8 +635,10 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         OnPropertyChanged(nameof(ShowHeaderRecents));
     }
 
-    private IReadOnlyList<string> LocationsOf(string? sha256) =>
-        sha256 is { Length: > 0 } && _contentLocations is not null ? _contentLocations(sha256) : [];
+    private IEnumerable<string> OtherLocationsOf(string? sha256, string path) =>
+        sha256 is { Length: > 0 } && _contentLocations is not null
+            ? _contentLocations(sha256).Where(p => !string.Equals(p, path, StringComparison.OrdinalIgnoreCase))
+            : [];
 
     [RelayCommand]
     private void ClearFilters()

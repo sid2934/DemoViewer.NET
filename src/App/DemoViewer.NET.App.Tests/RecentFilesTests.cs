@@ -435,7 +435,12 @@ public class RecentFilesTests
                 store,
                 contentLocations: cache.PathsOfContent);
 
-            await vm.OpenRecentCommand.ExecuteAsync(vm.RecentFiles[0]);
+            // The cache still lists only the dead path, so nothing else holds the content.
+            RecentFileItem row = vm.RecentFiles[0];
+            await Assert.That(row.Relocated).IsFalse();
+            await Assert.That(row.RowOpacity).IsEqualTo(0.4);
+
+            await vm.OpenRecentCommand.ExecuteAsync(row);
 
             await Assert.That(openedPath).IsNull();
             await Assert.That(store.Items.Count).IsEqualTo(0);
