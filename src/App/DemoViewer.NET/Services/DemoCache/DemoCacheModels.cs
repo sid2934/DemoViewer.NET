@@ -669,6 +669,25 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     internal List<string>? SidecarKeys { get; set; }
 
+    /// <summary>
+    ///     When the row lost its last path (UTC ticks), or null while a path lists it. An orphaned row has no
+    ///     <see cref="Locations" /> and is reachable by no path; its files are kept until a path holding its bytes
+    ///     comes back or the grace period runs out. <see cref="Path" />, <see cref="Size" /> and
+    ///     <see cref="ModifiedTicks" /> are where it was last seen.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? OrphanedSinceUtcTicks { get; set; }
+
+    // The paths an orphaned row had when it lost them. A path listed again at the same size and write time
+    // takes its place back as it was. Null on a row a path lists.
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal List<DemoLocation>? DetachedLocations { get; set; }
+
+    /// <summary>True when no path lists this row; see <see cref="OrphanedSinceUtcTicks" />.</summary>
+    [JsonIgnore]
+    public bool IsOrphaned => OrphanedSinceUtcTicks is not null;
+
     public string? Map { get; set; }
     public string? Server { get; set; }
     public string? DemoVersion { get; set; }
@@ -859,8 +878,10 @@ public sealed class DemoCacheIndexFile
     ///     <see cref="DemoCacheIndexEntry.Locations" />; a row with no hash yet is keyed by its one path. Files
     ///     of a hashed row are named by the hash. An older index is re-keyed on load and its files renamed by
     ///     the pass <see cref="ContentKeyMigrationVersion" /> tracks.
+    ///     6: a hashed row whose last path went away is kept with no locations, marked
+    ///     <see cref="DemoCacheIndexEntry.OrphanedSinceUtcTicks" />. An older index has no such row.
     /// </summary>
-    public const int CurrentVersion = 5;
+    public const int CurrentVersion = 6;
 
     public int Version { get; set; } = CurrentVersion;
 

@@ -163,7 +163,8 @@ public sealed class DemoCacheStore
     /// <summary>
     ///     One row per demo, seen from its primary path (<see cref="TryGetByContentId" />'s pick); a demo not
     ///     hashed yet is its own row. What a walk doing per-demo work iterates: <see cref="Index" /> holds a
-    ///     view per path, so a demo with two copies appears there twice. A snapshot, safe to enumerate off-lock.
+    ///     view per path, so a demo with two copies appears there twice. An orphaned row is not listed. A
+    ///     snapshot, safe to enumerate off-lock.
     /// </summary>
     public IReadOnlyList<DemoCacheIndexEntry> Contents
     {
@@ -171,7 +172,7 @@ public sealed class DemoCacheStore
         {
             lock (_gate)
             {
-                return [.. _rows.Values.Select(r => _index[r.Path])];
+                return [.. _rows.Values.Where(r => !r.IsOrphaned).Select(r => _index[r.Path])];
             }
         }
     }
@@ -403,23 +404,72 @@ public sealed class DemoCacheStore
 
     /// <summary>
     ///     The path the hashed row for a content id is seen from, whether or not any of its paths is confirmed,
-    ///     or null when no hashed row carries it. Says only that the content may still be in the library; an
-    ///     unconfirmed path can hold other bytes, so nothing joined by hash reads through it.
+    ///     or null when no hashed row carries it or no path lists it. Says only that the content may still be in
+    ///     the library; an unconfirmed path can hold other bytes, so nothing joined by hash reads through it.
     /// </summary>
     /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
     internal string? PathOfAnyLocation(string contentId)
     {
         lock (_gate)
         {
-            return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && !IsProvisional(row) ? row.Path : null;
+            return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && !IsProvisional(row) && !row.IsOrphaned
+                ? row.Path
+                : null;
+        }
+    }
+
+    /// <summary>
+    ///     True when the store still holds a row for the content id, listed at a path or orphaned. What a store
+    ///     keeping data per content asks before it drops that data.
+    /// </summary>
+    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
+    public bool HoldsContent(string? contentId)
+    {
+        if (string.IsNullOrEmpty(contentId))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && !IsProvisional(row);
+        }
+    }
+
+    /// <summary>The content id of the orphaned row that last had <paramref name="path" />, or null.</summary>
+    /// <param name="path">A demo path no row lists.</param>
+    public string? OrphanAt(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        lock (_gate)
+        {
+            return OrphanKeyAt(path);
+        }
+    }
+
+    /// <summary>
+    ///     The orphaned row for a content id, seen from where it was last found, or null when the content has no
+    ///     row or a path still lists it.
+    /// </summary>
+    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
+    public DemoCacheIndexEntry? TryGetOrphan(string? contentId)
+    {
+        if (string.IsNullOrEmpty(contentId))
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && row.IsOrphaned ? row.Copy() : null;
         }
     }
 
     /// <summary>
     ///     Lists <paramref name="path" /> as an unconfirmed location of the hashed row
     ///     <paramref name="contentId" />: the file's fingerprint matched the row's, and nothing has read it in
-    ///     full. Writes only the index. Does nothing when a row already lists the path or no hashed row carries
-    ///     the content id.
+    ///     full. Writes only the index. An orphaned row takes the path as its only one. Does nothing when a row
+    ///     already lists the path or no hashed row carries the content id.
     /// </summary>
     /// <param name="contentId">The content id the fingerprint matched.</param>
     /// <param name="path">The file the fingerprint was taken from.</param>
@@ -456,7 +506,7 @@ public sealed class DemoCacheStore
     /// <summary>
     ///     Settles a path against a content hash just read from its whole file. A path its row lists without
     ///     confirmation becomes confirmed when the hash and size agree with the row. A path of a hashed row whose
-    ///     bytes hash to something else leaves that row, as <see cref="Remove" /> would take it, so the next
+    ///     bytes hash to something else leaves that row, as <see cref="Detach" /> would take it, so the next
     ///     write there starts a record of its own and the row keeps every other path and its data. A path with
     ///     no row, or a row not hashed yet, is left alone.
     /// </summary>
@@ -499,7 +549,7 @@ public sealed class DemoCacheStore
 
             if (split)
             {
-                RemoveCore(path);
+                RemoveCore(path, true);
                 return false;
             }
         }
@@ -635,6 +685,38 @@ public sealed class DemoCacheStore
             // Corrupt sidecar = treat the demo as un-indexed and let it be rebuilt.
             return null;
         }
+    }
+
+    // The record of a row by its key, read from the row's own files whatever path asks: an orphaned row has
+    // no path to ask through. Not projected onto a location.
+    private DemoCacheRecord? TryLoadRowRecord(string rowKey)
+    {
+        DemoCacheIndexEntry? row;
+        List<string> keys;
+        lock (_gate)
+        {
+            if (!_rows.TryGetValue(rowKey, out row))
+            {
+                return null;
+            }
+
+            keys = ReadKeys(row, row.Path);
+        }
+
+        foreach (string key in keys)
+        {
+            if (ReadRecordBytes(key) is { } bytes && TryDeserializeRecord(bytes) is { } record && Belongs(record, row))
+            {
+                return record;
+            }
+
+            if (TryReadLegacyRecord(key) is { } old && Belongs(old, row))
+            {
+                return old;
+            }
+        }
+
+        return null;
     }
 
     private byte[]? ReadRecordBytes(string key)
@@ -944,20 +1026,21 @@ public sealed class DemoCacheStore
                 joining = oldKey != newKey ? _rows.GetValueOrDefault(newKey) : null;
             }
 
-            if (joining is not null && TryLoadRecord(joining.Path, false) is { } existing)
+            if (joining is not null && TryLoadRowRecord(newKey) is { } existing)
             {
                 record.FillMissingFrom(existing);
             }
 
-            // A row that keeps other paths may still hold its files under this path's key. They move off it
-            // before this path writes there, or the new bytes overwrite the other paths' record and siblings.
+            // A row that keeps other paths, or is kept as an orphan, may still hold its files under this path's
+            // key. They move off it before this path writes there, or the new bytes overwrite that row's record
+            // and siblings.
             string pathKey = StableKey(path);
             List<string> claimants;
             lock (_gate)
             {
                 bool leaving = oldKey is not null && oldKey != newKey
                     && _rows.TryGetValue(oldKey, out DemoCacheIndexEntry? leavingRow)
-                    && leavingRow.Locations.Any(l => !SamePath(l.Path, path));
+                    && (leavingRow.Locations.Any(l => !SamePath(l.Path, path)) || !IsProvisional(leavingRow));
                 claimants = [.. _rows
                     .Where(r => r.Key != newKey && (r.Key != oldKey || leaving)
                                 && r.Value.SidecarKeys?.Contains(pathKey) == true)
@@ -973,7 +1056,6 @@ public sealed class DemoCacheStore
                 }
             }
 
-            DemoCacheIndexEntry? dropped = null;
             DemoCacheIndexEntry row;
             lock (_gate)
             {
@@ -1003,8 +1085,8 @@ public sealed class DemoCacheStore
                     }
                     else
                     {
-                        dropped = oldRow;
-                        _settleAfterSave.Remove(oldKey!);
+                        // The path holds other bytes now; the content keeps its data until it is found again.
+                        Link(oldKey!, Orphan(oldRow, DateTime.UtcNow.Ticks));
                     }
                 }
 
@@ -1018,10 +1100,6 @@ public sealed class DemoCacheStore
 
             record.Locations = row.Locations;
             byte[] bytes = SidecarJson.SerializeGzip(record, _jsonOptions);
-            if (dropped is not null)
-            {
-                DeleteFiles(FileKeys(dropped).Except(FileKeys(row), StringComparer.Ordinal).ToList());
-            }
 
             lock (_gate)
             {
@@ -1116,27 +1194,45 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     Forgets a demo path. The row and its files go only with its last path: another path to the same bytes
-    ///     keeps everything.
+    ///     Forgets a demo path at once: the explicit delete. The row and its files go only with its last path;
+    ///     another path to the same bytes keeps everything. A path an orphaned row last had takes that row and
+    ///     its files with it.
     /// </summary>
     public void Remove(string path)
     {
         lock (_rmwGate)
         {
-            RemoveCore(path);
+            RemoveCore(path, false);
         }
     }
 
-    private void RemoveCore(string path)
+    /// <summary>
+    ///     Takes a path out of its row because the file is no longer there: what a library scan does. A hashed
+    ///     row losing its last path is orphaned rather than deleted (<see cref="DemoCacheIndexEntry.OrphanedSinceUtcTicks" />):
+    ///     its files stay until a path holding its bytes is listed again, which takes the row back with every
+    ///     tier, or <see cref="ExpireOrphans" /> finds it past the grace period. A row with no hash yet has
+    ///     nothing to be found by, and goes as with <see cref="Remove" />.
+    /// </summary>
+    /// <param name="path">A demo path.</param>
+    public void Detach(string path)
+    {
+        lock (_rmwGate)
+        {
+            RemoveCore(path, true);
+        }
+    }
+
+    private void RemoveCore(string path, bool keepContent)
     {
         string pathKey = StableKey(path);
         string? owner;
         lock (_gate)
         {
-            owner = _keyByPath.TryGetValue(path, out string? k) && _rows[k].Locations.Count > 1
-                && _rows[k].SidecarKeys?.Contains(pathKey) == true
-                    ? k
-                    : null;
+            owner = _keyByPath.TryGetValue(path, out string? k)
+                    && (_rows[k].Locations.Count > 1 || (keepContent && !IsProvisional(_rows[k])))
+                    && _rows[k].SidecarKeys?.Contains(pathKey) == true
+                ? k
+                : null;
         }
 
         if (owner is not null)
@@ -1158,16 +1254,22 @@ public sealed class DemoCacheStore
                 {
                     Link(key, Shape(row.Copy(), rest, row.SidecarKeys));
                 }
+                else if (keepContent && !IsProvisional(row))
+                {
+                    Link(key, Orphan(row, DateTime.UtcNow.Ticks));
+                }
                 else
                 {
                     dropped = row;
-                    _settleAfterSave.Remove(key);
-                    if (string.Equals(_lastRecordKey, key, StringComparison.Ordinal))
-                    {
-                        _lastRecordKey = null;
-                        _lastRecordBytes = null;
-                    }
+                    Forget(key);
                 }
+            }
+            else if (!keepContent && OrphanKeyAt(path) is { } orphanKey)
+            {
+                dropped = _rows[orphanKey];
+                Unlink(orphanKey);
+                Forget(orphanKey);
+                removed = true;
             }
         }
 
@@ -1184,6 +1286,172 @@ public sealed class DemoCacheStore
         {
             RaiseChanged(path);
         }
+    }
+
+    /// <summary>
+    ///     Gives an orphaned row back the path it last had, when the file there has the size and write time it
+    ///     had then: the same file, back after its folder was. The path comes back confirmed or not as it was,
+    ///     and the row keeps every tier, so nothing is read or parsed again. Does nothing when a row lists the
+    ///     path or no orphan had it at those stamps.
+    /// </summary>
+    /// <param name="path">A listed demo path.</param>
+    /// <param name="size">The file's size.</param>
+    /// <param name="modifiedTicks">The file's write time, in the library's tick convention.</param>
+    /// <returns>True when the path was given back.</returns>
+    public bool Reattach(string path, long size, long modifiedTicks)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        lock (_rmwGate)
+        {
+            lock (_gate)
+            {
+                if (_keyByPath.ContainsKey(path) || OrphanKeyAt(path) is not { } key
+                                                 || _rows[key].DetachedLocations?.FirstOrDefault(l => SamePath(l.Path, path)) is not { } was
+                                                 || was.Size != size || was.ModifiedTicks != modifiedTicks)
+                {
+                    return false;
+                }
+
+                DemoCacheIndexEntry row = _rows[key];
+                Link(key, Shape(row.Copy(), [was with { LastSeenUtcTicks = DateTime.UtcNow.Ticks }], row.SidecarKeys));
+            }
+        }
+
+        RaiseChanged(path);
+        return true;
+    }
+
+    /// <summary>
+    ///     Deletes every orphaned row, and its files, that has had no path for longer than
+    ///     <paramref name="grace" />. A row a path took back meanwhile is left alone. Raises one
+    ///     <see cref="Changed" /> for the lot, so stores keeping data per content drop theirs with it.
+    /// </summary>
+    /// <param name="nowUtc">The current time, UTC.</param>
+    /// <param name="grace">How long an orphaned row is kept.</param>
+    /// <returns>How many rows went.</returns>
+    public int ExpireOrphans(DateTime nowUtc, TimeSpan grace)
+    {
+        long cutoff = (nowUtc - grace).Ticks;
+        int expired = 0;
+        using (BeginBatch())
+        {
+            lock (_rmwGate)
+            {
+                List<string> due;
+                lock (_gate)
+                {
+                    due = [.. _rows.Where(r => r.Value.OrphanedSinceUtcTicks <= cutoff).Select(r => r.Key)];
+                }
+
+                foreach (string key in due)
+                {
+                    DemoCacheIndexEntry row;
+                    lock (_gate)
+                    {
+                        if (!_rows.TryGetValue(key, out row!) || !(row.OrphanedSinceUtcTicks <= cutoff))
+                        {
+                            continue;
+                        }
+
+                        Unlink(key);
+                        Forget(key);
+                    }
+
+                    // The files go before the index is saved: an index still naming a row whose files are gone
+                    // is expired again by the next sweep, while files no index names are never found again.
+                    DeleteFiles(FileKeys(row));
+                    expired++;
+                    RaiseChanged(row.Path);
+                }
+            }
+        }
+
+        return expired;
+    }
+
+    /// <summary>
+    ///     Applies <paramref name="mutate" /> to the record of every orphaned row matching
+    ///     <paramref name="where" /> and writes it back under the row's key, leaving the row orphaned. For a
+    ///     delete that must reach a demo whose folder is gone. A row whose record does not load is skipped.
+    /// </summary>
+    /// <param name="where">Which orphaned rows.</param>
+    /// <param name="mutate">The change to make.</param>
+    /// <returns>How many records were written.</returns>
+    internal int UpdateOrphans(Func<DemoCacheIndexEntry, bool> where, Action<DemoCacheRecord> mutate)
+    {
+        ArgumentNullException.ThrowIfNull(where);
+        ArgumentNullException.ThrowIfNull(mutate);
+        int updated = 0;
+        lock (_rmwGate)
+        {
+            List<string> keys;
+            lock (_gate)
+            {
+                keys = [.. _rows.Where(r => r.Value.IsOrphaned && where(r.Value.Copy())).Select(r => r.Key)];
+            }
+
+            foreach (string key in keys)
+            {
+                if (TryLoadRowRecord(key) is not { } record)
+                {
+                    continue;
+                }
+
+                mutate(record);
+                byte[] bytes = SidecarJson.SerializeGzip(record, _jsonOptions);
+                string fileKey;
+                lock (_gate)
+                {
+                    if (!_rows.TryGetValue(key, out DemoCacheIndexEntry? row) || !row.IsOrphaned)
+                    {
+                        continue;
+                    }
+
+                    DemoCacheIndexEntry updatedRow = record.ToIndexEntry();
+                    updatedRow.Path = row.Path;
+                    updatedRow.Size = row.Size;
+                    updatedRow.ModifiedTicks = row.ModifiedTicks;
+                    updatedRow.Locations = [];
+                    updatedRow.OrphanedSinceUtcTicks = row.OrphanedSinceUtcTicks;
+                    updatedRow.DetachedLocations = row.DetachedLocations;
+                    updatedRow.SidecarKeys = row.SidecarKeys;
+                    _rows[key] = updatedRow;
+                    _indexVersion++;
+                    fileKey = WriteKeys(row)[0];
+                    if (string.Equals(_lastRecordKey, key, StringComparison.Ordinal))
+                    {
+                        _lastRecordKey = null;
+                        _lastRecordBytes = null;
+                    }
+                }
+
+                lock (_fileStripes[StripeIndex(fileKey)])
+                {
+                    if (_cacheRoot is null)
+                    {
+                        lock (_gate)
+                        {
+                            _memoryRecords[fileKey] = bytes;
+                        }
+                    }
+                    else
+                    {
+                        try
+                        {
+                            AtomicFile.WriteAllBytes(RecordFile(fileKey), bytes);
+                        }
+                        catch (Exception)
+                        {
+                            continue;
+                        }
+                    }
+                }
+
+                updated++;
+            }
+        }
+
+        return updated;
     }
 
     /// <summary>Drops every row matching <paramref name="predicate" />: library reconciliation.</summary>
@@ -1402,7 +1670,7 @@ public sealed class DemoCacheStore
 
                 lock (_gate)
                 {
-                    DemoCacheIndexEntry shaped = Shape(row.Copy(), [.. row.Locations], rest);
+                    DemoCacheIndexEntry shaped = WithKeys(row, rest);
                     Link(rowKey, shaped);
                     if (shaped.SidecarKeys is null)
                     {
@@ -1979,6 +2247,8 @@ public sealed class DemoCacheStore
         entry.Size = primary.Size;
         entry.ModifiedTicks = primary.ModifiedTicks;
         entry.Locations = sorted;
+        entry.OrphanedSinceUtcTicks = null;
+        entry.DetachedLocations = null;
 
         string own = FileKeyOf(entry);
         List<string>? distinct = keys is null ? null : [.. keys.Distinct(StringComparer.Ordinal)];
@@ -1986,6 +2256,56 @@ public sealed class DemoCacheStore
             ? null
             : distinct;
         return entry;
+    }
+
+    // A hashed row with no path left: kept where it was last seen, its paths remembered for a same-file return.
+    private static DemoCacheIndexEntry Orphan(DemoCacheIndexEntry row, long sinceUtcTicks)
+    {
+        DemoCacheIndexEntry orphan = row.Copy();
+        orphan.DetachedLocations = [.. row.Locations, .. row.DetachedLocations ?? []];
+        orphan.Locations = [];
+        orphan.OrphanedSinceUtcTicks = row.OrphanedSinceUtcTicks ?? sinceUtcTicks;
+        return orphan;
+    }
+
+    // A row with other file keys, orphaned or not.
+    private static DemoCacheIndexEntry WithKeys(DemoCacheIndexEntry row, List<string> keys)
+    {
+        if (!row.IsOrphaned)
+        {
+            return Shape(row.Copy(), [.. row.Locations], keys);
+        }
+
+        DemoCacheIndexEntry copy = row.Copy();
+        string own = FileKeyOf(copy);
+        List<string> distinct = [.. keys.Distinct(StringComparer.Ordinal)];
+        copy.SidecarKeys = distinct.Count == 0 || (distinct.Count == 1 && distinct[0] == own) ? null : distinct;
+        return copy;
+    }
+
+    // Under _gate. A row just taken out of the maps: its pending rename and the cached record go with it.
+    private void Forget(string key)
+    {
+        _settleAfterSave.Remove(key);
+        if (string.Equals(_lastRecordKey, key, StringComparison.Ordinal))
+        {
+            _lastRecordKey = null;
+            _lastRecordBytes = null;
+        }
+    }
+
+    // Under _gate. The orphaned row that last had the path, or null.
+    private string? OrphanKeyAt(string path)
+    {
+        foreach ((string key, DemoCacheIndexEntry row) in _rows)
+        {
+            if (row.IsOrphaned && (SamePath(row.Path, path) || row.DetachedLocations?.Any(l => SamePath(l.Path, path)) == true))
+            {
+                return key;
+            }
+        }
+
+        return null;
     }
 
     // Under _gate. The only writers of the row maps, so the path lookup and the views move with the rows.
@@ -2068,9 +2388,13 @@ public sealed class DemoCacheStore
                     List<string> keys = [];
                     foreach (DemoCacheIndexEntry entry in ordered)
                     {
-                        locations.AddRange(entry.Locations.Count > 0
-                            ? entry.Locations
-                            : [new DemoLocation(entry.Path, true, entry.Size, entry.ModifiedTicks, 0)]);
+                        if (!entry.IsOrphaned || IsProvisional(entry))
+                        {
+                            locations.AddRange(entry.Locations.Count > 0
+                                ? entry.Locations
+                                : [new DemoLocation(entry.Path, true, entry.Size, entry.ModifiedTicks, 0)]);
+                        }
+
                         if (byPath)
                         {
                             keys.Add(StableKey(entry.Path));
@@ -2081,7 +2405,20 @@ public sealed class DemoCacheStore
                         }
                     }
 
-                    DemoCacheIndexEntry row = Shape(ordered[0], locations, keys);
+                    DemoCacheIndexEntry row;
+                    if (locations.Count > 0)
+                    {
+                        row = Shape(ordered[0], locations, keys);
+                    }
+                    else
+                    {
+                        DemoCacheIndexEntry orphan = ordered[0];
+                        orphan.DetachedLocations = [.. ordered.SelectMany(e => e.DetachedLocations ?? [])];
+                        orphan.Locations = [];
+                        orphan.OrphanedSinceUtcTicks = ordered.Min(e => e.OrphanedSinceUtcTicks ?? long.MaxValue);
+                        row = WithKeys(orphan, keys);
+                    }
+
                     Link(key, row);
                     if (row.SidecarKeys is not null && _contentKeyMigrationVersion >= ContentKeyMigration.CurrentVersion)
                     {

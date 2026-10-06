@@ -321,8 +321,9 @@ public class ContentKeyedCacheTests
                     .Because("the copy still holds the old bytes and keeps everything");
                 await Assert.That(reopened.TryGetByContentId("sha-solo")).IsNull();
                 await Assert.That(reopened.TryGetByContentId("sha-solo2")!.Path).IsEqualTo("/m/solo.dem");
-                await Assert.That(File.Exists(Path.Combine(Demos(root), "sha-solo.json.gz"))).IsFalse()
-                    .Because("no path holds the old bytes any more");
+                await Assert.That(reopened.TryGetOrphan("sha-solo")).IsNotNull()
+                    .Because("no path holds the old bytes any more, so they wait for a path to come back");
+                await Assert.That(File.Exists(Path.Combine(Demos(root), "sha-solo.json.gz"))).IsTrue();
                 await Assert.That(reopened.Count).IsEqualTo(3);
             }
         }
