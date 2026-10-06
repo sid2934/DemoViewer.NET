@@ -149,6 +149,29 @@ internal static partial class AppLog
         Message = "Extension {extension}: {path} could not be written: {problem}")]
     public static partial void ExtensionStoreWriteFailed(ILogger logger, string extension, string path, string problem);
 
+    [LoggerMessage(EventId = 30, Level = LogLevel.Information,
+        Message = "Library folder {folder}: {count} demo(s) listed in {elapsedMs} ms")]
+    public static partial void LibraryFolderListed(ILogger logger, string folder, int count, long elapsedMs);
+
+    /// <summary>A registered folder whose listing did not complete; nothing under it is pruned this scan.</summary>
+    [LoggerMessage(EventId = 31, Level = LogLevel.Warning,
+        Message = "Library folder {folder} was not reached: {reason}. Its cached rows are kept")]
+    public static partial void LibraryFolderUnreached(ILogger logger, string folder, string reason);
+
+    [LoggerMessage(EventId = 32, Level = LogLevel.Warning,
+        Message = "Library folder {folder}: {directory} could not be listed: {reason}. Cached rows under it are kept")]
+    public static partial void LibraryDirectoryUnreached(ILogger logger, string folder, string directory, string reason);
+
+    /// <summary>An empty listing over cached rows: an automount or mount point that is not up. Counted as not reached.</summary>
+    [LoggerMessage(EventId = 34, Level = LogLevel.Warning,
+        Message = "Library folder {folder} listed no demos while the cache holds {cached} row(s) under it; "
+                  + "treated as not reached (a mount that is not up yet?). Its cached rows are kept")]
+    public static partial void LibraryFolderListedEmpty(ILogger logger, string folder, int cached);
+
+    [LoggerMessage(EventId = 33, Level = LogLevel.Information,
+        Message = "Library scan listed {count} demo(s) from {reached} of {total} folder(s) in {elapsedMs} ms")]
+    public static partial void LibraryScanListed(ILogger logger, int count, int reached, int total, long elapsedMs);
+
     /// <summary>
     ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI
     ///     shows clean text, THIS carries the full exception into the Diagnostics tab + file.

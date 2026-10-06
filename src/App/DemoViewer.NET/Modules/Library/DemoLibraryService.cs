@@ -88,9 +88,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // live Folders across a concurrent Add/Remove (which would throw "collection was modified").
     private volatile string[] _folderSnapshot = [];
 
-    // Registered roots that were actually reachable during the last enumeration. Read by the stale-row
-    // prune, which must never treat "this folder was unavailable" as "these demos were deleted".
-    private volatile string[] _lastScannedRoots = [];
+    // Each registered folder's real path from the last walk that resolved it, so a folder that does not
+    // answer this scan still covers the rows under its real path.
+    private readonly Dictionary<string, string> _resolvedRoots = new(StringComparer.Ordinal);
 
     private CancellationTokenSource? _scanCts;
 
@@ -140,6 +140,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.LibraryCategory);
+
+    /// <summary>The file-system calls the folder walk makes. Test seam.</summary>
+    internal ILibraryFolderReader FolderReader { get; set; } = FileSystemLibraryFolderReader.Instance;
 
     /// <summary>
     ///     The settings service this indexer is folder-backed by, or <c>null</c> on the legacy path.
@@ -421,26 +424,25 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         List<(string Path, long Size, DateTime Modified)> primaries;
         Dictionary<string, IReadOnlyList<string>> shadowFolders;
+        ScanScope scope;
         try
         {
             // Enumerate (path-canonicalized), then collapse byte-identical COPIES at different real
             // paths onto one primary (content dedup), cheap via a size pre-filter (only same-size
             // files are hashed) with the hash cached on the metadata row.
-            ((List<(string Path, long Size, DateTime Modified)> Files, List<string> Roots) Listing,
-                    (List<(string, long, DateTime)> Primaries, Dictionary<string, IReadOnlyList<string>> Shadows) Identities)? scan =
-                await QueueWork.RunAsync<((List<(string, long, DateTime)>, List<string>),
-                    (List<(string, long, DateTime)>, Dictionary<string, IReadOnlyList<string>>))?>(
+            (ScanScope Scope, (List<(string, long, DateTime)> Primaries, Dictionary<string, IReadOnlyList<string>> Shadows) Identities)? scan =
+                await QueueWork.RunAsync<(ScanScope, (List<(string, long, DateTime)>, Dictionary<string, IReadOnlyList<string>>))?>(
                     QueueWork.Ambient, QueueJobKind.LibraryScan, "Library: find demos", "library", () =>
                     {
-                        (List<(string Path, long Size, DateTime Modified)> files, List<string> roots) = EnumerateFiles();
-                        return ((files, roots), ResolveContentIdentities(files, ct));
+                        ScanScope listed = ListFolders(ct);
+                        return (listed, ResolveContentIdentities(listed.Files, ct));
                     }, null).WaitAsync(ct).ConfigureAwait(false);
             if (scan is not { } done)
             {
                 return; // removed from the queue before it ran
             }
 
-            _lastScannedRoots = [.. done.Listing.Roots];
+            scope = done.Scope;
             (primaries, shadowFolders) = done.Identities;
         }
         catch (OperationCanceledException)
@@ -455,7 +457,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         List<DemoEntry> needMap = new();
         List<DemoEntry> needFull = new();
-        await PostAsync(() => Reconcile(primaries, shadowFolders, needMap, needFull));
+        await PostAsync(() => Reconcile(primaries, shadowFolders, needMap, needFull, scope));
         RaiseChanged();
 
         if (ct.IsCancellationRequested)
@@ -604,100 +606,156 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     // ── Enumeration + reconciliation ──────────────────────────────────────────
 
-    // Also reports which registered roots were ACTUALLY reachable this pass. That distinction is the whole
-    // safety property of the stale-row prune below: a configured folder on a detached volume enumerates zero
-    // files and is indistinguishable, from the file list alone, from a folder whose demos were all deleted.
-    // Pruning on "the file wasn't found" would wipe an entire external library's cache the first time it was
-    // unplugged.
-    private (List<(string Path, long Size, DateTime Modified)> Files, List<string> ScannedRoots)
-        EnumerateFiles()
+    // Walks every registered folder a directory at a time and reports which ones were REACHED, meaning
+    // their whole walk completed. That distinction is the whole safety property of the stale-row prune
+    // below: a folder on a detached volume, an automount that is not up yet, or a listing that failed
+    // partway looks exactly like a folder whose demos were deleted, if all one has is the file list.
+    private ScanScope ListFolders(CancellationToken ct)
     {
-        List<(string, long, DateTime)> result = new();
-        List<string> scannedRoots = new();
-        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
-        EnumerationOptions options = new()
+        List<LibraryRootWalk> walks = [.. _folderSnapshot.Select(f => new LibraryRootWalk(f, FolderReader))];
+        foreach (LibraryRootWalk walk in walks)
         {
-            RecurseSubdirectories = true,
-            IgnoreInaccessible = true,
-            AttributesToSkip = FileAttributes.System
-        };
-
-        foreach (string rawFolder in Folders.ToArray())
-        {
-            // Resolve the registered folder to its real, normalized path FIRST, so two registrations of
-            // the same directory (a symlink to it, a trailing-slash / relative form, or a folder nested
-            // under another registered folder) enumerate the same file identities and collapse below.
-            string folder = CanonicalizeDirectory(rawFolder);
-            if (!Directory.Exists(folder))
+            while (walk.Next() is { } read)
             {
-                continue; // unavailable (unmounted volume, deleted folder), NOT evidence its demos are gone
-            }
-
-            scannedRoots.Add(folder);
-
-            try
-            {
-                foreach (string path in Directory.EnumerateFiles(folder, "*.dem", options))
-                {
-                    // Skip macOS AppleDouble sidecars ("._name.dem"): resource-fork / xattr metadata
-                    // companions macOS writes next to a file when it's copied across a filesystem without
-                    // native resource-fork support (SMB / exFAT / NFS). They match "*.dem" but are ~368 B of
-                    // metadata, not a demo. Parsing one fails into a bogus "Unknown" library card. AppleDouble
-                    // names are ALWAYS "._<name>", so a filename-prefix skip is exact: no real demo is named that.
-                    if (Path.GetFileName(path).StartsWith("._", StringComparison.Ordinal))
-                    {
-                        continue;
-                    }
-
-                    // Canonicalize the file path (normalize + follow a leaf FILE symlink) so the same
-                    // physical file reached via overlapping/nested registrations, a symlink, a trailing
-                    // slash, or a differently-cased path resolves to ONE identity, appearing (and being
-                    // processed) exactly once. Genuine content copies at different real paths are caught
-                    // later by the content hash; here we only collapse paths that point at the same file.
-                    string canonical = CanonicalizePath(path);
-                    if (!seen.Add(canonical))
-                    {
-                        continue; // overlapping folders / symlink / already-seen identity
-                    }
-
-                    try
-                    {
-                        FileInfo fi = new(canonical);
-                        result.Add((canonical, fi.Length, fi.LastWriteTime));
-                    }
-                    catch (IOException)
-                    {
-                        // file vanished mid-scan: skip
-                    }
-                }
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                // unreadable folder: skip
+                ct.ThrowIfCancellationRequested();
+                walk.Complete(read, walk.Execute(read));
             }
         }
 
-        return (result, scannedRoots);
+        return Summarize(walks);
     }
+
+    // Folds finished walks into one listing and the prune's scope, and logs each folder's outcome.
+    private ScanScope Summarize(List<LibraryRootWalk> walks)
+    {
+        List<(string Path, long Size, DateTime Modified)> files = [];
+        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+        List<string> reached = [], unreachedDirectories = [], known = [];
+        bool everyRootKnown = true;
+        TimeSpan longest = TimeSpan.Zero;
+
+        foreach (LibraryRootWalk walk in walks)
+        {
+            longest = walk.Elapsed > longest ? walk.Elapsed : longest;
+            string? root = walk.Root;
+            lock (_resolvedRoots)
+            {
+                if (root is not null)
+                {
+                    _resolvedRoots[walk.Folder] = root;
+                }
+                else if (_resolvedRoots.TryGetValue(walk.Folder, out string? remembered))
+                {
+                    root = remembered;
+                }
+            }
+
+            if (root is not null)
+            {
+                known.Add(root);
+            }
+            else
+            {
+                known.Add(FullPathOrSelf(walk.Folder));
+                // Rows sit under the folder's real path, which nothing has told this scan yet.
+                everyRootKnown &= walk.Missing;
+            }
+
+            // Overlapping registrations list the same file twice; the first listing keeps it.
+            foreach ((string Path, long Size, DateTime Modified) demo in walk.Demos)
+            {
+                if (seen.Add(demo.Path))
+                {
+                    files.Add(demo);
+                }
+            }
+
+            if (!walk.Reached)
+            {
+                AppLog.LibraryFolderUnreached(DiagLog, walk.Folder, walk.UnreachedReason ?? "its listing did not finish");
+                continue;
+            }
+
+            foreach ((string directory, string reason) in walk.UnreachedDirectories)
+            {
+                AppLog.LibraryDirectoryUnreached(DiagLog, walk.Folder, directory, reason);
+                unreachedDirectories.Add(directory);
+            }
+
+            if (walk.Demos.Count == 0 && CachedRowsUnder(walk.Root!) is var cached and > 0)
+            {
+                AppLog.LibraryFolderListedEmpty(DiagLog, walk.Folder, cached);
+                continue;
+            }
+
+            AppLog.LibraryFolderListed(DiagLog, walk.Folder, walk.Demos.Count, (long)walk.Elapsed.TotalMilliseconds);
+            reached.Add(walk.Root!);
+        }
+
+        AppLog.LibraryScanListed(DiagLog, files.Count, reached.Count, walks.Count, (long)longest.TotalMilliseconds);
+        return new ScanScope(files, [.. reached], [.. unreachedDirectories], [.. known], everyRootKnown);
+    }
+
+    // Rows in either cache under a folder's real path.
+    private int CachedRowsUnder(string root)
+    {
+        HashSet<string> rows = new(StringComparer.OrdinalIgnoreCase);
+        lock (_cacheLock)
+        {
+            rows.UnionWith(_cache.Keys.Where(p => IsUnder(p, root)));
+        }
+
+        if (_demoCache is not null)
+        {
+            rows.UnionWith(_demoCache.Index.Select(e => e.Path).Where(p => IsUnder(p, root)));
+        }
+
+        return rows.Count;
+    }
+
+    private static bool IsUnder(string path, string root) =>
+        path.StartsWith(root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar,
+            StringComparison.OrdinalIgnoreCase);
+
+    private static string FullPathOrSelf(string folder)
+    {
+        try
+        {
+            return Path.GetFullPath(folder);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return folder;
+        }
+    }
+
+    /// <summary>What one scan listed, and what it may conclude from what it did not list.</summary>
+    /// <param name="Files">Every demo listed, copies included.</param>
+    /// <param name="ReachedRoots">Real paths of the folders whose whole walk completed.</param>
+    /// <param name="UnreachedDirectories">Subdirectories of reached folders that could not be listed.</param>
+    /// <param name="KnownRoots">Every registered folder's real path, or its full path when never resolved.</param>
+    /// <param name="EveryRootKnown">False when a folder that is there has never resolved to its real path.</param>
+    private sealed record ScanScope(
+        List<(string Path, long Size, DateTime Modified)> Files,
+        string[] ReachedRoots,
+        string[] UnreachedDirectories,
+        string[] KnownRoots,
+        bool EveryRootKnown);
 
     /// <summary>
     ///     Drops metadata rows for demos that are provably gone. <see cref="Reconcile" /> has always dropped
     ///     the UI <see cref="Entries" /> for a vanished file but never the persisted <c>_cache</c> row behind
     ///     it, so the cache only ever grew: on the reference library 354 of 719 rows described files that no
     ///     longer existed, 332 of them under a folder the user had since removed from the library entirely.
-    ///     Half the cache (and, once it is dual-written, half the sidecars) was describing demos the app can
-    ///     never show.
     ///     <para>
-    ///         <b>"The file wasn't found" is NOT sufficient evidence.</b> A configured folder on a detached
-    ///         external volume enumerates zero files and looks exactly like a folder whose demos were all
-    ///         deleted; pruning on absence alone would wipe that library's cache the first time it was
-    ///         unplugged, turning a re-plug into a full re-index. A row is therefore dropped only when one of
-    ///         two things is true:
+    ///         <b>"The file wasn't found" is NOT sufficient evidence.</b> A folder on a detached volume, an
+    ///         automount that is not up yet, or a listing that failed partway all look exactly like a folder
+    ///         whose demos were deleted. A row is therefore dropped only when one of two things is true:
     ///     </para>
     ///     <list type="bullet">
     ///         <item>
-    ///             it sits under a root this scan actually REACHED, and the scan did not find it: the folder
-    ///             was read and the file genuinely is not in it; or
+    ///             it sits under a folder whose whole walk completed this scan, outside every subdirectory
+    ///             that walk could not list, and the walk did not find it; or
     ///         </item>
     ///         <item>
     ///             it sits under no registered folder at all, out of scope, so nothing can ever index it
@@ -705,42 +763,34 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///         </item>
     ///     </list>
     ///     <para>
-    ///         A row under a registered-but-unreachable root is KEPT, which is the detached-volume case.
+    ///         A folder that listed no demos while rows sit under it counts as not reached, which covers an
+    ///         empty mount point. A row copied elsewhere in the library is alive: its cached hash is what keeps
+    ///         the copy detection from re-reading both files on the next scan.
     ///     </para>
     /// </summary>
-    /// <param name="wanted">Paths this scan actually found, keyed case-insensitively.</param>
-    private void PruneStaleCacheRows(Dictionary<string, (long Size, DateTime Modified)> wanted)
+    private void PruneStaleCacheRows(ScanScope scope)
     {
-        string[] scannedRoots = _lastScannedRoots;
-        string[] registered = [.. _folderSnapshot.Select(CanonicalizeDirectory)];
-
         // No reachable root at all means the whole library is offline (every volume detached, or the very
         // first construction before any scan). Pruning then would delete everything.
-        if (scannedRoots.Length == 0)
+        if (scope.ReachedRoots.Length == 0)
         {
             return;
         }
 
-        static bool Under(string path, string root)
-        {
-            return path.StartsWith(root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase);
-        }
-
+        HashSet<string> alive = new(scope.Files.Select(f => f.Path), StringComparer.OrdinalIgnoreCase);
         List<string> doomed = [];
         lock (_cacheLock)
         {
             foreach (string path in _cache.Keys)
             {
-                if (wanted.ContainsKey(path))
+                if (alive.Contains(path) || scope.UnreachedDirectories.Any(d => IsUnder(path, d)))
                 {
-                    continue; // found by this scan: alive
+                    continue;
                 }
 
-                bool underScanned = scannedRoots.Any(r => Under(path, r));
-                bool underRegistered = registered.Any(r => Under(path, r));
-
-                if (underScanned || !underRegistered)
+                bool underReached = scope.ReachedRoots.Any(r => IsUnder(path, r));
+                bool outOfScope = scope.EveryRootKnown && !scope.KnownRoots.Any(r => IsUnder(path, r));
+                if (underReached || outOfScope)
                 {
                     doomed.Add(path);
                 }
@@ -778,7 +828,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // symlink to its final target, so a symlink-to-a-folder (or a nested/relative/trailing-slash
     // registration) enumerates the same file identities as the real folder. Best-effort: on any error
     // the input is returned unchanged (the scan still works, just without that canonicalization).
-    private static string CanonicalizeDirectory(string folder)
+    internal static string CanonicalizeDirectory(string folder)
     {
         try
         {
@@ -796,7 +846,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // or non-normalized path to the same identity as the real file. A symlinked PARENT directory is
     // handled by CanonicalizeDirectory; anything left (e.g. a mid-tree directory symlink, or a genuine
     // content copy) is caught by the Phase-4 content hash. Best-effort: returns the input on error.
-    private static string CanonicalizePath(string path)
+    internal static string CanonicalizePath(string path)
     {
         try
         {
@@ -907,7 +957,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private void Reconcile(
         List<(string Path, long Size, DateTime Modified)> primaries,
         Dictionary<string, IReadOnlyList<string>> shadowFolders,
-        List<DemoEntry> needMap, List<DemoEntry> needFull)
+        List<DemoEntry> needMap, List<DemoEntry> needFull, ScanScope scope)
     {
         Dictionary<string, (long Size, DateTime Modified)> wanted = new(StringComparer.OrdinalIgnoreCase);
         foreach ((string path, long size, DateTime modified) in primaries)
@@ -939,7 +989,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             Entries.ReplaceAll(staying);
         }
 
-        PruneStaleCacheRows(wanted);
+        PruneStaleCacheRows(scope);
         DropRekeyedCacheRows(wanted);
 
         Dictionary<string, DemoEntry> byPath = Entries.ToDictionary(e => e.FilePath, StringComparer.OrdinalIgnoreCase);
