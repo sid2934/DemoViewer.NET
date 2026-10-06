@@ -611,6 +611,19 @@ public class DemoSchedulerTests
         await Assert.That(scheduler.IsFaulted("thrower", "/x/demo.dem")).IsFalse();
     }
 
+    [Test]
+    public async Task WithoutAKeyResolver_APathDifferingOnlyInCase_IsNotPlannedWhileItsPassIsOut()
+    {
+        RecordingQueue queue = new();
+        Fake a = new("a");
+        using DemoScheduler scheduler = new([a], queue, () => Array.Empty<string>());
+
+        scheduler.DemoChanged("/x/demo.dem");
+        scheduler.Request("/X/Demo.DEM");
+
+        await Assert.That(queue.Visits.Select(v => v.Path)).IsEquivalentTo(["/x/demo.dem"]);
+    }
+
     // A queue that records what the scheduler submits and runs its planning item inline, or holds it when
     // Defer is set, as the extension test doubles do. Token is the planning item's cancellation token;
     // EndPasses reports every submitted pass as run at once, so a demo can be planned again.
