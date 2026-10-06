@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -172,6 +173,31 @@ public class StatusChipContributionTests
         });
 
     [Test]
+    public async Task AnExportChipWhoseIdAContributedChipHolds_IsLeftOut_AndNoSlotIsOrphaned() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeSource source = new() { Shown = true, Label = "Mine" };
+            (MainViewModel vm, HostStatusChip chip, _, _) = NewShell(source);
+            using Playback2DExportStatusViewModel status = new(new IdleExportJob());
+            try
+            {
+                int before = vm.Chips.Count;
+                vm.MountExportStatus("test.chip", PackFeature, status);
+                vm.MountExportStatus("test.chip", PackFeature, status);
+
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.Chips.Count).IsEqualTo(before);
+                    await Assert.That(vm.Chips).Contains(chip.Chip).Because("the contributed chip keeps its id");
+                }
+            }
+            finally
+            {
+                vm.Dispose();
+            }
+        });
+
+    [Test]
     public async Task ASourceThatThrows_HidesItsChip_AndCountsAFault_AndACommandThatThrowsIsContained() =>
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -241,6 +267,23 @@ public class StatusChipContributionTests
         public object? FlyoutContent => null;
 
         public void Raise() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
+    }
+
+    private sealed class IdleExportJob : Services.Export.IExportJobService
+    {
+        public Services.Export.ExportJobStatus Status => Services.Export.ExportJobStatus.Idle;
+
+        public event EventHandler<Services.Export.ExportJobStatus>? StatusChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void Start(Services.Export.Scene2DExportRequest request)
+        {
+        }
+
+        public Task CancelAsync() => Task.CompletedTask;
     }
 
     private sealed class CountingCommand : ICommand

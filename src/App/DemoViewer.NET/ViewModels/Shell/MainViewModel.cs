@@ -2399,6 +2399,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(chipId);
         ArgumentException.ThrowIfNullOrWhiteSpace(featureId);
         ArgumentNullException.ThrowIfNull(status);
+        if (_shellChips.FirstOrDefault(c => c.Id == chipId) is { } taken and not ExportChipSlot)
+        {
+            // A contributed chip holds the id: the export has no chip this session, and says so once.
+            if (_refusedExportChips.Add(chipId))
+            {
+                RouteModuleLog(ModuleLogLevel.Error, $"Status chip '{taken.Id}' is already on the strip; the export chip is left out.");
+            }
+
+            return;
+        }
+
         if (_shellChips.OfType<ExportChipSlot>().FirstOrDefault(c => c.Id == chipId) is not { } slot)
         {
             slot = new ExportChipSlot(chipId, featureId);
@@ -2407,6 +2418,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         slot.Mount(status);
     }
+
+    private readonly HashSet<string> _refusedExportChips = new(StringComparer.Ordinal);
 
     private void AddShellChip(IShellChip chip)
     {
