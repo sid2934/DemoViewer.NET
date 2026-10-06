@@ -131,6 +131,33 @@ public class LibraryContributionTests
         }
     }
 
+    [Test]
+    public async Task ACardWhoseDemoTheCacheHoldsUnderAnotherPrimary_StillGetsItsBadge()
+    {
+        DemoLibraryService lib = NewLibrary("/demos/a.dem");
+        Services.DemoCache.DemoCacheStore cache = new(null);
+        cache.Upsert(HostLibraryTests.Parsed("/demos/a.dem"));
+        cache.Upsert(HostLibraryTests.Parsed("/Downloads/a.dem"));
+        HostLibrary library = new(cache, null, () => false);
+        FakeContribution c = new()
+        {
+            HasBadgeValue = true,
+            BadgeForFunc = demo => new LibraryBadge("seen", demo.FilePath, false)
+        };
+
+        LibraryTabViewModel vm = new(lib, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]),
+            contributions: [c], findDemo: library.Find);
+        c.RaiseChanged();
+
+        DemoEntry card = vm.FilteredEntries.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(library.Find(card.FilePath)!.FilePath).IsEqualTo("/Downloads/a.dem")
+                .Because("the cache's primary is another copy than the card's");
+            await Assert.That(card.BadgeLabel).IsEqualTo("seen");
+        }
+    }
+
     private static LibraryFilter KeepFilter() => new("Keep",
         [new LibraryFilterItem("", "All"), new LibraryFilterItem("keep", "Keep")],
         (entry, key) => key != "keep" || entry.FileName == "keep.dem");

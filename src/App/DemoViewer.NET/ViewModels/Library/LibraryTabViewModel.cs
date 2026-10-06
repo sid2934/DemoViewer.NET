@@ -812,10 +812,13 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private void RefreshBadges()
     {
         ILibraryContribution? active = ActiveBadgeContribution();
-        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(_library.Entries.Select(DemoOf));
-        foreach (DemoEntry entry in _library.Entries)
+        // The badges come back under each row's own path, which for a demo held at several paths is its
+        // primary in the cache: not always the copy this card shows.
+        List<(DemoEntry Entry, LibraryDemo Demo)> cards = [.. _library.Entries.Select(e => (e, DemoOf(e)))];
+        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(cards.Select(c => c.Demo));
+        foreach ((DemoEntry entry, LibraryDemo demo) in cards)
         {
-            LibraryBadge? badge = badges?.GetValueOrDefault(entry.FilePath);
+            LibraryBadge? badge = badges?.GetValueOrDefault(demo.FilePath);
             entry.BadgeLabel = badge?.Label;
             entry.BadgeTooltip = badge?.Tooltip;
             entry.BadgeIsPinned = badge?.IsPinned ?? false;
