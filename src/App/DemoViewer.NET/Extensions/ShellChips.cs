@@ -48,6 +48,7 @@ internal sealed class HostStatusChip : IShellChip
     private readonly ExtensionGuard _guard;
     private readonly Action<Action> _toUiThread;
     private bool _attached;
+    private int _refreshQueued;
     private ICommand? _wrappedFrom;
 
     /// <param name="contribution">The extension's contribution.</param>
@@ -102,7 +103,18 @@ internal sealed class HostStatusChip : IShellChip
         _guard.Run("status chip unsubscribe", () => _source.PropertyChanged -= OnSourceChanged);
     }
 
-    private void OnSourceChanged(object? sender, PropertyChangedEventArgs e) => _toUiThread(Refresh);
+    // One refresh queued at a time: a source that raises per frame or in a loop costs one re-read per post.
+    private void OnSourceChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (Interlocked.Exchange(ref _refreshQueued, 1) == 0)
+        {
+            _toUiThread(() =>
+            {
+                Volatile.Write(ref _refreshQueued, 0);
+                Refresh();
+            });
+        }
+    }
 
     // A source that throws on any read hides its chip rather than showing half-copied state.
     private void Refresh()

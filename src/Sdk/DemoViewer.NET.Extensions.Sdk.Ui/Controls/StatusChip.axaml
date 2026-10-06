@@ -4,6 +4,14 @@
              x:Class="DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip"
              x:DataType="vm:StatusChipViewModel">
 
+    <UserControl.Resources>
+        <Flyout x:Key="CardFlyout" Placement="Top">
+            <Border Classes="card-flyout" Padding="0" MaxWidth="360">
+                <ContentControl Content="{Binding FlyoutContent}" />
+            </Border>
+        </Flyout>
+    </UserControl.Resources>
+
     <!--
         A dot and a neutral label that opens a card-flyout for detail and actions.
 
@@ -13,9 +21,10 @@
         the word carries the state and the dot is a redundant colour cue.
     -->
 
-    <!-- Chip body: a ghost button [dot][label]; click / Enter opens the flyout (Button auto-opens its Flyout). -->
-    <Button Classes="ghost" Padding="8 2" MinHeight="0" VerticalAlignment="Center"
-            ToolTip.Tip="{Binding Tooltip}">
+    <!-- Chip body: a ghost button [dot][label]. Click / Enter runs the primary action and opens the flyout;
+         the code-behind attaches the flyout only while there is content to show. -->
+    <Button x:Name="Body" Classes="ghost" Padding="8 2" MinHeight="0" VerticalAlignment="Center"
+            ToolTip.Tip="{Binding Tooltip}" Command="{Binding PrimaryAction}">
         <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
             <Ellipse Classes="dot" Width="9" Height="9"
                      Classes.stateOff="{Binding IsStateOff}"
@@ -30,13 +39,6 @@
                        VerticalAlignment="Center" />
         </StackPanel>
 
-        <Button.Flyout>
-            <Flyout Placement="Top">
-                <Border Classes="card-flyout" Padding="0" MaxWidth="360">
-                    <ContentControl Content="{Binding FlyoutContent}" />
-                </Border>
-            </Flyout>
-        </Button.Flyout>
     </Button>
 
 </UserControl>

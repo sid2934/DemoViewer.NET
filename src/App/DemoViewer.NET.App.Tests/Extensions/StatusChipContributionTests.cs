@@ -2,9 +2,11 @@
 
 using System.ComponentModel;
 using System.Windows.Input;
+using Avalonia.Controls;
 using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.ViewModels.Shell;
@@ -120,6 +122,56 @@ public class StatusChipContributionTests
         });
 
     [Test]
+    public async Task ManyChangesRaisedOffTheUiThread_ReadTheSourceOncePerPost() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            FakeSource source = new() { Shown = true };
+            (MainViewModel vm, HostStatusChip _, _, _) = NewShell(source);
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                int before = source.LabelReads;
+                Thread worker = new(() =>
+                {
+                    for (int i = 0; i < 200; i++)
+                    {
+                        source.Raise();
+                    }
+                });
+                worker.Start();
+                worker.Join();
+                Dispatcher.UIThread.RunJobs();
+
+                await Assert.That(source.LabelReads - before).IsEqualTo(1).Because("the raises coalesce into one queued refresh");
+            }
+            finally
+            {
+                vm.Dispose();
+            }
+        });
+
+    [Test]
+    public async Task AChipsClick_RunsItsAction_AndOpensAFlyoutOnlyWhenThereIsContent() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            CountingCommand action = new();
+            StatusChipViewModel model = new() { PrimaryAction = action };
+            StatusChip control = new() { DataContext = model };
+            Button body = control.FindControl<Button>("Body")!;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(body.Command).IsSameReferenceAs(action);
+                await Assert.That(body.Flyout).IsNull().Because("an empty card is never opened");
+            }
+
+            model.FlyoutContent = new object();
+            await Assert.That(body.Flyout).IsNotNull();
+            model.FlyoutContent = null;
+            await Assert.That(body.Flyout).IsNull();
+        });
+
+    [Test]
     public async Task ASourceThatThrows_HidesItsChip_AndCountsAFault_AndACommandThatThrowsIsContained() =>
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -164,9 +216,15 @@ public class StatusChipContributionTests
 
         private string _label = "";
 
+        public int LabelReads;
+
         public string Label
         {
-            get => ThrowOnRead ? throw new InvalidOperationException("chip label") : _label;
+            get
+            {
+                Interlocked.Increment(ref LabelReads);
+                return ThrowOnRead ? throw new InvalidOperationException("chip label") : _label;
+            }
             set => _label = value;
         }
 
@@ -183,6 +241,21 @@ public class StatusChipContributionTests
         public object? FlyoutContent => null;
 
         public void Raise() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(null));
+    }
+
+    private sealed class CountingCommand : ICommand
+    {
+        public event EventHandler? CanExecuteChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public bool CanExecute(object? parameter) => true;
+
+        public void Execute(object? parameter)
+        {
+        }
     }
 
     private sealed class ThrowingCommand : ICommand
