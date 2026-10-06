@@ -87,17 +87,27 @@ public class StatusChipContributionTests
                 int? appliedOn = null;
                 chip.Chip.PropertyChanged += (_, _) => appliedOn ??= Environment.CurrentManagedThreadId;
 
-                await Task.Run(() =>
+                // A dedicated thread, joined: awaiting a pool task lets the dispatcher run the posted re-read
+                // before the check below, and blocking on one can run it inline on this thread.
+                int raisedOn = 0;
+                Thread worker = new(() =>
                 {
+                    raisedOn = Environment.CurrentManagedThreadId;
                     source.Shown = true;
                     source.Label = "From a worker";
                     source.Raise();
                 });
-                await Assert.That(vm.Chips).DoesNotContain(chip.Chip).Because("nothing is applied on the raising thread");
+                worker.Start();
+                worker.Join();
+                bool shownBeforeDrain = vm.Chips.Contains(chip.Chip);
+                int? appliedBeforeDrain = appliedOn;
 
                 Dispatcher.UIThread.RunJobs();
                 using (Assert.Multiple())
                 {
+                    await Assert.That(raisedOn).IsNotEqualTo(uiThread);
+                    await Assert.That(shownBeforeDrain).IsFalse().Because("nothing is applied on the raising thread");
+                    await Assert.That(appliedBeforeDrain).IsNull().Because("nothing is applied on the raising thread");
                     await Assert.That(vm.Chips).Contains(chip.Chip);
                     await Assert.That(chip.Chip.Label).IsEqualTo("From a worker");
                     await Assert.That(appliedOn).IsEqualTo(uiThread);
