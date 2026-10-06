@@ -58,7 +58,10 @@ public enum LoadFailure
     Conflicts,
 
     /// <summary>The loader itself failed; the shipped copy was used.</summary>
-    LoaderFailed
+    LoaderFailed,
+
+    /// <summary>A third-party copy references the app's own assembly instead of building against the SDK alone.</summary>
+    ReferencesApp
 }
 
 /// <summary>

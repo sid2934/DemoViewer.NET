@@ -723,6 +723,38 @@ public class App : Application
     internal static void StartPacks(IServiceProvider provider) => provider.GetRequiredService<PackSwitch>().Start();
 
     /// <summary>
+    ///     Why a pack's <see cref="IExtension.Register" /> additions are refused, or null when they are its own. A
+    ///     pack may not register an extension context, nor a lifecycle under another id, nor a service type and
+    ///     key the host or an earlier pack already registered: the last registration wins, so either would
+    ///     replace what that owner resolves.
+    /// </summary>
+    internal static string? RegisterOverride(IExtension pack, IEnumerable<ServiceDescriptor> added,
+        IEnumerable<ServiceDescriptor> existing)
+    {
+        HashSet<(Type, object?)> taken = [.. existing.Select(d => (d.ServiceType, d.ServiceKey))];
+        foreach (ServiceDescriptor d in added)
+        {
+            string service = d.ServiceKey is null ? d.ServiceType.Name : $"{d.ServiceType.Name} keyed '{d.ServiceKey}'";
+            if (d.ServiceType == typeof(IExtensionContext))
+            {
+                return $"Register added {service}; the host registers every extension's context.";
+            }
+
+            if (d.ServiceType == typeof(IExtensionLifecycle) && !Equals(d.ServiceKey, pack.Id))
+            {
+                return $"Register added {service}; a lifecycle is keyed by the extension's own id, '{pack.Id}'.";
+            }
+
+            if (taken.Contains((d.ServiceType, d.ServiceKey)))
+            {
+                return $"Register added {service}, which is already registered; it would replace that owner's.";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     ///     Every registration of the composition root, before the provider is built: the core services,
     ///     then each pack's <see cref="IExtension.Register" />. Kept apart from
     ///     <see cref="BuildServices(IWindowService, IReadOnlyList{IExtension})" /> so a test can enumerate
@@ -1164,6 +1196,7 @@ public class App : Application
             IExtension owner = pack;
             services.AddKeyedSingleton<IExtensionContext>(owner.Id, (sp, _) => new ExtensionContext(owner, sp));
         }
+        services.AddSingleton<IExtensionContextAccess>(sp => new ExtensionContextAccess(sp, packs));
 
         // Each pack's own registrations, unconditional: factories are lazy, and the gate decides what runs,
         // not what is registered. Each runs into a scratch copy of the container first, so a Register that
@@ -1179,9 +1212,15 @@ public class App : Application
             }
 
             HashSet<ServiceDescriptor> before = new(scratch, ReferenceEqualityComparer.Instance);
+            List<ServiceDescriptor> added;
             try
             {
                 pack.Register(scratch);
+                added = [.. scratch.Where(d => !before.Contains(d))];
+                if (RegisterOverride(pack, added, before) is { } refused)
+                {
+                    throw new InvalidOperationException(refused);
+                }
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
@@ -1189,12 +1228,9 @@ public class App : Application
                 continue;
             }
 
-            foreach (ServiceDescriptor descriptor in scratch)
+            foreach (ServiceDescriptor descriptor in added)
             {
-                if (!before.Contains(descriptor))
-                {
-                    ((IServiceCollection)services).Add(descriptor);
-                }
+                ((IServiceCollection)services).Add(descriptor);
             }
         }
 

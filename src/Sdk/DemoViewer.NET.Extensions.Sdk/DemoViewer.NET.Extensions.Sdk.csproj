@@ -32,6 +32,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
         <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
         <None Include="build\**" Pack="true" PackagePath="build\"/>

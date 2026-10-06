@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using CS2DemoKit.Parser;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -161,11 +163,33 @@ public interface IExtensionStorage
 /// <summary>Resolves an extension's <see cref="IExtensionContext" />.</summary>
 public static class ExtensionServiceProviderExtensions
 {
-    /// <summary>The context the host registered for <paramref name="extensionId" />.</summary>
+    /// <summary>
+    ///     The context the host registered for <paramref name="extensionId" />. Only that extension's own code
+    ///     may resolve it: asking for another extension's context throws.
+    /// </summary>
+    /// <param name="services">The host's services.</param>
+    /// <param name="extensionId">Your extension's id.</param>
+    /// <exception cref="InvalidOperationException">
+    ///     No extension has that id, or the calling code belongs to a different extension.
+    /// </exception>
+    [MethodImpl(MethodImplOptions.NoInlining)]
     public static IExtensionContext GetExtensionContext(this IServiceProvider services, string extensionId)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrEmpty(extensionId);
-        return services.GetRequiredKeyedService<IExtensionContext>(extensionId);
+        Assembly caller = Assembly.GetCallingAssembly();
+        return services.GetService<IExtensionContextAccess>() is { } access
+            ? access.Resolve(extensionId, caller)
+            : services.GetRequiredKeyedService<IExtensionContext>(extensionId);
     }
+}
+
+/// <summary>
+///     The host's check on <see cref="ExtensionServiceProviderExtensions.GetExtensionContext" />: resolves the
+///     context only for code that belongs to that extension, or to no extension.
+/// </summary>
+internal interface IExtensionContextAccess
+{
+    /// <summary>The context of <paramref name="extensionId" />, asked for by code in <paramref name="caller" />.</summary>
+    IExtensionContext Resolve(string extensionId, Assembly caller);
 }

@@ -164,6 +164,7 @@ public static class ExternalExtensions
 
         IExtension pack = result.Pack!;
         LoadOutcome? failure = CheckSdk(candidate, pack.GetType().Assembly)
+                               ?? CheckAppReference(candidate, pack.GetType().Assembly)
                                ?? ExtensionLoader.Probe(candidate, pack)
                                ?? Conflicts(candidate, accepted, pack);
         if (failure is not null)
@@ -176,6 +177,22 @@ public static class ExternalExtensions
             Source = new PackSource.External(candidate.Directory, verdict == Trust.Verified)
         };
         return (status, null);
+    }
+
+    // The app's assembly is shared with every extension's load context, so an extension built against it would
+    // bind to the live composition root, catalog and registries. Only the SDK packages are a contract.
+    internal static LoadOutcome? CheckAppReference(ExtensionCandidate candidate, Assembly assembly)
+    {
+        string[] app = [.. new[] { typeof(App).Assembly, Assembly.GetEntryAssembly() }
+            .Where(a => a is not null)
+            .Select(a => a!.GetName().Name!)];
+        string? referenced = assembly.GetReferencedAssemblies()
+            .Select(r => r.Name)
+            .FirstOrDefault(n => n is not null && app.Contains(n, StringComparer.OrdinalIgnoreCase));
+        return referenced is null
+            ? null
+            : Outcome(candidate, LoadFailure.ReferencesApp,
+                $"it references the app's own {referenced}.dll; an extension builds against the SDK packages only");
     }
 
     // The SDK assembly version is Major.0.0.0, so a different major is a contract the host does not implement.
