@@ -1073,8 +1073,10 @@ public class App : Application
             PassRegistry registry = new();
             registry.AddCoreEvaluator(library.Id, () => library);
             registry.AddCoreEvaluator(highlights.Id, () => highlights);
-            registry.AddCoreEvaluator(roundFacts.Id, () => roundFacts, highlights.Id);
-            registry.AddCoreEvaluator(facts.Id, () => facts, highlights.Id);
+            // Both wait on the Library's parse stamp, so the Library is their upstream: a visit the Library
+            // joins late (its scan found the demo after another pass planned it) still runs it first.
+            registry.AddCoreEvaluator(roundFacts.Id, () => roundFacts, library.Id, highlights.Id);
+            registry.AddCoreEvaluator(facts.Id, () => facts, library.Id, highlights.Id);
 
             // Each pack pass's extension, so a throw from any call into it counts against that extension.
             // Filled when the registry populates, before anything can fault.

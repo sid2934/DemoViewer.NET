@@ -93,6 +93,12 @@ public sealed class DemoScheduler : IDisposable
     /// </summary>
     public IReadOnlyList<string> PassIds => [.. _passes().Select(p => p.Id)];
 
+    /// <summary>The registered passes in order, for tests that check what each runs after.</summary>
+    internal IReadOnlyList<IDemoPass> Passes => _passes();
+
+    /// <summary>Every planned pass's outcome on its visit: demo path, pass id, outcome. Test seam.</summary>
+    internal event Action<string, string, PassOutcome>? PassFinished;
+
     /// <summary>Validates the pass graph without constructing any pass: a cycle or an unknown After id throws here.</summary>
     public void ValidatePasses() => _validatePasses?.Invoke();
 
@@ -443,6 +449,7 @@ public sealed class DemoScheduler : IDisposable
     // again can be planned again; a throw puts the pass on the session's skip list for that demo.
     private void PassEnded(string path, IDemoPass pass, PassOutcome outcome, Exception? error)
     {
+        PassFinished?.Invoke(path, pass.Id, outcome);
         (string Id, string Path) key = (pass.Id, path);
         lock (_lock)
         {

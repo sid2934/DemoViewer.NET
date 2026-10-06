@@ -1308,7 +1308,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             // HasTeamSplit reads false and Match Overview offers a per-demo re-index (LegacyCacheMigration
             // documents that choice). Sweeping it automatically would turn a bounded repair of rows that
             // render incorrectly into a fresh full-library re-parse of ~575 demos on the next launch.
-            if (entry.State != DemoIndexState.Indexed || cached is not { ScoreComputed: true })
+            //
+            // A row the unified cache holds no parse stamp for is re-indexed too: the Library is the only pass
+            // that writes the stamp, and every pass that runs after it waits on it.
+            if (entry.State != DemoIndexState.Indexed || cached is not { ScoreComputed: true } || !HasParseStamp(path))
             {
                 if (holdBack?.Contains(path) != true)
                 {
@@ -1337,6 +1340,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             AppLog.LibraryScoreBackfill(DiagLog, backfill);
         }
     }
+
+    private bool HasParseStamp(string path) => _demoCache is null || _demoCache.TryGetIndex(path) is { ParseSchema: > 0 };
 
     private static void ApplyCache(DemoEntry entry, DemoLibraryCacheEntry cached)
     {

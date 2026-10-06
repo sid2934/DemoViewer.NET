@@ -105,7 +105,7 @@ internal static partial class AppLog
     public static partial void LibraryCachePruned(ILogger logger, int count);
 
     [LoggerMessage(EventId = 8, Level = LogLevel.Information,
-        Message = "Library score backfill: re-indexing {count} already-indexed demo(s) for final score")]
+        Message = "Library backfill: re-indexing {count} already-indexed demo(s) for final score or parse record")]
     public static partial void LibraryScoreBackfill(ILogger logger, int count);
 
     [LoggerMessage(EventId = 9, Level = LogLevel.Warning,

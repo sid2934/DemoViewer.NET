@@ -121,6 +121,16 @@ public class StratBookCompositionRootTests
             await Assert.That(coordinator.PassIds[2]).IsEqualTo("roundfacts");
             // The rulesets' tables, a core pass beside Round Facts.
             await Assert.That(coordinator.PassIds[3]).IsEqualTo("facts");
+            // Both wait on the Library's parse stamp, so a visit the Library joins late still runs it first.
+            using (Assert.Multiple())
+            {
+                foreach (string waiting in (string[])["roundfacts", "facts"])
+                {
+                    await Assert.That(coordinator.Passes.Single(p => p.Id == waiting).After).Contains("library")
+                        .Because($"{waiting} runs after the Library");
+                }
+            }
+
             // The index reads the rows Round Facts wrote in the same pass, so it must come after it.
             await Assert.That(coordinator.PassIds[4]).IsEqualTo("roundindex");
             // Suggested Tags reads the index written in the same pass, so it comes last.

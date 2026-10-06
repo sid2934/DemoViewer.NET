@@ -49,6 +49,78 @@ public class ParseOncePerDemoTests
         });
     }
 
+    // Round Facts and the round index wait on the Library's parse stamp; none of them may sit the import's
+    // read out and need a second one.
+    [Test]
+    [Arguments("trimmed")]
+    [Arguments("benchmarks")]
+    public async Task AFreshImport_RunsTheLibraryRoundFactsAndTheRoundIndex_OnItsOneRead(string corpus)
+    {
+        string folder = Corpus(corpus);
+        await WithApp(folder, async provider =>
+        {
+            DemoProcessingQueue queue = provider.GetRequiredService<DemoProcessingQueue>();
+            PassOutcomes outcomes = new(provider.GetRequiredService<DemoScheduler>());
+            await provider.GetRequiredService<DemoLibraryService>().RescanAsync();
+            await SettleAsync(queue);
+            provider.GetRequiredService<DemoScheduler>().RecheckAll();
+            await SettleAsync(queue);
+
+            await AssertEachReadOnce(provider, queue, folder);
+            await AssertRanOnTheRead(provider, outcomes, folder);
+        });
+    }
+
+    // A demo the Library indexed whose unified-cache row is gone has no parse stamp, and every pass after the
+    // Library waits on that stamp. The Library reads it again, once, with those passes on the same read.
+    [Test]
+    public async Task ADemoWhoseParseStampIsGone_IsReadOnce_WithEveryWaitingPassOnThatRead()
+    {
+        string folder = Corpus("trimmed");
+        string config = Path.Combine(Path.GetTempPath(), "dvparseonce_" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await WithApp(folder, async provider =>
+            {
+                DemoProcessingQueue queue = provider.GetRequiredService<DemoProcessingQueue>();
+                DemoLibraryService library = provider.GetRequiredService<DemoLibraryService>();
+                await library.RescanAsync();
+                await SettleAsync(queue);
+                library.Save();
+            }, configDir: config);
+
+            await WithApp(folder, async provider =>
+            {
+                DemoCacheStore cache = provider.GetRequiredService<DemoCacheStore>();
+                foreach (string demo in Demos(folder))
+                {
+                    cache.Remove(demo);
+                }
+
+                DemoProcessingQueue queue = provider.GetRequiredService<DemoProcessingQueue>();
+                PassOutcomes outcomes = new(provider.GetRequiredService<DemoScheduler>());
+                await provider.GetRequiredService<DemoLibraryService>().RescanAsync();
+                await SettleAsync(queue);
+                provider.GetRequiredService<DemoScheduler>().RecheckAll();
+                await SettleAsync(queue);
+
+                await AssertEachReadOnce(provider, queue, folder);
+                await AssertRanOnTheRead(provider, outcomes, folder);
+            }, configDir: config);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(config, true);
+            }
+            catch
+            {
+                // best-effort cleanup
+            }
+        }
+    }
+
     [Test]
     public async Task AnImportWithLineupClipsOn_RendersTheClipsOnTheImportsReads()
     {
@@ -164,6 +236,36 @@ public class ParseOncePerDemoTests
         }
     }
 
+    private static async Task AssertRanOnTheRead(IServiceProvider provider, PassOutcomes outcomes, string folder)
+    {
+        DemoCacheStore cache = provider.GetRequiredService<DemoCacheStore>();
+        using (Assert.Multiple())
+        {
+            foreach (string demo in Demos(folder))
+            {
+                await Assert.That(outcomes.Of(demo, "library")).IsEquivalentTo([PassOutcome.Ran]).Because($"{demo}: library");
+                await Assert.That(outcomes.Of(demo, RoundFactsEvaluator.EvaluatorId)).IsEquivalentTo([PassOutcome.Ran])
+                    .Because($"{demo}: round facts ran on the Library's read instead of sitting it out");
+                if (cache.TryGetIndex(demo)?.HasRoundFacts() == true)
+                {
+                    await Assert.That(outcomes.Of(demo, RoundIndexEvaluator.EvaluatorId)).IsEquivalentTo([PassOutcome.Ran])
+                        .Because($"{demo}: the round index ran on the same read as the rows it indexes");
+                }
+            }
+        }
+    }
+
+    // Every pass outcome per demo, in the order the visits ended them.
+    private sealed class PassOutcomes
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<(string Demo, string Pass, PassOutcome Outcome)> _seen = new();
+
+        public PassOutcomes(DemoScheduler scheduler) => scheduler.PassFinished += (demo, pass, outcome) => _seen.Enqueue((demo, pass, outcome));
+
+        public PassOutcome[] Of(string demo, string pass) =>
+            [.. _seen.Where(s => s.Demo == demo && s.Pass == pass).Select(s => s.Outcome)];
+    }
+
     // Idle for a whole second: nothing queued or running, the scheduler's planning included.
     private static async Task SettleAsync(DemoProcessingQueue queue)
     {
@@ -226,9 +328,11 @@ public class ParseOncePerDemoTests
           }
           """;
 
-    private static async Task WithApp(string folder, Func<ServiceProvider, Task> body, bool renderClips = false)
+    // A given config dir is kept for the caller's next session; otherwise a throwaway one is made and deleted.
+    private static async Task WithApp(string folder, Func<ServiceProvider, Task> body, bool renderClips = false,
+        string? configDir = null)
     {
-        string dir = Path.Combine(Path.GetTempPath(), "dvparseonce_" + Guid.NewGuid().ToString("N"));
+        string dir = configDir ?? Path.Combine(Path.GetTempPath(), "dvparseonce_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         File.WriteAllText(Path.Combine(dir, "settings.json"), Settings(folder, renderClips));
         string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
@@ -253,7 +357,10 @@ public class ParseOncePerDemoTests
             Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
             try
             {
-                Directory.Delete(dir, true);
+                if (configDir is null)
+                {
+                    Directory.Delete(dir, true);
+                }
             }
             catch
             {
