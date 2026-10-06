@@ -1387,15 +1387,15 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // else streams the bytes once for the hash and the fingerprint and writes the hash back onto the metadata
     // row. Null on an I/O failure. A reconcile caller then treats the file as its own singleton (never wrongly
     // deduped); the tier-2 caller leaves the cache record's hash as it was. A cached hash has no fingerprint.
-    private (string? Sha256, DemoContentFingerprint? Fingerprint) GetOrComputeSha(string path, long size,
-        DateTime modified)
+    private (string? Sha256, DemoContentFingerprint? Fingerprint, bool Cached) GetOrComputeSha(string path,
+        long size, DateTime modified)
     {
         lock (_cacheLock)
         {
             if (_cache.TryGetValue(path, out DemoLibraryCacheEntry? c)
                 && c.Size == size && c.ModifiedTicks == modified.Ticks && c.Sha256 is not null)
             {
-                return (c.Sha256, null);
+                return (c.Sha256, null, true);
             }
         }
 
@@ -1405,7 +1405,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             UpsertCache(path, c => c.Sha256 = sha);
         }
 
-        return (sha, fingerprint?.Size == size ? fingerprint : null);
+        return (sha, fingerprint?.Size == size ? fingerprint : null, false);
     }
 
     // The fingerprint to store beside a hash tier 2 took from the metadata row. Null when the record already
@@ -1815,9 +1815,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         // after a move or a re-download is only one the index already knows by content. Tier 2 is the
         // pass that has just streamed the whole file through the parser, so the second read is served
         // warm from the page cache; the (path,size,mtime) row makes a rescan free.
-        (string? sha, DemoContentFingerprint? fingerprint) =
+        (string? sha, DemoContentFingerprint? fingerprint, bool cached) =
             GetOrComputeSha(entry.FilePath, entry.FileSizeBytes, entry.Modified);
-        if (sha is not null && fingerprint is null)
+        if (sha is not null && cached)
         {
             fingerprint = FingerprintForCachedSha(entry, sha);
         }

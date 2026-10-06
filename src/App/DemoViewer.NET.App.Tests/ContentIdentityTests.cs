@@ -386,7 +386,10 @@ public class ContentIdentityTests
                 await Assert.That(unsettledCache.TryGetIndex(path)!.ContentFingerprint).IsNull();
             }
 
+            // An hour past the last write, so a demo CS2 has just finished writing still counts as settled.
+            AppTests.Extensions.ManualClock settled = new() { Now = file.LastWriteTimeUtc + TimeSpan.FromHours(1) };
             using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache);
+            library.Time = settled;
             library.IndexTier2Core(entry, parsed);
 
             using (Assert.Multiple())
@@ -399,8 +402,7 @@ public class ContentIdentityTests
                     .Because("a store keyed by hash can find the file again");
             }
 
-            // The demo under test is never rewritten, so it is settled and its fingerprint is deterministic.
-            DemoContentFingerprint? fingerprint = DemoContentFingerprint.TryCompute(path, TimeProvider.System);
+            DemoContentFingerprint? fingerprint = DemoContentFingerprint.TryCompute(path, settled);
             await Assert.That(fingerprint).IsNotNull();
             await Assert.That(cache.TryGetIndex(path)!.ContentFingerprint).IsEqualTo(fingerprint)
                 .Because("the fingerprint rides the read that took the hash");
