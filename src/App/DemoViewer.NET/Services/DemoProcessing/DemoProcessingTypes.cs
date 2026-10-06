@@ -244,7 +244,7 @@ public enum DemoQueueHold
 ///     <para>
 ///         <c>StartRank</c> is a queued item's place in the order its lane will start it, from 0, and null once
 ///         it runs or ends; the heavy and light lanes rank separately (<c>Light</c>). <c>Promoted</c> is set
-///         by <c>Promote</c> until the item starts. <c>Hold</c> says what keeps it
+///         from <see cref="IDemoProcessingQueue.Promote" /> until the item starts. <c>Hold</c> says what keeps it
 ///         from starting when its turn comes. <c>EndedSeq</c> grows with each item that ends, 0 while active.
 ///     </para>
 /// </summary>
@@ -437,6 +437,14 @@ public interface IDemoProcessingQueue
     ///     (non-abortable) parse finishes, result discarded, no post-processing.
     /// </summary>
     void RemoveByUser(Guid itemId);
+
+    /// <summary>
+    ///     The user moves a queued item to the top: it starts next in its lane once the running item there
+    ///     finishes, ahead of every priority, and the newest promotion goes first. It preempts nothing, and
+    ///     pause and the background switch still hold it. Cleared when it starts. False when the item is not
+    ///     queued, is an open or a compaction, or waits to run on an open's parse.
+    /// </summary>
+    bool Promote(Guid itemId) => false;
 
     /// <summary>
     ///     A module cancels ITS OWN submission for <paramref name="path" />; a coalesced co-owner

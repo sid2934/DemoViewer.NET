@@ -88,6 +88,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private bool _paused;
     private long _seq;
     private long _endedSeq;
+    private long _promotedSeq;
 
     // The demo of the heavy item that started last: its remaining work goes before other demos'.
     private string? _lastStartedPath;
@@ -1193,6 +1194,24 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    public bool Promote(Guid itemId)
+    {
+        lock (_sync)
+        {
+            // An open and a compaction already go first; a parked visit runs on the open's parse.
+            if (_entries.FirstOrDefault(x => x.Id == itemId) is not { State: DemoQueueItemState.Queued } e
+                || e.Kind is QueueJobKind.DemoOpen or QueueJobKind.HeapCompaction || ParkedLocked(e))
+            {
+                return false;
+            }
+
+            e.PromotedSeq = ++_promotedSeq;
+        }
+
+        RaiseChanged();
+        return true;
+    }
+
     public IReadOnlyList<DemoQueueItemSnapshot> Snapshot()
     {
         lock (_sync)
@@ -2127,6 +2146,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (best is not null)
         {
             best.State = DemoQueueItemState.Running;
+            best.PromotedSeq = 0;
             if (!light && best.Path.Length > 0)
             {
                 _lastStartedPath = best.Path;
@@ -2213,6 +2233,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         entry.State = state;
         entry.Error = error;
         entry.EndedSeq = ++_endedSeq;
+        entry.PromotedSeq = 0;
         entry.Completion.TrySetResult();
         // A waiter's task holds the ParsedDemo, a job's body its closure; history must not keep either.
         entry.ForegroundWaiters.Clear();
@@ -2428,10 +2449,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
-    // Negative when a runs before b. A compaction goes first: it is due now, and it holds _compacting. Then the
-    // level (a user's request, the open demo's passes, the backlog, background), then a demo already in memory,
-    // then the demo the last heavy item was about, so one demo's work runs back to back, then the kind's rank,
-    // the order hint and arrival.
+    // Negative when a runs before b. A compaction goes first: it is due now, and it holds _compacting. Then a
+    // user's promotion, then the level (a user's request, the open demo's passes, the backlog, background), then
+    // a demo already in memory, then the demo the last heavy item was about, so one demo's work runs back to
+    // back, then the kind's rank, the order hint and arrival.
     private int Compare(Entry a, Entry b, string? resident, string? lastStarted)
     {
         bool aCompacts = a.Kind == QueueJobKind.HeapCompaction, bCompacts = b.Kind == QueueJobKind.HeapCompaction;
@@ -2444,6 +2465,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (a.Front != b.Front)
         {
             return a.Front ? -1 : 1;
+        }
+
+        // Above priority and level, newest promotion first. Only ordering: pause and the switch still hold it.
+        if (a.PromotedSeq != b.PromotedSeq)
+        {
+            return b.PromotedSeq.CompareTo(a.PromotedSeq);
         }
 
         if (a.Priority != b.Priority)
@@ -2513,7 +2540,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         e.Id, e.Path, e.DisplayName,
         e.JobOwner is { } owner ? [owner] : e.Visit?.OwnerIds ?? [],
         e.Priority, e.State, e.Error, e.Kind, e.Progress, e.Detail, e.ExtensionKind,
-        EndedSeq: e.EndedSeq);
+        Promoted: e.PromotedSeq > 0, EndedSeq: e.EndedSeq);
 
     private static void SafeInvoke(Action action)
     {
@@ -2691,6 +2718,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         public DemoQueueItemState State { get; set; } = DemoQueueItemState.Queued;
         public string? Error { get; set; }
         public long EndedSeq { get; set; }
+
+        // Set by Promote, newest highest; 0 when not promoted. Cleared once it starts or ends.
+        public long PromotedSeq { get; set; }
         public bool CancelRequested { get; set; }
 
         // Stopped for a user's item; it goes back in the queue instead of ending.
