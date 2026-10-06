@@ -130,8 +130,9 @@ internal sealed class ExtensionContext : IExtensionContext
             ? new ExtensionDemoDataStore(extension.Id, Path.Combine(cache, ExtensionFolders.DataDirectoryName, ExtensionFolders.SafeName(extension.Id)),
                 services.GetRequiredService<DemoCacheStore>(), Post, version, Dispatcher.UIThread.CheckAccess,
                 services.GetService<IDemoProcessingQueue>() is { } queue
+                    // Asked for by a view the user is looking at, so it runs while the queue is paused too.
                     ? load => _ = QueueWork.Run(queue, QueueJobKind.StoreLoad, "Load: per-demo data", _logPrefix,
-                        _ => load(), key: "extension-data-load:" + extension.Id)
+                        _ => load(), DemoJobPriority.UserRequested, "extension-data-load:" + extension.Id)
                     : null)
             : UnavailableDemoData.Instance);
         _library = new Lazy<IExtensionLibrary>(() => new ExtensionLibraryView(

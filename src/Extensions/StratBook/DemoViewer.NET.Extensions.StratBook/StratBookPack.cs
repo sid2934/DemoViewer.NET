@@ -851,7 +851,7 @@ public sealed class StratBookPack : IExtension
         if (!OperatingSystem.IsBrowser())
         {
             IExtensionContext context = contributions.Context;
-            contributions.DemoAction(new DemoAction("stratbook.index-grenades", "Index grenades",
+            DemoAction indexGrenades = new("stratbook.index-grenades", "Index grenades",
                 "Queue this demo's grenade walk: every throw with its lineup and landing point. It runs in the background and never opens the demo",
                 path => !string.Equals(path, context.Shell.CurrentDemoPath, StringComparison.OrdinalIgnoreCase)
                         && !sp.GetRequiredService<GrenadeIndexEvaluator>().IsCurrent(path),
@@ -860,7 +860,11 @@ public sealed class StratBookPack : IExtension
                 {
                     sp.GetRequiredService<GrenadeIndexEvaluator>().Request(path);
                     return Task.CompletedTask;
-                }, new JobOptions(BuiltInJobKinds.Save, JobPriority.UserRequested))));
+                }, new JobOptions(BuiltInJobKinds.Save, JobPriority.UserRequested)));
+            // A stamp the walk wrote, or the per-demo index arriving after Match Overview first asked, changes
+            // whether the demo still needs the walk.
+            context.Data.Changed += _ => indexGrenades.NotifyChanged();
+            contributions.DemoAction(indexGrenades);
         }
 
         // The Library's Team filter and provenance chip, each resolving its service lazily on first use.
