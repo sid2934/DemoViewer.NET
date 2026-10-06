@@ -16,6 +16,10 @@ namespace DemoViewer.NET.Extensions;
 ///     Library tab. One instance per store (<see cref="For" />), one subscription to the store. A row is
 ///     projected once per index row object, which the store replaces on every write, so an unchanged demo is
 ///     the same <see cref="LibraryDemo" /> instance however often it is read.
+///     <para>
+///         One row per demo, under its primary path, however many paths hold its bytes: a lookup by any of
+///         them answers that row, and a write through any of them is reported under it.
+///     </para>
 /// </summary>
 internal sealed class HostLibrary : IExtensionLibrary
 {
@@ -33,7 +37,9 @@ internal sealed class HostLibrary : IExtensionLibrary
     private readonly Func<bool> _onUiThread;
     private readonly Action<Action> _post;
     private readonly IDemoProcessingQueue? _queue;
+    // The rows last reported, by primary path, and the primary each of their paths was reported under.
     private readonly Dictionary<string, DemoCacheIndexEntry> _seen = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _shownAt = new(StringComparer.OrdinalIgnoreCase);
     private readonly DemoCacheStore _store;
     private IReadOnlyList<LibraryDemo> _demos = [];
     private long _demosVersion = -1;
@@ -51,9 +57,9 @@ internal sealed class HostLibrary : IExtensionLibrary
         _onUiThread = onUiThread ?? (static () => Dispatcher.UIThread.CheckAccess());
         _post = post ?? (static action => Dispatcher.UIThread.Post(action));
         _factsSource = facts;
-        foreach (DemoCacheIndexEntry entry in store.Index)
+        foreach (DemoCacheIndexEntry entry in store.Contents)
         {
-            _seen[entry.Path] = entry;
+            Remember(entry);
             _hasFactsStamps |= HasFactsStamp(entry);
         }
 
@@ -169,7 +175,7 @@ internal sealed class HostLibrary : IExtensionLibrary
                 }
             }
 
-            List<LibraryDemo> demos = [.. _store.Index.Select(e => Project(e, visibility))];
+            List<LibraryDemo> demos = [.. _store.Contents.Select(e => Project(e, visibility))];
             lock (_gate)
             {
                 _demos = demos;
@@ -185,7 +191,7 @@ internal sealed class HostLibrary : IExtensionLibrary
     public LibraryDemo? Find(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
-        return _store.TryGetIndex(path) is { } entry ? Project(entry, Revalidate()) : null;
+        return _store.TryGetPrimary(path) is { } entry ? Project(entry, Revalidate()) : null;
     }
 
     public LibraryDemo? FindBySha256(string sha256)
@@ -235,7 +241,8 @@ internal sealed class HostLibrary : IExtensionLibrary
         IFactsVisibility? visibility = Revalidate();
         DemoCacheIndexEntry? entry = _store.TryGetIndex(record.Path);
         LibraryDemo demo = entry is not null && entry.MatchesFile(record.Size, record.ModifiedTicks)
-            ? Project(entry, visibility)
+                                             && _store.TryGetPrimary(record.Path) is { } primary
+            ? Project(primary, visibility)
             : ProjectRow(record.ToIndexEntry(), visibility);
         return new LibraryDemoDetail(demo, record.TickRate, record.TickCount, record.ServerStartTick,
             [.. record.Players.Select(p => new LibraryPlayer(p.Slot, p.Name, SteamIdOf(p.SteamId64), p.Team, p.IsBot, p.IsCoach))],
@@ -306,13 +313,15 @@ internal sealed class HostLibrary : IExtensionLibrary
         && (query.HasFact is null || demo.Fact(query.HasFact) is { IsWritten: true });
 
     // The store raises with the changed path, or null for a batch. The kind is read off the row the
-    // library last saw for the path, so a stamp-only write tells apart from a parse.
+    // library last saw for the demo, so a stamp-only write tells apart from a parse. A write that moved a
+    // path between demos, or a demo's paths, may have changed which rows exist and under which path, so it is
+    // reported library-wide.
     private void OnStoreChanged(string? path)
     {
         if (!_hasFactsStamps)
         {
             _hasFactsStamps = path is null
-                ? _store.Index.Any(HasFactsStamp)
+                ? _store.Contents.Any(HasFactsStamp)
                 : _store.TryGetIndex(path) is { } written && HasFactsStamp(written);
         }
 
@@ -320,30 +329,34 @@ internal sealed class HostLibrary : IExtensionLibrary
         LibraryChange change;
         lock (_gate)
         {
-            if (path is null)
+            DemoCacheIndexEntry? after = path is null ? null : _store.TryGetPrimary(path);
+            DemoCacheIndexEntry? before = path is not null && _shownAt.TryGetValue(path, out string? shown)
+                ? _seen.GetValueOrDefault(shown)
+                : null;
+            if (path is null || !OneRowMoved(before, after))
             {
                 _seen.Clear();
-                foreach (DemoCacheIndexEntry entry in _store.Index)
+                _shownAt.Clear();
+                foreach (DemoCacheIndexEntry entry in _store.Contents)
                 {
-                    _seen[entry.Path] = entry;
+                    Remember(entry);
                 }
 
                 change = new LibraryChange(null, LibraryChangeKind.Updated);
             }
             else
             {
-                _seen.TryGetValue(path, out DemoCacheIndexEntry? before);
-                DemoCacheIndexEntry? after = _store.TryGetIndex(path);
-                if (after is null)
+                if (before is not null)
                 {
-                    _seen.Remove(path);
-                }
-                else
-                {
-                    _seen[path] = after;
+                    Forget(before);
                 }
 
-                change = new LibraryChange(path, (before, after) switch
+                if (after is not null)
+                {
+                    Remember(after);
+                }
+
+                change = new LibraryChange(after?.Path ?? before?.Path ?? path, (before, after) switch
                 {
                     (null, null) => LibraryChangeKind.Removed,
                     (null, _) => LibraryChangeKind.Added,
@@ -354,6 +367,39 @@ internal sealed class HostLibrary : IExtensionLibrary
         }
 
         Changed?.Invoke(change);
+    }
+
+    // True when the write added, removed or changed one row whose paths stayed as they were.
+    private static bool OneRowMoved(DemoCacheIndexEntry? before, DemoCacheIndexEntry? after) =>
+        (before, after) switch
+        {
+            (null, null) => true,
+            (null, _) => after.Locations.Count <= 1,
+            (_, null) => before.Locations.Count <= 1,
+            _ => string.Equals(before.Path, after.Path, StringComparison.OrdinalIgnoreCase)
+                 && before.Locations.Select(l => l.Path).SequenceEqual(after.Locations.Select(l => l.Path), StringComparer.OrdinalIgnoreCase)
+        };
+
+    // Under _gate.
+    private void Remember(DemoCacheIndexEntry entry)
+    {
+        _seen[entry.Path] = entry;
+        _shownAt[entry.Path] = entry.Path;
+        foreach (DemoLocation location in entry.Locations)
+        {
+            _shownAt[location.Path] = entry.Path;
+        }
+    }
+
+    // Under _gate.
+    private void Forget(DemoCacheIndexEntry entry)
+    {
+        _seen.Remove(entry.Path);
+        _shownAt.Remove(entry.Path);
+        foreach (DemoLocation location in entry.Locations)
+        {
+            _shownAt.Remove(location.Path);
+        }
     }
 
     private static bool OnlyFactsMoved(LibraryDemo before, LibraryDemo after) =>

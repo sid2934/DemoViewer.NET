@@ -167,6 +167,50 @@ public class HostLibraryTests
     }
 
     [Test]
+    public async Task ADemoAtTwoPaths_IsOneRow_FoundByEitherPath_UnderItsPrimary()
+    {
+        (DemoCacheStore store, HostLibrary library) = Make();
+        store.Upsert(Parsed("/smb/one.dem"));
+        store.Upsert(Parsed("/nfs/one.dem"));
+        store.Upsert(Parsed("/nfs/two.dem", sha: "bb22"));
+
+        LibraryDemo one = library.Find("/smb/one.dem")!;
+        using (Assert.Multiple())
+        {
+            await Assert.That(library.Demos.Select(d => d.FilePath)).IsEquivalentTo(["/nfs/one.dem", "/nfs/two.dem"]);
+            await Assert.That(one.FilePath).IsEqualTo("/nfs/one.dem");
+            await Assert.That(ReferenceEquals(one, library.Find("/nfs/one.dem"))).IsTrue();
+            await Assert.That(ReferenceEquals(one, library.FindBySha256(Sha))).IsTrue();
+            await Assert.That(library.Demos.Single(d => d.Sha256 == Sha)).IsSameReferenceAs(one);
+            await Assert.That((await library.GetDetailAsync("/smb/one.dem"))!.Demo.FilePath).IsEqualTo("/nfs/one.dem");
+        }
+    }
+
+    [Test]
+    public async Task AWriteThroughASecondPath_IsReportedUnderThePrimary_AndANewPathIsLibraryWide()
+    {
+        (DemoCacheStore store, HostLibrary library) = Make();
+        store.Upsert(Parsed("/nfs/one.dem"));
+        List<LibraryChange> changes = [];
+        library.Changed += changes.Add;
+
+        store.Upsert(Parsed("/smb/one.dem"));
+        store.UpdateExisting("/smb/one.dem", r => r.CtScore = 14);
+        store.UpdateExisting("/smb/one.dem", r => r.SetStamp(new PackStamp("roundfacts", 1, "fp")));
+        store.Remove("/smb/one.dem");
+        store.UpdateExisting("/nfs/one.dem", r => r.CtScore = 15);
+
+        await Assert.That(changes).IsEquivalentTo([
+            new LibraryChange(null, LibraryChangeKind.Updated),
+            new LibraryChange("/nfs/one.dem", LibraryChangeKind.Updated),
+            new LibraryChange("/nfs/one.dem", LibraryChangeKind.FactsUpdated),
+            new LibraryChange(null, LibraryChangeKind.Updated),
+            new LibraryChange("/nfs/one.dem", LibraryChangeKind.Updated)
+        ]);
+        await Assert.That(library.Find("/nfs/one.dem")!.CtScore).IsEqualTo(15);
+    }
+
+    [Test]
     public async Task Facts_MirrorTheRowsStamps()
     {
         (DemoCacheStore store, HostLibrary library) = Make();
