@@ -44,22 +44,28 @@ public sealed class DemoCacheStore
 
     private static ILogger? _diagLog;
 
+    private const string ProvisionalPrefix = "p-";
+
     private readonly string? _cacheRoot;
     private readonly object _gate = new();
 
-    // The always-loaded projection, keyed by demo path (the same case-insensitive keying the library and
-    // highlights caches both use: macOS and Windows default filesystems are case-insensitive).
-    private readonly Dictionary<string, DemoCacheIndexEntry> _index =
-        new(StringComparer.OrdinalIgnoreCase);
+    // The stored rows: one per content id, or per path while a file has no hash yet ("p-" + StableKey).
+    // The only thing persisted; everything below is derived from it. Under _gate.
+    private readonly Dictionary<string, DemoCacheIndexEntry> _rows = new(StringComparer.Ordinal);
 
-    // The reverse of _index: content hash → the paths that carry it, maintained by the same three
-    // mutations (load, upsert, remove) so it can never disagree. A set rather than one entry because a
-    // copied demo legitimately puts two rows under one hash; the lookup picks the primary the same way
-    // the library does. Under _gate.
-    private readonly Dictionary<string, HashSet<string>> _pathsBySha = new(StringComparer.Ordinal);
+    // Path to the key of the row that lists it. Case-insensitive like every path map here: macOS and
+    // Windows default filesystems are. Under _gate.
+    private readonly Dictionary<string, string> _keyByPath = new(StringComparer.OrdinalIgnoreCase);
+
+    // One view per location (the row re-stamped with that path's size and time), rebuilt only when its row
+    // changes, so an unchanged demo keeps the same instance across Index reads. Under _gate.
+    private readonly Dictionary<string, DemoCacheIndexEntry> _index = new(StringComparer.OrdinalIgnoreCase);
+
+    // Rows whose files moved key in this session; their old names go after the next index save. Under _gate.
+    private readonly HashSet<string> _settleAfterSave = new(StringComparer.Ordinal);
 
     /// <summary>
-    ///     Record store used when there is no cache root: the browser host, and tests.
+    ///     Record store used when there is no cache root: the browser host, and tests. Keyed by file key.
     ///     <para>
     ///         <b>Not a test convenience.</b> Without it the no-root mode can hold exactly ONE record: writes
     ///         go nowhere and reads are served only by the capacity-1 JSON cache, so the second demo upserted
@@ -69,17 +75,17 @@ public sealed class DemoCacheStore
     ///         every API still works"; this is what makes the second half true.
     ///     </para>
     /// </summary>
-    private readonly Dictionary<string, byte[]> _memoryRecords = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, byte[]> _memoryRecords = new(StringComparer.Ordinal);
 
-    // Sibling files held in memory when there is no cache root, keyed by stable key plus suffix. Under _gate.
+    // Sibling files held in memory when there is no cache root, keyed by file key plus suffix. Under _gate.
     private readonly Dictionary<string, byte[]> _memorySiblings = new(StringComparer.Ordinal);
 
     private readonly Action<Action> _post;
 
     /// <summary>
-    ///     Serializes whole read-modify-write cycles (<see cref="Update" /> / <see cref="UpdateExisting" />).
-    ///     Distinct from <see cref="_gate" />, which guards short index/cache critical sections only and is
-    ///     taken INSIDE this one by the load and upsert steps.
+    ///     Serializes whole read-modify-write cycles (<see cref="Update" /> / <see cref="UpdateExisting" />) and
+    ///     every <see cref="Upsert" />. Distinct from <see cref="_gate" />, which guards short index/cache
+    ///     critical sections only and is taken INSIDE this one by the load and upsert steps.
     ///     <para>
     ///         Needed because one demo has several tier writers running concurrently: an interactive open
     ///         fires the highlights mirror (off-thread, from <c>OnOpenDemoEvaluated</c>) and the scoreboard
@@ -90,8 +96,8 @@ public sealed class DemoCacheStore
     /// </summary>
     private readonly object _rmwGate = new();
 
-    // Serialize a demo's sidecar file writes, deletes and legacy conversion, so a conversion can never
-    // write a stale file over a fresher one. Taken outside _gate, never inside it.
+    // Serialize the writes, deletes, conversions and renames of one file key. Taken outside _gate, never
+    // inside it; two are always taken in index order.
     private readonly object[] _fileStripes = [.. Enumerable.Range(0, 16).Select(_ => new object())];
 
     private int _batchDepth; // under _gate
@@ -106,9 +112,11 @@ public sealed class DemoCacheStore
     // out a shared mutable record would let a UI-thread reader (Match Overview, rendering the selected demo)
     // watch fields change under it while a background tier-2 pass mutates the same instance through Update,
     // a torn read with no lock a caller could reasonably take. Gzipped bytes keep the entry off the LOH.
+    // Keyed by row key: every location of one content reads the same bytes.
     private byte[]? _lastRecordBytes;
-    private string? _lastRecordPath;
+    private string? _lastRecordKey;
     private int _legacyMigrationVersion; // under _gate
+    private int _contentKeyMigrationVersion = ContentKeyMigration.CurrentVersion; // under _gate
     private long _indexVersion; // under _gate
 
     /// <param name="cacheRoot">
@@ -185,6 +193,28 @@ public sealed class DemoCacheStore
         }
     }
 
+    /// <summary>
+    ///     Which revision of <see cref="ContentKeyMigration" /> has finished against this cache. See
+    ///     <see cref="DemoCacheIndexFile.ContentKeyMigrationVersion" />.
+    /// </summary>
+    public int ContentKeyMigrationVersion
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _contentKeyMigrationVersion;
+            }
+        }
+        set
+        {
+            lock (_gate)
+            {
+                _contentKeyMigrationVersion = value;
+            }
+        }
+    }
+
     private string? IndexPath => _cacheRoot is null ? null : Path.Combine(_cacheRoot, "index.json");
 
     /// <summary>The cache directory, or null for an in-memory store.</summary>
@@ -220,7 +250,11 @@ public sealed class DemoCacheStore
         return new BatchScope(this);
     }
 
-    /// <summary>The index row for a demo, or null when it has never been seen.</summary>
+    /// <summary>
+    ///     The index row for a demo path, or null when no row lists it. The row is seen from that path: its
+    ///     <see cref="DemoCacheIndexEntry.Path" />, size and write time are that location's, everything else is
+    ///     the content's.
+    /// </summary>
     public DemoCacheIndexEntry? TryGetIndex(string path)
     {
         lock (_gate)
@@ -242,9 +276,9 @@ public sealed class DemoCacheStore
     ///     <see cref="Playback2D.Pipeline.DemoContentHash" />'s lowercase-hex SHA-256 of the whole file; a row that has not been
     ///     hashed yet is invisible here and only reachable by <see cref="TryGetIndex" />.
     ///     <para>
-    ///         Several rows under one id are copies of one demo. The ordinally smallest path wins, the same
-    ///         primary the library shows as the card (<c>DemoLibraryService.ResolveContentIdentities</c>), so
-    ///         a store joined by hash and the card name the same file.
+    ///         One row holds every path with those bytes. It is seen from the ordinally smallest confirmed
+    ///         path, the same primary the library shows as the card (<c>DemoLibraryService.ResolveContentIdentities</c>),
+    ///         so a store joined by hash and the card name the same file.
     ///     </para>
     /// </summary>
     /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
@@ -257,15 +291,15 @@ public sealed class DemoCacheStore
 
         lock (_gate)
         {
-            return _pathsBySha.TryGetValue(contentId, out HashSet<string>? paths)
-                ? _index.GetValueOrDefault(PrimaryOf(paths))
+            return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && !IsProvisional(row)
+                ? _index.GetValueOrDefault(row.Path)
                 : null;
         }
     }
 
     /// <summary>
-    ///     Every index row carrying a content id, primary first (<see cref="TryGetByContentId" />'s pick),
-    ///     the rest in ordinal path order. Empty when no row carries it. A snapshot: later writes do not
+    ///     The row for a content id seen from each of its paths, primary first (<see cref="TryGetByContentId" />'s
+    ///     pick), the rest in ordinal path order. Empty when no row carries it. A snapshot: later writes do not
     ///     change it.
     /// </summary>
     /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
@@ -278,38 +312,21 @@ public sealed class DemoCacheStore
 
         lock (_gate)
         {
-            if (!_pathsBySha.TryGetValue(contentId, out HashSet<string>? paths))
+            if (!_rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) || IsProvisional(row))
             {
                 return [];
             }
 
-            List<DemoCacheIndexEntry> rows = new(paths.Count);
-            foreach (string path in paths)
+            List<DemoCacheIndexEntry> rows = [.. row.Locations.Select(l => _index[l.Path])];
+            int primary = rows.FindIndex(r => string.Equals(r.Path, row.Path, StringComparison.Ordinal));
+            if (primary > 0)
             {
-                if (_index.TryGetValue(path, out DemoCacheIndexEntry? entry))
-                {
-                    rows.Add(entry);
-                }
+                (rows[0], rows[primary]) = (rows[primary], rows[0]);
+                rows.Sort(1, rows.Count - 1, Comparer<DemoCacheIndexEntry>.Create((a, b) => string.CompareOrdinal(a.Path, b.Path)));
             }
 
-            rows.Sort((a, b) => string.CompareOrdinal(a.Path, b.Path));
             return rows;
         }
-    }
-
-    // Under _gate. Ordinal over a case-insensitive set: the library's card picks its primary the same way.
-    private static string PrimaryOf(HashSet<string> paths)
-    {
-        string? primary = null;
-        foreach (string path in paths)
-        {
-            if (primary is null || string.CompareOrdinal(path, primary) < 0)
-            {
-                primary = path;
-            }
-        }
-
-        return primary!;
     }
 
     /// <summary>
@@ -331,11 +348,15 @@ public sealed class DemoCacheStore
     /// <param name="remember">False keeps the read out of the capacity-1 cache.</param>
     public DemoCacheRecord? TryLoadRecord(string path, bool remember)
     {
+        string cacheKey;
+        DemoCacheIndexEntry? row;
+        List<string> keys;
         byte[]? cached = null;
         lock (_gate)
         {
-            if (_lastRecordPath is not null
-                && string.Equals(_lastRecordPath, path, StringComparison.OrdinalIgnoreCase))
+            (cacheKey, row) = RowFor(path);
+            keys = ReadKeys(row, path);
+            if (_lastRecordKey is not null && string.Equals(_lastRecordKey, cacheKey, StringComparison.Ordinal))
             {
                 cached = _lastRecordBytes;
             }
@@ -345,50 +366,106 @@ public sealed class DemoCacheStore
         {
             if (cached is not null)
             {
-                return SidecarJson.Deserialize<DemoCacheRecord>(cached, _jsonOptions);
+                return Project(SidecarJson.Deserialize<DemoCacheRecord>(cached, _jsonOptions), path, row);
             }
 
-            string? file = SidecarPathFor(path);
-            if (file is null)
+            foreach (string key in keys)
             {
-                // No cache root: the record lives in memory or nowhere.
-                byte[]? held;
-                lock (_gate)
-                {
-                    held = _memoryRecords.GetValueOrDefault(path);
-                }
-
-                return held is null ? null : SidecarJson.Deserialize<DemoCacheRecord>(held, _jsonOptions);
-            }
-
-            // The new file wins whenever it reads. When it does not, a legacy file beside it is the last
-            // good write.
-            if (File.Exists(file))
-            {
-                byte[] bytes = File.ReadAllBytes(file);
-                if (TryDeserializeRecord(bytes) is { } record)
+                // The new file wins whenever it reads. When it does not, a legacy file beside it is the last
+                // good write.
+                byte[]? bytes = ReadRecordBytes(key);
+                if (bytes is not null && TryDeserializeRecord(bytes) is { } record && Belongs(record, row))
                 {
                     if (remember)
                     {
                         lock (_gate)
                         {
-                            _lastRecordPath = path;
+                            _lastRecordKey = cacheKey;
                             _lastRecordBytes = bytes;
                         }
                     }
 
-                    return record;
+                    return Project(record, path, row);
+                }
+
+                if (TryReadLegacyRecord(key) is { } old && Belongs(old, row))
+                {
+                    return Project(old, path, row);
                 }
             }
 
-            string legacy = LegacySidecarPathFor(path)!;
-            return File.Exists(legacy) ? SidecarJson.ReadFile<DemoCacheRecord>(legacy, _jsonOptions) : null;
+            return null;
         }
         catch (Exception)
         {
             // Corrupt sidecar = treat the demo as un-indexed and let it be rebuilt.
             return null;
         }
+    }
+
+    private byte[]? ReadRecordBytes(string key)
+    {
+        if (_cacheRoot is null)
+        {
+            lock (_gate)
+            {
+                return _memoryRecords.GetValueOrDefault(key);
+            }
+        }
+
+        try
+        {
+            string file = RecordFile(key);
+            return File.Exists(file) ? File.ReadAllBytes(file) : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private DemoCacheRecord? TryReadLegacyRecord(string key)
+    {
+        if (_cacheRoot is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            string legacy = LegacyRecordFile(key);
+            return File.Exists(legacy) ? SidecarJson.ReadFile<DemoCacheRecord>(legacy, _jsonOptions) : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    // A record read under a row describes it unless it names other bytes: a file left under a fallback name
+    // by an earlier demo at the same path must not stand in for this one.
+    private static bool Belongs(DemoCacheRecord record, DemoCacheIndexEntry? row) =>
+        row is null || IsProvisional(row) || string.IsNullOrEmpty(record.Sha256)
+        || string.Equals(record.Sha256, row.Sha256, StringComparison.Ordinal);
+
+    // The sidecar holds whichever location wrote it last; the reader gets the one it asked for.
+    private static DemoCacheRecord? Project(DemoCacheRecord? record, string path, DemoCacheIndexEntry? row)
+    {
+        if (record is null || row is null)
+        {
+            return record;
+        }
+
+        if (!string.Equals(record.Path, path, StringComparison.OrdinalIgnoreCase)
+            && row.Locations.FirstOrDefault(l => SamePath(l.Path, path)) is { } here)
+        {
+            record.Path = here.Path;
+            record.Size = here.Size;
+            record.ModifiedTicks = here.ModifiedTicks;
+        }
+
+        record.Locations = row.Locations;
+        return record;
     }
 
     private static DemoCacheRecord? TryDeserializeRecord(byte[] bytes)
@@ -403,18 +480,28 @@ public sealed class DemoCacheStore
         }
     }
 
-    // True when the file reads back as this demo's record: the check before a legacy file is deleted.
-    private static bool VerifyRecordFile(string file, string demoPath)
+    // True when the file reads back as a record of this demo: the check before a legacy file is deleted.
+    private static bool VerifyRecordFile(string file, string demoPath, DemoCacheIndexEntry? row)
     {
         try
         {
-            return SidecarJson.ReadFile<DemoCacheRecord>(file, _jsonOptions) is { } record
-                   && string.Equals(record.Path, demoPath, StringComparison.OrdinalIgnoreCase);
+            return SidecarJson.ReadFile<DemoCacheRecord>(file, _jsonOptions) is { } record && IsRecordOf(record, demoPath, row);
         }
         catch (Exception)
         {
             return false;
         }
+    }
+
+    // A record of a hashed row carries its hash; one written before the hash was known names one of its paths.
+    private static bool IsRecordOf(DemoCacheRecord record, string demoPath, DemoCacheIndexEntry? row)
+    {
+        if (row is not null && !IsProvisional(row) && !string.IsNullOrEmpty(record.Sha256))
+        {
+            return string.Equals(record.Sha256, row.Sha256, StringComparison.Ordinal);
+        }
+
+        return SamePath(record.Path, demoPath) || (row is not null && row.Locations.Any(l => SamePath(l.Path, record.Path)));
     }
 
     /// <summary>
@@ -424,59 +511,59 @@ public sealed class DemoCacheStore
     /// <param name="demoPath">An indexed demo.</param>
     internal SidecarConversion ConvertLegacyRecord(string demoPath)
     {
-        string? file = SidecarPathFor(demoPath);
-        if (file is null)
+        if (_cacheRoot is null)
         {
             return SidecarConversion.None;
         }
 
-        string legacy = LegacySidecarPathFor(demoPath)!;
-        string legacyName = Path.GetFileName(legacy);
-        lock (StripeFor(demoPath))
+        SidecarConversion result = SidecarConversion.None;
+        WithWriteKey(demoPath, (key, row) =>
         {
+            string file = RecordFile(key);
+            string legacy = LegacyRecordFile(key);
+            string legacyName = Path.GetFileName(legacy);
             try
             {
-                if (!File.Exists(legacy) || TryGetIndex(demoPath) is null)
+                if (!File.Exists(legacy) || row is null)
                 {
-                    return SidecarConversion.None;
+                    return;
                 }
 
-                if (File.Exists(file) && VerifyRecordFile(file, demoPath))
+                if (File.Exists(file) && VerifyRecordFile(file, demoPath, row))
                 {
                     File.Delete(legacy);
-                    return SidecarConversion.Converted;
+                    result = SidecarConversion.Converted;
+                    return;
                 }
 
                 byte[] compact = SidecarJson.Minify(File.ReadAllBytes(legacy));
-                if (TryDeserializeRecord(compact) is not { } record
-                    || !string.Equals(record.Path, demoPath, StringComparison.OrdinalIgnoreCase))
+                if (TryDeserializeRecord(compact) is not { } record || !IsRecordOf(record, demoPath, row))
                 {
                     SidecarFormatLog.LegacyUnreadable(Log, legacyName);
-                    return SidecarConversion.Failed;
+                    result = SidecarConversion.Failed;
+                    return;
                 }
 
                 AtomicFile.WriteAllBytes(file, SidecarJson.Gzip(compact));
-                if (!VerifyRecordFile(file, demoPath))
+                if (!VerifyRecordFile(file, demoPath, row))
                 {
                     File.Delete(file);
                     SidecarFormatLog.KeptLegacy(Log, legacyName);
-                    return SidecarConversion.Failed;
+                    result = SidecarConversion.Failed;
+                    return;
                 }
 
                 File.Delete(legacy);
-                return SidecarConversion.Converted;
+                result = SidecarConversion.Converted;
             }
             catch (Exception ex)
             {
                 SidecarFormatLog.ConversionFailed(Log, legacyName, ex);
-                return SidecarConversion.Failed;
+                result = SidecarConversion.Failed;
             }
-        }
+        });
+        return result;
     }
-
-    /// <summary>The lock that orders one demo's sidecar file writes against its legacy conversion.</summary>
-    internal object StripeFor(string demoPath) =>
-        _fileStripes[(int)((uint)StringComparer.OrdinalIgnoreCase.GetHashCode(demoPath) % (uint)_fileStripes.Length)];
 
     /// <summary>
     ///     The record for a demo if one exists, else a fresh identity-tier record for
@@ -585,8 +672,14 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     Writes a record's sidecar and refreshes its index projection. The single write path: every tier
-    ///     fill goes through here so the index can never drift from the sidecars.
+    ///     Writes a record's sidecar and refreshes its index row. The single write path: every tier fill goes
+    ///     through here so the index can never drift from the sidecars.
+    ///     <para>
+    ///         The row is the record's content id, or the path's own provisional row while it has none. A path
+    ///         listed under another row leaves it first: the bytes there changed. A record joining a row that
+    ///         already exists keeps every tier it lacks from that row, so a copy written at the header tier
+    ///         never erases the analysis another path of the same bytes produced.
+    ///     </para>
     /// </summary>
     public void Upsert(DemoCacheRecord record)
     {
@@ -595,16 +688,86 @@ public sealed class DemoCacheStore
             return;
         }
 
-        byte[] bytes = SidecarJson.SerializeGzip(record, _jsonOptions);
-        lock (_gate)
+        string path = record.Path;
+        string newKey = RowKeyFor(path, record.Sha256);
+        lock (_rmwGate)
         {
-            SetIndexEntry(record.ToIndexEntry());
-            _lastRecordPath = record.Path;
-            _lastRecordBytes = bytes;
+            string? oldKey;
+            DemoCacheIndexEntry? joining;
+            lock (_gate)
+            {
+                oldKey = _keyByPath.GetValueOrDefault(path);
+                joining = oldKey != newKey ? _rows.GetValueOrDefault(newKey) : null;
+            }
+
+            if (joining is not null && TryLoadRecord(joining.Path, false) is { } existing)
+            {
+                record.FillMissingFrom(existing);
+            }
+
+            DemoCacheIndexEntry? dropped = null;
+            DemoCacheIndexEntry row;
+            lock (_gate)
+            {
+                DemoCacheIndexEntry? oldRow = oldKey is null ? null : _rows.GetValueOrDefault(oldKey);
+                DemoCacheIndexEntry? target = _rows.GetValueOrDefault(newKey);
+                List<DemoLocation> locations = [.. (target?.Locations ?? []).Where(l => !SamePath(l.Path, path))];
+                locations.Add(new DemoLocation(path, true, record.Size, record.ModifiedTicks, DateTime.UtcNow.Ticks));
+                // A new row writes under the path's key until a saved index names the content id: without
+                // the index only that name leads back to the file.
+                List<string> keys = target is null ? [StableKey(path)] : [.. WriteKeys(target)];
+
+                if (oldRow is not null && oldKey != newKey)
+                {
+                    List<DemoLocation> rest = [.. oldRow.Locations.Where(l => !SamePath(l.Path, path))];
+                    Unlink(oldKey!);
+                    if (rest.Count > 0)
+                    {
+                        Link(oldKey!, Shape(oldRow.Copy(), rest, oldRow.SidecarKeys));
+                    }
+                    else if (IsProvisional(oldRow))
+                    {
+                        // Same bytes, now hashed: its files move under the content id once the index says so.
+                        keys.AddRange(WriteKeys(oldRow));
+                        _settleAfterSave.Remove(oldKey!);
+                    }
+                    else
+                    {
+                        dropped = oldRow;
+                        _settleAfterSave.Remove(oldKey!);
+                    }
+                }
+
+                row = Shape(record.ToIndexEntry(), locations, keys);
+                Link(newKey, row);
+                if (row.SidecarKeys is not null)
+                {
+                    _settleAfterSave.Add(newKey);
+                }
+            }
+
+            record.Locations = row.Locations;
+            byte[] bytes = SidecarJson.SerializeGzip(record, _jsonOptions);
+            if (dropped is not null)
+            {
+                DeleteFiles(FileKeys(dropped).Except(FileKeys(row), StringComparer.Ordinal).ToList());
+            }
+
+            lock (_gate)
+            {
+                _lastRecordKey = newKey;
+                _lastRecordBytes = bytes;
+            }
+
+            WriteSidecar(path, bytes);
+            if (_cacheRoot is null)
+            {
+                // Nothing persists, so nothing has to land before the old names go.
+                SettleRow(newKey);
+            }
         }
 
-        WriteSidecar(record.Path, bytes);
-        RaiseChanged(record.Path);
+        RaiseChanged(path);
     }
 
     /// <summary>
@@ -619,13 +782,16 @@ public sealed class DemoCacheStore
         ArgumentNullException.ThrowIfNull(record);
         lock (_gate)
         {
-            if (!_index.TryGetValue(record.Path, out DemoCacheIndexEntry? current)
-                || !current.MatchesFile(record.Size, record.ModifiedTicks))
+            if (!_keyByPath.TryGetValue(record.Path, out string? key)
+                || !string.Equals(key, RowKeyFor(record.Path, record.Sha256), StringComparison.Ordinal)
+                || _rows[key].Locations.FirstOrDefault(l => SamePath(l.Path, record.Path)) is not { } here
+                || here.Size != record.Size || here.ModifiedTicks != record.ModifiedTicks)
             {
                 return false;
             }
 
-            SetIndexEntry(record.ToIndexEntry());
+            DemoCacheIndexEntry current = _rows[key];
+            Link(key, Shape(record.ToIndexEntry(), [.. current.Locations], current.SidecarKeys));
         }
 
         RaiseChanged(record.Path);
@@ -677,28 +843,55 @@ public sealed class DemoCacheStore
         stamp.ComputedAtTicks = DateTime.UtcNow.Ticks;
     }
 
-    /// <summary>Forgets a demo entirely: index row and sidecar.</summary>
+    /// <summary>
+    ///     Forgets a demo path. The row and its files go only with its last path: another path to the same bytes
+    ///     keeps everything.
+    /// </summary>
     public void Remove(string path)
     {
-        bool removed;
+        lock (_rmwGate)
+        {
+            RemoveCore(path);
+        }
+    }
+
+    private void RemoveCore(string path)
+    {
+        bool removed = false;
+        DemoCacheIndexEntry? dropped = null;
         lock (_gate)
         {
-            removed = _index.Remove(path, out DemoCacheIndexEntry? gone);
-            if (removed)
+            if (_keyByPath.TryGetValue(path, out string? key))
             {
-                UnlinkSha(gone!);
-                _indexVersion++;
-            }
-
-            if (_lastRecordPath is not null
-                && string.Equals(_lastRecordPath, path, StringComparison.OrdinalIgnoreCase))
-            {
-                _lastRecordPath = null;
-                _lastRecordBytes = null;
+                DemoCacheIndexEntry row = _rows[key];
+                List<DemoLocation> rest = [.. row.Locations.Where(l => !SamePath(l.Path, path))];
+                Unlink(key);
+                removed = true;
+                if (rest.Count > 0)
+                {
+                    Link(key, Shape(row.Copy(), rest, row.SidecarKeys));
+                }
+                else
+                {
+                    dropped = row;
+                    _settleAfterSave.Remove(key);
+                    if (string.Equals(_lastRecordKey, key, StringComparison.Ordinal))
+                    {
+                        _lastRecordKey = null;
+                        _lastRecordBytes = null;
+                    }
+                }
             }
         }
 
-        DeleteSidecar(path);
+        if (dropped is not null)
+        {
+            DeleteFiles(FileKeys(dropped));
+        }
+        else if (!removed)
+        {
+            DeleteFiles([StableKey(path)]);
+        }
 
         if (removed)
         {
@@ -724,16 +917,37 @@ public sealed class DemoCacheStore
     /// <summary>
     ///     Persists <c>index.json</c> atomically. Sidecars are written eagerly by <see cref="Upsert" />; only
     ///     the index is deferred, because a library pass touches it once per demo and rewriting it each time
-    ///     is the exact cost the split storage exists to avoid.
+    ///     is the exact cost the split storage exists to avoid. Files a row took over under a new key in this
+    ///     session are renamed once the index naming that key is on disk.
     /// </summary>
-    public void SaveIndex()
+    public void SaveIndex() => TrySaveIndex();
+
+    /// <summary><see cref="SaveIndex" />, reporting whether <c>index.json</c> was written.</summary>
+    internal bool TrySaveIndex()
     {
         string? indexPath = IndexPath;
         if (indexPath is null)
         {
-            return;
+            return true;
         }
 
+        if (!WriteIndex(indexPath, out List<string> settle))
+        {
+            return false;
+        }
+
+        // Written again once the files moved, so the next launch writes under the new names straight away.
+        bool moved = false;
+        foreach (string key in settle)
+        {
+            moved |= SettleRow(key);
+        }
+
+        return !moved || WriteIndex(indexPath, out _);
+    }
+
+    private bool WriteIndex(string indexPath, out List<string> settle)
+    {
         try
         {
             DemoCacheIndexFile file;
@@ -742,22 +956,160 @@ public sealed class DemoCacheStore
                 file = new DemoCacheIndexFile
                 {
                     LegacyMigrationVersion = _legacyMigrationVersion,
-                    Entries = [.. _index.Values]
+                    ContentKeyMigrationVersion = _contentKeyMigrationVersion,
+                    Entries = [.. _rows.Values]
                 };
+                settle = [.. _settleAfterSave];
             }
 
             AtomicFile.WriteAllBytes(indexPath, JsonSerializer.SerializeToUtf8Bytes(file, _jsonOptions));
+            return true;
         }
         catch (Exception)
         {
             // Rebuildable cache: persistence noise is never surfaced.
+            settle = [];
+            return false;
+        }
+    }
+
+    /// <summary>Keys of the rows whose files still sit under an older key.</summary>
+    internal List<string> UnsettledRows()
+    {
+        lock (_gate)
+        {
+            return [.. _rows.Where(r => r.Value.SidecarKeys is not null).Select(r => r.Key)];
         }
     }
 
     /// <summary>
-    ///     The sidecar file for a demo path. Named by a CONTENT-INDEPENDENT hash of the path rather than by
-    ///     the demo's sha256, because the sha is not known until a parse has run and a file name must exist
-    ///     from the identity tier onwards.
+    ///     Moves a row's files from every older key to its own. The current write key's files replace what
+    ///     is there; any other key's fill only what is missing, and its duplicates are dropped. Idempotent: a
+    ///     file already moved is simply not found again.
+    /// </summary>
+    /// <param name="rowKey">The row's key.</param>
+    /// <returns>True when nothing is left under an older key.</returns>
+    internal bool SettleRow(string rowKey)
+    {
+        List<string> sources;
+        string target;
+        DemoCacheIndexEntry row;
+        lock (_gate)
+        {
+            if (!_rows.TryGetValue(rowKey, out row!) || row.SidecarKeys is null)
+            {
+                _settleAfterSave.Remove(rowKey);
+                return true;
+            }
+
+            sources = row.SidecarKeys;
+            target = FileKeyOf(row);
+        }
+
+        object[] stripes = [.. sources.Append(target).Select(StripeIndex).Distinct().Order().Select(i => _fileStripes[i])];
+        bool ok = true;
+        EnterAll(stripes);
+        try
+        {
+            lock (_gate)
+            {
+                if (!_rows.TryGetValue(rowKey, out DemoCacheIndexEntry? now) || !ReferenceEquals(now, row))
+                {
+                    return false;
+                }
+            }
+
+            for (int i = 0; i < sources.Count; i++)
+            {
+                if (!string.Equals(sources[i], target, StringComparison.Ordinal))
+                {
+                    ok &= MoveKey(sources[i], target, i == 0);
+                }
+            }
+
+            if (ok)
+            {
+                lock (_gate)
+                {
+                    DemoCacheIndexEntry settled = row.Copy();
+                    settled.SidecarKeys = null;
+                    _rows[rowKey] = settled;
+                    _settleAfterSave.Remove(rowKey);
+                }
+            }
+        }
+        finally
+        {
+            ExitAll(stripes);
+        }
+
+        return ok;
+    }
+
+    // Moves every file named <source>.* to <target>.*. Caller holds both stripes.
+    private bool MoveKey(string source, string target, bool replace)
+    {
+        if (_cacheRoot is null)
+        {
+            lock (_gate)
+            {
+                MoveMemory(_memoryRecords, source, target, replace);
+                foreach (string name in _memorySiblings.Keys.Where(k => k.StartsWith(source + ".", StringComparison.Ordinal)).ToList())
+                {
+                    MoveMemory(_memorySiblings, name, target + name[source.Length..], replace);
+                }
+            }
+
+            return true;
+        }
+
+        string dir = SidecarDir!;
+        if (!Directory.Exists(dir))
+        {
+            return true;
+        }
+
+        bool ok = true;
+        foreach (string file in Directory.EnumerateFiles(dir, source + ".*").ToList())
+        {
+            string to = Path.Combine(dir, target + Path.GetFileName(file)[source.Length..]);
+            try
+            {
+                if (replace)
+                {
+                    File.Move(file, to, true);
+                }
+                else if (!File.Exists(to))
+                {
+                    File.Move(file, to);
+                }
+                else
+                {
+                    File.Delete(file);
+                }
+            }
+            catch (Exception)
+            {
+                ok = false;
+            }
+        }
+
+        return ok;
+    }
+
+    private static void MoveMemory(Dictionary<string, byte[]> map, string from, string to, bool replace)
+    {
+        if (map.Remove(from, out byte[]? bytes) && (replace || !map.ContainsKey(to)))
+        {
+            map[to] = bytes;
+        }
+    }
+
+    /// <summary>
+    ///     Where a demo's record sidecar is written: <c>demos/&lt;key&gt;.json.gz</c>. The key is the content
+    ///     id for a hashed demo and <see cref="StableKey" /> of the path for one not hashed yet, because a file
+    ///     name must exist from the identity tier onwards. A row whose files have not moved to the content id
+    ///     yet still writes under the key they are at.
     ///     <para>
     ///         SHA-256 rather than <c>string.GetHashCode</c>/<c>System.HashCode</c> deliberately: those are
     ///         RANDOMIZED PER PROCESS, so a file named from one would be unfindable on the next launch.
@@ -765,21 +1117,36 @@ public sealed class DemoCacheStore
     /// </summary>
     public string? SidecarPathFor(string demoPath)
     {
-        string? dir = SidecarDir;
-        return dir is null ? null : Path.Combine(dir, StableKey(demoPath) + RecordSuffix);
+        if (_cacheRoot is null)
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            return RecordFile(WriteKeyOf(demoPath));
+        }
     }
 
     /// <summary>Where the record sidecar lived before it was gzipped. Read when the new file is absent.</summary>
     internal string? LegacySidecarPathFor(string demoPath)
     {
-        string? dir = SidecarDir;
-        return dir is null ? null : Path.Combine(dir, StableKey(demoPath) + LegacyRecordSuffix);
+        if (_cacheRoot is null)
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            return LegacyRecordFile(WriteKeyOf(demoPath));
+        }
     }
 
     /// <summary>
-    ///     A sibling file of a demo's sidecar: <c>demos/&lt;StableKey&gt;&lt;suffix&gt;</c>, e.g. the grenade
-    ///     walk's <c>.grenades.json</c>. For a payload too large to ride the record, which Match Overview
-    ///     re-reads on every property touch, yet owned by the same demo, so it goes when the demo goes.
+    ///     A sibling file of a demo's sidecar: <c>demos/&lt;key&gt;&lt;suffix&gt;</c>, e.g. the grenade walk's
+    ///     <c>.grenades.json</c>, under the same key as the record (<see cref="SidecarPathFor" />). For a
+    ///     payload too large to ride the record, which Match Overview re-reads on every property touch, yet
+    ///     owned by the same demo, so it goes when the demo goes.
     /// </summary>
     /// <param name="demoPath">The demo's path.</param>
     /// <param name="suffix">Starts with a dot, names a file, and is neither record name (<c>.json</c>, <c>.json.gz</c>).</param>
@@ -787,7 +1154,15 @@ public sealed class DemoCacheStore
     {
         ValidateSuffix(suffix);
         string? dir = SidecarDir;
-        return dir is null ? null : Path.Combine(dir, StableKey(demoPath) + suffix);
+        if (dir is null)
+        {
+            return null;
+        }
+
+        lock (_gate)
+        {
+            return Path.Combine(dir, WriteKeyOf(demoPath) + suffix);
+        }
     }
 
     /// <summary>
@@ -811,18 +1186,21 @@ public sealed class DemoCacheStore
     public void WriteSiblingBytes(string demoPath, string suffix, byte[] content)
     {
         ArgumentNullException.ThrowIfNull(content);
-        string? file = SiblingPathFor(demoPath, suffix);
-        if (file is null)
+        ValidateSuffix(suffix);
+        WithWriteKey(demoPath, (key, _) =>
         {
-            lock (_gate)
+            if (_cacheRoot is null)
             {
-                _memorySiblings[StableKey(demoPath) + suffix] = content;
+                lock (_gate)
+                {
+                    _memorySiblings[key + suffix] = content;
+                }
+
+                return;
             }
 
-            return;
-        }
-
-        AtomicFile.WriteAllBytes(file, content);
+            AtomicFile.WriteAllBytes(Path.Combine(SidecarDir!, key + suffix), content);
+        });
     }
 
     /// <summary>
@@ -837,18 +1215,12 @@ public sealed class DemoCacheStore
         where T : class
     {
         value = null;
-        string? file = SiblingPathFor(demoPath, suffix);
+        ValidateSuffix(suffix);
         try
         {
-            if (file is null)
+            if (_cacheRoot is null)
             {
-                byte[]? held;
-                lock (_gate)
-                {
-                    held = _memorySiblings.GetValueOrDefault(StableKey(demoPath) + suffix);
-                }
-
-                if (held is null)
+                if (TryReadSiblingBytes(demoPath, suffix) is not { } held)
                 {
                     return false;
                 }
@@ -857,7 +1229,7 @@ public sealed class DemoCacheStore
                 return true;
             }
 
-            if (!File.Exists(file))
+            if (ExistingSibling(demoPath, suffix) is not { } file)
             {
                 return false;
             }
@@ -876,18 +1248,26 @@ public sealed class DemoCacheStore
     /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
     public byte[]? TryReadSiblingBytes(string demoPath, string suffix)
     {
-        string? file = SiblingPathFor(demoPath, suffix);
-        if (file is null)
+        ValidateSuffix(suffix);
+        if (_cacheRoot is null)
         {
             lock (_gate)
             {
-                return _memorySiblings.GetValueOrDefault(StableKey(demoPath) + suffix);
+                foreach (string key in ReadKeys(RowFor(demoPath).Row, demoPath))
+                {
+                    if (_memorySiblings.TryGetValue(key + suffix, out byte[]? held))
+                    {
+                        return held;
+                    }
+                }
+
+                return null;
             }
         }
 
         try
         {
-            return File.Exists(file) ? File.ReadAllBytes(file) : null;
+            return ExistingSibling(demoPath, suffix) is { } file ? File.ReadAllBytes(file) : null;
         }
         catch (Exception)
         {
@@ -900,52 +1280,44 @@ public sealed class DemoCacheStore
     /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
     public void DeleteSibling(string demoPath, string suffix)
     {
-        string? file = SiblingPathFor(demoPath, suffix);
-        if (file is null)
+        ValidateSuffix(suffix);
+        WithWriteKey(demoPath, (_, row) =>
         {
+            List<string> keys;
             lock (_gate)
             {
-                _memorySiblings.Remove(StableKey(demoPath) + suffix);
+                keys = ReadKeys(row, demoPath);
             }
 
-            return;
-        }
+            foreach (string key in keys)
+            {
+                if (_cacheRoot is null)
+                {
+                    lock (_gate)
+                    {
+                        _memorySiblings.Remove(key + suffix);
+                    }
 
-        try
-        {
-            File.Delete(file);
-        }
-        catch (Exception)
-        {
-            // An orphaned sibling is never read once the new one exists.
-        }
+                    continue;
+                }
+
+                try
+                {
+                    File.Delete(Path.Combine(SidecarDir!, key + suffix));
+                }
+                catch (Exception)
+                {
+                    // An orphaned sibling is never read once the new one exists.
+                }
+            }
+        });
     }
 
     /// <summary>A sibling's text, or null when it is missing or unreadable (the cache's "not cached").</summary>
     /// <param name="demoPath">The demo's path.</param>
     /// <param name="suffix">See <see cref="SiblingPathFor" />.</param>
-    public string? TryReadSibling(string demoPath, string suffix)
-    {
-        string? file = SiblingPathFor(demoPath, suffix);
-        if (file is null)
-        {
-            lock (_gate)
-            {
-                return _memorySiblings.GetValueOrDefault(StableKey(demoPath) + suffix) is { } held
-                    ? Encoding.UTF8.GetString(held)
-                    : null;
-            }
-        }
-
-        try
-        {
-            return File.Exists(file) ? File.ReadAllText(file) : null;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
+    public string? TryReadSibling(string demoPath, string suffix) =>
+        TryReadSiblingBytes(demoPath, suffix) is { } bytes ? Encoding.UTF8.GetString(bytes) : null;
 
     /// <summary>A stable, filesystem-safe key for a demo path. See <see cref="SidecarPathFor" />.</summary>
     public static string StableKey(string demoPath)
@@ -954,31 +1326,42 @@ public sealed class DemoCacheStore
         return Convert.ToHexString(hash, 0, 12).ToLowerInvariant();
     }
 
-    private void WriteSidecar(string demoPath, byte[] bytes)
+    // The first file that exists for a sibling, newest key first.
+    private string? ExistingSibling(string demoPath, string suffix)
     {
-        string? file = SidecarPathFor(demoPath);
-        if (file is null)
+        List<string> keys;
+        lock (_gate)
         {
-            lock (_gate)
-            {
-                _memoryRecords[demoPath] = bytes;
-            }
-
-            return;
+            keys = ReadKeys(RowFor(demoPath).Row, demoPath);
         }
 
-        lock (StripeFor(demoPath))
+        return keys.Select(k => Path.Combine(SidecarDir!, k + suffix)).FirstOrDefault(File.Exists);
+    }
+
+    private void WriteSidecar(string demoPath, byte[] bytes) =>
+        WithWriteKey(demoPath, (key, row) =>
         {
+            if (_cacheRoot is null)
+            {
+                lock (_gate)
+                {
+                    _memoryRecords[key] = bytes;
+                }
+
+                return;
+            }
+
             try
             {
+                string file = RecordFile(key);
                 AtomicFile.WriteAllBytes(file, bytes);
 
                 // Only once the new file reads back: otherwise the legacy record stays the reader's fallback.
-                string legacy = LegacySidecarPathFor(demoPath)!;
+                string legacy = LegacyRecordFile(key);
                 string legacyName = Path.GetFileName(legacy);
                 if (File.Exists(legacy))
                 {
-                    if (VerifyRecordFile(file, demoPath))
+                    if (VerifyRecordFile(file, demoPath, row))
                     {
                         File.Delete(legacy);
                     }
@@ -992,47 +1375,100 @@ public sealed class DemoCacheStore
             {
                 // Rebuildable.
             }
+        });
+
+    // Runs write under the stripe of the key a demo's files are written under. The key is resolved again
+    // once the stripe is held, since a rename may have moved the row to another key meanwhile.
+    private void WithWriteKey(string demoPath, Action<string, DemoCacheIndexEntry?> write)
+    {
+        while (true)
+        {
+            string key;
+            lock (_gate)
+            {
+                key = WriteKeyOf(demoPath);
+            }
+
+            lock (_fileStripes[StripeIndex(key)])
+            {
+                DemoCacheIndexEntry? row;
+                lock (_gate)
+                {
+                    if (!string.Equals(WriteKeyOf(demoPath), key, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    row = RowFor(demoPath).Row;
+                }
+
+                write(key, row);
+                return;
+            }
         }
     }
 
-    private void DeleteSidecar(string path)
+    private void DeleteFiles(IReadOnlyList<string> keys)
     {
-        string? file = SidecarPathFor(path);
-        string key = StableKey(path);
-        if (file is null)
+        foreach (string key in keys)
         {
-            lock (_gate)
+            if (_cacheRoot is null)
             {
-                _memoryRecords.Remove(path);
-                foreach (string sibling in _memorySiblings.Keys.Where(k => k.StartsWith(key + ".", StringComparison.Ordinal)).ToList())
+                lock (_gate)
                 {
-                    _memorySiblings.Remove(sibling);
-                }
-            }
-
-            return;
-        }
-
-        lock (StripeFor(path))
-        {
-            try
-            {
-                File.Delete(file);
-
-                // The siblings share the key and a dot, so one pattern finds every one of them and nothing else.
-                string dir = Path.GetDirectoryName(file)!;
-                if (Directory.Exists(dir))
-                {
-                    foreach (string sibling in Directory.EnumerateFiles(dir, key + ".*"))
+                    _memoryRecords.Remove(key);
+                    foreach (string sibling in _memorySiblings.Keys.Where(k => k.StartsWith(key + ".", StringComparison.Ordinal)).ToList())
                     {
-                        File.Delete(sibling);
+                        _memorySiblings.Remove(sibling);
                     }
                 }
+
+                continue;
             }
-            catch (Exception)
+
+            lock (_fileStripes[StripeIndex(key)])
             {
-                // Best effort: an orphaned sidecar is harmless, it is simply never read again.
+                try
+                {
+                    // The record and the siblings share the key and a dot, so one pattern finds every one of
+                    // them and nothing else.
+                    string dir = SidecarDir!;
+                    if (Directory.Exists(dir))
+                    {
+                        foreach (string file in Directory.EnumerateFiles(dir, key + ".*").ToList())
+                        {
+                            File.Delete(file);
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // Best effort: an orphaned sidecar is harmless, it is simply never read again.
+                }
             }
+        }
+    }
+
+    private string RecordFile(string key) => Path.Combine(SidecarDir!, key + RecordSuffix);
+
+    private string LegacyRecordFile(string key) => Path.Combine(SidecarDir!, key + LegacyRecordSuffix);
+
+    private int StripeIndex(string key) =>
+        (int)((uint)StringComparer.Ordinal.GetHashCode(key) % (uint)_fileStripes.Length);
+
+    private static void EnterAll(object[] locks)
+    {
+        foreach (object l in locks)
+        {
+            Monitor.Enter(l);
+        }
+    }
+
+    private static void ExitAll(object[] locks)
+    {
+        for (int i = locks.Length - 1; i >= 0; i--)
+        {
+            Monitor.Exit(locks[i]);
         }
     }
 
@@ -1045,6 +1481,117 @@ public sealed class DemoCacheStore
         {
             throw new ArgumentException($"'{suffix}' is not a sibling suffix", nameof(suffix));
         }
+    }
+
+    // ── Keys ─────────────────────────────────────────────────────────────────
+
+    // A row's key: its content id, or the provisional key of its one path while it has none.
+    private static string RowKeyFor(string path, string? sha256) =>
+        string.IsNullOrEmpty(sha256) ? ProvisionalPrefix + StableKey(path) : sha256;
+
+    private static bool IsProvisional(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256);
+
+    private static bool SamePath(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    // The file key a row's files settle under. A content id outside [0-9a-z_-] is hashed into a safe name.
+    private static string FileKeyOf(DemoCacheIndexEntry row)
+    {
+        if (IsProvisional(row))
+        {
+            return StableKey(row.Path);
+        }
+
+        string id = row.Sha256!;
+        return id.Length <= 128 && id.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')
+            ? id.ToLowerInvariant()
+            : "c-" + StableKey(id);
+    }
+
+    // Every key a row's files may sit under, current write key first.
+    private static List<string> WriteKeys(DemoCacheIndexEntry row) => row.SidecarKeys ?? [FileKeyOf(row)];
+
+    // The keys a row owns on disk: what a delete takes.
+    private static List<string> FileKeys(DemoCacheIndexEntry row) =>
+        [.. WriteKeys(row).Append(FileKeyOf(row)).Distinct(StringComparer.Ordinal)];
+
+    // Under _gate. The keys a read tries in order: the row's own, then each path's, the names a rename cut
+    // short or an older index left behind.
+    private static List<string> ReadKeys(DemoCacheIndexEntry? row, string path)
+    {
+        if (row is null)
+        {
+            return [StableKey(path)];
+        }
+
+        return [.. FileKeys(row).Concat(row.Locations.Select(l => StableKey(l.Path))).Distinct(StringComparer.Ordinal)];
+    }
+
+    // Under _gate.
+    private (string Key, DemoCacheIndexEntry? Row) RowFor(string path) =>
+        _keyByPath.TryGetValue(path, out string? key) ? (key, _rows[key]) : (ProvisionalPrefix + StableKey(path), null);
+
+    // Under _gate.
+    private string WriteKeyOf(string path) =>
+        RowFor(path).Row is { } row ? WriteKeys(row)[0] : StableKey(path);
+
+    // Fills a row's location fields: ordinal path order, the primary the smallest confirmed path, and the
+    // file keys dropped once they say nothing beyond the row's own.
+    private static DemoCacheIndexEntry Shape(DemoCacheIndexEntry entry, List<DemoLocation> locations, List<string>? keys)
+    {
+        List<DemoLocation> sorted = [];
+        foreach (DemoLocation location in locations.OrderBy(l => l.Path, StringComparer.Ordinal))
+        {
+            if (!sorted.Any(l => SamePath(l.Path, location.Path)))
+            {
+                sorted.Add(location);
+            }
+        }
+
+        DemoLocation primary = sorted.FirstOrDefault(l => l.Confirmed) ?? sorted[0];
+        entry.Path = primary.Path;
+        entry.Size = primary.Size;
+        entry.ModifiedTicks = primary.ModifiedTicks;
+        entry.Locations = sorted;
+
+        string own = FileKeyOf(entry);
+        List<string>? distinct = keys is null ? null : [.. keys.Distinct(StringComparer.Ordinal)];
+        entry.SidecarKeys = distinct is null || distinct.Count == 0 || (distinct.Count == 1 && distinct[0] == own)
+            ? null
+            : distinct;
+        return entry;
+    }
+
+    // Under _gate. The only writers of the row maps, so the path lookup and the views move with the rows.
+    private void Link(string key, DemoCacheIndexEntry row)
+    {
+        _rows[key] = row;
+        foreach (DemoLocation location in row.Locations)
+        {
+            _keyByPath[location.Path] = key;
+            _index[location.Path] = row.At(location);
+        }
+
+        _indexVersion++;
+    }
+
+    // Under _gate.
+    private void Unlink(string key)
+    {
+        if (!_rows.Remove(key, out DemoCacheIndexEntry? row))
+        {
+            return;
+        }
+
+        foreach (DemoLocation location in row.Locations)
+        {
+            if (_keyByPath.TryGetValue(location.Path, out string? owner) && owner == key)
+            {
+                _keyByPath.Remove(location.Path);
+                _index.Remove(location.Path);
+            }
+        }
+
+        _indexVersion++;
     }
 
     private void LoadIndex()
@@ -1064,57 +1611,61 @@ public sealed class DemoCacheStore
                 return;
             }
 
+            // Before version 5 a row is one path and its files are named by the path. Rows of one hash
+            // become one row whose files still sit under every old name until the rename pass moves them.
+            bool byPath = file.Version < 5;
+            Dictionary<string, List<DemoCacheIndexEntry>> groups = new(StringComparer.Ordinal);
+            foreach (DemoCacheIndexEntry entry in file.Entries.Where(e => !string.IsNullOrEmpty(e.Path)))
+            {
+                string key = RowKeyFor(entry.Path, entry.Sha256);
+                if (!groups.TryGetValue(key, out List<DemoCacheIndexEntry>? group))
+                {
+                    groups[key] = group = [];
+                }
+
+                group.Add(entry);
+            }
+
             lock (_gate)
             {
                 _legacyMigrationVersion = file.LegacyMigrationVersion;
-                foreach (DemoCacheIndexEntry entry in file.Entries.Where(e => !string.IsNullOrEmpty(e.Path)))
+                _contentKeyMigrationVersion = byPath ? 0 : file.ContentKeyMigrationVersion;
+                foreach ((string key, List<DemoCacheIndexEntry> group) in groups)
                 {
-                    SetIndexEntry(entry);
+                    // The copy with the most tiers speaks for the row; its files go first.
+                    List<DemoCacheIndexEntry> ordered =
+                    [
+                        .. group.OrderByDescending(e => e.Tier).ThenBy(e => e.Path, StringComparer.Ordinal)
+                    ];
+                    List<DemoLocation> locations = [];
+                    List<string> keys = [];
+                    foreach (DemoCacheIndexEntry entry in ordered)
+                    {
+                        locations.AddRange(entry.Locations.Count > 0
+                            ? entry.Locations
+                            : [new DemoLocation(entry.Path, true, entry.Size, entry.ModifiedTicks, 0)]);
+                        if (byPath)
+                        {
+                            keys.Add(StableKey(entry.Path));
+                        }
+                        else
+                        {
+                            keys.AddRange(WriteKeys(entry));
+                        }
+                    }
+
+                    DemoCacheIndexEntry row = Shape(ordered[0], locations, keys);
+                    Link(key, row);
+                    if (row.SidecarKeys is not null && _contentKeyMigrationVersion >= ContentKeyMigration.CurrentVersion)
+                    {
+                        _settleAfterSave.Add(key);
+                    }
                 }
             }
         }
         catch (Exception)
         {
             // Corrupt index = start empty and rebuild.
-        }
-    }
-
-    // The only writer of _index, so the reverse map moves with it. Under _gate. A row re-upserted with a
-    // different hash (the file was replaced and re-indexed) leaves the old hash's set first.
-    private void SetIndexEntry(DemoCacheIndexEntry entry)
-    {
-        if (_index.TryGetValue(entry.Path, out DemoCacheIndexEntry? previous))
-        {
-            UnlinkSha(previous);
-        }
-
-        _index[entry.Path] = entry;
-        _indexVersion++;
-        if (!string.IsNullOrEmpty(entry.Sha256))
-        {
-            if (!_pathsBySha.TryGetValue(entry.Sha256, out HashSet<string>? paths))
-            {
-                paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                _pathsBySha[entry.Sha256] = paths;
-            }
-
-            paths.Add(entry.Path);
-        }
-    }
-
-    // Under _gate. Drops the hash key entirely once no path carries it, so the map never outgrows the index.
-    private void UnlinkSha(DemoCacheIndexEntry entry)
-    {
-        if (string.IsNullOrEmpty(entry.Sha256)
-            || !_pathsBySha.TryGetValue(entry.Sha256, out HashSet<string>? paths))
-        {
-            return;
-        }
-
-        paths.Remove(entry.Path);
-        if (paths.Count == 0)
-        {
-            _pathsBySha.Remove(entry.Sha256);
         }
     }
 

@@ -1,0 +1,349 @@
+#region
+
+using System.Text.Json;
+using DemoViewer.NET.Services.DemoCache;
+using TUnit.Assertions.Enums;
+
+#endregion
+
+namespace DemoViewer.NET.AppTests;
+
+/// <summary>
+///     The demo cache keyed by content: one row per hash listing every path, a provisional row per path until
+///     the hash is known, files renamed to the hash only after an index naming it is saved, and the re-key of
+///     an index written when rows were paths.
+/// </summary>
+public class ContentKeyedCacheTests
+{
+    private const string Suffix = ".note.json";
+
+    private static string TempRoot() => Path.Combine(Path.GetTempPath(), $"dv-content-key-{Guid.NewGuid():N}");
+
+    private static string Demos(string root) => Path.Combine(root, "demos");
+
+    private static DemoCacheRecord Record(string path, string? sha, string map = "de_nuke", long size = 1000, long mtime = 2000) => new()
+    {
+        Path = path,
+        Size = size,
+        ModifiedTicks = mtime,
+        Sha256 = sha,
+        Map = map
+    };
+
+    private static DemoCacheRecord Analysed(string path, string sha)
+    {
+        DemoCacheRecord record = Record(path, sha);
+        record.Scoreboard = [new CachedStatRow { Slot = 1, Team = 3, Kills = 21 }];
+        record.AnalysisState = DemoAnalysisState.Indexed;
+        DemoCacheStore.StampParse(record);
+        DemoCacheStore.StampAnalysis(record);
+        return record;
+    }
+
+    // What a version-4 cache left on disk: rows by path, files named by the path's key.
+    private static void WriteVersion4(string root, params (DemoCacheRecord Record, string? Sibling)[] demos)
+    {
+        Directory.CreateDirectory(Demos(root));
+        foreach ((DemoCacheRecord record, string? sibling) in demos)
+        {
+            string key = DemoCacheStore.StableKey(record.Path);
+            File.WriteAllBytes(Path.Combine(Demos(root), key + DemoCacheStore.RecordSuffix), SidecarJson.SerializeGzip(record, null));
+            if (sibling is not null)
+            {
+                File.WriteAllText(Path.Combine(Demos(root), key + Suffix), sibling);
+            }
+        }
+
+        File.WriteAllText(Path.Combine(root, "index.json"), JsonSerializer.Serialize(new
+        {
+            Version = 4,
+            LegacyMigrationVersion = 1,
+            Entries = demos.Select(d => d.Record.ToIndexEntry()).ToList()
+        }));
+    }
+
+    private static string[] Files(string root) =>
+        [.. Directory.EnumerateFiles(Demos(root)).Select(Path.GetFileName).Order(StringComparer.Ordinal)!];
+
+    [Test]
+    public async Task AVersion4Index_LoadsByContent_ReadsBeforeThePass_AndThePassMovesTheFiles()
+    {
+        string root = TempRoot();
+        try
+        {
+            WriteVersion4(root,
+                (Record("/m/a.dem", "sha-x"), "from a"),
+                (Analysed("/m/b.dem", "sha-x"), "from b"),
+                (Record("/m/c.dem", "sha-c"), null),
+                (Record("/m/d.dem", null), "from d"));
+
+            DemoCacheStore store = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.ContentKeyMigrationVersion).IsEqualTo(0);
+                await Assert.That(store.Count).IsEqualTo(4).Because("every path still has its row view");
+                await Assert.That(store.RowsForContentId("sha-x").Select(r => r.Path))
+                    .IsEquivalentTo(["/m/a.dem", "/m/b.dem"], CollectionOrdering.Matching);
+                await Assert.That(store.TryGetIndex("/m/a.dem")!.Locations).HasCount(2);
+                await Assert.That(store.TryGetIndex("/m/a.dem")!.Tier).IsEqualTo(DemoCacheTier.Analysis)
+                    .Because("the copy with the most tiers speaks for the row");
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Path).IsEqualTo("/m/a.dem");
+                await Assert.That(store.TryLoadRecord("/m/c.dem")).IsNotNull();
+                await Assert.That(store.TryLoadRecord("/m/d.dem")).IsNotNull();
+                await Assert.That(store.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("from b");
+                await Assert.That(store.TryReadSibling("/m/d.dem", Suffix)).IsEqualTo("from d");
+            }
+
+            ContentKeyMigrationResult result = await ContentKeyMigration.RunAsync(store, batchSize: 1);
+
+            string d = DemoCacheStore.StableKey("/m/d.dem");
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Completed).IsTrue();
+                await Assert.That(result.Failed).IsEqualTo(0);
+                await Assert.That(Files(root)).IsEquivalentTo(
+                    [d + DemoCacheStore.RecordSuffix, d + Suffix, "sha-c.json.gz", "sha-x.json.gz", "sha-x" + Suffix],
+                    CollectionOrdering.Matching)
+                    .Because("hashed rows move to the hash, the duplicate copy goes, the unhashed row stays put");
+                await Assert.That(store.ContentKeyMigrationVersion).IsEqualTo(ContentKeyMigration.CurrentVersion);
+            }
+
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(reopened.ContentKeyMigrationVersion).IsEqualTo(ContentKeyMigration.CurrentVersion);
+                await Assert.That(reopened.TryLoadRecord("/m/b.dem")!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(reopened.TryLoadRecord("/m/b.dem")!.Path).IsEqualTo("/m/b.dem");
+                await Assert.That(reopened.TryLoadRecord("/m/c.dem")!.Map).IsEqualTo("de_nuke");
+                await Assert.That(reopened.TryReadSibling("/m/b.dem", Suffix)).IsEqualTo("from b");
+                await Assert.That(reopened.SidecarPathFor("/m/a.dem")).EndsWith("sha-x.json.gz");
+                await Assert.That((await ContentKeyMigration.RunAsync(reopened)).Completed).IsFalse()
+                    .Because("the marker ends the pass for good");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task AVersion4IndexWithoutHashes_MovesNothing_AndIsMarkedDone()
+    {
+        string root = TempRoot();
+        try
+        {
+            WriteVersion4(root, (Record("/m/a.dem", null), "a"), (Record("/m/b.dem", null), null));
+            string[] before = Files(root);
+
+            DemoCacheStore store = new(root);
+            ContentKeyMigrationResult result = await ContentKeyMigration.RunAsync(store);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Completed).IsTrue();
+                await Assert.That(result.Settled).IsEqualTo(0);
+                await Assert.That(Files(root)).IsEquivalentTo(before, CollectionOrdering.Matching);
+                await Assert.That(new DemoCacheStore(root).TryLoadRecord("/m/a.dem")).IsNotNull();
+                await Assert.That(new DemoCacheStore(root).ContentKeyMigrationVersion).IsEqualTo(ContentKeyMigration.CurrentVersion);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    ///     A crash after files were renamed and before the index that names them was saved, both ways round:
+    ///     the version-4 index still on disk, and the re-keyed index saved before the renames. Every record
+    ///     and sibling still reads, and the next pass finishes.
+    /// </summary>
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ACrashBetweenRenameAndIndexSave_LosesNothing(bool savedFirst)
+    {
+        string root = TempRoot();
+        try
+        {
+            WriteVersion4(root, (Analysed("/m/a.dem", "sha-a"), "note a"), (Record("/m/b.dem", "sha-b"), null));
+
+            DemoCacheStore crashed = new(root);
+            if (savedFirst)
+            {
+                await Assert.That(crashed.TrySaveIndex()).IsTrue();
+            }
+
+            foreach (string row in crashed.UnsettledRows())
+            {
+                await Assert.That(crashed.SettleRow(row)).IsTrue();
+            }
+
+            // The process dies here: the index on disk still names the old keys.
+            await Assert.That(File.Exists(Path.Combine(Demos(root), "sha-a.json.gz"))).IsTrue();
+
+            DemoCacheStore store = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(store.TryLoadRecord("/m/b.dem")).IsNotNull();
+                await Assert.That(store.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("note a");
+            }
+
+            // A write before the pass lands under the name the index still gives, and the pass carries it over.
+            store.UpdateExisting("/m/a.dem", r => r.Map = "de_ancient");
+            ContentKeyMigrationResult result = await ContentKeyMigration.RunAsync(store);
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Completed).IsTrue();
+                await Assert.That(reopened.TryLoadRecord("/m/a.dem")!.Map).IsEqualTo("de_ancient");
+                await Assert.That(reopened.TryLoadRecord("/m/a.dem")!.Scoreboard).HasCount(1);
+                await Assert.That(reopened.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("note a");
+                await Assert.That(Files(root).Any(f => f.StartsWith(DemoCacheStore.StableKey("/m/a.dem"), StringComparison.Ordinal)))
+                    .IsFalse();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task AHashLearnedLater_MovesTheRecordAndItsSiblings_OnlyOnceTheIndexIsSaved()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Update("/m/c.dem", 1000, 2000, DemoCacheStore.StampHeader);
+            store.WriteSibling("/m/c.dem", Suffix, "before the hash");
+            store.SaveIndex();
+            string pathKey = DemoCacheStore.StableKey("/m/c.dem");
+            await Assert.That(Files(root)).IsEquivalentTo([pathKey + DemoCacheStore.RecordSuffix, pathKey + Suffix],
+                CollectionOrdering.Matching);
+
+            store.Update("/m/c.dem", 1000, 2000, r => r.Sha256 = "sha-z");
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryGetByContentId("sha-z")!.Path).IsEqualTo("/m/c.dem");
+                await Assert.That(Files(root).All(f => f.StartsWith(pathKey, StringComparison.Ordinal))).IsTrue()
+                    .Because("nothing is renamed before an index naming the hash is on disk");
+                await Assert.That(new DemoCacheStore(root).TryLoadRecord("/m/c.dem")!.Sha256).IsEqualTo("sha-z")
+                    .Because("the old index still finds the newest record under the path's key");
+            }
+
+            store.SaveIndex();
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(Files(root)).IsEquivalentTo(["sha-z.json.gz", "sha-z" + Suffix],
+                    CollectionOrdering.Matching);
+                await Assert.That(reopened.TryReadSibling("/m/c.dem", Suffix)).IsEqualTo("before the hash");
+                await Assert.That(reopened.TryLoadRecord("/m/c.dem")!.Header.IsPresent).IsTrue();
+                await Assert.That(reopened.SidecarPathFor("/m/c.dem")).EndsWith("sha-z.json.gz");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task AFileModifiedInPlace_SplitsIntoANewContentRow()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Upsert(Analysed("/m/a.dem", "sha-old"));
+            store.Upsert(Analysed("/m/copy.dem", "sha-old"));
+            store.Upsert(Analysed("/m/solo.dem", "sha-solo"));
+            store.SaveIndex();
+
+            // Both files rewritten: a parse sees new bytes, so the drift check hands back a fresh record.
+            store.Update("/m/a.dem", 5000, 6000, r => r.SetContentHash("sha-new", null));
+            store.Update("/m/solo.dem", 5000, 6000, r => r.SetContentHash("sha-solo2", null));
+            store.SaveIndex();
+
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(reopened.TryGetByContentId("sha-new")!.Path).IsEqualTo("/m/a.dem");
+                await Assert.That(reopened.TryLoadRecord("/m/a.dem")!.Analysis.IsPresent).IsFalse()
+                    .Because("the old bytes' analysis never describes the new ones");
+                await Assert.That(reopened.TryGetIndex("/m/a.dem")!.Size).IsEqualTo(5000);
+                await Assert.That(reopened.RowsForContentId("sha-old").Select(r => r.Path)).IsEquivalentTo(["/m/copy.dem"]);
+                await Assert.That(reopened.TryLoadRecord("/m/copy.dem")!.Scoreboard.Single().Kills).IsEqualTo(21)
+                    .Because("the copy still holds the old bytes and keeps everything");
+                await Assert.That(reopened.TryGetByContentId("sha-solo")).IsNull();
+                await Assert.That(reopened.TryGetByContentId("sha-solo2")!.Path).IsEqualTo("/m/solo.dem");
+                await Assert.That(File.Exists(Path.Combine(Demos(root), "sha-solo.json.gz"))).IsFalse()
+                    .Because("no path holds the old bytes any more");
+                await Assert.That(reopened.Count).IsEqualTo(3);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>A copy reaching the hash at a lower tier joins the row and erases nothing the row holds.</summary>
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task ACopyJoiningARow_KeepsEveryTierTheRowHeld(bool onDisk)
+    {
+        string? root = onDisk ? TempRoot() : null;
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Upsert(Analysed("/m/a.dem", "sha-x"));
+            store.SaveIndex();
+            store.Update("/m/b.dem", 1000, 3000, r =>
+            {
+                r.Map = "de_nuke";
+                DemoCacheStore.StampHeader(r);
+            });
+
+            store.Update("/m/b.dem", 1000, 3000, r => r.Sha256 = "sha-x");
+            store.SaveIndex();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryLoadRecord("/m/b.dem")!.Scoreboard.Single().Kills).IsEqualTo(21);
+                await Assert.That(store.TryLoadRecord("/m/b.dem")!.Header.IsPresent).IsTrue();
+                await Assert.That(store.TryLoadRecord("/m/b.dem")!.ModifiedTicks).IsEqualTo(3000)
+                    .Because("each path reads with its own write time");
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Analysis.IsPresent).IsTrue();
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Locations).HasCount(2);
+                await Assert.That(store.RowsForContentId("sha-x")).HasCount(2);
+            }
+
+            store.Remove("/m/a.dem");
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryLoadRecord("/m/b.dem")!.Analysis.IsPresent).IsTrue()
+                    .Because("removing one path keeps the row while another path holds the bytes");
+                await Assert.That(store.TryGetByContentId("sha-x")!.Path).IsEqualTo("/m/b.dem");
+            }
+
+            if (root is not null)
+            {
+                await Assert.That(Files(root)).IsEquivalentTo(["sha-x.json.gz"]);
+            }
+        }
+        finally
+        {
+            if (root is not null)
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+}
