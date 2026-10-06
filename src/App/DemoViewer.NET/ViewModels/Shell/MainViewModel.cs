@@ -904,7 +904,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
             libraryContributions, // the Team filter and the provenance chip
             isFeatureEnabled: id => _gate?.IsEnabled(id) ?? true,
-            findDemo: demoCache is null ? null : HostLibrary.For(demoCache, processingQueue).Find);
+            findDemo: demoCache is null ? null : HostLibrary.For(demoCache, processingQueue).Find,
+            contentLocations: demoCache is null ? null : demoCache.PathsOfContent);
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.
@@ -4262,13 +4263,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             HasFile = Frames.Count > 0;
             _allFrames = allFrames;
             // Record this open in the recent-files store (most-recent-first, capped,
-            // de-duped by path). This is the ONE user-facing open funnel: the toolbar Open Demo, the Parser
+            // de-duped by content hash, else by path). This is the ONE user-facing open funnel: the toolbar Open Demo, the Parser
             // empty-state, the Library "Open Demo…" CTA, and the library card double-click all route here
             // (via OpenFileAsync / LoadDemoFromPathAsync), so every open records exactly once. Guarded on a
             // real local path (browser hosts have none) and on a demo that actually parsed to frames.
             if (localPath is not null && HasFile)
             {
-                _recentFiles?.RecordOpen(localPath, parsed.MapName);
+                _recentFiles?.RecordOpen(localPath, parsed.MapName, demoKey);
             }
 
             // Register the demo with the controller (frame list + tick rate for the play loop).

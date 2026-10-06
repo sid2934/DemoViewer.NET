@@ -419,6 +419,27 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
+    ///     Every path listing the hashed row for a content id, confirmed paths first, each group in ordinal
+    ///     order. Empty when no hashed row carries it or it is orphaned. An unconfirmed path may hold other
+    ///     bytes: only a caller that reads the whole file before trusting it may use one.
+    /// </summary>
+    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
+    internal IReadOnlyList<string> PathsOfContent(string? contentId)
+    {
+        if (string.IsNullOrEmpty(contentId))
+        {
+            return [];
+        }
+
+        lock (_gate)
+        {
+            return _rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && !IsProvisional(row) && !row.IsOrphaned
+                ? [.. row.Locations.OrderBy(l => !l.Confirmed).ThenBy(l => l.Path, StringComparer.Ordinal).Select(l => l.Path)]
+                : [];
+        }
+    }
+
+    /// <summary>
     ///     True when the store still holds a row for the content id, listed at a path or orphaned. What a store
     ///     keeping data per content asks before it drops that data.
     /// </summary>

@@ -1,5 +1,6 @@
 #region
 
+using System.Text.Json.Serialization;
 using DemoViewer.NET.Configuration;
 
 #endregion
@@ -8,20 +9,31 @@ namespace DemoViewer.NET.Services;
 
 /// <summary>
 ///     One recently-opened demo: its absolute <paramref name="Path" />, the parsed <paramref name="MapName" />
-///     when known at open time (else <c>null</c>), and the UTC instant it was opened. Persisted as-is in the
-///     config file's <c>Recents</c> section; System.Text.Json round-trips the record through its
-///     single parameterized constructor.
+///     when known at open time (else <c>null</c>), the UTC instant it was opened, and the demo's content hash
+///     when the open computed one. Persisted as-is in the config file's <c>Recents</c> section; System.Text.Json
+///     round-trips the record through its single parameterized constructor, and an entry written without a
+///     hash reads back with <paramref name="Sha256" /> null.
 /// </summary>
 /// <param name="Path">Absolute filesystem path of the demo that was opened.</param>
 /// <param name="MapName">Parsed map name (e.g. <c>de_dust2</c>) if it was known when opened, else <c>null</c>.</param>
 /// <param name="OpenedAtUtc">When the demo was opened (UTC).</param>
-public sealed record RecentFile(string Path, string? MapName, DateTime OpenedAtUtc);
+/// <param name="Sha256">
+///     Lowercase-hex SHA-256 of the demo's bytes (<c>DemoContentHash</c>) when known, else <c>null</c>. The
+///     entry's identity: the same content opened from another path replaces this entry.
+/// </param>
+public sealed record RecentFile(
+    string Path,
+    string? MapName,
+    DateTime OpenedAtUtc,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? Sha256 = null);
 
 /// <summary>
 ///     Best-effort disk persistence for the most-recently-opened demos: the store the
 ///     Library landing binds its "recent files" strip to. The list is kept most-recent-first, capped
-///     at <see cref="MaxRecent" />, and de-duplicated by path (a re-open moves the entry to the front rather
-///     than adding a duplicate). Ordering is by insertion (front-insert on open), NOT by re-sorting
+///     at <see cref="MaxRecent" />, and de-duplicated by content hash when known, else by path (a re-open,
+///     including of the same demo moved or renamed, moves the entry to the front rather than adding a
+///     duplicate). Ordering is by insertion (front-insert on open), NOT by re-sorting
 ///     <see cref="RecentFile.OpenedAtUtc" />, so two opens within the same clock tick still order correctly.
 ///     <para>
 ///         Persistence is delegated to <see cref="SettingsService" />: recents are the <c>Recents</c>
@@ -67,19 +79,24 @@ public sealed class RecentFilesStore
     public event Action? Changed;
 
     /// <summary>
-    ///     Records <paramref name="path" /> as the most-recently-opened demo: moves it to the front (de-duped
-    ///     by path), caps the list to <see cref="MaxRecent" />, persists (best-effort), and raises
-    ///     <see cref="Changed" />. No-op on a null/empty path.
+    ///     Records <paramref name="path" /> as the most-recently-opened demo: moves it to the front, caps the
+    ///     list to <see cref="MaxRecent" />, persists (best-effort), and raises <see cref="Changed" />. Any entry
+    ///     at the same path, or carrying the same <paramref name="sha256" />, is replaced, so a demo opened
+    ///     from a new location stays one entry. No-op on a null/empty path.
     /// </summary>
-    public void RecordOpen(string path, string? mapName)
+    /// <param name="path">Absolute path the demo was opened from.</param>
+    /// <param name="mapName">Parsed map name, or null when unknown.</param>
+    /// <param name="sha256">The demo's lowercase-hex content hash, or null when the open did not compute one.</param>
+    public void RecordOpen(string path, string? mapName, string? sha256 = null)
     {
         if (string.IsNullOrEmpty(path))
         {
             return;
         }
 
-        _items.RemoveAll(r => _pathComparer.Equals(r.Path, path));
-        _items.Insert(0, new RecentFile(path, mapName, DateTime.UtcNow));
+        string? hash = string.IsNullOrEmpty(sha256) ? null : sha256;
+        _items.RemoveAll(r => _pathComparer.Equals(r.Path, path) || SameContent(r.Sha256, hash));
+        _items.Insert(0, new RecentFile(path, mapName, DateTime.UtcNow, hash));
         if (_items.Count > MaxRecent)
         {
             _items.RemoveRange(MaxRecent, _items.Count - MaxRecent);
@@ -121,6 +138,8 @@ public sealed class RecentFilesStore
         // Defensive: drop any malformed entries with a blank path, and honour the cap even if an
         // externally-edited file over-fills it.
         loaded.RemoveAll(r => r is null || string.IsNullOrEmpty(r.Path));
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        loaded.RemoveAll(r => r.Sha256 is { Length: > 0 } sha && !seen.Add(sha));
         if (loaded.Count > MaxRecent)
         {
             loaded.RemoveRange(MaxRecent, loaded.Count - MaxRecent);
@@ -128,6 +147,10 @@ public sealed class RecentFilesStore
 
         return loaded;
     }
+
+    // A hash has no case variants, so an ordinal match. Two unknown hashes say nothing.
+    private static bool SameContent(string? a, string? b) =>
+        a is { Length: > 0 } && b is { Length: > 0 } && string.Equals(a, b, StringComparison.Ordinal);
 
     // Persists the current list into the config file's Recents section. No-op when there is no settings
     // service (in-memory only) or on I/O failure (SettingsService.SaveRecents swallows write failures).

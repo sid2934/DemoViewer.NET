@@ -3,6 +3,7 @@
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Shell;
@@ -89,6 +90,7 @@ public class LibraryShellTests
             await Assert.That(store.Items.Count).IsEqualTo(1);
             await Assert.That(store.Items[0].Path).IsEqualTo(demo);
             await Assert.That(store.Items[0].MapName).IsNotNull(); // a real demo → map known at open time
+            await Assert.That(store.Items[0].Sha256).IsEqualTo(DemoContentHash.Compute(demo));
             // The Library tab's live projection reflects the recorded open.
             await Assert.That(vm.LibraryTab.RecentFiles.Count).IsEqualTo(1);
             await Assert.That(vm.LibraryTab.RecentFiles[0].Path).IsEqualTo(demo);
