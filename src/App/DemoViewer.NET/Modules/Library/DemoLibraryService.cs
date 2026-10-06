@@ -605,7 +605,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 {
                     foreach (string path in deferred)
                     {
-                        _demoCache.Remove(path);
+                        _demoCache.Detach(path);
                     }
                 }
             }
@@ -1333,6 +1333,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///         content before a move: it is put in <paramref name="deferred" /> rather than dropped, so the
     ///         fingerprint can still match it.
     ///     </para>
+    ///     <para>
+    ///         In the unified cache a prune only takes the path out of its demo's row
+    ///         (<see cref="DemoCacheStore.Detach" />). A demo left with no path is orphaned and keeps its analysis
+    ///         for the grace period; the metadata row here goes either way.
+    ///     </para>
     /// </summary>
     private void PruneStaleCacheRows(ScanScope scope, HashSet<long> unplacedSizes, List<string>? deferred)
     {
@@ -1375,8 +1380,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
-        // The unified cache holds a whole sidecar FILE per demo, so a stale row there costs real disk rather
-        // than a line of JSON. Drop those too, in one batch. Consumers re-project wholesale per change.
+        // The unified cache only lets go of the paths: a demo whose last path went is kept as an orphan, so a
+        // folder that comes back within the grace period takes its analysis back unparsed. One batch, since
+        // consumers re-project wholesale per change.
         if (_demoCache is not null)
         {
             using (_demoCache.BeginBatch())
@@ -1389,7 +1395,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     }
                     else
                     {
-                        _demoCache.Remove(path);
+                        _demoCache.Detach(path);
                     }
                 }
             }
@@ -1580,6 +1586,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private (string ContentId, bool Confirmed)? KnownIdentity(string path, long size, DateTime modified)
     {
         (string ContentId, DemoLocation Location)? at = _demoCache?.LocationOf(path);
+        if (at is null && _demoCache?.Reattach(path, size, modified.Ticks) == true)
+        {
+            at = _demoCache.LocationOf(path);
+        }
+
         if (CachedSha(path, size, modified) is { } sha)
         {
             if (_demoCache is not null && at?.Location.Confirmed != true)
@@ -1610,7 +1621,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         if (!row.Location.Confirmed)
         {
-            _demoCache!.Remove(path);
+            _demoCache!.Detach(path);
         }
 
         return null;

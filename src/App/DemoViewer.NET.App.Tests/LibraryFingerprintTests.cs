@@ -31,14 +31,14 @@ public class LibraryFingerprintTests
         "test", "csgo", 0, 0, 0,
         "valve_demo_2", "", "", DemoProfile.Unknown);
 
-    private static byte[] Bytes(int seed)
+    internal static byte[] Bytes(int seed)
     {
         byte[] bytes = new byte[Size];
         new Random(seed).NextBytes(bytes);
         return bytes;
     }
 
-    private static string Write(string root, string relative, byte[] bytes)
+    internal static string Write(string root, string relative, byte[] bytes)
     {
         string path = Path.Combine(root, relative);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -46,7 +46,7 @@ public class LibraryFingerprintTests
         return path;
     }
 
-    private sealed class Library : IDisposable
+    internal sealed class Library : IDisposable
     {
         private readonly DemoScheduler _scheduler;
         private readonly DemoProcessingQueue _queue;
@@ -390,7 +390,7 @@ public class LibraryFingerprintTests
         }
     }
 
-    private static async Task WaitForAsync(Func<bool> condition, string what)
+    internal static async Task WaitForAsync(Func<bool> condition, string what)
     {
         DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
         while (!condition())
