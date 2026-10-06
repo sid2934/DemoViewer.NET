@@ -1496,7 +1496,7 @@ hidden for consumers).
     comes from the queue's `Compare`. Row: **state dot + name (trim, path tooltip) + owner chip(s) + priority
     chip (only when elevated) + a `top` badge (`AccentInteractive` text) on a promoted item + per-item ✕**
     (`icon-btn` → `RemoveByUser(Id)`). Right-click: **Move to top** (queued rows only; disabled for an open, a
-    compaction or a visit parked on an open; the header says "waits: background work paused" or "waits:
+    compaction, a light item or a visit parked on an open; the header says "waits: background work paused" or "waits:
     background processing off" when the item will still be held) and **Remove from queue** / **Stop and
     remove**. Empty ⇒ "Nothing queued."
   - **Recent** (`RecentRows`): completed, failed, cancelled and rejected items, newest first, capped at

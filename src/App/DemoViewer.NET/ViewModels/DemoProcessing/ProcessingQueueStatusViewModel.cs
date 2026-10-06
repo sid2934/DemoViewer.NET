@@ -1,8 +1,6 @@
 #region
 
 using System.Collections.ObjectModel;
-using System.Collections.Specialized;
-using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -40,7 +38,6 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     /// <summary>How many finished items Recent keeps.</summary>
     public const int RecentCap = 25;
 
-    private readonly INotifyCollectionChanged _itemsIncc;
     private readonly Dictionary<Guid, DemoQueueRowViewModel> _rowsById = [];
     private readonly Dictionary<Guid, long> _finishedAt = [];
 
@@ -116,8 +113,6 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
 
         // Project the queue's live Items into row VMs and keep them in sync with the collection's own
         // add/remove/reset notifications (the queue reconciles Items by id on the post thread).
-        _itemsIncc = _queue.Items;
-        _itemsIncc.CollectionChanged += OnItemsChanged;
         _queue.Changed += OnQueueChanged;
         Refresh();
     }
@@ -161,10 +156,8 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
 
         _disposed = true;
         _queue.Changed -= OnQueueChanged;
-        _itemsIncc.CollectionChanged -= OnItemsChanged;
         foreach (DemoQueueRowViewModel row in _rowsById.Values)
         {
-            row.Item.PropertyChanged -= OnItemPropertyChanged;
             row.Dispose();
         }
 
@@ -281,18 +274,9 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         Chip.Label = label;
     }
 
-    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => Refresh();
-
-    private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName is nameof(DemoQueueItem.State) or nameof(DemoQueueItem.StartRank))
-        {
-            SyncRows();
-        }
-    }
-
-    // Rows and RecentRows follow Items by id. Rows move rather than rebuild, so a row keeps its open context
-    // menu through the progress reports that change the queue many times a second.
+    // Rows and RecentRows follow Items by id, once per Changed: the queue raises it after each mirror update,
+    // and a sync per item would re-sort on half-updated ranks. Rows move rather than rebuild, so a row keeps
+    // its open context menu through the progress reports that change the queue many times a second.
     private void SyncRows()
     {
         if (_disposed)
@@ -373,7 +357,6 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         {
             row = new DemoQueueRowViewModel(item, _queue, _jobKinds);
             _rowsById[item.Id] = row;
-            item.PropertyChanged += OnItemPropertyChanged;
         }
 
         return row;
@@ -383,7 +366,6 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     {
         if (_rowsById.Remove(id, out DemoQueueRowViewModel? row))
         {
-            row.Item.PropertyChanged -= OnItemPropertyChanged;
             Rows.Remove(row);
             RecentRows.Remove(row);
             row.Dispose();

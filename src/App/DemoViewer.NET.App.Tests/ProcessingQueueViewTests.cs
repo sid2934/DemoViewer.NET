@@ -2,7 +2,9 @@
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using CS2DemoKit.Parser;
@@ -236,6 +238,67 @@ public class ProcessingQueueViewTests
             finally
             {
                 release.Set();
+            }
+        });
+
+    /// <summary>
+    ///     The panel as the status chip hosts it, inside a light-dismiss flyout: a right press on a queued row opens
+    ///     its menu, and picking Move to top promotes the row without closing the flyout.
+    /// </summary>
+    [Test]
+    [Category("Integration")]
+    public async Task InTheChipFlyout_RightClickThenMoveToTop_PromotesTheRow() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using HeavyJobGate gate = new();
+            using DemoProcessingQueue queue = new(gate, parseFile: _ => SyntheticDemo(), compactHeap: () => Task.CompletedTask);
+            TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                queue.SubmitJob(new QueueJobRequest(QueueJobKind.SidecarMigration, "Sidecar format: compress cached files",
+                    "demo-cache", DemoJobPriority.UserRequested, async job =>
+                    {
+                        started.TrySetResult();
+                        await release.Task.WaitAsync(job.CancellationToken);
+                    }));
+                await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                queue.SubmitBackground(new DemoProcessingRequest("/demos/a.dem", "library", DemoJobPriority.Background, 2,
+                    _ => { }, null, "a.dem"));
+                queue.SubmitBackground(new DemoProcessingRequest("/demos/b.dem", "library", DemoJobPriority.Background, 1,
+                    _ => { }, null, "b.dem"));
+
+                using ProcessingQueueStatusViewModel vm = new(queue, () => { });
+                await PumpUntilAsync(() => vm.Rows.Count == 3, "the rows");
+                ProcessingQueueStatusView view = new() { DataContext = vm };
+                Button chip = new() { Content = "Processing 1" };
+                Flyout flyout = new() { Placement = PlacementMode.Top, Content = new Border { Classes = { "card-flyout" }, Child = view } };
+                chip.Flyout = flyout;
+                Window window = new() { Width = 500, Height = 700, Content = new Border { Padding = new Thickness(20, 600, 20, 20), Child = chip } };
+                window.Show();
+                flyout.ShowAt(chip);
+                Playback2DTimelineHarness.Pump();
+
+                DemoQueueRowViewModel b = vm.Rows.Single(r => r.DisplayText == "b.dem");
+                await Assert.That(vm.Rows[^1]).IsSameReferenceAs(b);
+                Grid row = view.GetVisualDescendants().OfType<Grid>().First(g => g.ContextMenu is not null && ReferenceEquals(g.DataContext, b));
+                Point rowAt = row.TranslatePoint(new Point(40, 8), window)!.Value;
+                window.MouseDown(rowAt, MouseButton.Right);
+                window.MouseUp(rowAt, MouseButton.Right);
+                Playback2DTimelineHarness.Pump();
+                await Assert.That(row.ContextMenu!.IsOpen).IsTrue();
+
+                MenuItem promote = row.ContextMenu.Items.OfType<MenuItem>().First();
+                Point itemAt = promote.TranslatePoint(new Point(10, promote.Bounds.Height / 2), window)!.Value;
+                window.MouseDown(itemAt, MouseButton.Left);
+                window.MouseUp(itemAt, MouseButton.Left);
+                await PumpUntilAsync(() => b.IsPromoted && vm.Rows[1] == b, "b.dem to move up");
+                await Assert.That(flyout.IsOpen).IsTrue().Because("picking from the row menu must not dismiss the chip's flyout");
+                window.Close();
+            }
+            finally
+            {
+                release.TrySetResult();
             }
         });
 

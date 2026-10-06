@@ -62,11 +62,12 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     public bool IsPromoted => IsQueued && _item.Promoted;
 
     /// <summary>
-    ///     Whether "Move to top" applies. An open already goes first, a compaction is due now, and a visit
-    ///     parked on an open runs on that open's parse.
+    ///     Whether "Move to top" applies: the cases <see cref="IDemoProcessingQueue.Promote" /> refuses. An open
+    ///     already goes first, a compaction is due now, a visit parked on an open runs on that open's parse, and
+    ///     a light item would hold back the user's light items that run beside the running one.
     /// </summary>
     public bool CanPromote => IsQueued && _item.Kind is not (QueueJobKind.DemoOpen or QueueJobKind.HeapCompaction)
-                              && _item.Hold != DemoQueueHold.OnOpen;
+                              && _item.Hold != DemoQueueHold.OnOpen && !_item.Light;
 
     /// <summary>The menu entry, saying when a promoted item will still wait.</summary>
     public string PromoteLabel => _item.Hold switch

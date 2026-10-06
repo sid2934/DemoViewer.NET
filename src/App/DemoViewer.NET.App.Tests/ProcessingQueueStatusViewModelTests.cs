@@ -110,6 +110,7 @@ public class ProcessingQueueStatusViewModelTests
         a.Error = "Unexpected end of stream";
         a.EndedSeq = 5;
         b.State = DemoQueueItemState.Running;
+        q.RaiseChanged();
 
         using (Assert.Multiple())
         {
@@ -152,6 +153,7 @@ public class ProcessingQueueStatusViewModelTests
             DemoQueueItem item = q.Add($"d{i}.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
             item.EndedSeq = i;
             item.State = DemoQueueItemState.Completed;
+            q.RaiseChanged();
         }
 
         using (Assert.Multiple())
@@ -187,9 +189,39 @@ public class ProcessingQueueStatusViewModelTests
 
         late.StartRank = 0;
         soon.StartRank = 1;
+        q.RaiseChanged();
         await Assert.That(string.Join(",", vm.Rows.Select(r => r.DisplayText)))
             .IsEqualTo("running.dem,late.dem,soon.dem,section");
         await Assert.That(vm.Rows[1]).IsSameReferenceAs(lateRow).Because("rows move, they are not rebuilt");
+    }
+
+    [Test]
+    public async Task TheHeadStarting_InALongQueue_MovesNoRow()
+    {
+        FakeQueue q = new();
+        List<DemoQueueItem> items = [];
+        for (int i = 0; i < 200; i++)
+        {
+            DemoQueueItem item = q.Add($"d{i}.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued);
+            item.StartRank = i;
+            items.Add(item);
+        }
+
+        ProcessingQueueStatusViewModel vm = new(q);
+        int changes = 0;
+        vm.Rows.CollectionChanged += (_, _) => changes++;
+
+        // The mirror update a start makes: the head runs and every other rank drops by one, item by item.
+        items[0].State = DemoQueueItemState.Running;
+        items[0].StartRank = null;
+        for (int i = 1; i < items.Count; i++)
+        {
+            items[i].StartRank = i - 1;
+        }
+
+        q.RaiseChanged();
+        await Assert.That(changes).IsEqualTo(0);
+        await Assert.That(vm.Rows[0].IsRunning).IsTrue();
     }
 
     [Test]
@@ -200,6 +232,8 @@ public class ProcessingQueueStatusViewModelTests
         q.Add("r.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
         DemoQueueItem open = q.Add("open", "shell", DemoJobPriority.Foreground, DemoQueueItemState.Queued);
         open.Kind = QueueJobKind.DemoOpen;
+        DemoQueueItem save = q.Add("save", "store", DemoJobPriority.Background, DemoQueueItemState.Queued);
+        save.Light = true;
         ProcessingQueueStatusViewModel vm = new(q);
         DemoQueueRowViewModel Row(string name) => vm.Rows.Single(r => r.DisplayText == name);
 
@@ -212,6 +246,7 @@ public class ProcessingQueueStatusViewModelTests
             await Assert.That(Row("r.dem").CanPromote).IsFalse();
             await Assert.That(Row("r.dem").RemoveLabel).IsEqualTo("Stop and remove");
             await Assert.That(Row("open").CanPromote).IsFalse().Because("an open already goes first");
+            await Assert.That(Row("save").CanPromote).IsFalse().Because("the queue refuses light items");
         }
 
         Row("q.dem").PromoteCommand.Execute(null);
