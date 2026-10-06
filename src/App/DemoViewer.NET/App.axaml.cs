@@ -1089,8 +1089,9 @@ public class App : Application
             DemoScheduler scheduler = new(
                 registry.Resolve,
                 sp.GetRequiredService<IDemoProcessingQueue>(),
-                () => cache.Index.Select(e => e.Path),
-                registry.Validate)
+                () => cache.Contents.Select(e => e.Path),
+                registry.Validate,
+                cache.DemoKeyOf)
             {
                 Faulted = (id, _, ex) =>
                 {

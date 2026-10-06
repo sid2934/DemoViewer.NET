@@ -498,6 +498,83 @@ public class DemoSchedulerTests
             .Because("the demo left unplanned is planned on the next event, and no submitted demo is planned twice");
     }
 
+    private static string SameBytes(string path) =>
+        path.EndsWith("demo.dem", StringComparison.OrdinalIgnoreCase) ? "content-1" : path;
+
+    [Test]
+    public async Task TwoPathsOfOneDemo_MarkedTogether_AreOneVisit_OnThePathMarkedLast()
+    {
+        RecordingQueue queue = new() { Defer = true };
+        Fake a = new("a");
+        using DemoScheduler scheduler = new([a], queue, () => Array.Empty<string>(), SameBytes);
+
+        scheduler.DemoChanged("/nfs/demo.dem");
+        scheduler.DemoChanged("/smb/demo.dem");
+        await queue.RunDeferredAsync();
+
+        await Assert.That(queue.Visits.Select(v => v.Path)).IsEquivalentTo(["/smb/demo.dem"]);
+    }
+
+    [Test]
+    public async Task ASecondPathOfADemoInFlight_IsNotPlannedAgain_AndARecheckListingBothPlansOnce()
+    {
+        RecordingQueue queue = new();
+        Fake a = new("a");
+        using DemoScheduler scheduler = new([a], queue, () => ["/nfs/demo.dem", "/smb/demo.dem", "/nfs/other.dem"], SameBytes);
+
+        scheduler.DemoChanged("/nfs/demo.dem");
+        scheduler.Request("/smb/demo.dem");
+        await Assert.That(queue.Visits).HasCount().EqualTo(1).Because("the pass is already out on that demo");
+
+        scheduler.RecheckAll();
+        await Assert.That(queue.Visits.Select(v => v.Path))
+            .IsEquivalentTo(["/nfs/demo.dem", "/nfs/other.dem"], TUnit.Assertions.Enums.CollectionOrdering.Any);
+    }
+
+    [Test]
+    public async Task AFaultThroughOnePath_SkipsTheOther_AndForgettingThroughEitherClearsIt()
+    {
+        int parses = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline,
+            _ =>
+            {
+                Interlocked.Increment(ref parses);
+                return Synthetic();
+            });
+        Fake thrower = new("thrower", onEvaluate: _ => throw new InvalidOperationException("boom"));
+        using DemoScheduler scheduler = new([thrower], queue, () => Array.Empty<string>(), SameBytes);
+
+        scheduler.DemoChanged("/nfs/demo.dem");
+        await WaitFor(() => thrower.Count == 1 && !scheduler.HasOutstanding("thrower"), "the throwing run");
+        scheduler.DemoChanged("/smb/demo.dem");
+        await Task.Delay(120);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scheduler.IsFaulted("thrower", "/smb/demo.dem")).IsTrue();
+            await Assert.That(scheduler.IsFaulted("thrower", "/NFS/DEMO.dem")).IsTrue();
+            await Assert.That(parses).IsEqualTo(1).Because("the other path holds the bytes the pass threw on");
+        }
+
+        scheduler.ForgetFaults("/smb/demo.dem");
+        await Assert.That(scheduler.IsFaulted("thrower", "/nfs/demo.dem")).IsFalse();
+    }
+
+    [Test]
+    public async Task WithoutAKeyResolver_APathDifferingOnlyInCase_IsTheSameDemo()
+    {
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, _ => Synthetic());
+        Fake thrower = new("thrower", onEvaluate: _ => throw new InvalidOperationException("boom"));
+        using DemoScheduler scheduler = new([thrower], queue, () => Array.Empty<string>());
+
+        scheduler.DemoChanged("/x/demo.dem");
+        await WaitFor(() => thrower.Count == 1 && !scheduler.HasOutstanding("thrower"), "the throwing run");
+
+        await Assert.That(scheduler.IsFaulted("thrower", "/X/Demo.DEM")).IsTrue();
+        scheduler.ForgetFaults("/X/DEMO.dem");
+        await Assert.That(scheduler.IsFaulted("thrower", "/x/demo.dem")).IsFalse();
+    }
+
     // A queue that records what the scheduler submits and runs its planning item inline, or holds it when
     // Defer is set, as the extension test doubles do. Token is the planning item's cancellation token;
     // EndPasses reports every submitted pass as run at once, so a demo can be planned again.

@@ -68,6 +68,31 @@ public class RecordPassRunnerTests
     }
 
     [Test]
+    public async Task ADemoAtTwoPaths_RunsOnceThroughItsPrimary_AndAWriteThroughEitherRunsItAgain()
+    {
+        using DemoProcessingQueue queue = CountingQueue(() => { });
+        DemoCacheStore store = new(null);
+        Recording a = new("a", _ => true);
+        using RecordPassRunner runner = new(() => [a], store, queue);
+
+        using (store.BeginBatch())
+        {
+            store.Upsert(HostLibraryTests.Parsed("/smb/one.dem"));
+            store.Upsert(HostLibraryTests.Parsed("/nfs/one.dem"));
+        }
+
+        await WaitFor(() => a.Runs.Count == 1, "pass a");
+        runner.DemoChanged("/smb/one.dem");
+        runner.RecheckAll();
+        await Task.Delay(100);
+        await Assert.That(a.Runs).IsEquivalentTo(["/nfs/one.dem"]).Because("two paths of one row are one demo");
+
+        store.UpdateExisting("/smb/one.dem", r => r.Map = "de_nuke");
+        await WaitFor(() => a.Runs.Count == 2, "the changed row");
+        await Assert.That(a.Runs.Last()).IsEqualTo("/nfs/one.dem");
+    }
+
+    [Test]
     public async Task AThrowingPass_IsSkippedForThatDemo_AndReported_WhileTheOtherRuns()
     {
         using DemoProcessingQueue queue = CountingQueue(() => { });

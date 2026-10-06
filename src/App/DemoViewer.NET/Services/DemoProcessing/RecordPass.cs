@@ -31,7 +31,8 @@ public interface IRecordPass
 ///     Runs the record passes. Fed by the cache's own change events and by <see cref="RecheckAll" />; plans
 ///     and runs in one light queue job at a time, reading each wanted demo's record once, outside the store's
 ///     capacity-1 cache. A pass does not run twice on one row object: the store replaces the row on every
-///     write, so a pass runs again exactly when the demo's row changed.
+///     write, so a pass runs again exactly when the demo's row changed. A demo held at several paths is one
+///     demo: it is visited, run and faulted once, through its primary path.
 ///     <para>
 ///         A row written by an index older than version 3 carries no side players. When a pass reads such a
 ///         demo's record anyway, the row is refreshed from it, so the index fills in as record passes go.
@@ -47,8 +48,10 @@ public sealed class RecordPassRunner : IDisposable
 
     private readonly object _lock = new();
     private readonly HashSet<string> _dirty = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<(string Pass, string Path)> _faulted = [];
-    private readonly Dictionary<(string Pass, string Path), DemoCacheIndexEntry> _ranOn = [];
+
+    // Keyed by the store's demo key, so every path of one demo shares them.
+    private readonly HashSet<(string Pass, string Demo)> _faulted = new(PassDemoKeyComparer.Instance);
+    private readonly Dictionary<(string Pass, string Demo), DemoCacheIndexEntry> _ranOn = new(PassDemoKeyComparer.Instance);
     private readonly Func<IReadOnlyList<IRecordPass>> _passes;
     private readonly IDemoProcessingQueue? _queue;
     private readonly DemoCacheStore _store;
@@ -104,12 +107,13 @@ public sealed class RecordPassRunner : IDisposable
         Schedule();
     }
 
-    /// <summary>True when the pass threw on the demo earlier in the session.</summary>
+    /// <summary>True when the pass threw on the demo, through any of its paths, earlier in the session.</summary>
     public bool IsFaulted(string passId, string path)
     {
+        string demo = _store.DemoKeyOf(path);
         lock (_lock)
         {
-            return _faulted.Contains((passId, path));
+            return _faulted.Contains((passId, demo));
         }
     }
 
@@ -217,9 +221,11 @@ public sealed class RecordPassRunner : IDisposable
 
                 if (recheck)
                 {
-                    HashSet<string> seen = new(batch, StringComparer.OrdinalIgnoreCase);
-                    batch.AddRange(_store.Index.Select(e => e.Path).Where(seen.Add));
+                    batch.AddRange(_store.Contents.Select(e => e.Path));
                 }
+
+                HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
+                batch = [.. batch.Where(p => seen.Add(_store.DemoKeyOf(p)))];
 
                 IReadOnlyList<IRecordPass> passes = _passes();
                 if (passes.Count == 0)
@@ -268,11 +274,13 @@ public sealed class RecordPassRunner : IDisposable
     // read may have refreshed. True when the row was refreshed.
     private bool Visit(string path, IReadOnlyList<IRecordPass> passes, CancellationToken token)
     {
-        if (_store.TryGetIndex(path) is not { } entry || Wanting(passes, path, entry).Count == 0)
+        string demo = _store.DemoKeyOf(path);
+        if (_store.TryGetPrimary(path) is not { } entry || Wanting(passes, demo, entry).Count == 0)
         {
             return false;
         }
 
+        path = entry.Path;
         if (_store.TryLoadRecord(path, false) is not { } record)
         {
             return false;
@@ -282,15 +290,15 @@ public sealed class RecordPassRunner : IDisposable
         if ((entry.CtPlayers is null || entry.TPlayers is null) && record.Parse.IsPresent && _store.RefreshIndexRow(record))
         {
             refreshed = true;
-            entry = _store.TryGetIndex(path) ?? entry;
+            entry = _store.TryGetPrimary(path) ?? entry;
         }
 
-        foreach (IRecordPass pass in Wanting(passes, path, entry))
+        foreach (IRecordPass pass in Wanting(passes, demo, entry))
         {
             token.ThrowIfCancellationRequested();
             lock (_lock)
             {
-                _ranOn[(pass.Id, path)] = entry;
+                _ranOn[(pass.Id, demo)] = entry;
             }
 
             try
@@ -305,7 +313,7 @@ public sealed class RecordPassRunner : IDisposable
             {
                 lock (_lock)
                 {
-                    _faulted.Add((pass.Id, path));
+                    _faulted.Add((pass.Id, demo));
                 }
 
                 Report(pass, path, ex);
@@ -315,15 +323,15 @@ public sealed class RecordPassRunner : IDisposable
         return refreshed;
     }
 
-    private List<IRecordPass> Wanting(IReadOnlyList<IRecordPass> passes, string path, DemoCacheIndexEntry entry)
+    private List<IRecordPass> Wanting(IReadOnlyList<IRecordPass> passes, string demo, DemoCacheIndexEntry entry)
     {
         List<IRecordPass> wanting = [];
         foreach (IRecordPass pass in passes)
         {
             lock (_lock)
             {
-                if (_faulted.Contains((pass.Id, path))
-                    || (_ranOn.TryGetValue((pass.Id, path), out DemoCacheIndexEntry? ran) && ReferenceEquals(ran, entry)))
+                if (_faulted.Contains((pass.Id, demo))
+                    || (_ranOn.TryGetValue((pass.Id, demo), out DemoCacheIndexEntry? ran) && ReferenceEquals(ran, entry)))
                 {
                     continue;
                 }
@@ -338,10 +346,10 @@ public sealed class RecordPassRunner : IDisposable
             {
                 lock (_lock)
                 {
-                    _faulted.Add((pass.Id, path));
+                    _faulted.Add((pass.Id, demo));
                 }
 
-                Report(pass, path, ex);
+                Report(pass, entry.Path, ex);
                 continue;
             }
 

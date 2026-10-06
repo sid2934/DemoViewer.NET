@@ -18,6 +18,10 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///         A demo the queue refused (its tier was full) stays dirty and is planned again when the queue
 ///         reports room. A pass that threw on a demo is not offered that demo again this session.
 ///     </para>
+///     <para>
+///         Every set is keyed by the demo, not the path: two paths of one demo's bytes are one visit, one
+///         outstanding pass and one fault. The path planned is the one marked last at the highest level.
+///     </para>
 /// </summary>
 public sealed class DemoScheduler : IDisposable
 {
@@ -25,12 +29,14 @@ public sealed class DemoScheduler : IDisposable
     private const string PlanKey = "scheduler.plan";
 
     private readonly object _lock = new();
-    private readonly Dictionary<string, PassLevel> _dirty = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<(string Pass, string Path)> _outstanding = [];
-    private readonly HashSet<(string Pass, string Path)> _faulted = [];
+    // Keyed by demo key, holding the path to plan and its level.
+    private readonly Dictionary<string, (string Path, PassLevel Level)> _dirty = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<(string Pass, string Demo)> _outstanding = new(PassDemoKeyComparer.Instance);
+    private readonly HashSet<(string Pass, string Demo)> _faulted = new(PassDemoKeyComparer.Instance);
     private readonly Func<IReadOnlyList<IDemoPass>> _passes;
     private readonly IDemoProcessingQueue _queue;
     private readonly Func<IEnumerable<string>> _allDemos;
+    private readonly Func<string, string> _demoKey;
     private readonly Action? _validatePasses;
     private bool _recheckAll;
     private bool _planQueued;
@@ -46,21 +52,28 @@ public sealed class DemoScheduler : IDisposable
     ///     The registry's own <c>Validate</c>, so <see cref="ValidatePasses" /> fails fast on a cycle or an
     ///     unknown After id without constructing any pass.
     /// </param>
+    /// <param name="demoKey">
+    ///     What identifies the demo at a path: the cache's content id when it has one, so two paths of the same
+    ///     bytes are one demo. Compared ignoring case. Null keys by path.
+    /// </param>
     public DemoScheduler(Func<IReadOnlyList<IDemoPass>> passes, IDemoProcessingQueue queue,
-        Func<IEnumerable<string>> allDemos, Action? validatePasses = null)
+        Func<IEnumerable<string>> allDemos, Action? validatePasses = null, Func<string, string>? demoKey = null)
     {
         _passes = passes ?? throw new ArgumentNullException(nameof(passes));
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _allDemos = allDemos ?? throw new ArgumentNullException(nameof(allDemos));
         _validatePasses = validatePasses;
+        _demoKey = demoKey ?? (static path => path);
         _queue.CapacityAvailable += OnCapacityAvailable;
     }
 
     /// <param name="evaluators">A fixed set of evaluators, each wrapped as a pass in list order.</param>
     /// <param name="queue">The shared processing queue.</param>
     /// <param name="allDemos">Every demo the library knows.</param>
-    public DemoScheduler(IReadOnlyList<IDemoEvaluator> evaluators, IDemoProcessingQueue queue, Func<IEnumerable<string>> allDemos)
-        : this(Snapshot(evaluators), queue, allDemos)
+    /// <param name="demoKey">What identifies the demo at a path; null keys by path.</param>
+    public DemoScheduler(IReadOnlyList<IDemoEvaluator> evaluators, IDemoProcessingQueue queue, Func<IEnumerable<string>> allDemos,
+        Func<string, string>? demoKey = null)
+        : this(Snapshot(evaluators), queue, allDemos, null, demoKey)
     {
     }
 
@@ -136,7 +149,7 @@ public sealed class DemoScheduler : IDisposable
     public void PlanOpenDemo(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        Plan(path, PassLevel.OpenDemo, _passes());
+        Plan(DemoKey(path), path, PassLevel.OpenDemo, _passes());
     }
 
     /// <summary>True while the named pass has at least one demo in flight: backs a feature's "is scanning" indicator.</summary>
@@ -144,7 +157,7 @@ public sealed class DemoScheduler : IDisposable
     {
         lock (_lock)
         {
-            foreach ((string Pass, string Path) key in _outstanding)
+            foreach ((string Pass, string Demo) key in _outstanding)
             {
                 if (string.Equals(key.Pass, passId, StringComparison.Ordinal))
                 {
@@ -177,12 +190,16 @@ public sealed class DemoScheduler : IDisposable
         }
     }
 
-    /// <summary>True when the pass threw on this demo earlier in the session; it is not offered the demo again until restart.</summary>
+    /// <summary>
+    ///     True when the pass threw on this demo, through any of its paths, earlier in the session; it is not
+    ///     offered the demo again until restart.
+    /// </summary>
     public bool IsFaulted(string passId, string path)
     {
+        string demo = DemoKey(path);
         lock (_lock)
         {
-            return _faulted.Contains((passId, path));
+            return _faulted.Contains((passId, demo));
         }
     }
 
@@ -192,9 +209,11 @@ public sealed class DemoScheduler : IDisposable
     /// </summary>
     public void ForgetFaults(string path)
     {
+        string demo = DemoKey(path);
         lock (_lock)
         {
-            _faulted.RemoveWhere(k => string.Equals(k.Path, path, StringComparison.Ordinal));
+            _faulted.RemoveWhere(k => string.Equals(k.Demo, demo, StringComparison.OrdinalIgnoreCase)
+                                      || string.Equals(k.Demo, path, StringComparison.OrdinalIgnoreCase));
         }
     }
 
@@ -218,6 +237,7 @@ public sealed class DemoScheduler : IDisposable
     private void MarkDirty(string path, PassLevel level)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        string demo = DemoKey(path);
         lock (_lock)
         {
             if (_disposed)
@@ -225,13 +245,33 @@ public sealed class DemoScheduler : IDisposable
                 return;
             }
 
-            if (!_dirty.TryGetValue(path, out PassLevel current) || level > current)
-            {
-                _dirty[path] = level;
-            }
+            AddDirty(demo, path, level);
         }
 
         Schedule(level);
+    }
+
+    // Under _lock. A later mark of the demo moves it to its path, and never lowers its level.
+    private void AddDirty(string demo, string path, PassLevel level)
+    {
+        if (!_dirty.TryGetValue(demo, out (string Path, PassLevel Level) current) || level >= current.Level)
+        {
+            _dirty[demo] = (path, level);
+        }
+    }
+
+    // A key resolver that throws must not stop a mark or a plan; the path stands in.
+    private string DemoKey(string path)
+    {
+        try
+        {
+            return _demoKey(path) is { Length: > 0 } key ? key : path;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            ReportFault("scheduler", path, ex);
+            return path;
+        }
     }
 
     // One planning item at a time. A dirty mark while one is queued raises its priority when a user asked;
@@ -291,7 +331,7 @@ public sealed class DemoScheduler : IDisposable
         {
             while (true)
             {
-                List<KeyValuePair<string, PassLevel>> batch;
+                List<(string Demo, string Path, PassLevel Level)> batch;
                 bool recheck;
                 lock (_lock)
                 {
@@ -303,18 +343,19 @@ public sealed class DemoScheduler : IDisposable
                         return;
                     }
 
-                    batch = [.. _dirty];
+                    batch = [.. _dirty.Select(d => (d.Key, d.Value.Path, d.Value.Level))];
                     _dirty.Clear();
                 }
 
                 if (recheck)
                 {
-                    HashSet<string> seen = new(batch.Select(b => b.Key), StringComparer.OrdinalIgnoreCase);
+                    HashSet<string> seen = new(batch.Select(b => b.Demo), StringComparer.OrdinalIgnoreCase);
                     foreach (string path in SafeAllDemos())
                     {
-                        if (seen.Add(path))
+                        string demo = DemoKey(path);
+                        if (seen.Add(demo))
                         {
-                            batch.Add(new KeyValuePair<string, PassLevel>(path, PassLevel.Background));
+                            batch.Add((demo, path, PassLevel.Background));
                         }
                     }
                 }
@@ -327,11 +368,11 @@ public sealed class DemoScheduler : IDisposable
                         // Stopped by the user: what is left stays dirty for the next event.
                         lock (_lock)
                         {
-                            foreach ((string path, PassLevel level) in batch.Skip(i))
+                            foreach ((string demo, string path, PassLevel level) in batch.Skip(i))
                             {
-                                if (!_dirty.TryGetValue(path, out PassLevel current) || level > current)
+                                if (!_dirty.TryGetValue(demo, out (string Path, PassLevel Level) current) || level > current.Level)
                                 {
-                                    _dirty[path] = level;
+                                    _dirty[demo] = (path, level);
                                 }
                             }
 
@@ -341,7 +382,7 @@ public sealed class DemoScheduler : IDisposable
                         return;
                     }
 
-                    Plan(batch[i].Key, batch[i].Value, passes);
+                    Plan(batch[i].Demo, batch[i].Path, batch[i].Level, passes);
                 }
             }
         }
@@ -371,10 +412,16 @@ public sealed class DemoScheduler : IDisposable
 
     // Plans one demo: the closure of interested passes, the level the highest of them or the caller asks for,
     // one visit. A demo the queue refuses goes back on the dirty set for the next capacity event.
-    private void Plan(string path, PassLevel level, IReadOnlyList<IDemoPass> passes)
+    // The demo key is taken once, here: a visit that hashes the file changes the path's key before it ends.
+    private void Plan(string demoKey, string path, PassLevel level, IReadOnlyList<IDemoPass> passes)
     {
         VisitedDemo demo = new(path);
-        List<IDemoPass> candidates = passes.Where(p => !IsFaulted(p.Id, path)).ToList();
+        List<IDemoPass> candidates;
+        lock (_lock)
+        {
+            candidates = [.. passes.Where(p => !_faulted.Contains((p.Id, demoKey)))];
+        }
+
         List<IDemoPass> planned = VisitPlanner.Plan(candidates, demo, level, (pass, ex) => ReportFault(pass.Id, path, ex));
 
         long orderHint = 0;
@@ -402,8 +449,7 @@ public sealed class DemoScheduler : IDisposable
 
             foreach (IDemoPass pass in planned)
             {
-                (string Id, string Path) key = (pass.Id, path);
-                if (_outstanding.Add(key))
+                if (_outstanding.Add((pass.Id, demoKey)))
                 {
                     submitting.Add(pass);
                 }
@@ -421,7 +467,7 @@ public sealed class DemoScheduler : IDisposable
         }
 
         IDemoQueueHandle handle = _queue.SubmitVisit(new DemoVisitRequest(path, level, submitting, orderHint,
-            Path.GetFileName(path), (pass, outcome, error) => PassEnded(path, pass, outcome, error)));
+            Path.GetFileName(path), (pass, outcome, error) => PassEnded(demoKey, path, pass, outcome, error)));
 
         if (handle.State == DemoQueueItemState.Rejected)
         {
@@ -429,12 +475,12 @@ public sealed class DemoScheduler : IDisposable
             {
                 foreach (IDemoPass pass in submitting)
                 {
-                    _outstanding.Remove((pass.Id, path));
+                    _outstanding.Remove((pass.Id, demoKey));
                 }
 
-                if (!_dirty.TryGetValue(path, out PassLevel current) || level > current)
+                if (!_dirty.TryGetValue(demoKey, out (string Path, PassLevel Level) current) || level > current.Level)
                 {
-                    _dirty[path] = level;
+                    _dirty[demoKey] = (path, level);
                 }
             }
 
@@ -447,25 +493,24 @@ public sealed class DemoScheduler : IDisposable
 
     // Runs in the queue's slot. Clears the outstanding entry either way so a demo that becomes interesting
     // again can be planned again; a throw puts the pass on the session's skip list for that demo.
-    private void PassEnded(string path, IDemoPass pass, PassOutcome outcome, Exception? error)
+    private void PassEnded(string demoKey, string path, IDemoPass pass, PassOutcome outcome, Exception? error)
     {
         PassFinished?.Invoke(path, pass.Id, outcome);
-        (string Id, string Path) key = (pass.Id, path);
         lock (_lock)
         {
-            _outstanding.Remove(key);
+            _outstanding.Remove((pass.Id, demoKey));
             if (outcome == PassOutcome.Failed)
             {
-                _faulted.Add(key);
+                _faulted.Add((pass.Id, demoKey));
             }
         }
 
         if (outcome == PassOutcome.Failed && error is not null)
         {
-            ReportFault(key.Id, key.Path, error);
+            ReportFault(pass.Id, path, error);
         }
 
-        RaiseOutstanding(key.Id);
+        RaiseOutstanding(pass.Id);
     }
 
     private void RaiseOutstanding(string passId)
@@ -518,4 +563,5 @@ public sealed class DemoScheduler : IDisposable
             // Nothing to fall back to.
         }
     }
+
 }
