@@ -2,6 +2,7 @@
 
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,8 +22,13 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 ///     <para>
 ///         The VM owns no queue logic: it binds the queue's live <see cref="IDemoProcessingQueue.Items" />
 ///         (projected into presentation-only <see cref="DemoQueueRowViewModel" />s), reads its counts /
-///         pause / background-enabled state, and forwards Pause/Resume + per-item remove. It refreshes on the
-///         queue's posted <see cref="IDemoProcessingQueue.Changed" /> event: no timer, no polling.
+///         pause / background-enabled state, and forwards Pause/Resume, per-item remove and promote. It
+///         refreshes on the queue's posted <see cref="IDemoProcessingQueue.Changed" /> event: no timer, no polling.
+///     </para>
+///     <para>
+///         <see cref="Rows" /> holds running items, then queued ones in the order the queue reports it will start
+///         them (<see cref="DemoQueueItem.StartRank" />), heavy lane before light. Finished items move to
+///         <see cref="RecentRows" />, newest first, which outlives the queue's own history for the session.
 ///     </para>
 ///     <para>
 ///         <b>Theme mandate.</b> Holds no brushes: the chip dot re-themes via the shared state→token classes,
@@ -31,7 +37,17 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 /// </summary>
 public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDisposable
 {
+    /// <summary>How many finished items Recent keeps.</summary>
+    public const int RecentCap = 25;
+
     private readonly INotifyCollectionChanged _itemsIncc;
+    private readonly Dictionary<Guid, DemoQueueRowViewModel> _rowsById = [];
+    private readonly Dictionary<Guid, long> _finishedAt = [];
+
+    // Finished items pushed out of Recent by the cap while the queue still lists them.
+    private readonly HashSet<Guid> _evicted = [];
+    private long _finishCount;
+    private bool _showRecent;
     private readonly JobKindRegistry _jobKinds;
     private readonly Action? _openSettings;
     private readonly IDemoProcessingQueue _queue;
@@ -41,9 +57,21 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     [ObservableProperty]
     private bool _isBackgroundDisabled;
 
-    /// <summary>True when the queue holds no items (drives the flyout's empty-state text).</summary>
+    /// <summary>True when nothing runs or waits (drives the queue view's empty-state text).</summary>
     [ObservableProperty]
     private bool _isEmpty = true;
+
+    /// <summary>True when nothing has finished this session.</summary>
+    [ObservableProperty]
+    private bool _isRecentEmpty = true;
+
+    /// <summary>The Queue toggle's caption, with the live count.</summary>
+    [ObservableProperty]
+    private string _queueViewLabel = "Queue";
+
+    /// <summary>The Recent toggle's caption, with the count kept.</summary>
+    [ObservableProperty]
+    private string _recentViewLabel = "Recent";
 
     /// <summary>True while background processing is transiently paused (the Pause/Resume toggle state).</summary>
     [ObservableProperty]
@@ -90,11 +118,6 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         // add/remove/reset notifications (the queue reconciles Items by id on the post thread).
         _itemsIncc = _queue.Items;
         _itemsIncc.CollectionChanged += OnItemsChanged;
-        foreach (DemoQueueItem item in _queue.Items)
-        {
-            Rows.Add(new DemoQueueRowViewModel(item, _queue, _jobKinds));
-        }
-
         _queue.Changed += OnQueueChanged;
         Refresh();
     }
@@ -102,8 +125,25 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     /// <summary>The status-strip chip this VM drives (added to <c>MainViewModel.Chips</c> while relevant).</summary>
     public StatusChipViewModel Chip { get; }
 
-    /// <summary>The live queue rows the flyout list binds (presentation-only wrappers over the queue items).</summary>
+    /// <summary>Running items, then queued ones in start order (presentation-only wrappers over the queue items).</summary>
     public ObservableCollection<DemoQueueRowViewModel> Rows { get; } = [];
+
+    /// <summary>Items that finished this session, newest first, at most <see cref="RecentCap" />.</summary>
+    public ObservableCollection<DemoQueueRowViewModel> RecentRows { get; } = [];
+
+    /// <summary>The live view shows (the default). Settable from the toggle.</summary>
+    public bool IsQueueView
+    {
+        get => !_showRecent;
+        set => SetView(!value);
+    }
+
+    /// <summary>Recent shows in place of the live view. Settable from the toggle.</summary>
+    public bool IsRecentView
+    {
+        get => _showRecent;
+        set => SetView(value);
+    }
 
     /// <summary>Pause / Resume button caption, reflecting <see cref="IsPaused" />.</summary>
     public string PauseResumeLabel => IsPaused ? "Resume background work" : "Pause background work";
@@ -122,12 +162,23 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         _disposed = true;
         _queue.Changed -= OnQueueChanged;
         _itemsIncc.CollectionChanged -= OnItemsChanged;
-        foreach (DemoQueueRowViewModel row in Rows)
+        foreach (DemoQueueRowViewModel row in _rowsById.Values)
         {
+            row.Item.PropertyChanged -= OnItemPropertyChanged;
             row.Dispose();
         }
 
+        _rowsById.Clear();
         Rows.Clear();
+        RecentRows.Clear();
+    }
+
+    // A checked toggle clicked again unchecks itself; re-raise so it shows the view that is still on.
+    private void SetView(bool recent)
+    {
+        _showRecent = recent;
+        OnPropertyChanged(nameof(IsQueueView));
+        OnPropertyChanged(nameof(IsRecentView));
     }
 
     partial void OnIsPausedChanged(bool value) => OnPropertyChanged(nameof(PauseResumeLabel));
@@ -172,11 +223,11 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
             return;
         }
 
+        SyncRows();
         RunningCount = _queue.RunningCount;
         QueuedCount = _queue.QueuedCount;
         IsPaused = _queue.IsPaused;
         IsBackgroundDisabled = !_queue.BackgroundEnabled;
-        IsEmpty = Rows.Count == 0;
         StatusLine = BuildStatusLine();
         MapChip();
     }
@@ -230,72 +281,145 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         Chip.Label = label;
     }
 
-    // Keep Rows in lockstep with the queue's Items collection. The queue adds/removes items (and updates
-    // existing ones in place, which each row observes itself), so Add/Remove/Reset is the full surface.
-    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) => Refresh();
+
+    private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        switch (e.Action)
+        if (e.PropertyName is nameof(DemoQueueItem.State) or nameof(DemoQueueItem.StartRank))
         {
-            case NotifyCollectionChangedAction.Add when e.NewItems is not null:
-                int insertAt = e.NewStartingIndex >= 0 && e.NewStartingIndex <= Rows.Count
-                    ? e.NewStartingIndex
-                    : Rows.Count;
-                foreach (DemoQueueItem item in e.NewItems)
-                {
-                    Rows.Insert(Math.Min(insertAt, Rows.Count), new DemoQueueRowViewModel(item, _queue, _jobKinds));
-                    insertAt++;
-                }
-
-                break;
-
-            case NotifyCollectionChangedAction.Remove when e.OldItems is not null:
-                foreach (DemoQueueItem item in e.OldItems)
-                {
-                    RemoveRowFor(item.Id);
-                }
-
-                break;
-
-            case NotifyCollectionChangedAction.Replace:
-                RebuildRows();
-                break;
-
-            case NotifyCollectionChangedAction.Reset:
-                RebuildRows();
-                break;
-
-            default:
-                RebuildRows();
-                break;
+            SyncRows();
         }
-
-        IsEmpty = Rows.Count == 0;
-        Refresh();
     }
 
-    private void RemoveRowFor(Guid id)
+    // Rows and RecentRows follow Items by id. Rows move rather than rebuild, so a row keeps its open context
+    // menu through the progress reports that change the queue many times a second.
+    private void SyncRows()
     {
-        for (int i = Rows.Count - 1; i >= 0; i--)
+        if (_disposed)
         {
-            if (Rows[i].Id == id)
+            return;
+        }
+
+        HashSet<Guid> present = [];
+        List<(DemoQueueRowViewModel Row, int Index)> live = [];
+        int index = 0;
+        foreach (DemoQueueItem item in _queue.Items)
+        {
+            present.Add(item.Id);
+            if (_evicted.Contains(item.Id))
             {
-                Rows[i].Dispose();
-                Rows.RemoveAt(i);
+                index++;
+                continue;
+            }
+
+            DemoQueueRowViewModel row = RowFor(item);
+            if (row.IsFinished)
+            {
+                if (!_finishedAt.ContainsKey(item.Id))
+                {
+                    _finishedAt[item.Id] = ++_finishCount;
+                }
+            }
+            else
+            {
+                live.Add((row, index));
+            }
+
+            index++;
+        }
+
+        // A live item that left Items unfinished (a completed save, which the queue drops) is not history.
+        foreach (Guid id in _rowsById.Keys.Where(id => !present.Contains(id) && !_finishedAt.ContainsKey(id)).ToList())
+        {
+            DropRow(id);
+        }
+
+        Arrange(Rows, live
+            .OrderBy(x => x.Row.IsRunning ? 0 : 1)
+            .ThenBy(x => x.Row.Item.Light)
+            .ThenBy(x => x.Row.Item.StartRank ?? int.MaxValue)
+            .ThenBy(x => x.Index)
+            .Select(x => x.Row)
+            .ToList());
+
+        List<DemoQueueRowViewModel> recent = _finishedAt.Keys
+            .Select(id => _rowsById[id])
+            .OrderByDescending(r => r.Item.EndedSeq)
+            .ThenByDescending(r => _finishedAt[r.Id])
+            .ToList();
+        _evicted.RemoveWhere(id => !present.Contains(id));
+        foreach (DemoQueueRowViewModel old in recent.Skip(RecentCap))
+        {
+            DropRow(old.Id);
+            if (present.Contains(old.Id))
+            {
+                _evicted.Add(old.Id);
             }
         }
+
+        Arrange(RecentRows, recent.Take(RecentCap).ToList());
+
+        IsEmpty = Rows.Count == 0;
+        IsRecentEmpty = RecentRows.Count == 0;
+        QueueViewLabel = Rows.Count == 0 ? "Queue" : string.Format(CultureInfo.InvariantCulture, "Queue ({0})", Rows.Count);
+        RecentViewLabel = RecentRows.Count == 0
+            ? "Recent"
+            : string.Format(CultureInfo.InvariantCulture, "Recent ({0})", RecentRows.Count);
     }
 
-    private void RebuildRows()
+    private DemoQueueRowViewModel RowFor(DemoQueueItem item)
     {
-        foreach (DemoQueueRowViewModel row in Rows)
+        if (!_rowsById.TryGetValue(item.Id, out DemoQueueRowViewModel? row))
         {
+            row = new DemoQueueRowViewModel(item, _queue, _jobKinds);
+            _rowsById[item.Id] = row;
+            item.PropertyChanged += OnItemPropertyChanged;
+        }
+
+        return row;
+    }
+
+    private void DropRow(Guid id)
+    {
+        if (_rowsById.Remove(id, out DemoQueueRowViewModel? row))
+        {
+            row.Item.PropertyChanged -= OnItemPropertyChanged;
+            Rows.Remove(row);
+            RecentRows.Remove(row);
             row.Dispose();
         }
 
-        Rows.Clear();
-        foreach (DemoQueueItem item in _queue.Items)
+        _finishedAt.Remove(id);
+    }
+
+    // Makes target equal desired with moves, inserts and removes, never a reset.
+    private static void Arrange(ObservableCollection<DemoQueueRowViewModel> target, List<DemoQueueRowViewModel> desired)
+    {
+        HashSet<DemoQueueRowViewModel> wanted = [.. desired];
+        for (int i = target.Count - 1; i >= 0; i--)
         {
-            Rows.Add(new DemoQueueRowViewModel(item, _queue, _jobKinds));
+            if (!wanted.Contains(target[i]))
+            {
+                target.RemoveAt(i);
+            }
+        }
+
+        for (int i = 0; i < desired.Count; i++)
+        {
+            if (i < target.Count && ReferenceEquals(target[i], desired[i]))
+            {
+                continue;
+            }
+
+            int at = target.IndexOf(desired[i]);
+            if (at >= 0)
+            {
+                target.Move(at, i);
+            }
+            else
+            {
+                target.Insert(i, desired[i]);
+            }
         }
     }
 }

@@ -1475,7 +1475,7 @@ consumer**, placed in the bottom status strip because a queue is exactly the "pe
 background-activity" the idiom exists for (out of the way for developers, present-by-default for power+dev,
 hidden for consumers).
 - **Files (as-built):** VM `ViewModels/DemoProcessing/ProcessingQueueStatusViewModel` (maps
-  `Services.DemoProcessing.IDemoProcessingQueue` → the chip + flyout; owns `Chip` + `Rows`) + row wrapper
+  `Services.DemoProcessing.IDemoProcessingQueue` → the chip + flyout; owns `Chip`, `Rows` + `RecentRows`) + row wrapper
   `ViewModels/DemoProcessing/DemoQueueRowViewModel`; flyout body `Views/DemoProcessing/ProcessingQueueStatusView`
   (resolved by the app `ViewLocator`). Wired in `MainViewModel` (built in the ctor when a queue is injected;
   presence reconciled by `ReconcileQueueChip`, subscribed to `IDemoProcessingQueue.Changed` + re-run from
@@ -1487,25 +1487,39 @@ hidden for consumers).
 - **Chip mapping (no brushes; the shared `Ellipse.dot.*` state→token dots + neutral `TextMid` label):**
   paused → `Off` "Queue paused"; running>0 → `Working` **pulsing** "Processing N"; queued-only → `Working`
   steady "N queued"; idle → `Off` (hidden anyway). Tooltip = the full status line.
-- **Flyout:** header + live status line ("N running · M queued", + " · paused" / " · background disabled"), a
-  transient **Pause/Resume** `ghost` button + a **Settings** link (`OpenSettings`), then the item `ListBox`
-  (`data-list`), one row per `DemoQueueItem`: **state dot + name (trim, path tooltip) + owner chip(s) +
-  priority chip (only when elevated) + per-item ✕** (`icon-btn` → `RemoveByUser(Id)`). Empty ⇒ "Nothing queued."
+- **Flyout:** header + live status line ("N running · M queued", + " · paused" / " · background disabled",
+  wraps), a transient **Pause/Resume** `ghost` button + a **Settings** link (`OpenSettings`), then a
+  **Queue (N) / Recent (N)** `ToggleButton.chip` pair (the Library's Demos / Teams idiom) over two `ListBox`es
+  (`data-list`). The flyout body is a fixed 340 px so switching views does not resize it.
+  - **Queue** (`Rows`): running items first, then queued items in the order the queue reports it will start
+    them (`DemoQueueItem.StartRank`, heavy lane before light). The panel never sorts by its own rules; the rank
+    comes from the queue's `Compare`. Row: **state dot + name (trim, path tooltip) + owner chip(s) + priority
+    chip (only when elevated) + a `top` badge (`AccentInteractive` text) on a promoted item + per-item ✕**
+    (`icon-btn` → `RemoveByUser(Id)`). Right-click: **Move to top** (queued rows only; disabled for an open, a
+    compaction or a visit parked on an open; the header says "waits: background work paused" or "waits:
+    background processing off" when the item will still be held) and **Remove from queue** / **Stop and
+    remove**. Empty ⇒ "Nothing queued."
+  - **Recent** (`RecentRows`): completed, failed, cancelled and rejected items, newest first, capped at
+    `ProcessingQueueStatusViewModel.RecentCap` (25) for the session, kept after the queue prunes its own history.
+    No actions. A failed row shows its message under it (`mono`, `TextMid`, wraps to 3 lines). Empty ⇒
+    "Nothing has finished yet." A save or section build the queue drops on completion never reaches Recent.
 - **Every kind of background job is a row** (header "BACKGROUND WORK", Pause/Resume queue): a job that is not a
   demo parse (lineup clips, strat mining, pack export, sidecar migration, heap compaction) shows its title, a
   `badge` kind chip in place of the owner chip, and while running a 3px determinate `ProgressBar`
   (`AccentInteractive`) under the title plus its `mono` detail ("48 of 366 demos") after the state word. ✕ on a
   running job cancels it at its next step. Render check: `ProcessingQueueViewTests` writes
-  `queue-flyout-mixed.png`.
+  `queue-flyout-mixed.png`, `queue-flyout-menu.png` and `queue-flyout-mixed-recent.png`.
 - **`DemoQueueRowViewModel`, the reuse win:** the six lifecycle states map onto the **existing five semantic
   `Ellipse.dot.*` states** (`Queued`/`Running`→`Working` [Running also `.pulsing`]; `Completed`→`Good`;
   `Failed`→`Error`; `Rejected`→`Degraded`; `Cancelled`→`Off`). **Zero new tokens, zero new styles.** The state
   **word** (`StateLabel`) is the accessible carrier; the dot is the redundant colour cue (WCAG 1.4.1), same as
-  the chip. The row is a presentation-only wrapper: **no DemoProcessing service file was edited** (the queue
-  item / enums are unchanged; the brief's "prefer not to touch `DemoQueueItem`" is honoured).
-- **Theme/verify:** rendered across dark / light / high-contrast (`queue-flyout`, `queue-flyout-empty`,
-  `queue-chips` variants in `UiCapture/Variants.cs`): the dots + chips + dark-indigo/white text carry each
-  theme with zero per-file changes. Pure-VM coverage: `ProcessingQueueStatusViewModelTests` (8 cases).
+  the chip. The row is a presentation-only wrapper. The queue supplies what the panel cannot work out itself:
+  `StartRank`, `Light`, `Promoted`, `Hold` and `EndedSeq` on `DemoQueueItem` / `DemoQueueItemSnapshot`, and
+  `IDemoProcessingQueue.Promote(id)`.
+- **Theme/verify:** rendered across dark / light / high-contrast (`queue-flyout`, `queue-flyout-recent`,
+  `queue-flyout-empty`, `queue-chips` variants in `UiCapture/Variants.cs`): the dots + chips + dark-indigo/white
+  text carry each theme with zero per-file changes. Pure-VM coverage: `ProcessingQueueStatusViewModelTests`;
+  the start order and promotion rules: `QueueStartOrderTests`.
 
 ### Live Sync 2D-tab indicator + `ILiveSyncHudState` seam (CSVG Phase-3, ux-design §5.3)
 - **What:** a small **display-only** CS2 chip on the 2D Playback HUD (top-right, in the walled-off `Pb2d*`
