@@ -23,8 +23,9 @@ namespace DemoViewer.NET.AppTests;
 ///     One read per demo per session, on the real composition root with every Strat Book pass on (round facts,
 ///     the round index sweep, suggested tags and the grenade sweep) and the highlights backlog on: an import
 ///     reads each demo once, a demo open while the library finds it is read once, and a demo the library finds
-///     still queued when the user opens it is read once, by the open. A later re-check of the whole library
-///     reads nothing, so no pass is left wanting a demo it just ran on. Demos are read in place.
+///     still queued when the user opens it is read once, by the open. A demo opened after its import finished is
+///     read again by the open and by nothing else. A later re-check of the whole library reads nothing, so no
+///     pass is left wanting a demo it just ran on. Demos are read in place.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -114,7 +115,34 @@ public class ParseOncePerDemoTests
         });
     }
 
-    private static async Task AssertEachReadOnce(IServiceProvider provider, DemoProcessingQueue queue, string folder)
+    // The import's parse is gone once its visit ends, so the open reads the demo again. That read is the only
+    // one: no pass runs again on the open, and a re-check after it reads nothing.
+    [Test]
+    public async Task AnOpenAfterTheImportFinished_IsTheDemosOnlyOtherRead()
+    {
+        string folder = Corpus("trimmed");
+        string opened = Demos(folder)[0];
+        await WithApp(folder, async provider =>
+        {
+            DemoProcessingQueue queue = provider.GetRequiredService<DemoProcessingQueue>();
+            MainViewModel shell = provider.GetRequiredService<MainViewModel>();
+            await provider.GetRequiredService<DemoLibraryService>().RescanAsync();
+            await SettleAsync(queue);
+            await Assert.That(queue.ParseCount(opened)).IsEqualTo(1).Because("the import read it once");
+
+            await shell.LoadDemoFromPathAsync(opened);
+            await SettleAsync(queue);
+            provider.GetRequiredService<DemoScheduler>().RecheckAll();
+            await SettleAsync(queue);
+
+            await Assert.That(shell.LoadedDemoPath).IsEqualTo(opened);
+            await Assert.That(queue.ParseCount(opened)).IsEqualTo(2).Because("the open's own parse is the only other read");
+            await AssertEachReadOnce(provider, queue, folder, except: opened);
+        });
+    }
+
+    private static async Task AssertEachReadOnce(IServiceProvider provider, DemoProcessingQueue queue, string folder,
+        string? except = null)
     {
         DemoCacheStore cache = provider.GetRequiredService<DemoCacheStore>();
         using (Assert.Multiple())
@@ -128,7 +156,10 @@ public class ParseOncePerDemoTests
                                   + $"suggestions {provider.GetRequiredService<ProposalStore>().Stamp(demo)?.State}");
                 await Assert.That(entry?.ParseSchema ?? 0).IsGreaterThan(0).Because($"the library indexed {demo}");
                 await Assert.That(provider.GetRequiredService<GrenadeStore>().Stamp(demo)).IsNotNull().Because($"the grenade sweep walked {demo}");
-                await Assert.That(queue.ParseCount(demo)).IsEqualTo(1).Because($"{demo} is read once this session");
+                if (!string.Equals(demo, except, StringComparison.Ordinal))
+                {
+                    await Assert.That(queue.ParseCount(demo)).IsEqualTo(1).Because($"{demo} is read once this session");
+                }
             }
         }
     }
