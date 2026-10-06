@@ -47,8 +47,9 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
 
     private int _reportedAbsent;
 
-    // Demos whose engine run produced no rows under a fingerprint, this session only. Nothing is written
-    // (an empty payload would read as current), so without this the scheduler re-parses them forever.
+    // Demos whose engine run produced no rows under a fingerprint, this session only, by demo key so another
+    // path of the same bytes is not tried again. Nothing is written (an empty payload would read as current),
+    // so without this the scheduler re-parses them forever.
     private readonly HashSet<string> _noRows = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _noRowsGate = new();
 
@@ -137,8 +138,8 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     }
 
     /// <summary>
-    ///     The demos whose rows are missing or stale under the current fingerprint, for the pending counts.
-    ///     Derived from the index, never stored.
+    ///     The demos whose rows are missing or stale under the current fingerprint, for the pending counts: one
+    ///     primary path per demo. Derived from the index, never stored.
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
@@ -150,7 +151,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
 
         return
         [
-            .. _demoCache.Index
+            .. _demoCache.Contents
                 .Where(e => e.ParseSchema > 0 && e.NeedsRoundFacts(fingerprint) && !TriedWithoutRows(e.Path, fingerprint))
                 .OrderByDescending(e => e.ModifiedTicks)
                 .Select(e => e.Path)
@@ -234,7 +235,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
         }
     }
 
-    private static string NoRowsKey(string path, string? fingerprint) => fingerprint + "|" + path;
+    private string NoRowsKey(string path, string? fingerprint) => fingerprint + "|" + _demoCache.DemoKeyOf(path);
 
     // A config that cannot load yields null, which reads as "nothing to run": one broken rule file must
     // never mark the whole library stale.

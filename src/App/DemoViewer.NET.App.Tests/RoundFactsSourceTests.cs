@@ -3,6 +3,7 @@
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -200,6 +201,36 @@ public class RoundFactsSourceTests
             await Assert.That(tWinsOnB.Select(h => h.Round.Number)).IsEquivalentTo([1]);
             await Assert.That(siteB.Select(h => (h.Demo.Path, h.Round.Number))).IsEquivalentTo([(DemoA, 2)]);
             await Assert.That(extra.Count).IsEqualTo(5).Because("every round carries the extra column; LiveOnly off admits the unfinished one");
+        }
+    }
+
+    [Test]
+    public async Task Query_AnswersADemoHeldAtTwoPathsOnce_UnderThePathTheFilterNames()
+    {
+        DemoCacheStore store = Store();
+        DemoCacheRecord copy = store.TryLoadRecord(DemoA, false)!;
+        copy.Path = "/e/a.dem";
+        copy.Sha256 = "sha-a";
+        store.Upsert(copy);
+        DemoCacheRecord original = store.TryLoadRecord(DemoA, false)!;
+        original.Sha256 = "sha-a";
+        store.Upsert(original);
+        await Assert.That(store.TryGetIndex(DemoA)!.Locations).HasCount(2);
+        RoundFactsSource source = new(store);
+
+        IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> all = source.Query(new RoundFactsFilter());
+        IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> byCopy = source.Query(new RoundFactsFilter
+        {
+            Demos = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "/e/a.dem" }
+        });
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(all.Count).IsEqualTo(4).Because("the copy is the same two live rounds, not two more");
+            await Assert.That(all.Where(h => h.Round.Number == 1).Select(h => h.Demo.Path))
+                .IsEquivalentTo([DemoA, DemoB], CollectionOrdering.Any).Because("an unfiltered hit names the primary path");
+            await Assert.That(byCopy.Select(h => (h.Demo.Path, h.Round.Number)))
+                .IsEquivalentTo([("/e/a.dem", 1), ("/e/a.dem", 2)], CollectionOrdering.Any);
         }
     }
 

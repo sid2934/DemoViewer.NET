@@ -140,6 +140,27 @@ public class RoundFactsEvaluatorTests
     }
 
     [Test]
+    public async Task ADemoHeldAtTwoPaths_IsPendingOnce_AndNoRowsThroughOnePathCoversTheOther()
+    {
+        DemoCacheStore store = StoreWithParsedDemo();
+        DemoCacheRecord copy = store.TryLoadRecord(Demo, false)!;
+        copy.Path = "/zz/copy.dem";
+        store.Upsert(copy);
+        CountingSource source = new(RoundFactsTable.Unavailable("round_facts: the ruleset produced no round_facts table"));
+        RoundFactsEvaluator evaluator = new(store, source, new FakeIdentity("rf-A"));
+
+        await Assert.That(evaluator.PendingPaths()).IsEquivalentTo([Demo]).Because("one demo, one pending entry");
+
+        evaluator.Evaluate("/zz/copy.dem", TwoRoundDemo());
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse().Because("the other path holds the same bytes");
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
+        }
+    }
+
+    [Test]
     public async Task RowsAreWrittenOnce_UnderTheFingerprint_WithTheClockHeader()
     {
         DemoCacheStore store = StoreWithParsedDemo();

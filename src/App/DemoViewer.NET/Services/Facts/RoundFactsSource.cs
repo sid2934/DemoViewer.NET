@@ -60,14 +60,18 @@ public sealed class RoundFactsSource : IRoundFactsSource
         TryGet(demoPath) is { } rows ? RoundFactsRules.FindRound(rows.Rounds, frameClockTick) : null;
 
     /// <inheritdoc />
+    /// <remarks>
+    ///     One demo answers once however many paths hold it. Its hits carry the path the filter named when it
+    ///     names one, else the demo's primary path.
+    /// </remarks>
     public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter)
     {
         ArgumentNullException.ThrowIfNull(filter);
         List<(DemoCacheIndexEntry, RoundFacts)> hits = [];
-        foreach (DemoCacheRecord record in _demoCache.LoadRecords(e =>
-                     e.RoundFactsStamp() is { Schema: > 0 } && (filter.Demos is null || filter.Demos.Contains(e.Path))))
+        foreach (DemoCacheIndexEntry demo in _demoCache.Contents)
         {
-            if (record.RoundFacts is not { } rows || _demoCache.TryGetIndex(record.Path) is not { } entry)
+            if (demo.RoundFactsStamp() is not { Schema: > 0 } || Named(demo, filter.Demos) is not { } entry
+                || _demoCache.TryLoadRecord(entry.Path, false) is not { RoundFacts: { } rows })
             {
                 continue;
             }
@@ -76,7 +80,7 @@ public sealed class RoundFactsSource : IRoundFactsSource
             int tickRate = rows.Clock?.TickRate ?? 0;
             foreach (RoundFacts round in rows.Rounds)
             {
-                if (RoundFactsRules.Matches(record.Path, round, filter) && (!filter.HasTickAnchored || RoundFactsRules.MatchesAnywhere(round, filter, tickRate)))
+                if (RoundFactsRules.Matches(entry.Path, round, filter) && (!filter.HasTickAnchored || RoundFactsRules.MatchesAnywhere(round, filter, tickRate)))
                 {
                     hits.Add((entry, round));
                 }
@@ -84,6 +88,17 @@ public sealed class RoundFactsSource : IRoundFactsSource
         }
 
         return hits;
+    }
+
+    // The demo's row seen from the path the filter names, the primary first; null when it names none of them.
+    private DemoCacheIndexEntry? Named(DemoCacheIndexEntry demo, IReadOnlySet<string>? demos)
+    {
+        if (demos is null || demos.Contains(demo.Path))
+        {
+            return demo;
+        }
+
+        return demo.Locations.FirstOrDefault(l => demos.Contains(l.Path)) is { } named ? _demoCache.TryGetIndex(named.Path) : null;
     }
 
     /// <inheritdoc />
