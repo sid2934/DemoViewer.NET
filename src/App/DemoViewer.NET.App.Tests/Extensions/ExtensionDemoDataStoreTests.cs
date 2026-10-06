@@ -300,6 +300,34 @@ public class ExtensionDemoDataStoreTests
     }
 
     [Test]
+    public async Task APathWhoseRowLosesItsHash_KeepsItsFacet_ForTheNextHashToFind()
+    {
+        string root = NewRoot();
+        try
+        {
+            DemoCacheStore library = new(null);
+            Seed(library, Demo, "aaaa");
+            ExtensionDemoDataStore store = NewStore(root, library);
+            store.Write(Demo, Rounds("a"));
+
+            // A moved write time reads as another file until the next hash says otherwise.
+            library.Update(Demo, 10, 99, r => r.Sha256 = null);
+            await Assert.That(Directory.GetFiles(Path.Combine(store.Root, "rounds"))).IsNotEmpty();
+
+            library.Update(Demo, 10, 99, r => r.Sha256 = "aaaa");
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.Stamp(Demo, "rounds")).IsNotNull();
+                await Assert.That(Encoding.UTF8.GetString(store.Read(Demo, "rounds", 1, "fp-1")!)).IsEqualTo("a");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
     public async Task TwoExtensions_KeepApart_AndAFacetNameCannotLeaveTheFolder()
     {
         string root = NewRoot();

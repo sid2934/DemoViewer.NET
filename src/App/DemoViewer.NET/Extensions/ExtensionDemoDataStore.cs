@@ -507,8 +507,11 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             }
 
             // A path now holding other bytes no longer leads to this entry: a read there looks up the new hash.
+            // A row with no hash says nothing about the bytes (a write time moved, a record was rebuilt), and
+            // the next hash of the file finds the entry again.
             if (_library.TryGetIndex(entry.DemoPath) is { } row
-                && (entry.Sha256 is null || string.Equals(row.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)))
+                && (entry.Sha256 is null || string.IsNullOrEmpty(row.Sha256)
+                    || string.Equals(row.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)))
             {
                 continue;
             }
