@@ -92,8 +92,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     // answer this scan still covers the rows under its real path.
     private readonly Dictionary<string, string> _resolvedRoots = new(StringComparer.Ordinal);
 
-    // Each registered folder's latest read, so a walk never starts a read beside one that has not answered.
-    private readonly Dictionary<string, Task> _outstanding = new(StringComparer.Ordinal);
+    // Each registered folder's latest listing read and latest header read, so neither kind starts a read beside
+    // one of its own that has not answered. Apart, so one stuck file does not stop the folder being listed.
+    private readonly Dictionary<string, (Task Answer, DateTime Started)> _outstanding = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (Task Answer, DateTime Started)> _outstandingHeaders = new(StringComparer.Ordinal);
 
     private CancellationTokenSource? _scanCts;
     private volatile bool _disposed;
@@ -151,7 +153,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <summary>The queue the scan's work runs on; null uses <see cref="QueueWork.Ambient" />. Test seam.</summary>
     internal IDemoProcessingQueue? QueueOverride { get; set; }
 
-    /// <summary>How long the folder walk waits on a read. Test seam.</summary>
+    /// <summary>The header read tier 1 makes per demo. Test seam.</summary>
+    internal ILibraryHeaderReader HeaderReader { get; set; } = FileSystemLibraryHeaderReader.Instance;
+
+    /// <summary>How long the folder walk and the header reads wait on the file system. Test seam.</summary>
     internal LibraryScanTiming Timing { get; set; } = LibraryScanTiming.Default;
 
     private IDemoProcessingQueue? Queue => QueueOverride ?? QueueWork.Ambient;
@@ -436,6 +441,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     ///         every folder is listed, in their own jobs that the returned task does not wait for, and only
     ///         same-size files without a cached hash wait on them for their full parse.
     ///     </para>
+    ///     <para>
+    ///         Header reads run the same way, a folder at a time. A folder's full parses are enlisted once its
+    ///         headers are read; when a header read gives no answer in time, the folder's unread demos and its
+    ///         full parses are left for the next scan rather than failed.
+    ///     </para>
     /// </summary>
     public async Task RescanAsync()
     {
@@ -495,8 +505,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 .ConfigureAwait(false);
             RaiseChanged();
 
-            await IndexHeadersAsync(needMap, ct).ConfigureAwait(false);
-            EnlistTier2(needFull, true);
+            await IndexAsync(needMap, needFull, true, ct).ConfigureAwait(false);
 
             int pending;
             lock (_tier2Lock)
@@ -541,8 +550,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             List<DemoEntry> needMap = [], needFull = [];
             await PostAsync(() => Reconcile(primaries, shadowFolders, needMap, needFull, null, [], null)).ConfigureAwait(false);
             RaiseChanged();
-            await IndexHeadersAsync(needMap, ct).ConfigureAwait(false);
-            EnlistTier2(needFull, false);
+            await IndexAsync(needMap, needFull, false, ct).ConfigureAwait(false);
             AppLog.LibraryCopiesResolved(DiagLog, unresolved.Count, files.Count - primaries.Count, clock.ElapsedMilliseconds);
             if (Scheduler is null)
             {
@@ -555,60 +563,189 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
     }
 
-    // Tier 1 (cheap header -> map/server). Light parallelism: it only reads ~256 KB per file.
-    private async Task IndexHeadersAsync(List<DemoEntry> needMap, CancellationToken ct)
+    // Tier 1 then tier 2, a folder at a time: a folder's full parses are enlisted once its headers are read,
+    // so a folder whose reads stopped answering puts no parse of its demos on the heavy lane this scan.
+    private async Task IndexAsync(List<DemoEntry> needMap, List<DemoEntry> needFull, bool replace, CancellationToken ct)
     {
-        if (needMap.Count == 0)
+        (string Folder, string Root)[] roots = [.. _folderSnapshot.Select(f => (f, KnownRoot(f)))];
+
+        string FolderOf(DemoEntry entry)
         {
-            return;
+            foreach ((string folder, string root) in roots)
+            {
+                if (IsUnder(entry.FilePath, root))
+                {
+                    return folder;
+                }
+            }
+
+            return entry.Directory;
         }
 
-        List<DemoEntry> batch = [.. needMap.Distinct()];
-        needMap.Clear();
-        await QueueWork.Run(Queue, QueueJobKind.LibraryScan, "Library: read demo headers", "library", _ =>
+        Dictionary<string, Queue<DemoEntry>> headers = new(StringComparer.Ordinal);
+        foreach (DemoEntry entry in needMap.Distinct())
+        {
+            string folder = FolderOf(entry);
+            if (!headers.TryGetValue(folder, out Queue<DemoEntry>? pending))
             {
-                try
-                {
-                    Parallel.ForEach(batch, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct },
-                        IndexTier1);
-                }
-                catch (OperationCanceledException)
-                {
-                    // A newer rescan replaced this one; the wait below returns for it.
-                }
-            })
-            .WaitAsync(ct).ConfigureAwait(false);
+                headers[folder] = pending = new Queue<DemoEntry>();
+            }
+
+            pending.Enqueue(entry);
+        }
+
+        needMap.Clear();
+        ILookup<string, DemoEntry> full = needFull.ToLookup(FolderOf, StringComparer.Ordinal);
+        if (replace)
+        {
+            KeepOnlyInTier2Backlog(needFull);
+        }
+
+        EnlistTier2([.. full.Where(g => !headers.ContainsKey(g.Key)).SelectMany(g => g)]);
+
+        await Task.WhenAll(headers.Select(async pair =>
+        {
+            if (await ReadHeadersAsync(pair.Key, pair.Value, ct).ConfigureAwait(false))
+            {
+                EnlistTier2([.. full[pair.Key]]);
+            }
+            else
+            {
+                HoldBackTier2(full[pair.Key]);
+            }
+        })).ConfigureAwait(false);
         RaiseChanged();
+    }
+
+    // One folder's header reads, a light queue slice at a time with one read in flight, the same shape as the
+    // walk. False when a read gave no answer in time; the demos not read yet are read on the next scan.
+    private async Task<bool> ReadHeadersAsync(string folder, Queue<DemoEntry> pending, CancellationToken ct)
+    {
+        if (Outstanding(_outstandingHeaders, folder) is { } earlier
+            && !await AnswersInTimeAsync(earlier.Answer, ct, earlier.Started).ConfigureAwait(false))
+        {
+            string reason = $"a read from an earlier scan has not answered in {Timing.NoAnswer.TotalSeconds:0.#} s";
+            AppLog.LibraryHeadersLeftUnread(DiagLog, folder, pending.Count, reason);
+            return false;
+        }
+
+        HeaderSlice slice = new();
+        while (pending.Count > 0 || slice.InFlight is not null)
+        {
+            ct.ThrowIfCancellationRequested();
+            SliceEnd end = SliceEnd.Stopped;
+            await QueueWork.Run(Queue, QueueJobKind.LibraryListing, "Library: read demo headers in " + folder, "library",
+                    jobCt =>
+                    {
+                        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(ct, jobCt);
+                        end = RunHeaderSlice(folder, pending, slice, linked.Token);
+                    })
+                .WaitAsync(ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+
+            int left = pending.Count + (slice.InFlight is null ? 0 : 1);
+            if (end == SliceEnd.Stopped)
+            {
+                AppLog.LibraryHeadersLeftUnread(DiagLog, folder, left, "they were stopped in the queue");
+                break;
+            }
+
+            if (end == SliceEnd.Waiting && slice.InFlight is { } waiting
+                && !await AnswersInTimeAsync(waiting.Answer, ct, waiting.Started).ConfigureAwait(false))
+            {
+                string reason = $"{waiting.Entry.FilePath} gave no answer in {Timing.NoAnswer.TotalSeconds:0.#} s";
+                AppLog.LibraryHeadersLeftUnread(DiagLog, folder, left, reason);
+                return false;
+            }
+        }
+
+        RaiseChanged();
+        return true;
+    }
+
+    // Runs inside a light queue item; ends after the slice budget, or when a read has not answered within the
+    // in-job wait and the caller waits for it outside the queue.
+    private SliceEnd RunHeaderSlice(string folder, Queue<DemoEntry> pending, HeaderSlice slice, CancellationToken ct)
+    {
+        System.Diagnostics.Stopwatch budget = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (slice.InFlight is null)
+                {
+                    if (!pending.TryDequeue(out DemoEntry? next))
+                    {
+                        return SliceEnd.Done;
+                    }
+
+                    Task<LibraryDemoHeader?> started = Task.Run(() => ReadHeader(next.FilePath), CancellationToken.None);
+                    DateTime at = DateTime.UtcNow;
+                    slice.InFlight = (next, started, at);
+                    lock (_outstandingHeaders)
+                    {
+                        _outstandingHeaders[folder] = (started, at);
+                    }
+                }
+
+                (DemoEntry entry, Task<LibraryDemoHeader?> answer, _) = slice.InFlight.Value;
+                if (!answer.Wait(Timing.InJobWait, ct))
+                {
+                    return SliceEnd.Waiting;
+                }
+
+                slice.InFlight = null;
+                if (answer.Result is { } header)
+                {
+                    ApplyHeader(entry, header);
+                }
+
+                if (budget.Elapsed >= Timing.SliceBudget)
+                {
+                    return pending.Count == 0 ? SliceEnd.Done : SliceEnd.Yielded;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return SliceEnd.Stopped;
+        }
+    }
+
+    // A read that throws has no header to show; tier 2 decides whether the file is a readable demo.
+    private LibraryDemoHeader? ReadHeader(string path)
+    {
+        try
+        {
+            return HeaderReader.Read(path);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return null;
+        }
     }
 
     // Tier 2 (full parse -> players/duration). Each parse holds a whole demo in RAM, so it runs one demo at a
     // time under the machine-wide invariant. The backlog's membership is this evaluator's Wants gate; the
     // scheduler plans ONE visit per demo carrying every interested pass, and the queue owns the rest.
-    private void EnlistTier2(List<DemoEntry> needFull, bool replace)
+    private void EnlistTier2(List<DemoEntry> needFull)
     {
-        if (Scheduler is not { } scheduler)
+        if (Scheduler is not { } scheduler || needFull.Count == 0)
         {
             return;
         }
 
-        List<DemoEntry> toConsider;
         lock (_tier2Lock)
         {
-            if (replace)
-            {
-                _pendingFull.Clear();
-            }
-
             foreach (DemoEntry entry in needFull)
             {
                 _pendingFull[entry.FilePath] = entry;
                 _awaitingIndex.Remove(entry.FilePath);
             }
-
-            toConsider = replace ? [.. _pendingFull.Values] : needFull;
         }
 
-        foreach (DemoEntry entry in toConsider)
+        foreach (DemoEntry entry in needFull)
         {
             DemoEntry captured = entry;
 
@@ -621,6 +758,53 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
 
             scheduler.DemoChanged(captured.FilePath);
+        }
+    }
+
+    // A full scan's backlog is what it found owed; rows an earlier scan enlisted and this one did not drop out.
+    private void KeepOnlyInTier2Backlog(List<DemoEntry> wanted)
+    {
+        if (Scheduler is null)
+        {
+            return;
+        }
+
+        HashSet<string> keep = new(wanted.Select(e => e.FilePath), StringComparer.OrdinalIgnoreCase);
+        lock (_tier2Lock)
+        {
+            foreach (string path in _pendingFull.Keys.Where(p => !keep.Contains(p)).ToList())
+            {
+                _pendingFull.Remove(path);
+            }
+        }
+    }
+
+    // Owed to the next scan instead of enlisted: the parse would read a folder that just stopped answering.
+    private void HoldBackTier2(IEnumerable<DemoEntry> entries)
+    {
+        List<DemoEntry> idle = [];
+        lock (_tier2Lock)
+        {
+            foreach (DemoEntry entry in entries)
+            {
+                _pendingFull.Remove(entry.FilePath);
+                _awaitingIndex.Add(entry.FilePath);
+                if (!_tier2InProgress.Contains(entry.FilePath))
+                {
+                    idle.Add(entry);
+                }
+            }
+        }
+
+        foreach (DemoEntry entry in idle)
+        {
+            _post(() =>
+            {
+                if (entry.State == DemoIndexState.Indexing)
+                {
+                    entry.State = DemoIndexState.Pending;
+                }
+            });
         }
     }
 
@@ -647,7 +831,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     {
         // A read an earlier walk left behind answers before this folder is touched again, so a hung mount
         // costs one blocked thread rather than one per rescan.
-        if (Outstanding(walk.Folder) is { } earlier && !await AnswersInTimeAsync(earlier, ct).ConfigureAwait(false))
+        if (Outstanding(_outstanding, walk.Folder) is { } earlier
+            && !await AnswersInTimeAsync(earlier.Answer, ct, earlier.Started).ConfigureAwait(false))
         {
             walk.GiveUp($"a read from an earlier scan has not answered in {Timing.NoAnswer.TotalSeconds:0.#} s");
             return walk;
@@ -699,10 +884,11 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     }
 
                     Task<LibraryRootWalk.Answer> started = Task.Run(() => walk.Execute(read), CancellationToken.None);
-                    slice.InFlight = (read, started, DateTime.UtcNow);
+                    DateTime at = DateTime.UtcNow;
+                    slice.InFlight = (read, started, at);
                     lock (_outstanding)
                     {
-                        _outstanding[walk.Folder] = started;
+                        _outstanding[walk.Folder] = (started, at);
                     }
                 }
 
@@ -739,17 +925,23 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         return answer.IsCompleted;
     }
 
-    private Task? Outstanding(string folder)
+    private static (Task Answer, DateTime Started)? Outstanding(Dictionary<string, (Task Answer, DateTime Started)> reads,
+        string folder)
     {
-        lock (_outstanding)
+        lock (reads)
         {
-            if (_outstanding.TryGetValue(folder, out Task? task) && task.IsCompleted)
+            if (!reads.TryGetValue(folder, out (Task Answer, DateTime Started) read))
             {
-                _outstanding.Remove(folder);
                 return null;
             }
 
-            return task;
+            if (read.Answer.IsCompleted)
+            {
+                reads.Remove(folder);
+                return null;
+            }
+
+            return read;
         }
     }
 
@@ -776,6 +968,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private sealed class WalkSlice
     {
         public (LibraryRootWalk.Read Read, Task<LibraryRootWalk.Answer> Answer, DateTime Started)? InFlight { get; set; }
+    }
+
+    // The header read a folder's pass has handed to the pool and not yet applied.
+    private sealed class HeaderSlice
+    {
+        public (DemoEntry Entry, Task<LibraryDemoHeader?> Answer, DateTime Started)? InFlight { get; set; }
     }
 
     // Shared tier-2 body for the retained and forward entry points. The in-progress guard dedupes two
@@ -1414,25 +1612,20 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     // ── Indexing tiers (background threads; field writes marshalled via _post) ─
 
-    private void IndexTier1(DemoEntry entry)
+    private void ApplyHeader(DemoEntry entry, LibraryDemoHeader header)
     {
-        if (!DownstreamUtilities.TryReadQuickInfo(entry.FilePath, out DownstreamUtilities.DemoQuickInfo info))
-        {
-            return; // leave to tier 2 (or mark failed there)
-        }
-
         _post(() =>
         {
-            entry.MapName = info.MapName;
-            entry.ServerName = info.ServerName;
-            entry.DemoVersion = info.DemoVersion;
+            entry.MapName = header.MapName;
+            entry.ServerName = header.ServerName;
+            entry.DemoVersion = header.DemoVersion;
         });
 
         UpsertCache(entry.FilePath, c =>
         {
-            c.Map = info.MapName;
-            c.Server = info.ServerName;
-            c.DemoVersion = info.DemoVersion;
+            c.Map = header.MapName;
+            c.Server = header.ServerName;
+            c.DemoVersion = header.DemoVersion;
         });
     }
 

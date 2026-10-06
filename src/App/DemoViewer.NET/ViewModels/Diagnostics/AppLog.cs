@@ -176,6 +176,11 @@ internal static partial class AppLog
         Message = "Library scan finished: {count} demo(s) listed, {hashed} left to hash for copies, {pending} waiting on a full parse, in {elapsedMs} ms")]
     public static partial void LibraryScanFinished(ILogger logger, int count, int hashed, int pending, long elapsedMs);
 
+    /// <summary>A folder's header reads ended early; its unread demos are read on the next scan.</summary>
+    [LoggerMessage(EventId = 37, Level = LogLevel.Warning,
+        Message = "Library folder {folder}: {count} demo header(s) left unread: {reason}. They are read on the next scan")]
+    public static partial void LibraryHeadersLeftUnread(ILogger logger, string folder, int count, string reason);
+
     [LoggerMessage(EventId = 36, Level = LogLevel.Information,
         Message = "Library copies resolved: {hashed} file(s) hashed, {copies} copy(ies) folded into another card, in {elapsedMs} ms")]
     public static partial void LibraryCopiesResolved(ILogger logger, int hashed, int copies, long elapsedMs);

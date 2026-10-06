@@ -362,7 +362,186 @@ public class DemoLibraryScanTests
         }
     }
 
+    [Test]
+    public async Task AHeaderReadThatHasNotAnswered_HoldsNoQueueLane_WhileAnotherFolderIsRead()
+    {
+        string fast = NewTempDir();
+        string slow = NewTempDir();
+        GatedHeaderReader headers = new(slow);
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ => throw new InvalidOperationException("nothing is parsed here"));
+        try
+        {
+            string a = WriteDemo(fast, "a.dem", 3);
+            string b = WriteDemo(slow, "b.dem", 4);
+            using DemoLibraryService svc = new(_inline, SeedLibrary(fast, [slow, fast]));
+            svc.HeaderReader = headers;
+            svc.QueueOverride = queue;
+            svc.Timing = Timing(TimeSpan.FromSeconds(30));
+
+            Task scan = svc.RescanAsync();
+            await WaitForAsync(() => headers.BlockedReads == 1, "the hung header read");
+            await WaitForAsync(() => Map(svc, a) is not null, "the other folder's header");
+            await WaitForAsync(() => !queue.Snapshot().Any(s => s.Kind == QueueJobKind.LibraryListing
+                                                               && s.State == DemoQueueItemState.Running),
+                "the header slice to end while its read is outstanding");
+
+            Task heavy = QueueWork.Run(queue, QueueJobKind.LibraryScan, "other heavy job", "test", _ => { });
+            Task light = QueueWork.Run(queue, QueueJobKind.SectionCompute, "other light job", "test", _ => { });
+            await Task.WhenAll(heavy, light).WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.That(scan.IsCompleted).IsFalse();
+
+            headers.Release();
+            await scan.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(Map(svc, b)).IsEqualTo("de_b");
+        }
+        finally
+        {
+            headers.Release();
+            Cleanup(fast);
+            Cleanup(slow);
+        }
+    }
+
+    [Test]
+    public async Task AHeaderReadThatGetsNoAnswer_LeavesItsFolderPending_IsNotRepeated_AndIsReadOnceItAnswers()
+    {
+        string fast = NewTempDir();
+        string slow = NewTempDir();
+        GatedHeaderReader headers = new(slow);
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ => throw new InvalidOperationException("nothing is parsed here"));
+        try
+        {
+            string a = WriteDemo(fast, "a.dem", 3);
+            string b = WriteDemo(slow, "b.dem", 4);
+            string b2 = WriteDemo(slow, "b2.dem", 5);
+            using DemoLibraryService svc = new(_inline, SeedLibrary(fast, [slow, fast]));
+            using DemoScheduler scheduler = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = scheduler;
+            svc.HeaderReader = headers;
+            svc.QueueOverride = queue;
+            svc.Timing = Timing(TimeSpan.FromMilliseconds(300));
+
+            await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            using (Assert.Multiple())
+            {
+                await Assert.That(Map(svc, a)).IsEqualTo("de_a");
+                await Assert.That(headers.BlockedReads).IsEqualTo(1).Because("the hung read is waited on, not repeated");
+                foreach (string pending in new[] { b, b2 })
+                {
+                    await Assert.That(Map(svc, pending)).IsNull();
+                    await Assert.That(Entry(svc, pending).State).IsEqualTo(DemoIndexState.Pending);
+                    await Assert.That(svc.Wants(pending)).IsFalse()
+                        .Because("a full parse would read the folder that stopped answering");
+                }
+            }
+
+            headers.Release();
+            await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            using (Assert.Multiple())
+            {
+                await Assert.That(Map(svc, b)).IsEqualTo("de_b");
+                await Assert.That(Map(svc, b2)).IsEqualTo("de_b2");
+                await Assert.That(Entry(svc, b).State).IsNotEqualTo(DemoIndexState.Pending)
+                    .Because("its full parse is enlisted once its folder answers");
+            }
+        }
+        finally
+        {
+            headers.Release();
+            Cleanup(fast);
+            Cleanup(slow);
+        }
+    }
+
+    [Test]
+    public async Task AHeaderReadThatThrows_LeavesTheDemoToItsFullParse_AndFailsNoQueueItem()
+    {
+        string root = NewTempDir();
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            _ => throw new InvalidOperationException("nothing is parsed here"));
+        try
+        {
+            string a = WriteDemo(root, "a.dem", 3);
+            string b = WriteDemo(root, "b.dem", 4);
+            using DemoLibraryService svc = new(_inline, SeedLibrary(root, [root]));
+            svc.HeaderReader = new GatedHeaderReader(root, p => p == b ? new InvalidOperationException("odd file") : null);
+            svc.QueueOverride = queue;
+
+            await svc.RescanAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            using (Assert.Multiple())
+            {
+                await Assert.That(Map(svc, a)).IsEqualTo("de_a");
+                await Assert.That(Map(svc, b)).IsNull();
+                await Assert.That(queue.Snapshot().Any(i => i.State == DemoQueueItemState.Failed)).IsFalse();
+            }
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
     // ── Helpers ──
+
+    // Answers "de_<name>" for every demo; blocks reads under one folder until released, unless told to throw.
+    internal sealed class GatedHeaderReader(string blocked, Func<string, Exception?>? fail = null) : ILibraryHeaderReader
+    {
+        private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _blockedReads;
+
+        public int BlockedReads => Volatile.Read(ref _blockedReads);
+
+        public void Release() => _gate.TrySetResult();
+
+        public LibraryDemoHeader? Read(string path)
+        {
+            if (fail?.Invoke(path) is { } ex)
+            {
+                throw ex;
+            }
+
+            if (fail is null && path.StartsWith(blocked + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref _blockedReads);
+                _gate.Task.Wait(TimeSpan.FromMinutes(1));
+            }
+
+            return new LibraryDemoHeader("de_" + Path.GetFileNameWithoutExtension(path), "server", "1");
+        }
+    }
+
+    private static DemoEntry Entry(DemoLibraryService svc, string path)
+    {
+        while (true)
+        {
+            try
+            {
+                return svc.Entries.Single(e => e.FilePath == path);
+            }
+            catch (InvalidOperationException) when (svc.Entries.Any(e => e.FilePath == path))
+            {
+                // modified mid-read: read again
+            }
+        }
+    }
+
+    private static string? Map(DemoLibraryService svc, string path)
+    {
+        while (true)
+        {
+            try
+            {
+                return svc.Entries.FirstOrDefault(e => e.FilePath == path)?.MapName;
+            }
+            catch (InvalidOperationException)
+            {
+                // modified mid-read: read again
+            }
+        }
+    }
 
     // Blocks every read of one directory until released.
     internal sealed class GatedReader(string blocked) : ILibraryFolderReader
