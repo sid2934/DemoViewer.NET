@@ -382,6 +382,13 @@ public sealed class PackDataRemover
                 });
                 updated++;
             }
+
+            // A demo no folder lists any more keeps its record for a while; the delete reaches it too.
+            updated += store.UpdateOrphans(e => e.PackStamps.Any(s => facets.Contains(s.Id)), record =>
+            {
+                record.Packs.Remove(packId);
+                record.PackStamps.RemoveAll(s => facets.Contains(s.Id));
+            });
         }
 
         store.SaveIndex();

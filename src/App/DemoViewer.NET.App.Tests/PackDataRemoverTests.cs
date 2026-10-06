@@ -352,6 +352,40 @@ public class PackDataRemoverTests
     }
 
     [Test]
+    public async Task Delete_StripsADemoNoFolderListsAnyMore_SoItsFolderComingBackBringsNoneOfItBack()
+    {
+        string cacheRoot = TempRoot("strip-orphan");
+        try
+        {
+            DemoCacheStore store = new(cacheRoot);
+            DemoCacheRecord record = ParsedRecord("/d/a.dem", sha: "sha-a");
+            record.Packs[PackId] = System.Text.Json.JsonSerializer.SerializeToElement("mine");
+            record.SetStamp(new PackStamp("facet-a", 1, "fp-a"));
+            record.SetStamp(new PackStamp("other-facet", 1, "fp-other"));
+            store.Upsert(record);
+            store.Detach("/d/a.dem");
+
+            ExtensionDataRemovalResult result = await new PackDataRemover(store, null, null)
+                .DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
+
+            DemoCacheStore reopened = new(cacheRoot);
+            await Assert.That(reopened.TryGetOrphan("sha-a")!.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
+            await Assert.That(reopened.Reattach("/d/a.dem", record.Size, record.ModifiedTicks)).IsTrue();
+            DemoCacheRecord back = reopened.TryLoadRecord("/d/a.dem")!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.RecordsUpdated).IsEqualTo(1);
+                await Assert.That(back.Packs.ContainsKey(PackId)).IsFalse();
+                await Assert.That(back.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
+        }
+    }
+
+    [Test]
     public async Task Delete_StripsADemoHeldAtTwoPaths_Once_AndEveryPathLosesTheStamp()
     {
         string cacheRoot = TempRoot("strip-copies");
