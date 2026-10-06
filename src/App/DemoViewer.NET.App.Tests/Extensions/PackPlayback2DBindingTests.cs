@@ -17,9 +17,8 @@ public class PackPlayback2DBindingTests
 {
     private const string Export = "video and clip export stays first-party";
     private const string ReviewQueue = "the review queue stays first-party";
-    private const string DemoFrames = "demo-to-frame adaptation stays first-party";
-
-    private const string Seam = "the first-party seam the container hands the pack";
+    private const string ShellState = "Live Sync and reel state, which an export must not start beside";
+    private const string UserFolders = "the folders the user's Strat Book data already lives in, not yet moved to extension storage";
 
     private static readonly string[] UnpublishedAssemblies =
         ["DemoViewer.NET.Playback2D.Core", "DemoViewer.NET.Playback2D.Pipeline"];
@@ -27,12 +26,12 @@ public class PackPlayback2DBindingTests
     /// <summary>Every app type the pack may bind, with the reason. Anything else of the app goes through the SDK.</summary>
     private static readonly (string Type, string Reason)[] AllowedApp =
     [
-        ("DemoViewer.NET.Extensions.FirstPartyExports", Seam),
-        ("DemoViewer.NET.Extensions.FirstPartyHost", Seam),
-        ("DemoViewer.NET.Extensions.FirstPartySceneExport", Seam),
-        ("DemoViewer.NET.Extensions.IFirstPartyExportChips", Seam),
-        ("DemoViewer.NET.Extensions.IFirstPartyShellState", Seam),
-        ("DemoViewer.NET.Extensions.SceneExportDefaults", Seam),
+        ("DemoViewer.NET.Extensions.FirstPartyExports", Export),
+        ("DemoViewer.NET.Extensions.FirstPartyHost", UserFolders),
+        ("DemoViewer.NET.Extensions.FirstPartySceneExport", Export),
+        ("DemoViewer.NET.Extensions.IFirstPartyExportChips", Export),
+        ("DemoViewer.NET.Extensions.IFirstPartyShellState", ShellState),
+        ("DemoViewer.NET.Extensions.SceneExportDefaults", Export),
         ("DemoViewer.NET.Services.Export.ExportEncoding", Export),
         ("DemoViewer.NET.Services.Export.ExportJobService", Export),
         ("DemoViewer.NET.Services.Export.ExportRefusedException", Export),
@@ -71,7 +70,6 @@ public class PackPlayback2DBindingTests
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.FfmpegLocator", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Ffmpeg.IEncoderProbe", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Frames.TrackerFrameSource", Export),
-        ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Frames.TrackerSceneSnapshot", DemoFrames),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Playback2D.Pipeline.Headless.SceneLayerCatalog", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackClip", Export),
         ("DemoViewer.NET.Playback2D.Pipeline", "DemoViewer.NET.Services.Export.Pack.PackPlan", Export),

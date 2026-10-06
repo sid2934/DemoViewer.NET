@@ -1723,12 +1723,14 @@ Rules as built:
   `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and `DemoViewer.NET.Extensions.StratBook.Tests`.
 - **App types it binds.** Besides the SDK packages, the extension binds three groups of app types, and
   `PackPlayback2DBindingTests` pins the list from its metadata with a reason per type. The first-party seam:
-  `IFirstPartyShellState`, `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`, and
-  `FirstPartySceneExport` with `SceneExportDefaults`, which build the export dialog over the extension's scene,
+  `IFirstPartyShellState` (whether Live Sync or a reel render holds the machine), `IFirstPartyExportChips`,
+  `FirstPartyExports`, and `FirstPartySceneExport` with `SceneExportDefaults`, which build the export dialog over the extension's scene,
   seed it from the 2D export's saved folder and quality, and hold the managed ffmpeg folder and the theme
   palette. Export, which stays first-party: the export dialog and status view models with their range and
   size options, and `ExportJobService` with its runners and encoding. The review queue: `ReviewQueue`.
-  Nothing else: the strat canvas is an `ISceneSource` drawn by the UI kit's `SceneView`, with its scrubber a
+  One app type falls outside those groups: `FirstPartyHost`, the folders the user's strats, tags, palettes,
+  Suggested Tags profile and lineup clips already live in. The extension reads and writes them in place
+  rather than through `IExtensionContext.Storage` until that data moves. Nothing else: the strat canvas is an `ISceneSource` drawn by the UI kit's `SceneView`, with its scrubber a
   `SceneTimeline` shown by `TimelineView`, and it resolves keys and names gestures through
   `IExtensionContext.Keymap` (`ActionFor`, `GestureText`, `Changed`), so the user's rebinds reach it without
   the settings file. Its tool row (`StratCanvasTools`) is its own, over a plain `AnnotationSession`. The
