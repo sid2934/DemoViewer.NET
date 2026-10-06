@@ -1,7 +1,9 @@
 #region
 
 using System.Text.Json;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -258,6 +260,38 @@ public class OrphanedContentTests
                 await Assert.That(Files(root).Where(f => f.StartsWith("sha-old", StringComparison.Ordinal))).IsEmpty();
                 await Assert.That(store.TryGetByContentId("sha-live")).IsNotNull();
                 await Assert.That(changes is [null]).IsTrue().Because("the sweep raises one change for the lot");
+            }
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
+    [Test]
+    public async Task TheQueuedSweep_RunsOnTheQueue_AndSavesTheIndex()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Upsert(Analysed("/m/a.dem", "sha-a"));
+            store.Detach("/m/a.dem");
+            store.SaveIndex();
+            DateTime later = DateTime.UtcNow.AddDays(15);
+
+            using HeavyJobGate gate = new();
+            using DemoProcessingQueue queue = new(gate, a => a(), _ => throw new NotSupportedException(),
+                _ => throw new NotSupportedException(), () => Task.CompletedTask);
+            IDemoQueueHandle? handle = OrphanSweep.Submit(queue, store, TimeSpan.FromDays(14), () => later);
+            await Assert.That(handle).IsNotNull();
+            await handle!.Completion.WaitAsync(TimeSpan.FromSeconds(10));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(handle.State).IsEqualTo(DemoQueueItemState.Completed);
+                await Assert.That(new DemoCacheStore(root).HoldsContent("sha-a")).IsFalse();
+                await Assert.That(OrphanSweep.Submit(queue, new DemoCacheStore(null), TimeSpan.FromDays(14))).IsNull();
             }
         }
         finally

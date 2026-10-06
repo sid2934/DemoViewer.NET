@@ -43,7 +43,8 @@ public sealed class JobKindRegistry
         new(QueueJobKind.Extension, "extension", 4, false),
         new(QueueJobKind.Scheduling, "scheduling", 4, true),
         new(QueueJobKind.RecordPass, "records", 4, true),
-        new(QueueJobKind.LibraryListing, "library", 4, true)
+        new(QueueJobKind.LibraryListing, "library", 4, true),
+        new(QueueJobKind.CacheSweep, "cleanup", 4, true)
     ];
 
     private readonly IReadOnlyDictionary<QueueJobKind, JobKindDescriptor> _byKind;

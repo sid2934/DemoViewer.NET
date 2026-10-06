@@ -113,16 +113,19 @@ public class App : Application
             _ = services.GetService<ExtensionUpdateService>()?.CleanupOnStartAsync();
             // One-off re-encode of pre-gzip record sidecars, and the rename of hashed demos' files from path
             // keys to content ids: no parse, background queue jobs that step aside between batches, each
-            // marker-gated once a pass leaves nothing behind. Held back so the startup loads are not
-            // competing for the disk.
+            // marker-gated once a pass leaves nothing behind. Then the sweep of demos no folder has listed
+            // for the grace period. Held back so the startup loads are not competing for the disk.
             if (!OperatingSystem.IsBrowser())
             {
                 DemoCacheStore demoCache = services.GetRequiredService<DemoCacheStore>();
                 IDemoProcessingQueue queue = services.GetRequiredService<IDemoProcessingQueue>();
+                IOptionsMonitor<AppSettings>? settings = services.GetService<IOptionsMonitor<AppSettings>>();
                 _ = Task.Delay(TimeSpan.FromSeconds(30)).ContinueWith(_ =>
                 {
                     ContentKeyMigration.Submit(queue, demoCache);
                     SidecarFormatMigration.Submit(queue, demoCache, [demoCache.ConvertLegacyRecord]);
+                    OrphanSweep.Submit(queue, demoCache,
+                        settings?.CurrentValue.Library.OrphanedDemoGrace ?? new LibrarySettings().OrphanedDemoGrace);
                 }, TaskScheduler.Default);
             }
             // Careful: host services MUST attach BEFORE RestoreSession. RestoreSession activates the persisted tab,

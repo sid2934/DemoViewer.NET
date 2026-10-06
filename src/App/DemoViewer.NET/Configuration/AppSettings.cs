@@ -374,6 +374,14 @@ public sealed class LibrarySettings
 {
     /// <summary>Folders the library indexer watches. Empty by default.</summary>
     public string[] Folders { get; set; } = [];
+
+    /// <summary>
+    ///     How long the analysis of a demo no library folder lists any more is kept, serialized as a
+    ///     <see cref="TimeSpan" />. A folder that comes back within it, or the same file found in another one,
+    ///     takes the analysis back without a parse. Default 14 days, long enough for a share unmounted over a
+    ///     weekend or a holiday. A non-positive value keeps it until the next sweep.
+    /// </summary>
+    public TimeSpan OrphanedDemoGrace { get; set; } = TimeSpan.FromDays(14);
 }
 
 /// <summary>Feature-flag state read by the feature-gating layer.</summary>

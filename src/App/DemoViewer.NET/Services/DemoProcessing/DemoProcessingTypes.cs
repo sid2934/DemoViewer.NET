@@ -81,7 +81,10 @@ public enum QueueJobKind
     ///     A slice of one library folder's walk or of its demos' header reads. Light: it holds no heavy slot, and
     ///     a read that does not answer within a moment ends the slice instead of holding the lane while it waits.
     /// </summary>
-    LibraryListing
+    LibraryListing,
+
+    /// <summary>The demo cache deleting demos no path has listed for longer than the grace period. Light.</summary>
+    CacheSweep
 }
 
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>
