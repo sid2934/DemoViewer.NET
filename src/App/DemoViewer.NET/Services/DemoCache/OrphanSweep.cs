@@ -41,7 +41,7 @@ public static class OrphanSweep
                 Run(cache, grace, (utcNow ?? (() => DateTime.UtcNow))());
                 return Task.CompletedTask;
             },
-            Key: "orphan-sweep"));
+            Key: "orphan-sweep", Preemptible: false));
     }
 
     /// <summary>Expires what is due and saves the index when anything went.</summary>
