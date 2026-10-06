@@ -8,8 +8,9 @@ namespace DemoViewer.NET.Services;
 
 /// <summary>
 ///     Whole-file writes that a crash cannot tear: the bytes go to a hidden temporary file beside the target,
-///     which then replaces it. A reader sees the previous file or the new one, never half of either. Every
-///     store of the app that writes a file under the config or cache root writes through here.
+///     are flushed to the disk, and the file then replaces it. A reader sees the previous file or the new one,
+///     never half of either, after a process crash or a power loss alike. Every store of the app that writes a
+///     file under the config or cache root writes through here.
 /// </summary>
 public static class AtomicFile
 {
@@ -45,6 +46,8 @@ public static class AtomicFile
             using (FileStream stream = new(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 write(stream);
+                // On disk before the rename: a rename can reach the disk before the data it points at.
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temp, path, overwrite: true);
@@ -69,6 +72,8 @@ public static class AtomicFile
             await using (stream.ConfigureAwait(false))
             {
                 await stream.WriteAsync(content, cancellationToken).ConfigureAwait(false);
+                await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+                stream.Flush(flushToDisk: true);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
