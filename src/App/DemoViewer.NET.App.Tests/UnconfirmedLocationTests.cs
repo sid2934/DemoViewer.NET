@@ -198,6 +198,33 @@ public class UnconfirmedLocationTests
         }
     }
 
+    // What an export keys a demo's ink by after its lease parsed it: no second read of the file.
+    [Test]
+    public async Task ContentIdOf_IsTheHashAReadTook_WhileTheFileIsUnchanged()
+    {
+        string file = Path.Combine(Path.GetTempPath(), $"dv-content-id-{Guid.NewGuid():N}.dem");
+        try
+        {
+            File.WriteAllBytes(file, new byte[1000]);
+            DemoCacheStore store = Attached();
+            store.NoteContentRead(file, "sha-read", null, 1000, File.GetLastWriteTimeUtc(file));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.ContentIdOf(file)).IsEqualTo("sha-read");
+                await Assert.That(store.ContentIdOf(A)).IsEqualTo(Sha);
+                await Assert.That(store.ContentIdOf(B)).IsNull().Because("only a fingerprint placed it");
+            }
+
+            File.WriteAllBytes(file, new byte[1001]);
+            await Assert.That(store.ContentIdOf(file)).IsNull().Because("the file changed since it was read");
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
     [Test]
     public async Task AnAgreeingHash_ConfirmsThePath()
     {

@@ -942,7 +942,7 @@ public class App : Application
         services.AddSingleton<IDemoProcessingQueue>(sp => sp.GetRequiredService<DemoProcessingQueue>());
         services.AddSingleton(sp => new FirstPartyExports(sp.GetRequiredService<HeavyJobGate>(),
             sp.GetRequiredService<IDemoProcessingQueue>(), sp.GetRequiredService<SettingsService>(),
-            path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256));
+            path => sp.GetRequiredService<DemoCacheStore>().ContentIdOf(path)));
         services.AddSingleton<FirstPartyHost>();
 
         // The demo-library indexer: the one internally-new'd store routed through the container, because

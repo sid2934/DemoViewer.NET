@@ -717,6 +717,39 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
+    ///     The content id of the file at <paramref name="path" />: its row's hash when a full read confirmed the
+    ///     path, else the hash a parse or an open took of the file at the size and write time it has now. Null
+    ///     when neither knows it. Stats the file in the second case, so call it after something read the file.
+    /// </summary>
+    /// <param name="path">A demo path.</param>
+    public string? ContentIdOf(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (TryGetIndex(path)?.Sha256 is { Length: > 0 } known)
+        {
+            return known;
+        }
+
+        lock (_gate)
+        {
+            if (!_recentReads.ContainsKey(path))
+            {
+                return null;
+            }
+        }
+
+        try
+        {
+            FileInfo file = new(path);
+            return file.Exists ? RecentContentRead(path, file.Length, file.LastWriteTime.Ticks)?.Sha256 : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     The hash <see cref="NoteContentRead" /> took of the file at <paramref name="path" />, while the file
     ///     still has the size and write time it was read at; else null.
     /// </summary>

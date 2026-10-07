@@ -67,6 +67,7 @@ public sealed class FirstPartyExports(HeavyJobGate gate, IDemoProcessingQueue qu
                 using PackClipRenderer clips = new(
                     (path, leaseCt) => DemoJob.LeaseAsync(queue, path, "pack export", PackExportQueue.Owner,
                         PassLevel.UserRequested, leaseCt),
+                    // The lease's read gave the cache the hash; the full read below is for a file it could not hash.
                     new AnnotationStore(AppPaths.ConfigRoot,
                         path => contentHash?.Invoke(path) is { Length: > 0 } known ? known : AnnotationStore.ComputeDemoKey(path)),
                     log: line => PackExportLog.Line(log, line));
