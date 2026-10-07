@@ -1,7 +1,9 @@
 #region
 
 using System.Text.Json;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Facts;
 using TUnit.Assertions.Enums;
 
 #endregion
@@ -147,6 +149,90 @@ public class ContentKeyedCacheTests
                 await Assert.That(Files(root)).IsEquivalentTo(before, CollectionOrdering.Matching);
                 await Assert.That(new DemoCacheStore(root).TryLoadRecord("/m/a.dem")).IsNotNull();
                 await Assert.That(new DemoCacheStore(root).ContentKeyMigrationVersion).IsEqualTo(ContentKeyMigration.CurrentVersion);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    ///     Two copies indexed apart, the lesser one's files still under its old name after the better one's
+    ///     moved: a crash between the two moves. A read serves the better copy, and the pass finishes the move
+    ///     without the lesser record ever replacing it.
+    /// </summary>
+    [Test]
+    public async Task ACrashBetweenTheTwoMovesOfARow_StillReadsTheBetterCopy()
+    {
+        string root = TempRoot();
+        try
+        {
+            WriteVersion4(root, (Analysed("/m/a.dem", "sha-x"), "note a"), (Record("/m/b.dem", "sha-x"), "note b"));
+            DemoCacheStore first = new(root);
+            await Assert.That(first.TrySaveIndex()).IsTrue();
+
+            string a = DemoCacheStore.StableKey("/m/a.dem");
+            foreach (string file in Directory.EnumerateFiles(Demos(root), a + ".*").ToList())
+            {
+                File.Move(file, Path.Combine(Demos(root), "sha-x" + Path.GetFileName(file)[a.Length..]));
+            }
+
+            DemoCacheStore store = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(store.TryLoadRecord("/m/b.dem")!.Scoreboard).HasCount(1);
+                await Assert.That(store.TryLoadRecord("/m/a.dem")!.Scoreboard).HasCount(1);
+                await Assert.That(store.TryReadSibling("/m/a.dem", Suffix)).IsEqualTo("note a");
+            }
+
+            ContentKeyMigrationResult result = await ContentKeyMigration.RunAsync(store);
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Completed).IsTrue();
+                await Assert.That(reopened.TryLoadRecord("/m/b.dem")!.Scoreboard).HasCount(1);
+                await Assert.That(reopened.TryReadSibling("/m/b.dem", Suffix)).IsEqualTo("note a");
+                await Assert.That(Files(root)).IsEquivalentTo(["sha-x.json.gz", "sha-x" + Suffix], CollectionOrdering.Matching);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    ///     Two copies indexed apart, only the lesser one carrying a pack's payload: the merged row keeps the
+    ///     better copy's tiers and the lesser copy's payload, stamp and round facts.
+    /// </summary>
+    [Test]
+    public async Task TwoCopiesIndexedApart_MergeIntoOneRecord_KeepingEachCopysData()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheRecord packed = Record("/m/b.dem", "sha-x");
+            packed.Packs["pack"] = JsonSerializer.SerializeToElement(7);
+            packed.SetStamp(new PackStamp("pack", 1, null));
+            packed.RoundFacts = new RoundFactsRows { Schema = RoundFactsRecords.Schema };
+            WriteVersion4(root, (Analysed("/m/a.dem", "sha-x"), null), (packed, null));
+
+            DemoCacheStore store = new(root);
+            ContentKeyMigrationResult result = await ContentKeyMigration.RunAsync(store);
+            DemoCacheStore reopened = new(root);
+            DemoCacheRecord merged = reopened.TryLoadRecord("/m/a.dem")!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Completed).IsTrue();
+                await Assert.That(merged.Scoreboard).HasCount(1);
+                await Assert.That(merged.Packs["pack"].GetInt32()).IsEqualTo(7);
+                await Assert.That(merged.Stamp("pack")).IsNotNull();
+                await Assert.That(merged.RoundFacts).IsNotNull();
+                await Assert.That(store.TryGetIndex("/m/b.dem")!.Stamp("pack")).IsNotNull()
+                    .Because("the row is projected from the merged record");
+                await Assert.That(reopened.TryGetIndex("/m/b.dem")!.Stamp("pack")).IsNotNull();
+                await Assert.That(Files(root)).IsEquivalentTo(["sha-x.json.gz"], CollectionOrdering.Matching);
             }
         }
         finally

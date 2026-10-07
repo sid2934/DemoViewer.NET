@@ -172,7 +172,7 @@ public sealed class DemoCacheStore
         {
             lock (_gate)
             {
-                return [.. _rows.Values.Where(r => !r.IsOrphaned).Select(r => _index[r.Path])];
+                return [.. _rows.Values.Where(r => !r.IsOrphaned).Select(r => _index.GetValueOrDefault(r.Path)).OfType<DemoCacheIndexEntry>()];
             }
         }
     }
@@ -1165,6 +1165,7 @@ public sealed class DemoCacheStore
     public bool RefreshIndexRow(DemoCacheRecord record)
     {
         ArgumentNullException.ThrowIfNull(record);
+        lock (_rmwGate)
         lock (_gate)
         {
             if (!_keyByPath.TryGetValue(record.Path, out string? key)
@@ -1551,11 +1552,12 @@ public sealed class DemoCacheStore
             return false;
         }
 
-        // Written again once the files moved, so the next launch writes under the new names straight away.
+        // Written again once the files moved, so the next launch writes under the new names straight away. A
+        // row a writer holds is left for the next save rather than making this caller wait.
         bool moved = false;
         foreach (string key in settle)
         {
-            moved |= SettleRow(key);
+            moved |= SettleRow(key, false);
         }
 
         return !moved || WriteIndex(indexPath, out _);
@@ -1608,12 +1610,41 @@ public sealed class DemoCacheStore
 
     /// <summary>
     ///     Moves a row's files from every older key to its own. The current write key's files replace what
-    ///     is there; any other key's fill only what is missing, and its duplicates are dropped. Idempotent: a
-    ///     file already moved is simply not found again.
+    ///     is there; any other key's record is merged into the row's, filling only what the row's lacks, and
+    ///     its other files fill only what is missing. Idempotent: a file already moved is simply not found again.
     /// </summary>
     /// <param name="rowKey">The row's key.</param>
     /// <returns>True when nothing is left under an older key.</returns>
-    internal bool SettleRow(string rowKey)
+    internal bool SettleRow(string rowKey) => SettleRow(rowKey, true);
+
+    private bool SettleRow(string rowKey, bool wait)
+    {
+        // Every row writer holds the write gate, so the row read here is the row written back.
+        bool entered = false;
+        try
+        {
+            if (wait)
+            {
+                Monitor.Enter(_rmwGate, ref entered);
+            }
+            else
+            {
+                Monitor.TryEnter(_rmwGate, ref entered);
+            }
+
+            return entered && SettleRowCore(rowKey);
+        }
+        finally
+        {
+            if (entered)
+            {
+                Monitor.Exit(_rmwGate);
+            }
+        }
+    }
+
+    // Caller holds _rmwGate.
+    private bool SettleRowCore(string rowKey)
     {
         List<string> sources;
         string target;
@@ -1632,22 +1663,15 @@ public sealed class DemoCacheStore
 
         object[] stripes = [.. sources.Append(target).Select(StripeIndex).Distinct().Order().Select(i => _fileStripes[i])];
         bool ok = true;
+        DemoCacheRecord? merged = null;
         EnterAll(stripes);
         try
         {
-            lock (_gate)
-            {
-                if (!_rows.TryGetValue(rowKey, out DemoCacheIndexEntry? now) || !ReferenceEquals(now, row))
-                {
-                    return false;
-                }
-            }
-
             for (int i = 0; i < sources.Count; i++)
             {
                 if (!string.Equals(sources[i], target, StringComparison.Ordinal))
                 {
-                    ok &= MoveKey(sources[i], target, i == 0);
+                    ok &= MoveKey(sources[i], target, i == 0, row.Sha256, ref merged);
                 }
             }
 
@@ -1655,10 +1679,14 @@ public sealed class DemoCacheStore
             {
                 lock (_gate)
                 {
-                    DemoCacheIndexEntry settled = row.Copy();
-                    settled.SidecarKeys = null;
-                    _rows[rowKey] = settled;
+                    DemoCacheIndexEntry settled = WithKeys(merged is null ? row : Reproject(row, merged), []);
+                    Link(rowKey, settled);
                     _settleAfterSave.Remove(rowKey);
+                    if (string.Equals(_lastRecordKey, rowKey, StringComparison.Ordinal))
+                    {
+                        _lastRecordKey = null;
+                        _lastRecordBytes = null;
+                    }
                 }
             }
         }
@@ -1668,6 +1696,22 @@ public sealed class DemoCacheStore
         }
 
         return ok;
+    }
+
+    // A row's index fields re-read from its record; where it is, its keys and its orphan state stay the row's.
+    private static DemoCacheIndexEntry Reproject(DemoCacheIndexEntry row, DemoCacheRecord record)
+    {
+        DemoCacheIndexEntry fresh = record.ToIndexEntry();
+        fresh.Sha256 = row.Sha256;
+        fresh.ContentFingerprint ??= row.ContentFingerprint;
+        fresh.Path = row.Path;
+        fresh.Size = row.Size;
+        fresh.ModifiedTicks = row.ModifiedTicks;
+        fresh.Locations = row.Locations;
+        fresh.OrphanedSinceUtcTicks = row.OrphanedSinceUtcTicks;
+        fresh.DetachedLocations = row.DetachedLocations;
+        fresh.SidecarKeys = row.SidecarKeys;
+        return fresh;
     }
 
     /// <summary>
@@ -1701,6 +1745,7 @@ public sealed class DemoCacheStore
 
             object[] stripes = [.. new[] { key, target }.Select(StripeIndex).Distinct().Order().Select(i => _fileStripes[i])];
             bool released = true;
+            DemoCacheRecord? merged = null;
             EnterAll(stripes);
             try
             {
@@ -1714,7 +1759,7 @@ public sealed class DemoCacheStore
 
                 bool first = keys[0] == key;
                 List<string> rest = [.. keys.Where(k => k != key)];
-                if (!MoveKey(key, target, first))
+                if (!MoveKey(key, target, first, row.Sha256, ref merged))
                 {
                     // Whatever could not reach the target goes under a key no other row can name.
                     string spare = "m-" + Guid.NewGuid().ToString("N");
@@ -1730,8 +1775,13 @@ public sealed class DemoCacheStore
 
                 lock (_gate)
                 {
-                    DemoCacheIndexEntry shaped = WithKeys(row, rest);
+                    DemoCacheIndexEntry shaped = WithKeys(merged is null ? row : Reproject(row, merged), rest);
                     Link(rowKey, shaped);
+                    if (merged is not null && string.Equals(_lastRecordKey, rowKey, StringComparison.Ordinal))
+                    {
+                        _lastRecordKey = null;
+                        _lastRecordBytes = null;
+                    }
                     if (shaped.SidecarKeys is null)
                     {
                         _settleAfterSave.Remove(rowKey);
@@ -1753,7 +1803,56 @@ public sealed class DemoCacheStore
         }
     }
 
-    // Moves every file named <source>.* to <target>.*. Caller holds both stripes.
+    // Moves every file named <source>.* to <target>.*. Caller holds both stripes. Without replace, a record of
+    // the content under both keys is merged into the target's, which is written before the source goes.
+    private bool MoveKey(string source, string target, bool replace, string? contentId, ref DemoCacheRecord? merged)
+    {
+        if (!replace && !string.IsNullOrEmpty(contentId) && !MergeRecord(source, target, contentId, ref merged))
+        {
+            return false;
+        }
+
+        return MoveKey(source, target, replace);
+    }
+
+    // Caller holds both stripes. False when the merged record could not be written; the source is kept.
+    private bool MergeRecord(string source, string target, string contentId, ref DemoCacheRecord? merged)
+    {
+        if (RecordAt(source) is not { } from || !string.Equals(from.Sha256, contentId, StringComparison.Ordinal)
+                                              || RecordAt(target) is not { } into)
+        {
+            return true;
+        }
+
+        into.FillMissingFrom(from);
+        byte[] bytes = SidecarJson.SerializeGzip(into, _jsonOptions);
+        if (_cacheRoot is null)
+        {
+            lock (_gate)
+            {
+                _memoryRecords[target] = bytes;
+            }
+        }
+        else
+        {
+            try
+            {
+                AtomicFile.WriteAllBytes(RecordFile(target), bytes);
+                File.Delete(LegacyRecordFile(target));
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        merged = into;
+        return true;
+    }
+
+    private DemoCacheRecord? RecordAt(string key) =>
+        ReadRecordBytes(key) is { } bytes && TryDeserializeRecord(bytes) is { } record ? record : TryReadLegacyRecord(key);
+
     private bool MoveKey(string source, string target, bool replace)
     {
         if (_cacheRoot is null)
@@ -2221,8 +2320,10 @@ public sealed class DemoCacheStore
     private static List<string> FileKeys(DemoCacheIndexEntry row) =>
         [.. WriteKeys(row).Append(FileKeyOf(row)).Distinct(StringComparer.Ordinal)];
 
-    // Under _gate. The keys a read tries in order: the row's own, then each path's, the names a rename cut
-    // short or an older index left behind.
+    // Under _gate. The keys a read tries in order: the current write key, the row's own, the other older
+    // keys, then each path's, the names a rename cut short or an older index left behind. The row's own key
+    // comes second because a settle moves the write key's files there first: an older key still holding
+    // files at that point holds a lesser copy.
     private static List<string> ReadKeys(DemoCacheIndexEntry? row, string path)
     {
         if (row is null)
@@ -2230,7 +2331,9 @@ public sealed class DemoCacheStore
             return [StableKey(path)];
         }
 
-        return [.. FileKeys(row).Concat(row.Locations.Select(l => StableKey(l.Path))).Distinct(StringComparer.Ordinal)];
+        List<string> keys = WriteKeys(row);
+        return [.. keys.Take(1).Append(FileKeyOf(row)).Concat(keys.Skip(1))
+            .Concat(row.Locations.Select(l => StableKey(l.Path))).Distinct(StringComparer.Ordinal)];
     }
 
     private static DemoLocation? LocationIn(DemoCacheIndexEntry row, string path) =>
