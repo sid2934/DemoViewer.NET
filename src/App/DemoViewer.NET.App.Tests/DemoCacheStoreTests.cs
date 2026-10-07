@@ -252,7 +252,7 @@ public class DemoCacheStoreTests
     }
 
     [Test]
-    public async Task CorruptIndex_StartsEmpty_AndRebuilds()
+    public async Task CorruptIndex_IsRebuiltFromTheRecords()
     {
         string root = TempRoot();
         try
@@ -263,7 +263,7 @@ public class DemoCacheStoreTests
             File.WriteAllText(Path.Combine(root, "index.json"), "]]not json[[");
 
             DemoCacheStore reopened = new(root);
-            await Assert.That(reopened.Count).IsEqualTo(0);
+            await Assert.That(reopened.Count).IsEqualTo(1);
 
             reopened.Upsert(Record("/demos/e.dem"));
             reopened.SaveIndex();
