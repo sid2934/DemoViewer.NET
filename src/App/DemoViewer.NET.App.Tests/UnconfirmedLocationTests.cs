@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -82,58 +81,54 @@ public class UnconfirmedLocationTests
         }
     }
 
+    // The store never reads a demo: with no hash in hand, a write at an attached path goes to the row the
+    // fingerprint matched, so neither the path nor the row's data is lost to a write.
     [Test]
-    public async Task AWriteAtAnAttachedPathThatCannotBeRead_StartsARecordOfItsOwn_AndLeavesTheRowAlone()
+    public async Task AWriteAtAnAttachedPathNothingHashed_GoesToTheRow_AndLeavesThePathUnconfirmed()
     {
         DemoCacheStore store = Attached();
+        store.Remove(A);
 
         store.UpdateExisting(B, r => r.Map = "de_mirage");
 
         DemoCacheRecord? atB = store.TryLoadRecord(B);
-        DemoCacheRecord? atA = store.TryLoadRecord(A);
         using (Assert.Multiple())
         {
-            await Assert.That(store.LocationOf(B)).IsNull();
+            await Assert.That(store.LocationOf(B)).IsEqualTo((Sha, new DemoLocation(B, false, 1000, 3000, store.LocationOf(B)!.Value.Location.LastSeenUtcTicks)));
             await Assert.That(atB?.Map).IsEqualTo("de_mirage");
-            await Assert.That(atB?.Scoreboard).IsEmpty().Because("the row's analysis describes bytes nobody read at B");
-            await Assert.That(atB?.Sha256).IsNull();
-            await Assert.That(atA?.Scoreboard?.Count).IsEqualTo(1);
-            await Assert.That(atA?.Map).IsEqualTo("de_nuke");
-            await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A]);
+            await Assert.That(atB?.Scoreboard?.Count).IsEqualTo(1);
+            await Assert.That(store.HoldsContent(Sha)).IsTrue();
+            await Assert.That(store.IsOrphaned(Sha)).IsFalse();
         }
     }
 
-    // Whatever writes at a path has just read it: the write hashes it first, so the last path of a demo is
-    // never taken out of its row, and its data never deleted, by a write that only had to read the file.
+    // A parse hashed the file before the path was attached: the write settles the path with that hash, without
+    // reading the file, and keeps the row's data.
     [Test]
-    public async Task AWriteAtTheLastAttachedPath_HashesItFirst_AndKeepsTheRowsData()
+    public async Task AWriteAtTheLastAttachedPath_SettlesItWithAHashAParseTook()
     {
         string root = Path.Combine(Path.GetTempPath(), $"dv-unconfirmed-{Guid.NewGuid():N}");
-        string files = Directory.CreateDirectory(Path.Combine(root, "files")).FullName;
         try
         {
-            byte[] bytes = [.. Enumerable.Range(0, 1000).Select(i => (byte)i)];
-            string a = Path.Combine(files, "a.dem");
-            string b = Path.Combine(files, "b.dem");
-            File.WriteAllBytes(b, bytes);
-            string sha = DemoContentHash.Compute(bytes);
-            DemoCacheStore store = new(Path.Combine(root, "cache"));
-            DemoCacheRecord record = Analysed(a);
-            record.SetContentHash(sha, null);
-            store.Upsert(record);
-            store.AttachUnconfirmed(sha, b, 1000, 3000);
-            store.Remove(a);
+            const string b = "/gone/b.dem";
+            DateTime written = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            long local = written.ToLocalTime().Ticks;
+            DemoCacheStore store = new(root);
+            store.Upsert(Analysed(A));
+            store.NoteContentRead(b, Sha, null, 1000, written);
+            store.AttachUnconfirmed(Sha, b, 1000, local);
+            store.Remove(A);
             store.SaveIndex();
 
             store.UpdateExisting(b, r => r.Server = "from b");
 
             using (Assert.Multiple())
             {
-                await Assert.That(store.LocationOf(b)?.ContentId).IsEqualTo(sha);
+                await Assert.That(store.LocationOf(b)?.ContentId).IsEqualTo(Sha);
                 await Assert.That(store.LocationOf(b)?.Location.Confirmed).IsTrue();
                 await Assert.That(store.TryLoadRecord(b)?.Scoreboard.Count).IsEqualTo(1);
                 await Assert.That(store.TryLoadRecord(b)?.Server).IsEqualTo("from b");
-                await Assert.That(File.Exists(Path.Combine(root, "cache", "demos", sha + DemoCacheStore.RecordSuffix))).IsTrue();
+                await Assert.That(File.Exists(Path.Combine(root, "demos", Sha + DemoCacheStore.RecordSuffix))).IsTrue();
             }
         }
         finally
@@ -142,32 +137,64 @@ public class UnconfirmedLocationTests
         }
     }
 
+    // A parse found other bytes at the attached path: the path leaves the row for a row of its own bytes,
+    // confirmed, so data kept per path there survives, and the next write starts from nothing of the old row.
     [Test]
-    public async Task AWriteAtAnAttachedPathHoldingOtherBytes_HashesIt_AndStartsARecordOfItsOwn()
+    public async Task AReadOfOtherBytesAtAnAttachedPath_MovesItToARowOfItsOwnBytes()
     {
-        string root = Path.Combine(Path.GetTempPath(), $"dv-unconfirmed-{Guid.NewGuid():N}");
-        string files = Directory.CreateDirectory(Path.Combine(root, "files")).FullName;
-        try
+        DemoCacheStore store = Attached();
+        DateTime written = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        store.NoteContentRead(B, "sha-other", null, 1000, written);
+        store.UpdateExisting(B, r => r.Server = "from b");
+
+        using (Assert.Multiple())
         {
-            string b = Path.Combine(files, "b.dem");
-            File.WriteAllBytes(b, new byte[1000]);
-            DemoCacheStore store = new(Path.Combine(root, "cache"));
-            store.Upsert(Analysed(A));
-            store.AttachUnconfirmed(Sha, b, 1000, 3000);
-
-            store.UpdateExisting(b, r => r.Server = "from b");
-
-            using (Assert.Multiple())
-            {
-                await Assert.That(store.LocationOf(b)).IsNull();
-                await Assert.That(store.TryLoadRecord(b)?.Scoreboard).IsEmpty();
-                await Assert.That(store.TryLoadRecord(A)?.Scoreboard.Count).IsEqualTo(1);
-                await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A]);
-            }
+            await Assert.That(store.LocationOf(B)?.ContentId).IsEqualTo("sha-other");
+            await Assert.That(store.LocationOf(B)?.Location.Confirmed).IsTrue();
+            await Assert.That(store.TryGetIndex(B)?.Sha256).IsEqualTo("sha-other");
+            await Assert.That(store.TryLoadRecord(B)?.Scoreboard).IsEmpty();
+            await Assert.That(store.TryLoadRecord(B)?.Server).IsEqualTo("from b");
+            await Assert.That(store.TryLoadRecord(A)?.Scoreboard.Count).IsEqualTo(1);
+            await Assert.That(store.TryGetByContentId(Sha)?.Locations.Select(l => l.Path)).IsEquivalentTo([A]);
         }
-        finally
+    }
+
+    // A read of an orphan's bytes at a path that had other bytes: the path goes back to the orphan, with every tier.
+    [Test]
+    public async Task AReadOfAnOrphansBytes_TakesItBack()
+    {
+        DemoCacheStore store = new(null);
+        store.Upsert(Analysed(A));
+        store.Detach(A);
+        store.Upsert(new DemoCacheRecord { Path = B, Size = 1000, ModifiedTicks = 3000, Sha256 = "sha-old" });
+
+        store.NoteContentRead(B, Sha, null, 1000, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        using (Assert.Multiple())
         {
-            Directory.Delete(root, true);
+            await Assert.That(store.IsOrphaned(Sha)).IsFalse();
+            await Assert.That(store.TryGetByContentId(Sha)?.Path).IsEqualTo(B);
+            await Assert.That(store.TryLoadRecord(B)?.Scoreboard.Count).IsEqualTo(1);
+        }
+    }
+
+    // An open hashed a demo the library has not: its row takes the hash, so a store joined by hash reaches it.
+    [Test]
+    public async Task AReadOfAnUnhashedRowsFile_GivesTheRowItsHash()
+    {
+        DemoCacheStore store = new(null);
+        DateTime written = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        store.Update(B, 1000, written.ToLocalTime().Ticks, DemoCacheStore.StampHeader);
+
+        store.NoteContentRead(B, Sha, null, 1000, written);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.TryGetByContentId(Sha)?.Path).IsEqualTo(B);
+            await Assert.That(store.TryLoadRecord(B)?.Header.IsPresent).IsTrue();
+            await Assert.That(store.RecentContentRead(B, 1000, written.ToLocalTime().Ticks)?.Sha256).IsEqualTo(Sha);
+            await Assert.That(store.RecentContentRead(B, 1001, written.ToLocalTime().Ticks)).IsNull();
         }
     }
 

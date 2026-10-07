@@ -66,6 +66,14 @@ public sealed class DemoCacheStore
     private readonly HashSet<string> _settleAfterSave = new(StringComparer.Ordinal);
     private readonly object _indexWriteGate = new();
 
+    // Hashes of whole files read by a parse or an open, so a write after the read can settle its path without
+    // reading the file again. Under _gate.
+    private const int RecentReadCapacity = 64;
+    private readonly Dictionary<string, RecentRead> _recentReads = new(StringComparer.OrdinalIgnoreCase);
+    private long _readClock; // under _gate
+
+    private readonly record struct RecentRead(long Size, long LocalTicks, string Sha256, DemoContentFingerprint? Fingerprint, long At);
+
     /// <summary>
     ///     Record store used when there is no cache root: the browser host, and tests. Keyed by file key.
     ///     <para>
@@ -542,56 +550,188 @@ public sealed class DemoCacheStore
     /// <summary>
     ///     Settles a path against a content hash just read from its whole file. A path its row lists without
     ///     confirmation becomes confirmed when the hash and size agree with the row. A path of a hashed row whose
-    ///     bytes hash to something else leaves that row, as <see cref="Detach" /> would take it, so the next
-    ///     write there starts a record of its own and the row keeps every other path and its data. A path with
-    ///     no row, or a row not hashed yet, is left alone.
+    ///     bytes hash to something else leaves that row, as <see cref="Detach" /> would take it, so the row keeps
+    ///     every other path and its data. A path with no row is left alone.
     /// </summary>
     /// <param name="path">The file that was read.</param>
     /// <param name="contentId">The hash of the bytes read.</param>
     /// <param name="size">The number of bytes read.</param>
     /// <returns>False when the path left its row.</returns>
-    public bool ConfirmLocation(string path, string contentId, long size)
+    public bool ConfirmLocation(string path, string contentId, long size) => ConfirmLocation(path, contentId, size, null);
+
+    /// <summary>
+    ///     <see cref="ConfirmLocation(string, string, long)" />, knowing the file's write time. A path that leaves
+    ///     its row then joins the row of the bytes it holds, confirmed, or starts one, and a row not hashed yet
+    ///     whose file still has the size and write time it was recorded at takes the hash.
+    /// </summary>
+    /// <param name="path">The file that was read.</param>
+    /// <param name="contentId">The hash of the bytes read.</param>
+    /// <param name="size">The number of bytes read.</param>
+    /// <param name="modifiedTicks">The file's write time when read, local or UTC ticks; null when unknown.</param>
+    /// <returns>False when the path left its row.</returns>
+    public bool ConfirmLocation(string path, string contentId, long size, long? modifiedTicks)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         ArgumentException.ThrowIfNullOrEmpty(contentId);
         lock (_rmwGate)
         {
             bool split;
+            DemoLocation here;
             lock (_gate)
             {
-                if (!_keyByPath.TryGetValue(path, out string? key) || IsProvisional(_rows[key])
-                    || LocationIn(_rows[key], path) is not { } here)
+                if (!_keyByPath.TryGetValue(path, out string? key) || LocationIn(_rows[key], path) is not { } at)
                 {
                     return true;
                 }
 
-                split = !string.Equals(key, contentId, StringComparison.Ordinal) || here.Size != size;
-                if (!split)
+                here = at;
+                if (IsProvisional(_rows[key]))
                 {
-                    if (here.Confirmed)
+                    split = false;
+                }
+                else
+                {
+                    split = !string.Equals(key, contentId, StringComparison.Ordinal) || here.Size != size;
+                    if (!split)
                     {
-                        return true;
-                    }
+                        if (here.Confirmed)
+                        {
+                            return true;
+                        }
 
-                    DemoCacheIndexEntry row = _rows[key];
-                    List<DemoLocation> locations =
-                    [
-                        .. row.Locations.Where(l => !SamePath(l.Path, path)),
-                        here with { Confirmed = true, LastSeenUtcTicks = DateTime.UtcNow.Ticks }
-                    ];
-                    Link(key, Shape(row.Copy(), locations, row.SidecarKeys));
+                        DemoCacheIndexEntry row = _rows[key];
+                        List<DemoLocation> locations =
+                        [
+                            .. row.Locations.Where(l => !SamePath(l.Path, path)),
+                            here with { Confirmed = true, LastSeenUtcTicks = DateTime.UtcNow.Ticks }
+                        ];
+                        Link(key, Shape(row.Copy(), locations, row.SidecarKeys));
+                    }
                 }
             }
 
             if (split)
             {
                 RemoveCore(path, true);
+                if (modifiedTicks is { } ticks)
+                {
+                    JoinContent(path, contentId, size, ticks);
+                }
+
+                RaiseChanged(path);
                 return false;
+            }
+
+            if (IsProvisionalAt(path))
+            {
+                if (modifiedTicks is { } ticks && here.Size == size && SameTicks(here.ModifiedTicks, ticks)
+                    && TryLoadRecord(path, false) is { } record && string.IsNullOrEmpty(record.Sha256))
+                {
+                    record.SetContentHash(contentId, null);
+                    Upsert(record);
+                }
+
+                return true;
             }
         }
 
         RaiseChanged(path);
         return true;
+    }
+
+    private bool IsProvisionalAt(string path)
+    {
+        lock (_gate)
+        {
+            return _keyByPath.TryGetValue(path, out string? key) && IsProvisional(_rows[key]);
+        }
+    }
+
+    // Caller holds _rmwGate. Lists a path no row lists, confirmed, under the row of the bytes it holds,
+    // orphaned or not, or under a new row of its own with nothing in it yet.
+    private void JoinContent(string path, string contentId, long size, long modifiedTicks)
+    {
+        lock (_gate)
+        {
+            if (_keyByPath.ContainsKey(path))
+            {
+                return;
+            }
+
+            DemoLocation location = new(path, true, size, modifiedTicks, DateTime.UtcNow.Ticks);
+            if (_rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) && !IsProvisional(row))
+            {
+                Link(contentId, Shape(row.Copy(), [.. row.Locations, location], row.SidecarKeys));
+            }
+            else if (row is null)
+            {
+                Link(contentId, Shape(new DemoCacheIndexEntry { Sha256 = contentId }, [location], null));
+            }
+        }
+    }
+
+    private static (long Size, long Ticks) StatStamps(string path)
+    {
+        FileInfo info = new(path);
+        return info.Exists ? (info.Length, info.LastWriteTime.Ticks) : (0, 0);
+    }
+
+    // A write time in the library's local ticks or the scanner's UTC ticks, against one taken either way.
+    private static bool SameTicks(long recorded, long read) =>
+        recorded == read
+        || recorded == new DateTime(read, DateTimeKind.Utc).ToLocalTime().Ticks
+        || read == new DateTime(recorded, DateTimeKind.Utc).ToLocalTime().Ticks;
+
+    /// <summary>
+    ///     Takes the content hash of a demo's whole file from something that read it in full anyway: a parse or
+    ///     an open. The path is settled against it (<see cref="ConfirmLocation(string, string, long, long?)" />),
+    ///     a hashed row without a fingerprint takes this one, and the hash is remembered for a writer that
+    ///     asks about the same file later. The store itself never reads a demo.
+    /// </summary>
+    /// <param name="path">The file that was read.</param>
+    /// <param name="contentId">The hash of the bytes read.</param>
+    /// <param name="fingerprint">The fingerprint taken in the same read, or null.</param>
+    /// <param name="size">The number of bytes read.</param>
+    /// <param name="lastWriteUtc">The file's write time when read.</param>
+    public void NoteContentRead(string path, string contentId, DemoContentFingerprint? fingerprint, long size,
+        DateTime lastWriteUtc)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        ArgumentException.ThrowIfNullOrEmpty(contentId);
+        long local = lastWriteUtc.ToUniversalTime().ToLocalTime().Ticks;
+        lock (_gate)
+        {
+            if (_recentReads.Count >= RecentReadCapacity && !_recentReads.ContainsKey(path))
+            {
+                _recentReads.Remove(_recentReads.MinBy(r => r.Value.At).Key);
+            }
+
+            _recentReads[path] = new RecentRead(size, local, contentId, fingerprint, ++_readClock);
+        }
+
+        ConfirmLocation(path, contentId, size, local);
+        if (fingerprint is not null && fingerprint.Size == size)
+        {
+            SetFingerprint(path, fingerprint);
+        }
+    }
+
+    /// <summary>
+    ///     The hash <see cref="NoteContentRead" /> took of the file at <paramref name="path" />, while the file
+    ///     still has the size and write time it was read at; else null.
+    /// </summary>
+    /// <param name="path">A demo path.</param>
+    /// <param name="size">The file's size now.</param>
+    /// <param name="modifiedTicks">The file's write time now, local or UTC ticks.</param>
+    internal (string Sha256, DemoContentFingerprint? Fingerprint)? RecentContentRead(string path, long size, long modifiedTicks)
+    {
+        lock (_gate)
+        {
+            return _recentReads.TryGetValue(path, out RecentRead read) && read.Size == size
+                                                                       && SameTicks(read.LocalTicks, modifiedTicks)
+                ? (read.Sha256, read.Fingerprint)
+                : null;
+        }
     }
 
     /// <summary>
@@ -924,7 +1064,7 @@ public sealed class DemoCacheStore
     public DemoCacheRecord LoadOrCreate(string path, long size, long modifiedTicks)
     {
         SettleBeforeWrite(path);
-        DemoCacheRecord? existing = TryLoadOwnRecord(path);
+        DemoCacheRecord? existing = TryLoadRecord(path);
 
         // A record whose file no longer matches describes a DIFFERENT demo at the same path: the user
         // replaced or re-downloaded it. Keeping any tier would attribute the old match's rosters and score to
@@ -934,11 +1074,29 @@ public sealed class DemoCacheStore
             return existing;
         }
 
+        return FreshRecord(path, size, modifiedTicks);
+    }
+
+    // A record with no tier for the file at path. It carries the content id of the row listing the path when a
+    // full read confirmed the path at these stamps, so a write there stays with that row.
+    private DemoCacheRecord FreshRecord(string path, long size, long modifiedTicks)
+    {
+        string? sha;
+        lock (_gate)
+        {
+            sha = _keyByPath.TryGetValue(path, out string? key) && !IsProvisional(_rows[key])
+                                                                && LocationIn(_rows[key], path) is { Confirmed: true } at
+                                                                && at.Size == size && at.ModifiedTicks == modifiedTicks
+                ? key
+                : null;
+        }
+
         return new DemoCacheRecord
         {
             Path = path,
             Size = size,
-            ModifiedTicks = modifiedTicks
+            ModifiedTicks = modifiedTicks,
+            Sha256 = sha
         };
     }
 
@@ -1011,16 +1169,12 @@ public sealed class DemoCacheStore
 
         lock (_rmwGate)
         {
-            DemoCacheRecord? record = TryLoadOwnRecord(path);
+            DemoCacheRecord? record = TryLoadRecord(path);
             if (record is null)
             {
-                FileInfo info = new(path);
-                record = new DemoCacheRecord
-                {
-                    Path = path,
-                    Size = info.Exists ? info.Length : 0,
-                    ModifiedTicks = info.Exists ? info.LastWriteTime.Ticks : 0
-                };
+                // The stamps the row has for the path when it lists it: a stat of a network path can stall.
+                (long size, long ticks) = TryGetIndex(path) is { } listed ? (listed.Size, listed.ModifiedTicks) : StatStamps(path);
+                record = FreshRecord(path, size, ticks);
             }
 
             mutate(record);
@@ -1190,7 +1344,6 @@ public sealed class DemoCacheStore
     /// </summary>
     public void Update(string path, long size, long modifiedTicks, Action<DemoCacheRecord> mutate)
     {
-        SettleBeforeWrite(path);
         lock (_rmwGate)
         {
             DemoCacheRecord record = LoadOrCreate(path, size, modifiedTicks);
@@ -2379,49 +2532,27 @@ public sealed class DemoCacheStore
     private static DemoLocation? LocationIn(DemoCacheIndexEntry row, string path) =>
         row.Locations.FirstOrDefault(l => SamePath(l.Path, path));
 
-    // A write at an unconfirmed path hashes the file first. Whatever writes there has just read it, so the read
-    // is warm, and without it the write could only start a record of its own, taking the path out of the row
-    // and, when it was the row's last path, the row's files with it. Outside the write gate: the read is long.
+    // A write at an unconfirmed path settles it first when a parse or an open has hashed the file at the stamps
+    // the path was recorded with. Never reads the file: without such a hash the write goes to the row, which
+    // the fingerprint matched, and the path stays unconfirmed.
     private void SettleBeforeWrite(string path)
     {
+        DemoLocation here;
+        RecentRead read;
         lock (_gate)
         {
             if (!_keyByPath.TryGetValue(path, out string? key) || IsProvisional(_rows[key])
-                || LocationIn(_rows[key], path) is not { Confirmed: false })
+                || LocationIn(_rows[key], path) is not { Confirmed: false } at
+                || !_recentReads.TryGetValue(path, out read) || read.Size != at.Size
+                || !SameTicks(at.ModifiedTicks, read.LocalTicks))
             {
                 return;
             }
+
+            here = at;
         }
 
-        long size;
-        try
-        {
-            size = new FileInfo(path).Length;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            return;
-        }
-
-        if (DemoContentHash.TryCompute(path) is { } sha)
-        {
-            ConfirmLocation(path, sha, size);
-        }
-    }
-
-    // A writer's starting point. The bytes at an unconfirmed path may not be the row's, so a write there
-    // starts from nothing rather than carry the row's tiers onto whatever the file really holds.
-    private DemoCacheRecord? TryLoadOwnRecord(string path)
-    {
-        lock (_gate)
-        {
-            if (_keyByPath.TryGetValue(path, out string? key) && LocationIn(_rows[key], path) is { Confirmed: false })
-            {
-                return null;
-            }
-        }
-
-        return TryLoadRecord(path);
+        ConfirmLocation(path, read.Sha256, here.Size, here.ModifiedTicks);
     }
 
     // Under _gate.

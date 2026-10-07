@@ -1926,13 +1926,25 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     </para>
     /// </summary>
     // The open has the whole file in hand, so its hash settles a path the library attached by fingerprint
-    // alone. Must run before anything writes the open's results to the cache under that path.
+    // alone, and gives a row not hashed yet its hash. Must run before anything writes the open's results to
+    // the cache under that path.
     private string HashAndConfirm(string? localPath, byte[] rawBytes)
     {
         string key = DemoContentHash.Compute(rawBytes);
-        if (localPath is { Length: > 0 })
+        if (localPath is { Length: > 0 } && _demoCache is not null)
         {
-            _demoCache?.ConfirmLocation(localPath, key, rawBytes.LongLength);
+            try
+            {
+                FileInfo info = new(localPath);
+                if (info.Exists && info.Length == rawBytes.LongLength)
+                {
+                    _demoCache.NoteContentRead(localPath, key, null, rawBytes.LongLength, info.LastWriteTimeUtc);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // The open still has its key; the cache settles the path at the next read.
+            }
         }
 
         return key;
