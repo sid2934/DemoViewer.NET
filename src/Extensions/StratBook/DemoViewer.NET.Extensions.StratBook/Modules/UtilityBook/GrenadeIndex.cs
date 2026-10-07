@@ -1121,11 +1121,27 @@ public sealed class GrenadeIndex : IExtensionResident, IDisposable
             IEnumerable<string> candidates = path is null ? _loaded.Keys.ToList() : [path];
             foreach (string loaded in candidates)
             {
-                if (_loaded.ContainsKey(loaded) && !IsLoadable(_library.Find(loaded)))
+                if (!_loaded.Remove(loaded, out LoadedDemo? demo))
                 {
-                    changed |= _loaded.Remove(loaded);
-                    InvalidateLocked(null);
+                    continue;
                 }
+
+                if (IsLoadable(_library.Find(loaded)))
+                {
+                    _loaded[loaded] = demo;
+                    continue;
+                }
+
+                // Its path went, its bytes did not: the same rows, read through the path that still has them.
+                if (demo.Demo.Sha256 is { Length: > 0 } sha && _library.FindBySha256(sha) is { } other
+                                                             && IsLoadable(other) && !_loaded.ContainsKey(other.FilePath))
+                {
+                    DemoRef moved = DemoRef.From(other);
+                    _loaded[other.FilePath] = demo with { Demo = moved, Grenades = [.. demo.Grenades.Select(g => g with { Demo = moved })] };
+                }
+
+                changed = true;
+                InvalidateLocked(null);
             }
         }
 

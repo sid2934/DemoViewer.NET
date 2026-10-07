@@ -403,6 +403,49 @@ public class GrenadeIndexTests
         }
     }
 
+    // The demo loaded at its only path, a copy joins, then that path goes: the copy's rows stay in the index.
+    // Over the host's data, which follows a demo by content.
+    [Test]
+    public async Task ADemoWhosePathGoes_KeepsItsRowsAtItsCopy()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-grenades-{Guid.NewGuid():N}");
+        try
+        {
+            DemoCacheStore cache = new(null);
+            GrenadeStore store = new(cache.DiskData(root));
+            cache.Upsert(RoundIndexTestData.ParsedRecord(DemoPath(3), Mirage, "sha3"));
+            store.Write(DemoPath(3), new GrenadeDocument
+            {
+                Demo = new GrenadeDemoHeader { Sha256 = "sha3", StableKey = DemoCacheStore.StableKey(DemoPath(3)) },
+                Grenades = [.. MirageRows(3)]
+            });
+            using GrenadeIndex index = new(cache.Library(),
+                new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones), ("de_inferno", InfernoZones)), store: store);
+            index.Load();
+            int before = index.GrenadeCount;
+
+            cache.Upsert(RoundIndexTestData.ParsedRecord("/d/a-copy/mirage-3.dem", Mirage, "sha3"));
+            cache.Remove(DemoPath(3));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(before).IsGreaterThan(0);
+                await Assert.That(index.GrenadeCount).IsEqualTo(before);
+                await Assert.That(index.DemoCount).IsEqualTo(1);
+                await Assert.That(index.IsLoaded("/d/a-copy/mirage-3.dem")).IsTrue();
+                await Assert.That(index.Rows(SmokesIntoCt()).Select(r => r.Demo.Path).Distinct())
+                    .IsEquivalentTo(["/d/a-copy/mirage-3.dem"]);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
     [Test]
     public async Task TheFilters_KeepTheirKind_Side_AndDemoSet()
     {

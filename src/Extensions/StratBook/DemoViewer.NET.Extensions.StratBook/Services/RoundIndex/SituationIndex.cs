@@ -1,6 +1,7 @@
 #region
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
@@ -35,6 +36,7 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
     private readonly RoundIndexEvaluator? _evaluator;
     private readonly IRoundFacts? _facts;
     private readonly object _gate = new();
+    // By demo (DemoKey): two paths of one content are one demo, whichever path merged it.
     private readonly Dictionary<string, LoadedDemo> _loaded = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MapIndex> _maps = new(StringComparer.OrdinalIgnoreCase);
     private readonly Action<Action> _post;
@@ -125,9 +127,12 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
     /// <inheritdoc />
     public long IndexedAtTicks(string demoPath)
     {
+        LibraryDemo? entry = _library.Find(demoPath);
         lock (_gate)
         {
-            return _loaded.TryGetValue(demoPath, out LoadedDemo? demo) ? demo.ComputedAtTicks : 0;
+            return (entry is not null && _loaded.TryGetValue(DemoKey(entry), out LoadedDemo? demo)) || LoadedAtLocked(demoPath, out demo)
+                ? demo.ComputedAtTicks
+                : 0;
         }
     }
 
@@ -360,10 +365,15 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
                 return null;
             }
 
-            RemoveLocked(entry.FilePath);
+            RemoveLocked(DemoKey(entry));
+            while (LoadedAtLocked(entry.FilePath, out LoadedDemo? atPath))
+            {
+                RemoveLocked(atPath.Key);
+            }
+
             MapIndex map = MapFor(document.Map);
             LoadedDemo demo = map.Add(entry, document, indexed.ComputedAtTicks);
-            _loaded[entry.FilePath] = demo;
+            _loaded[demo.Key] = demo;
         }
 
         if (raise)
@@ -389,15 +399,26 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
         return index;
     }
 
-    private bool RemoveLocked(string path)
+    private bool RemoveLocked(string key)
     {
-        if (!_loaded.Remove(path, out LoadedDemo? demo))
+        if (!_loaded.Remove(key, out LoadedDemo? demo))
         {
             return false;
         }
 
         demo.Map.Remove(demo);
         return true;
+    }
+
+    // A demo is its content once hashed, its path until then.
+    private static string DemoKey(LibraryDemo entry) =>
+        entry.Sha256 is { Length: > 0 } sha ? "sha:" + sha : "path:" + entry.FilePath;
+
+    // Under _gate.
+    private bool LoadedAtLocked(string path, [NotNullWhen(true)] out LoadedDemo? demo)
+    {
+        demo = _loaded.Values.FirstOrDefault(d => string.Equals(d.Path, path, StringComparison.OrdinalIgnoreCase));
+        return demo is not null;
     }
 
     private void OnWritten(RoundIndexedEvent written)
@@ -423,22 +444,25 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
                 return;
             }
 
-            if (path is not null)
+            foreach (LoadedDemo demo in _loaded.Values
+                         .Where(d => path is null || string.Equals(d.Path, path, StringComparison.OrdinalIgnoreCase)).ToList())
             {
-                if (_loaded.ContainsKey(path) && !IsLoadable(_library.Find(path)))
+                if (IsLoadable(_library.Find(demo.Path)))
                 {
-                    changed = RemoveLocked(path);
+                    continue;
                 }
-            }
-            else
-            {
-                foreach (string loaded in _loaded.Keys.ToList())
+
+                // Its path went, its bytes did not: the same rows, read through the path that still has them.
+                if (demo.Sha256 is { Length: > 0 } sha && _library.FindBySha256(sha) is { } other && IsLoadable(other))
                 {
-                    if (!IsLoadable(_library.Find(loaded)))
-                    {
-                        changed |= RemoveLocked(loaded);
-                    }
+                    demo.MoveTo(other);
                 }
+                else
+                {
+                    RemoveLocked(demo.Key);
+                }
+
+                changed = true;
             }
         }
 
@@ -651,13 +675,23 @@ public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDispo
 
         public int Id { get; } = id;
 
-        public string Path { get; } = entry.FilePath;
+        public string Key { get; } = DemoKey(entry);
 
-        public string StableKey { get; } = DemoKeys.StableKey(entry.FilePath);
+        public string Path { get; private set; } = entry.FilePath;
+
+        public string StableKey { get; private set; } = DemoKeys.StableKey(entry.FilePath);
 
         public string? Sha256 { get; } = entry.Sha256;
 
-        public long ModifiedTicks { get; } = entry.Modified.Ticks;
+        public long ModifiedTicks { get; private set; } = entry.Modified.Ticks;
+
+        // Another path of the same content. Under _gate.
+        public void MoveTo(LibraryDemo other)
+        {
+            Path = other.FilePath;
+            StableKey = DemoKeys.StableKey(other.FilePath);
+            ModifiedTicks = other.Modified.Ticks;
+        }
 
         public long ComputedAtTicks { get; } = computedAtTicks;
 

@@ -410,6 +410,42 @@ public class SituationQueryTests
         }
     }
 
+    // The demo loaded at one path, a copy at an ordinally smaller path joins, then the first path goes: the
+    // demo stays indexed, once, at the copy. Over the host's data, which follows a demo by content.
+    [Test]
+    public async Task ADemoWhosePathGoes_StaysIndexedAtItsCopy_Once()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-situations-{Guid.NewGuid():N}");
+        try
+        {
+            DemoCacheStore cache = new(null);
+            RoundIndexStore sidecars = new(cache.DiskData(root));
+            using SituationIndex index = new(cache.Library(), sidecars, new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn));
+            RoundIndexDocument document = DocB();
+            document.Demo.Sha256 = "x";
+            Indexed(cache, sidecars, DemoB, document, sha: "x");
+            index.Load();
+            await Assert.That(index.Count(Q("de_nuke"))).IsEqualTo(1);
+
+            cache.Upsert(ParsedRecord(DemoA, "de_nuke", "x"));
+            cache.Remove(DemoB);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(index.IndexedDemoCount).IsEqualTo(1);
+                await Assert.That(index.Query(Q("de_nuke")).Select(hit => hit.DemoPath)).IsEquivalentTo([DemoA]);
+                await Assert.That(index.IndexedAtTicks(DemoA)).IsGreaterThan(0);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
     [Test]
     public async Task ASidecarWithAnotherDemosHash_IsIgnored()
     {
