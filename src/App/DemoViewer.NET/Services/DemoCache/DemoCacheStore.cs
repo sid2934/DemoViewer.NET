@@ -1393,41 +1393,81 @@ public sealed class DemoCacheStore
     public int ExpireOrphans(DateTime nowUtc, TimeSpan grace)
     {
         long cutoff = (nowUtc - grace).Ticks;
-        int expired = 0;
+        List<DemoCacheIndexEntry> gone = [];
         using (BeginBatch())
         {
             lock (_rmwGate)
             {
-                List<string> due;
                 lock (_gate)
                 {
-                    due = [.. _rows.Where(r => r.Value.OrphanedSinceUtcTicks <= cutoff).Select(r => r.Key)];
-                }
-
-                foreach (string key in due)
-                {
-                    DemoCacheIndexEntry row;
-                    lock (_gate)
+                    foreach (string key in _rows.Where(r => r.Value.OrphanedSinceUtcTicks <= cutoff).Select(r => r.Key).ToList())
                     {
-                        if (!_rows.TryGetValue(key, out row!) || !(row.OrphanedSinceUtcTicks <= cutoff))
-                        {
-                            continue;
-                        }
-
+                        gone.Add(_rows[key]);
                         Unlink(key);
                         Forget(key);
                     }
+                }
 
-                    // The files go before the index is saved: an index still naming a row whose files are gone
-                    // is expired again by the next sweep, while files no index names are never found again.
+                // The index stops naming the rows before their files go: a crash between the two leaves files no
+                // row names, which the next sweep deletes, never a row whose files are gone.
+                if (gone.Count > 0 && IndexPath is { } indexPath && !WriteIndex(indexPath, out _))
+                {
+                    lock (_gate)
+                    {
+                        foreach (DemoCacheIndexEntry row in gone)
+                        {
+                            string key = RowKeyFor(row.Path, row.Sha256);
+                            Link(key, row);
+                            if (row.SidecarKeys is not null)
+                            {
+                                _settleAfterSave.Add(key);
+                            }
+                        }
+                    }
+
+                    return 0;
+                }
+
+                foreach (DemoCacheIndexEntry row in gone)
+                {
                     DeleteFiles(FileKeys(row));
-                    expired++;
                     RaiseChanged(row.Path);
                 }
+
+                DeleteUnnamedContentFiles();
             }
         }
 
-        return expired;
+        return gone.Count;
+    }
+
+    // Caller holds _rmwGate. Deletes files named by a content id no row has: what an expiry cut short by a crash
+    // left. Only a row of that id writes under the name, and a row exists before its files move there.
+    private void DeleteUnnamedContentFiles()
+    {
+        if (SidecarDir is not { } dir || !Directory.Exists(dir))
+        {
+            return;
+        }
+
+        HashSet<string> named;
+        lock (_gate)
+        {
+            named = [.. _rows.Values.SelectMany(FileKeys)];
+        }
+
+        try
+        {
+            List<string> stray = [.. Directory.EnumerateFiles(dir)
+                .Select(f => Path.GetFileName(f).Split('.')[0])
+                .Where(k => k.Length == 64 && k.All(char.IsAsciiHexDigitLower) && !named.Contains(k))
+                .Distinct(StringComparer.Ordinal)];
+            DeleteFiles(stray);
+        }
+        catch (Exception)
+        {
+            // The next sweep tries again.
+        }
     }
 
     /// <summary>
@@ -2503,93 +2543,228 @@ public sealed class DemoCacheStore
     private void LoadIndex()
     {
         string? indexPath = IndexPath;
-        if (indexPath is null || !File.Exists(indexPath))
+        if (indexPath is null)
         {
             return;
         }
 
+        bool exists = File.Exists(indexPath);
         try
         {
-            DemoCacheIndexFile? file =
-                SidecarJson.ReadFile<DemoCacheIndexFile>(indexPath, _jsonOptions);
-            if (file?.Entries is null)
+            if (exists && SidecarJson.ReadFile<DemoCacheIndexFile>(indexPath, _jsonOptions) is { Entries: not null } file)
+            {
+                LoadFrom(file);
+                return;
+            }
+        }
+        catch (Exception)
+        {
+            // Rebuilt below.
+        }
+
+        lock (_gate)
+        {
+            _rows.Clear();
+            _keyByPath.Clear();
+            _index.Clear();
+            _settleAfterSave.Clear();
+        }
+
+        // An index that does not read is kept aside, never written over: the rebuild below may miss what only
+        // the index knew.
+        if (exists)
+        {
+            try
+            {
+                File.Move(indexPath, $"{indexPath}.unreadable-{DateTime.UtcNow.Ticks}");
+            }
+            catch (Exception)
             {
                 return;
             }
+        }
 
-            // Before version 5 a row is one path and its files are named by the path. Rows of one hash
-            // become one row whose files still sit under every old name until the rename pass moves them.
-            bool byPath = file.Version < 5;
-            Dictionary<string, List<DemoCacheIndexEntry>> groups = new(StringComparer.Ordinal);
-            foreach (DemoCacheIndexEntry entry in file.Entries.Where(e => !string.IsNullOrEmpty(e.Path)))
+        if (RebuildFromSidecars())
+        {
+            WriteIndex(indexPath, out _);
+        }
+    }
+
+    private void LoadFrom(DemoCacheIndexFile file)
+    {
+        // Before version 5 a row is one path and its files are named by the path. Rows of one hash
+        // become one row whose files still sit under every old name until the rename pass moves them.
+        bool byPath = file.Version < 5;
+        Dictionary<string, List<DemoCacheIndexEntry>> groups = new(StringComparer.Ordinal);
+        foreach (DemoCacheIndexEntry entry in file.Entries.Where(e => !string.IsNullOrEmpty(e.Path)))
+        {
+            string key = RowKeyFor(entry.Path, entry.Sha256);
+            if (!groups.TryGetValue(key, out List<DemoCacheIndexEntry>? group))
             {
-                string key = RowKeyFor(entry.Path, entry.Sha256);
-                if (!groups.TryGetValue(key, out List<DemoCacheIndexEntry>? group))
-                {
-                    groups[key] = group = [];
-                }
-
-                group.Add(entry);
+                groups[key] = group = [];
             }
 
-            lock (_gate)
-            {
-                _legacyMigrationVersion = file.LegacyMigrationVersion;
-                _contentKeyMigrationVersion = byPath ? 0 : file.ContentKeyMigrationVersion;
-                foreach ((string key, List<DemoCacheIndexEntry> group) in groups)
-                {
-                    // The copy with the most tiers speaks for the row; its files go first.
-                    List<DemoCacheIndexEntry> ordered =
-                    [
-                        .. group.OrderByDescending(e => e.Tier).ThenBy(e => e.Path, StringComparer.Ordinal)
-                    ];
-                    List<DemoLocation> locations = [];
-                    List<string> keys = [];
-                    foreach (DemoCacheIndexEntry entry in ordered)
-                    {
-                        if (!entry.IsOrphaned || IsProvisional(entry))
-                        {
-                            locations.AddRange(entry.Locations.Count > 0
-                                ? entry.Locations
-                                : [new DemoLocation(entry.Path, true, entry.Size, entry.ModifiedTicks, 0)]);
-                        }
+            group.Add(entry);
+        }
 
-                        if (byPath)
-                        {
-                            keys.Add(StableKey(entry.Path));
-                        }
-                        else
-                        {
-                            keys.AddRange(WriteKeys(entry));
-                        }
+        lock (_gate)
+        {
+            _legacyMigrationVersion = file.LegacyMigrationVersion;
+            _contentKeyMigrationVersion = byPath ? 0 : file.ContentKeyMigrationVersion;
+            foreach ((string key, List<DemoCacheIndexEntry> group) in groups)
+            {
+                // The copy with the most tiers speaks for the row; its files go first.
+                List<DemoCacheIndexEntry> ordered =
+                [
+                    .. group.OrderByDescending(e => e.Tier).ThenBy(e => e.Path, StringComparer.Ordinal)
+                ];
+                List<DemoLocation> locations = [];
+                List<string> keys = [];
+                foreach (DemoCacheIndexEntry entry in ordered)
+                {
+                    if (!entry.IsOrphaned || IsProvisional(entry))
+                    {
+                        locations.AddRange(entry.Locations.Count > 0
+                            ? entry.Locations
+                            : [new DemoLocation(entry.Path, true, entry.Size, entry.ModifiedTicks, 0)]);
                     }
 
-                    DemoCacheIndexEntry row;
-                    if (locations.Count > 0)
+                    if (byPath)
                     {
-                        row = Shape(ordered[0], locations, keys);
+                        keys.Add(StableKey(entry.Path));
                     }
                     else
                     {
-                        DemoCacheIndexEntry orphan = ordered[0];
-                        orphan.DetachedLocations = [.. ordered.SelectMany(e => e.DetachedLocations ?? [])];
-                        orphan.Locations = [];
-                        orphan.OrphanedSinceUtcTicks = ordered.Min(e => e.OrphanedSinceUtcTicks ?? long.MaxValue);
-                        row = WithKeys(orphan, keys);
+                        keys.AddRange(WriteKeys(entry));
                     }
+                }
 
-                    Link(key, row);
-                    if (row.SidecarKeys is not null && _contentKeyMigrationVersion >= ContentKeyMigration.CurrentVersion)
-                    {
-                        _settleAfterSave.Add(key);
-                    }
+                DemoCacheIndexEntry row;
+                if (locations.Count > 0)
+                {
+                    row = Shape(ordered[0], locations, keys);
+                }
+                else
+                {
+                    DemoCacheIndexEntry orphan = ordered[0];
+                    orphan.DetachedLocations = [.. ordered.SelectMany(e => e.DetachedLocations ?? [])];
+                    orphan.Locations = [];
+                    orphan.OrphanedSinceUtcTicks = ordered.Min(e => e.OrphanedSinceUtcTicks ?? long.MaxValue);
+                    row = WithKeys(orphan, keys);
+                }
+
+                Link(key, row);
+                if (row.SidecarKeys is not null && _contentKeyMigrationVersion >= ContentKeyMigration.CurrentVersion)
+                {
+                    _settleAfterSave.Add(key);
+                }
+            }
+        }
+    }
+
+    // Every record names its hash and the paths it was written for, so an index that was lost is rebuilt from
+    // them. A path two records name goes to the one that saw it last; a hashed record left with no path is
+    // orphaned from now. False when there was nothing to rebuild from.
+    private bool RebuildFromSidecars()
+    {
+        string dir = SidecarDir!;
+        List<(string Key, DemoCacheRecord Record)> found = [];
+        try
+        {
+            if (!Directory.Exists(dir))
+            {
+                return false;
+            }
+
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            foreach (string file in Directory.EnumerateFiles(dir, "*" + RecordSuffix)
+                         .Concat(Directory.EnumerateFiles(dir, "*" + LegacyRecordSuffix)).ToList())
+            {
+                string name = Path.GetFileName(file);
+                string key = name.EndsWith(RecordSuffix, StringComparison.Ordinal)
+                    ? name[..^RecordSuffix.Length]
+                    : name[..^LegacyRecordSuffix.Length];
+                if (key.Length > 0 && !key.Contains('.') && seen.Add(key) && RecordAt(key) is { Path.Length: > 0 } record)
+                {
+                    found.Add((key, record));
                 }
             }
         }
         catch (Exception)
         {
-            // Corrupt index = start empty and rebuild.
+            return false;
         }
+
+        if (found.Count == 0)
+        {
+            return false;
+        }
+
+        List<(string RowKey, List<(string Key, DemoCacheRecord Record)> Files, List<DemoLocation> Seen)> groups = [];
+        foreach (IGrouping<string, (string Key, DemoCacheRecord Record)> group in
+                 found.GroupBy(f => RowKeyFor(f.Record.Path, f.Record.Sha256), StringComparer.Ordinal))
+        {
+            List<(string Key, DemoCacheRecord Record)> files =
+            [
+                .. group.OrderByDescending(f => f.Record.ToIndexEntry().Tier).ThenBy(f => f.Key, StringComparer.Ordinal)
+            ];
+            List<DemoLocation> locations = [];
+            foreach (DemoLocation location in files.SelectMany(f => f.Record.Locations.Count > 0
+                         ? f.Record.Locations
+                         : [new DemoLocation(f.Record.Path, true, f.Record.Size, f.Record.ModifiedTicks, 0)]))
+            {
+                int at = locations.FindIndex(l => SamePath(l.Path, location.Path));
+                if (at < 0)
+                {
+                    locations.Add(location);
+                }
+                else if (location.LastSeenUtcTicks > locations[at].LastSeenUtcTicks)
+                {
+                    locations[at] = location;
+                }
+            }
+
+            groups.Add((group.Key, files, locations));
+        }
+
+        Dictionary<string, (string RowKey, long Seen)> owner = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string rowKey, _, List<DemoLocation> locations) in groups)
+        {
+            foreach (DemoLocation location in locations)
+            {
+                if (!owner.TryGetValue(location.Path, out (string RowKey, long Seen) held) || location.LastSeenUtcTicks > held.Seen)
+                {
+                    owner[location.Path] = (rowKey, location.LastSeenUtcTicks);
+                }
+            }
+        }
+
+        long now = DateTime.UtcNow.Ticks;
+        lock (_gate)
+        {
+            _legacyMigrationVersion = LegacyCacheMigration.CurrentVersion;
+            foreach ((string rowKey, List<(string Key, DemoCacheRecord Record)> files, List<DemoLocation> seen) in groups)
+            {
+                DemoCacheIndexEntry entry = files[0].Record.ToIndexEntry();
+                List<string> keys = [.. files.Select(f => f.Key)];
+                List<DemoLocation> mine = [.. seen.Where(l => owner[l.Path].RowKey == rowKey)];
+                if (mine.Count > 0)
+                {
+                    Link(rowKey, Shape(entry, mine, keys));
+                }
+                else if (!IsProvisional(entry))
+                {
+                    entry.Locations = [];
+                    entry.DetachedLocations = seen;
+                    entry.OrphanedSinceUtcTicks = now;
+                    Link(rowKey, WithKeys(entry, keys));
+                }
+            }
+
+            _contentKeyMigrationVersion = _rows.Values.Any(r => r.SidecarKeys is not null) ? 0 : ContentKeyMigration.CurrentVersion;
+        }
+
+        return true;
     }
 
     private void EndBatch()

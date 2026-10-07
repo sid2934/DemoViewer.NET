@@ -358,27 +358,93 @@ public class OrphanedContentTests
         }
     }
 
+    /// <summary>
+    ///     The sweep saved the index without the row and died before deleting its files. No row comes back
+    ///     claiming tiers whose files are gone, and the next sweep deletes the files no row names.
+    /// </summary>
     [Test]
-    public async Task ACrashAfterTheSweepDeletedFiles_LeavesARowTheNextSweepFinishes()
+    public async Task ACrashBetweenTheSweepsIndexSaveAndItsDeletes_LeavesNoRowWithoutFiles()
+    {
+        string root = TempRoot();
+        string sha = new('a', 64);
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Upsert(Analysed("/m/a.dem", sha));
+            store.WriteSibling("/m/a.dem", Suffix, "facts");
+            store.Detach("/m/a.dem");
+            store.SaveIndex();
+            string demos = Path.Combine(root, "demos");
+            Dictionary<string, byte[]> kept = Directory.EnumerateFiles(demos).ToDictionary(f => f, File.ReadAllBytes);
+            await Assert.That(kept).IsNotEmpty();
+
+            await Assert.That(new DemoCacheStore(root).ExpireOrphans(DateTime.UtcNow.AddDays(30), TimeSpan.FromDays(14))).IsEqualTo(1);
+            foreach ((string file, byte[] bytes) in kept)
+            {
+                File.WriteAllBytes(file, bytes);
+            }
+
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(reopened.HoldsContent(sha)).IsFalse().Because("the index was saved before the files went");
+                await Assert.That(reopened.Reattach("/m/a.dem", 1000, 2000)).IsFalse();
+            }
+
+            reopened.ExpireOrphans(DateTime.UtcNow, TimeSpan.FromDays(14));
+            await Assert.That(Files(root)).IsEmpty().Because("files no row names under a content id are deleted");
+        }
+        finally
+        {
+            Cleanup(root);
+        }
+    }
+
+    /// <summary>
+    ///     An index that does not read is kept aside and the index rebuilt from the records: every demo keeps
+    ///     its row and tiers, so nothing per demo is dropped for want of a row.
+    /// </summary>
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task AnUnreadableIndex_IsRebuiltFromTheRecords(bool corrupt)
     {
         string root = TempRoot();
         try
         {
             DemoCacheStore store = new(root);
             store.Upsert(Analysed("/m/a.dem", "sha-a"));
-            store.Detach("/m/a.dem");
+            store.Upsert(Analysed("/m/b.dem", "sha-b"));
+            store.Update("/m/c.dem", 5, 6, DemoCacheStore.StampHeader);
+            store.WriteSibling("/m/a.dem", Suffix, "facts");
+            store.SaveIndex();
+            store.Upsert(Analysed("/m/d.dem", "sha-a", 1000, 2000));
+            store.Detach("/m/b.dem");
             store.SaveIndex();
 
-            // The sweep deleted the files and died before the index save.
-            DemoCacheStore crashed = new(root);
-            crashed.ExpireOrphans(DateTime.UtcNow.AddDays(30), TimeSpan.FromDays(14));
-            await Assert.That(Files(root)).IsEmpty();
+            string index = Path.Combine(root, "index.json");
+            if (corrupt)
+            {
+                File.WriteAllText(index, "{ \"Version\": 6, \"Entr");
+            }
+            else
+            {
+                File.Delete(index);
+            }
 
-            DemoCacheStore reopened = new(root);
-            await Assert.That(reopened.HoldsContent("sha-a")).IsTrue().Because("the index on disk still names it");
-            await Assert.That(reopened.ExpireOrphans(DateTime.UtcNow.AddDays(30), TimeSpan.FromDays(14))).IsEqualTo(1);
-            reopened.SaveIndex();
-            await Assert.That(new DemoCacheStore(root).HoldsContent("sha-a")).IsFalse();
+            DemoCacheStore rebuilt = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(rebuilt.TryGetIndex("/m/a.dem")!.Tier).IsEqualTo(DemoCacheTier.Analysis);
+                await Assert.That(rebuilt.TryGetIndex("/m/d.dem")!.Sha256).IsEqualTo("sha-a");
+                await Assert.That(rebuilt.TryReadSibling("/m/d.dem", Suffix)).IsEqualTo("facts");
+                await Assert.That(rebuilt.HoldsContent("sha-b")).IsTrue();
+                await Assert.That(rebuilt.TryLoadRecord("/m/b.dem")!.Scoreboard).HasCount(1);
+                await Assert.That(rebuilt.TryGetIndex("/m/c.dem")).IsNotNull();
+                await Assert.That(Directory.EnumerateFiles(root, "index.json.unreadable-*").Count()).IsEqualTo(corrupt ? 1 : 0);
+                await Assert.That(new DemoCacheStore(root).TryGetIndex("/m/a.dem")).IsNotNull()
+                    .Because("the rebuilt index is written at once");
+            }
         }
         finally
         {
