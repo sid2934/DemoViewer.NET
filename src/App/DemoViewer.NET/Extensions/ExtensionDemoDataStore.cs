@@ -227,7 +227,7 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
             ExtensionFolders.SafeName(part);
         }
 
-        string? sha = Sha256Of(demoPath);
+        string? sha = WrittenSha256Of(demoPath);
         string key = KeyFor(demoPath, sha);
         long now = DateTime.UtcNow.Ticks;
         foreach ((string part, ReadOnlyMemory<byte> content) in write.Parts)
@@ -441,6 +441,33 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
 
     private string? Sha256Of(string demoPath) =>
         _library.TryGetIndex(demoPath)?.Sha256 is { Length: > 0 } sha ? sha.ToLowerInvariant() : null;
+
+    // What a write is keyed by. It was computed from the bytes at the path now, so the row's hash names them
+    // only while the file has the size and write time the row recorded: a file replaced in place keys by path
+    // until it is hashed again. The writer has just read the file, so the stat is answered.
+    private string? WrittenSha256Of(string demoPath)
+    {
+        if (_library.TryGetIndex(demoPath) is not { Sha256.Length: > 0 } row)
+        {
+            return null;
+        }
+
+        try
+        {
+            FileInfo file = new(demoPath);
+            if (file.Exists && (file.Length != row.Size
+                                || (row.ModifiedTicks != file.LastWriteTime.Ticks && row.ModifiedTicks != file.LastWriteTimeUtc.Ticks)))
+            {
+                return null;
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+
+        return row.Sha256.ToLowerInvariant();
+    }
 
     private static string KeyFor(string demoPath, string? sha) => sha ?? PathKey(demoPath);
 

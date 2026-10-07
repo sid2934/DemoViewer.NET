@@ -612,7 +612,7 @@ public sealed class DemoCacheStore
 
             if (split)
             {
-                RemoveCore(path, true);
+                RemoveCore(path, true, false);
                 if (modifiedTicks is { } ticks)
                 {
                     JoinContent(path, contentId, size, ticks);
@@ -1412,7 +1412,8 @@ public sealed class DemoCacheStore
         }
     }
 
-    private void RemoveCore(string path, bool keepContent)
+    // raise false leaves the change for the caller to report, once the path has its next row.
+    private void RemoveCore(string path, bool keepContent, bool raise = true)
     {
         string pathKey = StableKey(path);
         string? owner;
@@ -1487,7 +1488,7 @@ public sealed class DemoCacheStore
             DeleteFiles([StableKey(path)]);
         }
 
-        if (removed)
+        if (removed && raise)
         {
             RaiseChanged(path);
         }

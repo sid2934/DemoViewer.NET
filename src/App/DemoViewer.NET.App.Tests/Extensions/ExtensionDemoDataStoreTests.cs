@@ -356,6 +356,68 @@ public class ExtensionDemoDataStoreTests
         }
     }
 
+    // The file at the path was replaced before a rescan saw it: what the extension computed from the new bytes
+    // must not land under the old content's hash, where the copy elsewhere reads it.
+    [Test]
+    public async Task AWriteAtAPathWhoseFileChangedSinceItsRow_IsKeptByPath_NotUnderTheOldHash()
+    {
+        string root = NewRoot();
+        string demo = Path.Combine(root, "replaced.dem");
+        try
+        {
+            File.WriteAllBytes(demo, new byte[64]);
+            DemoCacheStore library = new(null);
+            Seed(library, demo, "aaaa");
+            Seed(library, Other, "aaaa");
+            ExtensionDemoDataStore store = NewStore(root, library);
+            store.Write(Other, Rounds("old bytes"));
+
+            store.Write(demo, Rounds("new bytes"));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(Encoding.UTF8.GetString(store.Read(Other, "rounds", 1, "fp-1")!)).IsEqualTo("old bytes");
+                await Assert.That(File.Exists(Path.Combine(store.Root, "rounds", "p-" + DemoCacheStore.StableKey(demo) + ".json.gz")))
+                    .IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    // A facet written at a fingerprint-matched path was computed from the bytes really there. A full read that
+    // shows those bytes are another demo moves the path to that demo, and the facet follows it.
+    [Test]
+    public async Task AFacetAtAnUnconfirmedPath_SurvivesAReadShowingOtherBytes_AndFollowsThem()
+    {
+        string root = NewRoot();
+        try
+        {
+            const string copy = "/mnt/share/a.dem";
+            DemoCacheStore library = new(null);
+            Seed(library, Demo, "aaaa");
+            await Assert.That(library.AttachUnconfirmed("aaaa", copy, 10, 20)).IsTrue();
+            ExtensionDemoDataStore store = NewStore(root, library);
+            store.Write(copy, Rounds("from the copy"));
+
+            library.NoteContentRead(copy, "cccc", null, 10, new DateTime(20, DateTimeKind.Local).ToUniversalTime());
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.LocationOf(copy)?.ContentId).IsEqualTo("cccc");
+                await Assert.That(Encoding.UTF8.GetString(store.Read(copy, "rounds", 1, "fp-1")!)).IsEqualTo("from the copy");
+                await Assert.That(store.Stamp(copy, "rounds")!.Sha256).IsEqualTo("cccc");
+                await Assert.That(store.Read(Demo, "rounds", 1, "fp-1")).IsNull();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     [Test]
     public async Task AFacetWrittenThroughOnePath_ReadsThroughTheOther_AndFollowsTheBytesWhenAPathIsReplaced()
     {
