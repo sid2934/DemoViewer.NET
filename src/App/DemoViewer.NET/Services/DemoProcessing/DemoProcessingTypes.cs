@@ -59,7 +59,12 @@ public enum QueueJobKind
     /// </summary>
     Extension,
 
-    /// <summary>The library's copy detection. Runs with the background switch off.</summary>
+    /// <summary>
+    ///     The library reading a demo file in full for its content hash: a path only a fingerprint placed, or a
+    ///     file only a full read can tell apart from a known demo. Heavy, so it starts only while no parse runs,
+    ///     and stopped by the background switch. Copy detection by fingerprint runs as
+    ///     <see cref="LibraryListing" /> slices.
+    /// </summary>
     LibraryScan,
 
     /// <summary>An extension feed check, a download being staged, or the staging cleanup at startup. Light.</summary>

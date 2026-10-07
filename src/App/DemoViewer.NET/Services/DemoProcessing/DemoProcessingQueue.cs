@@ -2319,7 +2319,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         && !ParkedLocked(e)
         && (!_paused || e.Priority >= DemoJobPriority.UserRequested)
         && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction
-            || IsLight(e) || e.Kind == QueueJobKind.LibraryScan)
+            || IsLight(e))
         && !BlockedLocked(e);
 
     // A keyed item waits while one with its key runs (a same-key submit then reruns once, never beside

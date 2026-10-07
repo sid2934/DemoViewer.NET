@@ -73,6 +73,7 @@ public class LibraryFingerprintTests
             {
                 Time = Settled,
                 ContentReader = Reader,
+                HeaderReader = Headers,
                 QueueOverride = _queue,
                 ParseHashesContent = parseHashes
             };
@@ -81,8 +82,10 @@ public class LibraryFingerprintTests
         }
 
         public DemoLibraryService Service { get; }
+        public DemoProcessingQueue Queue => _queue;
         public DemoCacheStore Store { get; }
         public CountingContentReader Reader { get; } = new();
+        public CountingHeaderReader Headers { get; } = new();
         public ConcurrentDictionary<string, int> Parses { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public int TotalParses => Parses.Values.Sum();
@@ -162,6 +165,8 @@ public class LibraryFingerprintTests
                 await Assert.That(library.TotalParses).IsEqualTo(1).Because("the second mount is not parsed");
                 await Assert.That(library.Reader.FullReads(onSmb)).IsEqualTo(0).Because("nor read in full");
                 await Assert.That(library.Reader.WindowReads(onSmb)).IsEqualTo(1);
+                await Assert.That(library.Headers.Reads(onSmb)).IsEqualTo(0)
+                    .Because("a possible copy's header is read only once its fingerprint places it nowhere");
                 await Assert.That(library.Reader.FullReads(onNfs)).IsEqualTo(1);
                 await Assert.That(svc.Entries[0].FilePath).IsEqualTo(onNfs);
                 await Assert.That(svc.Entries[0].DuplicateFolders).IsEquivalentTo([smb]);
@@ -174,7 +179,9 @@ public class LibraryFingerprintTests
             await svc.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
             await Assert.That(library.Reader.WindowReads(onSmb)).IsEqualTo(1).Because("a listed location is not read again");
 
-            // The first mount goes away: the second shows the demo from what the cache knows.
+            // The first mount goes away: the second shows the demo from what the cache knows. The background
+            // switch holds back the full read that later confirms it.
+            library.Queue.BackgroundEnabled = false;
             await svc.RemoveFolderAsync(nfs);
             await WaitForAsync(() => svc.Entries is [{ State: DemoIndexState.Indexed } only] && only.FilePath == onSmb,
                 "the second mount's path is the card");
@@ -188,11 +195,99 @@ public class LibraryFingerprintTests
                 await Assert.That(library.Store.LocationOf(onNfs)).IsNull();
                 await Assert.That(library.Store.LocationOf(onSmb)?.ContentId).IsEqualTo(sha);
             }
+
+            // No confirmed path is left, so one background full read confirms the second mount's.
+            library.Queue.BackgroundEnabled = true;
+            await svc.Confirmed.WaitAsync(TimeSpan.FromSeconds(10));
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.Reader.FullReads(onSmb)).IsEqualTo(1);
+                await Assert.That(library.Store.TryGetByContentId(sha)?.Path).IsEqualTo(onSmb);
+                await Assert.That(library.TotalParses).IsEqualTo(1);
+            }
         }
         finally
         {
             Cleanup(nfs);
             Cleanup(smb);
+        }
+    }
+
+    // A known demo stored before fingerprints were: a scan listing its path takes one, so a later mount of the
+    // same bytes is recognised without a full read even after this path is gone.
+    [Test]
+    public async Task AKnownDemoWithoutAFingerprint_GetsOneFromItsListedPath()
+    {
+        string folder = NewTempDir();
+        try
+        {
+            byte[] bytes = Bytes(11);
+            string path = Write(folder, "m.dem", bytes);
+            string sha = DemoContentHash.Compute(bytes);
+            DemoCacheStore store = new(null);
+            FileInfo info = new(path);
+            DemoCacheRecord record = new() { Path = path, Size = info.Length, ModifiedTicks = info.LastWriteTime.Ticks, Map = "de_old" };
+            record.SetContentHash(sha, null);
+            DemoCacheStore.StampHeader(record);
+            DemoCacheStore.StampParse(record);
+            store.Upsert(record);
+            using Library library = new(folder, store);
+
+            await library.Service.AddFoldersAsync([folder]);
+            await library.Service.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.Store.TryGetByContentId(sha)?.ContentFingerprint?.WindowBytes)
+                    .IsEqualTo(library.Reader.WindowBytes);
+                await Assert.That(library.Reader.WindowReads(path)).IsEqualTo(1);
+                await Assert.That(library.Reader.FullReads(path)).IsEqualTo(0);
+                await Assert.That(library.TotalParses).IsEqualTo(0);
+            }
+        }
+        finally
+        {
+            Cleanup(folder);
+        }
+    }
+
+    // A known demo with no fingerprint whose only path is gone: a file of its size on a new mount can only be
+    // told apart by a full read. That one read places it, and nothing parses it.
+    [Test]
+    public async Task ACopyOfADemoWithNoFingerprintAndNoPathLeft_IsHashedOnce_AndNotParsed()
+    {
+        string folder = NewTempDir();
+        try
+        {
+            byte[] bytes = Bytes(12);
+            string path = Write(folder, "m.dem", bytes);
+            string sha = DemoContentHash.Compute(bytes);
+            DemoCacheStore store = new(null);
+            DemoCacheRecord record = new() { Path = "/gone/m.dem", Size = bytes.Length, ModifiedTicks = 1, Map = "de_old" };
+            record.SetContentHash(sha, null);
+            DemoCacheStore.StampHeader(record);
+            DemoCacheStore.StampParse(record);
+            store.Upsert(record);
+            store.Detach("/gone/m.dem");
+            using Library library = new(folder, store);
+
+            await library.Service.AddFoldersAsync([folder]);
+            await library.Service.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitForAsync(() => library.Service.Entries is [{ State: DemoIndexState.Indexed }], "the card filled");
+            await Task.Delay(150);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.TotalParses).IsEqualTo(0);
+                await Assert.That(library.Reader.FullReads(path)).IsEqualTo(1);
+                await Assert.That(library.Store.TryGetByContentId(sha)?.Path).IsEqualTo(path);
+                await Assert.That(library.Store.TryGetByContentId(sha)?.ContentFingerprint).IsNotNull();
+                await Assert.That(library.Service.Entries[0].MapName).IsEqualTo("de_old");
+            }
+        }
+        finally
+        {
+            Cleanup(folder);
         }
     }
 
@@ -372,9 +467,11 @@ public class LibraryFingerprintTests
             await WaitForAsync(() => library.Store.TryGetByContentId(sha) is { ContentFingerprint: not null },
                 "the demo hashed at its first path");
 
-            // The move: a new path holds the bytes and the listing no longer shows the old one.
+            // The move: a new path holds the bytes and the listing no longer shows the old one. The background
+            // switch holds back the full read that later confirms the new path.
             string after = Write(root, "b/renamed.dem", bytes);
             svc.FolderReader = new HidingReader(before);
+            library.Queue.BackgroundEnabled = false;
             await svc.RescanAsync();
             await svc.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
             await WaitForAsync(() => svc.Entries is [{ State: DemoIndexState.Indexed } only] && only.FilePath == after,
@@ -390,6 +487,11 @@ public class LibraryFingerprintTests
                 await Assert.That(library.Store.LocationOf(after)?.ContentId).IsEqualTo(sha);
                 await Assert.That(svc.Entries[0].MapName).IsEqualTo("de_test");
             }
+
+            library.Queue.BackgroundEnabled = true;
+            await svc.Confirmed.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(library.Store.TryGetByContentId(sha)?.Path).IsEqualTo(after);
+            await Assert.That(library.TotalParses).IsEqualTo(1);
         }
         finally
         {
@@ -498,5 +600,19 @@ internal sealed class CountingContentReader : ILibraryContentReader
         }
 
         return DemoContentFingerprint.TryCompute(path, time, null, WindowBytes);
+    }
+}
+
+/// <summary>Counts the library's header reads per path; reads the real header.</summary>
+internal sealed class CountingHeaderReader : ILibraryHeaderReader
+{
+    private readonly ConcurrentDictionary<string, int> _reads = new(StringComparer.OrdinalIgnoreCase);
+
+    public int Reads(string path) => _reads.GetValueOrDefault(path);
+
+    public LibraryDemoHeader? Read(string path)
+    {
+        _reads.AddOrUpdate(path, 1, (_, n) => n + 1);
+        return FileSystemLibraryHeaderReader.Instance.Read(path);
     }
 }

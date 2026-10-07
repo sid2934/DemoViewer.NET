@@ -11,8 +11,9 @@ namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>
 ///     A cheap candidate identity for a demo file: its size plus the SHA-256 of its first and last
-///     <see cref="WindowBytes" /> bytes. Reading two windows costs a few MiB where <see cref="DemoContentHash" />
-///     reads the whole file, which is what lets a copy on a second mount be recognised without a full read.
+///     <see cref="WindowBytes" /> bytes. Reading two windows costs half a MiB, in two reads, where
+///     <see cref="DemoContentHash" /> reads the whole file, which is what lets a copy on a second mount be
+///     recognised without a full read.
 ///     <para>
 ///         A match is a candidate, never an identity: only <see cref="DemoContentHash" /> agreeing confirms
 ///         that two files hold the same demo. Two fingerprints taken with different windows never match.
@@ -24,10 +25,16 @@ namespace DemoViewer.NET.Services.DemoCache;
 /// <param name="Tail">Lowercase-hex SHA-256 of the last <c>min(WindowBytes, Size)</c> bytes.</param>
 public sealed record DemoContentFingerprint(long Size, int WindowBytes, string Head, string Tail)
 {
-    /// <summary>The window every fingerprint is taken with unless a caller says otherwise.</summary>
-    public const int DefaultWindowBytes = 4 << 20;
+    /// <summary>
+    ///     The window every fingerprint is taken with unless a caller says otherwise. The first window holds the
+    ///     demo's header and sign-on, the last its final frames; with the size, that tells two demos apart.
+    /// </summary>
+    public const int DefaultWindowBytes = 256 << 10;
 
     private const int BufferSize = 1 << 16;
+
+    // A window is read in one call where it fits: on a network mount each call is a round trip.
+    private const int WindowBufferLimit = 1 << 20;
 
     /// <summary>
     ///     The fingerprint of a settled file, or null when the file may still be written, cannot be read,
@@ -113,7 +120,7 @@ public sealed record DemoContentFingerprint(long Size, int WindowBytes, string H
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(windowBytes);
         long size = stream.Length;
         Windows windows = new(size, windowBytes);
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(Math.Clamp(windowBytes, BufferSize, WindowBufferLimit));
         try
         {
             stream.Position = 0;

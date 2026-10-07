@@ -88,14 +88,9 @@ public sealed class DemoFileRead(TimeProvider time, Func<string, bool>? wantsHas
     /// <param name="noProgress">How long the read may deliver no bytes.</param>
     /// <param name="cancellationToken">Abandons the read.</param>
     /// <exception cref="IOException">The read failed, the file changed length, or the read stalled.</exception>
-    public static byte[] ReadAll(string path, TimeSpan noProgress, CancellationToken cancellationToken)
-    {
-        long done = 0;
-        int abandoned = 0;
-        Task<byte[]> read = Task.Factory.StartNew(() =>
+    public static byte[] ReadAll(string path, TimeSpan noProgress, CancellationToken cancellationToken) =>
+        Watched(path, noProgress, stream =>
         {
-            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1,
-                FileOptions.SequentialScan);
             long length = stream.Length;
             if (length > Array.MaxLength)
             {
@@ -104,7 +99,7 @@ public sealed class DemoFileRead(TimeProvider time, Func<string, bool>? wantsHas
 
             byte[] buffer = GC.AllocateUninitializedArray<byte>((int)length);
             int offset = 0;
-            while (offset < buffer.Length && Volatile.Read(ref abandoned) == 0)
+            while (offset < buffer.Length)
             {
                 int got = stream.Read(buffer, offset, Math.Min(Chunk, buffer.Length - offset));
                 if (got == 0)
@@ -113,10 +108,55 @@ public sealed class DemoFileRead(TimeProvider time, Func<string, bool>? wantsHas
                 }
 
                 offset += got;
-                Interlocked.Exchange(ref done, offset);
             }
 
             return buffer;
+        }, cancellationToken);
+
+    /// <summary>
+    ///     The content hash and fingerprint of a settled file from one streaming read, guarded as
+    ///     <see cref="ReadAll" /> is. Both null when the file may still be written, cannot be read, changed
+    ///     while it was read, or the read stalled.
+    /// </summary>
+    /// <param name="path">The file to hash.</param>
+    /// <param name="time">The clock the settle window is measured against.</param>
+    /// <param name="windowBytes">The fingerprint window.</param>
+    /// <param name="noProgress">How long the read may deliver no bytes.</param>
+    /// <param name="cancellationToken">Abandons the read.</param>
+    public static (string? Sha256, DemoContentFingerprint? Fingerprint) TryHash(string path, TimeProvider time,
+        int windowBytes, TimeSpan noProgress, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!MappedParsePolicy.IsSettled(path, time, MappedParsePolicy.StatFile))
+            {
+                return (null, null);
+            }
+
+            FileStat before = MappedParsePolicy.StatFile(path);
+            (string sha, DemoContentFingerprint fingerprint) = Watched(path, noProgress,
+                stream => DemoContentFingerprint.ComputeWithContentHash(stream, windowBytes), cancellationToken);
+            return MappedParsePolicy.StatFile(path) == before && fingerprint.Size == before.Length
+                ? (sha, fingerprint)
+                : (null, null);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return (null, null);
+        }
+    }
+
+    // Runs body over the open file on a thread of its own and waits while it keeps reading.
+    private static T Watched<T>(string path, TimeSpan noProgress, Func<Stream, T> body, CancellationToken cancellationToken)
+    {
+        ProgressStream? watched = null;
+        Task<T> read = Task.Factory.StartNew(() =>
+        {
+            using FileStream file = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1,
+                FileOptions.SequentialScan);
+            using ProgressStream stream = new(file);
+            Volatile.Write(ref watched, stream);
+            return body(stream);
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
         long seen = -1;
@@ -126,7 +166,7 @@ public sealed class DemoFileRead(TimeProvider time, Func<string, bool>? wantsHas
         {
             while (Task.WaitAny(new Task[] { read }, (int)poll.TotalMilliseconds, cancellationToken) < 0)
             {
-                long now = Interlocked.Read(ref done);
+                long now = Volatile.Read(ref watched)?.Done ?? 0;
                 if (now != seen)
                 {
                     seen = now;
@@ -140,7 +180,7 @@ public sealed class DemoFileRead(TimeProvider time, Func<string, bool>? wantsHas
         }
         catch (Exception)
         {
-            Volatile.Write(ref abandoned, 1);
+            Volatile.Read(ref watched)?.Abandon();
             _ = read.ContinueWith(static t => _ = t.Exception, TaskScheduler.Default);
             throw;
         }
@@ -153,6 +193,50 @@ public sealed class DemoFileRead(TimeProvider time, Func<string, bool>? wantsHas
         {
             throw new IOException(e.Message, e);
         }
+    }
+
+    // Counts the bytes read for the watchdog, and stops a read the caller gave up on at its next call.
+    private sealed class ProgressStream(Stream inner) : Stream
+    {
+        private long _done;
+        private int _abandoned;
+
+        public long Done => Interlocked.Read(ref _done);
+
+        public void Abandon() => Volatile.Write(ref _abandoned, 1);
+
+        public override bool CanRead => true;
+        public override bool CanSeek => inner.CanSeek;
+        public override bool CanWrite => false;
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => inner.Position = value;
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (Volatile.Read(ref _abandoned) != 0)
+            {
+                throw new IOException("the read was abandoned");
+            }
+
+            int got = inner.Read(buffer, offset, count);
+            Interlocked.Add(ref _done, got);
+            return got;
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+
+        public override void Flush()
+        {
+        }
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }
 

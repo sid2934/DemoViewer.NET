@@ -735,8 +735,9 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     Stores a fingerprint on a hashed row that has none, read from one of its confirmed paths. Does nothing
-    ///     when the path is not a confirmed location of a hashed row, the row already has one, or the sizes differ.
+    ///     Stores a fingerprint on a hashed row that has none taken with the same window, read from one of its
+    ///     confirmed paths. Does nothing when the path is not a confirmed location of a hashed row, the row
+    ///     already has one with that window, or the sizes differ.
     /// </summary>
     /// <param name="path">A confirmed path of the row.</param>
     /// <param name="fingerprint">The fingerprint just read from it.</param>
@@ -749,7 +750,7 @@ public sealed class DemoCacheStore
             lock (_gate)
             {
                 if (!_keyByPath.TryGetValue(path, out string? k) || IsProvisional(_rows[k])
-                    || _rows[k].ContentFingerprint is not null
+                    || _rows[k].ContentFingerprint?.WindowBytes == fingerprint.WindowBytes
                     || LocationIn(_rows[k], path) is not { Confirmed: true } here || here.Size != fingerprint.Size)
                 {
                     return;
@@ -779,13 +780,18 @@ public sealed class DemoCacheStore
         }
     }
 
-    /// <summary>Every hashed row: its content id, its fingerprint when it has one, and every path it lists.</summary>
-    internal IReadOnlyList<(string ContentId, DemoContentFingerprint? Fingerprint, IReadOnlyList<DemoLocation> Locations)>
-        KnownContents()
+    /// <summary>
+    ///     Every hashed row: its content id, its fingerprint when it has one, every path it lists, and for an
+    ///     orphaned row the paths it last had.
+    /// </summary>
+    internal IReadOnlyList<(string ContentId, DemoContentFingerprint? Fingerprint, IReadOnlyList<DemoLocation> Locations,
+        IReadOnlyList<DemoLocation> Detached)> KnownContents()
     {
         lock (_gate)
         {
-            return [.. _rows.Where(r => !IsProvisional(r.Value)).Select(r => (r.Key, r.Value.ContentFingerprint, r.Value.Locations))];
+            return [.. _rows.Where(r => !IsProvisional(r.Value))
+                .Select(r => (r.Key, r.Value.ContentFingerprint, r.Value.Locations,
+                    (IReadOnlyList<DemoLocation>)(r.Value.DetachedLocations ?? [])))];
         }
     }
 
@@ -1483,9 +1489,9 @@ public sealed class DemoCacheStore
         {
             DeleteFiles([.. alsoDropped.Prepend(dropped).SelectMany(FileKeys).Distinct(StringComparer.Ordinal)]);
         }
-        else if (!removed)
+        else if (!removed && !NamesFileKey(pathKey))
         {
-            DeleteFiles([StableKey(path)]);
+            DeleteFiles([pathKey]);
         }
 
         if (removed && raise)
@@ -2622,6 +2628,15 @@ public sealed class DemoCacheStore
         {
             _lastRecordKey = null;
             _lastRecordBytes = null;
+        }
+    }
+
+    // True when a row, orphaned or not, still keeps files under the key.
+    private bool NamesFileKey(string key)
+    {
+        lock (_gate)
+        {
+            return _rows.Values.Any(r => FileKeys(r).Contains(key, StringComparer.Ordinal));
         }
     }
 

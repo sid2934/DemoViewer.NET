@@ -96,8 +96,10 @@ public class LibraryOrphanTests
                 "both demos indexed");
             await svc.RemoveFolderAsync(old);
             await WaitForAsync(() => svc.Entries.Count == 1, "the old folder's card gone");
-            await Assert.That(library.Store.TryGetOrphan(sha)).IsNotNull();
+            await Assert.That(library.Store.IsOrphaned(sha)).IsTrue();
 
+            // The background switch holds the confirming full read back, so recognition is seen without it.
+            library.Queue.BackgroundEnabled = false;
             await svc.AddFoldersAsync([moved]);
             await svc.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
             await WaitForAsync(() => svc.Entries.Count == 2 && svc.Entries.All(e => e.State == DemoIndexState.Indexed),
@@ -110,7 +112,18 @@ public class LibraryOrphanTests
                 await Assert.That(library.Parses.GetValueOrDefault(before)).IsEqualTo(1);
                 await Assert.That(library.Reader.FullReads(after)).IsEqualTo(0);
                 await Assert.That(library.Store.LocationOf(after)?.ContentId).IsEqualTo(sha);
-                await Assert.That(library.Store.TryGetOrphan(sha)).IsNull();
+                await Assert.That(library.Store.IsOrphaned(sha)).IsFalse();
+                await Assert.That(library.Store.TryGetByContentId(sha)).IsNull().Because("only a fingerprint placed it so far");
+            }
+
+            // With the switch back on, one background full read confirms it: a store joined by hash reaches it.
+            library.Queue.BackgroundEnabled = true;
+            await svc.Confirmed.WaitAsync(TimeSpan.FromSeconds(10));
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.Reader.FullReads(after)).IsEqualTo(1);
+                await Assert.That(library.Store.TryGetByContentId(sha)?.Path).IsEqualTo(after);
+                await Assert.That(library.Parses.GetValueOrDefault(after)).IsEqualTo(0);
             }
         }
         finally

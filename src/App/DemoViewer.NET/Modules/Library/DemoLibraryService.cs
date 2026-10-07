@@ -97,6 +97,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private readonly Dictionary<string, (Task Answer, DateTime Started)> _outstanding = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (Task Answer, DateTime Started)> _outstandingHeaders = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (Task Answer, DateTime Started)> _outstandingFingerprints = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (Task Answer, DateTime Started)> _outstandingHashes = new(StringComparer.Ordinal);
 
     // Fingerprints of files no hashed row lists, read this session; one counts only while the file's size and
     // write time are the ones it was read at. Under its own lock.
@@ -483,6 +484,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         List<DemoEntry> needFull = [];
         ScanScope scope;
         ContentGroups groups;
+        bool copiesStarted = false;
         List<string> deferred = [];
         try
         {
@@ -537,9 +539,14 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             AppLog.LibraryScanFinished(DiagLog, scope.Files.Count, groups.Unresolved.Count, pending, clock.ElapsedMilliseconds);
 
             // Not awaited: on a network folder the reads can take a while, and nothing but the files read waits on them.
-            if (groups.Unresolved.Count > 0)
+            if (groups.Unresolved.Count > 0 || groups.KnownToFingerprint.Count > 0)
             {
                 CopiesResolved = ResolveCopiesAsync(scope.Files, groups, deferred, ct);
+                copiesStarted = true;
+            }
+            else
+            {
+                Confirmed = ConfirmAttachedAsync(scope.Files, ct);
             }
         }
         catch (OperationCanceledException)
@@ -553,7 +560,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             Save();
             RaiseChanged();
         }
-        else if (groups.Unresolved.Count == 0)
+        else if (!copiesStarted)
         {
             try
             {
@@ -583,8 +590,15 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <summary>The latest scan's copy detection; completes when its copies are resolved or it is cancelled. Test seam.</summary>
     internal Task CopiesResolved { get; private set; } = Task.CompletedTask;
 
-    // Fingerprints the files the scan could not place, and the known demos they may be copies of, then places
-    // them again. Cache rows the prune held back for them go once they had their chance to match.
+    /// <summary>
+    ///     The latest scan's background confirmation of paths only a fingerprint placed; completes when they are
+    ///     read or it is cancelled. Test seam.
+    /// </summary>
+    internal Task Confirmed { get; private set; } = Task.CompletedTask;
+
+    // Fingerprints the files the scan could not place, and the known demos with no fingerprint, then places
+    // them again. A file only a full read can place is hashed before anything parses it. Cache rows the prune
+    // held back for them go once they had their chance to match.
     private async Task ResolveCopiesAsync(List<(string Path, long Size, DateTime Modified)> files, ContentGroups groups,
         List<string> deferred, CancellationToken ct)
     {
@@ -600,11 +614,32 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
 
             ContentGroups placed = ResolveContentIdentities(files);
+            List<(string Path, long Size, DateTime Modified)> toHash =
+                [.. files.Where(f => placed.NeedHash.Contains(f.Path) && !unread.Contains(f.Path))];
+            HashSet<string> waiting = new(unread, StringComparer.OrdinalIgnoreCase);
+            waiting.UnionWith(toHash.Select(f => f.Path));
             List<DemoEntry> needMap = [], needFull = [];
-            await PostAsync(() => Reconcile(placed.Primaries, placed.ShadowFolders, needMap, needFull, null, [], unread, null))
+            await PostAsync(() => Reconcile(placed.Primaries, placed.ShadowFolders, needMap, needFull, null, [], waiting, null))
                 .ConfigureAwait(false);
             RaiseChanged();
             await IndexAsync(needMap, needFull, false, ct).ConfigureAwait(false);
+
+            if (toHash.Count > 0)
+            {
+                using (_demoCache?.BeginBatch())
+                {
+                    await HashAsync(toHash, ct).ConfigureAwait(false);
+                }
+
+                placed = ResolveContentIdentities(files);
+                needMap = [];
+                needFull = [];
+                await PostAsync(() => Reconcile(placed.Primaries, placed.ShadowFolders, needMap, needFull, null, [], unread, null))
+                    .ConfigureAwait(false);
+                RaiseChanged();
+                await IndexAsync(needMap, needFull, false, ct).ConfigureAwait(false);
+            }
+
             ct.ThrowIfCancellationRequested();
             if (_demoCache is not null && deferred.Count > 0)
             {
@@ -620,10 +655,120 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             AppLog.LibraryCopiesResolved(DiagLog, reads.Count - unread.Count, files.Count - placed.Primaries.Count,
                 clock.ElapsedMilliseconds);
             await SaveScanAsync(ct).ConfigureAwait(false);
+            Confirmed = ConfirmAttachedAsync(files, ct);
         }
         catch (OperationCanceledException)
         {
             // a newer rescan resolves them
+        }
+    }
+
+    // Reads in full, in the background, one listed path of each demo that no full read has confirmed at any of
+    // its paths, so the demo is reachable by its hash. Only a fingerprint placed such a path; the demo was shown
+    // without this read, which runs only while no parse does and not with the background switch off.
+    private async Task ConfirmAttachedAsync(List<(string Path, long Size, DateTime Modified)> files, CancellationToken ct)
+    {
+        if (_demoCache is null)
+        {
+            return;
+        }
+
+        try
+        {
+            List<(string Path, long Size, DateTime Modified)> unconfirmed = [];
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            foreach ((string Path, long Size, DateTime Modified) file in files.OrderBy(f => f.Path, StringComparer.Ordinal))
+            {
+                if (_demoCache.LocationOf(file.Path) is { Location.Confirmed: false } at
+                    && at.Location.Size == file.Size && at.Location.ModifiedTicks == file.Modified.Ticks
+                    && _demoCache.TryGetByContentId(at.ContentId) is null && seen.Add(at.ContentId))
+                {
+                    unconfirmed.Add(file);
+                }
+            }
+
+            if (unconfirmed.Count == 0)
+            {
+                return;
+            }
+
+            await HashAsync(unconfirmed, ct).ConfigureAwait(false);
+            await SaveScanAsync(ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // a newer rescan confirms them
+        }
+    }
+
+    // Full reads for the content hash, a folder at a time, as background heavy slices with one read in flight.
+    // A read that stops delivering bytes gives no hash rather than holding its slice. Returns the files left
+    // unread.
+    private async Task<HashSet<string>> HashAsync(List<(string Path, long Size, DateTime Modified)> files, CancellationToken ct)
+    {
+        Func<string, string> folderOf = FolderLookup();
+        HashSet<string> unread = new(StringComparer.OrdinalIgnoreCase);
+        await Task.WhenAll(files.GroupBy(f => folderOf(f.Path), StringComparer.Ordinal).Select(async folder =>
+        {
+            Queue<(string Path, long Size, DateTime Modified)> pending = new(folder);
+            ReadSlice<(string Path, long Size, DateTime Modified), (string? Sha256, DemoContentFingerprint? Fingerprint)> slice = new();
+            await ReadEachAsync(folder.Key, "Library: confirm copies in ", pending, slice, _outstandingHashes,
+                    f => f.Path, f => ReadHash(f.Path), ApplyHash,
+                    (left, reason) => AppLog.LibraryFingerprintsLeftUnread(DiagLog, folder.Key, left, reason), ct,
+                    QueueJobKind.LibraryScan, WholeFileNoAnswer)
+                .ConfigureAwait(false);
+            lock (unread)
+            {
+                unread.UnionWith(pending.Select(f => f.Path));
+                if (slice.InFlight is { } stuck)
+                {
+                    unread.Add(stuck.Item.Path);
+                }
+            }
+        })).ConfigureAwait(false);
+        return unread;
+    }
+
+    // A whole-file read bounds its own stalls; this only stops a scan waiting on one that is merely slow.
+    private static readonly TimeSpan WholeFileNoAnswer = TimeSpan.FromMinutes(30);
+
+    private (string? Sha256, DemoContentFingerprint? Fingerprint) ReadHash(string path)
+    {
+        try
+        {
+            return ContentReader.HashAndFingerprint(path, Time);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return (null, null);
+        }
+    }
+
+    // A full read settles the path: it joins the known demo with those bytes, confirmed, or confirms the one it
+    // was placed under, or leaves it for content of its own.
+    private void ApplyHash((string Path, long Size, DateTime Modified) file,
+        (string? Sha256, DemoContentFingerprint? Fingerprint) read)
+    {
+        if (read.Sha256 is not { } sha)
+        {
+            return;
+        }
+
+        UpsertCache(file.Path, c => c.Sha256 = sha);
+        if (_demoCache is null)
+        {
+            return;
+        }
+
+        if (_demoCache.LocationOf(file.Path) is null && _demoCache.HoldsContent(sha))
+        {
+            _demoCache.AttachUnconfirmed(sha, file.Path, file.Size, file.Modified.Ticks);
+        }
+
+        _demoCache.ConfirmLocation(file.Path, sha, file.Size, file.Modified.Ticks);
+        if (read.Fingerprint is { } fingerprint && fingerprint.Size == file.Size)
+        {
+            _demoCache.SetFingerprint(file.Path, fingerprint);
         }
     }
 
@@ -715,12 +860,14 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     private async Task<bool> ReadEachAsync<TItem, TResult>(string folder, string label, Queue<TItem> pending,
         ReadSlice<TItem, TResult> slice, Dictionary<string, (Task Answer, DateTime Started)> outstanding,
         Func<TItem, string> pathOf, Func<TItem, TResult> read, Action<TItem, TResult> apply,
-        Action<int, string> leftUnread, CancellationToken ct)
+        Action<int, string> leftUnread, CancellationToken ct, QueueJobKind kind = QueueJobKind.LibraryListing,
+        TimeSpan? noAnswer = null)
     {
+        TimeSpan bound = noAnswer ?? Timing.NoAnswer;
         if (Outstanding(outstanding, folder) is { } earlier
-            && !await AnswersInTimeAsync(earlier.Answer, ct, earlier.Started).ConfigureAwait(false))
+            && !await AnswersInTimeAsync(earlier.Answer, ct, earlier.Started, bound).ConfigureAwait(false))
         {
-            leftUnread(pending.Count, $"a read from an earlier scan has not answered in {Timing.NoAnswer.TotalSeconds:0.#} s");
+            leftUnread(pending.Count, $"a read from an earlier scan has not answered in {bound.TotalSeconds:0.#} s");
             return false;
         }
 
@@ -728,7 +875,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         {
             ct.ThrowIfCancellationRequested();
             SliceEnd end = SliceEnd.Stopped;
-            await QueueWork.Run(Queue, QueueJobKind.LibraryListing, label + folder, "library",
+            await QueueWork.Run(Queue, kind, label + folder, "library",
                     jobCt =>
                     {
                         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(ct, jobCt);
@@ -745,9 +892,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
 
             if (end == SliceEnd.Waiting && slice.InFlight is { } waiting
-                && !await AnswersInTimeAsync(waiting.Answer, ct, waiting.Started).ConfigureAwait(false))
+                && !await AnswersInTimeAsync(waiting.Answer, ct, waiting.Started, bound).ConfigureAwait(false))
             {
-                leftUnread(left, $"{pathOf(waiting.Item)} gave no answer in {Timing.NoAnswer.TotalSeconds:0.#} s");
+                leftUnread(left, $"{pathOf(waiting.Item)} gave no answer in {bound.TotalSeconds:0.#} s");
                 return false;
             }
         }
@@ -1047,9 +1194,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // True when the read answers within the no-answer bound counted from when it started.
-    private async Task<bool> AnswersInTimeAsync(Task answer, CancellationToken ct, DateTime? started = null)
+    private async Task<bool> AnswersInTimeAsync(Task answer, CancellationToken ct, DateTime? started = null,
+        TimeSpan? noAnswer = null)
     {
-        TimeSpan left = Timing.NoAnswer - (DateTime.UtcNow - (started ?? DateTime.UtcNow));
+        TimeSpan left = (noAnswer ?? Timing.NoAnswer) - (DateTime.UtcNow - (started ?? DateTime.UtcNow));
         if (left > TimeSpan.Zero && !answer.IsCompleted)
         {
             await Task.WhenAny(answer, Task.Delay(left, ct)).ConfigureAwait(false);
@@ -1465,10 +1613,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         Dictionary<DemoContentFingerprint, string> contentByFingerprint = new();
         HashSet<long> knownSizes = [];
         List<IReadOnlyList<DemoLocation>> withoutFingerprint = [];
-        foreach ((string id, DemoContentFingerprint? fingerprint, IReadOnlyList<DemoLocation> locations) in
-                 _demoCache?.KnownContents() ?? [])
+        foreach ((string id, DemoContentFingerprint? fingerprint, IReadOnlyList<DemoLocation> listedAt,
+                     IReadOnlyList<DemoLocation> detached) in _demoCache?.KnownContents() ?? [])
         {
-            if (fingerprint is not null)
+            // An orphan is matched by the paths it last had: a copy elsewhere takes it back.
+            IReadOnlyList<DemoLocation> locations = listedAt.Count > 0 ? listedAt : detached;
+            // One taken with another window never matches what this scan reads; it is taken again.
+            if (fingerprint?.WindowBytes == ContentReader.WindowBytes)
             {
                 contentByFingerprint.TryAdd(fingerprint, id);
                 knownSizes.Add(fingerprint.Size);
@@ -1551,40 +1702,64 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
         }
 
-        HashSet<long> unresolvedSizes = [.. files.Where(f => unresolved.Contains(f.Path)).Select(f => f.Size)];
-        Dictionary<string, (string Path, long Size, DateTime Modified)> listed = new(StringComparer.OrdinalIgnoreCase);
+                Dictionary<string, (string Path, long Size, DateTime Modified)> listed = new(StringComparer.OrdinalIgnoreCase);
         foreach ((string Path, long Size, DateTime Modified) file in files)
         {
             listed.TryAdd(file.Path, file);
         }
 
+        // A known demo with no fingerprint is fingerprinted through a confirmed path this scan lists, whether or
+        // not a file here may copy it: once its paths are gone, a copy can only be recognised by a full read.
         List<(string, long, DateTime)> knownToFingerprint = [];
+        HashSet<long> unrecognisable = [];
         foreach (IReadOnlyList<DemoLocation> locations in withoutFingerprint)
         {
-            foreach (DemoLocation location in locations.Where(l => l.Confirmed && unresolvedSizes.Contains(l.Size)))
+            bool listedHere = false;
+            foreach (DemoLocation location in locations.Where(l => l.Confirmed))
             {
                 if (listed.TryGetValue(location.Path, out (string Path, long Size, DateTime Modified) file)
                     && file.Size == location.Size && file.Modified.Ticks == location.ModifiedTicks)
                 {
                     knownToFingerprint.Add(file);
+                    listedHere = true;
                     break;
                 }
             }
+
+            if (!listedHere)
+            {
+                unrecognisable.UnionWith(locations.Select(l => l.Size));
+            }
         }
 
-        return new ContentGroups(primaries, shadowFolders, unresolved, knownToFingerprint);
+        HashSet<string> needHash = new(StringComparer.OrdinalIgnoreCase);
+        foreach ((string path, long size, DateTime _) in files)
+        {
+            if (unrecognisable.Contains(size) && !keyByPath[path].Key.StartsWith("sha:", StringComparison.Ordinal)
+                                              && _demoCache?.TryGetIndex(path) is null)
+            {
+                needHash.Add(path);
+            }
+        }
+
+        return new ContentGroups(primaries, shadowFolders, unresolved, knownToFingerprint, needHash);
     }
 
     /// <summary>How one scan's listing groups by content.</summary>
     /// <param name="Primaries">One file per group: the card.</param>
     /// <param name="ShadowFolders">Per primary, the other folders that hold a copy.</param>
     /// <param name="Unresolved">Files that stand alone until they have a fingerprint.</param>
-    /// <param name="KnownToFingerprint">A listed confirmed path of each known demo an unresolved file may copy.</param>
+    /// <param name="KnownToFingerprint">A listed confirmed path of each known demo without a fingerprint.</param>
+    /// <param name="NeedHash">
+    ///     Unresolved files the size of a known demo that has no fingerprint and no listed path to take one
+    ///     from: only a full read can tell whether one of them is that demo.
+    /// </param>
     private sealed record ContentGroups(
         List<(string Path, long Size, DateTime Modified)> Primaries,
         Dictionary<string, IReadOnlyList<string>> ShadowFolders,
         HashSet<string> Unresolved,
-        List<(string Path, long Size, DateTime Modified)> KnownToFingerprint);
+        List<(string Path, long Size, DateTime Modified)> KnownToFingerprint,
+        HashSet<string> NeedHash);
 
     // The content id a listed file already has: its full hash from the metadata row, or the store's row for
     // the path while the size and write time are the ones it was listed at. A hash on the metadata row the
@@ -1802,18 +1977,16 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                     owed = _awaitingIndex.Contains(path) || _pendingFull.ContainsKey(path);
                 }
 
-                if (owed)
+                // A possible copy waits for its fingerprint, so only one of a pair is ever read: a copy of a known
+                // demo takes its card from that demo's row and never needs its header read.
+                if (owed && holdBack?.Contains(path) != true)
                 {
                     if (kept.MapName is null)
                     {
                         needMap.Add(kept);
                     }
 
-                    // A possible copy waits for its hash, so only one of a pair is ever parsed.
-                    if (holdBack?.Contains(path) != true)
-                    {
-                        needFull.Add(kept);
-                    }
+                    needFull.Add(kept);
                 }
 
                 continue;
@@ -1843,7 +2016,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
             added.Add(entry);
 
-            if (entry.MapName is null)
+            if (entry.MapName is null && holdBack?.Contains(path) != true)
             {
                 needMap.Add(entry);
             }

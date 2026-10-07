@@ -57,7 +57,7 @@ public class DemoContentFingerprintTests
     }
 
     [Test]
-    public async Task TheDefaultWindow_ReadsOnlyTwoWindows()
+    public async Task TheDefaultWindow_ReadsOnlyTwoWindows_InOneReadEach()
     {
         byte[] bytes = Bytes(2 * DemoContentFingerprint.DefaultWindowBytes + 4_321, 2);
         CountingStream stream = new(new MemoryStream(bytes));
@@ -67,6 +67,7 @@ public class DemoContentFingerprintTests
         using (Assert.Multiple())
         {
             await Assert.That(stream.BytesRead).IsEqualTo(2L * DemoContentFingerprint.DefaultWindowBytes);
+            await Assert.That(stream.Reads).IsEqualTo(2).Because("on a network mount every read is a round trip");
             await Assert.That(fp.Tail).IsEqualTo(Sha(bytes.AsSpan(bytes.Length - DemoContentFingerprint.DefaultWindowBytes)));
         }
     }
@@ -241,6 +242,8 @@ public class DemoContentFingerprintTests
     {
         public long BytesRead { get; private set; }
 
+        public int Reads { get; private set; }
+
         public override bool CanRead => inner.CanRead;
         public override bool CanSeek => inner.CanSeek;
         public override bool CanWrite => false;
@@ -256,6 +259,7 @@ public class DemoContentFingerprintTests
         {
             int read = inner.Read(buffer, offset, count);
             BytesRead += read;
+            Reads++;
             return read;
         }
 
@@ -263,6 +267,7 @@ public class DemoContentFingerprintTests
         {
             int read = inner.Read(buffer);
             BytesRead += read;
+            Reads++;
             return read;
         }
 
