@@ -197,7 +197,7 @@ internal sealed class HostLibrary : IExtensionLibrary
     public LibraryDemo? FindBySha256(string sha256)
     {
         ArgumentNullException.ThrowIfNull(sha256);
-        return _store.TryGetIndexBySha256(sha256) is { } entry ? Project(entry, Revalidate()) : null;
+        return _store.TryGetByContentId(sha256) is { } entry ? Project(entry, Revalidate()) : null;
     }
 
     public LibraryPage Query(LibraryQuery query)

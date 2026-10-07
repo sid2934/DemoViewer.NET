@@ -559,7 +559,7 @@ internal sealed class ExtensionDemoDataStore : IExtensionDemoData
                 continue;
             }
 
-            if (entry.Sha256 is not null && _library.TryGetIndexBySha256(entry.Sha256) is { } other)
+            if (entry.Sha256 is not null && _library.TryGetByContentId(entry.Sha256) is { } other)
             {
                 entries[id] = entry with { DemoPath = other.Path };
             }

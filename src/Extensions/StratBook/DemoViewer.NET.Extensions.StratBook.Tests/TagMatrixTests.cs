@@ -386,7 +386,7 @@ public class TagMatrixTests
 
         public static string PathOf(int n) => $"/d/f{n}.dem";
 
-        public string PathOf(string sha) => Cache.TryGetIndexBySha256(sha)!.Path;
+        public string PathOf(string sha) => Cache.TryGetByContentId(sha)!.Path;
 
         public async Task Pick(Action pick)
         {

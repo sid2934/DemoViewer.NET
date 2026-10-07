@@ -55,7 +55,7 @@ public class ContentIdentityTests
     }
 
     [Test]
-    public async Task TryGetIndexBySha256_RoundTripsAcrossReopen_AndFollowsUpsertAndRemove()
+    public async Task TryGetByContentId_RoundTripsAcrossReopen_AndFollowsUpsertAndRemove()
     {
         string root = TempRoot();
         try
@@ -66,33 +66,33 @@ public class ContentIdentityTests
             store.Upsert(Record("/demos/c.dem", null)); // not yet at tier 2
             store.SaveIndex();
 
-            await Assert.That(store.TryGetIndexBySha256("sha-1")!.Path).IsEqualTo("/demos/a.dem")
+            await Assert.That(store.TryGetByContentId("sha-1")!.Path).IsEqualTo("/demos/a.dem")
                 .Because("two rows under one hash are a copied demo, and the smallest path is the library's primary");
 
             DemoCacheStore reopened = new(root);
             using (Assert.Multiple())
             {
-                await Assert.That(reopened.TryGetIndexBySha256("sha-1")!.Path).IsEqualTo("/demos/a.dem")
+                await Assert.That(reopened.TryGetByContentId("sha-1")!.Path).IsEqualTo("/demos/a.dem")
                     .Because("the reverse map is rebuilt from index.json, not only from live upserts");
                 await Assert.That(reopened.TryGetIndex("/demos/c.dem")!.Sha256).IsNull();
-                await Assert.That(reopened.TryGetIndexBySha256("sha-none")).IsNull();
-                await Assert.That(reopened.TryGetIndexBySha256("")).IsNull();
+                await Assert.That(reopened.TryGetByContentId("sha-none")).IsNull();
+                await Assert.That(reopened.TryGetByContentId("")).IsNull();
             }
 
             reopened.Remove("/demos/a.dem");
-            await Assert.That(reopened.TryGetIndexBySha256("sha-1")!.Path).IsEqualTo("/demos/b.dem")
+            await Assert.That(reopened.TryGetByContentId("sha-1")!.Path).IsEqualTo("/demos/b.dem")
                 .Because("removing the primary falls back to the remaining copy");
 
             // The file at b's path was replaced and re-indexed: the old hash must not keep pointing at it.
             reopened.Upsert(Record("/demos/b.dem", "sha-2"));
             using (Assert.Multiple())
             {
-                await Assert.That(reopened.TryGetIndexBySha256("sha-1")).IsNull();
-                await Assert.That(reopened.TryGetIndexBySha256("sha-2")!.Path).IsEqualTo("/demos/b.dem");
+                await Assert.That(reopened.TryGetByContentId("sha-1")).IsNull();
+                await Assert.That(reopened.TryGetByContentId("sha-2")!.Path).IsEqualTo("/demos/b.dem");
             }
 
             reopened.Remove("/demos/b.dem");
-            await Assert.That(reopened.TryGetIndexBySha256("sha-2")).IsNull();
+            await Assert.That(reopened.TryGetByContentId("sha-2")).IsNull();
         }
         finally
         {
@@ -108,28 +108,6 @@ public class ContentIdentityTests
     public async Task TryGetByContentId_AgreesWithTheHashLookup_ThroughEveryMutation_InMemory() =>
         await AgreesThroughEveryMutation(null);
 
-    [Test]
-    public async Task RowsForContentId_IsASnapshot_PrimaryFirst()
-    {
-        DemoCacheStore store = new(null);
-        store.Upsert(Record("/demos/z.dem", "sha-1"));
-        store.Upsert(Record("/demos/B.dem", "sha-1"));
-        store.Upsert(Record("/demos/a.dem", "sha-1"));
-
-        IReadOnlyList<DemoCacheIndexEntry> rows = store.RowsForContentId("sha-1");
-        store.Remove("/demos/a.dem");
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rows.Select(r => r.Path))
-                .IsEquivalentTo(["/demos/B.dem", "/demos/a.dem", "/demos/z.dem"], CollectionOrdering.Matching)
-                .Because("ordinal, so an upper-case path sorts first exactly as the primary pick does");
-            await Assert.That(rows[0].Path).IsEqualTo(store.TryGetByContentId("sha-1")!.Path);
-            await Assert.That(store.RowsForContentId("sha-1")).HasCount(2)
-                .Because("a later remove shows in a fresh call, never in a list already handed out");
-        }
-    }
-
     // One mutation sequence, checked after every step against the hash lookup and against the expected path,
     // so agreement with a wrong answer still fails.
     private static async Task AgreesThroughEveryMutation(string? root)
@@ -140,7 +118,6 @@ public class ContentIdentityTests
         {
             DemoCacheIndexEntry? byContent = store.TryGetByContentId(id);
             await Assert.That(byContent?.Path).IsEqualTo(expectedPath).Because($"content id '{id}'");
-            await Assert.That(byContent?.Path).IsEqualTo(store.TryGetIndexBySha256(id)?.Path);
             IReadOnlyList<DemoCacheIndexEntry> rows = store.RowsForContentId(id);
             await Assert.That(rows.Count == 0 ? null : rows[0].Path).IsEqualTo(expectedPath);
         }
@@ -251,7 +228,7 @@ public class ContentIdentityTests
             DemoCacheStore reopened = new(root);
             using (Assert.Multiple())
             {
-                await Assert.That(reopened.TryGetIndexBySha256("sha-old")!.Path).IsEqualTo("/demos/old.dem");
+                await Assert.That(reopened.TryGetByContentId("sha-old")!.Path).IsEqualTo("/demos/old.dem");
                 await Assert.That(reopened.TryGetByContentId("sha-old")!.Path).IsEqualTo("/demos/old.dem");
             }
         }
@@ -315,23 +292,6 @@ public class ContentIdentityTests
             await Assert.That(record.Sha256).IsEqualTo("sha-2");
             await Assert.That(record.ContentFingerprint).IsNull()
                 .Because("a fingerprint left beside a new hash would point at the old content");
-        }
-    }
-
-    [Test]
-    public async Task DemoRef_ProjectsAnIndexRow()
-    {
-        DemoRef r = DemoRef.From(new DemoCacheIndexEntry
-        {
-            Path = "/demos/x.dem",
-            Sha256 = "sha-x"
-        });
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(r.Path).IsEqualTo("/demos/x.dem");
-            await Assert.That(r.StableKey).IsEqualTo(DemoCacheStore.StableKey("/demos/x.dem"));
-            await Assert.That(r.Sha256).IsEqualTo("sha-x");
         }
     }
 
@@ -552,7 +512,7 @@ public class ContentIdentityTests
                 await Assert.That(cache.TryGetIndex(path)!.Sha256).IsEqualTo(expected)
                     .Because("the index row carries the hash after one tier-2 pass");
                 await Assert.That(cache.TryLoadRecord(path)!.Sha256).IsEqualTo(expected);
-                await Assert.That(cache.TryGetIndexBySha256(expected)!.Path).IsEqualTo(path)
+                await Assert.That(cache.TryGetByContentId(expected)!.Path).IsEqualTo(path)
                     .Because("a store keyed by hash can find the file again");
             }
 

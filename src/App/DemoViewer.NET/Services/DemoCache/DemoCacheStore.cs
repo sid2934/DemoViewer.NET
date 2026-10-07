@@ -338,14 +338,6 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     The index row carrying a content hash, or null when no indexed demo has it (never hashed yet,
-    ///     or not in the library). The bridge from a user-truth store keyed by hash back to a path. Same
-    ///     answer as <see cref="TryGetByContentId" />.
-    /// </summary>
-    /// <param name="sha256">Lowercase-hex SHA-256 of the demo's bytes.</param>
-    public DemoCacheIndexEntry? TryGetIndexBySha256(string sha256) => TryGetByContentId(sha256);
-
-    /// <summary>
     ///     The primary index row for a content id, or null when no indexed row carries it. A content id is
     ///     <see cref="Playback2D.Pipeline.DemoContentHash" />'s lowercase-hex SHA-256 of the whole file; a row that has not been
     ///     hashed yet is invisible here and only reachable by <see cref="TryGetIndex" />, and so is a row no
@@ -370,43 +362,6 @@ public sealed class DemoCacheStore
                                                                               && row.Locations.Any(l => l.Confirmed)
                 ? _index.GetValueOrDefault(row.Path)
                 : null;
-        }
-    }
-
-    /// <summary>
-    ///     The row for a content id seen from each of its confirmed paths, primary first
-    ///     (<see cref="TryGetByContentId" />'s pick), the rest in ordinal path order. Empty when no row carries it.
-    ///     A snapshot: later writes do not change it.
-    /// </summary>
-    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
-    public IReadOnlyList<DemoCacheIndexEntry> RowsForContentId(string? contentId)
-    {
-        if (string.IsNullOrEmpty(contentId))
-        {
-            return [];
-        }
-
-        lock (_gate)
-        {
-            if (!_rows.TryGetValue(contentId, out DemoCacheIndexEntry? row) || IsProvisional(row))
-            {
-                return [];
-            }
-
-            List<DemoCacheIndexEntry> rows = [.. row.Locations.Where(l => l.Confirmed).Select(l => _index[l.Path])];
-            if (rows.Count == 0)
-            {
-                return [];
-            }
-
-            int primary = rows.FindIndex(r => string.Equals(r.Path, row.Path, StringComparison.Ordinal));
-            if (primary > 0)
-            {
-                (rows[0], rows[primary]) = (rows[primary], rows[0]);
-                rows.Sort(1, rows.Count - 1, Comparer<DemoCacheIndexEntry>.Create((a, b) => string.CompareOrdinal(a.Path, b.Path)));
-            }
-
-            return rows;
         }
     }
 
@@ -491,12 +446,9 @@ public sealed class DemoCacheStore
         }
     }
 
-    /// <summary>
-    ///     The orphaned row for a content id, seen from where it was last found, or null when the content has no
-    ///     row or a path still lists it.
-    /// </summary>
-    /// <param name="contentId">Lowercase-hex SHA-256 of the demo's bytes. Matched exactly.</param>
-    public DemoCacheIndexEntry? TryGetOrphan(string? contentId)
+    // The orphaned row for a content id, as stored, or null when the content has no row or a path still lists
+    // it. What a test inspects an orphan through; production asks IsOrphaned and OrphanAt.
+    internal DemoCacheIndexEntry? TryGetOrphan(string? contentId)
     {
         if (string.IsNullOrEmpty(contentId))
         {
@@ -1742,21 +1694,6 @@ public sealed class DemoCacheStore
         }
 
         return updated;
-    }
-
-    /// <summary>Drops every row matching <paramref name="predicate" />: library reconciliation.</summary>
-    public void RemoveWhere(Func<DemoCacheIndexEntry, bool> predicate)
-    {
-        List<string> doomed;
-        lock (_gate)
-        {
-            doomed = [.. _index.Values.Where(predicate).Select(e => e.Path)];
-        }
-
-        foreach (string path in doomed)
-        {
-            Remove(path);
-        }
     }
 
     /// <summary>

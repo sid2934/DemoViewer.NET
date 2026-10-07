@@ -323,7 +323,7 @@ public class ReviewQueueTests
         vm.Stage(b, b.Highlights[0]);
         queue.Add([Clip("/d/b.dem", 1, 2, "a manual pick in the same demo")]);
 
-        store.RemoveWhere(r => r.Path == "/d/b.dem");
+        store.Remove("/d/b.dem");
 
         using (Assert.Multiple())
         {
