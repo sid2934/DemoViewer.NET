@@ -511,7 +511,7 @@ public class OrphanedContentTests
     }
 
     [Test]
-    public async Task UpdateOrphans_ChangesTheRecordAndKeepsTheRowOrphaned()
+    public async Task UpdateRecords_ChangesAnOrphansRecordAndKeepsTheRowOrphaned()
     {
         DemoCacheStore store = new(null);
         DemoCacheRecord record = Analysed("/m/a.dem", "sha-a");
@@ -519,7 +519,7 @@ public class OrphanedContentTests
         store.Upsert(record);
         store.Detach("/m/a.dem");
 
-        int updated = store.UpdateOrphans(r => r.PackStamps.Count > 0, r => r.PackStamps.Clear());
+        int updated = store.UpdateRecords(r => r.PackStamps.Count > 0, r => r.PackStamps.Clear());
         using (Assert.Multiple())
         {
             await Assert.That(updated).IsEqualTo(1);

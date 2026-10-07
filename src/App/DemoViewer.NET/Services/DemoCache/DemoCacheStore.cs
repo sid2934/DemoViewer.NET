@@ -1624,14 +1624,15 @@ public sealed class DemoCacheStore
     }
 
     /// <summary>
-    ///     Applies <paramref name="mutate" /> to the record of every orphaned row matching
-    ///     <paramref name="where" /> and writes it back under the row's key, leaving the row orphaned. For a
-    ///     delete that must reach a demo whose folder is gone. A row whose record does not load is skipped.
+    ///     Applies <paramref name="mutate" /> to the record of every row matching <paramref name="where" />,
+    ///     listed or orphaned, and writes it back under the row's own key. Reads and stats no demo and leaves
+    ///     every path where it is: for a change to what is kept about a demo, such as a delete, that must never
+    ///     move a path or reach a file that may not answer. A row whose record does not load is skipped.
     /// </summary>
-    /// <param name="where">Which orphaned rows.</param>
+    /// <param name="where">Which rows, seen as stored.</param>
     /// <param name="mutate">The change to make.</param>
     /// <returns>How many records were written.</returns>
-    internal int UpdateOrphans(Func<DemoCacheIndexEntry, bool> where, Action<DemoCacheRecord> mutate)
+    internal int UpdateRecords(Func<DemoCacheIndexEntry, bool> where, Action<DemoCacheRecord> mutate)
     {
         ArgumentNullException.ThrowIfNull(where);
         ArgumentNullException.ThrowIfNull(mutate);
@@ -1641,7 +1642,7 @@ public sealed class DemoCacheStore
             List<string> keys;
             lock (_gate)
             {
-                keys = [.. _rows.Where(r => r.Value.IsOrphaned && where(r.Value.Copy())).Select(r => r.Key)];
+                keys = [.. _rows.Where(r => where(r.Value.Copy())).Select(r => r.Key)];
             }
 
             foreach (string key in keys)
@@ -1653,32 +1654,16 @@ public sealed class DemoCacheStore
 
                 mutate(record);
                 byte[] bytes = SidecarJson.SerializeGzip(record, _jsonOptions);
-                string fileKey;
+                DemoCacheIndexEntry row;
                 lock (_gate)
                 {
-                    if (!_rows.TryGetValue(key, out DemoCacheIndexEntry? row) || !row.IsOrphaned)
+                    if (!_rows.TryGetValue(key, out row!))
                     {
                         continue;
                     }
-
-                    DemoCacheIndexEntry updatedRow = record.ToIndexEntry();
-                    updatedRow.Path = row.Path;
-                    updatedRow.Size = row.Size;
-                    updatedRow.ModifiedTicks = row.ModifiedTicks;
-                    updatedRow.Locations = [];
-                    updatedRow.OrphanedSinceUtcTicks = row.OrphanedSinceUtcTicks;
-                    updatedRow.DetachedLocations = row.DetachedLocations;
-                    updatedRow.SidecarKeys = row.SidecarKeys;
-                    _rows[key] = updatedRow;
-                    _indexVersion++;
-                    fileKey = WriteKeys(row)[0];
-                    if (string.Equals(_lastRecordKey, key, StringComparison.Ordinal))
-                    {
-                        _lastRecordKey = null;
-                        _lastRecordBytes = null;
-                    }
                 }
 
+                string fileKey = WriteKeys(row)[0];
                 lock (_fileStripes[StripeIndex(fileKey)])
                 {
                     if (_cacheRoot is null)
@@ -1701,7 +1686,18 @@ public sealed class DemoCacheStore
                     }
                 }
 
+                lock (_gate)
+                {
+                    Link(key, Reproject(row, record));
+                    if (string.Equals(_lastRecordKey, key, StringComparison.Ordinal))
+                    {
+                        _lastRecordKey = null;
+                        _lastRecordBytes = null;
+                    }
+                }
+
                 updated++;
+                RaiseChanged(row.Path);
             }
         }
 

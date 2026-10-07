@@ -357,34 +357,16 @@ public sealed class PackDataRemover
         return candidate.StartsWith(rootWithSeparator, StringComparison.Ordinal) ? candidate : null;
     }
 
-    // Strips packId's payload and every stamp whose id is in facetIds from every record that has one, and
-    // the mirrored index row with it (DemoCacheStore.Upsert re-derives DemoCacheIndexEntry.PackStamps from
-    // the record on every write). A row whose sidecar will not load is skipped: UpdateExisting would create
-    // a fresh record for a path that has none, which a delete must never do. One write per demo, through its
-    // primary path: every path of a demo shares the record.
+    // Strips packId's payload and every stamp whose id is in facetIds from every record that has one, listed or
+    // orphaned, and the mirrored index row with it. Written under each demo's own key, never through a path:
+    // a path write could stat or settle a file on a share that is offline, and a delete must never move a path.
     private int StripRecords(string packId, IReadOnlyList<string> facetIds)
     {
         HashSet<string> facets = new(facetIds, StringComparer.Ordinal);
-        int updated = 0;
+        int updated;
         using (store.BeginBatch())
         {
-            foreach (DemoCacheIndexEntry entry in store.Contents)
-            {
-                if (!entry.PackStamps.Any(s => facets.Contains(s.Id)) || store.TryLoadRecord(entry.Path, false) is null)
-                {
-                    continue;
-                }
-
-                store.UpdateExisting(entry.Path, record =>
-                {
-                    record.Packs.Remove(packId);
-                    record.PackStamps.RemoveAll(s => facets.Contains(s.Id));
-                });
-                updated++;
-            }
-
-            // A demo no folder lists any more keeps its record for a while; the delete reaches it too.
-            updated += store.UpdateOrphans(e => e.PackStamps.Any(s => facets.Contains(s.Id)), record =>
+            updated = store.UpdateRecords(e => e.PackStamps.Any(s => facets.Contains(s.Id)), record =>
             {
                 record.Packs.Remove(packId);
                 record.PackStamps.RemoveAll(s => facets.Contains(s.Id));

@@ -425,6 +425,44 @@ public class PackDataRemoverTests
         }
     }
 
+    // The demo's only path was matched by fingerprint and its share is offline: the strip changes the record
+    // and nothing else, so the path stays in the row and the demo is not orphaned.
+    [Test]
+    public async Task Delete_StripsADemoListedOnlyAtAnUnconfirmedPath_WithoutMovingThePath()
+    {
+        string cacheRoot = TempRoot("strip-unconfirmed");
+        const string offline = "/Volumes/offline-share/a.dem";
+        try
+        {
+            DemoCacheStore store = new(cacheRoot);
+            DemoCacheRecord record = ParsedRecord("/nfs/a.dem", sha: "sha-a");
+            record.Packs[PackId] = JsonSerializer.SerializeToElement("mine");
+            record.SetStamp(new PackStamp("facet-a", 1, "fp-a"));
+            store.Upsert(record);
+            store.AttachUnconfirmed("sha-a", offline, record.Size, record.ModifiedTicks + 1);
+            store.Detach("/nfs/a.dem");
+            store.SaveIndex();
+
+            ExtensionDataRemovalResult result =
+                await new PackDataRemover(store, null, null).DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.RecordsUpdated).IsEqualTo(1);
+                await Assert.That(store.LocationOf(offline)?.ContentId).IsEqualTo("sha-a");
+                await Assert.That(store.LocationOf(offline)?.Location.Confirmed).IsFalse();
+                await Assert.That(store.IsOrphaned("sha-a")).IsFalse();
+                await Assert.That(store.TryGetIndex(offline)!.PackStamps).IsEmpty();
+                await Assert.That(store.TryLoadRecord(offline)!.Packs.ContainsKey(PackId)).IsFalse();
+                await Assert.That(store.TryLoadRecord(offline)!.Parse.IsPresent).IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
+        }
+    }
+
     [Test]
     public async Task Delete_SkipsARowWhoseSidecarDoesNotLoad_RatherThanFabricatingOne()
     {
