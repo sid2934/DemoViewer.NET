@@ -51,12 +51,21 @@ public class LibraryFingerprintTests
         private readonly DemoScheduler _scheduler;
         private readonly DemoProcessingQueue _queue;
 
-        public Library(string dataDir, DemoCacheStore store, string? dataPath = null)
+        // parseHashes: the parse hashes the bytes it read and hands the hash to the cache, as the app's queue does.
+        public Library(string dataDir, DemoCacheStore store, string? dataPath = null, bool parseHashes = false)
         {
             Store = store;
             _queue = new DemoProcessingQueue(new HeavyJobGate(), a => a(), path =>
             {
                 Parses.AddOrUpdate(path, 1, (_, n) => n + 1);
+                if (parseHashes)
+                {
+                    using MemoryStream bytes = new(File.ReadAllBytes(path));
+                    (string sha, DemoContentFingerprint fingerprint) =
+                        DemoContentFingerprint.ComputeWithContentHash(bytes, Reader.WindowBytes);
+                    store.NoteContentRead(path, sha, fingerprint, bytes.Length, File.GetLastWriteTimeUtc(path));
+                }
+
                 return SyntheticDemo();
             });
             Service = new DemoLibraryService(_inline, dataPath ?? Path.Combine(dataDir, $"library-{Guid.NewGuid():N}.json"),
@@ -64,7 +73,8 @@ public class LibraryFingerprintTests
             {
                 Time = Settled,
                 ContentReader = Reader,
-                QueueOverride = _queue
+                QueueOverride = _queue,
+                ParseHashesContent = parseHashes
             };
             _scheduler = new DemoScheduler([Service], _queue, Service.Tier2Backlog);
             Service.Scheduler = _scheduler;
@@ -82,6 +92,38 @@ public class LibraryFingerprintTests
             Service.Dispose();
             _scheduler.Dispose();
             _queue.Dispose();
+        }
+    }
+
+    // The parse has the bytes in hand: tier 2 takes the hash and fingerprint it handed the cache, and reads
+    // nothing of the file itself.
+    [Test]
+    public async Task AParseThatHashesWhatItRead_LeavesTier2NothingToRead()
+    {
+        string folder = NewTempDir();
+        try
+        {
+            byte[] bytes = Bytes(9);
+            string path = Write(folder, "m.dem", bytes);
+            string sha = DemoContentHash.Compute(bytes);
+            using Library library = new(folder, new DemoCacheStore(null), parseHashes: true);
+
+            await library.Service.AddFoldersAsync([folder]);
+            await WaitForAsync(() => library.Service.Entries is [{ State: DemoIndexState.Indexed }]
+                                     && library.Store.TryGetByContentId(sha) is { ContentFingerprint: not null },
+                "the demo indexed and hashed");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.TotalParses).IsEqualTo(1);
+                await Assert.That(library.Reader.FullReads(path)).IsEqualTo(0);
+                await Assert.That(library.Reader.WindowReads(path)).IsEqualTo(0);
+                await Assert.That(library.Store.TryGetIndex(path)!.Sha256).IsEqualTo(sha);
+            }
+        }
+        finally
+        {
+            Directory.Delete(folder, true);
         }
     }
 

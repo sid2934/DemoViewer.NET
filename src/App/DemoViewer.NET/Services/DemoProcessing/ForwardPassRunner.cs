@@ -32,6 +32,9 @@ public sealed class ForwardPassRunner
     /// </summary>
     public Func<string, IReadOnlySet<string>?>? OutputsFor { get; init; }
 
+    /// <summary>How a demo is read, and where the content hash taken from that read goes. Null hashes nothing.</summary>
+    public DemoFileRead? FileRead { get; init; }
+
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
 
     /// <summary>One forward pass over <paramref name="path" />.</summary>
@@ -39,10 +42,9 @@ public sealed class ForwardPassRunner
     {
         ParseOptions options = ForwardDemoPass.ReaderOptions(cancellationToken);
 
-        // Same rule as the retained parse: a file that may still be written is read into memory, never mapped.
-        using DemoReader reader = MappedParsePolicy.IsSettled(path, _time, MappedParsePolicy.StatFile)
-            ? DemoReader.OpenFile(path, options)
-            : DemoReader.Open(File.ReadAllBytes(path), options);
+        // Same rule as the retained parse: only a settled local file is mapped.
+        byte[]? bytes = (FileRead ?? new DemoFileRead(_time, null, null)).Prepare(path, cancellationToken);
+        using DemoReader reader = bytes is null ? DemoReader.OpenFile(path, options) : DemoReader.Open(bytes, options);
         ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs,
             (needs & ForwardNeeds.Rules) != 0 ? _rules.Docs : null, progress,
             (needs & ForwardNeeds.Rules) != 0 ? OutputsFor?.Invoke(path) : null, cancellationToken);

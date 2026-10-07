@@ -165,6 +165,13 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <summary>The content hash and fingerprint reads. Test seam.</summary>
     internal ILibraryContentReader ContentReader { get; set; } = FileSystemLibraryContentReader.Instance;
 
+    /// <summary>
+    ///     True when the parse tier 2 runs on hashes the file it reads and hands the hash to the cache
+    ///     (<see cref="DemoCacheStore.NoteContentRead" />): tier 2 then takes the hash from there and never reads
+    ///     the file again. False reads the file once more after the parse.
+    /// </summary>
+    internal bool ParseHashesContent { get; init; }
+
     /// <summary>How long the folder walk and the header reads wait on the file system. Test seam.</summary>
     internal LibraryScanTiming Timing { get; set; } = LibraryScanTiming.Default;
 
@@ -1597,12 +1604,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             {
                 if (at is not null)
                 {
-                    _demoCache.ConfirmLocation(path, sha, size);
+                    _demoCache.ConfirmLocation(path, sha, size, modified.Ticks);
                 }
 
                 if (_demoCache.LocationOf(path) is null && _demoCache.AttachUnconfirmed(sha, path, size, modified.Ticks))
                 {
-                    _demoCache.ConfirmLocation(path, sha, size);
+                    _demoCache.ConfirmLocation(path, sha, size, modified.Ticks);
                 }
             }
 
@@ -1649,10 +1656,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         }
     }
 
-    // Returns the cached SHA-256 (lowercase hex) for a file when the (path,size,mtime) key still matches,
-    // else streams the bytes once for the hash and the fingerprint and writes the hash back onto the metadata
-    // row. Null on an I/O failure. A reconcile caller then treats the file as its own singleton (never wrongly
-    // deduped); the tier-2 caller leaves the cache record's hash as it was. A cached hash has no fingerprint.
+    // The SHA-256 (lowercase hex) of a file at the size and write time it was listed at: from the metadata row,
+    // from a confirmed path of the cache, or from the read a parse or an open just made. Without one, and only
+    // when no parse hashes what it reads, the bytes are streamed once more for the hash and the fingerprint.
+    // Null when none of that gives one. A reconcile caller then treats the file as its own singleton (never
+    // wrongly deduped); the tier-2 caller leaves the cache record's hash as it was. Cached is true when no
+    // fingerprint came with the hash.
     private (string? Sha256, DemoContentFingerprint? Fingerprint, bool Cached) GetOrComputeSha(string path,
         long size, DateTime modified)
     {
@@ -1665,13 +1674,29 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
         }
 
-        (string? sha, DemoContentFingerprint? fingerprint) = ContentReader.HashAndFingerprint(path, Time);
+        string? sha = null;
+        DemoContentFingerprint? fingerprint = null;
+        bool cached = false;
+        if (_demoCache?.RecentContentRead(path, size, modified.Ticks) is { } read)
+        {
+            (sha, fingerprint) = read;
+        }
+        else if (_demoCache?.LocationOf(path) is { Location: { Confirmed: true } at } known
+                 && at.Size == size && at.ModifiedTicks == modified.Ticks)
+        {
+            (sha, cached) = (known.ContentId, true);
+        }
+        else if (!ParseHashesContent)
+        {
+            (sha, fingerprint) = ContentReader.HashAndFingerprint(path, Time);
+        }
+
         if (sha is not null)
         {
             UpsertCache(path, c => c.Sha256 = sha);
         }
 
-        return (sha, fingerprint?.Size == size ? fingerprint : null, false);
+        return (sha, fingerprint?.Size == size ? fingerprint : null, cached);
     }
 
     // The fingerprint to store beside a hash tier 2 took from the metadata row. Null when the record already
@@ -2129,7 +2154,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         {
             // Before the write: a path a fingerprint attached to other content must leave it first, or the
             // write would start from that content's record.
-            _demoCache?.ConfirmLocation(entry.FilePath, sha, entry.FileSizeBytes);
+            _demoCache?.ConfirmLocation(entry.FilePath, sha, entry.FileSizeBytes, entry.Modified.Ticks);
         }
 
         if (sha is not null && cached)

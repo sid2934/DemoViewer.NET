@@ -61,6 +61,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly Func<string, DecodePlan, ParsedDemo> _parseFile; // background: read file at path → parse
     private readonly Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? _forwardPass;
     private readonly Func<string, string?>? _contentHash;
+    private readonly DemoFileRead _fileRead;
     private readonly Dictionary<string, int> _parsesByPath = new(StringComparer.OrdinalIgnoreCase);
     private readonly JobKindRegistry _jobKinds;
     private readonly Action<ParsedDemo>? _parseReleased;
@@ -122,6 +123,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     ///     A demo's content hash when the library knows it, so <see cref="ParseCounts" /> counts copies of one
     ///     demo together. Null counts by path.
     /// </param>
+    /// <param name="fileRead">
+    ///     How the background parse reads a file, and where the content hash it takes from that read goes.
+    ///     Null maps a settled file and reads any other into memory, hashing nothing.
+    /// </param>
     public DemoProcessingQueue(
         HeavyJobGate gate,
         Action<Action>? post = null,
@@ -133,7 +138,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? forwardPass = null,
         Action<ParsedDemo>? parseReleased = null,
         JobKindRegistry? jobKinds = null,
-        Func<string, string?>? contentHash = null)
+        Func<string, string?>? contentHash = null,
+        DemoFileRead? fileRead = null)
     {
         _contentHash = contentHash;
         _gate = gate;
@@ -144,6 +150,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         _parseReleased = parseReleased;
         _compactHeap = compactHeap ?? HeapCompactor.CompactAsync;
         _time = timeProvider ?? TimeProvider.System;
+        _fileRead = fileRead ?? new DemoFileRead(_time, null, null);
         _jobKinds = jobKinds ?? JobKindRegistry.Default;
         _shutdownToken = _shutdown.Token;
         Items = new ReadOnlyObservableCollection<DemoQueueItem>(_items);
@@ -153,17 +160,18 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private static ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.QueueCategory);
 
     /// <summary>
-    ///     The background parse. Maps the file instead of reading it into one LOH-sized array; the
+    ///     The background parse. Maps a settled local file instead of reading it into one LOH-sized array; the
     ///     mapping is released before this returns and the <see cref="ParsedDemo" /> holds no view of it.
-    ///     Browser has no memory mapping, and a file that may still be written is read into a byte[]:
-    ///     truncating a mapped file under the parse is a fatal access violation, not an exception.
+    ///     Browser has no memory mapping, and a file that may still be written, or sits on a network mount, is
+    ///     read into a byte[] (<see cref="DemoFileRead" />): truncating a mapped file under the parse is a fatal
+    ///     access violation, not an exception.
     /// </summary>
     private ParsedDemo ParseFileDefault(string path, DecodePlan plan)
     {
         ParseOptions options = new() { Plan = plan };
-        return !OperatingSystem.IsBrowser() && MappedParsePolicy.IsSettled(path, _time, MappedParsePolicy.StatFile)
-            ? MemoryMappedDemoSource.ParseFile(path, options)
-            : DemoParser.Parse(File.ReadAllBytes(path).AsMemory(), options);
+        return _fileRead.Prepare(path, _shutdownToken) is { } bytes
+            ? DemoParser.Parse(bytes.AsMemory(), options)
+            : MemoryMappedDemoSource.ParseFile(path, options);
     }
 
     public ReadOnlyObservableCollection<DemoQueueItem> Items { get; }

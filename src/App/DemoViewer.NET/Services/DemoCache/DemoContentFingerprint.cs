@@ -67,9 +67,8 @@ public sealed record DemoContentFingerprint(long Size, int WindowBytes, string H
 
     /// <summary>
     ///     <see cref="DemoContentHash.Compute(string)" /> and the fingerprint in one streaming read. Both are
-    ///     null when the file cannot be read or changed length during the read. The fingerprint alone is
-    ///     null when the file is not settled or its write time moved, since windows taken mid-write
-    ///     describe bytes that are about to change.
+    ///     null when the file is not settled, cannot be read, or changed during the read: a hash taken
+    ///     mid-write names bytes that are about to change. Nothing is read from an unsettled file.
     /// </summary>
     /// <param name="path">The file to hash.</param>
     /// <param name="time">The clock the settle window is measured against.</param>
@@ -81,7 +80,11 @@ public sealed record DemoContentFingerprint(long Size, int WindowBytes, string H
         stat ??= MappedParsePolicy.StatFile;
         try
         {
-            bool settled = MappedParsePolicy.IsSettled(path, time, stat);
+            if (!MappedParsePolicy.IsSettled(path, time, stat))
+            {
+                return (null, null);
+            }
+
             FileStat before = stat(path);
             (string Sha256, DemoContentFingerprint Fingerprint) both;
             using (FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, BufferSize,
@@ -90,8 +93,7 @@ public sealed record DemoContentFingerprint(long Size, int WindowBytes, string H
                 both = ComputeWithContentHash(stream, windowBytes);
             }
 
-            bool steady = settled && stat(path) == before && both.Fingerprint.Size == before.Length;
-            return (both.Sha256, steady ? both.Fingerprint : null);
+            return stat(path) == before && both.Fingerprint.Size == before.Length ? both : (null, null);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {

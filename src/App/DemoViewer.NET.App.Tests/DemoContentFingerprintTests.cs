@@ -150,7 +150,7 @@ public class DemoContentFingerprintTests
     }
 
     [Test]
-    public async Task AFileWrittenInTheSettleWindow_GetsNoFingerprint_ButStillGetsItsHash()
+    public async Task AFileWrittenInTheSettleWindow_GetsNeitherAFingerprintNorAHash()
     {
         byte[] bytes = Bytes(2 * Window + 1, 6);
         string path = TempFile(bytes, TimeSpan.Zero);
@@ -164,7 +164,7 @@ public class DemoContentFingerprintTests
                 await Assert.That(DemoContentFingerprint.TryCompute(path, TimeProvider.System, windowBytes: Window))
                     .IsNull();
                 await Assert.That(fp).IsNull();
-                await Assert.That(sha).IsEqualTo(DemoContentHash.Compute(path));
+                await Assert.That(sha).IsNull().Because("a hash taken mid-copy names bytes about to change");
             }
         }
         finally
@@ -174,7 +174,7 @@ public class DemoContentFingerprintTests
     }
 
     [Test]
-    public async Task AWriteDuringTheRead_WithholdsTheFingerprint()
+    public async Task AWriteDuringTheRead_WithholdsTheHashAndTheFingerprint()
     {
         byte[] bytes = Bytes(2 * Window + 1, 7);
         string path = TempFile(bytes, Settled);
@@ -196,7 +196,7 @@ public class DemoContentFingerprintTests
                 await Assert.That(DemoContentFingerprint.TryCompute(path, TimeProvider.System, Moving(), Window))
                     .IsNull();
                 await Assert.That(fp).IsNull();
-                await Assert.That(sha).IsEqualTo(DemoContentHash.Compute(path));
+                await Assert.That(sha).IsNull();
             }
         }
         finally

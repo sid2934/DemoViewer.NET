@@ -526,7 +526,7 @@ public class ContentIdentityTests
         {
             string expected = DemoContentHash.Compute(path);
 
-            // A clock standing at the file's own write time: the hash is still taken, the fingerprint is not.
+            // A clock standing at the file's own write time: a file that may still be written is not hashed.
             DemoCacheStore unsettledCache = new(null);
             using (DemoLibraryService unsettled = new(a => a(), libraryJson + ".unsettled", demoCache: unsettledCache))
             {
@@ -536,7 +536,7 @@ public class ContentIdentityTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(unsettledCache.TryGetIndex(path)!.Sha256).IsEqualTo(expected);
+                await Assert.That(unsettledCache.TryGetIndex(path)!.Sha256).IsNull();
                 await Assert.That(unsettledCache.TryGetIndex(path)!.ContentFingerprint).IsNull();
             }
 

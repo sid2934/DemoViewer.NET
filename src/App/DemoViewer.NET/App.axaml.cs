@@ -896,10 +896,17 @@ public class App : Application
         {
             // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo.
             MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
+            // A parse of a demo with no confirmed hash hashes the bytes it reads, so the library and the cache
+            // never read the file again for it. Resolved at the first read, never while the queue is built.
+            DemoFileRead fileRead = new(TimeProvider.System,
+                path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256 is null,
+                read => sp.GetRequiredService<DemoCacheStore>().NoteContentRead(read.Path, read.Sha256, read.Fingerprint,
+                    read.Stat.Length, read.Stat.LastWriteUtc.UtcDateTime));
             ForwardPassRunner? forward = OperatingSystem.IsBrowser()
                 ? null
                 : new ForwardPassRunner(rules)
                 {
+                    FileRead = fileRead,
                     OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
                         ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
                         : sp.GetRequiredService<FactsEvaluator>().Records(path, id))
@@ -914,7 +921,8 @@ public class App : Application
                 // through a pack's Contribute (e.g. ReviewQueue resolves IDemoProcessingQueue eagerly).
                 jobKinds: sp.GetRequiredService<JobKindRegistry>(),
                 // Resolved at the first read, never while the queue is built.
-                contentHash: path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256);
+                contentHash: path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256,
+                fileRead: fileRead);
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {
@@ -959,7 +967,7 @@ public class App : Application
 
         services.AddSingleton(sp => new DemoLibraryService(
             settings: sp.GetRequiredService<SettingsService>(),
-            demoCache: sp.GetRequiredService<DemoCacheStore>()));
+            demoCache: sp.GetRequiredService<DemoCacheStore>()) { ParseHashesContent = !OperatingSystem.IsBrowser() });
 
         // Highlights pipeline: the library-wide cache store and the
         // scanner over it. The scanner's library universe is the indexer's current entries; the
