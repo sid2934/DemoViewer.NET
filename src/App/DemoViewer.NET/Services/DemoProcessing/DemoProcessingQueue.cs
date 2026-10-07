@@ -88,6 +88,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private int _maxQueueSize = 200;
     private bool _paused;
     private long _seq;
+    private long _endedSeq;
+    private long _promotedSeq;
 
     // The demo of the heavy item that started last: its remaining work goes before other demos'.
     private string? _lastStartedPath;
@@ -1200,15 +1202,139 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    public bool Promote(Guid itemId)
+    {
+        lock (_sync)
+        {
+            // An open and a compaction already go first; a parked visit runs on the open's parse. A light item
+            // is refused: ahead of the running one it would stop a user's light items starting beside it.
+            if (_entries.FirstOrDefault(x => x.Id == itemId) is not { State: DemoQueueItemState.Queued } e
+                || e.Kind is QueueJobKind.DemoOpen or QueueJobKind.HeapCompaction || ParkedLocked(e) || IsLight(e))
+            {
+                return false;
+            }
+
+            e.PromotedSeq = ++_promotedSeq;
+        }
+
+        RaiseChanged();
+        return true;
+    }
+
     public IReadOnlyList<DemoQueueItemSnapshot> Snapshot()
     {
         lock (_sync)
         {
-            return _entries.Select(e => e.Kind == QueueJobKind.DemoOpen && e.WaitingForSlot
-                ? ToSnapshot(e) with { Detail = OpenWaitDetailLocked(e) }
-                : ParkedLocked(e)
-                    ? ToSnapshot(e) with { Detail = "Runs on the open of this demo" }
-                    : ToSnapshot(e)).ToList();
+            Dictionary<Entry, int> ranks = StartRanksLocked();
+            return _entries.Select(e =>
+            {
+                DemoQueueItemSnapshot s = ToSnapshot(e) with
+                {
+                    StartRank = ranks.TryGetValue(e, out int rank) ? rank : null,
+                    Light = IsLight(e),
+                    Hold = e.State == DemoQueueItemState.Queued ? HoldLocked(e) : DemoQueueHold.None
+                };
+                return e.Kind == QueueJobKind.DemoOpen && e.WaitingForSlot
+                    ? s with { Detail = OpenWaitDetailLocked(e) }
+                    : ParkedLocked(e)
+                        ? s with { Detail = "Runs on the open of this demo" }
+                        : s;
+            }).ToList();
+        }
+    }
+
+    // Under _sync. Each queued item's place in the order its lane starts them, by the same Compare the
+    // workers pick with. The heavy lane replays the last-started demo as each pick starts, since that changes
+    // the grouping. Held items rank after every item that may start now.
+    private Dictionary<Entry, int> StartRanksLocked()
+    {
+        Dictionary<Entry, int> ranks = [];
+        string? resident = LoadedPathLocked();
+        int heavy = 0;
+        foreach (Entry e in _entries)
+        {
+            // An open never goes through Compare: it runs as soon as the slot is free.
+            if (e.Kind == QueueJobKind.DemoOpen && e.State == DemoQueueItemState.Queued)
+            {
+                ranks[e] = heavy++;
+            }
+        }
+
+        RankLaneLocked(false, heavy, resident, ranks);
+        RankLaneLocked(true, 0, resident, ranks);
+        return ranks;
+    }
+
+    private void RankLaneLocked(bool light, int first, string? resident, Dictionary<Entry, int> ranks)
+    {
+        List<(Entry Entry, bool Ready)> pending = _entries
+            .Where(e => e.State == DemoQueueItemState.Queued && e.Kind != QueueJobKind.DemoOpen && IsLight(e) == light)
+            .Select(e => (e, HoldLocked(e) == DemoQueueHold.None))
+            .ToList();
+        pending.Sort((a, b) => a.Ready != b.Ready ? (a.Ready ? -1 : 1)
+            : CompareTier(a.Entry, b.Entry, resident) is var tier and not 0 ? tier
+            : CompareWithinGroup(a.Entry, b.Entry));
+
+        // Within a tier the last-started demo's items go first, and each heavy start changes that demo, so
+        // the order is replayed tier by tier instead of sorted once.
+        string? lastStarted = _lastStartedPath;
+        int rank = first;
+        for (int start = 0, end; start < pending.Count; start = end)
+        {
+            end = start + 1;
+            while (end < pending.Count && pending[end].Ready == pending[start].Ready
+                                       && CompareTier(pending[end].Entry, pending[start].Entry, resident) == 0)
+            {
+                end++;
+            }
+
+            Dictionary<string, Queue<int>> byPath = new(StringComparer.OrdinalIgnoreCase);
+            for (int i = start; i < end; i++)
+            {
+                string path = pending[i].Entry.Path;
+                if (path.Length > 0)
+                {
+                    if (!byPath.TryGetValue(path, out Queue<int>? same))
+                    {
+                        byPath[path] = same = new Queue<int>();
+                    }
+
+                    same.Enqueue(i);
+                }
+            }
+
+            bool[] taken = new bool[end - start];
+            int next = start;
+            for (int n = start; n < end; n++)
+            {
+                int pick = -1;
+                if (!string.IsNullOrEmpty(lastStarted) && byPath.TryGetValue(lastStarted, out Queue<int>? group))
+                {
+                    while (group.Count > 0 && pick < 0)
+                    {
+                        int candidate = group.Dequeue();
+                        pick = taken[candidate - start] ? -1 : candidate;
+                    }
+                }
+
+                if (pick < 0)
+                {
+                    while (taken[next - start])
+                    {
+                        next++;
+                    }
+
+                    pick = next;
+                }
+
+                taken[pick - start] = true;
+                Entry picked = pending[pick].Entry;
+                ranks[picked] = rank++;
+                if (!light && picked.Path.Length > 0)
+                {
+                    lastStarted = picked.Path;
+                }
+            }
         }
     }
 
@@ -1339,6 +1465,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
 
         bool light = IsLight(incoming);
+        // A promoted item would take the freed slot, not the user's item: stopping work for it is preempting
+        // on the promotion's behalf.
+        if (_entries.Any(e => e.PromotedSeq > incoming.PromotedSeq && IsLight(e) == light && IsStartableLocked(e)))
+        {
+            return null;
+        }
+
         Entry? victim = _entries.FirstOrDefault(e =>
             e.State == DemoQueueItemState.Running && IsLight(e) == light && e.Priority == DemoJobPriority.Background
             && e.Preemptible && !e.Preempted && !e.CancelRequested && !e.Finalizing && e.Kind != QueueJobKind.HeapCompaction
@@ -1995,7 +2128,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     (yielding ??= new HashSet<string>(StringComparer.Ordinal)).Add(owner);
                 }
             }
-            else if (IsStartableLocked(e) && (best is null || Compare(e, best, resident) < 0))
+            else if (IsStartableLocked(e) && (best is null || Compare(e, best, resident, _lastStartedPath) < 0))
             {
                 best = e;
             }
@@ -2050,7 +2183,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         foreach (Entry e in _entries)
         {
             if (e.Kind == QueueJobKind.DemoProcessing && IsStartableLocked(e)
-                && e.Visit!.HasJobOwnedBy(owners) && (best is null || Compare(e, best, resident) < 0))
+                && e.Visit!.HasJobOwnedBy(owners) && (best is null || Compare(e, best, resident, _lastStartedPath) < 0))
             {
                 best = e;
             }
@@ -2071,6 +2204,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (best is not null)
         {
             best.State = DemoQueueItemState.Running;
+            best.PromotedSeq = 0;
             if (!light && best.Path.Length > 0)
             {
                 _lastStartedPath = best.Path;
@@ -2156,6 +2290,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         entry.State = state;
         entry.Error = error;
+        entry.EndedSeq = ++_endedSeq;
+        entry.PromotedSeq = 0;
         entry.Completion.TrySetResult();
         // A waiter's task holds the ParsedDemo, a job's body its closure; history must not keep either.
         entry.ForegroundWaiters.Clear();
@@ -2178,10 +2314,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         PumpLocked(); // an exclusive job ending may let several demo parses start
     }
 
-    // Keep the mirror bounded: drop the oldest terminal entries beyond the history cap.
+    // Keep the mirror bounded: drop the entries that ended longest ago beyond the history cap.
     private void PruneTerminalHistoryLocked()
     {
-        List<Entry> terminal = _entries.Where(e => !IsActive(e)).OrderBy(e => e.Seq).ToList();
+        List<Entry> terminal = _entries.Where(e => !IsActive(e)).OrderBy(e => e.EndedSeq).ToList();
         int excess = terminal.Count - TerminalHistoryCap;
         for (int i = 0; i < excess; i++)
         {
@@ -2282,6 +2418,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     item.Error = s.Error;
                     item.Progress = s.Progress;
                     item.Detail = s.Detail;
+                    item.StartRank = s.StartRank;
+                    item.Light = s.Light;
+                    item.Promoted = s.Promoted;
+                    item.Hold = s.Hold;
+                    item.EndedSeq = s.EndedSeq;
                 }
                 else
                 {
@@ -2297,7 +2438,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                         Kind = s.Kind,
                         ExtensionKind = s.ExtensionKind,
                         Progress = s.Progress,
-                        Detail = s.Detail
+                        Detail = s.Detail,
+                        StartRank = s.StartRank,
+                        Light = s.Light,
+                        Promoted = s.Promoted,
+                        Hold = s.Hold,
+                        EndedSeq = s.EndedSeq
                     });
                 }
             }
@@ -2313,14 +2459,16 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private int BackgroundTierCountLocked() =>
         _entries.Count(e => e.Kind == QueueJobKind.DemoProcessing && IsActive(e));
 
-    // Pause stops every start; the disable switch stops only Background-priority work.
     private bool IsStartableLocked(Entry e) =>
-        e.State == DemoQueueItemState.Queued
-        && !ParkedLocked(e)
-        && (!_paused || e.Priority >= DemoJobPriority.UserRequested)
-        && (_backgroundEnabled || e.Priority >= DemoJobPriority.UserRequested || e.Kind == QueueJobKind.HeapCompaction
-            || IsLight(e))
-        && !BlockedLocked(e);
+        e.State == DemoQueueItemState.Queued && HoldLocked(e) == DemoQueueHold.None && !BlockedLocked(e);
+
+    // Pause stops every start; the disable switch stops only Background-priority work.
+    private DemoQueueHold HoldLocked(Entry e) =>
+        ParkedLocked(e) ? DemoQueueHold.OnOpen
+        : _paused && e.Priority < DemoJobPriority.UserRequested ? DemoQueueHold.Paused
+        : !_backgroundEnabled && e.Priority < DemoJobPriority.UserRequested && e.Kind != QueueJobKind.HeapCompaction
+          && !IsLight(e) ? DemoQueueHold.BackgroundOff
+        : DemoQueueHold.None;
 
     // A keyed item waits while one with its key runs (a same-key submit then reruns once, never beside
     // it), and items sharing a serial never run together.
@@ -2359,11 +2507,24 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
-    // Negative when a runs before b. A compaction goes first: it is due now, and it holds _compacting. Then the
-    // level (a user's request, the open demo's passes, the backlog, background), then a demo already in memory,
-    // then the demo the last heavy item was about, so one demo's work runs back to back, then the kind's rank,
-    // the order hint and arrival.
-    private int Compare(Entry a, Entry b, string? resident)
+    // Negative when a runs before b. A compaction goes first: it is due now, and it holds _compacting. Then a
+    // user's promotion, then the level (a user's request, the open demo's passes, the backlog, background), then
+    // a demo already in memory, then the demo the last heavy item was about, so one demo's work runs back to
+    // back, then the kind's rank, the order hint and arrival.
+    private int Compare(Entry a, Entry b, string? resident, string? lastStarted)
+    {
+        int byTier = CompareTier(a, b, resident);
+        if (byTier != 0)
+        {
+            return byTier;
+        }
+
+        int byGroup = SamePathFirst(a, b, lastStarted);
+        return byGroup != 0 ? byGroup : CompareWithinGroup(a, b);
+    }
+
+    // Every key above the last-started grouping.
+    private static int CompareTier(Entry a, Entry b, string? resident)
     {
         bool aCompacts = a.Kind == QueueJobKind.HeapCompaction, bCompacts = b.Kind == QueueJobKind.HeapCompaction;
         if (aCompacts != bCompacts)
@@ -2375,6 +2536,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         if (a.Front != b.Front)
         {
             return a.Front ? -1 : 1;
+        }
+
+        // Above priority and level, newest promotion first. Only ordering: pause and the switch still hold it.
+        if (a.PromotedSeq != b.PromotedSeq)
+        {
+            return b.PromotedSeq.CompareTo(a.PromotedSeq);
         }
 
         if (a.Priority != b.Priority)
@@ -2393,18 +2560,11 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             return a.Requeued ? -1 : 1;
         }
 
-        int byResident = SamePathFirst(a, b, resident);
-        if (byResident != 0)
-        {
-            return byResident;
-        }
+        return SamePathFirst(a, b, resident);
+    }
 
-        int byGroup = SamePathFirst(a, b, _lastStartedPath);
-        if (byGroup != 0)
-        {
-            return byGroup;
-        }
-
+    private int CompareWithinGroup(Entry a, Entry b)
+    {
         int rank = _jobKinds.Rank(a.Kind, a.ExtensionKind).CompareTo(_jobKinds.Rank(b.Kind, b.ExtensionKind));
         if (rank != 0)
         {
@@ -2443,7 +2603,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private static DemoQueueItemSnapshot ToSnapshot(Entry e) => new(
         e.Id, e.Path, e.DisplayName,
         e.JobOwner is { } owner ? [owner] : e.Visit?.OwnerIds ?? [],
-        e.Priority, e.State, e.Error, e.Kind, e.Progress, e.Detail, e.ExtensionKind);
+        e.Priority, e.State, e.Error, e.Kind, e.Progress, e.Detail, e.ExtensionKind,
+        Promoted: e.PromotedSeq > 0, EndedSeq: e.EndedSeq);
 
     private static void SafeInvoke(Action action)
     {
@@ -2620,6 +2781,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         public long Seq { get; init; }
         public DemoQueueItemState State { get; set; } = DemoQueueItemState.Queued;
         public string? Error { get; set; }
+        public long EndedSeq { get; set; }
+
+        // Set by Promote, newest highest; 0 when not promoted. Cleared once it starts or ends.
+        public long PromotedSeq { get; set; }
         public bool CancelRequested { get; set; }
 
         // Stopped for a user's item; it goes back in the queue instead of ending.

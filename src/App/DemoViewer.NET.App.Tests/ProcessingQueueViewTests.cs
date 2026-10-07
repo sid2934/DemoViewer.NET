@@ -2,7 +2,9 @@
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using CS2DemoKit.Parser;
@@ -18,7 +20,8 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The queue flyout over a real queue holding every kind of job: a running mine with progress, queued clips,
 ///     pack export, migration and demo parse, a finished parse and a failed clip batch. Rendered to
-///     <c>queue-flyout-mixed.png</c> under the artifact directory.
+///     <c>queue-flyout-mixed.png</c> and, with Recent shown, <c>queue-flyout-mixed-recent.png</c> under the
+///     artifact directory.
 /// </summary>
 [NotInParallel]
 public class ProcessingQueueViewTests
@@ -103,22 +106,64 @@ public class ProcessingQueueViewTests
             window.Show();
             Playback2DTimelineHarness.Pump();
 
-            ListBox list = window.GetVisualDescendants().OfType<ListBox>().Single();
+            ListBox list = window.GetVisualDescendants().OfType<ListBox>().Single(l => l.Name == "LiveList");
             window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "queue-flyout-mixed.png"),
                 new PngBitmapEncoderOptions());
 
+            // Running first, then queued in the order the queue reports it will start them.
+            List<string> ranked = queue.Snapshot().Where(s => s.State == DemoQueueItemState.Queued)
+                .OrderBy(s => s.Light).ThenBy(s => s.StartRank).Select(s => s.DisplayName!).ToList();
+            DemoQueueRowViewModel mine = vm.Rows.Single(r => r.KindLabel == "mining");
             using (Assert.Multiple())
             {
-                await Assert.That(list.ItemCount).IsEqualTo(7);
+                await Assert.That(list.ItemCount).IsEqualTo(5);
                 await Assert.That(vm.Rows.Select(r => r.KindLabel).Where(k => k.Length > 0).Distinct().Order())
                     .IsEquivalentTo(["clips", "migration", "mining", "pack export"]);
-                DemoQueueRowViewModel mine = vm.Rows.Single(r => r.KindLabel == "mining");
+                await Assert.That(vm.Rows[0]).IsSameReferenceAs(mine);
+                await Assert.That(string.Join("|", vm.Rows.Skip(1).Select(r => r.DisplayText))).IsEqualTo(string.Join("|", ranked));
                 await Assert.That(mine.HasProgress).IsTrue();
                 await Assert.That(mine.ProgressValue).IsEqualTo(48.0 / 366);
                 await Assert.That(mine.Detail).IsEqualTo("48 of 366 demos");
-                await Assert.That(vm.Rows.Single(r => r.StateLabel == "Failed").Error).IsEqualTo("no map bundle for de_nuke");
+                await Assert.That(vm.RecentRows.Count).IsEqualTo(2);
+                await Assert.That(vm.RecentRows.Single(r => r.StateLabel == "Failed").Error).IsEqualTo("no map bundle for de_nuke");
                 await Assert.That(vm.StatusLine).IsEqualTo("1 running · 4 queued · paused: background work held");
             }
+
+            // The last queued row's menu: Move to top, then Remove. While paused only the user's pack export may
+            // start, so the promoted background row goes straight after it.
+            DemoQueueRowViewModel last = vm.Rows[^1];
+            Grid row = list.GetVisualDescendants().OfType<Grid>()
+                .First(g => g.ContextMenu is not null && ReferenceEquals(g.DataContext, last));
+            ContextMenu menu = row.ContextMenu!;
+            menu.Open(row);
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "queue-flyout-menu.png"),
+                new PngBitmapEncoderOptions());
+            MenuItem[] entries = menu.Items.OfType<MenuItem>().ToArray();
+            using (Assert.Multiple())
+            {
+                await Assert.That(entries.Select(m => (string)m.Header!)).IsEquivalentTo(
+                    [last.PromoteLabel, "Remove from queue"]);
+                await Assert.That(entries[0].Header as string).StartsWith("Move to top");
+            }
+
+            entries[0].Command!.Execute(null);
+            menu.Close();
+            await PumpUntilAsync(() => vm.Rows[2] == last, "the promoted row to move up");
+            using (Assert.Multiple())
+            {
+                await Assert.That(last.IsPromoted).IsTrue();
+                await Assert.That(last.PromoteLabel).IsEqualTo("Move to top (waits: background work paused)");
+                await Assert.That(vm.Rows[1].KindLabel).IsEqualTo("pack export");
+                await Assert.That(vm.Rows[0]).IsSameReferenceAs(mine).Because("a promotion stops nothing");
+                await Assert.That(mine.IsRunning).IsTrue();
+            }
+
+            vm.IsRecentView = true;
+            Playback2DTimelineHarness.Pump();
+            window.CaptureRenderedFrame()?.Save(Path.Combine(HeadlessSession.ArtifactDir, "queue-flyout-mixed-recent.png"),
+                new PngBitmapEncoderOptions());
+            vm.IsQueueView = true;
 
             // The row's remove cancels the running job through its token.
             vm.Rows.Single(r => r.KindLabel == "mining").RemoveCommand.Execute(null);
@@ -128,12 +173,12 @@ public class ProcessingQueueViewTests
         });
 
     /// <summary>
-    ///     An open waiting on a background parse it cannot stop: first row, and it names the file it waits for.
-    ///     Rendered to <c>queue-flyout-open-waiting.png</c>.
+    ///     An open waiting on a background parse it cannot stop: the first queued row, under the running parse, and
+    ///     it names the file it waits for. Rendered to <c>queue-flyout-open-waiting.png</c>.
     /// </summary>
     [Test]
     [Category("Integration")]
-    public async Task AnOpenWaitingOnAParse_IsTheFirstRow_AndNamesTheParse() =>
+    public async Task AnOpenWaitingOnAParse_IsTheFirstQueuedRow_AndNamesTheParse() =>
         await HeadlessSession.RunOnUi(async () =>
         {
             using HeavyJobGate gate = new();
@@ -156,7 +201,7 @@ public class ProcessingQueueViewTests
                 using IDemoOpenTicket open = queue.BeginOpen("/demos/faze-vs-g2-m1.dem", "faze-vs-g2-m1.dem");
                 Task<ParsedDemo> parse = open.ParseAsync(new byte[] { 1 });
                 using ProcessingQueueStatusViewModel vm = new(queue, () => { });
-                await PumpUntilAsync(() => vm.Rows.Count == 3 && vm.Rows[0].HasDetail, "the waiting open");
+                await PumpUntilAsync(() => vm.Rows.Count == 3 && vm.Rows[1].HasDetail, "the waiting open");
 
                 Border host = new()
                 {
@@ -174,7 +219,8 @@ public class ProcessingQueueViewTests
                 window.CaptureRenderedFrame()?.Save(
                     Path.Combine(HeadlessSession.ArtifactDir, "queue-flyout-open-waiting.png"), new PngBitmapEncoderOptions());
 
-                DemoQueueRowViewModel first = vm.Rows[0];
+                await Assert.That(vm.Rows[0].StateLabel).IsEqualTo("Running");
+                DemoQueueRowViewModel first = vm.Rows[1];
                 using (Assert.Multiple())
                 {
                     await Assert.That(first.DisplayText).Contains("Open demo: faze-vs-g2-m1.dem");
@@ -192,6 +238,67 @@ public class ProcessingQueueViewTests
             finally
             {
                 release.Set();
+            }
+        });
+
+    /// <summary>
+    ///     The panel as the status chip hosts it, inside a light-dismiss flyout: a right press on a queued row opens
+    ///     its menu, and picking Move to top promotes the row without closing the flyout.
+    /// </summary>
+    [Test]
+    [Category("Integration")]
+    public async Task InTheChipFlyout_RightClickThenMoveToTop_PromotesTheRow() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using HeavyJobGate gate = new();
+            using DemoProcessingQueue queue = new(gate, parseFile: _ => SyntheticDemo(), compactHeap: () => Task.CompletedTask);
+            TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                queue.SubmitJob(new QueueJobRequest(QueueJobKind.SidecarMigration, "Sidecar format: compress cached files",
+                    "demo-cache", DemoJobPriority.UserRequested, async job =>
+                    {
+                        started.TrySetResult();
+                        await release.Task.WaitAsync(job.CancellationToken);
+                    }));
+                await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                queue.SubmitBackground(new DemoProcessingRequest("/demos/a.dem", "library", DemoJobPriority.Background, 2,
+                    _ => { }, null, "a.dem"));
+                queue.SubmitBackground(new DemoProcessingRequest("/demos/b.dem", "library", DemoJobPriority.Background, 1,
+                    _ => { }, null, "b.dem"));
+
+                using ProcessingQueueStatusViewModel vm = new(queue, () => { });
+                await PumpUntilAsync(() => vm.Rows.Count == 3, "the rows");
+                ProcessingQueueStatusView view = new() { DataContext = vm };
+                Button chip = new() { Content = "Processing 1" };
+                Flyout flyout = new() { Placement = PlacementMode.Top, Content = new Border { Classes = { "card-flyout" }, Child = view } };
+                chip.Flyout = flyout;
+                Window window = new() { Width = 500, Height = 700, Content = new Border { Padding = new Thickness(20, 600, 20, 20), Child = chip } };
+                window.Show();
+                flyout.ShowAt(chip);
+                Playback2DTimelineHarness.Pump();
+
+                DemoQueueRowViewModel b = vm.Rows.Single(r => r.DisplayText == "b.dem");
+                await Assert.That(vm.Rows[^1]).IsSameReferenceAs(b);
+                Grid row = view.GetVisualDescendants().OfType<Grid>().First(g => g.ContextMenu is not null && ReferenceEquals(g.DataContext, b));
+                Point rowAt = row.TranslatePoint(new Point(40, 8), window)!.Value;
+                window.MouseDown(rowAt, MouseButton.Right);
+                window.MouseUp(rowAt, MouseButton.Right);
+                Playback2DTimelineHarness.Pump();
+                await Assert.That(row.ContextMenu!.IsOpen).IsTrue();
+
+                MenuItem promote = row.ContextMenu.Items.OfType<MenuItem>().First();
+                Point itemAt = promote.TranslatePoint(new Point(10, promote.Bounds.Height / 2), window)!.Value;
+                window.MouseDown(itemAt, MouseButton.Left);
+                window.MouseUp(itemAt, MouseButton.Left);
+                await PumpUntilAsync(() => b.IsPromoted && vm.Rows[1] == b, "b.dem to move up");
+                await Assert.That(flyout.IsOpen).IsTrue().Because("picking from the row menu must not dismiss the chip's flyout");
+                window.Close();
+            }
+            finally
+            {
+                release.TrySetResult();
             }
         });
 

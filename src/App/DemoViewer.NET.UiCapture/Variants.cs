@@ -242,6 +242,7 @@ public static partial class Variants
             ["reel-chips"] = ReelChips,
             ["queue-flyout"] = () => QueueFlyout(true),
             ["queue-flyout-empty"] = () => QueueFlyout(false),
+            ["queue-flyout-recent"] = () => QueueFlyout(true, true),
             ["queue-chips"] = QueueChips,
             // First-run Visual Walkthrough overlay. Render at --size 1100x680 so the
             // seeded SpotlightRects line up with the coarse backdrop regions.
@@ -4090,23 +4091,32 @@ public static partial class Variants
     ///     The queue flyout body over a fake queue: the live queue-management surface (item list with
     ///     state dot + owner/priority chips + per-item ✕, status line, Pause/Resume).
     /// </summary>
-    private static Border QueueFlyout(bool populated)
+    private static Border QueueFlyout(bool populated, bool recent = false)
     {
         FakeProcessingQueue queue = new();
         if (populated)
         {
+            // Arrival order differs from start order: the rows must follow StartRank, the promoted one first.
             queue.Seed(
-                ("faceit_liquid_vs_navi.dem", "library, highlights", DemoJobPriority.Background, DemoQueueItemState.Running, null),
-                ("mirage_scrim_2025.dem", "highlights", DemoJobPriority.UserRequested, DemoQueueItemState.Queued, null),
-                ("de_nuke_pug_night.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued, null),
                 ("ancient_ranked_2650.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Completed, null),
-                ("corrupt_half_download.dem", "highlights", DemoJobPriority.Background, DemoQueueItemState.Failed, "Unexpected end of stream"),
-                ("overpass_faceit.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Rejected, null));
+                ("de_nuke_pug_night.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued, null),
+                ("corrupt_half_download.dem", "highlights", DemoJobPriority.Background, DemoQueueItemState.Failed,
+                    "Unexpected end of stream at byte 48213504: the file is truncated"),
+                ("mirage_scrim_2025.dem", "highlights", DemoJobPriority.UserRequested, DemoQueueItemState.Queued, null),
+                ("faceit_liquid_vs_navi.dem", "library, highlights", DemoJobPriority.Background, DemoQueueItemState.Running, null),
+                ("inferno_retake_drills.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued, null),
+                ("overpass_faceit.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Cancelled, null));
+            queue.Rank("inferno_retake_drills.dem", 0, true);
+            queue.Rank("mirage_scrim_2025.dem", 1);
+            queue.Rank("de_nuke_pug_night.dem", 2);
+            queue.Ended("ancient_ranked_2650.dem", 1);
+            queue.Ended("corrupt_half_download.dem", 2);
+            queue.Ended("overpass_faceit.dem", 3);
             queue.RunningCount = 1;
-            queue.QueuedCount = 2;
+            queue.QueuedCount = 3;
         }
 
-        ProcessingQueueStatusViewModel vm = new(queue, () => { });
+        ProcessingQueueStatusViewModel vm = new(queue, () => { }) { IsRecentView = recent };
         return new Border
         {
             Background = Tok("ShellBg"),
@@ -4603,6 +4613,15 @@ public static partial class Variants
                 });
             }
         }
+
+        public void Rank(string name, int rank, bool promoted = false)
+        {
+            DemoQueueItem item = _items.Single(i => i.DisplayName == name);
+            item.StartRank = rank;
+            item.Promoted = promoted;
+        }
+
+        public void Ended(string name, long seq) => _items.Single(i => i.DisplayName == name).EndedSeq = seq;
     }
 
     // Minimal IReelJobService double: a fixed status set before the VM is constructed (the VM's ctor maps

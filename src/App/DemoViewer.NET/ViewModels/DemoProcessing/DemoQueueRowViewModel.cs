@@ -46,6 +46,46 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     /// <summary>The wrapped item's stable id: identity for the queue's reconcile + the remove key.</summary>
     public Guid Id => _item.Id;
 
+    /// <summary>The queue item this row shows.</summary>
+    public DemoQueueItem Item => _item;
+
+    /// <summary>Running now.</summary>
+    public bool IsRunning => _item.State == DemoQueueItemState.Running;
+
+    /// <summary>Waiting to start.</summary>
+    public bool IsQueued => _item.State == DemoQueueItemState.Queued;
+
+    /// <summary>Ended: completed, failed, cancelled or rejected. The row belongs in Recent.</summary>
+    public bool IsFinished => !IsQueued && !IsRunning;
+
+    /// <summary>The user moved it to the top; the queue clears this when it starts.</summary>
+    public bool IsPromoted => IsQueued && _item.Promoted;
+
+    /// <summary>
+    ///     Whether "Move to top" applies: the cases <see cref="IDemoProcessingQueue.Promote" /> refuses. An open
+    ///     already goes first, a compaction is due now, a visit parked on an open runs on that open's parse, and
+    ///     a light item would hold back the user's light items that run beside the running one.
+    /// </summary>
+    public bool CanPromote => IsQueued && _item.Kind is not (QueueJobKind.DemoOpen or QueueJobKind.HeapCompaction)
+                              && _item.Hold != DemoQueueHold.OnOpen && !_item.Light;
+
+    /// <summary>The menu entry, saying when a promoted item will still wait.</summary>
+    public string PromoteLabel => _item.Hold switch
+    {
+        DemoQueueHold.Paused => "Move to top (waits: background work paused)",
+        DemoQueueHold.BackgroundOff => "Move to top (waits: background processing off)",
+        _ => "Move to top"
+    };
+
+    /// <summary>Only an active item can be removed; a finished one is history.</summary>
+    public bool CanRemove => IsQueued || IsRunning;
+
+    /// <summary>The remove entry's wording: a running item stops at its next step.</summary>
+    public string RemoveLabel => IsRunning ? "Stop and remove" : "Remove from queue";
+
+    /// <summary>A failed item's message, shown under it in Recent.</summary>
+    public bool HasError => _item.State == DemoQueueItemState.Failed && !string.IsNullOrEmpty(_item.Error);
+
     /// <summary>File-name display (falls back to the path when the queue supplied no display name).</summary>
     public string DisplayText =>
         !string.IsNullOrEmpty(_item.DisplayName) ? _item.DisplayName! : SafeFileName(_item.Path);
@@ -141,9 +181,13 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void Remove() => _queue.RemoveByUser(_item.Id);
 
+    /// <summary>Starts this item next in its lane once the running one there finishes. Stops nothing.</summary>
+    [RelayCommand]
+    private void Promote() => _queue.Promote(_item.Id);
+
     private void OnItemChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // Any field the queue mutates in place (State, Priority, Owners, DisplayName, Error) → re-raise the
+        // Any field the queue mutates in place (State, Priority, Owners, DisplayName, Error, ...) → re-raise the
         // whole projected surface. The set is tiny, so a blanket re-raise is simpler and cheaper than mapping
         // each source property to its derived ones.
         OnPropertyChanged(nameof(DisplayText));
@@ -166,6 +210,15 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsStateDegraded));
         OnPropertyChanged(nameof(IsStateError));
         OnPropertyChanged(nameof(IsPulsing));
+        OnPropertyChanged(nameof(IsRunning));
+        OnPropertyChanged(nameof(IsQueued));
+        OnPropertyChanged(nameof(IsFinished));
+        OnPropertyChanged(nameof(IsPromoted));
+        OnPropertyChanged(nameof(CanPromote));
+        OnPropertyChanged(nameof(PromoteLabel));
+        OnPropertyChanged(nameof(CanRemove));
+        OnPropertyChanged(nameof(RemoveLabel));
+        OnPropertyChanged(nameof(HasError));
     }
 
     private static string SafeFileName(string path)
