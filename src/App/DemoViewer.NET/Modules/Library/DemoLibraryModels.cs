@@ -50,7 +50,8 @@ public partial class DemoEntry : ObservableObject
     // Other folders that hold a copy of THIS demo: one whose full hash agrees, or whose fingerprint matches
     // until something reads it in full. This entry is the primary (a confirmed path before an unconfirmed
     // one, then the ordinally smallest); the shadows are not shown as their own cards (appear once) and are
-    // not processed separately (processed once). Empty when the demo is unique.
+    // not processed separately (processed once). Empty when the demo is unique. Wider than the SDK's
+    // LibraryDemo.Locations on purpose: the user sees every copy found, an extension only paths a full read proved.
     [ObservableProperty]
     private IReadOnlyList<string> _duplicateFolders = [];
 
