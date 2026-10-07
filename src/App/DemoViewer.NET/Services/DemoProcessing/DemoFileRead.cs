@@ -51,25 +51,28 @@ public sealed class DemoFileRead(TimeProvider time, Func<string, bool>? wantsHas
             return File.ReadAllBytes(path);
         }
 
-        bool settled = MappedParsePolicy.IsSettled(path, time, MappedParsePolicy.StatFile);
-        if (settled && !NetworkMounts.IsNetwork(path))
+        bool network = NetworkMounts.IsNetwork(path);
+        // On a network mount a stat can stall like a read, so it is bounded the same way.
+        Func<string, FileStat> stat = network ? p => Bounded(() => MappedParsePolicy.StatFile(p), p) : MappedParsePolicy.StatFile;
+        bool settled = MappedParsePolicy.IsSettled(path, time, stat);
+        if (settled && !network)
         {
             if (want)
             {
-                FileStat stat = MappedParsePolicy.StatFile(path);
+                FileStat now = stat(path);
                 (string? sha, DemoContentFingerprint? fingerprint) = DemoContentFingerprint.TryComputeWithContentHash(path, time);
                 if (sha is not null)
                 {
-                    contentRead!(new DemoContentRead(path, sha, fingerprint, stat));
+                    contentRead!(new DemoContentRead(path, sha, fingerprint, now));
                 }
             }
 
             return null;
         }
 
-        FileStat before = MappedParsePolicy.StatFile(path);
+        FileStat before = stat(path);
         byte[] bytes = ReadAll(path, NoProgress, cancellationToken);
-        if (want && settled && bytes.LongLength == before.Length && MappedParsePolicy.StatFile(path) == before)
+        if (want && settled && bytes.LongLength == before.Length && stat(path) == before)
         {
             using MemoryStream stream = new(bytes, false);
             (string sha, DemoContentFingerprint fingerprint) =
@@ -78,6 +81,18 @@ public sealed class DemoFileRead(TimeProvider time, Func<string, bool>? wantsHas
         }
 
         return bytes;
+    }
+
+    private static T Bounded<T>(Func<T> call, string path)
+    {
+        Task<T> answer = Task.Run(call);
+        if (Task.WaitAny(new Task[] { answer }, NoProgress) < 0)
+        {
+            _ = answer.ContinueWith(static t => _ = t.Exception, TaskScheduler.Default);
+            throw new IOException($"{path} gave no answer in {NoProgress.TotalSeconds:0.#} s");
+        }
+
+        return answer.GetAwaiter().GetResult();
     }
 
     /// <summary>
@@ -283,10 +298,12 @@ internal static class NetworkMounts
     {
         try
         {
-            DriveInfo? mount = DriveInfo.GetDrives()
+            // An automounted share is listed twice at one root, the automounter and the share it mounted.
+            return DriveInfo.GetDrives()
                 .Where(d => Under(folder, d.RootDirectory.FullName))
-                .MaxBy(d => d.RootDirectory.FullName.Length);
-            return mount?.DriveType == DriveType.Network;
+                .GroupBy(d => d.RootDirectory.FullName.Length)
+                .MaxBy(g => g.Key)?
+                .Any(d => d.DriveType == DriveType.Network) == true;
         }
         catch (Exception)
         {
