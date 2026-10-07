@@ -102,10 +102,11 @@ public sealed record DemoDataRecord(int Schema, string? Fingerprint, string? Ext
 ///             content keeps its own.
 ///         </item>
 ///         <item>
-///             A hashed demo whose last path leaves the library keeps its data while the library keeps the
-///             demo, and reads it again once a path to the same bytes is back. The data goes when the library
-///             lets the demo go, when the user deletes the demo, or with <see cref="Delete" />. A demo that left
-///             before it was hashed loses its data at once.
+///             A hashed demo whose last path leaves the library, its file deleted or its folder removed or
+///             offline, keeps its data while the library keeps the demo, and reads it again once a path to the
+///             same bytes is back. The data goes when the library lets the demo go, once no folder has listed its
+///             bytes for the grace period the user sets (two weeks by default), or with <see cref="Delete" />.
+///             Nothing deletes one demo's data sooner. A demo that left before it was hashed loses its data at once.
 ///         </item>
 ///     </list>
 ///     <para>

@@ -373,8 +373,9 @@ Data is kept per facet (a name for one kind of data) under the demo's content ha
 of the demo's `Locations` reads and writes the same facet: a moved or renamed demo, a copy, or a second mount of
 the same share keeps it. A facet written before the library hashed the demo follows the content once the hash
 is known. A path matched to a known demo without a full read reads as absent until a read confirms it. When a
-demo's last path leaves the library its data is kept while the library keeps the demo, and comes back with the
-file; it goes when the library lets the demo go or the user deletes it. Each write records a schema and a
+demo's last path leaves the library, its file deleted or its folder gone, its data is kept while the library
+keeps the demo, and comes back with the file; it goes once no folder has listed the demo's bytes for the grace
+period the user sets, two weeks by default. Nothing deletes one demo's data sooner. Each write records a schema and a
 fingerprint (what the data was computed from); a read that asks for another schema or fingerprint finds
 nothing, so a new version of your pass rebuilds rather than reads stale data.
 
