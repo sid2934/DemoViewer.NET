@@ -273,6 +273,7 @@ public class LibraryFingerprintTests
 
             await library.Service.AddFoldersAsync([folder]);
             await library.Service.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
+            await library.Service.Confirmed.WaitAsync(TimeSpan.FromSeconds(10));
             await WaitForAsync(() => library.Service.Entries is [{ State: DemoIndexState.Indexed }], "the card filled");
             await Task.Delay(150);
 
@@ -283,6 +284,131 @@ public class LibraryFingerprintTests
                 await Assert.That(library.Store.TryGetByContentId(sha)?.Path).IsEqualTo(path);
                 await Assert.That(library.Store.TryGetByContentId(sha)?.ContentFingerprint).IsNotNull();
                 await Assert.That(library.Service.Entries[0].MapName).IsEqualTo("de_old");
+            }
+        }
+        finally
+        {
+            Cleanup(folder);
+        }
+    }
+
+    // A known demo fingerprinted with another window, its path gone: a copy on a new mount is read with that
+    // window too, so it is recognised without a full read or a parse.
+    [Test]
+    public async Task ADemoFingerprintedWithAnotherWindow_IsStillRecognisedWithoutAFullRead()
+    {
+        string folder = NewTempDir();
+        try
+        {
+            byte[] bytes = Bytes(13);
+            string path = Write(folder, "m.dem", bytes);
+            string sha = DemoContentHash.Compute(bytes);
+            DemoCacheStore store = new(null);
+            using MemoryStream stream = new(bytes);
+            DemoCacheRecord record = new() { Path = "/gone/m.dem", Size = bytes.Length, ModifiedTicks = 1, Map = "de_old" };
+            record.SetContentHash(sha, DemoContentFingerprint.Compute(stream, 64));
+            DemoCacheStore.StampHeader(record);
+            DemoCacheStore.StampParse(record);
+            store.Upsert(record);
+            store.Detach("/gone/m.dem");
+            using Library library = new(folder, store);
+            library.Queue.BackgroundEnabled = false;
+
+            await library.Service.AddFoldersAsync([folder]);
+            await library.Service.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
+            await WaitForAsync(() => library.Service.Entries is [{ State: DemoIndexState.Indexed }], "the card filled");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.Reader.FullReads(path)).IsEqualTo(0);
+                await Assert.That(library.TotalParses).IsEqualTo(0);
+                await Assert.That(library.Store.LocationOf(path)?.ContentId).IsEqualTo(sha);
+                await Assert.That(library.Store.LocationOf(path)?.Location.Confirmed).IsFalse();
+                await Assert.That(library.Service.Entries[0].MapName).IsEqualTo("de_old");
+            }
+        }
+        finally
+        {
+            Cleanup(folder);
+        }
+    }
+
+    // The full reads a scan leaves for the background wait on the background switch; the scan's prunes and its
+    // save do not.
+    [Test]
+    public async Task WithTheBackgroundSwitchOff_TheScanStillPrunesAndSaves_BeforeItsFullReads()
+    {
+        string folder = NewTempDir();
+        string cache = NewTempDir();
+        try
+        {
+            byte[] bytes = Bytes(14);
+            Write(folder, "m.dem", bytes);
+            DemoCacheStore store = new(cache);
+            DemoCacheRecord legacy = new() { Path = "/gone/m.dem", Size = bytes.Length, ModifiedTicks = 1 };
+            legacy.SetContentHash(DemoContentHash.Compute(bytes), null);
+            store.Upsert(legacy);
+            store.Detach("/gone/m.dem");
+            // A path the scan no longer lists, of the size of a file it holds back: its prune waits for the copies.
+            string vanished = Path.Combine(folder, "old.dem");
+            DemoCacheRecord other = new() { Path = "/elsewhere/other.dem", Size = 7, ModifiedTicks = 2 };
+            other.SetContentHash("sha-other", null);
+            store.Upsert(other);
+            store.AttachUnconfirmed("sha-other", vanished, bytes.Length, 3);
+            store.SaveIndex();
+            using Library library = new(folder, store);
+            library.Queue.BackgroundEnabled = false;
+
+            await library.Service.AddFoldersAsync([folder]);
+            await library.Service.CopiesResolved.WaitAsync(TimeSpan.FromSeconds(10));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.Store.LocationOf(vanished)).IsNull();
+                await Assert.That(new DemoCacheStore(cache).LocationOf(vanished)).IsNull().Because("the scan saved");
+                await Assert.That(library.Service.Confirmed.IsCompleted).IsFalse().Because("the full read waits on the switch");
+                await Assert.That(library.TotalParses).IsEqualTo(0);
+            }
+
+            library.Queue.BackgroundEnabled = true;
+            await library.Service.Confirmed.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(library.Store.TryGetByContentId(DemoContentHash.Compute(bytes))?.Path)
+                .IsEqualTo(Path.Combine(folder, "m.dem"));
+        }
+        finally
+        {
+            Cleanup(folder);
+            Cleanup(cache);
+        }
+    }
+
+    // A demo parsed while its file was still being written gets no hash from the parse; once the file has
+    // settled, the background pass reads it once, and the demo is reachable by hash.
+    [Test]
+    public async Task ADemoParsedBeforeItsFileSettled_IsHashedOnceItHas()
+    {
+        string folder = NewTempDir();
+        try
+        {
+            byte[] bytes = Bytes(15);
+            string path = Write(folder, "m.dem", bytes);
+            string sha = DemoContentHash.Compute(bytes);
+            using Library library = new(folder, new DemoCacheStore(null));
+            library.Service.Time = new Extensions.ManualClock { Now = File.GetLastWriteTimeUtc(path) };
+
+            await library.Service.AddFoldersAsync([folder]);
+            await WaitForAsync(() => library.Service.Entries is [{ State: DemoIndexState.Indexed }]
+                                     && library.Store.TryGetIndex(path) is { ParseSchema: > 0 }, "the demo parsed");
+            await Assert.That(library.Store.TryGetIndex(path)!.Sha256).IsNull();
+
+            library.Service.Time = Settled;
+            await library.Service.RescanAsync();
+            await library.Service.Confirmed.WaitAsync(TimeSpan.FromSeconds(10));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(library.Store.TryGetByContentId(sha)?.Path).IsEqualTo(path);
+                await Assert.That(library.TotalParses).IsEqualTo(1);
             }
         }
         finally
@@ -590,7 +716,7 @@ internal sealed class CountingContentReader : ILibraryContentReader
         return DemoContentFingerprint.TryComputeWithContentHash(path, time, null, WindowBytes);
     }
 
-    public DemoContentFingerprint? Fingerprint(string path, TimeProvider time)
+    public DemoContentFingerprint? Fingerprint(string path, TimeProvider time, int windowBytes)
     {
         _windows.AddOrUpdate(path, 1, (_, n) => n + 1);
         if (Block?.Invoke(path) == true)
@@ -599,7 +725,7 @@ internal sealed class CountingContentReader : ILibraryContentReader
             _gate.Task.Wait(TimeSpan.FromMinutes(1));
         }
 
-        return DemoContentFingerprint.TryCompute(path, time, null, WindowBytes);
+        return DemoContentFingerprint.TryCompute(path, time, null, windowBytes);
     }
 }
 

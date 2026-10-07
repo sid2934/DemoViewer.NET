@@ -19,8 +19,8 @@ internal interface ILibraryContentReader
     /// </summary>
     (string? Sha256, DemoContentFingerprint? Fingerprint) HashAndFingerprint(string path, TimeProvider time);
 
-    /// <summary>The fingerprint alone, as <see cref="DemoContentFingerprint.TryCompute" /> takes it.</summary>
-    DemoContentFingerprint? Fingerprint(string path, TimeProvider time);
+    /// <summary>The fingerprint alone, as <see cref="DemoContentFingerprint.TryCompute" /> takes it, with the given window.</summary>
+    DemoContentFingerprint? Fingerprint(string path, TimeProvider time, int windowBytes);
 }
 
 /// <summary>The real file system, with the default fingerprint window.</summary>
@@ -34,6 +34,6 @@ internal sealed class FileSystemLibraryContentReader : ILibraryContentReader
     public (string? Sha256, DemoContentFingerprint? Fingerprint) HashAndFingerprint(string path, TimeProvider time) =>
         DemoFileRead.TryHash(path, time, WindowBytes, DemoFileRead.NoProgress, CancellationToken.None);
 
-    public DemoContentFingerprint? Fingerprint(string path, TimeProvider time) =>
-        DemoContentFingerprint.TryCompute(path, time);
+    public DemoContentFingerprint? Fingerprint(string path, TimeProvider time, int windowBytes) =>
+        DemoContentFingerprint.TryCompute(path, time, null, windowBytes);
 }
