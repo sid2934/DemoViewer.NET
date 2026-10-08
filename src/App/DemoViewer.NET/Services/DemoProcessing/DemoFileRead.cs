@@ -262,6 +262,10 @@ internal static class NetworkMounts
     private static readonly TimeSpan Answer = TimeSpan.FromSeconds(5);
     private static readonly Dictionary<string, (bool Network, DateTime At)> _byFolder = new(StringComparer.OrdinalIgnoreCase);
 
+    // DriveInfo.GetDrives is not safe to call concurrently on macOS: overlapping calls read freed mount
+    // strings and crash the process with an access violation.
+    private static readonly Lock _lookup = new();
+
     /// <summary>
     ///     True for a path on a network mount, or one whose mount does not answer in time: such a path is read
     ///     the guarded way.
@@ -283,8 +287,10 @@ internal static class NetworkMounts
             }
         }
 
-        // The drive type is a statfs of the mount, which a dead network mount may never answer.
-        Task<bool> ask = Task.Run(() => Lookup(folder));
+        // The drive type is a statfs of the mount, which a dead network mount may never answer. Its own thread:
+        // queued behind a busy pool, a local path would time out and be taken for network.
+        Task<bool> ask = Task.Factory.StartNew(() => Lookup(folder), CancellationToken.None,
+            TaskCreationOptions.LongRunning, TaskScheduler.Default);
         bool network = !ask.Wait(Answer) || ask.Result;
         lock (_byFolder)
         {
@@ -298,8 +304,14 @@ internal static class NetworkMounts
     {
         try
         {
+            DriveInfo[] drives;
+            lock (_lookup)
+            {
+                drives = DriveInfo.GetDrives();
+            }
+
             // An automounted share is listed twice at one root, the automounter and the share it mounted.
-            return DriveInfo.GetDrives()
+            return drives
                 .Where(d => Under(folder, d.RootDirectory.FullName))
                 .GroupBy(d => d.RootDirectory.FullName.Length)
                 .MaxBy(g => g.Key)?
