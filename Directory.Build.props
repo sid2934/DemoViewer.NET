@@ -61,6 +61,19 @@
     </PropertyGroup>
 
     <!--
+        SixLabors.ImageSharp 3.1.12 advisories with no 3.x fix (4.x needs a Six Labors license key to build).
+        ImageSharp only encodes GIFs from our own frames (ManagedGifSink) and the tests read those back; the
+        advisories are in TIFF, ICC and HistogramEqualization paths nothing here reaches.
+    -->
+    <ItemGroup>
+        <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-gwg2-r3hj-4w44"/>
+        <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-j3p4-wp97-rph4"/>
+        <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-j9gm-c75j-xc9q"/>
+        <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-jjfr-hcj7-qf5w"/>
+        <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-wmxv-xphr-5c9g"/>
+    </ItemGroup>
+
+    <!--
         Build-path privacy for RELEASE builds (docs/upstream/build-path-leak-report.md).
 
         Every assembly records the absolute path of its .pdb in the CodeView debug directory, and
