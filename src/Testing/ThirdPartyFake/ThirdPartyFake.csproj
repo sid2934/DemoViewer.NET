@@ -13,6 +13,18 @@
 
     <Import Project="..\..\Sdk\DemoViewer.NET.Extensions.Sdk\build\DemoViewer.NET.Extensions.Sdk.targets"/>
 
+    <!-- The stamped manifest stays beside this DLL only. Flowing it to a referencing project's output would
+         overwrite the Strat Book's extension.json there, whichever project copies last. -->
+    <Target Name="KeepManifestOutOfReferencingProjects" AfterTargets="StampExtensionManifest">
+        <ItemGroup>
+            <None Remove="$(StampedExtensionManifest)"/>
+        </ItemGroup>
+    </Target>
+
+    <Target Name="CopyManifestBesideTheFake" AfterTargets="Build">
+        <Copy SourceFiles="$(StampedExtensionManifest)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true"/>
+    </Target>
+
     <ItemGroup>
         <PackageReference Include="Avalonia"/>
         <PackageReference Include="CommunityToolkit.Mvvm"/>
