@@ -562,15 +562,28 @@ public class StratBookLiveToggleTests
 
     private static string Mb(long bytes) => (bytes / 1024.0 / 1024.0).ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
 
+    // The lowest of several readings a moment apart. The heap is process-wide: work an earlier test left
+    // running can hold a buffer at any one reading, but what the pack keeps is in every one of them.
     private static long Settle()
     {
-        for (int i = 0; i < 3; i++)
+        long lowest = long.MaxValue;
+        for (int reading = 0; reading < 5; reading++)
         {
-            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-            GC.WaitForPendingFinalizers();
+            if (reading > 0)
+            {
+                Thread.Sleep(100);
+            }
+
+            for (int i = 0; i < 3; i++)
+            {
+                GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+                GC.WaitForPendingFinalizers();
+            }
+
+            lowest = Math.Min(lowest, GC.GetTotalMemory(true));
         }
 
-        return GC.GetTotalMemory(true);
+        return lowest;
     }
 
     private static string Seed(bool packOn) => packOn
