@@ -307,6 +307,8 @@ public class ForwardQueueTests
                 released = p;
             });
         ParsedDemo? seen = null;
+        // Paused so both owners are queued before the parse starts; otherwise "one" parses and releases alone.
+        queue.Pause();
         queue.SubmitBackground(new DemoProcessingRequest("a.dem", "one", DemoJobPriority.Background, 1, p =>
         {
             calls.Add("one");
@@ -314,6 +316,7 @@ public class ForwardQueueTests
         }));
         IDemoQueueHandle two = queue.SubmitBackground(
             new DemoProcessingRequest("a.dem", "two", DemoJobPriority.Background, 1, _ => calls.Add("two")));
+        queue.Resume();
         await two.Completion;
 
         await Assert.That(calls).IsEquivalentTo(["one", "two", "released"]);
