@@ -5,11 +5,11 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Teams;
+using DemoViewer.NET.Extensions.StratBook.Modules.Teams;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels.Library;
-using DemoViewer.NET.ViewModels.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 
 #endregion
 
@@ -59,7 +59,7 @@ public class TeamsModuleTests
     private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> Library()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -114,7 +114,7 @@ public class TeamsModuleTests
     public async Task TheTab_ListsTeams_ProjectsTheSelection_AndRunsTheActions()
     {
         (DemoCacheStore cache, TeamIdentityService teams) = await Library();
-        using TeamsTabViewModel vm = new(teams, cache, isBrowser: false);
+        using TeamsTabViewModel vm = new(teams, cache.Library(), isBrowser: false);
 
         using (Assert.Multiple())
         {
@@ -175,7 +175,7 @@ public class TeamsModuleTests
     public async Task OnTheBrowser_TheTabSaysItForgets()
     {
         (DemoCacheStore cache, TeamIdentityService teams) = await Library();
-        using TeamsTabViewModel vm = new(teams, cache, isBrowser: true);
+        using TeamsTabViewModel vm = new(teams, cache.Library(), isBrowser: true);
 
         using (Assert.Multiple())
         {

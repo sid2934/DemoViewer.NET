@@ -51,4 +51,10 @@ public static class AppHostHooks
     ///     </para>
     /// </summary>
     public static Func<IUpdateService>? UpdateServiceFactory { get; set; }
+
+    /// <summary>
+    ///     Starts the app again without <c>--safe-mode</c> and closes this instance. Set by the desktop head;
+    ///     null where the app cannot relaunch itself (the browser).
+    /// </summary>
+    public static Action? Restart { get; set; }
 }

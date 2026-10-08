@@ -2,7 +2,7 @@
 
 using System.Numerics;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -10,9 +10,9 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The throw log, the lineup store's flights and the one-off migration on temp caches:
-///     every field survives the log, the JSON and paths files go only after what replaces them reads back,
-///     the names come from the record, and a demo walked this session gives its lineup a flight.
+///     The throw log, the grenade store and the lineup store: every field survives the log, the store keeps
+///     the rows under the walker version and refuses another demo's, the lineups are copied once from where an
+///     older build kept them, and a demo walked this session gives its lineup a flight.
 /// </summary>
 [NotInParallel]
 public class GrenadeStoreTests
@@ -72,7 +72,7 @@ public class GrenadeStoreTests
 
         byte[] log = GrenadeThrowLog.Encode(document);
         GrenadeDocument back = GrenadeThrowLog.TryDecode(log)!;
-        byte[] json = SidecarJson.SerializeGzip(document, GrenadeSidecar.JsonOptions);
+        byte[] json = Gzip(System.Text.Encoding.UTF8.GetBytes(GrenadeSidecar.Serialize(document)));
         using (Assert.Multiple())
         {
             await Assert.That(GrenadeThrowLog.SameRows(document.Grenades, back.Grenades)).IsTrue();
@@ -99,65 +99,61 @@ public class GrenadeStoreTests
         Trajectory = [new TrajectoryPoint(10, x, 0, -100, 0), new TrajectoryPoint(20, -1200, -630, -166, 1)]
     };
 
-    // An old-format demo: gzipped JSON rows and paths, the record listing the players, stamped current.
-    private static void OldFormat(DemoCacheStore cache, string path, string sha, params GrenadeRow[] rows)
+    [Test]
+    public async Task TheStore_RoundTripsTheRows_UnderTheWalkerVersion_AndRefusesAnotherDemosRows()
     {
-        DemoCacheRecord record = RoundIndexTestData.ParsedRecord(path, Map, sha);
-        record.Players = [new CachedPlayerInfo { Slot = 3, Name = "window guy", SteamId64 = "76561198000000003", Team = 2 }];
-        record.StampGrenades();
-        cache.Upsert(record);
-        GrenadeDemoHeader header = new() { Sha256 = sha, StableKey = DemoCacheStore.StableKey(path) };
-        GrenadeDocument document = new() { Demo = header, Grenades = [.. rows] };
-        GrenadePathsDocument paths = new() { Demo = header };
-        foreach (GrenadeRow row in rows)
+        DemoCacheStore cache = new(null);
+        cache.Upsert(RoundIndexTestData.ParsedRecord("/d/a.dem", Map, "abc"));
+        GrenadeStore store = cache.Grenades();
+        GrenadeDocument document = new()
         {
-            paths.Paths[row.Id] = row.Trajectory;
+            Demo = new GrenadeDemoHeader { Sha256 = "abc", StableKey = "k" },
+            Grenades = [Full("g1-1"), Full("g2-1")]
+        };
+
+        store.Write("/d/a.dem", document);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.IsCurrent("/d/a.dem")).IsTrue();
+            await Assert.That(store.Stamp("/d/a.dem")!.Count).IsEqualTo(2);
+            await Assert.That(store.TryReadRows("/d/a.dem", "abc")!.Grenades.Count).IsEqualTo(2);
+            await Assert.That(store.TryReadRows("/d/a.dem", "def")).IsNull().Because("rows naming another demo's hash are ignored");
         }
 
-        cache.WriteSiblingBytes(path, GrenadeSidecar.Suffix, SidecarJson.SerializeGzip(document, GrenadeSidecar.JsonOptions));
-        cache.WriteSiblingBytes(path, GrenadeSidecar.PathsSuffix, SidecarJson.SerializeGzip(paths, GrenadeSidecar.JsonOptions));
+        store.MarkFailed("/d/a.dem");
+        await Assert.That(store.Needs("/d/a.dem")).IsFalse().Because("retrying a failure is the user's call");
+        store.ClearFailed("/d/a.dem");
+        await Assert.That(store.Needs("/d/a.dem")).IsTrue();
     }
 
     [Test]
-    public async Task TheMigration_ConvertsRowsToLogs_StoresOneFlightPerPosition_ThenDeletesTheOldFiles()
+    public async Task TheLineups_AreCopiedOnce_FromWhereAnOlderBuildKeptThem()
     {
         string root = TempRoot();
         try
         {
-            DemoCacheStore cache = new(root);
-            OldFormat(cache, "/d/a.dem", "sha-a", Smoke("g1-1", 1300, 3, "76561198000000003"));
-            OldFormat(cache, "/d/b.dem", "sha-b", Smoke("g1-1", 1305, 3, "76561198000000003"));
-            OldFormat(cache, "/d/c.dem", "sha-c", Smoke("g1-1", 1310, 5, "76561198000000009"));
-            using GrenadeIndex index = new(cache);
-            index.Load();
-            Guid before = index.Query(new GrenadeQuery(Map))[0].Lineups[0].Id;
+            string legacy = Path.Combine(root, "cache", GrenadeLineupStore.FileName);
+            GrenadeLineupStore old = new(Path.Combine(root, "cache"));
+            LineupAnchor anchor = new(Guid.NewGuid(), GrenadeKind.Smoke, new WorldPoint(1, 2, 3), new WorldPoint(4, 5, 6), "seed");
+            old.For(Map).Anchors.Add(anchor);
+            old.Save();
 
-            GrenadeStoreMigrationResult result = await GrenadeStoreMigration.RunAsync(cache, index);
-            GrenadeStoreMigrationResult again = await GrenadeStoreMigration.RunAsync(cache, index);
-
-            GrenadeLineup lineup = index.Query(new GrenadeQuery(Map))[0].Lineups[0];
-            GrenadeLineupStore reread = new(root);
+            DemoViewer.NET.Extensions.ExtensionContext.StorageView storage = new("dev.example.lineups", Path.Combine(root, "config"),
+                Path.Combine(root, "cache"));
+            GrenadeLineupStore copied = GrenadeLineupStore.In(storage, () => File.ReadAllBytes(legacy));
             using (Assert.Multiple())
             {
-                await Assert.That(result.Completed).IsTrue();
-                await Assert.That(result.Converted).IsEqualTo(3);
-                await Assert.That(result.PathsStored).IsEqualTo(1).Because("one lineup, one technique");
-                await Assert.That(result.PathFilesDeleted).IsEqualTo(3);
-                await Assert.That(again.Demos).IsEqualTo(0).Because("the marker ends it");
-                foreach (string path in new[] { "/d/a.dem", "/d/b.dem", "/d/c.dem" })
-                {
-                    await Assert.That(cache.TryReadSiblingBytes(path, GrenadeSidecar.Suffix)).IsNull();
-                    await Assert.That(cache.TryReadSiblingBytes(path, GrenadeSidecar.PathsSuffix)).IsNull();
-                    await Assert.That(GrenadeSidecar.ReadLog(cache, path)).IsNotNull();
-                }
-
-                await Assert.That(lineup.Id).IsEqualTo(before).Because("the conversion does not move a lineup");
-                await Assert.That(lineup.Throws.Select(t => t.Row.ThrowerName))
-                    .IsEquivalentTo(new string?[] { "window guy", "window guy", null })
-                    .Because("names come from the record by SteamID; the third thrower is not in it");
-                await Assert.That(index.PathFor(lineup, null)!.Count).IsEqualTo(2);
-                await Assert.That(reread.For(Map).Paths.Count).IsEqualTo(1).Because("the flight is on disk");
+                await Assert.That(copied.For(Map).Anchors.Single()).IsEqualTo(anchor);
+                await Assert.That(await storage.ReadAsync(DemoViewer.NET.Extensions.Sdk.StoreRoot.Cache, GrenadeLineupStore.FileName)).IsNotNull()
+                    .Because("the copy lands in the extension's own cache folder");
             }
+
+            // The copy is the store now: a change there is what the next start reads, not the old file.
+            copied.For(Map).Anchors.Clear();
+            copied.Save();
+            GrenadeLineupStore reopened = GrenadeLineupStore.In(storage, () => File.ReadAllBytes(legacy));
+            await Assert.That(reopened.For(Map).Anchors).IsEmpty();
         }
         finally
         {
@@ -166,120 +162,13 @@ public class GrenadeStoreTests
     }
 
     [Test]
-    public async Task ACorruptPathsFile_IsKept_AndWithholdsTheMarker_UntilItIsGivenUp()
-    {
-        string root = TempRoot();
-        try
-        {
-            DemoCacheStore cache = new(root);
-            OldFormat(cache, "/d/a.dem", "sha-a", Smoke("g1-1", 1300, 3, "76561198000000003"));
-            OldFormat(cache, "/d/b.dem", "sha-b", Smoke("g1-1", 1305, 3, "76561198000000003"));
-            cache.WriteSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix, [0x1F, 0x8B, 1, 2, 3]);
-            using GrenadeIndex index = new(cache);
-            index.Load();
-
-            GrenadeStoreMigrationResult first = await GrenadeStoreMigration.RunAsync(cache, index);
-            using (Assert.Multiple())
-            {
-                await Assert.That(first.Converted).IsEqualTo(2).Because("the rows are good");
-                await Assert.That(first.Completed).IsFalse();
-                await Assert.That(first.PathFilesKept).IsEqualTo(1);
-                await Assert.That(cache.TryReadSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix)).IsNotNull();
-                await Assert.That(cache.TryReadSiblingBytes("/d/a.dem", GrenadeSidecar.PathsSuffix)).IsNull()
-                    .Because("a's file read and the lineup's flight came from it");
-                await Assert.That(File.Exists(Path.Combine(root, GrenadeStoreMigration.MarkerFileName))).IsFalse();
-            }
-
-            GrenadeStoreMigrationResult last = first;
-            for (int pass = 2; pass <= GrenadeStoreMigration.MaxAttempts; pass++)
-            {
-                last = await GrenadeStoreMigration.RunAsync(cache, index);
-            }
-
-            using (Assert.Multiple())
-            {
-                await Assert.That(last.PathFilesGivenUp).IsEqualTo(1);
-                await Assert.That(last.Completed).IsTrue().Because("a file that never reads stops blocking the marker");
-                await Assert.That(cache.TryReadSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix)).IsNotNull().Because("it is kept, not deleted");
-            }
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
-    }
-
-    [Test]
-    public async Task APathsFileWhoseLineupsGotTheirFlightElsewhere_IsDeleted()
-    {
-        string root = TempRoot();
-        try
-        {
-            DemoCacheStore cache = new(root);
-            OldFormat(cache, "/d/a.dem", "sha-a", Smoke("g1-1", 1300, 3, "76561198000000003"));
-            OldFormat(cache, "/d/b.dem", "sha-b", Smoke("g1-1", 1305, 3, "76561198000000003"));
-
-            // b's file reads but holds no flight for its throw: the lineup's flight can only come from a.
-            GrenadePathsDocument empty = new() { Demo = new GrenadeDemoHeader { Sha256 = "sha-b", StableKey = DemoCacheStore.StableKey("/d/b.dem") } };
-            cache.WriteSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix, SidecarJson.SerializeGzip(empty, GrenadeSidecar.JsonOptions));
-            using GrenadeIndex index = new(cache);
-            index.Load();
-
-            GrenadeStoreMigrationResult result = await GrenadeStoreMigration.RunAsync(cache, index);
-            GrenadeLineup lineup = index.Query(new GrenadeQuery(Map))[0].Lineups[0];
-            using (Assert.Multiple())
-            {
-                await Assert.That(result.Completed).IsTrue();
-                await Assert.That(result.PathFilesDeleted).IsEqualTo(2);
-                await Assert.That(index.LineupStore.For(Map).Paths.Values.Single().Throw).StartsWith("sha-a");
-                await Assert.That(lineup.Throws.Count).IsEqualTo(2);
-                await Assert.That(cache.TryReadSiblingBytes("/d/b.dem", GrenadeSidecar.PathsSuffix)).IsNull();
-            }
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
-    }
-
-    [Test]
-    public async Task ARowsFileThatDoesNotRead_IsKept_AndNoMarkerIsWritten()
-    {
-        string root = TempRoot();
-        try
-        {
-            DemoCacheStore cache = new(root);
-            OldFormat(cache, "/d/a.dem", "sha-a", Smoke("g1-1", 1300, 3, "76561198000000003"));
-            OldFormat(cache, "/d/bad.dem", "sha-b", Smoke("g1-1", 1305, 3, "76561198000000003"));
-            GrenadeDocument other = new() { Demo = new GrenadeDemoHeader { Sha256 = "someone-else" }, Grenades = [] };
-            cache.WriteSiblingBytes("/d/bad.dem", GrenadeSidecar.Suffix, SidecarJson.SerializeGzip(other, GrenadeSidecar.JsonOptions));
-            using GrenadeIndex index = new(cache);
-            index.Load();
-
-            GrenadeStoreMigrationResult result = await GrenadeStoreMigration.RunAsync(cache, index);
-            using (Assert.Multiple())
-            {
-                await Assert.That(result.Completed).IsFalse();
-                await Assert.That(result.Failed).IsEqualTo(1);
-                await Assert.That(cache.TryReadSiblingBytes("/d/bad.dem", GrenadeSidecar.Suffix)).IsNotNull().Because("it is kept");
-                await Assert.That(GrenadeSidecar.ReadLog(cache, "/d/a.dem")).IsNotNull();
-                await Assert.That(File.Exists(Path.Combine(root, GrenadeStoreMigration.MarkerFileName))).IsFalse();
-            }
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
-    }
-
-    [Test]
-    public async Task ADemoWalkedThisSession_GivesItsLineupAFlight_AndNoPathsFile()
+    public async Task ADemoWalkedThisSession_GivesItsLineupAFlight()
     {
         DemoCacheStore cache = new(null);
         int n = 0;
-        GrenadeIndexEvaluator evaluator = new(cache, () => true, () => null,
+        GrenadeIndexEvaluator evaluator = new(cache.Library(), cache.Grenades(), () => true, () => null,
             walk: _ => new GrenadeWalk([Smoke("g1-1", 1300 + 5 * n++, 3, "76561198000000003")], 1, ReconstructedInputSource.DecoderName, 4));
-        using GrenadeIndex index = new(cache, evaluator: evaluator);
+        using GrenadeIndex index = new(cache.Library(), evaluator: evaluator);
         index.Load();
         foreach (string path in new[] { "/d/a.dem", "/d/b.dem" })
         {
@@ -294,8 +183,18 @@ public class GrenadeStoreTests
         {
             await Assert.That(lineup.Throws.Count).IsEqualTo(2);
             await Assert.That(index.PathFor(lineup, null)!.Count).IsEqualTo(2);
-            await Assert.That(cache.TryReadSiblingBytes("/d/a.dem", GrenadeSidecar.PathsSuffix)).IsNull();
             await Assert.That(evaluator.TakeFlights("/d/a.dem")).IsNull().Because("the index took them");
         }
+    }
+
+    private static byte[] Gzip(byte[] bytes)
+    {
+        using MemoryStream buffer = new();
+        using (System.IO.Compression.GZipStream gzip = new(buffer, System.IO.Compression.CompressionLevel.Optimal, true))
+        {
+            gzip.Write(bytes);
+        }
+
+        return buffer.ToArray();
     }
 }

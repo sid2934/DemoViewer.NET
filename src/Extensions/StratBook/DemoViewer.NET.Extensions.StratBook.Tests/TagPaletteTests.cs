@@ -3,13 +3,14 @@
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
-using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -28,11 +29,11 @@ public class TagPaletteTests
 {
     private const string DemoPath = "/d/match.dem";
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 0 },
-        new() { Number = 2, StartTickFrameClock = 10_000 },
-        new() { Number = 3, StartTickFrameClock = 20_000 }
+        new LibraryRound(1, 0),
+        new LibraryRound(2, 10_000),
+        new LibraryRound(3, 20_000)
     ];
 
     private static readonly string[] OutcomeValues = ["won", "lost"];
@@ -58,7 +59,7 @@ public class TagPaletteTests
 
     private static async Task<TagSession> Attached()
     {
-        TagSession session = new(null, _ => _rounds, () => false, () => Created)
+        TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -104,7 +105,7 @@ public class TagPaletteTests
         (_, int lateTo) = TagPaletteViewModel.SpanFor(19_900, 5, 10, 64, _rounds, true);
         (int freeFrom, int freeTo) = TagPaletteViewModel.SpanFor(19_900, 5, 10, 64, _rounds, false);
         // Warmup: before the first round there is no round to clamp to, only the parse's start.
-        (int warmFrom, _) = TagPaletteViewModel.SpanFor(-500, 5, 10, 64, [new CachedRound { Number = 1, StartTickFrameClock = 0 }], true);
+        (int warmFrom, _) = TagPaletteViewModel.SpanFor(-500, 5, 10, 64, [new LibraryRound(1, 0)], true);
 
         using (Assert.Multiple())
         {
@@ -275,23 +276,23 @@ public class TagPaletteTests
             (Key.Y, KeyModifiers.None), (Key.N, KeyModifiers.None), (Key.Enter, KeyModifiers.None),
             (Key.Y, KeyModifiers.Control)
         ];
-        Playback2DAction[] palette =
-            [Playback2DAction.FocusTagPalette, Playback2DAction.TagPaletteBack, Playback2DAction.TagNote, Playback2DAction.TagClearSticky];
+        string[] palette =
+            [StratBookActions.FocusTagPalette, StratBookActions.TagPaletteBack, StratBookActions.TagNote, StratBookActions.TagClearSticky];
 
         // These four are Strat Book extension commands, not core rows; the merged table is what has to
         // be checked for them to be checked at all.
-        foreach (Playback2DBinding row in CommandRegistry.Default.EffectiveBindings.Where(b => palette.Contains(b.Action)))
+        foreach (Playback2DBinding row in CommandRegistry.Default.EffectiveBindings.Where(b => palette.Contains(b.ActionId)))
         {
             await Assert.That(claimed.Contains((row.Key, row.Modifiers))).IsFalse()
-                .Because($"{row.Action} must not take a key Ctrl+F or the Suggested Tags queue claimed");
+                .Because($"{row.ActionId} must not take a key Ctrl+F or the Suggested Tags queue claimed");
         }
 
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
-        await Assert.That(profile.TryResolve(Key.Escape, KeyModifiers.None, false, out Playback2DAction outside)).IsTrue();
-        await Assert.That(outside).IsEqualTo(Playback2DAction.ClearFollow).Because("unfocused, Esc is still the tab's");
-        await Assert.That(profile.TryResolveInScope(Playback2DBindingScope.WhenPaletteFocused, Key.Escape,
-            KeyModifiers.None, out Playback2DAction inside)).IsTrue();
-        await Assert.That(inside).IsEqualTo(Playback2DAction.TagPaletteBack);
+        await Assert.That(profile.TryResolve(Key.Escape, KeyModifiers.None, false, out string? outside)).IsTrue();
+        await Assert.That(outside).IsEqualTo(nameof(Playback2DAction.ClearFollow)).Because("unfocused, Esc is still the tab's");
+        await Assert.That(profile.TryResolveInScope(new Playback2DBindingScope(StratBookActions.PaletteScope), Key.Escape,
+            KeyModifiers.None, out string? inside)).IsTrue();
+        await Assert.That(inside).IsEqualTo(StratBookActions.TagPaletteBack);
     }
 
     [Test]
@@ -299,7 +300,7 @@ public class TagPaletteTests
     {
         using TagSession session = await Attached();
         using TagPaletteViewModel palette = Palette(session, () => 15_000);
-        palette.ApplyKeymap(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected));
+        palette.ApplyKeymap(PaletteKeymaps.From(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected)));
         await Assert.That(rejected).IsEmpty();
 
         Hit(palette, Key.D3);
@@ -312,7 +313,7 @@ public class TagPaletteTests
     [Test]
     public async Task WithNoDemoAttached_ThePaletteTakesNoFocus()
     {
-        using TagSession session = new(null, _ => _rounds, () => false, () => Created);
+        using TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created);
         using TagPaletteViewModel palette = new(session, null, () => 0);
 
         await Assert.That(palette.Focus()).IsFalse();

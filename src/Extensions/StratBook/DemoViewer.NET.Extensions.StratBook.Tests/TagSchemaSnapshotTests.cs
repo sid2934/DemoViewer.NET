@@ -3,7 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 

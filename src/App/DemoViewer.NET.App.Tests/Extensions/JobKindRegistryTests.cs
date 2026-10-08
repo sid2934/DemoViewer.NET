@@ -51,7 +51,12 @@ public class JobKindRegistryTests
             (QueueJobKind.SectionCompute, "section", 4, true),
             (QueueJobKind.LibraryScan, "library", 4, false),
             (QueueJobKind.ExtensionUpdate, "extension update", 4, true),
-            (QueueJobKind.DemoOpen, "open", 4, false)
+            (QueueJobKind.DemoOpen, "open", 4, false),
+            (QueueJobKind.Extension, "extension", 4, false),
+            (QueueJobKind.Scheduling, "scheduling", 4, true),
+            (QueueJobKind.RecordPass, "records", 4, true),
+            (QueueJobKind.LibraryListing, "library", 4, true),
+            (QueueJobKind.CacheSweep, "cleanup", 4, true)
         ];
 
         await Assert.That(JobKindRegistry.CoreDescriptors.Select(d => d.Kind))
@@ -65,63 +70,76 @@ public class JobKindRegistryTests
                 await Assert.That(descriptor.Label).IsEqualTo(label).Because($"{kind}'s chip label");
                 await Assert.That(descriptor.Rank).IsEqualTo(rank).Because($"{kind}'s scheduling rank");
                 await Assert.That(descriptor.IsLight).IsEqualTo(isLight).Because($"{kind}'s light-slot flag");
-                await Assert.That(descriptor.Owner).IsNull().Because($"{kind} has no single owner");
             }
         }
     }
 
     [Test]
-    public async Task Build_WithNoPacks_ThrowsNamingAMissingKind()
+    public async Task Build_WithNoExtensions_CoversEveryCoreKind()
     {
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => JobKindRegistry.Build([]));
+        JobKindRegistry registry = JobKindRegistry.Build([]);
 
-        // No pack contributed the kinds core does not own.
-        await Assert.That(ex.Message).Contains("StratMining");
+        await Assert.That(Enum.GetValues<QueueJobKind>().All(k => registry.Descriptor(k).Kind == k)).IsTrue();
     }
 
     [Test]
-    public async Task Build_APackRedeclaringACoreKind_Throws()
+    public async Task ADeclaredKind_LabelsRanksAndLightensItsJobs_AndAnUnknownOneFallsBackToTheExtensionRow()
     {
-        FakePack pack = new("pack.fake", [new JobKindDescriptor(QueueJobKind.StoreSave, "fake save", 9, false)]);
+        FakePack pack = new("pack.fake", [new ExtensionJobKind("fake.walk", "walk", true, 2)]);
+        JobKindRegistry registry = JobKindRegistry.Build([pack]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(registry.Label(QueueJobKind.Extension, "fake.walk")).IsEqualTo("walk");
+            await Assert.That(registry.Rank(QueueJobKind.Extension, "fake.walk")).IsEqualTo(2);
+            await Assert.That(registry.IsLight(QueueJobKind.Extension, "fake.walk")).IsTrue();
+            await Assert.That(registry.IsDeclared("fake.walk")).IsTrue();
+            await Assert.That(registry.Label(QueueJobKind.Extension, "fake.unknown")).IsEqualTo("extension");
+        }
+    }
+
+    [Test]
+    public async Task Build_AnExtensionDeclaringABuiltInKindId_Throws()
+    {
+        FakePack pack = new("pack.fake", [new ExtensionJobKind(BuiltInJobKinds.Save, "fake save", false, 9)]);
 
         InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => JobKindRegistry.Build([pack]));
 
-        await Assert.That(ex.Message).Contains("StoreSave");
+        await Assert.That(ex.Message).Contains(BuiltInJobKinds.Save);
         await Assert.That(ex.Message).Contains(pack.Id);
     }
 
     [Test]
-    public async Task Build_TwoPacksContributingTheSameKind_Throws()
+    public async Task Build_TwoExtensionsDeclaringTheSameKind_Throws()
     {
-        FakePack first = new("pack.fake1", [new JobKindDescriptor(QueueJobKind.StratMining, "mining", 2, false, "x")]);
-        FakePack second = new("pack.fake2", [new JobKindDescriptor(QueueJobKind.StratMining, "dup", 2, false, "y")]);
+        FakePack first = new("pack.fake1", [new ExtensionJobKind("shared.mining", "mining", false, 2)]);
+        FakePack second = new("pack.fake2", [new ExtensionJobKind("shared.mining", "dup", false, 2)]);
 
         InvalidOperationException ex =
             Assert.Throws<InvalidOperationException>(() => JobKindRegistry.Build([first, second]));
 
-        await Assert.That(ex.Message).Contains("StratMining");
+        await Assert.That(ex.Message).Contains("shared.mining");
         await Assert.That(ex.Message).Contains(second.Id);
     }
 
-    private sealed class FakePack(string featureId, JobKindDescriptor[] jobKinds) : IFeaturePack
+    private sealed class FakePack(string featureId, ExtensionJobKind[] jobKinds) : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
         public ExtensionManifest Manifest => FakeManifests.For(Id);
 
-        public IEnumerable<FeatureDescriptor> Features =>
+        public IEnumerable<ExtensionFeature> Features =>
         [
-            new(featureId, FeatureScope.Pack, "Fake pack", "a test pack", null, null, false,
-                FeatureCatalog.Defaults(true, true, true))
+            new(featureId, ExtensionFeatureKind.Extension, "Fake pack", "a test pack", null, AudienceDefaults.Everyone)
         ];
 
-        public IEnumerable<JobKindDescriptor> JobKinds => jobKinds;
+        public IEnumerable<ExtensionJobKind> JobKinds => jobKinds;
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

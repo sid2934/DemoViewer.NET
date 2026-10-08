@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The round index's log seams, source-generated like <c>RoundFactsLog</c>: one line per failed

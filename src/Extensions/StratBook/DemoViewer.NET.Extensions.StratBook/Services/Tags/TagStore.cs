@@ -5,7 +5,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>
 ///     The Round Tagger's persisted store: <c>&lt;config&gt;/tags/index.json</c> plus one
@@ -286,7 +286,7 @@ public sealed class TagStore
             {
                 try
                 {
-                    WriteAtomic(path, json);
+                    AtomicFile.WriteAllText(path, json);
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
                 {
@@ -512,7 +512,7 @@ public sealed class TagStore
 
         try
         {
-            WriteAtomic(path, json);
+            AtomicFile.WriteAllText(path, json);
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -607,7 +607,7 @@ public sealed class TagStore
 
         try
         {
-            WriteAtomic(indexPath, JsonSerializer.Serialize(file, TagJsonContext.Default.TagIndexFile));
+            AtomicFile.WriteAllText(indexPath, JsonSerializer.Serialize(file, TagJsonContext.Default.TagIndexFile));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -667,46 +667,6 @@ public sealed class TagStore
         }
 
         return new CheckOutScope(this, key, session);
-    }
-
-    /// <summary>
-    ///     Temp file plus replace, the config-root write idiom (<c>DemoCacheStore.WriteAtomic</c>), with this
-    ///     store's own temp prefix so a stray file says whose it was.
-    /// </summary>
-    private static void WriteAtomic(string targetPath, string content)
-    {
-        string directory = Path.GetDirectoryName(targetPath)!;
-        Directory.CreateDirectory(directory);
-        string tempPath = Path.Combine(directory, $".tag-{Guid.NewGuid():N}.tmp");
-        try
-        {
-            File.WriteAllText(tempPath, content);
-            if (File.Exists(targetPath))
-            {
-                File.Replace(tempPath, targetPath, null);
-            }
-            else
-            {
-                File.Move(tempPath, targetPath);
-            }
-        }
-        catch
-        {
-            TryDelete(tempPath);
-            throw;
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // Best-effort cleanup; the write's own failure is what the caller hears about.
-        }
     }
 
     private static string Normalize(string sha256) => sha256.ToLowerInvariant();

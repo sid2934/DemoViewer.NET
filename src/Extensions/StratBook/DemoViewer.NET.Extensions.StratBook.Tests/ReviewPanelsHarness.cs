@@ -5,7 +5,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 #endregion
@@ -43,14 +43,25 @@ internal static class ReviewPanelsHarness
         Action<Action>? post = null, Func<string, string?, Task<DemoIdentity?>>? identity = null)
     {
         ReviewPanelsPlaybackContribution review = new(post ?? DispatcherPost, identity);
-        PlaybackContributionHost host = new([(new StratBookPack(), [review])], gate);
+        PlaybackContributionHost host = Host(gate, review);
         (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab(totalFrames, host, configure);
         return (vm, ctx, review);
+    }
+
+    /// <summary>The app's playback host over the pack's SDK contributions, each run under the pack's guard.</summary>
+    /// <param name="gate">The pack gate, or null for on.</param>
+    /// <param name="contributions">The contributions.</param>
+    public static PlaybackContributionHost Host(IFeatureGate? gate, params global::DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution[] contributions)
+    {
+        StratBookPack pack = new();
+        ExtensionGuard guard = ExtensionGuard.Standalone(pack);
+        return new PlaybackContributionHost(
+            [(pack, [.. contributions.Select(c => (IPlaybackContribution)new SdkPlaybackContribution(c, guard))])], gate);
     }
 
     /// <summary>The view's key funnel, key for key: the contributions first, then the tab's resolved keymap.</summary>
     public static bool Press(Playback2DTabViewModel vm, Avalonia.Input.Key key,
         Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None) =>
         vm.Surface.TryHandleKey(key, modifiers)
-        || vm.Keymap.TryResolve(key, modifiers, false, out Playback2DAction action) && vm.ExecuteAction(action);
+        || vm.Keymap.TryResolve(key, modifiers, false, out string? action) && vm.ExecuteAction(action);
 }

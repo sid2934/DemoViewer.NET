@@ -1,12 +1,11 @@
 #region
 
-using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.ViewModels.Playback2D;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 
 /// <summary>
 ///     What the Strat Book tab needs for a strat export and cannot see through <c>IModuleContext</c>: the
@@ -22,21 +21,19 @@ namespace DemoViewer.NET.Modules.StratBook;
 ///         the tab's Export button stays hidden.
 ///     </para>
 /// </summary>
-/// <param name="Gate">The heavy-job gate; the export takes its export-session kind on it.</param>
+/// <param name="NewJob">Builds the export job over the app's export session for a runner and a log; null exports without one.</param>
 /// <param name="IsLiveSyncBusy">True while a Live Sync session is active.</param>
 /// <param name="IsReelRunning">True while a highlight reel is rendering.</param>
-/// <param name="Settings">Reads the current settings, for the dialog's output folder.</param>
-/// <param name="PersistSettings">Writes the chosen output folder back.</param>
+/// <param name="Exports">The app's export plumbing, which seeds the dialog's folder and saves the chosen one; null saves nothing.</param>
 /// <param name="MountStatusChip">
 ///     Hands the export's status view-model to the shell for the status strip. The tab builds its job lazily,
 ///     on the first Export, so the shell supplies the mount point up front. Null leaves the export chip-less.
 /// </param>
 /// <param name="OpenExportFolder">Reveals a finished file in the OS file manager. Null on the browser head.</param>
 public sealed record StratExportHost(
-    HeavyJobGate? Gate,
+    Func<IExportRunner, Action<string>?, ExportJobService>? NewJob,
     Func<bool>? IsLiveSyncBusy,
     Func<bool>? IsReelRunning,
-    Func<AppSettings> Settings,
-    Action<Action<AppSettings>> PersistSettings,
+    FirstPartyExports? Exports,
     Action<Playback2DExportStatusViewModel>? MountStatusChip = null,
     Action<string>? OpenExportFolder = null) : IStratExport;

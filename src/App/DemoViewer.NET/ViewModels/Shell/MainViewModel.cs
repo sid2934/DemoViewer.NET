@@ -32,6 +32,7 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
@@ -59,6 +60,7 @@ using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Stats;
 using DemoViewer.NET.ViewModels.Tutorial;
 using DemoViewer.NET.ViewModels.Update;
+using DemoViewer.NET.Views.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -75,14 +77,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     click Continue again. Prevents a UI freeze when no breakpoints match.
     /// </summary>
     private const int MaxContinueFrames = 200_000;
-
-    // Interactive-open fan-out skip set: Highlights is fed the open demo through the completed analysis run
-    // (OnOpenDemoEvaluated), a richer, re-analysis-free channel, so it is not re-fed on the open path.
-    private static readonly IReadOnlySet<string> _openFanOutSkip =
-        new HashSet<string>(StringComparer.Ordinal)
-        {
-            "highlights"
-        };
 
     // Fallback for a descriptor with no WorkspaceTabDescriptor.FeatureId of its own: maps its TabId
     // (e.g. "builtin.parser") to a FeatureCatalog tab id (e.g. "tab.parser"), built-ins only. A TabId
@@ -110,24 +104,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly List<WorkspaceTabDescriptor> _allTabDescriptors = [];
 
     // The tabs that host sections, keyed by host id: the Library (built in, always on the strip) and every
-    // host tab a pack contributed. Each entry caches its sections unfiltered, like _allTabDescriptors; they
+    // hub tab a pack contributed. Each entry caches its sections unfiltered, like _allTabDescriptors; they
     // never enter Tabs, their host reconciles them by the same gate on the same events.
     private readonly List<SectionHostEntry> _hosts = [];
-    private readonly IReadOnlyList<HostTabContribution> _hostTabs;
+    private readonly IReadOnlyList<ContributedHub> _hubTabs;
 
-    // One host tab and what it carries. The host VM exists from BuildWorkspaceTabs: the shell reconciles
+    // One host tab and what it carries. The hub VM exists from BuildWorkspaceTabs: the shell reconciles
     // sections and restores the session through it before the tab is ever selected.
     private sealed class SectionHostEntry(
-        string hostId, WorkspaceTabDescriptor tab, TabSectionHost sections, IHostTabViewModel? viewModel, bool contributed)
+        string hostId, WorkspaceTabDescriptor tab, TabSectionHost sections, HubTabViewModel? viewModel, ContributedHub? hub)
     {
         public string HostId { get; } = hostId;
         public WorkspaceTabDescriptor Tab { get; } = tab;
         public TabSectionHost Sections { get; } = sections;
-        public IHostTabViewModel? ViewModel { get; } = viewModel;
+        public HubTabViewModel? ViewModel { get; } = viewModel;
+
+        // The declaration a contributed hub came from; null for the Library.
+        public ContributedHub? Hub { get; } = hub;
 
         // A contributed host shows only while a hosted section does and falls back to Library when it goes;
         // the Library is a strip tab with a body of its own and never hides for want of sections.
-        public bool Contributed { get; } = contributed;
+        public bool Contributed => Hub is not null;
         public List<WorkspaceTabDescriptor> AllSections { get; } = [];
     }
 
@@ -135,10 +132,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // that do not exercise the preview path.
     private readonly DemoCacheStore? _demoCache;
 
-    // The "one parse, many evaluators" coordinator. Used on an interactive
-    // open to fan the just-parsed demo out to the background evaluators, so an un-indexed library demo
-    // fills its card from THAT parse rather than a second background one. Null (designer / tests) → no fan-out.
-    private readonly DemoEvaluationCoordinator? _evaluationCoordinator;
+    // The demo scheduler. An interactive open asks it to plan the demo's visit, which then runs on the
+    // just-parsed demo, so an un-indexed library demo fills its card from THAT parse rather than a second
+    // background one. Null (designer / tests) → the open runs only the visits already queued for the demo.
+    private readonly DemoScheduler? _scheduler;
+
+    // Passes running on the loaded demo's parse through the queue's lease. Close waits for them.
+    private readonly ShellDemoHolds _holds = new();
+
+    // The loaded demo the queue may borrow: set once the load has the parse, cleared on unload. Read from
+    // queue workers, so it is one reference swap, never two fields.
+    private volatile HeldDemo? _heldDemo;
 
     // ── Feature gating ────────────────────────────────────────────────────────
     // The live show/hide authority for gated tabs. NULL on the designer / unit-test path (every existing
@@ -198,8 +202,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // The global demo-processing queue (demo-processing-queue.md). An interactive open is submitted as
     // the highest-priority AWAITABLE foreground request (preempts background, refuses during a reel,
-    // best-effort coalesces onto an in-flight parse). Null (designer / tests) → the direct gate path.
+    // best-effort coalesces onto an in-flight parse). Null (designer / tests): opens use a queue the shell owns.
     private readonly IDemoProcessingQueue? _processingQueue;
+
+    // Built only when no queue is injected (tests), so an open still reads the demo through a queue.
+    private DemoProcessingQueue? _ownedQueue;
+    private HeavyJobGate? _ownedGate;
 
     // The queue → status-strip chip mapper; built in the ctor when a queue is
     // injected. Owns the "Processing" StatusChip added to Chips while the chrome.processingQueue gate is on
@@ -361,12 +369,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>The last valid frame index shown in the nav-strip box (reverts target on bad input).</summary>
     private int _navLastValidFrame;
 
-    // The library tier-2 fan-out started by the last open (LoadDemoFromBytesAsync). It reads the just-parsed
-    // ParsedDemo on a background thread, so it ROOTS the demo until it finishes, which is why a close
-    // immediately after an open used to leave RAM committed for a few seconds. CloseDemoAsync awaits this
-    // before its reclaim collection so the whole frame graph is unrooted when the GC runs. Not held across
-    // a reload (the new open's UnloadDemoState clears it; the old fan-out finishing late is harmless).
-    private Task? _openFanOutTask;
+    // The demo's visit started by the last open. Its passes read the parsed demo on a background thread and
+    // root it until they finish, so CloseDemoAsync awaits this before its reclaim GC. Cleared by the next
+    // open's UnloadDemoState; the old visit finishing late is harmless.
+    private Task? _openPassesTask;
 
     /// <summary>
     ///     Loaded-but-not-yet-applied session snapshot. We can't restore frame selection until a demo
@@ -382,6 +388,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     blob through unchanged on the next save.
     /// </summary>
     private Dictionary<string, JsonElement>? _loadedPackSessions;
+
+    // The hub rail states loaded at startup, carried through for hubs not contributed this session.
+    private Dictionary<string, HubSessionState>? _loadedHubSessions;
 
     /// <summary>
     ///     Pack ids <c>RestorePackState</c> has been called for this session, at startup or on a live
@@ -445,7 +454,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private IStorageProvider? _storageProvider;
 
     // The in-flight team-name lookup. It holds no ParsedDemo (it only reads the library entry), but it
-    // awaits the fan-out, so it is tracked and awaited on close like _openFanOutTask.
+    // awaits the open's visit, so it is tracked and awaited on close like _openPassesTask.
     private Task? _teamNamesTask;
 
     // The per-run update-notice VM: created on first show, reused so the notes fetch happens once
@@ -503,13 +512,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <param name="processingQueue">
     ///     The global demo-processing queue. When supplied, an interactive
     ///     open is submitted as the highest-priority awaitable foreground request (preempts background,
-    ///     coalesces onto an in-flight parse, refuses during a reel). Null → the direct
-    ///     <paramref name="heavyJobGate" /> path (designer / tests).
+    ///     coalesces onto an in-flight parse, refuses during a reel). Null (designer / tests): the shell builds
+    ///     its own queue on the first open, under <paramref name="heavyJobGate" /> when one is given.
     /// </param>
-    /// <param name="evaluationCoordinator">
-    ///     The "one parse, many evaluators" coordinator. When supplied, an
-    ///     interactive open fans its just-parsed demo out to the background evaluators, so an
-    ///     un-indexed library demo fills its card from that parse instead of a second one. Null → no fan-out.
+    /// <param name="scheduler">
+    ///     The demo scheduler. When supplied, an interactive open plans the demo's visit and runs its passes
+    ///     on the just-parsed demo, so an un-indexed library demo fills its card from that parse instead of a
+    ///     second one. Null → the open runs only the visits already queued for the demo.
     /// </param>
     /// <param name="tourSampleLocator">
     ///     Resolves the bundled sample demo's path (the real app passes
@@ -527,8 +536,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     The packs' Library filter/badge contributions (the Team filter, the provenance chip).
     ///     Null (designer, most tests) hosts none, so the Library offers neither.
     /// </param>
-    /// <param name="hostTabs">
-    ///     The host tabs the packs contribute (the Strat Book hub). Null (most tests) hosts nothing beyond
+    /// <param name="hubTabs">
+    ///     The hub tabs the packs contribute (the Strat Book hub). Null (most tests) hosts nothing beyond
     ///     the Library, so a section naming another host is dropped with a module log line.
     /// </param>
     public MainViewModel(
@@ -538,13 +547,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SettingsService? settingsService = null, HeavyJobGate? heavyJobGate = null,
         HighlightScanService? highlightScanner = null,
         IDemoProcessingQueue? processingQueue = null,
-        DemoEvaluationCoordinator? evaluationCoordinator = null,
+        DemoScheduler? scheduler = null,
         Func<string?>? tourSampleLocator = null,
         DemoCacheStore? demoCache = null,
         IReadOnlyList<ILibraryContribution>? libraryContributions = null,
-        IReadOnlyList<HostTabContribution>? hostTabs = null)
+        IReadOnlyList<ContributedHub>? hubTabs = null)
     {
-        _hostTabs = hostTabs ?? [];
+        _hubTabs = hubTabs ?? [];
         _demoCache = demoCache;
         _windowService = windowService;
         _settingsService = settingsService;
@@ -554,7 +563,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _heavyJobGate = heavyJobGate;
         _highlightScanner = highlightScanner;
         _processingQueue = processingQueue;
-        _evaluationCoordinator = evaluationCoordinator;
+        _scheduler = scheduler;
+        if (processingQueue is not null)
+        {
+            processingQueue.ShellDemo = new ShellDemoLease(this);
+        }
+
         // UI session-restore persistence: the Session section of the single config file. Null
         // settingsService (designer / older tests / WASM) → the store no-ops, so nothing is restored/saved.
         _sessionStore = new SessionStore(settingsService);
@@ -889,7 +903,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _recentFiles,
             _tourSamplePath, // bundled sample (assets/tour) → the hero's "Try a sample match" CTA
             libraryContributions, // the Team filter and the provenance chip
-            isFeatureEnabled: id => _gate?.IsEnabled(id) ?? true);
+            isFeatureEnabled: id => _gate?.IsEnabled(id) ?? true,
+            findDemo: demoCache is null ? null : HostLibrary.For(demoCache, processingQueue).Find,
+            contentLocations: demoCache is null ? null : demoCache.PathsOfContent);
 
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.
@@ -1055,11 +1071,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public ObservableCollection<StatusChipViewModel> Chips { get; } = [];
 
-    // The pack-contributed chip slots, set once by AttachStatusChips. Each contribution's own
-    // Source.PropertyChanged subscription is kept so Dispose can detach it; _shownContributedChips tracks
-    // which Chip instance this slot last added to Chips, keyed by the contribution's own id.
-    private IReadOnlyList<StatusChipContribution> _statusChipContributions = [];
-    private readonly List<(IContributedStatusChip Source, PropertyChangedEventHandler Handler)> _statusChipSubscriptions = [];
+    // The chips shown on someone else's behalf: the packs' contributed chips and the first-party export
+    // slots. _shownContributedChips tracks which Chip instance each one last added to Chips, by its id.
+    private readonly List<IShellChip> _shellChips = [];
     private readonly Dictionary<string, StatusChipViewModel> _shownContributedChips = new(StringComparer.Ordinal);
 
     /// <summary>The background reel-generation service, when the host provides one (desktop). Null otherwise.</summary>
@@ -1073,9 +1087,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     it holds stay as lazy as any module tab. Its strip descriptor exists only when a module
     ///     contributed a section.
     /// </summary>
-    /// <summary>The view model of the host tab with this host id, or null when no pack contributed one.</summary>
+    /// <summary>The view model of the hub tab with this id, or null when no pack contributed one.</summary>
     /// <param name="hostId">The id sections name, e.g. <c>"stratbook.hub"</c>.</param>
-    internal IHostTabViewModel? HostViewModel(string hostId) =>
+    internal HubTabViewModel? HostViewModel(string hostId) =>
         _hosts.FirstOrDefault(h => h.HostId == hostId)?.ViewModel;
 
     /// <summary>
@@ -1649,12 +1663,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _gate.Changed -= OnGateChanged;
         }
 
-        foreach ((IContributedStatusChip source, PropertyChangedEventHandler handler) in _statusChipSubscriptions)
+        foreach (IShellChip chip in _shellChips)
         {
-            source.PropertyChanged -= handler;
+            chip.Changed -= ReconcileContributedChips;
+            chip.Detach();
         }
 
-        _statusChipSubscriptions.Clear();
+        _shellChips.Clear();
 
         if (LiveSync is not null)
         {
@@ -1680,6 +1695,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         _processingQueueStatus?.Dispose();
+        _ownedQueue?.Dispose();
+        _ownedGate?.Dispose();
         _idle?.Dispose();
 
         if (SettingsOverlay is { } overlay)
@@ -1699,7 +1716,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _perfTimer?.Stop();
         _library.Save();
         _library.Dispose();
-        SelectedTab?.Deactivate();
+        ExtensionTabs.Deactivate(SelectedTab);
+        if (_extensionFaults is not null)
+        {
+            _extensionFaults.Changed -= OnExtensionFaultsChanged;
+        }
+
         _moduleContext?.Dispose();
         _moduleFeatures?.Dispose();
         Playback.Dispose();
@@ -1828,12 +1850,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Only this demo's own write, or a bulk change that may include it. Re-rendering on every unrelated
-        // write would mean browsing the Library during a background index cost a sidecar read and a full
-        // page rebuild per demo indexed, and since the rebuild recreates the highlight groups, every group
-        // the user had collapsed would pop back open under them.
-        if (changedPath is not null
-            && !string.Equals(changedPath, path, StringComparison.OrdinalIgnoreCase))
+        // Only this demo's own write, through any of its paths, or a bulk change that may include it.
+        // Re-rendering on every unrelated write would mean browsing the Library during a background index
+        // cost a sidecar read and a full page rebuild per demo indexed, and since the rebuild recreates the
+        // highlight groups, every group the user had collapsed would pop back open under them.
+        if (changedPath is not null && !_demoCache.SameDemo(changedPath, path))
         {
             return;
         }
@@ -1904,6 +1925,31 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///         reports exactly which half it holds.
     ///     </para>
     /// </summary>
+    // The open has the whole file in hand, so its hash settles a path the library attached by fingerprint
+    // alone, and gives a row not hashed yet its hash. Must run before anything writes the open's results to
+    // the cache under that path.
+    private string HashAndConfirm(string? localPath, byte[] rawBytes)
+    {
+        string key = DemoContentHash.Compute(rawBytes);
+        if (localPath is { Length: > 0 } && _demoCache is not null)
+        {
+            try
+            {
+                FileInfo info = new(localPath);
+                if (info.Exists && info.Length == rawBytes.LongLength)
+                {
+                    _demoCache.NoteContentRead(localPath, key, null, rawBytes.LongLength, info.LastWriteTimeUtc);
+                }
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // The open still has its key; the cache settles the path at the next read.
+            }
+        }
+
+        return key;
+    }
+
     private void WriteTier3ScoreboardToCache(string? localPath, MetricTable? gameTable, int roundCount)
     {
         if (_demoCache is null || gameTable is null || localPath is not { Length: > 0 })
@@ -1973,10 +2019,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Never replace the page for the demo that is actually open: the live render is strictly richer
-        // than its own cached record, and a selection is not a request to leave it.
-        if (_loadedDemoPath is { Length: > 0 } open
-            && string.Equals(open, entry.FilePath, StringComparison.OrdinalIgnoreCase))
+        // Never replace the page for the demo that is actually open, opened through this path or another
+        // holding the same bytes: the live render is strictly richer than its own cached record, and a
+        // selection is not a request to leave it.
+        if (_loadedDemoPath is { Length: > 0 } open && _demoCache.SameDemo(open, entry.FilePath))
         {
             return;
         }
@@ -2344,63 +2390,110 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    ///     Mounts the chip slots the packs contributed: a generic replacement for what used to be
-    ///     a dedicated Strat-export slot. Each slot's own <see cref="IContributedStatusChip.IsShown" />
-    ///     decides presence once its owning pack's gate allows it; a slot may mount its chip long after this
-    ///     runs (the Strat Book builds its export job lazily, on the first Export), so this subscribes to
-    ///     the slot rather than reading it once. Called once by the composition root after the shell is
-    ///     built.
+    ///     Shows the chips the packs contributed. Each chip's own <see cref="IShellChip.IsShown" /> decides
+    ///     presence once its feature id is on; a chip changes long after this runs, so the shell watches it
+    ///     rather than reading it once. Called once by the composition root after the shell is built.
     /// </summary>
-    internal void AttachStatusChips(IReadOnlyList<StatusChipContribution> chips)
+    internal void AttachStatusChips(IReadOnlyList<HostStatusChip> chips)
     {
         ArgumentNullException.ThrowIfNull(chips);
-        _statusChipContributions = chips;
-        foreach (StatusChipContribution contribution in chips)
+        foreach (HostStatusChip chip in chips)
         {
-            PropertyChangedEventHandler handler = (_, _) => ReconcileContributedChip(contribution);
-            contribution.Source.PropertyChanged += handler;
-            _statusChipSubscriptions.Add((contribution.Source, handler));
-            ReconcileContributedChip(contribution);
+            AddShellChip(chip);
         }
     }
 
-    // Re-checks every contributed slot against the gate (a pack toggle may have flipped which ones are
-    // allowed). Called from ApplyGateChange; a slot's OWN mount/dismiss changes reconcile themselves
-    // through the per-contribution subscription AttachStatusChips installs.
+    /// <summary>The extensions' notification cards, newest first; the stack above the status strip binds it.</summary>
+    public ObservableCollection<NotificationCardViewModel> Notifications { get; private set; } = [];
+
+    /// <summary>Shows the extensions' notifications. Called once by the composition root after the shell is built.</summary>
+    internal void AttachNotifications(NotificationCenter center)
+    {
+        ArgumentNullException.ThrowIfNull(center);
+        Notifications = center.Cards;
+        OnPropertyChanged(nameof(Notifications));
+    }
+
+    /// <summary>
+    ///     Mounts a first-party export job's status as a chip under <paramref name="chipId" />, shown while the
+    ///     job runs or until its result is dismissed, and only while <paramref name="featureId" /> is on. The
+    ///     job builds on its tab's first Export, long after the shell, so the slot is made on first mount.
+    /// </summary>
+    internal void MountExportStatus(string chipId, string featureId, Playback2DExportStatusViewModel status)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(chipId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(featureId);
+        ArgumentNullException.ThrowIfNull(status);
+        if (_shellChips.FirstOrDefault(c => c.Id == chipId) is { } taken and not ExportChipSlot)
+        {
+            // A contributed chip holds the id: the export has no chip this session, and says so once.
+            if (_refusedExportChips.Add(chipId))
+            {
+                RouteModuleLog(ModuleLogLevel.Error, $"Status chip '{taken.Id}' is already on the strip; the export chip is left out.");
+            }
+
+            return;
+        }
+
+        if (_shellChips.OfType<ExportChipSlot>().FirstOrDefault(c => c.Id == chipId) is not { } slot)
+        {
+            slot = new ExportChipSlot(chipId, featureId);
+            AddShellChip(slot);
+        }
+
+        slot.Mount(status);
+    }
+
+    private readonly HashSet<string> _refusedExportChips = new(StringComparer.Ordinal);
+
+    private void AddShellChip(IShellChip chip)
+    {
+        if (_shellChips.Any(c => c.Id == chip.Id))
+        {
+            RouteModuleLog(ModuleLogLevel.Error, $"Status chip '{chip.Id}' is already on the strip; the second one is left out.");
+            return;
+        }
+
+        _shellChips.Add(chip);
+        chip.Changed += ReconcileContributedChips;
+        chip.Attach();
+        ReconcileContributedChip(chip);
+    }
+
+    // Re-checks every chip against the gate. Called from ApplyGateChange and on any chip's Changed.
     private void ReconcileContributedChips()
     {
-        foreach (StatusChipContribution contribution in _statusChipContributions)
+        foreach (IShellChip chip in _shellChips)
         {
-            ReconcileContributedChip(contribution);
+            ReconcileContributedChip(chip);
         }
     }
 
-    // A contributed chip's Chip reference can change identity across a remount (a new job, a new mapper);
-    // _shownContributedChips tracks which instance THIS slot last added, so a stale one is removed rather
-    // than orphaned in Chips forever.
-    private void ReconcileContributedChip(StatusChipContribution contribution)
+    // A chip's Chip reference can change identity across a remount (a new export job); _shownContributedChips
+    // tracks which instance this chip last added, so a stale one is removed rather than orphaned in Chips.
+    private void ReconcileContributedChip(IShellChip chip)
     {
-        bool allowed = contribution.FeatureId is null || (_gate?.IsEnabled(contribution.FeatureId) ?? true);
-        StatusChipViewModel? current = contribution.Source.Chip;
+        bool allowed = _gate?.IsEnabled(chip.FeatureId) ?? true;
+        StatusChipViewModel? current = chip.Chip;
 
-        if (_shownContributedChips.TryGetValue(contribution.Id, out StatusChipViewModel? previous)
+        if (_shownContributedChips.TryGetValue(chip.Id, out StatusChipViewModel? previous)
             && !ReferenceEquals(previous, current))
         {
             Chips.Remove(previous);
-            _shownContributedChips.Remove(contribution.Id);
+            _shownContributedChips.Remove(chip.Id);
         }
 
-        bool shouldShow = allowed && current is not null && contribution.Source.IsShown;
+        bool shouldShow = allowed && current is not null && chip.IsShown;
         bool present = current is not null && Chips.Contains(current);
         if (shouldShow && !present)
         {
             Chips.Add(current!);
-            _shownContributedChips[contribution.Id] = current!;
+            _shownContributedChips[chip.Id] = current!;
         }
         else if (!shouldShow && present)
         {
             Chips.Remove(current!);
-            _shownContributedChips.Remove(contribution.Id);
+            _shownContributedChips.Remove(chip.Id);
         }
     }
 
@@ -2443,12 +2536,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             try
             {
-                descriptors.AddRange(module.CreateTabs(host));
+                descriptors.AddRange(ExtensionTabs.CreateTabs(module, host));
             }
             catch (Exception ex)
             {
-                // Failure isolation: a misbehaving module never crashes the shell.
+                // Failure isolation: a misbehaving module never crashes the shell. An extension's module is
+                // already contained by ExtensionTabs; this is a host module's failure.
                 RouteModuleLog(ModuleLogLevel.Error, $"Module '{module.Id}' CreateTabs failed: {ex.Message}");
+                string operation = $"module '{module.Id}' CreateTabs";
+                AppLog.OperationFailed(DiagLog, operation, ex);
             }
         }
 
@@ -2456,22 +2552,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // host, its VM built now so the sections and the session have somewhere to land before activation.
         _hosts.Clear();
         _hosts.Add(new SectionHostEntry(LibraryTabViewModel.HostId, descriptors.First(d => d.TabId == LibraryTabViewModel.HostId),
-            LibraryTab.Sections, null, contributed: false));
-        foreach (HostTabContribution host in _hostTabs)
+            LibraryTab.Sections, null, null));
+        foreach (ContributedHub hub in _hubTabs)
         {
-            IHostTabViewModel viewModel = host.ViewModelFactory();
-            viewModel.RailLabel = host.RailLabel;
+            // A hub id is a tab id and a host id at once: one already taken would hijack another's sections.
+            if (descriptors.Any(d => d.TabId == hub.Id) || _hosts.Any(h => h.HostId == hub.Id))
+            {
+                RouteModuleLog(ModuleLogLevel.Error, $"Hub tab '{hub.Id}' from '{hub.PackId}' uses an id already taken; left out.");
+                continue;
+            }
+
+            HubTabViewModel viewModel = new(hub.Id, hub.Header, hub.RailLabel);
             WorkspaceTabDescriptor tab = new()
             {
-                TabId = host.TabId,
-                Header = host.Header,
-                Order = host.Order,
-                FeatureId = host.FeatureId,
+                TabId = hub.Id,
+                Header = hub.Header,
+                Order = hub.Order,
+                FeatureId = hub.FeatureId,
                 ViewModelFactory = () => viewModel,
-                ViewFactory = host.ViewFactory
+                ViewFactory = () => new HubTabView()
             };
+
             descriptors.Add(tab);
-            _hosts.Add(new SectionHostEntry(host.HostId, tab, viewModel.Sections, viewModel, contributed: true));
+            _hosts.Add(new SectionHostEntry(hub.Id, tab, viewModel.Sections, viewModel, hub));
         }
 
         // Sections leave the strip here, each to the host it names.
@@ -2653,7 +2756,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     : ChooseNeighbor(removed, desired);
             }
 
-            removed.Deactivate(); // idempotent; drops the realized View if it was the (old) selected tab.
+            ExtensionTabs.Deactivate(removed); // idempotent; drops the realized View if it was the (old) selected tab.
             Tabs.Remove(removed);
         }
 
@@ -2774,11 +2877,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     partial void OnSelectedTabChanged(WorkspaceTabDescriptor? oldValue, WorkspaceTabDescriptor? newValue)
     {
-        oldValue?.Deactivate();
+        ExtensionTabs.Deactivate(oldValue);
 
         if (newValue is not null && _moduleContext is not null)
         {
-            newValue.Activate(_moduleContext);
+            ExtensionTabs.Activate(newValue, _moduleContext);
         }
     }
 
@@ -2830,7 +2933,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // The content key (SHA-256 of the bytes in hand) runs beside the parse rather than after it:
             // it keys the graph breakpoints and is published to modules, and computing it here costs no
             // wall time on the load. See LoadDemoFromBytesAsync for the same shape.
-            Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
+            Task<string> demoKeyTask = Task.Run(() => HashAndConfirm(path, rawBytes));
             // The same open item as the interactive funnel. During a reel render the parse throws
             // ReelInProgressException, which the failure handling below surfaces.
             ParsedDemo parsed = await open.ParseAsync(rawBytes);
@@ -2872,6 +2975,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
             _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
             _moduleContext?.SetDemo(parsed); // expose the loaded demo to the first-party Workbench
+            _heldDemo = new HeldDemo(path, parsed);
             BuildUnknownMessageCensus(parsed);
             // Precompute round / event / tick boundary indices once,
             // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
@@ -2908,7 +3012,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Parity with the interactive load path: resume the walkthrough's deferred demo segment if a
             // first-run user's first demo arrives via CLI/debug auto-load. No-op unless the tour is awaiting.
             _tutorial.NotifyDemoLoaded();
-            open.Complete();
+            _openPassesTask = RunOpenVisitAsync(open, path, parsed);
         }
         catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
         {
@@ -3475,15 +3579,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    // Every open is one queue item at the front. A host without the queue parses under the gate, as before.
+    // Every open is one queue item at the front.
     private IDemoOpenTicket BeginOpenItem(string? path, string fileName) =>
-        _processingQueue?.BeginOpen(path, fileName) ?? new PassThroughDemoOpen(async (bytes, ct) =>
+        (_processingQueue ?? OwnedQueue()).BeginOpen(path, fileName);
+
+    private DemoProcessingQueue OwnedQueue()
+    {
+        if (_ownedQueue is null)
         {
-            using (_heavyJobGate is null ? null : await _heavyJobGate.AcquireInteractiveAsync(ct))
-            {
-                return await Task.Run(() => DemoParser.Parse(bytes), ct);
-            }
-        });
+            _ownedGate = _heavyJobGate is null ? new HeavyJobGate() : null;
+            _ownedQueue = new DemoProcessingQueue(_heavyJobGate ?? _ownedGate!) { ShellDemo = new ShellDemoLease(this) };
+        }
+
+        return _ownedQueue;
+    }
 
     // An open that ended before the load core ran: replaced or removed while reading, or the read failed.
     private void EndUnreadOpen(IDemoOpenTicket open, string fileName, Exception ex)
@@ -3542,6 +3651,125 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     internal string? LoadedDemoPath => _loadedDemoPath;
 
+    // ── Safe mode ──
+
+    // Both fixed for the process: the decision is made in Main, before the shell exists.
+    private readonly SafeModeState _safeMode = LaunchGuard.Current?.Decision ?? SafeModeState.Off;
+    private readonly Action? _restart = AppHostHooks.Restart;
+
+    /// <summary>True when this launch loaded no extension.</summary>
+    public bool IsSafeMode => _safeMode.IsActive;
+
+    /// <summary>Why, in a sentence.</summary>
+    public string SafeModeMessage => _safeMode.Message;
+
+    /// <summary>True when the app can relaunch itself.</summary>
+    public bool CanRestart => _restart is not null;
+
+    /// <summary>True when the previous crash named an extension and its switch can be turned off.</summary>
+    public bool CanTurnOffSafeModeExtension =>
+        CanRestart && _settingsService is not null && _safeMode.ExtensionFeatureId is not null;
+
+    /// <summary>The button that turns the named extension off before restarting.</summary>
+    public string SafeModeTurnOffLabel => $"Turn off {_safeMode.ExtensionName} and restart";
+
+    [RelayCommand]
+    private void RestartNormally() => _restart?.Invoke();
+
+    // ── Extension switched off after errors ──
+
+    private readonly HashSet<string> _faultBannerShownFor = new(StringComparer.Ordinal);
+    private ExtensionFaults? _extensionFaults;
+
+    /// <summary>
+    ///     A one-line banner for an extension switched off this session after errors, shown once per
+    ///     switch-off. Null when there is nothing to say.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasExtensionFaultBanner))]
+    private ExtensionFaultNotice? _extensionFaultBanner;
+
+    /// <summary>True while <see cref="ExtensionFaultBanner" /> shows.</summary>
+    public bool HasExtensionFaultBanner => ExtensionFaultBanner is not null;
+
+    /// <summary>Follows <paramref name="faults" /> for the banner. Once; later calls are ignored.</summary>
+    internal void AttachExtensionFaults(ExtensionFaults faults)
+    {
+        ArgumentNullException.ThrowIfNull(faults);
+        if (_extensionFaults is not null)
+        {
+            return;
+        }
+
+        _extensionFaults = faults;
+        faults.Changed += OnExtensionFaultsChanged;
+        OnExtensionFaultsChanged();
+    }
+
+    private void OnExtensionFaultsChanged()
+    {
+        if (_extensionFaults is not { } faults)
+        {
+            return;
+        }
+
+        foreach (ExtensionScope scope in faults.Scopes)
+        {
+            ExtensionFaultState state = faults.StateOf(scope.FeatureId);
+            if (!state.Suspended)
+            {
+                // Back on, or kept off in settings: a later switch-off gets its own banner.
+                _faultBannerShownFor.Remove(scope.FeatureId);
+                if (ExtensionFaultBanner?.FeatureId == scope.FeatureId)
+                {
+                    ExtensionFaultBanner = null;
+                }
+
+                continue;
+            }
+
+            if (_faultBannerShownFor.Add(scope.FeatureId))
+            {
+                ExtensionFaultNotice notice = new(scope.FeatureId, scope.Name, TurnExtensionOnAgain, KeepExtensionOff,
+                    AppPaths.LogsDir is { } logs ? () => OpenOutputFolder(logs) : null);
+                notice.Apply(state);
+                ExtensionFaultBanner = notice;
+            }
+            else if (ExtensionFaultBanner?.FeatureId == scope.FeatureId)
+            {
+                ExtensionFaultBanner.Apply(state);
+            }
+        }
+    }
+
+    private void TurnExtensionOnAgain(string featureId)
+    {
+        ExtensionFaultBanner = null;
+        _extensionFaults?.Resume(featureId);
+    }
+
+    private void KeepExtensionOff(string featureId)
+    {
+        ExtensionFaultBanner = null;
+        _settingsService?.Write(s => s.Features.Overrides[featureId] = false);
+        _extensionFaults?.Acknowledge(featureId);
+    }
+
+    [RelayCommand]
+    private void DismissExtensionFaultBanner() => ExtensionFaultBanner = null;
+
+    [RelayCommand]
+    private void TurnOffExtensionAndRestart()
+    {
+        if (_safeMode.ExtensionFeatureId is not { } featureId || _settingsService is null)
+        {
+            return;
+        }
+
+        _settingsService.Write(s => s.Features.Overrides[featureId] = false);
+        _restart?.Invoke();
+    }
+
     /// <summary>
     ///     Drops every shell-held reference to the currently-loaded demo. Shared by the two load entry
     ///     points (<see cref="LoadDemoFromBytesAsync" /> / <see cref="AutoLoadDemoAsync" />, which used to
@@ -3558,10 +3786,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void UnloadDemoState()
     {
         _demoBytes = null;
-        // Drop our handle to the previous open's fan-out (it may still be running on a reload: that is
+        // Drop our handle to the previous open's visit (it may still be running on a reload: that is
         // fine and pre-existing; it holds only the OLD demo, which is being replaced anyway). CloseDemoAsync
         // captures the handle before calling this, so the explicit-close await is unaffected.
-        _openFanOutTask = null;
+        _openPassesTask = null;
+        _heldDemo = null;
         _teamNamesTask = null;
         _allFrames = null;
         _loadedDemoPath = null;
@@ -3634,31 +3863,38 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand(CanExecute = nameof(HasFile))]
     private async Task CloseDemoAsync()
     {
-        // Capture BEFORE UnloadDemoState nulls it. A running library tier-2 fan-out roots the ParsedDemo,
-        // so the reclaim collection below would free nothing while it is in flight. Awaiting it first makes
-        // the close deterministic: the whole frame graph is unrooted when the GC runs. For an already-indexed
-        // demo the fan-out is a near-instant skip; only a close that races a fresh demo's first indexing waits
-        // (rare), and the status line reflects it. Failures are swallowed: the fan-out already isolates them.
-        Task? fanOut = _openFanOutTask;
+        // Capture BEFORE UnloadDemoState nulls it. A running visit roots the ParsedDemo, so the reclaim
+        // collection below would free nothing while it is in flight. Awaiting it first makes the close
+        // deterministic: the whole frame graph is unrooted when the GC runs. For an already-indexed demo the
+        // visit is a near-instant skip; only a close that races a fresh demo's first indexing waits (rare),
+        // and the status line reflects it. Failures are swallowed: the queue already isolates them.
+        Task? passes = _openPassesTask;
         Task? teamNames = _teamNamesTask;
 
         UnloadDemoState();
         _moduleContext?.RaiseDemoReset();
 
-        if (fanOut is { IsCompleted: false })
+        if (passes is { IsCompleted: false })
         {
             StatusText = "Closing demo…";
             try
             {
-                await fanOut;
+                await passes;
             }
             catch
             {
-                // The fan-out isolates its own evaluator failures; nothing to surface on close.
+                // The queue isolates its own pass failures; nothing to surface on close.
             }
         }
 
-        // The team-name lookup awaits the same fan-out; drain it so nothing is left running past the close.
+        // A pass may still be running on the parse the queue borrowed; unload stopped new holds above.
+        if (!_holds.IsDrained)
+        {
+            StatusText = "Closing demo…";
+            await _holds.WhenDrainedAsync();
+        }
+
+        // The team-name lookup awaits the same visit; drain it so nothing is left running past the close.
         if (teamNames is { IsCompleted: false })
         {
             try
@@ -3886,9 +4122,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 return; // already indexed
             }
 
-            if (_openFanOutTask is { } fanOut)
+            if (_openPassesTask is { } passes)
             {
-                await fanOut.ConfigureAwait(true);
+                await passes.ConfigureAwait(true);
                 TryPushTeamNames(localPath);
             }
         }
@@ -4006,7 +4242,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // keys the persisted graph breakpoints and is published on the module context, where the
             // annotation, breakpoint and tag stores join on it; hashing here costs no wall time on the load,
             // and hashing once here is what lets every module read the value instead of hashing again.
-            Task<string> demoKeyTask = Task.Run(() => DemoContentHash.Compute(rawBytes));
+            Task<string> demoKeyTask = Task.Run(() => HashAndConfirm(localPath, rawBytes));
             ParsedDemo parsed = await open.ParseAsync(rawBytes);
 
             // Fill the Match Overview quick facts + rosters from the parsed result and advance its stage strip
@@ -4039,13 +4275,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             HasFile = Frames.Count > 0;
             _allFrames = allFrames;
             // Record this open in the recent-files store (most-recent-first, capped,
-            // de-duped by path). This is the ONE user-facing open funnel: the toolbar Open Demo, the Parser
+            // de-duped by content hash, else by path). This is the ONE user-facing open funnel: the toolbar Open Demo, the Parser
             // empty-state, the Library "Open Demo…" CTA, and the library card double-click all route here
             // (via OpenFileAsync / LoadDemoFromPathAsync), so every open records exactly once. Guarded on a
             // real local path (browser hosts have none) and on a demo that actually parsed to frames.
             if (localPath is not null && HasFile)
             {
-                _recentFiles?.RecordOpen(localPath, parsed.MapName);
+                _recentFiles?.RecordOpen(localPath, parsed.MapName, demoKey);
             }
 
             // Register the demo with the controller (frame list + tick rate for the play loop).
@@ -4062,6 +4298,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _moduleContext?.SetMapName(parsed.MapName); // data-driven map identity for asset selection
             _moduleContext?.SetDemoSha256(demoKey); // the persisted-store join key, hashed once above
             _moduleContext?.SetDemo(parsed); // expose the loaded demo to the first-party Workbench
+            _heldDemo = localPath is null ? null : new HeldDemo(localPath, parsed);
             BuildUnknownMessageCensus(parsed);
             // Precompute round / event / tick boundary indices once,
             // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
@@ -4136,21 +4373,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             StatusText = $"{fileName}  —  {Frames.Count} frames  •  Select a frame";
             AppLog.DemoLoaded(DiagLog, fileName, Frames.Count);
 
-            // "One processing event": hand this just-parsed demo to
-            // the background evaluators so an un-indexed library demo fills its Library card from THIS parse
-            // instead of a redundant second background parse. Off the UI thread: the Library score replay is
-            // multi-second, and isolated (a handler failure never fails the open). `parsed` is immutable
-            // post-parse, so the concurrent read-only replay is safe. Highlights is skipped: it is fed the
-            // open demo through the completed analysis run (OnOpenDemoEvaluated), a re-analysis-free channel.
-            if (localPath is { } openPath && HasFile && _evaluationCoordinator is { } coordinator)
+            // The open is the demo's visit: the passes that want this demo run on THIS parse, off the UI
+            // thread, so an un-indexed library demo fills its Library card without a second parse. The
+            // queue isolates each pass; `parsed` is immutable post-parse, so the concurrent read is safe.
+            // Highlights declines the demo while its harvest from the analysis run above is being written.
+            if (localPath is { } openPath && HasFile)
             {
-                ParsedDemo openParsed = parsed;
-                // Tracked (not fire-and-forget) so CloseDemoAsync can await it before reclaiming: a
-                // running fan-out roots the demo, so an un-awaited close would free nothing.
-                _openFanOutTask = Task.Run(() => coordinator.FanOutParsed(openPath, openParsed, _openFanOutSkip));
                 open.Report(0.9, "Updating the library");
-                _ = _openFanOutTask.ContinueWith(_ => open.Complete(), CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                _openPassesTask = RunOpenVisitAsync(open, openPath, parsed);
             }
             else
             {
@@ -4552,6 +4782,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         _loadedPackSessions = p.Packs;
+        _loadedHubSessions = p.Hubs;
+        RestoreHubRails(p.Hubs);
         RestorePackSessions(p.Packs);
 
         RestoreActiveTab(p);
@@ -4599,19 +4831,57 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        foreach (SectionHostEntry host in _hosts)
+        foreach (SectionHostEntry host in SessionHubs())
         {
-            if (host.ViewModel?.SessionPackId is not { } packId
-                || _restoredPackIds.Contains(packId)
+            string packId = host.Hub!.PackId;
+            if (_restoredPackIds.Contains(packId)
                 || !IsPackSessionEnabled(host)
                 || !packs.TryGetValue(packId, out JsonElement state))
             {
                 continue;
             }
 
-            host.ViewModel.RestorePackState(state);
+            host.Hub.Session!.Restore(state);
             _restoredPackIds.Add(packId);
         }
+    }
+
+    // The hubs whose pack keeps session state, the first per pack: the state is keyed by pack id.
+    private IEnumerable<SectionHostEntry> SessionHubs() =>
+        _hosts.Where(h => h.Hub?.Session is not null).DistinctBy(h => h.Hub!.PackId, StringComparer.Ordinal);
+
+    // The host's own hub state needs no gate: no extension code runs to restore it.
+    private void RestoreHubRails(Dictionary<string, HubSessionState>? hubs)
+    {
+        if (hubs is null)
+        {
+            return;
+        }
+
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (host.ViewModel is { } hub && hubs.TryGetValue(host.HostId, out HubSessionState? state))
+            {
+                hub.IsRailCollapsed = state.RailCollapsed;
+            }
+        }
+    }
+
+    // Starts from what was loaded, so the state of a hub not contributed this session carries through.
+    private Dictionary<string, HubSessionState>? SnapshotHubRails()
+    {
+        Dictionary<string, HubSessionState> hubs = _loadedHubSessions is { } loaded
+            ? new(loaded, StringComparer.Ordinal)
+            : new(StringComparer.Ordinal);
+        foreach (SectionHostEntry host in _hosts)
+        {
+            if (host.ViewModel is { } hub)
+            {
+                hubs[host.HostId] = new HubSessionState(hub.IsRailCollapsed);
+            }
+        }
+
+        return hubs.Count > 0 ? hubs : null;
     }
 
     // Whether the host's own umbrella gate is on; fail-open with no gate or no FeatureId, matching
@@ -4688,7 +4958,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         PersistedActiveTabId, // the durable, name-based key, the only tab identity persisted.
         SnapshotModuleTabs(),
         WindowBounds,
-        SnapshotPackSessions());
+        SnapshotPackSessions(),
+        SnapshotHubRails());
 
     // Snapshots every host's pack session state under its pack id. Starts from what was loaded (so an id
     // with no host today carries through byte for byte) and overwrites a host that is either enabled now
@@ -4700,15 +4971,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ? new(loaded, StringComparer.Ordinal)
             : new(StringComparer.Ordinal);
 
-        foreach (SectionHostEntry host in _hosts)
+        foreach (SectionHostEntry host in SessionHubs())
         {
-            if (host.ViewModel?.SessionPackId is not { } packId
-                || (!IsPackSessionEnabled(host) && !_restoredPackIds.Contains(packId)))
+            string packId = host.Hub!.PackId;
+            if (!IsPackSessionEnabled(host) && !_restoredPackIds.Contains(packId))
             {
                 continue;
             }
 
-            if (host.ViewModel.SnapshotPackState() is { } state)
+            if (host.Hub.Session!.Snapshot() is { } state)
             {
                 packs[packId] = state;
             }
@@ -4737,7 +5008,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Dictionary<string, JsonElement> states = [];
         foreach (WorkspaceTabDescriptor tab in TabsAndSections())
         {
-            if (tab.TabViewModel?.SnapshotState() is not { } state)
+            if (ExtensionTabs.Snapshot(tab) is not { } state)
             {
                 continue;
             }
@@ -4940,5 +5211,115 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         public int FirstFrame { get; set; } = firstFrame;
         public int SampleSize { get; } = sampleSize;
         public int Count { get; set; } = 1;
+    }
+
+    // Runs the open demo's visit on the parse in hand and ends the open item when it is done. The scheduler
+    // plans the visit on the queue's worker, right before the queue takes the visits parked behind the open.
+    // Tracked (not fire-and-forget) so CloseDemoAsync can await it before reclaiming: a running pass roots
+    // the demo, so an un-awaited close would free nothing.
+    private async Task RunOpenVisitAsync(IDemoOpenTicket open, string path, ParsedDemo parsed)
+    {
+        DemoScheduler? scheduler = _scheduler;
+        try
+        {
+            await open.RunPassesAsync(parsed, scheduler is null ? null : () => scheduler.PlanOpenDemo(path)).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The queue isolates each pass; a failure of the run itself must not fail the open.
+            AppLog.DemoLoadFailed(DiagLog, "open-visit", ex.Message);
+        }
+        finally
+        {
+            open.Complete();
+        }
+    }
+
+    // The loaded demo as the queue sees it: one reference the lease reads without a lock.
+    private sealed record HeldDemo(string Path, ParsedDemo Parsed);
+
+    // The queue's view of the loaded demo. A hold is handed out only while that demo is loaded, and the
+    // close waits for every hold before it releases the parse.
+    private sealed class ShellDemoLease(MainViewModel shell) : IShellDemoLease
+    {
+        public IHeldParse? TryHold(string path) =>
+            shell._heldDemo is { } held && string.Equals(held.Path, path, StringComparison.OrdinalIgnoreCase)
+                ? shell._holds.Hold(held.Parsed)
+                : null;
+
+        public string? LoadedPath => shell._heldDemo?.Path;
+    }
+
+    // Counts the queue's holds on the loaded parse; a close awaits the count reaching zero.
+    private sealed class ShellDemoHolds
+    {
+        private readonly object _gate = new();
+        private int _count;
+        private TaskCompletionSource _drained = Completed();
+
+        public bool IsDrained
+        {
+            get
+            {
+                lock (_gate)
+                {
+                    return _count == 0;
+                }
+            }
+        }
+
+        public IHeldParse Hold(ParsedDemo parsed)
+        {
+            lock (_gate)
+            {
+                if (_count++ == 0)
+                {
+                    _drained = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                }
+            }
+
+            return new Held(this, parsed);
+        }
+
+        public Task WhenDrainedAsync()
+        {
+            lock (_gate)
+            {
+                return _drained.Task;
+            }
+        }
+
+        private void Release()
+        {
+            lock (_gate)
+            {
+                if (--_count == 0)
+                {
+                    _drained.TrySetResult();
+                }
+            }
+        }
+
+        private static TaskCompletionSource Completed()
+        {
+            TaskCompletionSource done = new();
+            done.SetResult();
+            return done;
+        }
+
+        private sealed class Held(ShellDemoHolds owner, ParsedDemo parsed) : IHeldParse
+        {
+            private int _released;
+
+            public ParsedDemo Parsed => parsed;
+
+            public void Dispose()
+            {
+                if (Interlocked.Exchange(ref _released, 1) == 0)
+                {
+                    owner.Release();
+                }
+            }
+        }
     }
 }

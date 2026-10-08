@@ -1,17 +1,17 @@
 #region
 
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The per-session in-memory situation index: the only reader of the sidecars at query time.
@@ -28,14 +28,15 @@ namespace DemoViewer.NET.Services.RoundIndex;
 ///         so a stale sidecar keeps answering until its replacement arrives and then leaves exactly.
 ///     </para>
 /// </summary>
-public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
+public sealed class SituationIndex : ISituationIndex, IExtensionResident, IDisposable
 {
     private static ILogger? _diagLog;
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly RoundIndexEvaluator? _evaluator;
-    private readonly IRoundFactsSource? _facts;
+    private readonly IRoundFacts? _facts;
     private readonly object _gate = new();
+    // By demo (DemoKey): two paths of one content are one demo, whichever path merged it.
     private readonly Dictionary<string, LoadedDemo> _loaded = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, MapIndex> _maps = new(StringComparer.OrdinalIgnoreCase);
     private readonly Action<Action> _post;
@@ -47,7 +48,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
     private bool _disposed;
     private bool _ready;
 
-    /// <param name="demoCache">The index rows: which sidecars are worth opening, and removals.</param>
+    /// <param name="library">The index rows: which sidecars are worth opening, and removals.</param>
     /// <param name="store">The sidecars.</param>
     /// <param name="sources">The fingerprint in force per map, for the stale count.</param>
     /// <param name="facts">The Round Facts read API a <see cref="SituationQuery.Facts" /> filter joins through; null applies no such filter.</param>
@@ -55,18 +56,18 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
     /// <param name="evaluator">The writer, whose <see cref="RoundIndexEvaluator.Written" /> merges a demo; null in a read-only host.</param>
     /// <param name="post">UI-thread marshal for the events; defaults to synchronous.</param>
     public SituationIndex(
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         RoundIndexStore store,
         RoundIndexPlaceSources sources,
-        IRoundFactsSource? facts = null,
+        IRoundFacts? facts = null,
         IZonePlaceResolverSource? zones = null,
         RoundIndexEvaluator? evaluator = null,
         Action<Action>? post = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(sources);
-        _demoCache = demoCache;
+        _library = library;
         _store = store;
         _sources = sources;
         _facts = facts;
@@ -118,8 +119,20 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
             }
 
             return loaded.Count(d =>
-                !string.Equals(_demoCache.TryGetIndex(d.Path)?.RoundIndexStamp()?.Fingerprint,
+                !string.Equals(_store.Stamp(d.Path)?.Fingerprint,
                     _sources.FingerprintFor(d.Map.Name), StringComparison.Ordinal));
+        }
+    }
+
+    /// <inheritdoc />
+    public long IndexedAtTicks(string demoPath)
+    {
+        LibraryDemo? entry = _library.Find(demoPath);
+        lock (_gate)
+        {
+            return (entry is not null && _loaded.TryGetValue(DemoKey(entry), out LoadedDemo? demo)) || LoadedAtLocked(demoPath, out demo)
+                ? demo.ComputedAtTicks
+                : 0;
         }
     }
 
@@ -159,7 +172,8 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
             _evaluator.Written += OnWritten;
         }
 
-        _demoCache.Changed += OnCacheChanged;
+        _library.Changed += OnLibraryChanged;
+        _store.Changed += OnCacheChanged;
     }
 
     /// <inheritdoc />
@@ -199,7 +213,8 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
             _evaluator.Written -= OnWritten;
         }
 
-        _demoCache.Changed -= OnCacheChanged;
+        _library.Changed -= OnLibraryChanged;
+        _store.Changed -= OnCacheChanged;
         return true;
     }
 
@@ -216,8 +231,8 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
     {
         Attach();
         Stopwatch watch = Stopwatch.StartNew();
-        int orphans = _store.SweepOrphans();
-        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
+        const int orphans = 0;
+        foreach (LibraryDemo entry in _library.Demos)
         {
             if (IsLoadable(entry))
             {
@@ -294,23 +309,24 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
 
     // ── Merge and remove ──────────────────────────────────────────────────────
 
-    // Stamped Indexed at the current schema; the fingerprint is not checked here on purpose (see Load).
-    private static bool IsLoadable(DemoCacheIndexEntry? entry) =>
-        entry?.RoundIndexStamp() is { State: DemoAnalysisState.Indexed, Schema: StratBookCache.RoundIndexSchema };
+    // In the library and stamped written at the current schema; the fingerprint is not checked here on
+    // purpose (see Load).
+    private bool IsLoadable(LibraryDemo? entry) =>
+        entry is not null && _store.Stamp(entry.FilePath) is { State: DemoDataState.Written, Schema: RoundIndexStore.Schema };
 
     // Reads one sidecar and replaces whatever the demo contributed before. Returns the merged event, or
     // null when the file is missing, unreadable, or belongs to another demo.
-    private RoundIndexedEvent? Merge(DemoCacheIndexEntry entry, bool raise)
+    private RoundIndexedEvent? Merge(LibraryDemo entry, bool raise)
     {
-        string fileName = Path.GetFileName(entry.Path);
-        RoundIndexDocument? document = _store.TryRead(entry.Path);
+        string fileName = Path.GetFileName(entry.FilePath);
+        RoundIndexDocument? document = _store.TryRead(entry.FilePath);
         if (document is null)
         {
             RoundIndexLog.SidecarIgnored(Log, fileName, "missing or unreadable");
             return null;
         }
 
-        if (document.SchemaVersion != StratBookCache.RoundIndexSchema)
+        if (document.SchemaVersion != RoundIndexStore.Schema)
         {
             string reason = $"schema {document.SchemaVersion}";
             RoundIndexLog.SidecarIgnored(Log, fileName, reason);
@@ -339,8 +355,8 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
             return null;
         }
 
-        RoundIndexedEvent indexed = new(entry.Path, DemoCacheStore.StableKey(entry.Path), entry.Sha256,
-            document.Map, entry.RoundIndexComputedAtTicks());
+        RoundIndexedEvent indexed = new(entry.FilePath, DemoKeys.StableKey(entry.FilePath), entry.Sha256,
+            document.Map, _store.ComputedAtTicks(entry.FilePath));
         lock (_gate)
         {
             // A merge posted before a release lands after it: released means empty.
@@ -349,10 +365,15 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
                 return null;
             }
 
-            RemoveLocked(entry.Path);
+            RemoveLocked(DemoKey(entry));
+            while (LoadedAtLocked(entry.FilePath, out LoadedDemo? atPath))
+            {
+                RemoveLocked(atPath.Key);
+            }
+
             MapIndex map = MapFor(document.Map);
-            LoadedDemo demo = map.Add(entry, document);
-            _loaded[entry.Path] = demo;
+            LoadedDemo demo = map.Add(entry, document, indexed.ComputedAtTicks);
+            _loaded[demo.Key] = demo;
         }
 
         if (raise)
@@ -378,9 +399,9 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
         return index;
     }
 
-    private bool RemoveLocked(string path)
+    private bool RemoveLocked(string key)
     {
-        if (!_loaded.Remove(path, out LoadedDemo? demo))
+        if (!_loaded.Remove(key, out LoadedDemo? demo))
         {
             return false;
         }
@@ -389,13 +410,26 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
         return true;
     }
 
+    // A demo is its content once hashed, its path until then.
+    private static string DemoKey(LibraryDemo entry) =>
+        entry.Sha256 is { Length: > 0 } sha ? "sha:" + sha : "path:" + entry.FilePath;
+
+    // Under _gate.
+    private bool LoadedAtLocked(string path, [NotNullWhen(true)] out LoadedDemo? demo)
+    {
+        demo = _loaded.Values.FirstOrDefault(d => string.Equals(d.Path, path, StringComparison.OrdinalIgnoreCase));
+        return demo is not null;
+    }
+
     private void OnWritten(RoundIndexedEvent written)
     {
-        if (_demoCache.TryGetIndex(written.DemoPath) is { } entry && IsLoadable(entry))
+        if (_library.Find(written.DemoPath) is { } entry && IsLoadable(entry))
         {
             Merge(entry, raise: true);
         }
     }
+
+    private void OnLibraryChanged(LibraryChange change) => OnCacheChanged(change.Path);
 
     // Removals only: a demo that left the library, or one whose record lost its stamp (the file was
     // replaced and identity drift discarded every tier). New rows arrive through the evaluator's
@@ -410,22 +444,25 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
                 return;
             }
 
-            if (path is not null)
+            foreach (LoadedDemo demo in _loaded.Values
+                         .Where(d => path is null || string.Equals(d.Path, path, StringComparison.OrdinalIgnoreCase)).ToList())
             {
-                if (_loaded.ContainsKey(path) && !IsLoadable(_demoCache.TryGetIndex(path)))
+                if (IsLoadable(_library.Find(demo.Path)))
                 {
-                    changed = RemoveLocked(path);
+                    continue;
                 }
-            }
-            else
-            {
-                foreach (string loaded in _loaded.Keys.ToList())
+
+                // Its path went, its bytes did not: the same rows, read through the path that still has them.
+                if (demo.Sha256 is { Length: > 0 } sha && _library.FindBySha256(sha) is { } other && IsLoadable(other))
                 {
-                    if (!IsLoadable(_demoCache.TryGetIndex(loaded)))
-                    {
-                        changed |= RemoveLocked(loaded);
-                    }
+                    demo.MoveTo(other);
                 }
+                else
+                {
+                    RemoveLocked(demo.Key);
+                }
+
+                changed = true;
             }
         }
 
@@ -527,8 +564,8 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
                     factsRows = _facts?.TryGet(factsPath);
                 }
 
-                RoundFacts.RoundFacts? facts = factsRows?.Rounds.FirstOrDefault(r => r.Number == candidate.Round.Number);
-                if (facts is null || !RoundFactsSource.Matches(candidate.Demo.Path, facts, filter))
+                RoundFacts? facts = factsRows?.Rounds.FirstOrDefault(r => r.Number == candidate.Round.Number);
+                if (facts is null || !RoundFactsRules.Matches(candidate.Demo.Path, facts, filter))
                 {
                     continue;
                 }
@@ -544,7 +581,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
                         for (int step = from; step <= to; step++)
                         {
                             int tick = candidate.Round.FreezeEndTick + step * candidate.Demo.CadenceTicks;
-                            if (RoundFactsSource.MatchesAt(facts, filter, tick, tickRate))
+                            if (RoundFactsRules.MatchesAt(facts, filter, tick, tickRate))
                             {
                                 first = Math.Min(first, step);
                                 last = Math.Max(last, step);
@@ -632,21 +669,31 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
 
     private readonly record struct TransitionContribution(string A, string B, int Count);
 
-    private sealed class LoadedDemo(MapIndex map, int id, DemoCacheIndexEntry entry, int tickRate, int cadenceTicks)
+    private sealed class LoadedDemo(MapIndex map, int id, LibraryDemo entry, int tickRate, int cadenceTicks, long computedAtTicks)
     {
         public MapIndex Map { get; } = map;
 
         public int Id { get; } = id;
 
-        public string Path { get; } = entry.Path;
+        public string Key { get; } = DemoKey(entry);
 
-        public string StableKey { get; } = DemoCacheStore.StableKey(entry.Path);
+        public string Path { get; private set; } = entry.FilePath;
+
+        public string StableKey { get; private set; } = DemoKeys.StableKey(entry.FilePath);
 
         public string? Sha256 { get; } = entry.Sha256;
 
-        public long ModifiedTicks { get; } = entry.ModifiedTicks;
+        public long ModifiedTicks { get; private set; } = entry.Modified.Ticks;
 
-        public long ComputedAtTicks { get; } = entry.RoundIndexComputedAtTicks();
+        // Another path of the same content. Under _gate.
+        public void MoveTo(LibraryDemo other)
+        {
+            Path = other.FilePath;
+            StableKey = DemoKeys.StableKey(other.FilePath);
+            ModifiedTicks = other.Modified.Ticks;
+        }
+
+        public long ComputedAtTicks { get; } = computedAtTicks;
 
         public int TickRate { get; } = tickRate;
 
@@ -708,7 +755,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
 
         public int PostingCount => _postings[0].Sum(p => p.Count) + _postings[1].Sum(p => p.Count);
 
-        public LoadedDemo Add(DemoCacheIndexEntry entry, RoundIndexDocument document)
+        public LoadedDemo Add(LibraryDemo entry, RoundIndexDocument document, long computedAtTicks)
         {
             int id;
             if (_freeIds.Count > 0)
@@ -721,7 +768,7 @@ public sealed class SituationIndex : ISituationIndex, IPackResident, IDisposable
                 _demos.Add(null);
             }
 
-            LoadedDemo demo = new(this, id, entry, document.Clock.TickRate, document.CadenceTicks);
+            LoadedDemo demo = new(this, id, entry, document.Clock.TickRate, document.CadenceTicks, computedAtTicks);
             _demos[id] = demo;
             DemoCount++;
 

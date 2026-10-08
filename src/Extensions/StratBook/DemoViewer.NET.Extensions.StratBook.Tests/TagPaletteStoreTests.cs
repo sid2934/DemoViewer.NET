@@ -1,7 +1,8 @@
 #region
 
 using Avalonia.Input;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
@@ -31,7 +32,8 @@ public class TagPaletteStoreTests
         """;
 
     private static TagPaletteValidation Validate(string json) =>
-        TagPaletteValidator.Validate(TagPaletteStore.TryParse(json, out _)!, TagPaletteValidator.DefaultReservedGroups);
+        TagPaletteValidator.Validate(TagPaletteStore.TryParse(json, out _)!, TagPaletteValidator.DefaultReservedGroups,
+            HostKeymap.Instance);
 
     private static string TempDir()
     {
@@ -43,7 +45,7 @@ public class TagPaletteStoreTests
     [Test]
     public async Task TheDefaultPalette_LoadsFromTheResource_Clean()
     {
-        TagPaletteStore store = new(null);
+        TagPaletteStore store = new(null, keymap: HostKeymap.Instance);
         TagPaletteDefinition palette = store.Default;
 
         using (Assert.Multiple())
@@ -78,7 +80,7 @@ public class TagPaletteStoreTests
             File.WriteAllText(Path.Combine(dir, "a-team.tagpalette.json"), Palette("alpha"));
             File.WriteAllText(Path.Combine(dir, "notes.json"), Palette("ignored"));
 
-            TagPaletteStore store = new(dir);
+            TagPaletteStore store = new(dir, keymap: HostKeymap.Instance);
             await Assert.That(store.Palettes.Count).IsEqualTo(1).Because("drop-ins wait for Reload, like themes");
 
             store.Reload();
@@ -109,7 +111,7 @@ public class TagPaletteStoreTests
             File.WriteAllText(Path.Combine(dir, "3-good.tagpalette.json"), Palette("good"));
             File.WriteAllText(Path.Combine(dir, "4-builtin.tagpalette.json"), Palette(TagPaletteStore.DefaultId));
 
-            TagPaletteStore store = new(dir);
+            TagPaletteStore store = new(dir, keymap: HostKeymap.Instance);
             store.Reload();
 
             foreach (string line in store.Diagnostics)
@@ -149,6 +151,16 @@ public class TagPaletteStoreTests
 
         await Assert.That(result.IsValid).IsFalse();
         await Assert.That(result.Errors.Any(e => e.Contains(reason, StringComparison.Ordinal))).IsTrue();
+    }
+
+    [Test]
+    public async Task WithNoKeymap_ThePalettesOwnKeysAreStillRefused()
+    {
+        TagPaletteValidation result = TagPaletteValidator.Validate(TagPaletteStore.TryParse(Palette("p", "Escape"), out _)!,
+            TagPaletteValidator.DefaultReservedGroups);
+
+        await Assert.That(result.IsValid).IsFalse();
+        await Assert.That(result.Errors.Any(e => e.Contains("palette's own key", StringComparison.Ordinal))).IsTrue();
     }
 
     [Test]

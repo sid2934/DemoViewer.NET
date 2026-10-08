@@ -116,7 +116,7 @@ public partial class StatusStrip : UserControl
 
     /// <summary>
     ///     The status-chip region source: a sequence of
-    ///     <see cref="ViewModels.StatusChipViewModel" />, rendered right-aligned between the perf ticker and
+    ///     <see cref="StatusChipViewModel" />, rendered right-aligned between the perf ticker and
     ///     <see cref="RightText" />. Empty / null → no chips, so the strip reads
     ///     exactly as it did before the chip region existed.
     /// </summary>

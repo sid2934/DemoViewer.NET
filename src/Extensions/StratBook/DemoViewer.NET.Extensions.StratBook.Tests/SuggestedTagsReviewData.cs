@@ -2,10 +2,11 @@
 
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
@@ -32,11 +33,11 @@ internal sealed class SuggestedTagsReviewHarness : IDisposable
     internal SuggestedTagsReviewHarness(string? cacheRoot = null, string? tagsRoot = null)
     {
         Cache = new DemoCacheStore(cacheRoot);
-        Proposals = new ProposalStore(cacheRoot, Cache);
+        Proposals = new ProposalStore(cacheRoot is null ? Cache.Data() : Cache.DiskData(cacheRoot));
         Tags = new TagStore(tagsRoot);
         Regions = new SiteRegionStore(null);
         Regions.Save(SuggestedTagsTestData.Table);
-        Service = new SuggestedTagsService(Cache, Proposals, Tags, Regions, () => Profile, () => Enabled,
+        Service = new SuggestedTagsService(Cache.Library(), Cache.RoundFacts(), Proposals, Tags, Regions, () => Profile, () => Enabled,
             () => Background, walk: _ => Walk(), utcNow: () => Now);
     }
 
@@ -49,7 +50,9 @@ internal sealed class SuggestedTagsReviewHarness : IDisposable
     internal bool Enabled { get; set; } = true;
     internal bool Background { get; set; } = true;
 
-    public void Dispose() => Proposals.Dispose();
+    public void Dispose()
+    {
+    }
 
     /// <summary>The parsed record with rows the evaluator wants; <paramref name="round" /> is the first round's number.</summary>
     internal void Seed(int round = 1, string? sha = null) =>
@@ -143,6 +146,6 @@ internal sealed class SuggestedTagsReviewHarness : IDisposable
             Clock = new RoundFactsClock { TickRate = 64, FrameCount = 2, FirstTick = 1, LastTick = 20000 },
             DetectorSet = new ProposalDetectorSet { Fingerprint = "fp", ProfileId = "team-default" },
             Proposals = [.. proposals.Select(p => StoredProposal.From(p, FreezeEnd))]
-        });
+        }, "fp", proposals.Length);
     }
 }

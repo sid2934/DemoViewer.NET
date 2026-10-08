@@ -4,7 +4,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     Where a strat token walks between two points: a route round the walls, for the projection

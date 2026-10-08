@@ -60,9 +60,10 @@ public sealed class AnnotationStore
     ///     so the App passes <c>AppPaths.ConfigRoot</c> in.
     /// </param>
     /// <param name="demoKeyResolver">
-    ///     Demo path → lowercase-hex SHA-256. Injected so the App can pass its already-cached hash:
-    ///     SHA-256 over a multi-GB <c>.dem</c> is not free, and nothing in the annotation path may hash
-    ///     on the UI thread. Defaults to a streaming hash for the CLI.
+    ///     Demo path → lowercase-hex SHA-256, or an empty string when it is not known. Injected so the App
+    ///     can pass its already-cached hash: SHA-256 over a multi-GB <c>.dem</c> is not free, a demo on a
+    ///     network folder is a full read, and nothing in the annotation path may hash on the UI thread.
+    ///     Defaults to a streaming hash for the CLI.
     /// </param>
     public AnnotationStore(string? appDataRoot, Func<string, string>? demoKeyResolver = null)
     {
@@ -96,6 +97,30 @@ public sealed class AnnotationStore
     }
 
     /// <summary>
+    ///     A demo's identity through this store's key resolver: no file read when the resolver knows the
+    ///     hash. An unknown hash is an empty string.
+    /// </summary>
+    /// <param name="demoPath">Path to the <c>.dem</c>.</param>
+    public DemoIdentity IdentityOf(string demoPath)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(demoPath);
+
+        long size = 0;
+        try
+        {
+            size = new FileInfo(demoPath).Length;
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+
+        return new DemoIdentity(_demoKeyResolver(demoPath), Path.GetFileName(demoPath), size);
+    }
+
+    /// <summary>
     ///     Lowercase-hex SHA-256 of a file's bytes, streamed: <see cref="DemoContentHash" /> with this
     ///     store's "no key" spelling, an empty string, which its callers already treat as unknown.
     /// </summary>
@@ -123,13 +148,17 @@ public sealed class AnnotationStore
         return _appDataRoot is null ? AnnotationStoreLocation.None : AnnotationStoreLocation.AppData;
     }
 
-    /// <summary>The file this demo's sidecar would be written to, or null when nothing can be.</summary>
+    /// <summary>
+    ///     The file this demo's sidecar would be written to, or null when nothing can be. An app-data sidecar
+    ///     needs the demo's hash: with none known there is no file, never one every such demo would share.
+    /// </summary>
     /// <param name="demoPath">Path to the <c>.dem</c>.</param>
     public string? ResolvePath(string demoPath) => ResolveLocation(demoPath) switch
     {
         AnnotationStoreLocation.DemoSidecar => Path.GetFullPath(demoPath) + SidecarExtension,
-        AnnotationStoreLocation.AppData => Path.Combine(_appDataRoot!, "annotations",
-            _demoKeyResolver(demoPath) + SidecarExtension),
+        AnnotationStoreLocation.AppData => _demoKeyResolver(demoPath) is { Length: > 0 } key
+            ? Path.Combine(_appDataRoot!, "annotations", key + SidecarExtension)
+            : null,
         _ => null
     };
 

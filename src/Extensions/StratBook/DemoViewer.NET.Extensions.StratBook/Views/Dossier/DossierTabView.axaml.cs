@@ -7,11 +7,11 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using DemoViewer.NET.ViewModels.Dossier;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 #endregion
 
-namespace DemoViewer.NET.Views.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.Views.Dossier;
 
 /// <summary>
 ///     The Opponent Dossier tab view. Bindings only, apart from "Copy markdown": the clipboard needs the

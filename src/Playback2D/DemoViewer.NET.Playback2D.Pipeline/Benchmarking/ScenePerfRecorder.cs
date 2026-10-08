@@ -15,7 +15,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 ///         them.
 ///     </para>
 /// </summary>
-public enum PerfStage
+internal enum PerfStage
 {
     /// <summary>
     ///     <c>ISceneFrameSource.TimeAt</c> + <c>FrameAt</c>: on a demo-backed run this is the entity
@@ -67,7 +67,7 @@ public enum PerfStage
 ///         across <c>await</c>, which is fine: the calls are sequential, never concurrent.
 ///     </para>
 /// </summary>
-public sealed class ScenePerfRecorder : ISceneProfiler
+internal sealed class ScenePerfRecorder : ISceneProfiler
 {
     /// <summary>Frames of history each ring holds before it wraps.</summary>
     public const int DefaultCapacity = 4096;

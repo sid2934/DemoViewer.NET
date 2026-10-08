@@ -13,6 +13,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -54,7 +55,7 @@ public class ContentIdentityTests
     }
 
     [Test]
-    public async Task TryGetIndexBySha256_RoundTripsAcrossReopen_AndFollowsUpsertAndRemove()
+    public async Task TryGetByContentId_RoundTripsAcrossReopen_AndFollowsUpsertAndRemove()
     {
         string root = TempRoot();
         try
@@ -65,37 +66,121 @@ public class ContentIdentityTests
             store.Upsert(Record("/demos/c.dem", null)); // not yet at tier 2
             store.SaveIndex();
 
-            await Assert.That(store.TryGetIndexBySha256("sha-1")!.Path).IsEqualTo("/demos/a.dem")
+            await Assert.That(store.TryGetByContentId("sha-1")!.Path).IsEqualTo("/demos/a.dem")
                 .Because("two rows under one hash are a copied demo, and the smallest path is the library's primary");
 
             DemoCacheStore reopened = new(root);
             using (Assert.Multiple())
             {
-                await Assert.That(reopened.TryGetIndexBySha256("sha-1")!.Path).IsEqualTo("/demos/a.dem")
+                await Assert.That(reopened.TryGetByContentId("sha-1")!.Path).IsEqualTo("/demos/a.dem")
                     .Because("the reverse map is rebuilt from index.json, not only from live upserts");
                 await Assert.That(reopened.TryGetIndex("/demos/c.dem")!.Sha256).IsNull();
-                await Assert.That(reopened.TryGetIndexBySha256("sha-none")).IsNull();
-                await Assert.That(reopened.TryGetIndexBySha256("")).IsNull();
+                await Assert.That(reopened.TryGetByContentId("sha-none")).IsNull();
+                await Assert.That(reopened.TryGetByContentId("")).IsNull();
             }
 
             reopened.Remove("/demos/a.dem");
-            await Assert.That(reopened.TryGetIndexBySha256("sha-1")!.Path).IsEqualTo("/demos/b.dem")
+            await Assert.That(reopened.TryGetByContentId("sha-1")!.Path).IsEqualTo("/demos/b.dem")
                 .Because("removing the primary falls back to the remaining copy");
 
             // The file at b's path was replaced and re-indexed: the old hash must not keep pointing at it.
             reopened.Upsert(Record("/demos/b.dem", "sha-2"));
             using (Assert.Multiple())
             {
-                await Assert.That(reopened.TryGetIndexBySha256("sha-1")).IsNull();
-                await Assert.That(reopened.TryGetIndexBySha256("sha-2")!.Path).IsEqualTo("/demos/b.dem");
+                await Assert.That(reopened.TryGetByContentId("sha-1")).IsNull();
+                await Assert.That(reopened.TryGetByContentId("sha-2")!.Path).IsEqualTo("/demos/b.dem");
             }
 
             reopened.Remove("/demos/b.dem");
-            await Assert.That(reopened.TryGetIndexBySha256("sha-2")).IsNull();
+            await Assert.That(reopened.TryGetByContentId("sha-2")).IsNull();
         }
         finally
         {
             Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task TryGetByContentId_AgreesWithTheHashLookup_ThroughEveryMutation_OnDisk() =>
+        await AgreesThroughEveryMutation(TempRoot());
+
+    [Test]
+    public async Task TryGetByContentId_AgreesWithTheHashLookup_ThroughEveryMutation_InMemory() =>
+        await AgreesThroughEveryMutation(null);
+
+    // One mutation sequence, checked after every step against the hash lookup and against the expected path,
+    // so agreement with a wrong answer still fails.
+    private static async Task AgreesThroughEveryMutation(string? root)
+    {
+        string[] ids = ["sha-1", "sha-2", "sha-none", ""];
+
+        async Task Check(DemoCacheStore store, string id, string? expectedPath)
+        {
+            DemoCacheIndexEntry? byContent = store.TryGetByContentId(id);
+            await Assert.That(byContent?.Path).IsEqualTo(expectedPath).Because($"content id '{id}'");
+            IReadOnlyList<DemoCacheIndexEntry> rows = store.RowsForContentId(id);
+            await Assert.That(rows.Count == 0 ? null : rows[0].Path).IsEqualTo(expectedPath);
+        }
+
+        async Task CheckAll(DemoCacheStore store, string? sha1, string? sha2)
+        {
+            using (Assert.Multiple())
+            {
+                await Check(store, "sha-1", sha1);
+                await Check(store, "sha-2", sha2);
+                foreach (string id in ids[2..])
+                {
+                    await Check(store, id, null);
+                }
+
+                await Assert.That(store.TryGetByContentId(null)).IsNull();
+                await Assert.That(store.RowsForContentId(null)).IsEmpty();
+            }
+        }
+
+        try
+        {
+            DemoCacheStore store = new(root);
+            await CheckAll(store, null, null);
+
+            store.Upsert(Record("/demos/c.dem", null));
+            await CheckAll(store, null, null);
+
+            store.Upsert(Record("/demos/b.dem", "sha-1"));
+            store.Upsert(Record("/demos/a.dem", "sha-1"));
+            await CheckAll(store, "/demos/a.dem", null);
+            await Assert.That(store.RowsForContentId("sha-1")).HasCount(2);
+
+            if (root is not null)
+            {
+                store.SaveIndex();
+                store = new DemoCacheStore(root);
+                await CheckAll(store, "/demos/a.dem", null);
+            }
+
+            store.Remove("/demos/a.dem");
+            await CheckAll(store, "/demos/b.dem", null);
+
+            store.Upsert(Record("/demos/b.dem", "sha-2"));
+            await CheckAll(store, null, "/demos/b.dem");
+
+            store.Update("/demos/c.dem", 1000, 2000, r => r.Sha256 = "sha-2");
+            await CheckAll(store, null, "/demos/b.dem");
+            await Assert.That(store.RowsForContentId("sha-2").Select(r => r.Path))
+                .IsEquivalentTo(["/demos/b.dem", "/demos/c.dem"], CollectionOrdering.Matching);
+
+            store.Remove("/demos/b.dem");
+            await CheckAll(store, null, "/demos/c.dem");
+
+            store.Remove("/demos/c.dem");
+            await CheckAll(store, null, null);
+        }
+        finally
+        {
+            if (root is not null && Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
         }
     }
 
@@ -134,11 +219,18 @@ public class ContentIdentityTests
                 await Assert.That(store.Index).HasCount(1);
             }
 
+            await Assert.That(store.TryGetByContentId("sha-old")).IsNull()
+                .Because("an unhashed row is reachable by path only");
+
             // And the row is still writable in the new shape: a tier-2 pass fills the hash in place.
             store.Update("/demos/old.dem", 10, 20, r => r.Sha256 = "sha-old");
             store.SaveIndex();
-            await Assert.That(new DemoCacheStore(root).TryGetIndexBySha256("sha-old")!.Path)
-                .IsEqualTo("/demos/old.dem");
+            DemoCacheStore reopened = new(root);
+            using (Assert.Multiple())
+            {
+                await Assert.That(reopened.TryGetByContentId("sha-old")!.Path).IsEqualTo("/demos/old.dem");
+                await Assert.That(reopened.TryGetByContentId("sha-old")!.Path).IsEqualTo("/demos/old.dem");
+            }
         }
         finally
         {
@@ -147,19 +239,59 @@ public class ContentIdentityTests
     }
 
     [Test]
-    public async Task DemoRef_ProjectsAnIndexRow()
+    public async Task TheFingerprint_RoundTripsThroughTheSidecarAndTheIndex_AndAnUnsetOneIsNotWritten()
     {
-        DemoRef r = DemoRef.From(new DemoCacheIndexEntry
+        string root = TempRoot();
+        try
         {
-            Path = "/demos/x.dem",
-            Sha256 = "sha-x"
-        });
+            DemoContentFingerprint fingerprint = new(1000, 4 << 20, new string('a', 64), new string('b', 64));
+            DemoCacheStore store = new(root);
+            DemoCacheRecord withPrint = Record("/demos/a.dem", "sha-a");
+            withPrint.ContentFingerprint = fingerprint;
+            store.Upsert(withPrint);
+            store.Upsert(Record("/demos/b.dem", "sha-b"));
+            store.SaveIndex();
 
+            DemoCacheStore reopened = new(root);
+            string indexJson = await File.ReadAllTextAsync(Path.Combine(root, "index.json"));
+            using (Assert.Multiple())
+            {
+                await Assert.That(reopened.TryGetIndex("/demos/a.dem")!.ContentFingerprint).IsEqualTo(fingerprint);
+                await Assert.That(reopened.TryLoadRecord("/demos/a.dem")!.ContentFingerprint).IsEqualTo(fingerprint);
+                await Assert.That(reopened.TryGetIndex("/demos/b.dem")!.ContentFingerprint).IsNull();
+                await Assert.That(indexJson.Split("ContentFingerprint").Length - 1).IsEqualTo(1)
+                    .Because("a row without a fingerprint costs the index nothing");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task SetContentHash_KeepsAFingerprintOnlyWhileItsHashStands()
+    {
+        DemoContentFingerprint first = new(1000, 4 << 20, new string('a', 64), new string('b', 64));
+        DemoContentFingerprint second = first with { Tail = new string('c', 64) };
+        DemoCacheRecord record = Record("/demos/a.dem", null);
+
+        record.SetContentHash("sha-1", first);
+        await Assert.That(record.ContentFingerprint).IsEqualTo(first);
+
+        record.SetContentHash("sha-1", null);
+        await Assert.That(record.ContentFingerprint).IsEqualTo(first)
+            .Because("the same hash read again without a fingerprint still describes the same bytes");
+
+        record.SetContentHash("sha-1", second);
+        await Assert.That(record.ContentFingerprint).IsEqualTo(second);
+
+        record.SetContentHash("sha-2", null);
         using (Assert.Multiple())
         {
-            await Assert.That(r.Path).IsEqualTo("/demos/x.dem");
-            await Assert.That(r.StableKey).IsEqualTo(DemoCacheStore.StableKey("/demos/x.dem"));
-            await Assert.That(r.Sha256).IsEqualTo("sha-x");
+            await Assert.That(record.Sha256).IsEqualTo("sha-2");
+            await Assert.That(record.ContentFingerprint).IsNull()
+                .Because("a fingerprint left beside a new hash would point at the old content");
         }
     }
 
@@ -266,6 +398,45 @@ public class ContentIdentityTests
         });
     }
 
+    /// <summary>
+    ///     A demo whose folder cannot take a sidecar is keyed in app data by the hash the open already took,
+    ///     so the tab never streams the demo file (a full read on a network folder) to name the sidecar.
+    /// </summary>
+    [Test]
+    public async Task TheTab_KeysAnAppDataSidecarByTheOpenDemosHash_WithoutReadingTheFile()
+    {
+        if (AppPaths.ConfigRoot is null)
+        {
+            throw new SkipTestException("no app-data root on this host");
+        }
+
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            string hash = new('e', 64);
+            Playback2DFakeContext ctx = new()
+            {
+                TickRate = 64,
+                TotalFrames = 2_000,
+                FirstTick = 1,
+                LastTick = 4_000,
+                Gate = new FakeModuleFeatureGate(),
+                DemoPath = Path.Combine(Path.GetTempPath(), "dv-no-such-folder-" + Guid.NewGuid().ToString("N"), "match.dem"),
+                DemoSha256 = hash
+            };
+
+            Playback2DTabViewModel vm = new();
+            vm.OnActivated(ctx);
+
+            DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (!vm.Annotations.StatusText.Contains(hash, StringComparison.Ordinal) && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(15);
+            }
+
+            await Assert.That(vm.Annotations.StatusText).Contains(hash + AnnotationStore.SidecarExtension);
+        });
+    }
+
     private static DemoFrame[] Frames(params int[] ticks)
     {
         DemoFrame[] frames = new DemoFrame[ticks.Length];
@@ -313,23 +484,60 @@ public class ContentIdentityTests
         DemoCacheStore cache = new(null);
         try
         {
-            using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache);
-            library.IndexTier2Core(entry, parsed, false);
-
             string expected = DemoContentHash.Compute(path);
+
+            // A clock standing at the file's own write time: a file that may still be written is not hashed.
+            DemoCacheStore unsettledCache = new(null);
+            using (DemoLibraryService unsettled = new(a => a(), libraryJson + ".unsettled", demoCache: unsettledCache))
+            {
+                unsettled.Time = new AppTests.Extensions.ManualClock { Now = file.LastWriteTimeUtc };
+                unsettled.IndexTier2Core(entry, parsed);
+            }
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(unsettledCache.TryGetIndex(path)!.Sha256).IsNull();
+                await Assert.That(unsettledCache.TryGetIndex(path)!.ContentFingerprint).IsNull();
+            }
+
+            // An hour past the last write, so a demo CS2 has just finished writing still counts as settled.
+            AppTests.Extensions.ManualClock settled = new() { Now = file.LastWriteTimeUtc + TimeSpan.FromHours(1) };
+            using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache);
+            library.Time = settled;
+            library.IndexTier2Core(entry, parsed);
+
             using (Assert.Multiple())
             {
                 await Assert.That(entry.State).IsEqualTo(DemoIndexState.Indexed);
                 await Assert.That(cache.TryGetIndex(path)!.Sha256).IsEqualTo(expected)
                     .Because("the index row carries the hash after one tier-2 pass");
                 await Assert.That(cache.TryLoadRecord(path)!.Sha256).IsEqualTo(expected);
-                await Assert.That(cache.TryGetIndexBySha256(expected)!.Path).IsEqualTo(path)
+                await Assert.That(cache.TryGetByContentId(expected)!.Path).IsEqualTo(path)
                     .Because("a store keyed by hash can find the file again");
+            }
+
+            DemoContentFingerprint? fingerprint = DemoContentFingerprint.TryCompute(path, settled);
+            await Assert.That(fingerprint).IsNotNull();
+            await Assert.That(cache.TryGetIndex(path)!.ContentFingerprint).IsEqualTo(fingerprint)
+                .Because("the fingerprint rides the read that took the hash");
+
+            // The second pass takes the hash from the metadata row and keeps the stored fingerprint.
+            library.IndexTier2Core(entry, parsed);
+            await Assert.That(cache.TryLoadRecord(path)!.ContentFingerprint).IsEqualTo(fingerprint);
+
+            // A cached hash beside a record with no fingerprint (an older build's row) gets one taken.
+            cache.Update(path, entry.FileSizeBytes, entry.Modified.Ticks, r => r.ContentFingerprint = null);
+            library.IndexTier2Core(entry, parsed);
+            using (Assert.Multiple())
+            {
+                await Assert.That(cache.TryGetIndex(path)!.ContentFingerprint).IsEqualTo(fingerprint);
+                await Assert.That(cache.TryGetIndex(path)!.Sha256).IsEqualTo(expected);
             }
         }
         finally
         {
             File.Delete(libraryJson);
+            File.Delete(libraryJson + ".unsettled");
         }
     }
 

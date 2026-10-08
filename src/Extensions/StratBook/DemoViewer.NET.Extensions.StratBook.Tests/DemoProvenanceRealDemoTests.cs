@@ -3,8 +3,8 @@
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -63,8 +63,8 @@ public class DemoProvenanceRealDemoTests
         Console.WriteLine($"{Path.GetFileName(path)}: source kind {kind}, server '{parsed.ServerName}', tags {(tagged ? "both" : "not both")}");
 
         DemoCacheStore cache = new(null);
-        using TeamIdentityService teams = new(null, cache, run: _inline);
-        using DemoProvenanceSource source = new(cache, teams);
+        using TeamIdentityService teams = new(null, cache.Library(), run: _inline);
+        using DemoProvenanceSource source = new(cache.Library(), teams);
         await teams.StartAsync();
         cache.Upsert(record);
         await teams.Idle;
@@ -73,7 +73,7 @@ public class DemoProvenanceRealDemoTests
         using (Assert.Multiple())
         {
             await Assert.That(entry.SourceKind).IsEqualTo(kind.ToString()).Because("the index row mirrors the record's verdict");
-            await Assert.That(DemoProvenanceSource.SourceKindOf(entry)).IsEqualTo(kind);
+            await Assert.That(DemoProvenanceSource.SourceKindOf(entry.AsRow())).IsEqualTo(kind);
         }
 
         string? forNobody = source.Resolve(path)!.Label;
@@ -81,7 +81,7 @@ public class DemoProvenanceRealDemoTests
             .Because("without an us team or a me account only the clan tags can label a demo");
 
         // One account of the replay as me: our side resolves through Me, and the label follows the header.
-        string me = SideKeys.Side(record, 2).Key[0];
+        string me = SideKeys.Side(record.AsDetail(), 2).Key[0];
         teams.SetMyAccounts([me]);
         string? forMe = source.Resolve(path)!.Label;
         string expected = tagged ? "official" : kind == DemoSourceKind.GotvMatchmaking ? "matchmaking" : "scrim";

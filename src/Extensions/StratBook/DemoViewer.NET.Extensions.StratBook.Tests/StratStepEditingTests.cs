@@ -3,11 +3,11 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 
@@ -164,7 +164,7 @@ public class StratStepEditingTests
         }
 
         // The canvas's Add step, with the throw step active, carries the same way.
-        vm.Canvas.Timeline.RequestSeekToFrame(vm.Canvas.Projection!.Ticks[1]);
+        vm.Canvas.Timeline.RequestSeek(vm.Canvas.Projection!.Ticks[1]);
         vm.Canvas.AddStepCommand.Execute(null);
         StratStep fromCanvas = vm.Session.Document!.Steps[2];
         await Assert.That(fromCanvas.Positions.Single(p => p.Slot == "B").X).IsEqualTo(Math.Round(origin.X, 2));

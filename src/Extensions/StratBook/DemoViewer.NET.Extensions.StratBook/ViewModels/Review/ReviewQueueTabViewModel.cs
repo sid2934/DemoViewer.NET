@@ -4,15 +4,15 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Services.Review;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Review;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 
 /// <summary>
 ///     The Review tab: the <see cref="ReviewQueue" /> as a list a reviewer walks top to bottom. Title
@@ -44,7 +44,7 @@ namespace DemoViewer.NET.ViewModels.Review;
 ///         the row.
 ///     </para>
 /// </summary>
-public sealed partial class ReviewQueueTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class ReviewQueueTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     /// <summary>What the browser host says about a queue that does not outlive the tab.</summary>
     public const string BrowserNote = "session only: this browser tab forgets the queue when it reloads";
@@ -735,7 +735,7 @@ public enum ReviewTextField
 ///     that differs from it only by the trimming the queue does, so a trailing space being typed is
 ///     not eaten.
 /// </summary>
-public sealed partial class ReviewRowViewModel : ViewModelBase
+public sealed partial class ReviewRowViewModel : ExtensionViewModel
 {
     private readonly ReviewQueueTabViewModel _owner;
 

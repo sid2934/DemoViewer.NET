@@ -5,8 +5,10 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -117,10 +119,10 @@ public class ForwardQueueTests
         Evaluator library = new("library", ForwardNeeds.FinalState | ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         Evaluator highlights = new("highlights", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         Evaluator facts = new("roundfacts", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
-        using DemoEvaluationCoordinator coordinator = new([library, highlights, facts], queue, () => []);
+        using DemoScheduler coordinator = new([library, highlights, facts], queue, () => []);
 
         queue.Pause();
-        coordinator.Consider("a.dem");
+        coordinator.DemoChanged("a.dem");
         queue.Resume();
         await WaitForAsync(() => facts.Forward + highlights.Forward + library.Forward == 3, "all three owners");
         // The owners run before the entry is marked finished, on the worker.
@@ -152,10 +154,10 @@ public class ForwardQueueTests
             });
         Evaluator facts = new("roundfacts", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         Evaluator index = new("roundindex", null) { Wanted = { "a.dem" } };
-        using DemoEvaluationCoordinator coordinator = new([facts, index], queue, () => []);
+        using DemoScheduler coordinator = new([facts, index], queue, () => []);
 
         queue.Pause();
-        coordinator.Consider("a.dem");
+        coordinator.DemoChanged("a.dem");
         queue.Resume();
         await WaitForAsync(() => facts.Retained + index.Retained == 2, "both owners");
 
@@ -305,6 +307,8 @@ public class ForwardQueueTests
                 released = p;
             });
         ParsedDemo? seen = null;
+        // Paused so both owners are queued before the parse starts; otherwise "one" parses and releases alone.
+        queue.Pause();
         queue.SubmitBackground(new DemoProcessingRequest("a.dem", "one", DemoJobPriority.Background, 1, p =>
         {
             calls.Add("one");
@@ -312,6 +316,7 @@ public class ForwardQueueTests
         }));
         IDemoQueueHandle two = queue.SubmitBackground(
             new DemoProcessingRequest("a.dem", "two", DemoJobPriority.Background, 1, _ => calls.Add("two")));
+        queue.Resume();
         await two.Completion;
 
         await Assert.That(calls).IsEquivalentTo(["one", "two", "released"]);
@@ -426,13 +431,19 @@ public class ForwardQueueTests
 
         RoundFactsEvaluator facts = new(store, new NoRows(), new Identity("after-merge"));
         using HighlightScanService highlights = new(store, new Harvester("fp"), () => [], () => true);
-        using DemoEvaluationCoordinator coordinator = new([highlights, facts], queue,
+        // The rows come out of the forward read's rules run: a backlog of them never holds a retained parse.
+        IDemoPass[] scheduled =
+        [
+            new EvaluatorPassAdapter(highlights, []),
+            new EvaluatorPassAdapter(facts, [])
+        ];
+        using DemoScheduler coordinator = new(() => scheduled, queue,
             () => [.. highlights.PendingPaths().Concat(facts.PendingPaths()).Distinct()]);
 
         await Assert.That(facts.PendingPaths().Count).IsEqualTo(demos);
         await Assert.That(highlights.PendingPaths()).IsEmpty().Because("the highlight fingerprint did not move");
 
-        coordinator.ConsiderAll();
+        coordinator.RecheckAll();
         await WaitForAsync(() => facts.PendingPaths().Count == 0 && queue.ActiveWorkerCount == 0, "every demo re-evaluated");
 
         using (Assert.Multiple())
@@ -440,6 +451,56 @@ public class ForwardQueueTests
             await Assert.That(passes.Order()).IsEquivalentTo(Enumerable.Range(0, demos).Select(i => $"/d/{i}.dem"));
             await Assert.That(priorities.Distinct()).IsEquivalentTo([DemoJobPriority.Background]);
             await Assert.That(maxQueued).IsLessThanOrEqualTo(3).Because("the backlog feeds the cap, it is not submitted at once");
+        }
+    }
+
+    // Round Facts is on for every user, so a library indexed while nothing wrote rows has a backlog of them.
+    // Each such demo is visited once, forward, at background priority, and the queue row names the pass.
+    [Test]
+    public async Task DemosWithNoRoundFacts_AreVisitedOnce_ForwardAtBackgroundPriority_UnderTheRoundFactsOwner()
+    {
+        DemoCacheStore store = new(null);
+        for (int i = 0; i < 3; i++)
+        {
+            store.Upsert(new DemoCacheRecord
+            {
+                Path = $"/d/{i}.dem",
+                Size = 10,
+                ModifiedTicks = i,
+                Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
+            });
+        }
+
+        List<(string Path, DemoJobPriority Priority, string Owners)> seen = [];
+        DemoProcessingQueue? queueRef = null;
+        using DemoProcessingQueue queue = Queue((path, needs, _, _) =>
+        {
+            lock (seen)
+            {
+                seen.AddRange(queueRef!.Snapshot().Where(s => s.Path == path)
+                    .Select(s => (path, s.Priority, string.Join(",", s.Owners))));
+            }
+
+            return Pass();
+        });
+        queueRef = queue;
+
+        RoundFactsEvaluator facts = new(store, new NoRows(), new Identity("rf-A"));
+        IDemoPass[] scheduled = [new EvaluatorPassAdapter(facts, [])];
+        using DemoScheduler scheduler = new(() => scheduled, queue, () => [.. store.Index.Select(e => e.Path)]);
+
+        await Assert.That(facts.PendingPaths().Count).IsEqualTo(3);
+        scheduler.RecheckAll();
+        await WaitForAsync(() => facts.PendingPaths().Count == 0 && queue.ActiveWorkerCount == 0, "the backlog drained");
+        scheduler.RecheckAll();
+        await Task.Delay(100);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(seen.Select(s => s.Path).Distinct().Count()).IsEqualTo(3);
+            await Assert.That(seen.Count).IsEqualTo(3).Because("a demo whose run had no rows is not visited again this session");
+            await Assert.That(seen.Select(s => s.Priority).Distinct()).IsEquivalentTo([DemoJobPriority.Background]);
+            await Assert.That(seen.Select(s => s.Owners).Distinct()).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
         }
     }
 

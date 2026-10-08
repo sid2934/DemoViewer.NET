@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -28,9 +28,9 @@ internal sealed class ToleranceSliderHarness : IDisposable
     public ToleranceSliderHarness(IZonePlaceResolverSource? zones = null)
     {
         Cache = new DemoCacheStore(null);
-        Sidecars = new RoundIndexStore(null, Cache);
+        Sidecars = new RoundIndexStore(Cache.Data());
         Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-        Index = new SituationIndex(Cache, Sidecars, Sources, zones: zones);
+        Index = new SituationIndex(Cache.Library(), Sidecars, Sources, zones: zones);
 
         string fingerprint = Sources.FingerprintFor("de_nuke");
         RoundIndexDocument a = Document("de_nuke", fingerprint,
@@ -54,7 +54,7 @@ internal sealed class ToleranceSliderHarness : IDisposable
         Cache.Upsert(ParsedRecord(DemoTrain, "de_train"));
         Index.Load();
 
-        Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, zones), Cache, _ => null,
+        Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, zones), Cache.Library(), _ => null,
             dispose => dispose(), post: action => action(), countDelay: TimeSpan.Zero);
         Vm.Map = "de_nuke";
     }
@@ -69,7 +69,6 @@ internal sealed class ToleranceSliderHarness : IDisposable
     {
         Vm.Dispose();
         Index.Dispose();
-        Sidecars.Dispose();
     }
 
     public void PlaceCt(params string[] places) => Place(QuerySide.Ct, places);

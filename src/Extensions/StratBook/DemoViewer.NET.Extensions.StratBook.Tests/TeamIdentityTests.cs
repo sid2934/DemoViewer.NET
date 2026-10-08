@@ -2,8 +2,9 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -62,7 +63,7 @@ public class TeamIdentityTests
     private static (DemoCacheStore Cache, TeamIdentityService Teams) Fresh(string? root = null, IRoundFactsSource? facts = null)
     {
         DemoCacheStore cache = new(root is null ? null : Path.Combine(root, "cache"));
-        TeamIdentityService teams = new(root, cache, facts, run: _inline);
+        TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), facts, run: _inline);
         return (cache, teams);
     }
 
@@ -708,8 +709,8 @@ public class TeamIdentityTests
         record.Players.Add(new CachedPlayerInfo { Slot = 10, Name = "coach", SteamId64 = Ids(99)[0], Team = 3, IsCoach = true });
         record.Players.Add(new CachedPlayerInfo { Slot = 11, Name = "BOT Rock", SteamId64 = "", Team = 2, IsBot = true });
 
-        SideInput ct = SideKeys.Side(record, 3);
-        SideInput t = SideKeys.Side(record, 2);
+        SideInput ct = SideKeys.Side(record.AsDetail(), 3);
+        SideInput t = SideKeys.Side(record.AsDetail(), 2);
         using (Assert.Multiple())
         {
             await Assert.That(record.Players.Count(p => p.Team == 3)).IsEqualTo(6);

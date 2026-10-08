@@ -10,15 +10,16 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Utility;
-using DemoViewer.NET.Views.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 
 #endregion
 
@@ -73,13 +74,12 @@ public class GrenadeIndexTests
             Demo = new GrenadeDemoHeader { Sha256 = sha, StableKey = DemoCacheStore.StableKey(path) },
             Grenades = [.. rows]
         };
-        cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-        if (stamp)
-        {
-            record.StampGrenades(document.Grenades.Count);
-        }
-
         cache.Upsert(record);
+        cache.WriteGrenades(path, document);
+        if (!stamp)
+        {
+            cache.Data().Invalidate(GrenadeStore.Facet, path);
+        }
     }
 
     // The nine Mirage demos. Every one: a smoke from A into CT spawn (a few units of jitter, the same
@@ -139,7 +139,7 @@ public class GrenadeIndexTests
 
     private static GrenadeIndex Loaded(DemoCacheStore cache, IZonePlaceResolverSource? zones = null)
     {
-        GrenadeIndex index = new(cache,
+        GrenadeIndex index = new(cache.Library(),
             zones ?? new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones), ("de_inferno", InfernoZones)));
         index.Load();
         return index;
@@ -156,7 +156,7 @@ public class GrenadeIndexTests
         {
             DemoCacheStore cache = Library();
             Guid first;
-            using (GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: new GrenadeLineupStore(root)))
+            using (GrenadeIndex index = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: new GrenadeLineupStore(root)))
             {
                 index.Load();
                 first = index.Query(SmokesIntoCt(NineDemos.ToHashSet()))[0].Lineups[0].Id;
@@ -167,7 +167,7 @@ public class GrenadeIndexTests
                 [Row("a", GrenadeKind.Smoke, new Vector3(532, 288, -160), new Vector3(-1400, -1400, -170))]);
             GrenadeLineupStore reread = new(root);
             int anchors = reread.For(Mirage).Anchors.Count;
-            using GrenadeIndex again = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: reread);
+            using GrenadeIndex again = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: reread);
             again.Load();
             GrenadeLineup a = again.Query(SmokesIntoCt())[0].Lineups[0];
             using (Assert.Multiple())
@@ -208,7 +208,7 @@ public class GrenadeIndexTests
     {
         DemoCacheStore cache = Library();
         GrenadeLineupStore store = new(null);
-        using GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
+        using GrenadeIndex index = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
         index.Query(new GrenadeQuery(Mirage));
         await Assert.That(store.For(Mirage).Anchors).IsEmpty().Because("an index that has not loaded sees a partial library");
     }
@@ -323,7 +323,7 @@ public class GrenadeIndexTests
         try
         {
             GrenadeLineupStore store = new(root);
-            using GrenadeIndex index = new(Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
+            using GrenadeIndex index = new(Library().Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), lineups: store);
             index.Load();
             Guid id = index.Query(SmokesIntoCt())[0].Lineups[0].Id;
             index.FlushLineups();
@@ -403,6 +403,49 @@ public class GrenadeIndexTests
         }
     }
 
+    // The demo loaded at its only path, a copy joins, then that path goes: the copy's rows stay in the index.
+    // Over the host's data, which follows a demo by content.
+    [Test]
+    public async Task ADemoWhosePathGoes_KeepsItsRowsAtItsCopy()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-grenades-{Guid.NewGuid():N}");
+        try
+        {
+            DemoCacheStore cache = new(null);
+            GrenadeStore store = new(cache.DiskData(root));
+            cache.Upsert(RoundIndexTestData.ParsedRecord(DemoPath(3), Mirage, "sha3"));
+            store.Write(DemoPath(3), new GrenadeDocument
+            {
+                Demo = new GrenadeDemoHeader { Sha256 = "sha3", StableKey = DemoCacheStore.StableKey(DemoPath(3)) },
+                Grenades = [.. MirageRows(3)]
+            });
+            using GrenadeIndex index = new(cache.Library(),
+                new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones), ("de_inferno", InfernoZones)), store: store);
+            index.Load();
+            int before = index.GrenadeCount;
+
+            cache.Upsert(RoundIndexTestData.ParsedRecord("/d/a-copy/mirage-3.dem", Mirage, "sha3"));
+            cache.Remove(DemoPath(3));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(before).IsGreaterThan(0);
+                await Assert.That(index.GrenadeCount).IsEqualTo(before);
+                await Assert.That(index.DemoCount).IsEqualTo(1);
+                await Assert.That(index.IsLoaded("/d/a-copy/mirage-3.dem")).IsTrue();
+                await Assert.That(index.Rows(SmokesIntoCt()).Select(r => r.Demo.Path).Distinct())
+                    .IsEquivalentTo(["/d/a-copy/mirage-3.dem"]);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
     [Test]
     public async Task TheFilters_KeepTheirKind_Side_AndDemoSet()
     {
@@ -461,9 +504,9 @@ public class GrenadeIndexTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(RoundIndexTestData.ParsedRecord("/d/new.dem", Mirage, "shaN"));
-        GrenadeIndexEvaluator evaluator = new(cache, () => true,
+        GrenadeIndexEvaluator evaluator = new(cache.Library(), cache.Grenades(), () => true,
             walk: _ => new GrenadeWalk(MirageRows(1), 1, ReconstructedInputSource.DecoderName, 4));
-        using GrenadeIndex index = new(cache, new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), evaluator);
+        using GrenadeIndex index = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), evaluator);
         index.Load();
         int changes = 0;
         index.Changed += () => changes++;
@@ -559,7 +602,7 @@ public class GrenadeIndexTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.utilitybook");
             await Assert.That(tab.TabId).IsEqualTo("utilitybook.browser");
             await Assert.That(tab.Header).IsEqualTo("Utility");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(3).Because("after Tags on the rail");
             await Assert.That(tab.DataContext).IsNull();
             await Assert.That(feature).IsNotNull();
@@ -640,7 +683,7 @@ public class GrenadeIndexTests
         }, retire: retired.Add);
 
         vm.SelectedMap = Mirage;
-        LoadedMapAsset mirage = vm.MapAsset!;
+        IMapAsset mirage = vm.MapAsset!;
         int mirageLoads = loads.Count;
         int retiredBefore = retired.Count;
         vm.Refresh();

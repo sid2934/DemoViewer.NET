@@ -12,9 +12,10 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using CS2OpenSchema.Events;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
@@ -271,7 +272,7 @@ internal static class SuggestedTagsRealDemoRows
             list.Add((sample.Tick, sample.Place));
         }
 
-        RoundFactsRows rows = new() { Schema = StratBookCache.RoundFactsSchema };
+        RoundFactsRows rows = new() { Schema = RoundFactsRecords.Schema };
         for (int i = 0; i < clips.Count; i++)
         {
             int start = clips[i].StartTickFrameClock;

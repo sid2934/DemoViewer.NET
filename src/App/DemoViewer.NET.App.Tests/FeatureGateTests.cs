@@ -248,6 +248,70 @@ public class FeatureGateTests
         });
     }
 
+    // A session suspension turns the pack off without a settings write, and everything the pack owns
+    // cascades off with it; resuming brings it all back. A non-pack id is never suspended.
+    [Test]
+    public async Task SuspendForSession_CascadesThroughThePack_AndResumeRestoresIt()
+    {
+        await WithGate(async (svc, gate) =>
+        {
+            svc.Write(s => s.UserCategory = UserCategory.Developer);
+            string pack = StratBookPack.PackFeatureId;
+            string[] owned = [.. FeatureCatalog.All.Where(d => d.OwnerPackId == pack && !d.Required).Select(d => d.Id)];
+            await Assert.That(owned).IsNotEmpty();
+            await Assert.That(owned.All(gate.IsEnabled)).IsTrue();
+
+            int changed = 0;
+            gate.Changed += (_, _) => changed++;
+            gate.SuspendForSession(pack);
+            using (Assert.Multiple())
+            {
+                await Assert.That(changed).IsEqualTo(1);
+                await Assert.That(gate.IsSuspended(pack)).IsTrue();
+                await Assert.That(gate.IsEnabled(pack)).IsFalse();
+                await Assert.That(owned.Any(gate.IsEnabled)).IsFalse().Because("tabs and sub-features cascade off");
+                await Assert.That(svc.Current.Features.Overrides.ContainsKey(pack)).IsFalse()
+                    .Because("a suspension is never written to settings");
+            }
+
+            gate.ResumeForSession(pack);
+            await Assert.That(changed).IsEqualTo(2);
+            await Assert.That(owned.All(gate.IsEnabled)).IsTrue();
+
+            gate.SuspendForSession("tab.parser");
+            await Assert.That(gate.IsEnabled("tab.parser")).IsTrue().Because("only a pack's master switch can be suspended");
+        });
+    }
+
+    // The gate's Changed runs every subscriber even when an extension's handler throws first.
+    [Test]
+    public async Task Changed_ReachesEveryHandler_PastAThrowingExtensionHandler()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            SettingsService svc = new(dir);
+            ServiceCollection services = new();
+            services.Configure<AppSettings>(svc.Configuration);
+            using ServiceProvider sp = services.BuildServiceProvider();
+            // The scope owns this test assembly, so both handlers below count as extension code.
+            DemoViewer.NET.AppTests.Extensions.FaultRig rig = new();
+            using FeatureGate gate = new(sp.GetRequiredService<IOptionsMonitor<AppSettings>>(), false, rig.Faults);
+
+            int after = 0;
+            gate.Changed += (_, _) => throw new InvalidOperationException("extension handler");
+            gate.Changed += (_, _) => after++;
+            svc.Write(s => s.UserCategory = UserCategory.Consumer);
+
+            await Assert.That(after).IsGreaterThanOrEqualTo(1);
+            await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsGreaterThanOrEqualTo(1);
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
     // An id not in the catalog is not gated → visible (fail-open). Chunk B relies on this default.
     [Test]
     public async Task UnknownId_FailsOpen()

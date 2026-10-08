@@ -1,26 +1,25 @@
-#region
-
-using DemoViewer.NET.Services.DemoProcessing;
-
-#endregion
-
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     The pack's five processing-queue job kinds: label, rank, light and owner. One array read
-///     by both <see cref="StratBookPack.JobKinds" /> (the DI-free source <c>JobKindRegistry</c> builds
-///     from) and <see cref="StratBookPack.Contribute" />, so the two channels cannot drift apart. Owner
-///     strings match <see cref="StratBookLifecycle.OwnerTags" /> exactly, so <c>CancelOwned(owner)</c> and
-///     a future owner column agree with the kind.
+///     The pack's own processing-queue job kinds. <see cref="StratBookPack.JobKinds" /> declares them; jobs name
+///     them by id. Every job carries the pack's id, so switching the pack off cancels them all.
 /// </summary>
 internal static class StratBookJobKinds
 {
-    public static readonly JobKindDescriptor[] All =
+    public const string Mining = "stratbook.mining";
+    public const string Preview = "stratbook.preview";
+    public const string LineupClips = "stratbook.lineup-clips";
+    public const string SuggestionsInbox = "stratbook.suggestions";
+    public const string Teams = "stratbook.teams";
+    public const string Tuning = "stratbook.tuning";
+
+    public static readonly ExtensionJobKind[] All =
     [
-        new(QueueJobKind.StratMining, "mining", 2, false, "strat-mining"),
-        new(QueueJobKind.StratPreview, "preview", 2, false, "strat-mining"),
-        new(QueueJobKind.LineupClips, "clips", 3, false, "lineup-clips"),
-        new(QueueJobKind.SuggestionsInbox, "suggestions", 2, false, "suggested-inbox"),
-        new(QueueJobKind.TeamsCommand, "teams", 4, true, "teams")
+        new(Mining, "mining", false, 2),
+        new(Preview, "preview", false, 2),
+        new(LineupClips, "clips", false, 3),
+        new(SuggestionsInbox, "suggestions", false, 2),
+        new(Teams, "teams", true),
+        new(Tuning, "tuning", false, 2)
     ];
 }

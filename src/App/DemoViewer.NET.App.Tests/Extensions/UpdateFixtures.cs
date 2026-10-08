@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 /// </summary>
 internal static class UpdateFixtures
 {
-    public static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.0.0"), SemVersion.Parse("0.9.0"), SemVersion.Parse("0.13.0-beta0001"));
+    public static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.1.0"), SemVersion.Parse("0.9.0"), SemVersion.Parse("0.13.0-beta0001"));
 
     /// <summary>The feed URL the tests hand the service for every pack.</summary>
     public static Uri FeedUrl(string packId) => new($"https://example.invalid/feeds/{packId}/{ExtensionFeed.FileName}");
@@ -165,6 +165,8 @@ internal static class UpdateFixtures
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
+
         public IDemoQueueHandle SubmitJob(QueueJobRequest request)
         {
             lock (Requests)
@@ -240,18 +242,18 @@ internal static class UpdateFixtures
         }
     }
 
-    private sealed class FakePack(string id) : IFeaturePack
+    private sealed class FakePack(string id) : IExtension, IManifestSource
     {
         public string Id => id;
         public string FeatureId => "pack." + id;
         public ExtensionManifest Manifest => FakeManifests.For(id);
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

@@ -15,11 +15,11 @@ namespace DemoViewer.NET.Extensions.Manifest;
 ///     required members and ignores members it does not know, so a newer manifest still loads on an older
 ///     app, which then judges it by the fields it understands.
 /// </summary>
-/// <param name="Id">The pack id (<see cref="IFeaturePack.Id" />), reverse-DNS.</param>
+/// <param name="Id">The pack id (<see cref="IExtension.Id" />), reverse-DNS.</param>
 /// <param name="Name">The user-facing name ("Strat Book").</param>
 /// <param name="Version">The extension's own version.</param>
 /// <param name="Assembly">The assembly file name, no directory.</param>
-/// <param name="EntryType">The full name of the <see cref="IFeaturePack" /> type.</param>
+/// <param name="EntryType">The full name of the <see cref="IExtension" /> type.</param>
 /// <param name="RequiresHost">The <see cref="ExtensionHost.ContractVersion" /> range the extension was built against.</param>
 /// <param name="RequiresCs2DemoKit">The CS2DemoKit range; exact by default, since the extension uses its types directly.</param>
 /// <param name="MinAppVersion">The oldest app release the extension runs on, or null for any.</param>
@@ -33,6 +33,22 @@ public sealed partial record ExtensionManifest(
     VersionRange RequiresCs2DemoKit,
     SemVersion? MinAppVersion = null)
 {
+    /// <summary>
+    ///     The rulesets the extension contributes, by its own names (<see cref="RulesetContribution.Id" />). Read
+    ///     without loading the extension, so its rulesets stay apart from the highlights in safe mode too.
+    /// </summary>
+    public IReadOnlyList<string> Rulesets { get; init; } = [];
+
+    /// <summary>Equal when every member is, <see cref="Rulesets" /> compared item by item.</summary>
+    public bool Equals(ExtensionManifest? other) =>
+        other is not null
+        && Id == other.Id && Name == other.Name && Version == other.Version && Assembly == other.Assembly
+        && EntryType == other.EntryType && Equals(RequiresHost, other.RequiresHost) && Equals(RequiresCs2DemoKit, other.RequiresCs2DemoKit)
+        && Equals(MinAppVersion, other.MinAppVersion) && Rulesets.SequenceEqual(other.Rulesets, StringComparer.Ordinal);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(Id, Version, Assembly, EntryType, Rulesets.Count);
+
     /// <summary>The resource and file name both copies carry.</summary>
     public const string FileName = "extension.json";
 
@@ -86,7 +102,7 @@ public sealed partial record ExtensionManifest(
         string id = Required(dto.Id, "id");
         if (!IsValidId(id))
         {
-            throw new ExtensionManifestException($"'id' must be a reverse-DNS name; got '{id}'.");
+            throw new ExtensionManifestException($"'id' must be a lowercase reverse-DNS name; got '{id}'.");
         }
 
         string assembly = Required(dto.Assembly, "assembly");
@@ -117,18 +133,33 @@ public sealed partial record ExtensionManifest(
             throw new ExtensionManifestException($"'minAppVersion' is not a semantic version: '{minText}'.");
         }
 
-        return new ExtensionManifest(id, Required(dto.Name, "name"), version, assembly, Required(dto.EntryType, "entryType"), host, kit, minApp);
+        List<string> rulesets = [];
+        foreach (string? ruleset in dto.Rulesets ?? [])
+        {
+            if (!RulesetContribution.IsValidId(ruleset))
+            {
+                throw new ExtensionManifestException($"'rulesets' holds '{ruleset}', which is not a ruleset name.");
+            }
+
+            rulesets.Add(ruleset!);
+        }
+
+        return new ExtensionManifest(id, Required(dto.Name, "name"), version, assembly, Required(dto.EntryType, "entryType"), host, kit, minApp)
+        {
+            Rulesets = rulesets
+        };
     }
 
     /// <summary>
-    ///     The id rule the manifest and the feed share: reverse-DNS over <c>[A-Za-z0-9._-]</c>, starting
-    ///     with a letter or digit. The id names a folder under the config root, and the loader skips dot
-    ///     folders, so a leading dot is refused here rather than hidden there.
+    ///     The id rule the manifest and the feed share: reverse-DNS over <c>[a-z0-9._-]</c>, starting
+    ///     with a letter or digit. The id names folders and files under the config root, and the loader skips
+    ///     dot folders, so a leading dot is refused here rather than hidden there. Lowercase only: macOS and
+    ///     Windows ignore case in paths, so two ids that differ only in case would share one store.
     /// </summary>
     public static bool IsValidId(string? id) =>
         id is not null && IdPattern().IsMatch(id) && id.Contains('.', StringComparison.Ordinal);
 
-    [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9._-]*$")]
+    [GeneratedRegex("^[a-z0-9][a-z0-9._-]*$")]
     private static partial Regex IdPattern();
 
     private static string Required(string? value, string member) =>
@@ -160,6 +191,8 @@ public sealed partial record ExtensionManifest(
         public string? RequiresCs2DemoKit { get; set; }
 
         public string? MinAppVersion { get; set; }
+
+        public List<string?>? Rulesets { get; set; }
     }
 }
 

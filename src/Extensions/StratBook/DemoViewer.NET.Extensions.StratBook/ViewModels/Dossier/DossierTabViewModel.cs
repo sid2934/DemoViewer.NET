@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
@@ -11,19 +11,18 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Dossier;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Overlay;
-using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 /// <summary>
 ///     The Opponent Dossier tab: a team picker over Team Identity and its built
@@ -52,9 +51,9 @@ namespace DemoViewer.NET.ViewModels.Dossier;
 ///         <see cref="MapPoolRecordService.Build" /> and re-projects on every <c>Changed</c>.
 ///     </para>
 /// </summary>
-public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class DossierTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
 
     // One runner per section (openings, post-plant, situational, heatmaps): a queue item keyed by section in
     // the app, so a newer build replaces a queued one.
@@ -62,6 +61,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
 
     // The Opening Tendencies read it; its load and merges land after the page may have rendered.
     private readonly GrenadeIndex? _grenades;
+    private readonly RoundIndexStore? _roundIndex;
     private readonly Func<byte[], Bitmap?> _decode;
     private readonly SetupHeatmapService? _heatmaps;
     private readonly Action<Action> _post;
@@ -118,7 +118,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     private string _periodDiffNote = "";
 
     /// <param name="teams">Team Identity, for the team picker and the sides the record is built from.</param>
-    /// <param name="demoCache">The cache a demo's map, score and side-round totals come from.</param>
+    /// <param name="library">The library a demo's map, score and side-round totals come from.</param>
     /// <param name="vetoes">The user's manually entered veto steps, filed per opponent.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
     /// <param name="heatmaps">Builds the Setup Heatmaps By Buy; null hides the section.</param>
@@ -132,9 +132,10 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     /// <param name="situational">Builds the Situational Behaviour; null hides the section.</param>
     /// <param name="grenades">The grenade index the Opening Tendencies read; its changes re-project the team.</param>
     /// <param name="runSection">Runs a named section's build; the pool when null.</param>
+    /// <param name="roundIndex">The round index stamps the projection key reads; none when null.</param>
     /// <param name="notes">The user's stars, edits and notes; a session-only store when null.</param>
     /// <param name="export">Writes an export (text, stem, extension) and opens it; the temp-file writer when null.</param>
-    public DossierTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, VetoHistoryStore vetoes, bool? isBrowser = null,
+    public DossierTabViewModel(TeamIdentityService teams, IExtensionLibrary library, VetoHistoryStore vetoes, bool? isBrowser = null,
         SetupHeatmapService? heatmaps = null,
         ReviewQueue? review = null,
         Func<string, bool>? selectTab = null,
@@ -147,14 +148,16 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         DossierNotesStore? notes = null,
         Func<string, string, string, string?>? export = null,
         GrenadeIndex? grenades = null,
-        Func<string, Func<Action, Task>>? runSection = null)
+        Func<string, Func<Action, Task>>? runSection = null,
+        RoundIndexStore? roundIndex = null)
     {
         _grenades = grenades;
+        _roundIndex = roundIndex;
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(vetoes);
         _teams = teams;
-        _demoCache = demoCache;
+        _library = library;
         _vetoes = vetoes;
         _heatmaps = heatmaps;
         _review = review;
@@ -391,7 +394,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     public void OnActivated(IModuleContext context)
     {
         _shown = true;
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             Refresh();
         }
@@ -430,7 +433,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
     partial void OnSelectedTeamChanged(DossierTeamRow? value)
     {
         NewVetoMap = "";
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             Project();
         }
@@ -568,10 +571,12 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
         foreach ((DemoRef demo, int side, TeamAssignment assignment) in _teams.SidesOf(row.Id))
         {
             key.Append('|').Append(side).Append(JsonSerializer.Serialize(demo)).Append(JsonSerializer.Serialize(assignment));
-            if (_demoCache.TryGetIndex(demo.Path) is { } entry)
+            if (_library.Find(demo.Path) is { } entry)
             {
+                DemoDataStamp? index = _roundIndex?.Stamp(demo.Path);
+                DemoDataStamp? grenades = _grenades?.Store.Stamp(demo.Path);
                 key.Append(CultureInfo.InvariantCulture,
-                    $"{entry.ModifiedTicks}/{entry.Size}/{entry.AnalysisState}/{entry.ConfigFingerprint}/{entry.RoundFactsStamp()?.Fingerprint}/{entry.RoundIndexStamp()?.Fingerprint}/{entry.RoundIndexComputedAtTicks()}/{entry.GrenadesStamp()?.State ?? DemoAnalysisState.Pending}/{entry.GrenadesStamp()?.Count ?? 0}/{entry.GrenadesStamp()?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
+                    $"{entry.Modified.Ticks}/{entry.FileSizeBytes}/{entry.State}/{entry.CtSideWins}/{entry.TSideWins}/{entry.Fact(RoundFactsRows.FacetId)?.Fingerprint}/{index?.Fingerprint}/{index?.WrittenAtTicks}/{grenades?.State ?? DemoDataState.Pending}/{grenades?.Count ?? 0}/{grenades?.Fingerprint}/{_grenades?.IsLoaded(demo.Path)}");
             }
         }
 
@@ -600,7 +605,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             return;
         }
 
-        MapPoolRecord record = MapPoolRecordService.Build(_teams, _demoCache, row.Id);
+        MapPoolRecord record = MapPoolRecordService.Build(_teams, _library, row.Id);
         foreach (MapPoolMapRow map in record.Maps)
         {
             Maps.Add(new MapPoolRowViewModel(map));
@@ -639,7 +644,7 @@ public sealed partial class DossierTabViewModel : ViewModelBase, IWorkspaceTabVi
             return;
         }
 
-        PeriodDiffSet set = PeriodDiffService.Build(_teams, _demoCache, row.Id, WindowSize);
+        PeriodDiffSet set = PeriodDiffService.Build(_teams, _library, row.Id, WindowSize);
         PeriodDiffRecent = new PeriodDiffRowViewModel(set.Recent);
         PeriodDiffPrevious = new PeriodDiffRowViewModel(set.Previous);
         PeriodDiffNote = PeriodDiffNoteFor(set);

@@ -3,12 +3,12 @@
 using Avalonia.Controls;
 using Avalonia.Threading;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.ViewModels.UtilityBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 #endregion
 
@@ -97,12 +97,11 @@ public static partial class Variants
                 Demo = new GrenadeDemoHeader { Sha256 = $"picker{n}", StableKey = DemoCacheStore.StableKey(path) },
                 Grenades = rows
             };
-            cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-            record.SetGrenades(GrenadeWalker.Version, rows.Count);
             cache.Upsert(record);
+            new GrenadeStore(MemoryDemoData.For(DemoViewer.NET.Extensions.HostLibrary.For(cache, null))).Write(path, document);
         }
 
-        GrenadeIndex index = new(cache);
+        GrenadeIndex index = new(DemoViewer.NET.Extensions.HostLibrary.For(cache, null));
         index.Load();
         return index;
     }

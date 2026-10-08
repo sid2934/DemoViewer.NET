@@ -6,7 +6,7 @@ using System.Text.Json.Nodes;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The Strat Book's persisted store: <c>&lt;config&gt;/strats/index.json</c>
@@ -768,7 +768,7 @@ public sealed class StratStore
         StratIndexFile file = new() { Entries = [.. Index] };
         try
         {
-            WriteAtomic(indexPath, JsonSerializer.Serialize(file, StratJsonContext.Default.StratIndexFile));
+            AtomicFile.WriteAllText(indexPath, JsonSerializer.Serialize(file, StratJsonContext.Default.StratIndexFile));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -1084,7 +1084,7 @@ public sealed class StratStore
                 target = stem + "-" + n.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".json";
             }
 
-            WriteAtomic(target, Serialize(document));
+            AtomicFile.WriteAllText(target, Serialize(document));
             return Path.GetFileName(target);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -1335,7 +1335,7 @@ public sealed class StratStore
 
         try
         {
-            WriteAtomic(path, json);
+            AtomicFile.WriteAllText(path, json);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
         {
@@ -1413,7 +1413,7 @@ public sealed class StratStore
 
         try
         {
-            WriteAtomic(path, json);
+            AtomicFile.WriteAllText(path, json);
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -1662,46 +1662,6 @@ public sealed class StratStore
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return false;
-        }
-    }
-
-    /// <summary>
-    ///     Temp file plus replace, the config-root write idiom (<c>DemoCacheStore.WriteAtomic</c>), with this
-    ///     store's own temp prefix so a stray file says whose it was.
-    /// </summary>
-    private static void WriteAtomic(string targetPath, string content)
-    {
-        string directory = Path.GetDirectoryName(targetPath)!;
-        Directory.CreateDirectory(directory);
-        string tempPath = Path.Combine(directory, $".strat-{Guid.NewGuid():N}.tmp");
-        try
-        {
-            File.WriteAllText(tempPath, content);
-            if (File.Exists(targetPath))
-            {
-                File.Replace(tempPath, targetPath, null);
-            }
-            else
-            {
-                File.Move(tempPath, targetPath);
-            }
-        }
-        catch
-        {
-            TryDelete(tempPath);
-            throw;
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // Best-effort cleanup; the write's own failure is what the caller hears about.
         }
     }
 

@@ -1,9 +1,9 @@
 {
   "id": "net.demoviewer.pack.stratbook",
   "name": "Strat Book",
-  "version": "{nbgv}",
+  "version": "{version}",
   "assembly": "DemoViewer.NET.Extensions.StratBook.dll",
   "entryType": "DemoViewer.NET.Extensions.StratBook.StratBookPack",
-  "requiresHost": "^1.0",
+  "requiresHost": "^1.1",
   "requiresCs2DemoKit": "0.13.0-beta0001"
 }

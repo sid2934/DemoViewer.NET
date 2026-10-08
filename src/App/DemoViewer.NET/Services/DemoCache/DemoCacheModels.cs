@@ -4,6 +4,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
@@ -87,6 +89,18 @@ public sealed class CachedPlayerInfo
     ///     anyway. Team Identity keeps coaches out of side keys.
     /// </summary>
     public bool IsCoach { get; set; }
+}
+
+/// <summary>One player of one side on an index row: a human who is not a coach and carries a SteamID.</summary>
+public sealed class IndexSidePlayer
+{
+    public string SteamId64 { get; set; } = "";
+
+    /// <summary>RAW name, as <see cref="CachedPlayerInfo.Name" />.</summary>
+    public string Name { get; set; } = "";
+
+    /// <summary>Every slot the account held: one, or more after a reconnect.</summary>
+    public List<int> Slots { get; set; } = [];
 }
 
 /// <summary>A round boundary. Needed by clip lead-in flooring and by the round count.</summary>
@@ -224,6 +238,20 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     /// <summary>Content hash: the dedup key. Null until something has computed it.</summary>
     public string? Sha256 { get; set; }
 
+    /// <summary>
+    ///     The cheap fingerprint taken in the same read as <see cref="Sha256" />. Null when that read could
+    ///     not vouch for it (the file was not settled), or the hash came from an older build.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DemoContentFingerprint? ContentFingerprint { get; set; }
+
+    /// <summary>
+    ///     Every path known to hold these bytes, as the index has them. A record read from the store carries
+    ///     the index's list, not whatever the sidecar was written with; <see cref="Path" /> is the location
+    ///     the record was read at.
+    /// </summary>
+    public IReadOnlyList<DemoLocation> Locations { get; set; } = [];
+
     // ── T1 header ────────────────────────────────────────────────────────────
     public TierStamp Header { get; set; } = new();
 
@@ -287,6 +315,16 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     /// <summary>Per-highlight-definition hashes, for finer-grained staleness than the combined fingerprint.</summary>
     public Dictionary<string, string> HighlightHashes { get; set; } = new();
 
+    // ── Round facts ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     The <c>round_facts</c> ruleset's output: one row per round, two sides each, or null when none was
+    ///     written. Stamped in <see cref="PackStamps" /> under facet <c>roundfacts</c> with the ruleset's own
+    ///     identity, so a threshold edit re-runs Round Facts alone and never the highlight scan. Rows an
+    ///     older build kept in the Strat Book's payload are lifted here on read.
+    /// </summary>
+    public RoundFactsRows? RoundFacts { get; set; }
+
     // ── Packs ────────────────────────────────────────────────────────────────
     // A pack's data rides the record as one opaque JSON object under its id, read and written typed by
     // the pack through IPackPayloads and never deserialised by core. What core needs for the backlog and
@@ -309,6 +347,92 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     /// </summary>
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? UnknownMembers { get; set; }
+
+    /// <summary>
+    ///     Sets <see cref="Sha256" /> and the fingerprint taken in the same read. A null fingerprint keeps the
+    ///     stored one only while the hash is unchanged: a fingerprint never outlives the hash it was taken with.
+    /// </summary>
+    /// <param name="sha256">The content hash just computed or confirmed.</param>
+    /// <param name="fingerprint">The fingerprint from that read, or null when it could not vouch for one.</param>
+    public void SetContentHash(string sha256, DemoContentFingerprint? fingerprint)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(sha256);
+        if (fingerprint is not null || !string.Equals(Sha256, sha256, StringComparison.Ordinal))
+        {
+            ContentFingerprint = fingerprint;
+        }
+
+        Sha256 = sha256;
+    }
+
+    /// <summary>
+    ///     Takes every tier, payload and stamp this record lacks from <paramref name="other" />, a record of
+    ///     the same bytes. What this record already holds always wins.
+    /// </summary>
+    /// <param name="other">Another record of the same content.</param>
+    public void FillMissingFrom(DemoCacheRecord other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (!Header.IsPresent && other.Header.IsPresent)
+        {
+            Header = other.Header;
+            Map ??= other.Map;
+            Server ??= other.Server;
+            DemoVersion ??= other.DemoVersion;
+        }
+
+        if (!Parse.IsPresent && other.Parse.IsPresent)
+        {
+            Parse = other.Parse;
+            Map ??= other.Map;
+            Server ??= other.Server;
+            SourceKind ??= other.SourceKind;
+            DurationSeconds = other.DurationSeconds;
+            TickRate = other.TickRate;
+            TickCount = other.TickCount;
+            ServerStartTick = other.ServerStartTick;
+            Players = other.Players;
+            Rounds = other.Rounds;
+            RoundCount = other.RoundCount;
+            CtScore = other.CtScore;
+            TScore = other.TScore;
+            CtClan = other.CtClan;
+            TClan = other.TClan;
+        }
+
+        if (!Analysis.IsPresent && other.Analysis.IsPresent)
+        {
+            Analysis = other.Analysis;
+            AnalysisState = other.AnalysisState;
+            Scoreboard = other.Scoreboard;
+            Highlights = other.Highlights;
+            CtSideWins = other.CtSideWins;
+            TSideWins = other.TSideWins;
+            AnalysisRoundCount = other.AnalysisRoundCount;
+            ProfileName = other.ProfileName;
+            ConfigFingerprint = other.ConfigFingerprint;
+            HighlightHashes = other.HighlightHashes;
+        }
+
+        RoundFacts ??= other.RoundFacts;
+        foreach ((string packId, JsonElement payload) in other.Packs)
+        {
+            Packs.TryAdd(packId, payload);
+        }
+
+        foreach (PackStamp stamp in other.PackStamps)
+        {
+            if (Stamp(stamp.Id) is null)
+            {
+                PackStamps.Add(stamp);
+            }
+        }
+
+        if (ContentFingerprint is null && string.Equals(Sha256, other.Sha256, StringComparison.Ordinal))
+        {
+            ContentFingerprint = other.ContentFingerprint;
+        }
+    }
 
     /// <summary>The stamp with <paramref name="id" />, or null when the facet was never written.</summary>
     /// <param name="id">The facet id (<see cref="PackStamp.Id" />).</param>
@@ -371,6 +495,8 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         }
 
         UnknownMembers = null;
+        // After the flat fold, which may have just built the payload the rows ride.
+        LegacyPackFields.LiftRoundFacts(this);
     }
 
     /// <summary>The highest tier actually present.</summary>
@@ -442,6 +568,8 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         Size = Size,
         ModifiedTicks = ModifiedTicks,
         Sha256 = Sha256,
+        ContentFingerprint = ContentFingerprint,
+        Locations = Locations,
         Map = Map,
         Server = Server,
         DemoVersion = DemoVersion,
@@ -470,8 +598,46 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         AnalysisState = AnalysisState,
         ConfigFingerprint = ConfigFingerprint,
         HighlightCount = Highlights.Count,
-        PackStamps = [.. PackStamps]
+        PackStamps = [.. PackStamps],
+        CtPlayers = Parse.IsPresent ? SidePlayers(3) : null,
+        TPlayers = Parse.IsPresent ? SidePlayers(2) : null,
+        CtSideWins = CtSideWins,
+        TSideWins = TSideWins
     };
+
+    /// <summary>
+    ///     True for a roster entry that counts as one of a side's players: no bot, no coach, a real SteamID.
+    ///     The team clustering keys sides on exactly this set.
+    /// </summary>
+    public static bool IsSidePlayer(CachedPlayerInfo player) =>
+        !player.IsBot
+        && !player.IsCoach
+        && player.Team is 2 or 3
+        && !string.IsNullOrEmpty(player.SteamId64)
+        && !string.Equals(player.SteamId64, "0", StringComparison.Ordinal);
+
+    /// <summary>
+    ///     The side's players by <see cref="IsSidePlayer" />, sorted ordinally by SteamID. One account in two
+    ///     slots (a reconnect) is listed once, under the first slot's name, with both slots.
+    /// </summary>
+    /// <param name="side">2 = T, 3 = CT.</param>
+    public List<IndexSidePlayer> SidePlayers(int side)
+    {
+        List<IndexSidePlayer> players = [];
+        foreach (CachedPlayerInfo player in Players.Where(p => p.Team == side && IsSidePlayer(p))
+                     .OrderBy(p => p.SteamId64, StringComparer.Ordinal))
+        {
+            if (players.Count > 0 && string.Equals(players[^1].SteamId64, player.SteamId64, StringComparison.Ordinal))
+            {
+                players[^1].Slots.Add(player.Slot);
+                continue;
+            }
+
+            players.Add(new IndexSidePlayer { SteamId64 = player.SteamId64, Name = player.Name, Slots = [player.Slot] });
+        }
+
+        return players;
+    }
 }
 
 /// <summary>
@@ -485,6 +651,42 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     public long Size { get; set; }
     public long ModifiedTicks { get; set; }
     public string? Sha256 { get; set; }
+
+    /// <summary>See <see cref="DemoCacheRecord.ContentFingerprint" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DemoContentFingerprint? ContentFingerprint { get; set; }
+
+    /// <summary>
+    ///     Every path known to hold this demo's bytes, ordinal path order. <see cref="Path" />,
+    ///     <see cref="Size" /> and <see cref="ModifiedTicks" /> are one of them: the location this row was
+    ///     looked up by, or the primary (the ordinally smallest confirmed path) on the stored row.
+    /// </summary>
+    public IReadOnlyList<DemoLocation> Locations { get; set; } = [];
+
+    // Where this row's files are on disk while they still carry an older key, the current write key
+    // first. Null once they all sit under the row's own key. Persisted so a rename cut short resumes.
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal List<string>? SidecarKeys { get; set; }
+
+    /// <summary>
+    ///     When the row lost its last path (UTC ticks), or null while a path lists it. An orphaned row has no
+    ///     <see cref="Locations" /> and is reachable by no path; its files are kept until a path holding its bytes
+    ///     comes back or the grace period runs out. <see cref="Path" />, <see cref="Size" /> and
+    ///     <see cref="ModifiedTicks" /> are where it was last seen.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? OrphanedSinceUtcTicks { get; set; }
+
+    // The paths an orphaned row had when it lost them. A path listed again at the same size and write time
+    // takes its place back as it was. Null on a row a path lists.
+    [JsonInclude]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal List<DemoLocation>? DetachedLocations { get; set; }
+
+    /// <summary>True when no path lists this row; see <see cref="OrphanedSinceUtcTicks" />.</summary>
+    [JsonIgnore]
+    public bool IsOrphaned => OrphanedSinceUtcTicks is not null;
 
     public string? Map { get; set; }
     public string? Server { get; set; }
@@ -531,6 +733,25 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     ///     index without opening a sidecar. A stamp with every optional member costs about 100 bytes.
     /// </summary>
     public List<PackStamp> PackStamps { get; set; } = [];
+
+    /// <summary>
+    ///     The players who ended the demo as CT (<see cref="DemoCacheRecord.SidePlayers" />). Null when the
+    ///     demo is not parsed, or the row was written by an index older than version 3.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<IndexSidePlayer>? CtPlayers { get; set; }
+
+    /// <summary>The players who ended the demo as T, by the rule of <see cref="CtPlayers" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<IndexSidePlayer>? TPlayers { get; set; }
+
+    /// <summary>The record's <see cref="DemoCacheRecord.CtSideWins" />, so a per-team record needs no sidecar read.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? CtSideWins { get; set; }
+
+    /// <summary>The record's <see cref="DemoCacheRecord.TSideWins" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? TSideWins { get; set; }
 
     /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
     [JsonExtensionData]
@@ -587,25 +808,42 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
 
     public bool MatchesFile(long size, long modifiedTicks) =>
         Size == size && ModifiedTicks == modifiedTicks;
+
+    internal DemoCacheIndexEntry Copy() => (DemoCacheIndexEntry)MemberwiseClone();
+
+    // This row as seen from one of its locations. Lists are shared with the row, never mutated in place.
+    // An unconfirmed location shows the content's data but not its hash: a store joined by hash must not
+    // take bytes nobody has read as that content.
+    internal DemoCacheIndexEntry At(DemoLocation location)
+    {
+        DemoCacheIndexEntry view = (DemoCacheIndexEntry)MemberwiseClone();
+        view.Path = location.Path;
+        view.Size = location.Size;
+        view.ModifiedTicks = location.ModifiedTicks;
+        view.SidecarKeys = null;
+        if (!location.Confirmed)
+        {
+            view.Sha256 = null;
+            view.ContentFingerprint = null;
+        }
+
+        return view;
+    }
 }
 
 /// <summary>
-///     How one store hands a demo to another. Derived stores key by <see cref="StableKey" /> (the cache
-///     sidecar rule) and user-truth stores key by <see cref="Sha256" /> (a moved file keeps its tags), so a
-///     consumer crossing that line needs both in hand rather than converting keys on its own: the bridges
-///     are <see cref="DemoCacheStore.TryGetIndex" /> and <see cref="DemoCacheStore.TryGetIndexBySha256" />.
-///     Defined here, beside the index row it is projected from, so every store agrees on the shape.
+///     One path a demo's bytes were found at.
 /// </summary>
-/// <param name="Path">The demo's path as the library knows it.</param>
-/// <param name="StableKey"><see cref="DemoCacheStore.StableKey" /> of <paramref name="Path" />.</param>
-/// <param name="Sha256">Lowercase-hex content hash, or null when the demo has not reached tier 2.</param>
-public sealed record DemoRef(string Path, string StableKey, string? Sha256)
-{
-    /// <summary>The reference for an index row.</summary>
-    /// <param name="entry">The row to reference.</param>
-    public static DemoRef From(DemoCacheIndexEntry entry) =>
-        new(entry.Path, DemoCacheStore.StableKey(entry.Path), entry.Sha256);
-}
+/// <param name="Path">The file's path.</param>
+/// <param name="Confirmed">
+///     True when the bytes at <paramref name="Path" /> were read in full and hashed to the row's content id.
+///     False when only the file's <see cref="DemoContentFingerprint" /> matched the row's: the path shows the
+///     row's data, but its index view carries no hash and a write there starts a record of its own.
+/// </param>
+/// <param name="Size">The file's size when last seen, in bytes.</param>
+/// <param name="ModifiedTicks">The file's write time when last seen, in the writer's tick convention.</param>
+/// <param name="LastSeenUtcTicks">When the store last wrote a record for this path (UTC ticks), or 0 when unknown.</param>
+public sealed record DemoLocation(string Path, bool Confirmed, long Size, long ModifiedTicks, long LastSeenUtcTicks);
 
 /// <summary>The on-disk shape of <c>index.json</c>: a versioned wrapper so migrations have a hook.</summary>
 public sealed class DemoCacheIndexFile
@@ -613,8 +851,18 @@ public sealed class DemoCacheIndexFile
     /// <summary>
     ///     Version of the INDEX container itself, independent of the per-tier record schemas. 2: record
     ///     sidecars are gzipped <c>&lt;key&gt;.json.gz</c>; a version-1 <c>&lt;key&gt;.json</c> is still read.
+    ///     3: parsed rows carry each side's players (<see cref="DemoCacheIndexEntry.CtPlayers" />) and the
+    ///     rounds each side won; a row loaded from an older index has neither until its record is read again.
+    ///     4: a row may carry its <see cref="DemoCacheIndexEntry.ContentFingerprint" />; an older row has none
+    ///     until its content hash is next computed.
+    ///     5: one row per content id rather than per path, carrying every path in
+    ///     <see cref="DemoCacheIndexEntry.Locations" />; a row with no hash yet is keyed by its one path. Files
+    ///     of a hashed row are named by the hash. An older index is re-keyed on load and its files renamed by
+    ///     the pass <see cref="ContentKeyMigrationVersion" /> tracks.
+    ///     6: a hashed row whose last path went away is kept with no locations, marked
+    ///     <see cref="DemoCacheIndexEntry.OrphanedSinceUtcTicks" />. An older index has no such row.
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 6;
 
     public int Version { get; set; } = CurrentVersion;
 
@@ -627,6 +875,12 @@ public sealed class DemoCacheIndexFile
     ///     </para>
     /// </summary>
     public int LegacyMigrationVersion { get; set; }
+
+    /// <summary>
+    ///     Which revision of the content-key rename pass has finished against this cache. 0 = never. Set only
+    ///     when a pass left no file under an older key, so an interrupted pass runs again.
+    /// </summary>
+    public int ContentKeyMigrationVersion { get; set; }
 
     public List<DemoCacheIndexEntry> Entries { get; set; } = [];
 }

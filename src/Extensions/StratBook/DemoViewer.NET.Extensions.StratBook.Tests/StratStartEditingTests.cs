@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using SkiaSharp;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -99,11 +99,8 @@ public class StratStartEditingTests
     }
 
     private static StratCanvasViewModel Canvas(StratSession session, Func<string, Task<StratSpawns?>>? spawns = null) =>
-        new(session, _ => null, new ManualTicker(), null, () => [],
-            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a(), spawnsFor: spawns)
-        {
-            Timeline = { PixelWidth = 6000 }
-        };
+        new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
+            placesFor: _ => Task.FromResult<IZonePlaceResolver?>(StratMapFirstTests.SyntheticZones()), post: a => a(), spawnsFor: spawns);
 
     private static StratEditorViewModel Editor(StratSession session, StratCanvasViewModel canvas)
     {

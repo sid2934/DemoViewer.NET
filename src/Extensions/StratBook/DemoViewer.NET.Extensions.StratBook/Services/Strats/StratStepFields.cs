@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>The step members a verb may carry beyond time, actor, verb and note, which every step has.</summary>
 [Flags]

@@ -2,11 +2,11 @@
 
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Provenance;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 
 /// <summary>
 ///     The Library card's provenance chip: badge-only, no filter. <see cref="ResolveProvenance" />
@@ -42,10 +42,10 @@ public sealed class ProvenanceLibraryContribution(
     public bool HasBadge => true;
 
     /// <inheritdoc />
-    public LibraryBadge? BadgeFor(DemoEntry entry)
+    public LibraryBadge? BadgeFor(LibraryDemo demo)
     {
-        ArgumentNullException.ThrowIfNull(entry);
-        return BuildBadge(ResolveProvenance().Resolve(entry.FilePath));
+        ArgumentNullException.ThrowIfNull(demo);
+        return BuildBadge(ResolveProvenance().Resolve(demo.FilePath));
     }
 
     /// <summary>
@@ -53,13 +53,13 @@ public sealed class ProvenanceLibraryContribution(
     ///     <see cref="IDemoProvenanceSource.Resolve" /> per entry: <c>Resolve</c> re-reads and copies Team
     ///     Identity's override list on every call, which a per-card loop would do once per card.
     /// </summary>
-    public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries)
+    public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<LibraryDemo> demos)
     {
-        ArgumentNullException.ThrowIfNull(entries);
-        List<DemoEntry> list = [.. entries];
+        ArgumentNullException.ThrowIfNull(demos);
+        List<LibraryDemo> list = [.. demos];
         IReadOnlyDictionary<string, DemoProvenance> resolved = ResolveProvenance().ResolveAll(list.Select(e => e.FilePath));
         Dictionary<string, LibraryBadge?> badges = new(list.Count, StringComparer.Ordinal);
-        foreach (DemoEntry entry in list)
+        foreach (LibraryDemo entry in list)
         {
             badges[entry.FilePath] = BuildBadge(resolved.GetValueOrDefault(entry.FilePath));
         }
@@ -88,10 +88,10 @@ public sealed class ProvenanceLibraryContribution(
     public string? BadgeResetTooltip => "Let the clan tags, the header and Team Identity decide";
 
     /// <inheritdoc />
-    public void SetLabel(DemoEntry entry, string? label)
+    public void SetLabel(LibraryDemo demo, string? label)
     {
-        ArgumentNullException.ThrowIfNull(entry);
-        ResolveTeams().SetProvenanceOverride(entry.FilePath, label);
+        ArgumentNullException.ThrowIfNull(demo);
+        ResolveTeams().SetProvenanceOverride(demo.FilePath, label);
     }
 
     private IDemoProvenanceSource ResolveProvenance()

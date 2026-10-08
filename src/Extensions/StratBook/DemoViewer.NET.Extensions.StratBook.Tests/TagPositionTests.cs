@@ -5,14 +5,14 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
-using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -31,7 +31,7 @@ public class TagPositionTests
 {
     private const string DemoPath = "/d/match.dem";
 
-    private static readonly List<CachedRound> _rounds = [new() { Number = 1, StartTickFrameClock = 0 }];
+    private static readonly List<LibraryRound> _rounds = [new LibraryRound(1, 0)];
 
     // The upper floor of a two-floor map: band [-500, 100000), key QuantizeZ(-500) = -512.
     private static readonly MapLevel Upper = new() { Id = MapSpace.IdForZMin(-500), Name = "upper", ZMin = -500, ZMax = 100_000 };
@@ -56,7 +56,7 @@ public class TagPositionTests
 
     private static async Task<TagSession> Attached()
     {
-        TagSession session = new(null, _ => _rounds, () => false, () => Created)
+        TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };

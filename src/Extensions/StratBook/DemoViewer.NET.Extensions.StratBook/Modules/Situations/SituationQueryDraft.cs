@@ -1,12 +1,12 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     The query the canvas is building: the placed tokens per side, the tolerance and the filters.

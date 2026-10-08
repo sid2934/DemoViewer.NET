@@ -3,8 +3,9 @@
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -15,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     Free Labels From Round Facts on a real Valve matchmaking demo: a tag made in every live round carries
 ///     that round's facts. The body runs the production evaluator and the production refresher against the
-///     parse, over the shipped engine ruleset (see <see cref="RoundFactsRealDemoTests" />).
+///     parse, over the shipped engine ruleset (see <c>RoundFactsRealDemoTests</c>).
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -38,7 +39,7 @@ public class TagFactsRealDemoTests
         using TagFactsRefresher refresher = new(tags, facts, _ => Sha, action => action());
 
         // The evaluator's write raises Updated, which is the refresh.
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
 
         RoundFactsRows rows = facts.TryGet(path) ?? throw new InvalidOperationException("the evaluator wrote no rows");
         TagDocument refreshed = tags.TryLoad(Sha)!;
@@ -46,12 +47,12 @@ public class TagFactsRealDemoTests
         {
             foreach (TagInstance instance in refreshed.Instances)
             {
-                RoundFacts round = RoundFactsSource.FindRound(rows.Rounds, instance.FromTick)!;
+                RoundFacts round = RoundFactsRules.FindRound(rows.Rounds, instance.FromTick)!;
                 await Assert.That(instance.Round).IsEqualTo(round.Number);
                 await Assert.That(instance.Facts.Single(f => f.Group == "buy.ct").Value)
-                    .IsEqualTo(RoundFactsValues.LowerCamel(round.Ct.BuyType));
+                    .IsEqualTo(RoundFactsRules.LowerCamel(round.Ct.BuyType));
                 await Assert.That(instance.Facts.Single(f => f.Group == "buy.t").Value)
-                    .IsEqualTo(RoundFactsValues.LowerCamel(round.T.BuyType));
+                    .IsEqualTo(RoundFactsRules.LowerCamel(round.T.BuyType));
                 await Assert.That(instance.Facts.Single(f => f.Group == "winner").Value).IsEqualTo(round.WinnerLabel);
                 await Assert.That(instance.Labels.Single().Value).IsEqualTo("won");
                 await Assert.That(instance.FactsStamp!.Stale).IsFalse();

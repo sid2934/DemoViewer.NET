@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>What a suggestion proposes. Every suggestion waits for the user; none is applied on its own.</summary>
 public enum TeamSuggestionKind

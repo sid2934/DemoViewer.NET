@@ -3,8 +3,8 @@
 using System.Text.Json;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -360,7 +360,7 @@ public class TeamIdentityRevisionTests
     public async Task AProvenancePin_ReclustersThroughTheService()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService service = new(null, cache, run: a =>
+        TeamIdentityService service = new(null, cache.Library(), run: a =>
         {
             a();
             return Task.CompletedTask;

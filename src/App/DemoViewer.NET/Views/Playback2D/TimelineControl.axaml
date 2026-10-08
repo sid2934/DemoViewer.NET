@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:timeline="using:DemoViewer.NET.Modules.Playback2D.Timeline"
@@ -127,7 +128,7 @@
                             <!-- CS2's artwork where the game has some, the track's own glyph otherwise.
                                  A null IconKey (annotations, round boundaries — our concepts, not the
                                  game's) means "nothing was asked for", so the glyph draws unreported. -->
-                            <controls:GameIcon HorizontalAlignment="Left" VerticalAlignment="Center"
+                            <ui:GameIcon HorizontalAlignment="Left" VerticalAlignment="Center"
                                                Margin="{Binding Offset}"
                                                Key="{Binding IconKey}" Fallback="{Binding Glyph}"
                                                IconHeight="11" FontSize="11"

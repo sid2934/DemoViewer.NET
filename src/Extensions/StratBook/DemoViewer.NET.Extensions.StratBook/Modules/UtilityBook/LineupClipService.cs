@@ -3,6 +3,7 @@
 using System.Globalization;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -10,28 +11,25 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
-using DemoViewer.NET.Services;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Dependencies;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>Renders the GIFs of one demo's planned clips. The seam every Lineup Clip test replaces.</summary>
 public interface ILineupClipRenderer
 {
     /// <summary>
     ///     Renders each job's GIF to its <see cref="LineupClipJob.GifPath" />. Runs on a worker; one demo
-    ///     per call, so the demo is parsed once for all of its clips.
+    ///     per call, on the parse the demo's visit read, so the demo is parsed once for all of its clips.
     /// </summary>
     /// <param name="demoPath">The demo every job is in.</param>
+    /// <param name="demo">The demo's parse; null only where no queue reads demos (tests).</param>
     /// <param name="jobs">That demo's clips.</param>
     /// <param name="ct">Stops the batch; a GIF cut short does not survive.</param>
     /// <returns>The jobs whose GIF was written.</returns>
-    Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
+    Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
         CancellationToken ct);
 }
 
@@ -62,14 +60,17 @@ public interface ILineupClipRenderer
 ///     <para>
 ///         <b>Threading.</b> <see cref="PlanSoon" /> is what an index change calls: it coalesces a burst of
 ///         changes and runs <see cref="Plan" /> on the pool, one plan at a time, so planning every lineup never
-///         blocks the UI thread. Renders run one demo at a time as <see cref="QueueJobKind.LineupClips" /> items of
-///         the processing queue, which runs them exclusively; the sweep runs on the pool.
+///         blocks the UI thread. Renders run one demo at a time as jobs on the demo's visit, so the clips share
+///         the read the demo's passes get, or the parse the shell holds when the demo is open.
 ///     </para>
 /// </summary>
-public sealed class LineupClipService : IPackResident, IDisposable
+public sealed class LineupClipService : IExtensionResident, IDisposable
 {
     /// <summary>The file in the clip directory listing evicted pair stems, one per line.</summary>
     public const string EvictedFileName = "evicted.txt";
+
+    /// <summary>The clips folder under the config root. The user's renders: kept until they delete the extension's data.</summary>
+    public const string DirectoryName = "lineup-clips";
 
     /// <summary>
     ///     How long a pair must go unplanned before the sweep deletes it. A re-index drops a demo's rows for
@@ -96,7 +97,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
 
     // Stem to the representative's key it was planned with this session.
     private readonly Dictionary<string, string> _planned = new(StringComparer.OrdinalIgnoreCase);
-    private readonly IDemoProcessingQueue? _processing;
+    private readonly IExtensionJobs? _jobs;
     private readonly Dictionary<string, int> _ranks = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _requested = new(StringComparer.OrdinalIgnoreCase);
     private readonly ILineupClipRenderer _renderer;
@@ -121,7 +122,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
 
     /// <param name="clusters">Every landing cluster in the Grenade Index, all maps.</param>
     /// <param name="directory">Where the pairs are written; null (the browser) plans nothing.</param>
-    /// <param name="enabled">The live <c>GrenadesSettings.RenderLineupClips</c>.</param>
+    /// <param name="enabled">The live <see cref="Extensions.StratBook.StratBookSettings.RenderLineupClips" />.</param>
     /// <param name="renderer">Renders a demo's GIFs.</param>
     /// <param name="fileExists">The existence probe; a listing of the directory taken per plan when null.</param>
     /// <param name="writeText">Writes a sidecar; an atomic write when null.</param>
@@ -132,14 +133,15 @@ public sealed class LineupClipService : IPackResident, IDisposable
     /// </param>
     /// <param name="maxBytes">The live byte cap on the directory; zero or less, or null, caps nothing.</param>
     /// <param name="orphanGrace">Overrides <see cref="DefaultOrphanGrace" />.</param>
-    /// <param name="processing">
-    ///     The processing queue each demo's batch runs in; null renders on a worker of this service (tests).
+    /// <param name="jobs">
+    ///     The processing queue each demo's batch runs in, on the demo's parse; null renders on a worker of this
+    ///     service with no parse (tests).
     /// </param>
     /// <param name="planDebounce">How long <see cref="PlanSoon" /> waits for more index changes; 500 ms when null.</param>
     public LineupClipService(Func<IReadOnlyList<GrenadeCluster>> clusters, string? directory,
         Func<bool> enabled, ILineupClipRenderer renderer, Func<string, bool>? fileExists = null,
         Action<string, string>? writeText = null, Action<string>? log = null, Func<bool>? complete = null,
-        Func<long>? maxBytes = null, TimeSpan? orphanGrace = null, IDemoProcessingQueue? processing = null,
+        Func<long>? maxBytes = null, TimeSpan? orphanGrace = null, IExtensionJobs? jobs = null,
         TimeSpan? planDebounce = null)
     {
         _planDebounce = planDebounce ?? TimeSpan.FromMilliseconds(500);
@@ -151,12 +153,12 @@ public sealed class LineupClipService : IPackResident, IDisposable
         _enabled = enabled;
         _renderer = renderer;
         _fileExists = fileExists;
-        _writeText = writeText ?? DemoCacheStore.WriteAtomic;
+        _writeText = writeText ?? AtomicFile.WriteAllText;
         _log = log;
         _complete = complete ?? (static () => true);
         _maxBytes = maxBytes ?? (static () => 0);
         _orphanGrace = orphanGrace ?? DefaultOrphanGrace;
-        _processing = processing;
+        _jobs = jobs;
         _ct = _cts.Token;
     }
 
@@ -303,7 +305,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
                     _soonScheduled = false;
                 }
 
-                return QueueWork.Run(_processing, QueueJobKind.SectionCompute, "Lineup clips: plan", "utility", _ =>
+                return RunJob("Lineup clips: plan", () =>
                 {
                     try
                     {
@@ -313,7 +315,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
                     {
                         _log?.Invoke($"lineup clips: plan: {ex.Message}");
                     }
-                }, key: "lineup-clips:plan");
+                }, new JobOptions(Key: "lineup-clips:plan"));
             }, TaskScheduler.Default).Unwrap();
             return _soon;
         }
@@ -333,7 +335,44 @@ public sealed class LineupClipService : IPackResident, IDisposable
         }
 
         IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(_clusters(), _directory);
-        HashSet<string> listing = Listing(_directory);
+        List<LineupClipJob> jobs = ChooseLocked(every, _directory);
+        if (_complete())
+        {
+            Prune(every);
+        }
+
+        if (jobs.Count == 0)
+        {
+            return 0;
+        }
+
+        HashSet<string> replanned = new(jobs.Select(j => j.Stem), StringComparer.OrdinalIgnoreCase);
+        lock (_gate)
+        {
+            _pending.RemoveAll(p => replanned.Contains(p.Stem));
+            _pending.AddRange(jobs);
+        }
+
+        StartWorker();
+        return jobs.Count;
+    }
+
+    // The jobs to render out of every planned one: no finished pair, not evicted or adopted, not planned already
+    // with the same throw, and within the cap. Marks them planned. With `only`, a job still waiting for its own
+    // read counts as unplanned, so a visit that can show it takes it over. Under _planLock.
+    private List<LineupClipJob> ChooseLocked(IReadOnlyList<LineupClipJob> every, string directory,
+        Func<LineupClipJob, bool>? only = null)
+    {
+        HashSet<string> waiting = new(StringComparer.OrdinalIgnoreCase);
+        if (only is not null)
+        {
+            lock (_gate)
+            {
+                waiting.UnionWith(_pending.Select(p => p.Stem));
+            }
+        }
+
+        HashSet<string> listing = Listing(directory);
         Func<string, bool> exists = _fileExists ?? listing.Contains;
         HashSet<string> evicted;
         lock (_gate)
@@ -361,7 +400,8 @@ public sealed class LineupClipService : IPackResident, IDisposable
             bool gif = exists(job.GifPath);
             bool setpos = exists(job.SetposPath);
             if ((gif && setpos) || IsEvicted(job, evicted) || Adopt(job)
-                || (_planned.TryGetValue(job.Stem, out string? key) && string.Equals(key, job.Key, StringComparison.Ordinal)))
+                || (_planned.TryGetValue(job.Stem, out string? key) && string.Equals(key, job.Key, StringComparison.Ordinal)
+                    && !waiting.Contains(job.Stem)))
             {
                 continue;
             }
@@ -369,7 +409,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
             candidates.Add(job);
         }
 
-        List<LineupClipJob> jobs = [.. WithinCap(candidates, requested)];
+        List<LineupClipJob> jobs = [.. WithinCap(candidates, requested).Where(j => only?.Invoke(j) ?? true)];
         foreach (LineupClipJob job in jobs)
         {
             if (exists(job.GifPath) || exists(job.SetposPath))
@@ -380,9 +420,57 @@ public sealed class LineupClipService : IPackResident, IDisposable
             _planned[job.Stem] = job.Key;
         }
 
-        if (_complete())
+        return jobs;
+    }
+
+    /// <summary>True while clips are wanted: the setting is on, there is a directory and the pack is attached.</summary>
+    public bool Renders
+    {
+        get
         {
-            Prune(every);
+            lock (_gate)
+            {
+                if (_released || _disposed)
+                {
+                    return false;
+                }
+            }
+
+            return _directory is not null && _enabled();
+        }
+    }
+
+    /// <summary>
+    ///     Renders, on the parse of a demo's visit, every missing clip a throw in that demo can show, so the read
+    ///     the visit already paid for serves them. A lineup the demo just made repeated always has a throw in it.
+    ///     Runs on the visit's queue thread, after the demo's grenades are in the index.
+    /// </summary>
+    /// <param name="demoPath">The demo.</param>
+    /// <param name="parsed">Its parse, held by the visit.</param>
+    /// <param name="ct">Stops the renders; a GIF cut short does not survive.</param>
+    /// <returns>How many pairs were written.</returns>
+    public int RenderOn(string demoPath, ParsedDemo parsed, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(demoPath);
+        ArgumentNullException.ThrowIfNull(parsed);
+        List<LineupClipJob> jobs;
+        lock (_planLock)
+        {
+            lock (_gate)
+            {
+                if (_released || _disposed)
+                {
+                    return 0;
+                }
+            }
+
+            if (_directory is null || !_enabled())
+            {
+                return 0;
+            }
+
+            jobs = ChooseLocked(LineupClipPlanner.PlanEvery(_clusters(), _directory, demoPath), _directory,
+                j => string.Equals(j.DemoPath, demoPath, StringComparison.OrdinalIgnoreCase));
         }
 
         if (jobs.Count == 0)
@@ -390,15 +478,54 @@ public sealed class LineupClipService : IPackResident, IDisposable
             return 0;
         }
 
-        HashSet<string> replanned = new(jobs.Select(j => j.Stem), StringComparer.OrdinalIgnoreCase);
+        HashSet<string> taken = new(jobs.Select(j => j.Stem), StringComparer.OrdinalIgnoreCase);
         lock (_gate)
         {
-            _pending.RemoveAll(p => replanned.Contains(p.Stem));
-            _pending.AddRange(jobs);
+            _pending.RemoveAll(p => taken.Contains(p.Stem));
         }
 
-        StartWorker();
-        return jobs.Count;
+        IReadOnlyList<LineupClipJob> rendered;
+        try
+        {
+            // The renderer never touches the UI thread, so blocking this queue thread on it cannot deadlock.
+            rendered = _renderer.RenderAsync(demoPath, parsed, jobs, ct).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log?.Invoke($"lineup clips: {demoPath}: {ex.Message}");
+            return 0;
+        }
+
+        return Finish(rendered);
+    }
+
+    // Writes the sidecars of the rendered GIFs, drops pairs left under older names, and holds the cap.
+    private int Finish(IReadOnlyList<LineupClipJob> rendered)
+    {
+        lock (_gate)
+        {
+            // Released meanwhile: the GIFs on disk are adopted by the next plan; nothing else is touched.
+            if (_released || _disposed)
+            {
+                return 0;
+            }
+        }
+
+        foreach (LineupClipJob done in rendered)
+        {
+            WriteSidecar(done);
+            if (File.Exists(done.SetposPath))
+            {
+                DeleteFormerPairs(done);
+            }
+        }
+
+        if (rendered.Count > 0)
+        {
+            EnforceCap(_directory!);
+        }
+
+        return rendered.Count;
     }
 
     /// <summary>
@@ -603,8 +730,8 @@ public sealed class LineupClipService : IPackResident, IDisposable
         if (SweepTask.IsCompleted)
         {
             string directory = _directory!;
-            SweepTask = QueueWork.Run(_processing, QueueJobKind.StoreSave, "Lineup clips: remove old clips", "utility",
-                _ => Sweep(directory, keep, now));
+            SweepTask = RunJob("Lineup clips: remove old clips", () => Sweep(directory, keep, now),
+                new JobOptions(BuiltInJobKinds.Save));
         }
     }
 
@@ -829,7 +956,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
         try
         {
             Directory.CreateDirectory(_directory!);
-            DemoCacheStore.WriteAtomic(Path.Combine(_directory!, EvictedFileName),
+            AtomicFile.WriteAllText(Path.Combine(_directory!, EvictedFileName),
                 string.Join('\n', LoadEvicted().Order(StringComparer.Ordinal)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -852,29 +979,39 @@ public sealed class LineupClipService : IPackResident, IDisposable
             _idle = idle;
             WorkerTask = idle.Task;
         }
-        if (_processing is null)
+        if (_jobs is null)
         {
             _ = Task.Run(() => DrainAsync(_ct), CancellationToken.None);
         }
         else
         {
-            SubmitNext(_processing);
+            SubmitNext(_jobs);
         }
     }
+
+    // A queue job, or the pool where there is no queue.
+    private Task RunJob(string title, Action work, JobOptions options) =>
+        _jobs is null
+            ? Task.Run(work)
+            : _jobs.RunAsync(title, _ =>
+            {
+                work();
+                return Task.CompletedTask;
+            }, options);
 
     // Runs every pending batch here, best demo first. Only without a processing queue.
     private async Task DrainAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested && NextDemo() is { } demo)
         {
-            await RenderBatchAsync(demo.Path, null, ct).ConfigureAwait(false);
+            await RenderBatchAsync(demo.Path, null, null, ct).ConfigureAwait(false);
         }
 
         Stop(true);
     }
 
     // One queue item at a time: the next demo is chosen when the last one ends, so a replan re-ranks it.
-    private void SubmitNext(IDemoProcessingQueue processing)
+    private void SubmitNext(IExtensionJobs jobs)
     {
         if (_disposed || NextDemo() is not { } demo)
         {
@@ -885,10 +1022,10 @@ public sealed class LineupClipService : IPackResident, IDisposable
         string title = string.Create(CultureInfo.InvariantCulture,
             $"Lineup clips: {demo.Map}, {demo.Count} {(demo.Count == 1 ? "clip" : "clips")} from {Path.GetFileName(demo.Path)}");
         CancellationToken ct = _ct;
-        IDemoQueueHandle handle = processing.SubmitJob(new QueueJobRequest(QueueJobKind.LineupClips, title,
-            "lineup-clips", demo.Requested ? DemoJobPriority.UserRequested : DemoJobPriority.Background,
-            job => RenderBatchAsync(demo.Path, job, ct), "lineup-clips", demo.Path));
-        if (handle.State == DemoQueueItemState.Rejected)
+        IJobHandle handle = jobs.Enqueue(JobRequest.OnDemo(title, demo.Path,
+            job => RenderBatchAsync(demo.Path, job.Parsed, job, ct),
+            new JobOptions(StratBookJobKinds.LineupClips, demo.Requested ? JobPriority.UserRequested : JobPriority.Background)));
+        if (handle.Status == JobStatus.Rejected)
         {
             Stop(false);
             return;
@@ -897,7 +1034,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
         _ = handle.Completion.ContinueWith(_ =>
         {
             // Cancelled from the queue list: this session does not render that demo's clips.
-            if (handle.State == DemoQueueItemState.Cancelled)
+            if (handle.Status == JobStatus.Cancelled)
             {
                 lock (_gate)
                 {
@@ -905,7 +1042,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
                 }
             }
 
-            SubmitNext(processing);
+            SubmitNext(jobs);
         }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
     }
 
@@ -949,7 +1086,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
     }
 
     // Takes the demo's clips still pending, so the demo is parsed once for all of them, and renders them.
-    private async Task RenderBatchAsync(string demoPath, IQueueJobContext? job, CancellationToken ct)
+    private async Task RenderBatchAsync(string demoPath, ParsedDemo? parsed, IJobContext? job, CancellationToken ct)
     {
         List<LineupClipJob> batch;
         lock (_gate)
@@ -969,7 +1106,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
         IReadOnlyList<LineupClipJob> rendered;
         try
         {
-            rendered = await _renderer.RenderAsync(demoPath, batch, linked.Token).ConfigureAwait(false);
+            rendered = await _renderer.RenderAsync(demoPath, parsed, batch, linked.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (job is not null && job.CancellationToken.IsCancellationRequested)
         {
@@ -985,30 +1122,7 @@ public sealed class LineupClipService : IPackResident, IDisposable
             return;
         }
 
-        lock (_gate)
-        {
-            // Released meanwhile: the GIFs on disk are adopted by the next plan; nothing else is touched.
-            if (_released || _disposed)
-            {
-                return;
-            }
-        }
-
-        job?.NoteDemoParsed();
-        foreach (LineupClipJob done in rendered)
-        {
-            WriteSidecar(done);
-            if (File.Exists(done.SetposPath))
-            {
-                DeleteFormerPairs(done);
-            }
-        }
-
-        if (rendered.Count > 0)
-        {
-            EnforceCap(_directory!);
-        }
-
+        Finish(rendered);
         job?.Report(batch.Count, batch.Count, string.Create(CultureInfo.InvariantCulture, $"{rendered.Count} written"));
     }
 
@@ -1051,36 +1165,30 @@ public sealed class LineupClipService : IPackResident, IDisposable
 }
 
 /// <summary>
-///     The production <see cref="ILineupClipRenderer" />: parses the demo once, inside the processing queue
-///     item that holds the heavy-job slot, then renders each clip through <see cref="SceneExportRunner" />, the 2D export's own
-///     runner and <c>SceneExportSession</c>, as a GIF (the managed encoder when no ffmpeg is installed).
-///     Private everything, as every export: its own parse, map bundle, compositor and surface.
+///     The production <see cref="ILineupClipRenderer" />: renders each clip of one demo, on the parse the demo's
+///     visit holds, through <see cref="SceneExportRunner" />, the 2D export's own runner and
+///     <c>SceneExportSession</c>, as a GIF (the managed encoder when no ffmpeg is installed). Its own map bundle,
+///     compositor and surface, as every export.
 /// </summary>
 public sealed class LineupClipRenderer : ILineupClipRenderer
 {
     private readonly Func<string, LoadedMapAsset?> _loadMap;
     private readonly Action<string>? _log;
-    private readonly Func<string, ParsedDemo> _parse;
     private readonly Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task> _render;
 
     /// <summary>Where a GIF is written until it is finished; the directory listing never sees it.</summary>
     public const string PartialDirectoryName = ".rendering";
 
-    /// <param name="parse">Reads and parses a demo; when null, mapped if <see cref="MapsFile" />, else read into a byte[].</param>
     /// <param name="loadMap">Finds a map's baked bundle; the pipeline's loader when null.</param>
     /// <param name="log">Line sink for the encoder choice, ffmpeg's stderr and a failed clip.</param>
-    /// <param name="time">The clock <see cref="MappedParsePolicy" /> judges a file settled by; the system clock when null.</param>
     /// <param name="render">Renders one clip request; the 2D export's runner when null.</param>
-    public LineupClipRenderer(Func<string, ParsedDemo>? parse = null,
-        Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null, TimeProvider? time = null,
+    public LineupClipRenderer(Func<string, LoadedMapAsset?>? loadMap = null, Action<string>? log = null,
         Func<Scene2DExportRequest, ExportSceneSetup, CancellationToken, Task>? render = null)
     {
-        TimeProvider clock = time ?? TimeProvider.System;
-        _parse = parse ?? (path => ParseForReplay(path, clock, MappedParsePolicy.StatFile));
         _loadMap = loadMap ?? (map => MapAssetPipeline.TryLoad(map));
         _log = log;
         _render = render ?? ((request, setup, ct) => new SceneExportRunner(_ => setup, RenderSurfaceProviderFactory.CreateCpu,
-            static () => FfmpegDependency.ManagedDirectory, _log, EncoderProbeCache.Shared).RunAsync(request, NoProgress.Instance, ct));
+            static () => FirstPartySceneExport.ManagedFfmpegDirectory, _log, EncoderProbeCache.Shared).RunAsync(request, NoProgress.Instance, ct));
     }
 
     /// <summary>The unfinished GIF's path for <paramref name="gifPath" />.</summary>
@@ -1088,17 +1196,21 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
         Path.Combine(Path.GetDirectoryName(gifPath)!, PartialDirectoryName, Path.GetFileName(gifPath));
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
-        CancellationToken ct)
+    public async Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, ParsedDemo? demo,
+        IReadOnlyList<LineupClipJob> jobs, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(demoPath);
         ArgumentNullException.ThrowIfNull(jobs);
-        if (jobs.Count == 0 || !File.Exists(demoPath))
+        if (jobs.Count == 0)
         {
             return [];
         }
 
-        ParsedDemo demo = _parse(demoPath);
+        if (demo is null)
+        {
+            throw new InvalidOperationException("Lineup clips render on the parse of the demo's visit.");
+        }
+
         using LoadedMapAsset? asset = SafeLoad(jobs[0].Map);
 
         ExportSceneSetup setup = new(demo.Frames, demo.TickRate, jobs[0].Map, ScenePalette.Dark,
@@ -1134,25 +1246,6 @@ public sealed class LineupClipRenderer : ILineupClipRenderer
         }
 
         return rendered;
-    }
-
-    /// <summary>
-    ///     Whether the default parse maps the demo: never on the browser, and only for a settled file, the
-    ///     processing queue's rule. A mapped file truncated under the parse is a fatal access violation.
-    /// </summary>
-    internal static bool MapsFile(string path, TimeProvider time, Func<string, FileStat> stat) =>
-        !OperatingSystem.IsBrowser() && MappedParsePolicy.IsSettled(path, time, stat);
-
-    /// <summary>
-    ///     The clip parse: entity replay only, since a clip draws entities and reads no events or user
-    ///     commands. Mapped when <see cref="MapsFile" /> allows it.
-    /// </summary>
-    internal static ParsedDemo ParseForReplay(string path, TimeProvider time, Func<string, FileStat> stat)
-    {
-        ParseOptions options = new() { Plan = DecodePlan.EntityReplay };
-        return MapsFile(path, time, stat)
-            ? MemoryMappedDemoSource.ParseFile(path, options)
-            : DemoParser.Parse(File.ReadAllBytes(path).AsMemory(), options);
     }
 
     private void DeletePartial(string partial)

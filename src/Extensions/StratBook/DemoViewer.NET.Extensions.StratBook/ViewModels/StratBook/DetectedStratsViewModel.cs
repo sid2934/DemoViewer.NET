@@ -4,16 +4,16 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     The Strats section's Detected inbox (Strat Mining): the patterns the miner found for the tab's map, side and
@@ -27,7 +27,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
 
     private readonly StratCanvasServices? _canvasServices;
     private readonly LineupOriginSource? _lineupOrigins;
-    private readonly Func<string?, LoadedMapAsset?>? _mapLoader;
+    private readonly Func<string?, IMapAsset?>? _mapLoader;
     private readonly StratMiningService? _mining;
     private readonly Action<Guid> _openStrat;
     private readonly Func<ISituationPlayback?> _playback;
@@ -66,7 +66,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
     /// <param name="canvasServices">The preview canvas's gate, zone resolver and settings fallback; see <see cref="StratCanvasServices" />.</param>
     public DetectedStratsViewModel(StratMiningService? mining, Func<ISituationPlayback?> playback, Func<Guid, string?> teamName,
         Func<StratOwner?> targetBook, Action<Guid> openStrat, Action<Action>? post = null,
-        Func<string?, LoadedMapAsset?>? mapLoader = null, LineupOriginSource? lineupOrigins = null,
+        Func<string?, IMapAsset?>? mapLoader = null, LineupOriginSource? lineupOrigins = null,
         StratCanvasServices? canvasServices = null)
     {
         _canvasServices = canvasServices;
@@ -231,7 +231,7 @@ public sealed partial class DetectedStratsViewModel : ObservableObject, IDisposa
         }
         else
         {
-            doc = _mining.Promote(row.Key, book);
+            doc = await _mining.PromoteAsync(row.Key, book);
         }
 
         StatusLine = doc is not null ? $"Added \"{doc.Name}\" to the book."

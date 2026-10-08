@@ -2,10 +2,11 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -274,7 +275,7 @@ public class StratEvidenceTests
         TagInstance first = Instance("A execute", 1_500, 3_000, ("strat", S), ("strat.rev", "1"), ("outcome", "won"));
         TagInstance second = Instance("A execute", 11_000, 13_000, ("strat", S), ("strat.rev", "1"));
         TagDocument document = Document(ShaA, first, second);
-        TagFactsRefresher.Refresh(document, RoundIndexTestData.Facts(one, two), StratBookCache.RoundFactsSchema, Created);
+        TagFactsRefresher.Refresh(document, RoundIndexTestData.Facts(one, two), RoundFactsRecords.Schema, Created);
 
         StratRecord record = StratEvidence.Build(StratId, 1, StratVocabulary.SideT, [document]);
         using (Assert.Multiple())

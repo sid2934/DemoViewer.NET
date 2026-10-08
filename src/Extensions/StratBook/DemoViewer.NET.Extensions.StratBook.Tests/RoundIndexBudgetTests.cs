@@ -2,7 +2,7 @@
 
 using System.Diagnostics;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -39,7 +39,7 @@ public class RoundIndexBudgetTests
         {
             Random random = new(2026);
             DemoCacheStore cache = new(root);
-            using (RoundIndexStore writer = new(root, cache))
+            RoundIndexStore writer = new(cache.DiskData(root));
             using (cache.BeginBatch())
             {
                 for (int d = 0; d < Demos; d++)
@@ -52,9 +52,9 @@ public class RoundIndexBudgetTests
 
             // A fresh store over the same root: the startup path, sidecars read from disk.
             DemoCacheStore reopened = new(root);
-            using RoundIndexStore sidecars = new(root, reopened);
+            RoundIndexStore sidecars = new(reopened.DiskData(root));
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-            using SituationIndex index = new(reopened, sidecars, sources);
+            using SituationIndex index = new(reopened.Library(), sidecars, sources);
 
             Stopwatch load = Stopwatch.StartNew();
             index.Load();

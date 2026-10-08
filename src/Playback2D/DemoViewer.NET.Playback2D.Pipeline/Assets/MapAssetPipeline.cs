@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///         needs <c>Bitmap.DecodeToWidth</c>'s downscale-on-decode and has no <c>SKImage</c> analogue.
 ///     </para>
 /// </summary>
-public sealed class LoadedMapAsset : IDisposable
+public sealed class LoadedMapAsset : IMapAsset
 {
     private readonly Lock _zoneLock = new();
     private bool _disposed;
@@ -146,6 +146,15 @@ public sealed class LoadedMapAsset : IDisposable
             image.Dispose();
         }
     }
+
+    /// <inheritdoc />
+    WorldBounds IMapAsset.RadarBounds => MapAssetPipeline.RadarBounds(this);
+
+    /// <inheritdoc />
+    IReadOnlyList<MapRadarImage> IMapAsset.DescribeRadars() => MapAssetPipeline.DescribeRadars(this);
+
+    /// <inheritdoc />
+    ILevelRadarBinder IMapAsset.CreateRadarBinder() => new MapRadarBinder(this);
 
     private static FloorSlice[] BuildFloors(MapAssetBundle bundle)
     {

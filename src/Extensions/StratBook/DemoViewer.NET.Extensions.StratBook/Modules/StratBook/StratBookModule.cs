@@ -1,12 +1,12 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 
 /// <summary>
 ///     The Strat Book module: the Strats section of the Strat Book tab's rail, first on
@@ -54,7 +54,7 @@ public sealed class StratBookModule : IWorkspaceModule
             TabId = BrowserTabId,
             Header = "Strats",
             Order = 0, // first on the rail
-            HostId = StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = () => _viewModel ??= _viewModelFactory(),
             ViewFactory = () => new StratBookTabView()

@@ -501,8 +501,8 @@ public class FirstRunWizardTests
                 .IsEquivalentTo(FeaturePacks.Compatible.Select(p => p.FeatureId));
 
             ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
-            IFeaturePack incompatible = new CatalogPack("pack.future", FakeManifests.For("net.demoviewer.pack.future", "Future", "2.0.0", "^2.0", "*"));
-            IFeaturePack fine = new CatalogPack("pack.fine", FakeManifests.For("net.demoviewer.pack.fine", "Fine"));
+            IExtension incompatible = new CatalogPack("pack.future", FakeManifests.For("net.demoviewer.pack.future", "Future", "2.0.0", "^2.0", "*"));
+            IExtension fine = new CatalogPack("pack.fine", FakeManifests.For("net.demoviewer.pack.fine", "Fine"));
             IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([incompatible, fine], host);
             FeatureDescriptor[] catalog = FeatureCatalog.Build([.. statuses.Where(s => s.IsCompatible).Select(s => s.Pack)]);
 
@@ -520,20 +520,20 @@ public class FirstRunWizardTests
     }
 
     // A pack with one catalog row, so FeatureCatalog.Build accepts it.
-    private sealed class CatalogPack(string featureId, ExtensionManifest manifest) : IFeaturePack
+    private sealed class CatalogPack(string featureId, ExtensionManifest manifest) : IExtension, IManifestSource
     {
         public string Id => manifest.Id;
         public string FeatureId => featureId;
         public ExtensionManifest Manifest => manifest;
 
-        public IEnumerable<FeatureDescriptor> Features =>
-            [new(featureId, FeatureScope.Pack, manifest.Name, "d", null, null, false, new Dictionary<UserCategory, bool> { [UserCategory.PowerUser] = true })];
+        public IEnumerable<ExtensionFeature> Features =>
+            [new(featureId, ExtensionFeatureKind.Extension, manifest.Name, "d", null, new AudienceDefaults(false, true, false))];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

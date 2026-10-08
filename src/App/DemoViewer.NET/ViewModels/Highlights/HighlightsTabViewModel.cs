@@ -725,7 +725,7 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
         // highlights. Measured on a real 348-demo cache: ~32 ms warm but ~297 ms cold, unnoticeable and a
         // visible hitch respectively, and it scales with the library. Only sidecars the index says carry
         // highlights are opened; the rest cost a dictionary read.
-        int libraryRowCount = _demoCache.Count;
+        int libraryRowCount = _demoCache.Contents.Count;
         List<DemoCacheRecord> records = await Task.Run(() => _demoCache.LoadRecords(e => e.HighlightCount > 0));
 
         // Re-opening rebuilds from the CURRENT cache: the picker snapshots rows deliberately (a backfill

@@ -115,8 +115,8 @@ public class DemoLibraryCacheRepairTests
         });
 
         using DemoLibraryService svc = new(_inline, dataPath);
-        using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-        svc.Coordinator = coord;
+        using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+        svc.Scheduler = coord;
 
         await svc.RescanAsync();
         await WaitForAsync(() => svc.Tier2Backlog().Count == 0, "tier-2 backlog drained");
@@ -243,8 +243,8 @@ public class DemoLibraryCacheRepairTests
             int enlisted;
             using (DemoLibraryService svc = new(_inline, dataPath))
             {
-                using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-                svc.Coordinator = coord;
+                using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+                svc.Scheduler = coord;
                 await svc.RescanAsync();
                 await WaitForAsync(() => svc.Tier2Backlog().Count == 0, "initial drain");
 

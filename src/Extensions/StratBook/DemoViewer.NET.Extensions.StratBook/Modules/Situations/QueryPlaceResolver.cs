@@ -1,11 +1,11 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>The place a canvas drop resolved to, and which source answered.</summary>
 /// <param name="Place">The raw place name, as the index rows spell it.</param>

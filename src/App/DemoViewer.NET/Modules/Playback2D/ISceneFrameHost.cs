@@ -4,8 +4,10 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
+using DemoViewer.NET.Playback2D.Core.Compositing;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
@@ -27,7 +29,7 @@ namespace DemoViewer.NET.Modules.Playback2D;
 ///         App's panel view-models.
 ///     </para>
 /// </summary>
-internal interface ISceneFrameHost
+public interface ISceneFrameHost
 {
     /// <summary>
     ///     The frame to show. A stable reference until the next <see cref="FrameUpdated" />: the render
@@ -39,7 +41,7 @@ internal interface ISceneFrameHost
     ///     The map bundle: authoritative floors and the radar binding. Null falls back to the grid and
     ///     the observed level split.
     /// </summary>
-    LoadedMapAsset? MapAsset { get; }
+    IMapAsset? MapAsset { get; }
 
     /// <summary>The vision engine the cone solve reads at solve time. Null draws no cones.</summary>
     VisibilityEngine? VisionEngine { get; }
@@ -96,6 +98,22 @@ internal interface ISceneFrameHost
     ///     another). False sends the press on to the router, which is what a host with nothing to offer
     ///     always returns.
     /// </summary>
-    /// <param name="pointer">The press, resolved to a pane and world coordinates.</param>
-    bool TryPointerPreHandler(ScenePointer pointer) => false;
+    /// <param name="press">The press, resolved to a pane and world coordinates.</param>
+    bool TryPointerPreHandler(ScenePointer press) => false;
+
+    /// <summary>Scene layers contributions added to this host's map, by id. Re-read on <see cref="ContributedLayersChanged" />.</summary>
+    IReadOnlyList<KeyValuePair<string, Func<ISceneLayer>>> ContributedLayers => [];
+
+    /// <summary>
+    ///     Pointer tools contributions added, offered a primary press not diverted to pan after
+    ///     <see cref="TryPointerPreHandler" /> and before the router. Read at each press.
+    /// </summary>
+    IReadOnlyList<IMapTool> ContributedTools => [];
+
+    /// <summary><see cref="ContributedLayers" /> changed.</summary>
+    event Action? ContributedLayersChanged
+    {
+        add { }
+        remove { }
+    }
 }

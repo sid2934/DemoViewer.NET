@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>Where a team's display name came from. A user name is never overwritten.</summary>
 public enum TeamNameSource
@@ -237,7 +237,7 @@ public sealed class TeamIndexDemo
 
     public string? Sha256 { get; set; }
 
-    /// <summary><c>DemoCacheRecord.ModifiedTicks</c> until a real match date exists.</summary>
+    /// <summary>the file's write time until a real match date exists.</summary>
     public long OrderTicks { get; set; }
 
     /// <summary>The effective <c>DemoSourceKind</c> by name, what the source gate reads on a rebuild from this file.</summary>
@@ -296,7 +296,7 @@ public sealed class TeamIndexFile
 
     public long BuiltAtTicks { get; set; }
 
-    /// <summary>Keyed by <c>DemoCacheStore.StableKey(path)</c>, like the sidecars.</summary>
+    /// <summary>Keyed by <c>DemoKeys.StableKey(path)</c>, like the sidecars.</summary>
     public Dictionary<string, TeamIndexDemo> Demos { get; set; } = [];
 
     /// <summary>team id → roster id → SteamID64 → member.</summary>

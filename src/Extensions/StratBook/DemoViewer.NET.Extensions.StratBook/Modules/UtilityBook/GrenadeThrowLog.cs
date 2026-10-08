@@ -3,11 +3,10 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
-using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     The per-demo throw log: every field of every <see cref="GrenadeRow" /> except the

@@ -3,13 +3,14 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
+using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
@@ -119,6 +120,8 @@ public class StratLineupPickerTests
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
+
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
 
         public int ActiveCount(QueueJobKind kind) => 0;
 
@@ -390,7 +393,7 @@ public class StratLineupPickerTests
             await Assert.That(picker.Map.MapAsset).IsSameReferenceAs(h.Tab.Canvas.MapAsset);
         }
 
-        LoadedMapAsset shared = h.Tab.Canvas.MapAsset!;
+        IMapAsset shared = h.Tab.Canvas.MapAsset!;
         picker.CancelCommand.Execute(null);
         h.Pump();
         await Assert.That(h.Tab.Canvas.MapAsset).IsSameReferenceAs(shared).Because("the canvas still owns and draws it");

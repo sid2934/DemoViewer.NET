@@ -1,14 +1,15 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -458,12 +459,12 @@ public class SearchFiltersTests
         private Harness()
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
             Facts = new FakeFacts();
-            Teams = new TeamIdentityService(null, Cache, Facts, run: _inline);
-            Provenance = new DemoProvenanceSource(Cache, Teams);
-            Index = new SituationIndex(Cache, Sidecars, Sources, Facts);
+            Teams = new TeamIdentityService(null, Cache.Library(), Facts, run: _inline);
+            Provenance = new DemoProvenanceSource(Cache.Library(), Teams);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources, Facts);
         }
 
         public DemoCacheStore Cache { get; }
@@ -505,8 +506,8 @@ public class SearchFiltersTests
             h.Teams.SetUs(h.Teams.TeamOnSide(DemoA, 2)!.Id);
             h.Teams.Rename(h.Teams.TeamOnSide(DemoA, 3)!.Id, "Falcons");
 
-            h.Filters = new SearchFiltersViewModel(h.Cache, h.Teams, h.Provenance);
-            h.Canvas = new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache, _ => null,
+            h.Filters = new SearchFiltersViewModel(h.Cache.Library(), h.Teams, h.Provenance);
+            h.Canvas = new QueryCanvasViewModel(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null,
                 dispose => dispose(), h.Filters, action => action(), TimeSpan.Zero);
             return h;
         }
@@ -539,8 +540,8 @@ public class SearchFiltersTests
 
             DemoCacheStore.StampParse(record);
             record.SetStamp(new PackStamp(RoundFactsEvaluator.EvaluatorId, 0, "rf-A") { State = DemoAnalysisState.Pending });
-            record.StampRoundIndex(document.Fingerprint, 100, document.RowCount);
             Cache.Upsert(record);
+            Cache.StampRoundIndex(path, document.Fingerprint, 100, document.RowCount);
         }
 
         public void Dispose()
@@ -549,7 +550,6 @@ public class SearchFiltersTests
             Index.Dispose();
             Provenance.Dispose();
             Teams.Dispose();
-            Sidecars.Dispose();
         }
     }
 
@@ -557,7 +557,7 @@ public class SearchFiltersTests
     {
         public Dictionary<string, RoundFactsRows> Rows { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public int Schema => StratBookCache.RoundFactsSchema;
+        public int Schema => RoundFactsRecords.Schema;
 
         public event Action<string>? Updated
         {
@@ -568,7 +568,7 @@ public class SearchFiltersTests
         public RoundFactsRows? TryGet(string demoPath) => Rows.GetValueOrDefault(demoPath);
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
-            TryGet(demoPath) is { } rows ? RoundFactsSource.FindRound(rows.Rounds, frameClockTick) : null;
+            TryGet(demoPath) is { } rows ? RoundFactsRules.FindRound(rows.Rounds, frameClockTick) : null;
 
         public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter) => [];
 

@@ -4,6 +4,7 @@ using System.Reflection.Metadata;
 using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Pipeline;
 using SysAssembly = System.Reflection.Assembly;
 
@@ -57,8 +58,13 @@ public class BannedApiTests
     [Test]
     public async Task Core_ContainsNo_DateTimeNow_Stopwatch_Or_Random()
     {
-        // Core has NO exemption: nothing in the render core has a legitimate reason to know the time.
-        List<string> offenders = ScanForBannedUses(typeof(Scene2DFrame).Assembly, []);
+        // Core and the scene contract have NO exemption: nothing in the render core has a legitimate reason
+        // to know the time.
+        List<string> offenders =
+        [
+            .. ScanForBannedUses(typeof(Scene2DFrame).Assembly, []),
+            .. ScanForBannedUses(typeof(RadarLayer).Assembly, [])
+        ];
         Report(offenders);
         await Assert.That(offenders).IsEmpty();
     }

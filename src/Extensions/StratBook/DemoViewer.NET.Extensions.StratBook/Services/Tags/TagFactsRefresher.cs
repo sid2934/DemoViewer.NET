@@ -1,18 +1,18 @@
 #region
 
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>
 ///     Keeps every tag instance's <see cref="TagInstance.Facts" /> in step with its round's Round Facts:
 ///     the parser namespace, rewritten wholesale, never reading or writing
 ///     <see cref="TagInstance.Labels" />.
 ///     <para>
-///         <b>When.</b> On <see cref="IRoundFactsSource.Updated" />, which the evaluator raises after it
+///         <b>When.</b> On <see cref="IRoundFacts.Updated" />, which the evaluator raises after it
 ///         (re)writes a demo's rows, so a re-parse or a Round Facts schema bump reaches every document of
 ///         that demo. This fires on <c>DemoCacheStore.Changed</c> and a comparison against
 ///         <c>factsStamp.computedUtc</c>; the rows carry no write time, and <c>Updated</c> fires for
@@ -26,17 +26,17 @@ namespace DemoViewer.NET.Services.Tags;
 ///         opening a demo must not leave a file behind.
 ///     </para>
 ///     <para>
-///         <b>What.</b> Every label <see cref="IRoundFactsSource.FactsFor" /> reports for the round holding
+///         <b>What.</b> Every label <see cref="IRoundFacts.FactsFor" /> reports for the round holding
 ///         the instance's <c>fromTick</c>, at that tick, under its plain name (the
 ///         array is the namespace, so no <c>parser.</c> prefix). Values are absolute per side; no
 ///         <c>side</c>, <c>buy.us</c> or <c>buy.them</c> is written, because an instance has no side unless a
 ///         person or Team Identity says so.
 ///     </para>
 /// </summary>
-public sealed class TagFactsRefresher : IPackResident, IDisposable
+public sealed class TagFactsRefresher : IExtensionResident, IDisposable
 {
     private readonly Action<Action> _background;
-    private readonly IRoundFactsSource _facts;
+    private readonly IRoundFacts _facts;
     private readonly Func<string, string?> _sha256For;
     private readonly TagStore _tags;
     private readonly Func<DateTime> _utcNow;
@@ -55,7 +55,7 @@ public sealed class TagFactsRefresher : IPackResident, IDisposable
     ///     synchronous one.
     /// </param>
     /// <param name="utcNow">The stamp's clock.</param>
-    public TagFactsRefresher(TagStore tags, IRoundFactsSource facts, Func<string, string?> sha256For,
+    public TagFactsRefresher(TagStore tags, IRoundFacts facts, Func<string, string?> sha256For,
         Action<Action>? background = null, Func<DateTime>? utcNow = null)
     {
         ArgumentNullException.ThrowIfNull(tags);
@@ -158,14 +158,14 @@ public sealed class TagFactsRefresher : IPackResident, IDisposable
     /// <param name="rounds">The demo's rounds, in number order.</param>
     /// <param name="schema">The Round Facts schema, for the stamp.</param>
     /// <param name="utcNow">The stamp's time.</param>
-    public static void RefreshInstance(TagInstance instance, IReadOnlyList<RoundFacts.RoundFacts> rounds, int schema,
+    public static void RefreshInstance(TagInstance instance, IReadOnlyList<RoundFacts> rounds, int schema,
         DateTime utcNow)
     {
         ArgumentNullException.ThrowIfNull(instance);
         ArgumentNullException.ThrowIfNull(rounds);
 
         TagFactsStamp? old = instance.FactsStamp;
-        if (RoundFactsSource.FindRound(rounds, instance.FromTick) is not { } round)
+        if (RoundFactsRules.FindRound(rounds, instance.FromTick) is not { } round)
         {
             instance.FactsStamp = new TagFactsStamp
             {
@@ -191,13 +191,13 @@ public sealed class TagFactsRefresher : IPackResident, IDisposable
     /// <summary>
     ///     The adapter from Round Facts' label list to the document's: <see cref="FactLabel.Key" /> is the
     ///     group, and the list's own grouping (<c>buy</c>, <c>score</c>, ...) is display-only and dropped. The
-    ///     same projection <see cref="IRoundFactsSource.FactsFor" /> makes, over rows already in hand, so a
+    ///     same projection <see cref="IRoundFacts.FactsFor" /> makes, over rows already in hand, so a
     ///     document costs one sidecar read rather than one per instance.
     /// </summary>
     /// <param name="round">The round.</param>
     /// <param name="fromTick">The instance's start, for the tick-anchored facts.</param>
-    public static List<TagLabel> FactsOf(RoundFacts.RoundFacts round, int fromTick) =>
-        [.. RoundFactsSource.Labels(round, fromTick).Select(f => new TagLabel(f.Key, f.Value))];
+    public static List<TagLabel> FactsOf(RoundFacts round, int fromTick) =>
+        [.. RoundFactsRules.Labels(round, fromTick).Select(f => new TagLabel(f.Key, f.Value))];
 
     private void OnUpdated(string demoPath)
     {

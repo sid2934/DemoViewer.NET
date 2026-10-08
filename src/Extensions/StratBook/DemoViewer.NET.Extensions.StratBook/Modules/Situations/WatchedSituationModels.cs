@@ -3,11 +3,11 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     <c>watched-situations.json</c>: the user's saved queries, beside <c>teams.json</c> under the

@@ -9,17 +9,19 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Services.Zones;
 using Microsoft.Extensions.DependencyInjection;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 
@@ -155,7 +157,7 @@ public class StratBookPackBaselineTests
     }
 
     // Waits for the situation index, grenade index and Team Identity to report ready and Team Identity's
-    // own rebuild-or-sync job (QueueJobKind.TeamsCommand, submitted by StartAsync) to finish, then forces a
+    // own rebuild-or-sync job (a teams job, submitted by StartAsync) to finish, then forces a
     // full blocking, compacting collection so the snapshot is not mid-GC.
     //
     // Deliberately does NOT wait for the whole queue to drain. With Highlights.BackgroundScan and
@@ -178,7 +180,7 @@ public class StratBookPackBaselineTests
 
         DateTime deadline = DateTime.UtcNow.AddSeconds(90);
         while (!(situations.IsReady && grenades.IsReady && teams.IsLoaded
-                 && queue.ActiveCount(QueueJobKind.TeamsCommand) == 0
+                 && queue.ActiveCount(StratBookJobKinds.Teams) == 0
                  && queue.ActiveCount(QueueJobKind.StoreLoad) == 0))
         {
             if (DateTime.UtcNow >= deadline)
@@ -186,7 +188,7 @@ public class StratBookPackBaselineTests
                 throw new InvalidOperationException(
                     $"startup did not settle within 90s: situationsReady={situations.IsReady} "
                     + $"grenadesReady={grenades.IsReady} teamsLoaded={teams.IsLoaded} "
-                    + $"teamsCommandActive={queue.ActiveCount(QueueJobKind.TeamsCommand)} "
+                    + $"teamsCommandActive={queue.ActiveCount(StratBookJobKinds.Teams)} "
                     + $"storeLoadActive={queue.ActiveCount(QueueJobKind.StoreLoad)} "
                     + $"items=[{string.Join(", ", queue.Items.Select(i => $"{i.Kind}/{i.DisplayName}/{i.State}"))}]");
             }
@@ -201,7 +203,7 @@ public class StratBookPackBaselineTests
         }
     }
 
-    private static readonly IFeaturePack Pack = FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
+    private static readonly IExtension Pack = FeaturePacks.Default.Single(p => p.FeatureId == StratBookPack.PackFeatureId);
 
     // Pack-off counterpart to SettleStartupLoads: those readiness flags never go true when nothing of
     // the pack attaches, so this asserts the gate and the residents' state instead of waiting on them.
@@ -327,20 +329,20 @@ public class StratBookPackBaselineTests
         long before = GC.GetTotalMemory(true);
 
         DemoCacheStore demoCache = new(cache);
-        RoundIndexStore positions = new(cache, demoCache);
+        RoundIndexStore positions = new(demoCache.DiskData(cache));
         AssetZonePlaceResolverSource zones = new();
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn, zones);
-        using SituationIndex situations = new(demoCache, positions, sources);
+        using SituationIndex situations = new(demoCache.Library(), positions, sources);
         situations.Load();
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
         long afterSituations = GC.GetTotalMemory(true);
 
-        using GrenadeIndex grenades = new(demoCache, zones);
+        using GrenadeIndex grenades = new(demoCache.Library(), zones);
         grenades.Load();
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
         long afterGrenades = GC.GetTotalMemory(true);
 
-        using TeamIdentityService teams = new(dir, demoCache, new CachedFacts(demoCache));
+        using TeamIdentityService teams = new(TestFiles.Teams(dir), demoCache.Library(), new CachedFacts(demoCache));
         await teams.StartAsync();
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);
         long afterTeams = GC.GetTotalMemory(true);
@@ -379,7 +381,7 @@ public class StratBookPackBaselineTests
     {
         public int Schema => 0;
 
-        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts();
+        public RoundFactsRows? TryGet(string demoPath) => cache.TryLoadRecord(demoPath)?.RoundFacts;
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) => null;
 
@@ -401,7 +403,7 @@ public class StratBookPackBaselineTests
     ///     <c>AppCompositionRootTests</c> pins (library, highlights, round facts, round index, suggested
     ///     tags, grenades), against one forward parse evaluated by library and highlights alone. The mode
     ///     switch is not an artifact of this harness: round index, suggested tags and grenades have no
-    ///     <see cref="IDemoEvaluator.ForwardFor" />, so the real coordinator already runs a retained parse
+    ///     a forward read, so the real coordinator already runs a retained parse
     ///     whenever any of them wants a demo, and a forward one when only library and highlights do, which
     ///     is the shape gating those three off actually produces. <see cref="DemosEnvVar" /> names a file of
     ///     demo paths, one per line; the first line is a discarded warm-up run under both modes. Each of the
@@ -413,7 +415,7 @@ public class StratBookPackBaselineTests
     ///         Round Facts, Round Index, Suggested Tags and Highlights each check a fingerprint or state
     ///         field against the cache record and silently do nothing when it already matches, which it
     ///         does for every demo in an indexed library: an early build of this probe measured all four
-    ///         doing effectively zero work, for the same reason <see cref="IDemoEvaluator.Wants" /> would
+    ///         doing effectively zero work, for the same reason <c>Wants</c> would
     ///         already say no to them. Before EVERY timed demo, in both modes, this clears those four
     ///         fields on its cache record (<see cref="DemoCacheStore.UpdateExisting" />, see
     ///         <see cref="InvalidateForReindex" />) so all four actually recompute, the scenario this number
@@ -450,7 +452,7 @@ public class StratBookPackBaselineTests
             DemoLibraryService library = null!;
             HighlightScanService highlights = null!;
             ForwardPassRunner forward = null!;
-            IDemoEvaluator[] full = null!;
+            Action<string, ParsedDemo>[] full = null!;
             DemoCacheStore demoCache = null!;
             await HeadlessSession.RunOnUi(async () =>
             {
@@ -465,7 +467,7 @@ public class StratBookPackBaselineTests
                 GrenadeIndexEvaluator grenades = provider.GetRequiredService<GrenadeIndexEvaluator>();
                 forward = new ForwardPassRunner(provider.GetRequiredService<MergedRulesBuild>());
                 demoCache = provider.GetRequiredService<DemoCacheStore>();
-                full = [library, highlights, roundFacts, roundIndex, suggestedTags, grenades];
+                full = [library.Evaluate, highlights.Evaluate, roundFacts.Evaluate, roundIndex.Evaluate, suggestedTags.Evaluate, grenades.Evaluate];
             });
 
             try
@@ -571,15 +573,15 @@ public class StratBookPackBaselineTests
     // Verbatim copy of DemoProcessingQueue.RunEntry's retained path: a single mmap-or-bytes parse with
     // DecodePlan.Everything (user commands kept, since GrenadeIndexEvaluator defaults ReadsUserCommands to
     // true and is in this list), then every evaluator's Evaluate on the one held parse.
-    private static double TimeFull(string path, IReadOnlyList<IDemoEvaluator> evaluators)
+    private static double TimeFull(string path, IReadOnlyList<Action<string, ParsedDemo>> evaluators)
     {
         long t0 = Stopwatch.GetTimestamp();
         ParsedDemo parsed = MappedParsePolicy.IsSettled(path, TimeProvider.System, MappedParsePolicy.StatFile)
             ? MemoryMappedDemoSource.ParseFile(path, new ParseOptions { Plan = DecodePlan.Everything })
             : DemoParser.Parse(File.ReadAllBytes(path).AsMemory(), new ParseOptions { Plan = DecodePlan.Everything });
-        foreach (IDemoEvaluator evaluator in evaluators)
+        foreach (Action<string, ParsedDemo> evaluate in evaluators)
         {
-            evaluator.Evaluate(path, parsed);
+            evaluate(path, parsed);
         }
 
         return Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
@@ -602,13 +604,13 @@ public class StratBookPackBaselineTests
 
     /// <summary>
     ///     The "library + highlights only" indexing-time case. Unlike <see cref="IndexingTimePerDemo" />,
-    ///     which calls every evaluator's <see cref="IDemoEvaluator.Evaluate" /> directly and so bypasses
-    ///     <see cref="IDemoEvaluator.Wants" />, this times every demo with <see cref="TimeReduced" /> only:
-    ///     with the pack off, Round Facts, Round Index, Suggested Tags and Grenades all answer
+    ///     which calls every evaluator's <c>Evaluate</c> directly and so bypasses
+    ///     <c>Wants</c>, this times every demo with <see cref="TimeReduced" /> only:
+    ///     with the pack off, Round Index, Suggested Tags and Grenades all answer
     ///     <c>Wants() == false</c>, so the real coordinator never submits a demo to them and the forward
-    ///     pass library and highlights alone run is the whole of what "library index time" means now. Also
-    ///     confirms <c>round_facts</c> actually left the merged ruleset, not just the evaluator's
-    ///     own write.
+    ///     pass library, highlights and the core Round Facts run is the whole of what "library index time"
+    ///     means now. Also reports whether <c>round_facts</c> is in the merged ruleset, which it is with the
+    ///     pack on or off.
     /// </summary>
     [Test]
     [Category("Environmental")]

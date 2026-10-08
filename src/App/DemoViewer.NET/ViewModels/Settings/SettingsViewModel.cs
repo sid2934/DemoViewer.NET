@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Diagnostics;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Features;
@@ -100,7 +101,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // estimate. At most one pack exists today; a second pack's own toggle would need its own
     // notice slot, which this does not attempt. Null contributes nothing (no pack, or a test that wires
     // none), so the notice mechanism below simply never fires.
-    private readonly IPackReindexEstimate? _reindexEstimate;
+    private readonly IReindexEstimate? _reindexEstimate;
 
     // Bumped on every pack-toggle transition so a slow count that lands after a LATER flip is dropped
     // rather than overwriting a more recent notice.
@@ -424,7 +425,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public SettingsViewModel(
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Action? replayWalkthrough = null, IReadOnlyList<SettingsPageContribution>? settingsPages = null,
-        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null, IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
+        IReadOnlyList<IReindexEstimate>? reindexEstimates = null, IReadOnlyList<IExtensionDataRemoval>? dataRemovals = null,
         IReadOnlyList<PackStatus>? packStatuses = null, ExtensionUpdateService? extensionUpdates = null)
         : this(settings, monitor, gate, themes, OperatingSystem.IsBrowser, replayWalkthrough, settingsPages,
             reindexEstimates, dataRemovals, packStatuses, extensionUpdates)
@@ -470,8 +471,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         SettingsService settings, IOptionsMonitor<AppSettings> monitor, IFeatureGate gate, ThemeRegistry themes,
         Func<bool> isBrowser, Action? replayWalkthrough = null,
         IReadOnlyList<SettingsPageContribution>? settingsPages = null,
-        IReadOnlyList<IPackReindexEstimate>? reindexEstimates = null,
-        IReadOnlyList<IPackDataRemoval>? dataRemovals = null,
+        IReadOnlyList<IReindexEstimate>? reindexEstimates = null,
+        IReadOnlyList<IExtensionDataRemoval>? dataRemovals = null,
         IReadOnlyList<PackStatus>? packStatuses = null,
         ExtensionUpdateService? extensionUpdates = null)
     {
@@ -488,9 +489,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _packStatuses = packStatuses ?? FeaturePacks.Statuses;
         _extensionUpdates = extensionUpdates;
         _reindexEstimate = reindexEstimates is { Count: > 0 } estimates ? estimates[0] : null;
-        foreach (IPackDataRemoval removal in dataRemovals ?? [])
+        foreach (IExtensionDataRemoval removal in dataRemovals ?? [])
         {
-            string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == removal.PackFeatureId)?.Label ?? removal.PackFeatureId;
+            string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == removal.FeatureId)?.Label ?? removal.FeatureId;
             ExtensionDataActions.Add(new ExtensionDataActionViewModel(removal, label));
         }
 
@@ -502,6 +503,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // Seed the bound state directly from the FIELDS (not the properties) so construction does not
         // trip the change-hooks and write settings straight back.
         AppSettings current = settings.Current;
+        _allowUnverifiedExtensions = current.Extensions.AllowUnverified;
+        _allowUnverifiedAtOpen = current.Extensions.AllowUnverified;
+        ExternalExtensionRows = ExternalExtensionRow.Build(StatusesOrProcess(packStatuses), FeaturePacks.ExternalRejected);
         _selectedCategoryOption = OptionFor(current.UserCategory);
         _selectedTheme = ThemeFor(current.Theme);
         // Live Sync section: the enable toggle mirrors the GATE decision (an override write flips it); the
@@ -550,7 +554,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         // Seeded BEFORE the first RefreshFeatureRows below, so that call sees no transition and shows no
         // toggle notice at a plain startup: the notice is feedback for an IN-SESSION flip, not state.
-        _watchedPackWasEnabled = _reindexEstimate is { } watched && gate.IsEnabled(watched.PackFeatureId);
+        _watchedPackWasEnabled = _reindexEstimate is { } watched && gate.IsEnabled(watched.FeatureId);
 
         // Registers every contributed page; none is built yet (BuildContributedSettingsPages).
         BuildContributedSettingsPages(settingsPages);
@@ -673,6 +677,44 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// </summary>
     public ObservableCollection<FeatureToggleRow> ExtensionsFeatureRows { get; } = [];
 
+    // ── Third-party extensions ──
+
+    private readonly bool _allowUnverifiedAtOpen;
+
+    /// <summary>"Allow unverified and potentially dangerous extensions". Read at launch, so a change waits for a restart.</summary>
+    [ObservableProperty]
+    private bool _allowUnverifiedExtensions;
+
+    /// <summary>The setting's label, verbatim.</summary>
+    public static string AllowUnverifiedLabel => ExternalExtensions.AllowUnverifiedLabel;
+
+    /// <summary>Shown once the setting differs from what this launch loaded with.</summary>
+    public bool ShowAllowUnverifiedRestartNotice => AllowUnverifiedExtensions != _allowUnverifiedAtOpen;
+
+    /// <summary>The third-party extensions under the extensions folder: loaded, and why the others did not.</summary>
+    public IReadOnlyList<ExternalExtensionRow> ExternalExtensionRows { get; private set; }
+
+    /// <summary>True when any third-party extension is installed.</summary>
+    public bool HasExternalExtensions => ExternalExtensionRows.Count > 0;
+
+    /// <summary>The browser loads no third-party extension.</summary>
+    public static bool ShowExternalExtensions => !OperatingSystem.IsBrowser();
+
+    partial void OnAllowUnverifiedExtensionsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowAllowUnverifiedRestartNotice));
+        if (_applyingExternal)
+        {
+            return;
+        }
+
+        Persist(s => s.Extensions.AllowUnverified = value);
+    }
+
+    // The statuses passed in, else the process's own.
+    private static IReadOnlyList<PackStatus> StatusesOrProcess(IReadOnlyList<PackStatus>? statuses) =>
+        statuses ?? FeaturePacks.Statuses;
+
     /// <summary>
     ///     Settings pages the packs contribute, rendered under Extensions beneath
     ///     <see cref="ExtensionsFeatureRows" />, each hidden while its own <see cref="SettingsPageContribution.FeatureId" />
@@ -682,7 +724,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public ObservableCollection<MountedSettingsPage> ContributedSettingsPages { get; } = [];
 
     /// <summary>
-    ///     One "delete extension data" row per pack that declared one, rendered under Extensions
+    ///     One "delete extension data" row per extension, rendered under Extensions
     ///     beneath <see cref="ContributedSettingsPages" />. Unlike a contributed page, available whether its
     ///     pack is on or off: deleting while off is the main use.
     /// </summary>
@@ -780,6 +822,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         _disposed = true;
         _gate.Changed -= OnGateChanged;
+        if (_faults is not null)
+        {
+            _faults.Changed -= RefreshFaultNotices;
+        }
         _onChange?.Dispose();
         _extensionUpdatesCts.Cancel();
         _extensionUpdatesCts.Dispose();
@@ -948,10 +994,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // pack owns carries that pack's label and gate id, so IsVisible and the label chip can read it.
     private void BuildKeybindRows()
     {
-        IReadOnlyDictionary<Playback2DAction, PackCommand> packOwners = CommandRegistry.Default.PackOwnerByAction;
+        IReadOnlyDictionary<string, PackCommand> packOwners = CommandRegistry.Default.PackOwnerByAction;
         foreach (Playback2DBinding binding in Playback2DKeymapProfile.Default.Bindings)
         {
-            PackCommand? owner = packOwners.TryGetValue(binding.Action, out PackCommand? found) ? found : null;
+            PackCommand? owner = packOwners.TryGetValue(binding.ActionId, out PackCommand? found) ? found : null;
             Playback2DKeybindRows.Add(new KeybindRow(this, binding, owner?.PackLabel, owner?.PackFeatureId));
         }
     }
@@ -1125,11 +1171,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         RefreshKeybindRows();
     }
 
-    private static string[] WithoutAction(string[] rows, Playback2DAction action)
-    {
-        string prefix = action + "=";
-        return [.. rows.Where(r => !r.TrimStart().StartsWith(prefix, StringComparison.OrdinalIgnoreCase))];
-    }
+    // Matched by current id, so a row written under an action's old id goes with it.
+    private static string[] WithoutAction(string[] rows, string actionId) =>
+        [.. rows.Where(r => !string.Equals(Playback2DKeymapProfile.ActionIdOfRow(r), actionId, StringComparison.OrdinalIgnoreCase))];
 
     // A modifier's own key event carries the modifier in neither Key nor KeyModifiers reliably across
     // platforms, so they are matched by key identity rather than by inspecting the flags.
@@ -1780,9 +1824,85 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void ResetOverrides() => Persist(s => s.Features.Overrides.Clear());
 
-    /// <summary>Persists an explicit on/off override for <paramref name="featureId" /> (the row-toggle write path).</summary>
-    internal void WriteFeatureOverride(string featureId, bool enabled) =>
+    /// <summary>
+    ///     Persists an explicit on/off override for <paramref name="featureId" /> (the row-toggle write path).
+    ///     Turning on an extension that was switched off for the session lifts that first: the override alone
+    ///     may already say on, and a write that changes nothing would never reach the gate.
+    /// </summary>
+    internal void WriteFeatureOverride(string featureId, bool enabled)
+    {
+        if (enabled && _faults?.StateOf(featureId).Suspended == true)
+        {
+            _faults.Resume(featureId);
+        }
+
         Persist(s => s.Features.Overrides[featureId] = enabled);
+    }
+
+    // ── Extension faults ──
+
+    private readonly Dictionary<string, ExtensionFaultNotice> _faultNotices = new(StringComparer.Ordinal);
+    private ExtensionFaults? _faults;
+    private Action? _openLog;
+
+    /// <summary>
+    ///     Shows, on each extension's master row and third-party row, whether it was switched off for this
+    ///     session after errors, with "Turn on again", "Keep off" and "Open log".
+    /// </summary>
+    /// <param name="faults">The process's fault tracker.</param>
+    /// <param name="openLog">Opens the diagnostics log folder, or null where there is none.</param>
+    internal void AttachExtensionFaults(ExtensionFaults faults, Action? openLog)
+    {
+        ArgumentNullException.ThrowIfNull(faults);
+        if (_faults is not null)
+        {
+            return;
+        }
+
+        _faults = faults;
+        _openLog = openLog;
+        foreach (FeatureToggleRow row in ExtensionsFeatureRows.Where(r => r.Scope == FeatureScope.Pack))
+        {
+            row.Fault = NoticeFor(row.FeatureId, row.Label);
+        }
+
+        ExternalExtensionRows =
+        [
+            .. ExternalExtensionRows.Select(r => r.FeatureId is { } id ? r with { Fault = NoticeFor(id, r.Name) } : r)
+        ];
+        faults.Changed += RefreshFaultNotices;
+        RefreshFaultNotices();
+    }
+
+    private ExtensionFaultNotice NoticeFor(string featureId, string name)
+    {
+        if (!_faultNotices.TryGetValue(featureId, out ExtensionFaultNotice? notice))
+        {
+            notice = new ExtensionFaultNotice(featureId, name, id => _faults?.Resume(id), KeepExtensionOff, _openLog);
+            _faultNotices[featureId] = notice;
+        }
+
+        return notice;
+    }
+
+    private void KeepExtensionOff(string featureId)
+    {
+        Persist(s => s.Features.Overrides[featureId] = false);
+        _faults?.Acknowledge(featureId);
+    }
+
+    private void RefreshFaultNotices()
+    {
+        if (_faults is not { } faults || _disposed)
+        {
+            return;
+        }
+
+        foreach (ExtensionFaultNotice notice in _faultNotices.Values)
+        {
+            notice.Apply(faults.StateOf(notice.FeatureId));
+        }
+    }
 
     /// <summary>Removes the explicit override for <paramref name="featureId" /> (the per-row clear affordance).</summary>
     internal void ClearFeatureOverride(string featureId) =>
@@ -1895,7 +2015,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // arrive with the app; a desktop head with no updater (tests) gets no line at all.
     private ExtensionUpdateRow? UpdateRow(PackStatus? status)
     {
-        if (status is null)
+        // A third-party extension is the user's to replace; this app's feed has nothing for it.
+        if (status is null || status.Source is PackSource.External)
         {
             return null;
         }
@@ -2048,7 +2169,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         // contributed an estimate.
         if (_reindexEstimate is { } watched)
         {
-            bool watchedNowEnabled = _gate.IsEnabled(watched.PackFeatureId);
+            bool watchedNowEnabled = _gate.IsEnabled(watched.FeatureId);
             if (watchedNowEnabled != _watchedPackWasEnabled)
             {
                 _watchedPackWasEnabled = watchedNowEnabled;
@@ -2060,7 +2181,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                 }
                 else
                 {
-                    string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == watched.PackFeatureId)?.Label
+                    string label = FeatureCatalog.All.FirstOrDefault(d => d.Id == watched.FeatureId)?.Label
                                    ?? "extension";
                     StratBookToggleNotice = $"The {label} stops its background work. Its data stays on disk.";
                 }
@@ -2083,7 +2204,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // Resolves the re-index count off the UI thread (PendingPaths over a large library is not free) and
     // writes the final notice, UNLESS a later toggle already changed the generation: dropping a stale
     // result beats a "12 demos…" note that lands after the user flipped the extension back off.
-    private async Task RecomputeToggleNoticeAsync(IPackReindexEstimate estimate, int generation)
+    private async Task RecomputeToggleNoticeAsync(IReindexEstimate estimate, int generation)
     {
         int count;
         try
@@ -2203,6 +2324,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             SelectedCategoryOption = OptionFor(settings.UserCategory);
             SelectedTheme = ThemeFor(settings.Theme);
             // Live Sync section (the enable toggle is gate-driven, re-synced via RefreshFeatureRows).
+            AllowUnverifiedExtensions = settings.Extensions.AllowUnverified;
             LiveSyncMockMode = settings.LiveSync.MockMode;
             Cs2InstallPath = settings.LiveSync.Cs2RootInstallationDirectory;
             ForceIncompatiblePlugin = settings.LiveSync.ForceIncompatiblePlugin;

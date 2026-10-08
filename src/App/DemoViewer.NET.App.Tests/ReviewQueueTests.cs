@@ -6,16 +6,16 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.ViewModels.Highlights;
-using DemoViewer.NET.ViewModels.Review;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -323,7 +323,7 @@ public class ReviewQueueTests
         vm.Stage(b, b.Highlights[0]);
         queue.Add([Clip("/d/b.dem", 1, 2, "a manual pick in the same demo")]);
 
-        store.RemoveWhere(r => r.Path == "/d/b.dem");
+        store.Remove("/d/b.dem");
 
         using (Assert.Multiple())
         {
@@ -340,10 +340,10 @@ public class ReviewQueueTests
     public async Task ResultCards_SendTheSet_UnderOneTitleCard_OnceOnly()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         ReviewQueue queue = new(null);
-        ResultCardsViewModel cards = new(cache, sidecars, sources, () => null, new SituationThumbnailCache(),
+        ResultCardsViewModel cards = new(cache.Library(), sidecars, sources, () => null, new SituationThumbnailCache(),
             () => new SituationThumbnailRenderer(_ => null), action => action(), _ => null, review: queue);
         cache.Upsert(ParsedRecord("/d/a.dem"));
         Guid opponent = Guid.NewGuid();
@@ -380,7 +380,7 @@ public class ReviewQueueTests
         await Assert.That(queue.Entries.Count).IsEqualTo(3);
         await Assert.That(cards.ReviewLine).IsEqualTo("already in Review");
 
-        ResultCardsViewModel without = new(cache, sidecars, sources, () => null);
+        ResultCardsViewModel without = new(cache.Library(), sidecars, sources, () => null);
         await Assert.That(without.HasReview).IsFalse().Because("no queue on the host hides the action");
     }
 

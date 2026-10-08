@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>A pivot axis with the words the Matrix shows for it.</summary>
 /// <param name="Display">"Code", "Label · route", "Fact · buy.t".</param>

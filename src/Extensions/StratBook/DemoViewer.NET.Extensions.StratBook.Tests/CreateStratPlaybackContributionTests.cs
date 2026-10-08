@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook.Modules;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using CS2DemoKit.Parser;
@@ -10,9 +11,9 @@ using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.StratBook;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 
@@ -32,7 +33,8 @@ public class CreateStratPlaybackContributionTests
     {
         Playback2DFakeContext ctx = new();
         CreateStratPlaybackContribution contribution = new();
-        PlaybackContributionHost host = new([(new StratBookPack(), [contribution])], gate);
+        StratBookPack pack = new();
+        PlaybackContributionHost host = new([(pack, [new SdkPlaybackContribution(contribution, ExtensionGuard.Standalone(pack))])], gate);
         Playback2DTabViewModel vm = new() { Contributions = host };
         vm.OnActivated(ctx);
         return (vm, ctx, contribution);

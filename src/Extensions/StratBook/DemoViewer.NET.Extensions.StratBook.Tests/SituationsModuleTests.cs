@@ -1,13 +1,14 @@
 #region
 
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -23,7 +24,7 @@ public class SituationsModuleTests
     [Test]
     public async Task TheModule_ContributesTheSituationsSection_UnderThePersistedIds()
     {
-        SituationsModule module = new(() => throw new InvalidOperationException("never built here"));
+        SituationsModule module = new(() => throw new InvalidOperationException("never built here"), () => true);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         using (Assert.Multiple())
@@ -31,7 +32,7 @@ public class SituationsModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.situations");
             await Assert.That(tab.TabId).IsEqualTo("situations.search");
             await Assert.That(tab.Header).IsEqualTo("Situations");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(1).Because("after Strats on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
@@ -60,23 +61,20 @@ public class SituationsModuleTests
     }
 
     [Test]
-    public async Task EverySituationsSetting_SurvivesAFilelessWrite()
+    public async Task TheSituationsSettings_DefaultToBackgroundAndPawn_AndKeepAWriteWithoutAFile()
     {
-        SettingsService svc = new(null);
-        await Assert.That(svc.Current.Situations.BackgroundIndex).IsTrue().Because("on by default: the flagship needs coverage");
-        await Assert.That(svc.Current.Situations.TokenSource).IsEqualTo(RoundIndexTokenSource.Pawn);
+        ExtensionSettingsStore store = new(StratBookPack.PackId, null, a => a());
+        StratBookSettings settings = new(store);
+        await Assert.That(settings.SituationsBackgroundIndex).IsTrue().Because("on by default: the flagship needs coverage");
+        await Assert.That(settings.TokenSource).IsEqualTo(RoundIndexTokenSource.Pawn);
 
-        svc.Write(s =>
-        {
-            s.Situations.BackgroundIndex = false;
-            s.Situations.TokenSource = RoundIndexTokenSource.Zones;
-        });
+        store.Set(StratBookSettings.SituationsBackgroundIndexKey, false);
+        store.Set(StratBookSettings.TokenSourceKey, RoundIndexTokenSource.Zones);
 
         using (Assert.Multiple())
         {
-            await Assert.That(svc.Current.Situations.BackgroundIndex).IsFalse()
-                .Because("a Situations property with no WriteInMemory row forgets itself on WASM");
-            await Assert.That(svc.Current.Situations.TokenSource).IsEqualTo(RoundIndexTokenSource.Zones);
+            await Assert.That(settings.SituationsBackgroundIndex).IsFalse().Because("the browser keeps the extension's settings for the session");
+            await Assert.That(settings.TokenSource).IsEqualTo(RoundIndexTokenSource.Zones);
         }
     }
 
@@ -84,16 +82,16 @@ public class SituationsModuleTests
     public async Task TheStrip_CountsFromTheRows_AndOffersRetryOnlyWhenSomethingFailed()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true, walk: _ => []);
-        using SituationIndex index = new(cache, sidecars, sources, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), sidecars, sources, () => true, walk: _ => []);
+        using SituationIndex index = new(cache.Library(), sidecars, sources, evaluator: evaluator);
         Indexed(cache, sidecars, "/d/a.dem", Document("de_nuke", sources.FingerprintFor("de_nuke")));
         cache.Upsert(ParsedRecord("/d/b.dem", facts: Facts(Round(1, 1000, 2000))));
         cache.Upsert(ParsedRecord("/d/c.dem"));
         index.Load();
 
-        using SituationsTabViewModel vm = new(index, evaluator, cache, sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
+        using SituationsTabViewModel vm = new(index, evaluator, cache.Library(), sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
 
         using (Assert.Multiple())
         {
@@ -106,7 +104,7 @@ public class SituationsModuleTests
             await Assert.That(vm.TokenSourceLine).Contains("pawn");
         }
 
-        cache.UpdateExisting("/d/b.dem", r => r.MarkFailed(RoundIndexEvaluator.EvaluatorId));
+        sidecars.MarkFailed("/d/b.dem");
         using (Assert.Multiple())
         {
             await Assert.That(vm.FailedCount).IsEqualTo(1);
@@ -115,7 +113,7 @@ public class SituationsModuleTests
         }
 
         vm.RetryFailedCommand.Execute(null);
-        await Assert.That(cache.TryGetIndex("/d/b.dem")!.RoundIndexState()).IsEqualTo(DemoAnalysisState.Pending);
+        await Assert.That(cache.RoundIndexState("/d/b.dem")).IsEqualTo(DemoDataState.Pending);
         await Assert.That(vm.PendingCount).IsEqualTo(1);
 
         vm.RebuildIndexCommand.Execute(null);
@@ -127,12 +125,12 @@ public class SituationsModuleTests
     public async Task OnTheBrowser_TheStripSaysThereIsNoLibraryIndex()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
         index.Load();
 
-        using SituationsTabViewModel vm = new(index, null, cache, sources, () => RoundIndexTokenSource.Zones, isBrowser: true);
+        using SituationsTabViewModel vm = new(index, null, cache.Library(), sources, () => RoundIndexTokenSource.Zones, isBrowser: true);
 
         using (Assert.Multiple())
         {
@@ -148,14 +146,14 @@ public class SituationsModuleTests
         DemoCacheStore cache = new(null);
         cache.Upsert(ParsedRecord("/d/a.dem", map: "de_nuke"));
         cache.Upsert(ParsedRecord("/d/b.dem", map: "de_dust2"));
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexBuilderTests.FakeZoneResolver nuke = new("zv-1", _ => null);
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Zones,
             new RoundIndexEvaluatorTests.MapZones(("de_nuke", nuke)));
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
         index.Load();
 
-        using SituationsTabViewModel vm = new(index, null, cache, sources, () => RoundIndexTokenSource.Zones, isBrowser: false);
+        using SituationsTabViewModel vm = new(index, null, cache.Library(), sources, () => RoundIndexTokenSource.Zones, isBrowser: false);
 
         await Assert.That(vm.TokenSourceLine).Contains("no zones for de_dust2");
         await Assert.That(vm.TokenSourceLine).DoesNotContain("de_nuke");

@@ -1,14 +1,14 @@
 #region
 
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.ViewModels.Playback2D;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using GrenadeKind = DemoViewer.NET.Playback2D.Core.GrenadeKind;
 
@@ -37,7 +37,7 @@ public class StratThrowsTests
         using LineupOriginSource origins = new(index, a => a());
         origins.Load(Map);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
 
         StratExportCapture capture = canvas.CaptureForExport()!;
@@ -81,7 +81,7 @@ public class StratThrowsTests
         using LineupOriginSource origins = new(index, a => a());
         origins.Load(Map);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
 
         StratExportCapture capture = canvas.CaptureForExport()!;
@@ -217,7 +217,6 @@ public class StratThrowsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(canvas.ShowTrails).IsTrue();
             await Assert.That(flying.Trails.Single().Points.Count).IsGreaterThanOrEqualTo(2);
             await Assert.That(Smokes(flying)).IsEqualTo(0);
             await Assert.That(Smokes(smoked)).IsEqualTo(1);

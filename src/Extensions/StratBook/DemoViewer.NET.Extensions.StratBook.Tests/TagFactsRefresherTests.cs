@@ -3,8 +3,9 @@
 using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -26,10 +27,10 @@ public class TagFactsRefresherTests
 
     private static readonly DateTime Refreshed = new(2026, 9, 24, 9, 30, 0, DateTimeKind.Utc);
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 1_000 },
-        new() { Number = 2, StartTickFrameClock = 10_000 }
+        new LibraryRound(1, 1_000),
+        new LibraryRound(2, 10_000)
     ];
 
     // Round 1: CT pistol win on elimination, no plant, one T death at 1 500. Round 2: T full buy against a
@@ -68,7 +69,7 @@ public class TagFactsRefresherTests
         TagInstance execute = Instance("B execute", 11_000, 13_000, ("outcome", "won"));
         TagDocument document = Document(Sha, execute);
 
-        TagFactsRefresher.Refresh(document, Rows(), StratBookCache.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(document, Rows(), RoundFactsRecords.Schema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -86,14 +87,14 @@ public class TagFactsRefresherTests
             await Assert.That(Value(execute, "plantTick")).IsEqualTo("12000");
             await Assert.That(Value(execute, "roundTime")).IsEqualTo("88");
             await Assert.That(Value(execute, "phase")).IsEqualTo(
-                RoundFactsValues.LowerCamel(RoundPhases.At(Rows().Rounds[1], 11_000)))
+                RoundFactsRules.LowerCamel(RoundPhases.At(Rows().Rounds[1], 11_000)))
                 .Because("the tick-anchored facts are read at fromTick");
             await Assert.That(Value(execute, "manCount.ct")).IsEqualTo("5");
             await Assert.That(Value(execute, "manCount.t")).IsEqualTo("5");
             await Assert.That(execute.Facts.Any(f => f.Group is "side" or "buy.us" or "buy.them")).IsFalse()
                 .Because("relative facts are Team Identity's to derive at query time");
             await Assert.That(execute.Facts.Any(f => f.Group.StartsWith("parser.", StringComparison.Ordinal))).IsFalse();
-            await Assert.That(execute.FactsStamp!.Schema).IsEqualTo(StratBookCache.RoundFactsSchema);
+            await Assert.That(execute.FactsStamp!.Schema).IsEqualTo(RoundFactsRecords.Schema);
             await Assert.That(execute.FactsStamp.ComputedUtc).IsEqualTo(Refreshed);
             await Assert.That(execute.FactsStamp.Stale).IsFalse();
         }
@@ -112,7 +113,7 @@ public class TagFactsRefresherTests
         string before = LabelsJson(execute);
         TagDocument document = Document(Sha, execute);
 
-        TagFactsRefresher.Refresh(document, Rows(), StratBookCache.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(document, Rows(), RoundFactsRecords.Schema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -133,7 +134,7 @@ public class TagFactsRefresherTests
         warmup.Facts = [new TagLabel("buy.ct", "full")];
         warmup.FactsStamp = new TagFactsStamp { Schema = 1, ComputedUtc = Created };
 
-        TagFactsRefresher.Refresh(Document(Sha, warmup), Rows(), StratBookCache.RoundFactsSchema, Refreshed);
+        TagFactsRefresher.Refresh(Document(Sha, warmup), Rows(), RoundFactsRecords.Schema, Refreshed);
 
         using (Assert.Multiple())
         {
@@ -214,7 +215,7 @@ public class TagFactsRefresherTests
     {
         TagStore store = new(null);
         FakeFacts facts = new(Rows());
-        using TagSession session = new(store, _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(store, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -247,7 +248,7 @@ public class TagFactsRefresherTests
     public async Task AFreshInstance_AlreadyCarriesItsRoundsFacts()
     {
         FakeFacts facts = new(Rows());
-        using TagSession session = new(new TagStore(null), _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(new TagStore(null), _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -278,7 +279,7 @@ public class TagFactsRefresherTests
     public async Task MovingAStart_IntoAnotherRound_RederivesItsFacts_AndUndoMovesThemBack()
     {
         FakeFacts facts = new(Rows());
-        using TagSession session = new(new TagStore(null), _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(new TagStore(null), _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -311,7 +312,7 @@ public class TagFactsRefresherTests
         store.Save(Document(Sha, early));
         FakeFacts facts = new(Rows());
 
-        using TagSession session = new(store, _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(store, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -330,7 +331,7 @@ public class TagFactsRefresherTests
     public async Task ASessionWithoutRows_LeavesFactsToTheRefresher()
     {
         FakeFacts facts = new(null);
-        using TagSession session = new(new TagStore(null), _ => _rounds, () => false, () => Created, facts)
+        using TagSession session = new(new TagStore(null), _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created, facts)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -371,7 +372,7 @@ public class TagFactsRefresherTests
 
         public int Subscribers => _updated?.GetInvocationList().Length ?? 0;
 
-        public int Schema => StratBookCache.RoundFactsSchema;
+        public int Schema => RoundFactsRecords.Schema;
 
         public event Action<string>? Updated
         {
@@ -382,12 +383,12 @@ public class TagFactsRefresherTests
         public RoundFactsRows? TryGet(string demoPath) => Rows;
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
-            Rows is null ? null : RoundFactsSource.FindRound(Rows.Rounds, frameClockTick);
+            Rows is null ? null : RoundFactsRules.FindRound(Rows.Rounds, frameClockTick);
 
         public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter) => [];
 
         public IReadOnlyList<FactLabel> FactsFor(string demoPath, int round, int? atTick = null) =>
-            Rows?.Rounds.FirstOrDefault(r => r.Number == round) is { } facts ? RoundFactsSource.Labels(facts, atTick) : [];
+            Rows?.Rounds.FirstOrDefault(r => r.Number == round) is { } facts ? RoundFactsRules.Labels(facts, atTick) : [];
 
         public void Raise(string demoPath) => _updated?.Invoke(demoPath);
     }

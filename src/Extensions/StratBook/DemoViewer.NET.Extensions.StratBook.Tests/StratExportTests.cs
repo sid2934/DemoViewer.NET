@@ -4,8 +4,8 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.StratBook;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Layers;
@@ -15,11 +15,11 @@ using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Services.Export;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using SkiaSharp;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 
@@ -299,8 +299,8 @@ public class StratExportTests
 
         List<Playback2DExportStatusViewModel> chips = [];
         ModuleContext context = new(new PlaybackController(), () => null);
-        context.RegisterService<IStratExport>(() => new StratExportHost(null, null, null, () => new AppSettings(), _ => { },
-            chips.Add, null));
+        context.RegisterService<IStratExport>(() => new StratExportHost(
+            (runner, log) => new ExportJobService(runner, null, null, null, log), null, null, null, chips.Add, null));
         vm.OnActivated(context);
         vm.Session.Open(document.Id);
         return (vm, chips);

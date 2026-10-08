@@ -50,10 +50,10 @@
         <!-- The baked CS2 iconography. Dependency-free and embedded, so it works on the Browser head
              too, where the filesystem probing that serves the map bundles does not. -->
         <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
-        <!-- The Avalonia-shaped half of the module contract (WorkspaceTabDescriptor / IWorkspaceModule).
-             Same namespace as the project above — see its csproj for why the split exists. -->
-        <ProjectReference
-                Include="..\DemoViewer.NET.Modules.Abstractions.Ui\DemoViewer.NET.Modules.Abstractions.Ui.csproj"/>
+        <!-- The extension SDK: the public contract the app implements and extensions build against. -->
+        <ProjectReference Include="..\..\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <!-- The SDK's UI kit: the shared controls and theme names the app's own views use too. -->
+        <ProjectReference Include="..\..\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
         <ProjectReference
                 Include="..\..\Playback2D\DemoViewer.NET.Playback2D.Core\DemoViewer.NET.Playback2D.Core.csproj"/>
         <ProjectReference

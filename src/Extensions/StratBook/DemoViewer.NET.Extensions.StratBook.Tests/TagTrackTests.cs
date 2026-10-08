@@ -5,14 +5,16 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Modules.RoundTagger.Timeline;
-using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
+using DemoViewer.NET.Extensions.Sdk.Playback;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -42,23 +44,22 @@ public class TagTrackTests
             return frame >= TotalFrames ? -1 : frame;
         }
 
-        public IReadOnlyList<int> FramesForEvent(string eventName) => [];
-        public IReadOnlyList<TimelineEventRecord> EventsOfType(string eventName) => [];
+        public IReadOnlyList<TimelineEvent> EventsOfType(string eventName) => [];
         public bool HasEvent(string eventName) => false;
     }
 
     private static readonly int[] MarkerFrames = [50, 90, 700];
     private static readonly string[] RoundOnly = ["round"];
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 0 },
-        new() { Number = 2, StartTickFrameClock = 1_000 }
+        new LibraryRound(1, 0),
+        new LibraryRound(2, 1_000)
     ];
 
     private static async Task<TagSession> Attached(params TagInstance[] instances)
     {
-        TagSession session = new(null, _ => _rounds, () => false, () => Created)
+        TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -107,7 +108,6 @@ public class TagTrackTests
 
             await Assert.That(bands[2].Label).IsEqualTo("B retake").Because("a run of one is labelled with its code");
             await Assert.That(bands[2].Argb).IsEqualTo(TagTrack.DefaultColour("B retake"));
-            await Assert.That(bands.All(b => b.TrackId == TagTrack.TrackId)).IsTrue();
         }
     }
 
@@ -120,14 +120,13 @@ public class TagTrackTests
             Instance("A split", 180, 260));
         using TagTrack track = Track(session);
 
-        IReadOnlyList<TimelineMarker> markers = track.BuildMarkers(new HalfTickData(1000));
+        IReadOnlyList<TimelineMark> markers = track.BuildMarks(new HalfTickData(1000));
 
         await Assert.That(markers.Count).IsEqualTo(3).Because("the merge must hide nothing");
         await Assert.That(markers.Select(m => m.FrameIndex)).IsEquivalentTo(MarkerFrames);
 
         using (Assert.Multiple())
         {
-            await Assert.That(markers.All(m => m.Kind == TimelineMarkerKind.Custom)).IsTrue();
             await Assert.That(markers.All(m => m.Glyph == TagTrack.Glyph)).IsTrue();
             await Assert.That(markers[2].Tick).IsEqualTo(1_400);
             await Assert.That(markers[2].Tooltip).IsEqualTo("B retake · outcome: won, clutch · r2");
@@ -146,7 +145,7 @@ public class TagTrackTests
         HalfTickData data = new(1000);
 
         IReadOnlyList<TimelineBand> bands = track.BuildBands(data);
-        IReadOnlyList<TimelineMarker> markers = track.BuildMarkers(data);
+        IReadOnlyList<TimelineMark> markers = track.BuildMarks(data);
 
         await Assert.That(track.IsAvailable(data)).IsTrue();
         await Assert.That(bands.Count).IsEqualTo(1);
@@ -169,17 +168,17 @@ public class TagTrackTests
 
         await Assert.That(track.IsAvailable(data)).IsFalse();
         await Assert.That(track.BuildBands(data)).IsEmpty();
-        await Assert.That(track.BuildMarkers(data)).IsEmpty();
+        await Assert.That(track.BuildMarks(data)).IsEmpty();
     }
 
     [Test]
-    public async Task MarkersChanged_OnEveryVersionBump_CoalescedPerPost()
+    public async Task Changed_OnEveryVersionBump_CoalescedPerPost()
     {
         using TagSession session = await Attached();
         List<Action> queue = [];
         using TagTrack track = Track(session, queue);
         int raised = 0;
-        track.MarkersChanged += () => raised++;
+        track.Changed += () => raised++;
 
         session.Apply(new TagDelta.Add(Instance("A execute", 100, 200)));
         session.Apply(new TagDelta.Add(Instance("A split", 300, 400)));
@@ -230,7 +229,8 @@ public class TagTrackTests
 
         using Playback2DTimelineViewModel timeline = new() { PixelWidth = 1000 };
         timeline.RegisterTrack(new RoundTrack());
-        timeline.RegisterTrack(track, TimelineBandRow.Lane);
+        timeline.RegisterTrack(new SdkPlaybackSurface.CoreTrack(track, ExtensionGuard.Standalone(new StratBookPack())),
+            TimelineBandRow.Lane);
         timeline.Rebuild(data);
         timeline.UpdatePlayhead(600, 1_200);
 

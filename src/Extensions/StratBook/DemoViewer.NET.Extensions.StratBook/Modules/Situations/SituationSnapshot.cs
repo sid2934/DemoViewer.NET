@@ -4,11 +4,11 @@ using System.Numerics;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>One alive player at the snapshot tick: where they stood, and the place that position minted.</summary>
 /// <param name="Slot">The roster slot.</param>

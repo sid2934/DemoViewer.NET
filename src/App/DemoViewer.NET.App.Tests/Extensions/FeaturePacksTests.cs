@@ -127,31 +127,31 @@ public class FeaturePacksTests
     // only applies it inside Configure. An incompatible pack stays in the declared list (so Settings can
     // name it) and leaves the compatible one, which is all the catalog, the registries and the composition
     // root read: none of them sees its descriptors, job kinds or commands. The real Strat Book pack rides
-    // along because the job-kind registry must cover every QueueJobKind to build at all.
+    // along as the compatible one.
     [Test]
     public async Task AnIncompatiblePack_IsDeclaredButNotCompatible_AndNothingBuiltFromCompatibleSeesIt()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.1.0"), null, SemVersion.Parse("0.13.0-beta0001"));
         IncompatibleFakePack incompatible = new();
         StratBookPack stratBook = new();
 
         IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([incompatible, stratBook], host);
-        IReadOnlyList<IFeaturePack> declared = [.. statuses.Select(s => s.Pack)];
-        IReadOnlyList<IFeaturePack> compatible = [.. statuses.Where(s => s.IsCompatible).Select(s => s.Pack)];
+        IReadOnlyList<IExtension> declared = [.. statuses.Select(s => s.Pack)];
+        IReadOnlyList<IExtension> compatible = [.. statuses.Where(s => s.IsCompatible).Select(s => s.Pack)];
 
         using (Assert.Multiple())
         {
             await Assert.That(declared.Select(p => p.Id)).IsEquivalentTo([incompatible.Id, stratBook.Id]);
             await Assert.That(compatible.Select(p => p.Id)).IsEquivalentTo([stratBook.Id]);
             await Assert.That(statuses[0].Compatibility is PackCompatibility.HostContractMismatch).IsTrue();
-            await Assert.That(statuses[0].Problem).IsEqualTo("Incompatible 2.0.0 needs app contract ^2.0; this app provides 1.0.0");
+            await Assert.That(statuses[0].Problem).IsEqualTo("Incompatible 2.0.0 needs app contract ^2.0; this app provides 1.1.0");
 
             FeatureDescriptor[] catalog = FeatureCatalog.Build(compatible);
             await Assert.That(catalog.Any(d => d.Id == IncompatibleFakePack.PackFeatureId)).IsFalse()
                 .Because("the gate then reads the pack id as unknown and resolves it off");
             await Assert.That(catalog.Any(d => d.Id == StratBookPack.PackFeatureId)).IsTrue();
 
-            // Its job kind collides with a core kind and its command names no action, so either registry
+            // Its job kind collides with a core kind and its command repeats a core action id, so either registry
             // built over the declared list throws, and built over the compatible list does not: neither
             // ever saw it.
             Assert.Throws<InvalidOperationException>(() => JobKindRegistry.Build(declared));
@@ -166,19 +166,19 @@ public class FeaturePacksTests
     [Test]
     public async Task TheDerivedViews_AgreeInEitherReadOrder_AndFreezeOnFirstRead()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.1.0"), null, SemVersion.Parse("0.13.0-beta0001"));
         IncompatibleFakePack incompatible = new();
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
 
         FrozenList<PackStatus> compatibleFirst = new();
         compatibleFirst.Set(PackStatus.Evaluate([incompatible, fine], host));
-        IReadOnlyList<IFeaturePack> c1 = [.. compatibleFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
-        IReadOnlyList<IFeaturePack> d1 = [.. compatibleFirst.Value.Select(s => s.Pack)];
+        IReadOnlyList<IExtension> c1 = [.. compatibleFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
+        IReadOnlyList<IExtension> d1 = [.. compatibleFirst.Value.Select(s => s.Pack)];
 
         FrozenList<PackStatus> defaultFirst = new();
         defaultFirst.Set(PackStatus.Evaluate([incompatible, fine], host));
-        IReadOnlyList<IFeaturePack> d2 = [.. defaultFirst.Value.Select(s => s.Pack)];
-        IReadOnlyList<IFeaturePack> c2 = [.. defaultFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
+        IReadOnlyList<IExtension> d2 = [.. defaultFirst.Value.Select(s => s.Pack)];
+        IReadOnlyList<IExtension> c2 = [.. defaultFirst.Value.Where(s => s.IsCompatible).Select(s => s.Pack)];
 
         using (Assert.Multiple())
         {
@@ -237,7 +237,7 @@ public class FeaturePacksTests
 
     // A pack built against contract 2.x on a 1.x host, with a job kind and a command each registry would
     // refuse, so the checks above can tell whether a registry saw it.
-    private sealed class IncompatibleFakePack : IFeaturePack
+    private sealed class IncompatibleFakePack : IExtension, IManifestSource
     {
         public const string PackFeatureId = "pack.incompatible";
 
@@ -246,20 +246,20 @@ public class FeaturePacksTests
 
         public ExtensionManifest Manifest => FakeManifests.For(Id, "Incompatible", "2.0.0", "^2.0", "*");
 
-        public IEnumerable<FeatureDescriptor> Features =>
+        public IEnumerable<ExtensionFeature> Features =>
         [
-            new(PackFeatureId, FeatureScope.Pack, "Incompatible", "d", null, null, false, new Dictionary<UserCategory, bool>())
+            new(PackFeatureId, ExtensionFeatureKind.Extension, "Incompatible", "d", null, new AudienceDefaults(false, false, false))
         ];
 
-        public IEnumerable<CommandDescriptor> Commands => [new CommandDescriptor("incompatible.cmd", "Cmd", "playback2d", null, _ => true)];
+        public IEnumerable<CommandDescriptor> Commands => [new CommandDescriptor("TogglePlay", "Cmd", "playback2d", null, _ => true)];
 
-        public IEnumerable<JobKindDescriptor> JobKinds => [new JobKindDescriptor(QueueJobKind.StoreSave, "collides", 9, false)];
+        public IEnumerable<ExtensionJobKind> JobKinds => [new ExtensionJobKind(BuiltInJobKinds.Save, "collides", false, 9)];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

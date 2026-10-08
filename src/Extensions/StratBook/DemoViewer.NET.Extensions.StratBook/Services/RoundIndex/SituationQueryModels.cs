@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>One queried pair: <paramref name="Count" /> players in <paramref name="Place" />.</summary>
 /// <param name="Place">A raw place name as the rows spell it.</param>
@@ -290,6 +290,10 @@ public interface ISituationIndex
     /// <summary>The zone graph when the map has zones, else the empirical one when it has an indexed demo, else null.</summary>
     /// <param name="map">The map.</param>
     IPlaceAdjacency? Adjacency(string map);
+
+    /// <summary>When the loaded index of <paramref name="demoPath" /> was written (UTC ticks), or 0 when none is loaded.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    long IndexedAtTicks(string demoPath) => 0;
 
     /// <summary>The load finished, or a demo was merged or dropped. Raised through the post delegate.</summary>
     event Action? Changed;

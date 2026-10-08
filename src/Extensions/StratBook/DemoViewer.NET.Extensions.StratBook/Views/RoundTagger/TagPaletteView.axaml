@@ -2,10 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:vm="using:DemoViewer.NET.Modules.RoundTagger.Palette"
-             xmlns:tags="using:DemoViewer.NET.Services.Tags"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette"
+             xmlns:tags="using:DemoViewer.NET.Extensions.StratBook.Services.Tags"
              mc:Ignorable="d" d:DesignWidth="320" d:DesignHeight="220"
-             x:Class="DemoViewer.NET.Views.RoundTagger.TagPaletteView"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.RoundTagger.TagPaletteView"
              Focusable="False"
              x:DataType="vm:TagPaletteViewModel">
 

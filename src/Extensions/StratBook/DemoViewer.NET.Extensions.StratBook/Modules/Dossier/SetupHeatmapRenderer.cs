@@ -1,24 +1,20 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Layers;
+using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Overlay;
-using DemoViewer.NET.Playback2D.Core.Rendering;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 
 /// <summary>
 ///     Draws one Setup Heatmap: the map's radar with the Overlay View's heatmap layer over it, fed an
 ///     <see cref="OverlayDocument" /> the Dossier filled from the positions files (the Overlay View
-///     follow-up: reuse the document and the layer rather than a second heat renderer). The headless
-///     path a Result Card thumbnail takes (<see cref="SceneLayerCatalog" /> stack,
-///     <see cref="HeadlessSceneRenderer" />, the CPU provider, the dark palette), so no demo opens and
+///     follow-up: reuse the document and the layer rather than a second heat renderer). Drawn through
+///     <see cref="MapAssets.RenderPng" />, the path a Result Card thumbnail takes, so no demo opens and
 ///     the wash is the one the Situations canvas shows.
 ///     <para>
 ///         One instance serves one build: map bundles are loaded once per map and held until
@@ -30,13 +26,13 @@ public sealed class SetupHeatmapRenderer : IDisposable
     /// <summary>The heatmap size: square, because a radar is.</summary>
     public static readonly SKSizeI Size = new(320, 320);
 
-    private readonly Dictionary<string, LoadedMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
+    private readonly Dictionary<string, IMapAsset?> _assets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<string, IMapAsset?> _loadMapAsset;
     private bool _disposed;
 
     /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
-    public SetupHeatmapRenderer(Func<string, LoadedMapAsset?>? loadMapAsset = null) =>
-        _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+    public SetupHeatmapRenderer(Func<string, IMapAsset?>? loadMapAsset = null) =>
+        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
 
     /// <inheritdoc />
     public void Dispose()
@@ -47,7 +43,7 @@ public sealed class SetupHeatmapRenderer : IDisposable
         }
 
         _disposed = true;
-        foreach (LoadedMapAsset? asset in _assets.Values)
+        foreach (IMapAsset? asset in _assets.Values)
         {
             asset?.Dispose();
         }
@@ -65,24 +61,13 @@ public sealed class SetupHeatmapRenderer : IDisposable
             return null;
         }
 
-        LoadedMapAsset? asset = AssetFor(overlay.MapName);
+        IMapAsset? asset = AssetFor(overlay.MapName);
         Scene2DFrame frame = BuildFrame(overlay, asset);
         WorldBounds bounds = frame.Map.NetworkedBounds ?? frame.Map.ObservedBounds;
 
-        using CpuSurfaceProvider provider = new();
-        using SceneCompositor compositor =
-            SceneLayerCatalog.CreateSceneStack([SceneLayerIds.Radar, SceneLayerIds.Overlay], overlay: overlay);
-        using HeadlessSceneRenderer renderer = new(provider, compositor)
-        {
-            Palette = ScenePalette.Dark,
-            Purpose = RenderPurpose.Export,
-            Camera = ViewportTransform.Fit(Size.Width, Size.Height, bounds.MinX, bounds.MinY, bounds.MaxX, bounds.MaxY)
-        };
-        renderer.Levels.SetAuthoritativeFloors(asset?.Floors);
-        renderer.Levels.RadarBinder = asset is null ? null : new MapRadarBinder(asset);
-
-        SceneTime time = frame.Time;
-        return renderer.RenderPng(frame, in time, Size);
+        return MapAssets.RenderPng(frame, asset, [SceneLayerIds.Radar, SceneLayerIds.Overlay],
+            ViewportTransform.Fit(Size.Width, Size.Height, bounds.MinX, bounds.MinY, bounds.MaxX, bounds.MaxY), Size,
+            overlay);
     }
 
     /// <summary>
@@ -91,20 +76,20 @@ public sealed class SetupHeatmapRenderer : IDisposable
     /// </summary>
     /// <param name="overlay">The points.</param>
     /// <param name="asset">The map's bundle, or null.</param>
-    public static Scene2DFrame BuildFrame(OverlayDocument overlay, LoadedMapAsset? asset)
+    public static Scene2DFrame BuildFrame(OverlayDocument overlay, IMapAsset? asset)
     {
         ArgumentNullException.ThrowIfNull(overlay);
 
         SceneMapInfo map;
         if (asset is not null)
         {
-            WorldBounds bounds = MapAssetPipeline.RadarBounds(asset);
+            WorldBounds bounds = asset.RadarBounds;
             map = new SceneMapInfo
             {
                 MapName = overlay.MapName,
                 NetworkedBounds = bounds,
                 ObservedBounds = bounds,
-                Radars = MapAssetPipeline.DescribeRadars(asset)
+                Radars = asset.DescribeRadars()
             };
         }
         else
@@ -128,9 +113,9 @@ public sealed class SetupHeatmapRenderer : IDisposable
         };
     }
 
-    private LoadedMapAsset? AssetFor(string map)
+    private IMapAsset? AssetFor(string map)
     {
-        if (!_assets.TryGetValue(map, out LoadedMapAsset? asset))
+        if (!_assets.TryGetValue(map, out IMapAsset? asset))
         {
             asset = _loadMapAsset(map);
             _assets[map] = asset;

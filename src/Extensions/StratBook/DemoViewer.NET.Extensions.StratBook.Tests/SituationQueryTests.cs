@@ -2,8 +2,9 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -310,8 +311,8 @@ public class SituationQueryTests
         Harness h = new(null, null);
         Indexed(h.Cache, h.Sidecars, DemoA, DocA());
         h.Index.Load();
-        RoundIndexEvaluator evaluator = new(h.Cache, h.Sidecars, h.Sources, () => true, walk: _ => []);
-        using SituationIndex index = new(h.Cache, h.Sidecars, h.Sources, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(h.Cache.Library(), h.Cache.RoundFacts(), h.Sidecars, h.Sources, () => true, walk: _ => []);
+        using SituationIndex index = new(h.Cache.Library(), h.Sidecars, h.Sources, evaluator: evaluator);
         index.Load();
         List<RoundIndexedEvent> merged = [];
         index.Indexed += merged.Add;
@@ -337,8 +338,8 @@ public class SituationQueryTests
             await Assert.That(index.Places("de_nuke")).IsEmpty().Because("A's samples were subtracted");
         }
 
-        // A replaced file: identity drift drops every tier, so the row loses its stamp and the index drops it.
-        h.Cache.Upsert(ParsedRecord(DemoB));
+        // The demo's index goes (a delete, a failed rebuild): the stamp goes and the index drops it.
+        h.Sidecars.Delete(DemoB);
         await Assert.That(index.IndexedDemoCount).IsEqualTo(0);
         h.Dispose();
     }
@@ -409,6 +410,42 @@ public class SituationQueryTests
         }
     }
 
+    // The demo loaded at one path, a copy at an ordinally smaller path joins, then the first path goes: the
+    // demo stays indexed, once, at the copy. Over the host's data, which follows a demo by content.
+    [Test]
+    public async Task ADemoWhosePathGoes_StaysIndexedAtItsCopy_Once()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-situations-{Guid.NewGuid():N}");
+        try
+        {
+            DemoCacheStore cache = new(null);
+            RoundIndexStore sidecars = new(cache.DiskData(root));
+            using SituationIndex index = new(cache.Library(), sidecars, new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn));
+            RoundIndexDocument document = DocB();
+            document.Demo.Sha256 = "x";
+            Indexed(cache, sidecars, DemoB, document, sha: "x");
+            index.Load();
+            await Assert.That(index.Count(Q("de_nuke"))).IsEqualTo(1);
+
+            cache.Upsert(ParsedRecord(DemoA, "de_nuke", "x"));
+            cache.Remove(DemoB);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(index.IndexedDemoCount).IsEqualTo(1);
+                await Assert.That(index.Query(Q("de_nuke")).Select(hit => hit.DemoPath)).IsEquivalentTo([DemoA]);
+                await Assert.That(index.IndexedAtTicks(DemoA)).IsGreaterThan(0);
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
     [Test]
     public async Task ASidecarWithAnotherDemosHash_IsIgnored()
     {
@@ -416,7 +453,7 @@ public class SituationQueryTests
         RoundIndexDocument other = DocA();
         other.Demo.Sha256 = "def";
         Indexed(h.Cache, h.Sidecars, DemoA, other, sha: "abc");
-        Indexed(h.Cache, h.Sidecars, DemoB, DocB(), sha: "same");
+        Indexed(h.Cache, h.Sidecars, DemoB, DocB(), sha: "bbb");
         RoundIndexDocument matching = DocC();
         matching.Demo.Sha256 = "same";
         Indexed(h.Cache, h.Sidecars, DemoC, matching, sha: "same");
@@ -446,9 +483,9 @@ public class SituationQueryTests
         public Harness(IZonePlaceResolverSource? zones, IRoundFactsSource? facts)
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Index = new SituationIndex(Cache, Sidecars, Sources, facts, zones);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources, facts, zones);
         }
 
         public DemoCacheStore Cache { get; }
@@ -462,7 +499,6 @@ public class SituationQueryTests
         public void Dispose()
         {
             Index.Dispose();
-            Sidecars.Dispose();
         }
     }
 
@@ -470,7 +506,7 @@ public class SituationQueryTests
     {
         public Dictionary<string, RoundFactsRows> Rows { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public int Schema => StratBookCache.RoundFactsSchema;
+        public int Schema => RoundFactsRecords.Schema;
 
         public event Action<string>? Updated
         {
@@ -481,7 +517,7 @@ public class SituationQueryTests
         public RoundFactsRows? TryGet(string demoPath) => Rows.GetValueOrDefault(demoPath);
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
-            TryGet(demoPath) is { } rows ? RoundFactsSource.FindRound(rows.Rounds, frameClockTick) : null;
+            TryGet(demoPath) is { } rows ? RoundFactsRules.FindRound(rows.Rounds, frameClockTick) : null;
 
         public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter) => [];
 

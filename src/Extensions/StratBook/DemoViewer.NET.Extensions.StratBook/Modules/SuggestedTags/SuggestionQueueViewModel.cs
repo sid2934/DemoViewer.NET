@@ -4,14 +4,15 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>One pending proposal as the queue lists it.</summary>
 public sealed partial class SuggestionRowViewModel : ObservableObject
@@ -96,7 +97,7 @@ public sealed partial class SuggestionRowViewModel : ObservableObject
 ///     <para>
 ///         <b>Selection is the mode.</b> Nothing is selected until a row, a band on the Suggested track or the
 ///         Review button picks one. Only then do J / K walk the queue instead of the Situations result set
-///         (the keymap's <see cref="Playback2DBindingScope.WhenSuggestionSelected" /> scope), and only then
+///         (the keymap's <see cref="StratBookActions.SuggestionScope" />), and only then
 ///         do Y, N, Enter and Ctrl+Y act; with no selection they are inert. A verdict
 ///         advances to the next pending proposal; the last one leaves the queue empty and the selection
 ///         with it.
@@ -236,7 +237,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
 
     /// <summary>
     ///     The library sweep: whether every demo with round facts gets its proposals built in the
-    ///     background, not only the open one. Persisted as <c>Playback2D.SuggestedTagsBackground</c>.
+    ///     background, not only the open one. Persisted as the Strat Book's <c>suggestedTags.background</c> setting.
     /// </summary>
     public bool IsBackgroundOn
     {
@@ -248,12 +249,12 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
                 return;
             }
 
-            // Turning the sweep on is only useful if the coordinator hears about it: the backlog is
-            // derived, so one reconsider submits every demo that now wants a build.
+            // Turning the sweep on is only useful if the scheduler hears about it: the backlog is
+            // derived, so one re-check submits every demo that now wants a build.
             _writeBackground?.Invoke(value);
             if (value)
             {
-                _service?.Coordinator?.ConsiderAll();
+                _service?.Passes?.RecheckAll();
             }
         }
     }
@@ -384,7 +385,7 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
     ///     every one of them with no selection, and the walk at either end.
     /// </summary>
     /// <param name="action">The resolved action.</param>
-    public bool Execute(Playback2DAction action)
+    public bool Execute(string action)
     {
         if (_service is null || _selected is null)
         {
@@ -393,23 +394,23 @@ public sealed partial class SuggestionQueueViewModel : ObservableObject, IDispos
 
         switch (action)
         {
-            case Playback2DAction.SuggestionNext:
+            case StratBookActions.SuggestionNext:
                 CancelModes();
                 return Step(1);
-            case Playback2DAction.SuggestionPrev:
+            case StratBookActions.SuggestionPrev:
                 CancelModes();
                 return Step(-1);
-            case Playback2DAction.SuggestionAccept:
+            case StratBookActions.SuggestionAccept:
                 CancelModes();
                 return Verdict(accept: true);
-            case Playback2DAction.SuggestionReject:
+            case StratBookActions.SuggestionReject:
                 CancelModes();
                 return Verdict(accept: false);
-            case Playback2DAction.SuggestionEdit:
+            case StratBookActions.SuggestionEdit:
                 IsConfirmingAcceptAll = false;
                 BeginEdit();
                 return true;
-            case Playback2DAction.SuggestionAcceptAll:
+            case StratBookActions.SuggestionAcceptAll:
                 CloseEditor(keepDraft: true);
                 if (!IsConfirmingAcceptAll)
                 {

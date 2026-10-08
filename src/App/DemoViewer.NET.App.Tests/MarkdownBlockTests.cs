@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Media;
 using DemoViewer.NET.Controls;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 

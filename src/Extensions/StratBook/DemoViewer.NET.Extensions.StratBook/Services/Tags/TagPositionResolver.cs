@@ -6,7 +6,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>
 ///     Turns a click on a 2D pane into a <see cref="TagPosition" />: the world point, the
@@ -48,18 +48,35 @@ public static class TagPositionResolver
         IReadOnlyList<PlayerMarker>? markers)
     {
         ArgumentNullException.ThrowIfNull(level);
+        double levelMinZ = MapSpace.QuantizeZ(level.ZMin);
+        return Resolve(x, y, level, tick, zones is null ? null : () => zones.ResolveOnFloor(x, y, levelMinZ).Name,
+            zones?.Zones.EffectiveVersion, markers);
+    }
+
+    /// <summary>The position a click makes, with the map's places read through a lookup at the click.</summary>
+    /// <param name="x">World X of the click.</param>
+    /// <param name="y">World Y of the click.</param>
+    /// <param name="level">The floor the clicked pane shows.</param>
+    /// <param name="tick">The frame-clock tick the click was made at, or null when it is not time-specific.</param>
+    /// <param name="placeAt">The map's place at the click on <paramref name="level" />, or null when the map has no zones.</param>
+    /// <param name="zonesVersion">The zone set's effective version, read with <paramref name="placeAt" />.</param>
+    /// <param name="markers">The players at <paramref name="tick" />, for the pawn fallback.</param>
+    public static TagPosition Resolve(double x, double y, MapLevel level, int? tick, Func<string?>? placeAt,
+        string? zonesVersion, IReadOnlyList<PlayerMarker>? markers)
+    {
+        ArgumentNullException.ThrowIfNull(level);
 
         // The annotation anchor rule: the band's lower Z, quantized, never a floor index. It is also the
-        // floor key ResolveOnFloor takes, so the stored value and the resolved one cannot disagree.
+        // floor key a floor's place lookup takes, so the stored value and the resolved one cannot disagree.
         double levelMinZ = MapSpace.QuantizeZ(level.ZMin);
         TagPosition position = new() { X = x, Y = y, LevelMinZ = levelMinZ, Tick = tick };
 
-        if (zones is not null)
+        if (placeAt is not null && zonesVersion is not null)
         {
-            if (zones.ResolveOnFloor(x, y, levelMinZ).Name is { Length: > 0 } place)
+            if (placeAt() is { Length: > 0 } place)
             {
                 position.Place = place;
-                position.PlaceSource = ZonesSource(zones.Zones.EffectiveVersion);
+                position.PlaceSource = ZonesSource(zonesVersion);
             }
 
             return position;

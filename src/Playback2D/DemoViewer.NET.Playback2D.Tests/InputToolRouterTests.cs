@@ -4,6 +4,7 @@ using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Annotations;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using SkiaSharp;
 
 #endregion
@@ -42,7 +43,7 @@ public class InputToolRouterTests
         router.Register(new ShapeTool(ToolKind.Ellipse));
         router.Register(new TextTool());
         router.Register(new InertTool(ToolKind.Token));
-        router.Register(new InertTool(ToolKind.QueryToken));
+        router.Register(new InertTool(ToolKind.Map));
 
         List<string> wrong = [];
         foreach (ToolKind kind in Enum.GetValues<ToolKind>())
@@ -56,7 +57,7 @@ public class InputToolRouterTests
 
         await Assert.That(wrong).IsEmpty();
         await Assert.That(ToolKinds.IsAnnotationTool(ToolKind.Token)).IsFalse();
-        await Assert.That(ToolKinds.IsAnnotationTool(ToolKind.QueryToken)).IsFalse();
+        await Assert.That(ToolKinds.IsAnnotationTool(ToolKind.Map)).IsFalse();
     }
 
     [Test]
@@ -504,6 +505,58 @@ public class InputToolRouterTests
         await Assert.That(router.GestureTool).IsTypeOf<DrawTool>();
     }
 
+    /// <summary>
+    ///     A published map tool runs as the router's <see cref="ToolKind.Map" /> tool: it owns the gesture it
+    ///     accepts, sees the sample in its own vocabulary, and asks the map for a repaint through the context.
+    /// </summary>
+    [Test]
+    public async Task MapToolAdapter_RunsAPublishedTool_ThroughTheWholeGesture()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        RecordingMapTool tool = new();
+        router.Register(new MapToolAdapter(tool));
+        router.SetActive(ToolKind.Map);
+
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+        bool taken = router.OnPressed(Sample(pane, start, ToolPointerButton.Left, ToolModifiers.Shift | ToolModifiers.Alt));
+        router.OnMoved(Sample(pane, new SKPoint(210, 110)));
+        router.OnReleased(Sample(pane, new SKPoint(220, 120)));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(taken).IsTrue();
+            await Assert.That(tool.Calls).IsEquivalentTo(["press", "move", "release"]);
+            await Assert.That(tool.FirstButton).IsEqualTo(MapToolButton.Left);
+            await Assert.That(tool.FirstModifiers).IsEqualTo(MapToolModifiers.Shift | MapToolModifiers.Alt);
+            await Assert.That(tool.FirstPane).IsSameReferenceAs(pane);
+            await Assert.That(services.RenderRequests).IsEqualTo(3);
+        }
+    }
+
+    [Test]
+    public async Task MapToolAdapter_ARefusedPress_LeavesNoGesture_AndACancelReachesTheTool()
+    {
+        (InputToolRouter router, FakeToolServices services, PaneSet _) = Build();
+        RecordingMapTool tool = new() { Accept = false };
+        router.Register(new MapToolAdapter(tool));
+        router.SetActive(ToolKind.Map);
+        SKPoint start = new(200, 100);
+        LevelPane pane = services.PaneAt(start)!;
+
+        bool refused = router.OnPressed(Sample(pane, start));
+        tool.Accept = true;
+        router.OnPressed(Sample(pane, start));
+        router.CancelActive();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(refused).IsFalse();
+            await Assert.That(tool.Calls).IsEquivalentTo(["press", "press", "cancel"]);
+            await Assert.That(router.IsGestureOpen).IsFalse();
+        }
+    }
+
     private static ToolPointerEvent Sample(LevelPane pane, SKPoint screen,
         ToolPointerButton button = ToolPointerButton.Left,
         ToolModifiers modifiers = ToolModifiers.None)
@@ -523,6 +576,31 @@ public class InputToolRouterTests
         };
     }
 
+    [Test]
+    public async Task Unregister_ActiveToolFallsBackToPan_AReplacedKindIsLeftAlone_AndPanStays()
+    {
+        (InputToolRouter router, FakeToolServices _, PaneSet _) = Build();
+        InertTool first = new(ToolKind.Token);
+        router.Register(first);
+        router.SetActive(ToolKind.Token);
+
+        router.Unregister(first);
+        await Assert.That(router.ActiveKind).IsEqualTo(ToolKind.PanZoom);
+        await Assert.That(router.Active).IsTypeOf<PanZoomTool>();
+
+        InertTool second = new(ToolKind.Token);
+        router.Register(first);
+        router.Register(second);
+        router.SetActive(ToolKind.Token);
+        router.Unregister(first);
+        await Assert.That(router.Active).IsSameReferenceAs(second).Because("the kind belongs to a later tool now");
+
+        router.SetActive(ToolKind.PanZoom);
+        IPointerTool pan = router.Active;
+        router.Unregister(pan);
+        await Assert.That(router.Active).IsSameReferenceAs(pan).Because("pan/zoom cannot be dropped");
+    }
+
     private static (InputToolRouter Router, FakeToolServices Services, PaneSet Panes) Build()
     {
         (MapSpace _, PaneSet panes) = AnnotationFakes.Panes(new SKSize(600, 400),
@@ -534,6 +612,47 @@ public class InputToolRouterTests
         router.Register(new DrawTool());
         router.Register(new EraseTool());
         return (router, services, panes);
+    }
+
+    private sealed class RecordingMapTool : IMapTool
+    {
+        public bool Accept { get; set; } = true;
+
+        public List<string> Calls { get; } = [];
+
+        public MapToolButton? FirstButton { get; private set; }
+
+        public MapToolModifiers? FirstModifiers { get; private set; }
+
+        public LevelPane? FirstPane { get; private set; }
+
+        public bool OnPressed(in MapToolEvent e, IMapToolContext context)
+        {
+            Calls.Add("press");
+            FirstButton ??= e.Button;
+            FirstModifiers ??= e.Modifiers;
+            FirstPane ??= e.Pane;
+            if (Accept)
+            {
+                context.RequestRender();
+            }
+
+            return Accept;
+        }
+
+        public void OnMoved(in MapToolEvent e, IMapToolContext context)
+        {
+            Calls.Add("move");
+            context.RequestRender();
+        }
+
+        public void OnReleased(in MapToolEvent e, IMapToolContext context)
+        {
+            Calls.Add("release");
+            context.RequestRender();
+        }
+
+        public void OnCancelled(IMapToolContext context) => Calls.Add("cancel");
     }
 
     // Stands in for a tool that lives outside Core (the query canvas's), so every kind can be selected.

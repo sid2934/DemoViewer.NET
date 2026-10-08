@@ -7,9 +7,10 @@ using Avalonia.Input;
 namespace DemoViewer.NET.Modules.Playback2D;
 
 /// <summary>
-///     Every action the 2D Playback tab's keymap can dispatch. The trailing block is DECLARED here but not
-///     yet bound: declaring them now lets the conflict checker protect those gestures from the day the
-///     table ships, instead of discovering the collision when the tool arrives.
+///     The core actions of the 2D Playback tab's keymap, a closed vocabulary: an extension's actions are
+///     string ids (<see cref="Playback2DBinding.ActionId" />) and never join this enum. A member's name is its
+///     id and a persisted override key. <see cref="FitCamera" /> is declared but not yet bound, so the
+///     conflict checker protects its gesture from the day the table ships.
 /// </summary>
 public enum Playback2DAction
 {
@@ -37,87 +38,102 @@ public enum Playback2DAction
     ClearAnnotations,
     HoldPan,
 
-    // Bound by the Strat Book extension's StratBookCommands (Playback2DKeymap's own table no longer
-    // carries these rows; CommandRegistry composes them back in). Find Rounds Like This:
-    FindRoundsLikeThis,
-
-    // J / K over the Situations result set, pack-bound.
-    NextSituationResult,
-    PrevSituationResult,
-
-    // Tag Palette, pack-bound. The first is how the keyboard reaches the palette; the rest are
-    // palette-scoped, so they only act while it has focus.
-    FocusTagPalette,
-    TagPaletteBack,
-    TagNote,
-    TagClearSticky,
-
-    // Label Mode, pack-bound: palette-scoped like the three above.
-    TagLabelMode,
-    TagLabelGroupNext,
-
-    // Suggested Tags Review, pack-bound: the Proposal Queue's walk and verdicts.
-    SuggestionNext,
-    SuggestionPrev,
-    SuggestionAccept,
-    SuggestionReject,
-    SuggestionEdit,
-    SuggestionAcceptAll,
-
-    // Review mode, pack-bound: the labelling panels, the tag and suggestion lanes and every tagging key.
-    ToggleReviewMode,
-
-    // Bound by Shape Tools: the annotation toolbar's shape and
-    // text tools. Core: Playback2DKeymap's own table still carries these rows.
+    // Shape tools:
     ToolLine,
     ToolArrow,
     ToolRect,
     ToolEllipse,
-    ToolText,
-
-    // Step Authoring, pack-bound: the strat canvas's token tool and step keys. Rows in this shared enum
-    // so one set of overrides and one Settings list cover both tabs; the 2D Playback tab leaves every
-    // one of them unhandled.
-    ToolToken,
-    AddStep,
-    DuplicateStep,
-    DeleteStep,
-    PrevStep,
-    NextStep
+    ToolText
 }
 
-/// <summary>When a binding applies. Tool-scoped bindings take precedence while a drawing tool is active.</summary>
-public enum Playback2DBindingScope
+/// <summary>
+///     When a binding applies, by name. The tab resolves the two core scopes, <see cref="Always" /> and
+///     <see cref="WhenToolActive" />, itself. An extension declares its own focus scopes and resolves them in
+///     a key handler before the tab's keymap, which is what lets a focused panel's rows shadow both.
+/// </summary>
+/// <param name="Name">The scope's name, spelled as <c>CommandDescriptor.Scope</c> spells it.</param>
+public readonly record struct Playback2DBindingScope(string Name)
 {
     /// <summary>Applies whenever the 2D surface has focus.</summary>
-    Always,
+    public static Playback2DBindingScope Always { get; } = new("playback2d");
 
     /// <summary>Applies only while a pointer TOOL (draw / erase) is active, and then shadows <see cref="Always" />.</summary>
-    WhenToolActive,
+    public static Playback2DBindingScope WhenToolActive { get; } = new("playback2d.tool");
+
+    /// <summary>Whether this is one of the two scopes the tab resolves itself.</summary>
+    public bool IsCore => this == Always || this == WhenToolActive;
+
+    /// <inheritdoc />
+    public override string ToString() => Name ?? "";
+}
+
+/// <summary>
+///     The core action vocabulary as string ids. A core id is the <see cref="Playback2DAction" /> member's
+///     name; every other id belongs to an extension and never maps to the enum.
+/// </summary>
+public static class Playback2DActionIds
+{
+    private static readonly Dictionary<string, Playback2DAction> _byName =
+        Enum.GetValues<Playback2DAction>().Where(a => a != Playback2DAction.None)
+            .ToDictionary(a => a.ToString(), a => a, StringComparer.Ordinal);
+
+    /// <summary>Every core id, <see cref="Playback2DAction.None" /> excluded.</summary>
+    public static IReadOnlyCollection<string> Core => _byName.Keys;
+
+    /// <summary>The id of a core action.</summary>
+    /// <param name="action">The action.</param>
+    public static string Of(Playback2DAction action) => action.ToString();
 
     /// <summary>
-    ///     Applies only while the Tag Palette has focus, and then shadows both scopes above.
-    ///     The palette's own button hotkeys are routed at this scope too, after its rows.
+    ///     Maps a core id back to its enum member. Exact and case-sensitive: an extension id, a number or a
+    ///     differently cased name is not a core action.
     /// </summary>
-    WhenPaletteFocused,
+    /// <param name="id">The id.</param>
+    /// <param name="action">The core action, or <see cref="Playback2DAction.None" />.</param>
+    public static bool TryCore(string? id, out Playback2DAction action)
+    {
+        if (id is not null && _byName.TryGetValue(id, out action))
+        {
+            return true;
+        }
 
-    /// <summary>
-    ///     Applies only while a proposal is selected in the Suggested Tags queue, and then shadows
-    ///     <see cref="Always" /> and <see cref="WhenToolActive" />; the palette scope still wins. It exists for
-    ///     J / K, which walk the Situations result set otherwise: both walks keep the same keys,
-    ///     and the one on screen is the one they drive.
-    /// </summary>
-    WhenSuggestionSelected
+        action = Playback2DAction.None;
+        return false;
+    }
 }
 
 /// <summary>One row of the declarative keymap.</summary>
+/// <param name="ActionId">The action's id: a core action's enum name, or an extension command's id.</param>
+/// <param name="Key">The key.</param>
+/// <param name="Modifiers">The modifiers.</param>
+/// <param name="Scope">When the row applies.</param>
+/// <param name="Description">Human description, shown in Settings.</param>
+/// <param name="IsReserved">Declared but not routed.</param>
 public readonly record struct Playback2DBinding(
-    Playback2DAction Action,
+    string ActionId,
     Key Key,
     KeyModifiers Modifiers,
     Playback2DBindingScope Scope,
     string Description,
-    bool IsReserved);
+    bool IsReserved)
+{
+    /// <summary>A core row.</summary>
+    /// <param name="action">The core action.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers.</param>
+    /// <param name="scope">When the row applies.</param>
+    /// <param name="description">Human description.</param>
+    /// <param name="isReserved">Declared but not routed.</param>
+    public Playback2DBinding(Playback2DAction action, Key key, KeyModifiers modifiers, Playback2DBindingScope scope,
+        string description, bool isReserved)
+        : this(Playback2DActionIds.Of(action), key, modifiers, scope, description, isReserved)
+    {
+    }
+
+    /// <summary>The core action this row dispatches, or <see cref="Playback2DAction.None" /> for an extension row.</summary>
+    public Playback2DAction CoreAction =>
+        Playback2DActionIds.TryCore(ActionId, out Playback2DAction action) ? action : Playback2DAction.None;
+}
 
 /// <summary>
 ///     The 2D Playback tab's declarative action→gesture table, conflict-checked at registration: the static
@@ -226,14 +242,14 @@ public static class Playback2DKeymap
         if (toolActive && TryFind(Playback2DBindingScope.WhenToolActive, key, modifiers,
                 out Playback2DBinding tool))
         {
-            action = tool.IsReserved ? Playback2DAction.None : tool.Action;
+            action = tool.IsReserved ? Playback2DAction.None : tool.CoreAction;
             return !tool.IsReserved;
         }
 
         if (TryFind(Playback2DBindingScope.Always, key, modifiers, out Playback2DBinding always)
             && !always.IsReserved)
         {
-            action = always.Action;
+            action = always.CoreAction;
             return true;
         }
 
@@ -265,27 +281,27 @@ public static class Playback2DKeymap
         ArgumentNullException.ThrowIfNull(shellReserved);
 
         List<string> conflicts = new();
-        Dictionary<(Playback2DBindingScope, Key, KeyModifiers), Playback2DAction> seen = new();
+        Dictionary<(Playback2DBindingScope, Key, KeyModifiers), string> seen = new();
         HashSet<(Key, KeyModifiers)> shell = new(shellReserved);
 
         foreach (Playback2DBinding binding in bindings)
         {
             (Playback2DBindingScope, Key, KeyModifiers) key = (binding.Scope, binding.Key, binding.Modifiers);
-            if (seen.TryGetValue(key, out Playback2DAction other))
+            if (seen.TryGetValue(key, out string? other))
             {
                 conflicts.Add(
-                    $"{Format(binding.Key, binding.Modifiers)} ({binding.Scope}) is bound to both "
-                    + $"{other} and {binding.Action}");
+                    $"{Format(binding.Key, binding.Modifiers)} ({ScopeText(binding.Scope)}) is bound to both "
+                    + $"{other} and {binding.ActionId}");
             }
             else
             {
-                seen[key] = binding.Action;
+                seen[key] = binding.ActionId;
             }
 
             if (shell.Contains((binding.Key, binding.Modifiers)))
             {
                 conflicts.Add(
-                    $"{Format(binding.Key, binding.Modifiers)} ({binding.Action}) shadows a shell accelerator");
+                    $"{Format(binding.Key, binding.Modifiers)} ({binding.ActionId}) shadows a shell accelerator");
             }
         }
 
@@ -297,7 +313,7 @@ public static class Playback2DKeymap
     {
         foreach (Playback2DBinding binding in Default)
         {
-            if (binding.Action == action)
+            if (binding.CoreAction == action)
             {
                 return Format(binding.Key, binding.Modifiers);
             }
@@ -305,6 +321,12 @@ public static class Playback2DKeymap
 
         return "";
     }
+
+    // The two core scopes keep the names conflict text has always used.
+    private static string ScopeText(Playback2DBindingScope scope) =>
+        scope == Playback2DBindingScope.Always ? "Always"
+        : scope == Playback2DBindingScope.WhenToolActive ? "WhenToolActive"
+        : scope.Name;
 
     private static bool TryFind(Playback2DBindingScope scope, Key key, KeyModifiers modifiers,
         out Playback2DBinding found)
@@ -322,53 +344,10 @@ public static class Playback2DKeymap
         return false;
     }
 
-    // The ONE gesture formatter, in two spellings of the key: display text for human eyes, and the
-    // parseable form Playback2DKeymapProfile.Row persists (the arrow glyphs and "Esc" below would not
-    // survive KeyGesture.Parse). The modifier chain MUST stay shared: a second copy that drops Meta
-    // reads a macOS user's captured ⌘+K back as a bare "K" in every Settings row, reset chip, tooltip
-    // and refusal, indistinguishable from a DIFFERENT action bound to bare K.
-    internal static string Format(Key key, KeyModifiers modifiers, bool display = true)
-    {
-        List<string> parts = new(5);
-        if (modifiers.HasFlag(KeyModifiers.Control))
-        {
-            parts.Add("Ctrl");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Shift))
-        {
-            parts.Add("Shift");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Alt))
-        {
-            parts.Add("Alt");
-        }
-
-        if (modifiers.HasFlag(KeyModifiers.Meta))
-        {
-            parts.Add("Meta");
-        }
-
-        parts.Add(display ? KeyName(key) : key.ToString());
-        return string.Join("+", parts);
-    }
-
-    private static string KeyName(Key key) => key switch
-    {
-        Key.Left => "←",
-        Key.Right => "→",
-        Key.Up => "↑",
-        Key.Down => "↓",
-        Key.Escape => "Esc",
-        Key.Space => "Space",
-        Key.Home => "Home",
-        Key.Back => "Backspace",
-        Key.OemOpenBrackets => "[",
-        Key.OemCloseBrackets => "]",
-        Key.Enter => "Enter", // the same value as Key.Return, which is what ToString names it
-        _ => key.ToString()
-    };
+    // The one gesture formatter lives in the SDK so an extension shows gestures the same way. The parseable
+    // spelling is what Playback2DKeymapProfile.Row persists.
+    public static string Format(Key key, KeyModifiers modifiers, bool display = true) =>
+        KeyGestureText.Format(key, modifiers, display);
 
     private static Playback2DBinding[] BuildDefault() =>
     [
@@ -419,10 +398,8 @@ public static class Playback2DKeymap
         new(Playback2DAction.CancelGesture, Key.Escape, KeyModifiers.None,
             Playback2DBindingScope.WhenToolActive, "Cancel the in-progress gesture", false),
 
-        // Situation Search, result walking, review mode, the Tag Palette, Label Mode, the Suggested Tags
-        // queue and Step Authoring belong to the Strat Book extension (StratBookCommands), read by
-        // CommandRegistry through IFeaturePack.Commands. This table stays core-only: its static
-        // constructor conflict-checks eagerly, which a pack's own commands must never be able to trip.
+        // Extension commands join through CommandRegistry, never here. This table stays core-only: its
+        // static constructor conflict-checks eagerly, which an extension's commands must never trip.
 
         // ── Shape Tools. Bare letters in the Always scope like D and X, each
         //    pressed again to go back to pan. None collides with the shipped rows, the shell list or the

@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Keyframes;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 /// <summary>
 ///     One slot's position over the strat clock: keyframes sorted by tick, a hold and an interpolation per

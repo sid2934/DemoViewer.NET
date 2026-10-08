@@ -6,10 +6,10 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using Avalonia;
-using DemoViewer.NET.ViewModels.Teams;
-using DemoViewer.NET.Views.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
+using DemoViewer.NET.Extensions.StratBook.Views.Teams;
 
 #endregion
 
@@ -79,7 +79,7 @@ public class UxConsistencyRenderTests
     private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> TwoTeams()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -99,10 +99,10 @@ public class UxConsistencyRenderTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (DemoCacheStore cache, TeamIdentityService teams) = await TwoTeams();
-            using ViewModels.Dossier.DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false,
+            using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier.DossierTabViewModel vm = new(teams, cache.Library(), new VetoHistoryStore(null), isBrowser: false,
                 notes: new DossierNotesStore(null));
             vm.SelectedTeam = vm.Teams[0];
-            Window window = new() { Width = 1280, Height = 900, Content = new Views.Dossier.DossierTabView { DataContext = vm } };
+            Window window = new() { Width = 1280, Height = 900, Content = new DemoViewer.NET.Extensions.StratBook.Views.Dossier.DossierTabView { DataContext = vm } };
             window.Show();
             Settle();
             headers = [.. vm.MapSections.Select(m => m.Header), vm.RecordSection.Header, vm.NotesSection.Header];
@@ -112,7 +112,7 @@ public class UxConsistencyRenderTests
             }
 
             Save(window, "ux-dossier-sections.png");
-            ViewModels.Dossier.DossierMapSectionViewModel first = vm.MapSections[0];
+            DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier.DossierMapSectionViewModel first = vm.MapSections[0];
             first.ToggleCommand.Execute(null);
             Settle();
             mapClosedHidesItsRows = !Shows(window, first.Findings[0].Text);
@@ -137,7 +137,7 @@ public class UxConsistencyRenderTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (DemoCacheStore cache, TeamIdentityService teams) = await TwoTeams();
-            using ViewModels.Dossier.DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false,
+            using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier.DossierTabViewModel vm = new(teams, cache.Library(), new VetoHistoryStore(null), isBrowser: false,
                 notes: new DossierNotesStore(null));
             vm.SelectedTeam = vm.Teams[0];
             for (int i = 0; i < 200; i++)
@@ -147,10 +147,10 @@ public class UxConsistencyRenderTests
             }
 
             vm.NotesSection.IsExpanded = true;
-            Window window = new() { Width = 1280, Height = 800, Content = new Views.Dossier.DossierTabView { DataContext = vm } };
+            Window window = new() { Width = 1280, Height = 800, Content = new DemoViewer.NET.Extensions.StratBook.Views.Dossier.DossierTabView { DataContext = vm } };
             window.Show();
             Settle();
-            ViewModels.Dossier.DossierFindingViewModel row = vm.Editor.GeneralFindings[0];
+            DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier.DossierFindingViewModel row = vm.Editor.GeneralFindings[0];
             row.BeginEditCommand.Execute(null);
             Settle();
             TextBox? Editing() => window.GetVisualDescendants().OfType<TextBox>()
@@ -190,7 +190,7 @@ public class UxConsistencyRenderTests
         await HeadlessSession.RunOnUi(async () =>
         {
             DemoCacheStore cache = new(null);
-            TeamIdentityService seeded = new(null, cache, run: _inline);
+            TeamIdentityService seeded = new(null, cache.Library(), run: _inline);
             await seeded.StartAsync();
             using (cache.BeginBatch())
             {
@@ -202,12 +202,12 @@ public class UxConsistencyRenderTests
 
             // The same library before its teams are read.
             Action? read = null;
-            TeamIdentityService loading = new(null, new DemoCacheStore(null), run: _inline, scheduleLoad: r =>
+            TeamIdentityService loading = new(null, new DemoCacheStore(null).Library(), run: _inline, scheduleLoad: r =>
             {
                 read = r;
                 return Task.CompletedTask;
             });
-            using TeamsTabViewModel before = new(loading, cache, isBrowser: false);
+            using TeamsTabViewModel before = new(loading, cache.Library(), isBrowser: false);
             Window window = new() { Width = 1280, Height = 800, Content = new TeamsTabView { DataContext = before } };
             window.Show();
             Settle();
@@ -216,7 +216,7 @@ public class UxConsistencyRenderTests
             window.Close();
 
             TaskCompletionSource landed = new();
-            using TeamsTabViewModel vm = new(seeded, cache, isBrowser: false, command: (_, change) =>
+            using TeamsTabViewModel vm = new(seeded, cache.Library(), isBrowser: false, command: (_, change) =>
             {
                 change();
                 return landed.Task;

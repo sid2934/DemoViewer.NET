@@ -60,6 +60,20 @@ internal static partial class AppLog
         Message = "Removed staged extension directory '{directory}' ({reason})")]
     public static partial void ExtensionStagingRemoved(ILogger logger, string directory, string reason);
 
+    /// <summary>
+    ///     Extension code threw at a host call site and the host carried on. <paramref name="count" /> is the
+    ///     extension's counted faults this session; a site that keeps throwing is logged a few times, then
+    ///     rarely. <paramref name="exception" /> is null for a binding error, which has no exception.
+    /// </summary>
+    [LoggerMessage(EventId = 22, Level = LogLevel.Warning,
+        Message = "Extension {name} failed in {site} ({count} counted this session)")]
+    public static partial void ExtensionFaulted(ILogger logger, string name, string site, int count, Exception? exception);
+
+    /// <summary>An extension crossed the fault threshold and was turned off until the app restarts.</summary>
+    [LoggerMessage(EventId = 23, Level = LogLevel.Warning,
+        Message = "Extension {name} turned off for this session after {count} errors (last: {site})")]
+    public static partial void ExtensionSuspended(ILogger logger, string name, int count, string site);
+
     [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "Reel generation failed.\n{diagnostics}")]
     public static partial void ReelGenerationFailed(ILogger logger, string diagnostics);
 
@@ -91,7 +105,7 @@ internal static partial class AppLog
     public static partial void LibraryCachePruned(ILogger logger, int count);
 
     [LoggerMessage(EventId = 8, Level = LogLevel.Information,
-        Message = "Library score backfill: re-indexing {count} already-indexed demo(s) for final score")]
+        Message = "Library backfill: re-indexing {count} already-indexed demo(s) for final score or parse record")]
     public static partial void LibraryScoreBackfill(ILogger logger, int count);
 
     [LoggerMessage(EventId = 9, Level = LogLevel.Warning,
@@ -102,6 +116,79 @@ internal static partial class AppLog
     [LoggerMessage(EventId = 10, Level = LogLevel.Warning,
         Message = "A demo-queue owner handler threw; the parse and other owners were unaffected")]
     public static partial void QueueOwnerHandlerFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 24, Level = LogLevel.Debug,
+        Message = "Pass {passId} still waits on an upstream pass after {demo} was read; it sat this visit out")]
+    public static partial void PassStillWaitingOnUpstream(ILogger logger, string passId, string demo);
+
+    /// <summary>
+    ///     The queue read a demo. <paramref name="count" /> is the reads of that content this session; more
+    ///     than one means a second parse that one visit should have served.
+    /// </summary>
+    [LoggerMessage(EventId = 25, Level = LogLevel.Information,
+        Message = "Read {demo} ({read}): {count} read(s) of this demo this session")]
+    public static partial void DemoRead(ILogger logger, string demo, string read, int count);
+
+    /// <summary>An extension's pass overran its time budget too often and sits out the rest of the session.</summary>
+    [LoggerMessage(EventId = 26, Level = LogLevel.Warning,
+        Message = "Pass {passId} of {extension} overran its {budget} budget {count} times; it is off until the app restarts")]
+    public static partial void PassQuarantined(ILogger logger, string passId, string extension, TimeSpan budget, int count);
+
+    /// <summary>A pass was asked whether it wants a demo on the UI thread, which the host never does; it answered no.</summary>
+    [LoggerMessage(EventId = 27, Level = LogLevel.Warning,
+        Message = "Pass {passId} of {extension} was asked about {demo} on the UI thread; answered no")]
+    public static partial void PassAskedOnUiThread(ILogger logger, string passId, string extension, string demo);
+
+    /// <summary>An extension's settings or data file could not be read; it reads as empty or absent.</summary>
+    [LoggerMessage(EventId = 28, Level = LogLevel.Warning,
+        Message = "Extension {extension}: {path} is unreadable and reads as absent: {problem}")]
+    public static partial void ExtensionStoreUnreadable(ILogger logger, string extension, string path, string problem);
+
+    /// <summary>An extension's settings or data file could not be written; the change lives for the session only.</summary>
+    [LoggerMessage(EventId = 29, Level = LogLevel.Warning,
+        Message = "Extension {extension}: {path} could not be written: {problem}")]
+    public static partial void ExtensionStoreWriteFailed(ILogger logger, string extension, string path, string problem);
+
+    [LoggerMessage(EventId = 30, Level = LogLevel.Information,
+        Message = "Library folder {folder}: {count} demo(s) listed in {elapsedMs} ms")]
+    public static partial void LibraryFolderListed(ILogger logger, string folder, int count, long elapsedMs);
+
+    /// <summary>A registered folder whose listing did not complete; nothing under it is pruned this scan.</summary>
+    [LoggerMessage(EventId = 31, Level = LogLevel.Warning,
+        Message = "Library folder {folder} was not reached: {reason}. Its cached rows are kept")]
+    public static partial void LibraryFolderUnreached(ILogger logger, string folder, string reason);
+
+    [LoggerMessage(EventId = 32, Level = LogLevel.Warning,
+        Message = "Library folder {folder}: {directory} could not be listed: {reason}. Cached rows under it are kept")]
+    public static partial void LibraryDirectoryUnreached(ILogger logger, string folder, string directory, string reason);
+
+    /// <summary>An empty listing over cached rows: an automount or mount point that is not up. Counted as not reached.</summary>
+    [LoggerMessage(EventId = 34, Level = LogLevel.Warning,
+        Message = "Library folder {folder} listed no demos while the cache holds {cached} row(s) under it; "
+                  + "treated as not reached (a mount that is not up yet?). Its cached rows are kept")]
+    public static partial void LibraryFolderListedEmpty(ILogger logger, string folder, int cached);
+
+    [LoggerMessage(EventId = 33, Level = LogLevel.Information,
+        Message = "Library scan listed {count} demo(s) from {reached} of {total} folder(s) in {elapsedMs} ms")]
+    public static partial void LibraryScanListed(ILogger logger, int count, int reached, int total, long elapsedMs);
+
+    [LoggerMessage(EventId = 35, Level = LogLevel.Information,
+        Message = "Library scan finished: {count} demo(s) listed, {unmatched} left to fingerprint for copies, {pending} waiting on a full parse, in {elapsedMs} ms")]
+    public static partial void LibraryScanFinished(ILogger logger, int count, int unmatched, int pending, long elapsedMs);
+
+    /// <summary>A folder's header reads ended early; its unread demos are read on the next scan.</summary>
+    [LoggerMessage(EventId = 37, Level = LogLevel.Warning,
+        Message = "Library folder {folder}: {count} demo header(s) left unread: {reason}. They are read on the next scan")]
+    public static partial void LibraryHeadersLeftUnread(ILogger logger, string folder, int count, string reason);
+
+    [LoggerMessage(EventId = 36, Level = LogLevel.Information,
+        Message = "Library copies resolved: {fingerprinted} file(s) fingerprinted, {copies} copy(ies) folded into another card, in {elapsedMs} ms")]
+    public static partial void LibraryCopiesResolved(ILogger logger, int fingerprinted, int copies, long elapsedMs);
+
+    /// <summary>A folder's fingerprint reads ended early; its unread demos wait for the next scan.</summary>
+    [LoggerMessage(EventId = 38, Level = LogLevel.Warning,
+        Message = "Library folder {folder}: {count} demo(s) left without a fingerprint: {reason}. They are read on the next scan")]
+    public static partial void LibraryFingerprintsLeftUnread(ILogger logger, string folder, int count, string reason);
 
     /// <summary>
     ///     v0.6.0 generic operation-failure row, the logging half of <c>UserFacingError</c>: the UI

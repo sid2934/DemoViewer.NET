@@ -1,13 +1,12 @@
 #region
 
-using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Playback;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Playback2D.Core;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     Find Rounds Like This and the Situations result walk in 2D Playback, as one playback contribution:
@@ -17,7 +16,7 @@ namespace DemoViewer.NET.Modules.Situations;
 ///     checked at attach (a live pack toggle with a demo already open) and on every demo change. Nothing
 ///     here exists while the pack is off.
 /// </summary>
-public sealed class SituationsPlaybackContribution : IPlaybackContribution
+public sealed class SituationsPlaybackContribution : Sdk.Playback.IPlaybackContribution
 {
     private const string ToolbarItemId = "stratbook.findroundslikethis";
 
@@ -30,16 +29,16 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
     private IModuleContext? _context;
     private IDisposable? _demoChanged;
     private IFindRoundsLikeThis? _findRounds;
-    private ToolbarItem? _item;
+    private Sdk.Playback.ToolbarItem? _item;
     private ISituationResultWalk? _situationResults;
-    private IPlaybackSurface? _surface;
+    private Sdk.Playback.IPlaybackSurface? _surface;
     private IDisposable? _toolbarRegistration;
 
     /// <summary>The toolbar item while attached, or null before attach or while no demo's map is open. For tests.</summary>
-    public ToolbarItem? ToolbarItem => _item;
+    public Sdk.Playback.ToolbarItem? ToolbarItem => _item;
 
     /// <inheritdoc />
-    public void Attach(IPlaybackSurface surface, IModuleContext context)
+    public void Attach(Sdk.Playback.IPlaybackSurface surface, IModuleContext context)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(context);
@@ -49,8 +48,8 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
         _findRounds = context.GetService<IFindRoundsLikeThis>();
         _situationResults = context.GetService<ISituationResultWalk>();
 
-        _item = new ToolbarItem(ToolbarItemId, Label, ToolTip(surface), RunFindRoundsLikeThis,
-            Playback2DAction.FindRoundsLikeThis, icon: Icon, menuHeader: MenuHeader(surface));
+        _item = new Sdk.Playback.ToolbarItem(ToolbarItemId, Label, ToolTip(surface), RunFindRoundsLikeThis,
+            StratBookActions.FindRoundsLikeThis, icon: Icon, menuHeader: MenuHeader(surface));
         surface.KeymapChanged += OnKeymapChanged;
         _demoChanged = surface.OnDemoChanged(RefreshAvailability);
         _actionHandler = surface.AddActionHandler(OnAction);
@@ -100,19 +99,19 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
     // scalars the scene built inside the last Advanced callback, place included, and the pooled entities
     // behind them are not safe to read from a key handler. Refused with no seam, no map, or no frame
     // pushed yet; the seam refuses on its own when nobody is alive.
-    private bool RunFindRoundsLikeThis(Scene2DFrame frame) =>
+    private bool RunFindRoundsLikeThis(PlaybackMoment moment) =>
         _findRounds is { } find && _context?.MapName is { Length: > 0 } map
-        && frame.Markers.Count > 0 && find.Show(map, frame.Time, frame.Markers);
+        && moment.Frame.Markers.Count > 0 && find.Show(map, moment.Frame.Time, moment.Frame.Markers);
 
     // J/K: the walk seeks through the seam's own funnel, so the shared clock and LiveSync's observer see
     // it as any other seek. Gated by the Situations tab's own feature, which the pack cascades off with.
-    private bool OnAction(Playback2DAction action)
+    private bool OnAction(string action)
     {
         bool situationsOn = _context?.Features?.IsEnabled(SituationsModule.TabFeatureId) ?? true;
         return action switch
         {
-            Playback2DAction.NextSituationResult => situationsOn && (_situationResults?.Walk(+1) ?? false),
-            Playback2DAction.PrevSituationResult => situationsOn && (_situationResults?.Walk(-1) ?? false),
+            StratBookActions.NextSituationResult => situationsOn && (_situationResults?.Walk(+1) ?? false),
+            StratBookActions.PrevSituationResult => situationsOn && (_situationResults?.Walk(-1) ?? false),
             _ => false
         };
     }
@@ -130,10 +129,10 @@ public sealed class SituationsPlaybackContribution : IPlaybackContribution
 
     // "Find rounds like this", not "Rounds like this": the menu header's own text today, which the
     // tooltip keeps too.
-    private static string MenuHeader(IPlaybackSurface surface) =>
-        $"Find rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}";
+    private static string MenuHeader(Sdk.Playback.IPlaybackSurface surface) =>
+        $"Find rounds like this{surface.GestureHint(StratBookActions.FindRoundsLikeThis)}";
 
-    private static string ToolTip(IPlaybackSurface surface) =>
-        $"Find rounds like this{surface.GestureHint(Playback2DAction.FindRoundsLikeThis)}: snapshot the alive players by "
+    private static string ToolTip(Sdk.Playback.IPlaybackSurface surface) =>
+        $"Find rounds like this{surface.GestureHint(StratBookActions.FindRoundsLikeThis)}: snapshot the alive players by "
         + "side onto the Situations query canvas and search the library's round index for this setup";
 }

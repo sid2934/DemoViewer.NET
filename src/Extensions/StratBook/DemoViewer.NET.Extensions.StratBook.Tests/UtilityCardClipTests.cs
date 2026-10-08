@@ -6,12 +6,14 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Controls;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Zones;
-using DemoViewer.NET.ViewModels.UtilityBook;
-using DemoViewer.NET.Views.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 using TUnit.Core.Exceptions;
+using DemoViewer.NET.Extensions.StratBook.Controls;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 
@@ -43,7 +45,7 @@ public class UtilityCardClipTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 DemoCacheStore cache = new(root);
-                using GrenadeIndex index = new(cache, new AssetZonePlaceResolverSource());
+                using GrenadeIndex index = new(cache.Library(), new AssetZonePlaceResolverSource());
                 index.Load();
                 using UtilityBookTabViewModel vm = new(index, isBrowser: false, clipDirectory: clips);
                 vm.SelectedMap = "de_mirage";
@@ -109,58 +111,6 @@ public class UtilityCardClipTests
         }
     }
 
-    // Throw rows name the thrower before the grenades migration (JSON rows, named from the record on read)
-    // and after it (the throw log). Runs the migration on a second copy of the cache copy.
-    [Test]
-    public async Task ThrowRows_NameTheThrower_BeforeAndAfterTheGrenadesMigration()
-    {
-        string root = Environment.GetEnvironmentVariable("GV2_CACHE") ?? "";
-        if (!Directory.Exists(root))
-        {
-            throw new SkipTestException("GV2_CACHE is not set to a cache copy");
-        }
-
-        string copy = Directory.CreateTempSubdirectory("dv-names-cache-").FullName;
-        try
-        {
-            foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
-            {
-                string target = Path.Combine(copy, Path.GetRelativePath(root, file));
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.Copy(file, target);
-            }
-
-            (int Named, int Rows) Names(string cacheRoot)
-            {
-                using GrenadeIndex index = new(new DemoCacheStore(cacheRoot), new AssetZonePlaceResolverSource());
-                index.Load();
-                List<IndexedGrenade> rows = [.. index.Rows(new GrenadeQuery("de_mirage"))];
-                return (rows.Count(r => r.Row.ThrowerName is { Length: > 0 }), rows.Count);
-            }
-
-            (int named, int rows) before = Names(copy);
-            DemoCacheStore cache = new(copy);
-            using (GrenadeIndex index = new(cache, new AssetZonePlaceResolverSource()))
-            {
-                index.Load();
-                GrenadeStoreMigrationResult result = await GrenadeStoreMigration.RunAsync(cache, index);
-                Console.WriteLine($"[names] migration {result}");
-            }
-
-            (int named, int rows) after = Names(copy);
-            Console.WriteLine($"[names] mirage rows named: before migration {before.named}/{before.rows}, after {after.named}/{after.rows}");
-            using (Assert.Multiple())
-            {
-                await Assert.That(before.named).IsGreaterThan(before.rows * 9 / 10);
-                await Assert.That(after.named).IsGreaterThan(after.rows * 9 / 10);
-            }
-        }
-        finally
-        {
-            Directory.Delete(copy, true);
-        }
-    }
-
     // The first plan after the per-technique names land: every first-technique pair is adopted by rename.
     // The clip folder is mirrored as empty files, so nothing real is renamed and nothing is rendered.
     [Test]
@@ -191,7 +141,7 @@ public class UtilityCardClipTests
             }
 
             DemoCacheStore cache = new(root);
-            using GrenadeIndex index = new(cache, new AssetZonePlaceResolverSource());
+            using GrenadeIndex index = new(cache.Library(), new AssetZonePlaceResolverSource());
             index.Load();
             IReadOnlyList<GrenadeCluster> Clusters() => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))];
             IReadOnlyList<LineupClipJob> every = LineupClipPlanner.PlanEvery(Clusters(), clips);
@@ -222,7 +172,7 @@ public class UtilityCardClipTests
 
     private sealed class NeverRenders : ILineupClipRenderer
     {
-        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs,
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, CS2DemoKit.Parser.ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
             CancellationToken ct) => Task.FromResult<IReadOnlyList<LineupClipJob>>([]);
     }
 

@@ -4,8 +4,9 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -61,8 +62,8 @@ public class TeamIdentityRealDemoTests
         string path = DemoTestHelper.RequireDemo();
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         DemoCacheRecord record = Tier2Record(path, parsed);
-        SideInput t = SideKeys.Side(record, 2);
-        SideInput ct = SideKeys.Side(record, 3);
+        SideInput t = SideKeys.Side(record.AsDetail(), 2);
+        SideInput ct = SideKeys.Side(record.AsDetail(), 3);
         Console.WriteLine($"{Path.GetFileName(path)}: T key {t.Key.Count}, CT key {ct.Key.Count}, coaches {record.Players.Count(p => p.IsCoach)}");
 
         using (Assert.Multiple())
@@ -92,7 +93,7 @@ public class TeamIdentityRealDemoTests
         ];
 
         DemoCacheStore cache = new(null);
-        using TeamIdentityService teams = new(null, cache, run: _inline);
+        using TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -148,7 +149,7 @@ public class TeamIdentityRealDemoTests
         DemoCacheStore cache = new(null);
         RoundFactsEvaluator evaluator = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         RoundFactsSource roundFacts = new(cache, evaluator);
-        using TeamIdentityService teams = new(null, cache, roundFacts, run: _inline);
+        using TeamIdentityService teams = new(null, cache.Library(), roundFacts, run: _inline);
         await teams.StartAsync();
 
         DemoCacheRecord record = Tier2Record(path, parsed);
@@ -161,7 +162,7 @@ public class TeamIdentityRealDemoTests
         }
 
         await teams.Idle;
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
 
         Team? onT = teams.TeamOnSide(path, 2);
         Team? onCt = teams.TeamOnSide(path, 3);

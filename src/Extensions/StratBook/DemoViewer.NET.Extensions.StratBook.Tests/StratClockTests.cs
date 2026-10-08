@@ -1,7 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class StratClockTests
 {
-    private static readonly CachedRound Round = new() { Number = 7, StartTickFrameClock = 1761 };
+    private static readonly LibraryRound Round = new LibraryRound(7, 1761);
 
     [Test]
     public async Task AStepAt90Seconds_Is25SecondsIntoTheRound()

@@ -8,8 +8,15 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core.Tools;
+using DemoViewer.NET.Playback2D.Core.Zones;
+using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
+using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
+using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 
 #endregion
 
@@ -25,16 +32,19 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// </summary>
 public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurface
 {
-    private readonly List<Func<Playback2DAction, bool>> _actionHandlers = [];
+    private readonly List<Func<string, bool>> _actionHandlers = [];
     private readonly List<Action> _demoChangedHandlers = [];
     private readonly Func<Scene2DFrame> _frame;
     private readonly Func<string, bool> _isEnabled;
     private readonly List<Func<Key, KeyModifiers, bool>> _keyHandlers = [];
     private readonly Func<IReadOnlyList<MapLevel>?> _levels;
+    private readonly Func<PlaceResolver?> _zones;
     private readonly List<PaneHandle> _panes = [];
     private readonly List<Playback2DPanel> _panels = [];
     private readonly List<Action<int>> _playheadHandlers = [];
     private readonly List<Func<ScenePointer, bool>> _pointerPreHandlers = [];
+    private readonly List<KeyValuePair<string, Func<ISceneLayer>>> _layers = [];
+    private readonly List<IMapTool> _tools = [];
     private readonly Playback2DTimelineViewModel _timeline;
     private PaneHandle? _openSide;
 
@@ -46,8 +56,9 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     /// <param name="levels">The mounted viewport's levels, read on demand; null for none.</param>
     /// <param name="isEnabled">The tab's feature gate; a tab without one answers true.</param>
     /// <param name="frame">The frame on screen, read on demand (a toolbar item's run gets it at invocation).</param>
+    /// <param name="zones">The open map's place resolver, read on demand; null for a surface with no map.</param>
     internal Playback2DSurface(Playback2DTimelineViewModel timeline, Func<IReadOnlyList<MapLevel>?> levels,
-        Func<string, bool> isEnabled, Func<Scene2DFrame> frame)
+        Func<string, bool> isEnabled, Func<Scene2DFrame> frame, Func<PlaceResolver?>? zones = null)
     {
         ArgumentNullException.ThrowIfNull(timeline);
         ArgumentNullException.ThrowIfNull(levels);
@@ -57,7 +68,17 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
         _levels = levels;
         _isEnabled = isEnabled;
         _frame = frame;
+        _zones = zones ?? (() => null);
     }
+
+    /// <summary>A layer was added or removed. The map re-reads <see cref="Layers" />.</summary>
+    public event Action? LayersChanged;
+
+    /// <summary>The contributed scene layers by id, in the order added.</summary>
+    public IReadOnlyList<KeyValuePair<string, Func<ISceneLayer>>> Layers => _layers;
+
+    /// <summary>The contributed pointer tools, in the order added.</summary>
+    public IReadOnlyList<IMapTool> Tools => _tools;
 
     /// <summary>A side pane opened. The tab closes the export pane on it.</summary>
     public event Action? SidePaneOpened;
@@ -91,6 +112,9 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
 
     /// <inheritdoc />
     public IReadOnlyList<MapLevel> MapLevels => _levels() ?? [];
+
+    /// <inheritdoc />
+    public PlaceResolver? Zones => _zones();
 
     /// <inheritdoc />
     public Playback2DKeymapProfile Keymap { get; private set; } = Playback2DKeymapProfile.Default;
@@ -157,8 +181,8 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     }
 
     /// <inheritdoc />
-    public string GestureHint(Playback2DAction action) =>
-        Keymap.GestureText(action) is { Length: > 0 } text ? $" ({text})" : "";
+    public string GestureHint(string actionId) =>
+        Keymap.GestureText(actionId) is { Length: > 0 } text ? $" ({text})" : "";
 
     /// <inheritdoc />
     public IDisposable AddBandMenu(Func<TimelineBandViewModel, IEnumerable<MenuEntry>> items)
@@ -203,11 +227,37 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     }
 
     /// <inheritdoc />
-    public IDisposable AddActionHandler(Func<Playback2DAction, bool> handler)
+    public IDisposable AddActionHandler(Func<string, bool> handler)
     {
         ArgumentNullException.ThrowIfNull(handler);
         _actionHandlers.Add(handler);
         return new Removal(() => _actionHandlers.Remove(handler));
+    }
+
+    /// <inheritdoc />
+    public IDisposable AddLayer(string layerId, Func<ISceneLayer> layer)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(layerId);
+        ArgumentNullException.ThrowIfNull(layer);
+        _layers.RemoveAll(l => string.Equals(l.Key, layerId, StringComparison.Ordinal));
+        KeyValuePair<string, Func<ISceneLayer>> entry = new(layerId, layer);
+        _layers.Add(entry);
+        LayersChanged?.Invoke();
+        return new Removal(() =>
+        {
+            if (_layers.Remove(entry))
+            {
+                LayersChanged?.Invoke();
+            }
+        });
+    }
+
+    /// <inheritdoc />
+    public IDisposable AddTool(IMapTool tool)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        _tools.Add(tool);
+        return new Removal(() => _tools.Remove(tool));
     }
 
     /// <inheritdoc />
@@ -237,27 +287,31 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     ///     The contributions' turn at a keymap action: a mode toggle's action flips it, else a toolbar
     ///     item's action runs it, else the handlers. True when one consumed it.
     /// </summary>
-    public bool TryExecute(Playback2DAction action)
+    public bool TryExecute(string actionId)
     {
+        ArgumentNullException.ThrowIfNull(actionId);
         foreach (ModeToggle toggle in ModeToggles.ToArray())
         {
-            if (toggle.Action == action)
+            if (toggle.ActionId is { } id && string.Equals(id, actionId, StringComparison.OrdinalIgnoreCase))
             {
-                return toggle.TryToggle();
+                // The toggle's Changed handlers are the extension's.
+                return ExtensionGuards.For(toggle) is { } guard
+                    ? guard.Run("mode toggle", toggle.TryToggle, false)
+                    : toggle.TryToggle();
             }
         }
 
         foreach (ToolbarItem item in ToolbarItems.ToArray())
         {
-            if (item.Action == action)
+            if (item.ActionId is { } id && string.Equals(id, actionId, StringComparison.OrdinalIgnoreCase))
             {
                 return item.Run(_frame());
             }
         }
 
-        foreach (Func<Playback2DAction, bool> handler in _actionHandlers.ToArray())
+        foreach (Func<string, bool> handler in _actionHandlers.ToArray())
         {
-            if (handler(action))
+            if (handler(actionId))
             {
                 return true;
             }

@@ -42,8 +42,8 @@
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\GlobalUsings.cs" Link="GlobalUsings.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\CompiledInPacks.cs" Link="CompiledInPacks.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SessionIsolation.cs" Link="SessionIsolation.cs"/>
-        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\HeadlessSession.cs" Link="HeadlessSession.cs"/>
-        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Playback2DFakeContext.cs" Link="Playback2DFakeContext.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SdkSceneHostsInstall.cs" Link="SdkSceneHostsInstall.cs"/>
+        <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\TestAppBuilder.cs" Link="TestAppBuilder.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Playback2DTimelineHeadlessSupport.cs" Link="Playback2DTimelineHeadlessSupport.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\SyntheticParsedDemo.cs" Link="SyntheticParsedDemo.cs"/>
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\QueuedPost.cs" Link="QueuedPost.cs"/>
@@ -53,5 +53,12 @@
         <!-- Manifests for the IFeaturePack fakes every moved test's FakePack now needs. -->
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Extensions\FakeManifests.cs" Link="FakeManifests.cs"/>
     </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="DemoViewer.NET.Extensions.Sdk"/>
+    </ItemGroup>
+
+    <!-- The headless session and the module-context fake, as source. -->
+    <Import Project="..\..\..\Testing\DemoViewer.NET.Extensions.Testing\DemoViewer.NET.Extensions.Testing.props"/>
 
 </Project>

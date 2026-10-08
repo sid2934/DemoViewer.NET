@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Compositing;
 namespace DemoViewer.NET.Playback2D.Pipeline.Benchmarking;
 
 /// <summary>What a <see cref="PerfRow" /> measures.</summary>
-public enum PerfRowKind
+internal enum PerfRowKind
 {
     /// <summary>A whole pipeline stage. Stages partition the frame.</summary>
     Stage = 0,
@@ -35,7 +35,7 @@ public enum PerfRowKind
 ///     Draws with no cache in the path at all (<see cref="LayerCacheHint.Dynamic" />, or caching off).
 ///     Counted apart from misses so a Dynamic layer does not read as a permanent cache failure.
 /// </param>
-public sealed record PerfRow(
+internal sealed record PerfRow(
     string Name,
     PerfRowKind Kind,
     LayerPhase? Phase,
@@ -71,7 +71,7 @@ public sealed record PerfRow(
 /// </param>
 /// <param name="Stages">Stage rows, in pipeline order.</param>
 /// <param name="Layers">Layer rows, in compositor draw order, advance before render.</param>
-public sealed record PerfReport(
+internal sealed record PerfReport(
     int Frames,
     double FrameTotalMs,
     FrameTimeStats Frame,

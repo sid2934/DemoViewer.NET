@@ -27,13 +27,18 @@ public sealed class WorkbenchPathNode
 
 /// <summary>
 ///     A ruleset file selectable in the Authoring dropdown: a shipped (read-only unless
-///     DeveloperMode) or user (editable) <c>*.rules.yaml</c>.
+///     DeveloperMode) or user (editable) <c>*.rules.yaml</c>, or an extension's ruleset (always read-only).
 /// </summary>
-/// <param name="FullPath">Absolute path.</param>
+/// <param name="FullPath">Absolute path; for an extension's ruleset, a name that is not a path.</param>
 /// <param name="FileName">Bare file name.</param>
-/// <param name="Display">Dropdown label (shipped files are tagged).</param>
+/// <param name="Display">Dropdown label (shipped files and extension rulesets are tagged).</param>
 /// <param name="IsShipped">True for a shipped baseline ruleset.</param>
-public sealed record RulesetFileRef(string FullPath, string FileName, string Display, bool IsShipped);
+/// <param name="Extension">The id of the extension that contributed it; null for a file.</param>
+public sealed record RulesetFileRef(string FullPath, string FileName, string Display, bool IsShipped, string? Extension = null)
+{
+    /// <summary>True for a ruleset an extension contributed.</summary>
+    public bool IsExtension => Extension is not null;
+}
 
 /// <summary>Builds the data-browser vocabulary tree from the flat catalog paths.</summary>
 public static class WorkbenchPathTree

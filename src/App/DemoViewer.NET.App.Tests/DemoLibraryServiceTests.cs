@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Validates the demo-library indexer end-to-end on a real demo (isolated via a symlink into a temp
 ///     folder so only one file is indexed): tier-1 map read, tier-2 players/duration from a full parse, and
 ///     the (path,size,mtime)-keyed disk cache round-tripping to a fresh service without re-parsing.
-///     Runs the service with an <b>inline</b> post so <c>RescanAsync</c> completes synchronously.
+///     Runs the service with an <b>inline</b> post; tier 2 reads through a real queue and scheduler.
 /// </summary>
 [NotInParallel]
 [Category("Integration")]
@@ -186,8 +186,8 @@ public class DemoLibraryServiceTests
                     return SyntheticDemo();
                 });
             DemoLibraryService svc = new(_inline, dataPath);
-            DemoEvaluationCoordinator coord1 = new([svc], queue1, svc.Tier2Backlog);
-            svc.Coordinator = coord1;
+            DemoScheduler coord1 = new([svc], queue1, svc.Tier2Backlog);
+            svc.Scheduler = coord1;
             using (svc)
             using (coord1)
             {
@@ -215,8 +215,8 @@ public class DemoLibraryServiceTests
             DemoProcessingQueue queue2 = new(new HeavyJobGate(), a => a(),
                 _ => throw new InvalidOperationException("a cached demo must not re-parse"));
             using DemoLibraryService svc2 = new(_inline, dataPath);
-            using DemoEvaluationCoordinator coord2 = new([svc2], queue2, svc2.Tier2Backlog);
-            svc2.Coordinator = coord2;
+            using DemoScheduler coord2 = new([svc2], queue2, svc2.Tier2Backlog);
+            svc2.Scheduler = coord2;
             await svc2.RescanAsync();
             await Task.Delay(150); // let any (wrongly) submitted tier-2 run and throw
             await Assert.That(svc2.Entries.Count).IsEqualTo(2);
@@ -249,8 +249,13 @@ public class DemoLibraryServiceTests
         (string dir, string dataPath) = MakeTempLibraryWith(demo);
         try
         {
+            using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a());
             using DemoLibraryService svc = new(_inline, dataPath);
-            await svc.AddFoldersAsync([dir]); // triggers a full rescan (tier1 + tier2), synchronous under Inline
+            using DemoScheduler scheduler = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = scheduler;
+            await svc.AddFoldersAsync([dir]);
+            await WaitForAsync(() => svc.Entries.Count == 1 && svc.Entries[0].State == DemoIndexState.Indexed
+                                     && FullyIndexedInCacheFile(dataPath) == 1, "tier 2 read through the queue", 60000);
 
             await Assert.That(svc.Entries.Count).IsEqualTo(1);
             DemoEntry entry = svc.Entries[0];
@@ -266,9 +271,14 @@ public class DemoLibraryServiceTests
 
             // A fresh service over the same folder + cache must load the demo already Indexed (cache hit,
             // no re-parse) after reconciliation.
+            using DemoProcessingQueue queue2 = new(new HeavyJobGate(), a => a(),
+                _ => throw new InvalidOperationException("a cached demo must not be read again"));
             using DemoLibraryService svc2 = new(_inline, dataPath);
+            using DemoScheduler scheduler2 = new([svc2], queue2, svc2.Tier2Backlog);
+            svc2.Scheduler = scheduler2;
             await svc2.AddFoldersAsync([dir]); // folder already persisted → this is a no-op add, so rescan explicitly
             await svc2.RescanAsync();
+            await Task.Delay(150);
             await Assert.That(svc2.Entries.Count).IsEqualTo(1);
             await Assert.That(svc2.Entries[0].State).IsEqualTo(DemoIndexState.Indexed);
             await Assert.That(svc2.Entries[0].Players.Count).IsEqualTo(entry.Players.Count);
@@ -319,8 +329,8 @@ public class DemoLibraryServiceTests
                     return SyntheticDemo();
                 });
             using DemoLibraryService svc = new(_inline, Path.Combine(real, "library.json"));
-            using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-            svc.Coordinator = coord;
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
 
             await svc.AddFoldersAsync([real, link]); // same physical folder registered twice
             await WaitForAsync(
@@ -354,9 +364,9 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Coordinator cutover: a demo whose parse THROWS is marked Failed and its tier-2 backlog
-    ///     entry is cleared synchronously, so a subsequent CapacityAvailable / ConsiderAll does NOT re-submit
-    ///     it. Guards the infinite-reparse trap (Wants must go false on failure, not just on success).
+    ///     A demo whose parse THROWS is marked Failed and its tier-2 backlog entry is cleared synchronously,
+    ///     so a later re-check does NOT re-submit it. Guards the infinite-reparse trap (Wants must go false on
+    ///     failure, not just on success).
     /// </summary>
     [Test]
     public async Task CorruptDemo_MarkedFailed_NotReparsedOnReconsider()
@@ -374,15 +384,15 @@ public class DemoLibraryServiceTests
                     throw new InvalidOperationException("corrupt");
                 });
             using DemoLibraryService svc = new(_inline, Path.Combine(dir, "library.json"));
-            using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-            svc.Coordinator = coord;
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
 
             await svc.AddFoldersAsync([dir]);
             await WaitForAsync(
                 () => svc.Entries.Count == 1 && svc.Entries[0].State == DemoIndexState.Failed,
                 "demo marked Failed");
 
-            coord.ConsiderAll(); // explicit re-poll (as CapacityAvailable would)
+            coord.RecheckAll(); // the whole-library re-check
             await Task.Delay(120); // let any (wrong) re-submit run
 
             await Assert.That(parses).IsEqualTo(1)
@@ -402,14 +412,13 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Interactive-open fan-out: a pending library demo that the queue REJECTED to the
-    ///     coordinator backlog (its background tier was full) and is then OPENED interactively must fill its
-    ///     card from the open's already-parsed demo, never a second background parse. This guards exactly
-    ///     that double-parse: after <see cref="DemoLibraryService.OnParsedOpportunistically" /> the
-    ///     demo is no longer <see cref="DemoLibraryService.Wants" />-ed, so the capacity re-feed skips it.
+    ///     The open is the demo's visit: a pending library demo that the queue REJECTED (its background tier
+    ///     was full) and is then OPENED fills its card from the open's own parse, never a second background
+    ///     parse. Once the worker frees, the scheduler plans the demo again; that visit parks behind the open
+    ///     and runs on the open's parse, after which the demo is no longer wanted.
     /// </summary>
     [Test]
-    public async Task OpenFanOut_IndexesFromHeldParse_NoRedundantBackgroundParse()
+    public async Task Open_IndexesFromItsOwnParse_NoRedundantBackgroundParse()
     {
         string dir = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
@@ -420,24 +429,24 @@ public class DemoLibraryServiceTests
             ConcurrentBag<string> parsedNames = new();
             using ManualResetEventSlim release = new(false);
             // One background slot → whichever demo submits first occupies the worker (blocked on release);
-            // the other is REJECTED to the coordinator backlog. All parses block, so exactly one runs.
+            // the other is REJECTED and stays dirty on the scheduler. All file parses block, so exactly one runs.
             DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
                 path =>
                 {
                     parsedNames.Add(Path.GetFileName(path));
-                    release.Wait(3000); // occupy the single worker until the "open" lands
+                    release.Wait(3000); // occupy the single worker until the open lands
                     return SyntheticDemo();
-                })
+                }, parseBytes: _ => SyntheticDemo())
             {
                 MaxQueueSize = 1
             };
 
             using DemoLibraryService svc = new(_inline, Path.Combine(dir, "library.json"));
-            using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-            svc.Coordinator = coord;
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
 
             await svc.AddFoldersAsync([dir]);
-            // Exactly one demo occupies the worker; the OTHER is the rejected-to-backlog "target".
+            // Exactly one demo occupies the worker; the OTHER is the rejected "target".
             await WaitForAsync(() => parsedNames.Count == 1, "one demo occupies the worker");
             string heldName = parsedNames.First();
             string targetName = heldName == "one.dem" ? "two.dem" : "one.dem";
@@ -445,26 +454,30 @@ public class DemoLibraryServiceTests
             string canonicalTarget = svc.Entries.Single(e => e.FileName == targetName).FilePath;
 
             await Assert.That(svc.Wants(canonicalTarget)).IsTrue()
-                .Because("the target is pending, rejected to the coordinator backlog, awaiting a slot");
+                .Because("the target is pending, refused by the full tier, awaiting a slot");
             await Assert.That(parsedNames.Contains(targetName)).IsFalse().Because("the target hasn't parsed");
 
-            // Simulate the interactive open handing over its already-parsed demo.
-            svc.OnParsedOpportunistically(canonicalTarget, SyntheticDemo());
+            // The user opens the target. The open waits for the slot the worker holds; freeing the worker also
+            // fires CapacityAvailable, so the scheduler plans the target again while the open is active.
+            using IDemoOpenTicket open = queue.BeginOpen(canonicalTarget, targetName);
+            Task<ParsedDemo> parsing = open.ParseAsync(new byte[] { 1 });
+            release.Set();
+            ParsedDemo parsed = await parsing;
+            await open.RunPassesAsync(parsed, () => coord.PlanOpenDemo(canonicalTarget));
+            open.Complete();
 
             await Assert.That(svc.Wants(canonicalTarget)).IsFalse()
-                .Because("the held parse indexed the target + cleared its backlog → no longer wanted");
+                .Because("the open's parse indexed the target + cleared its backlog → no longer wanted");
             await Assert.That(svc.Entries.Single(e => e.FileName == targetName).State)
                 .IsEqualTo(DemoIndexState.Indexed).Because("the card filled in from the open's parse");
 
-            // Free the worker: its completion fires CapacityAvailable → the coordinator re-considers the backlog.
-            release.Set();
             await WaitForAsync(
                 () => svc.Entries.Count == 2 && svc.Entries.All(e => e.State == DemoIndexState.Indexed),
                 "both demos indexed");
             await Task.Delay(100); // allow any (wrong) target re-submit to run
 
             await Assert.That(parsedNames.Contains(targetName)).IsFalse()
-                .Because("the target was indexed from the open's parse — never background-parsed");
+                .Because("the target was indexed from the open's parse and never background-parsed");
             await Assert.That(parsedNames.Count(n => n == heldName)).IsEqualTo(1)
                 .Because("only the worker-held demo was background-parsed, exactly once");
         }
@@ -482,78 +495,15 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Content dedup: the SAME bytes copied into two DIFFERENT real folders (not a symlink,
-    ///     a genuine copy, which canonical-path dedup cannot catch) must appear as ONE card and be processed
-    ///     ONCE. The primary is the lexicographically-smallest path; the other folder surfaces as a copy hint.
+    ///     The open as the demo's visit over a REAL demo: the synthetic sibling proves the no-reparse control
+    ///     flow; this proves the actual work: the library's pass runs the real entity-decode score replay on
+    ///     the open's parse and fills the card (players + duration + final score), while the background queue
+    ///     never parses the file. As in the synthetic sibling, the demo was refused by the full tier (the
+    ///     single background slot is occupied by a blocking sacrifice file). Closes the gap where every other
+    ///     test in this group used an empty-frame demo.
     /// </summary>
     [Test]
-    public async Task Scan_DeduplicatesByContent_AcrossCopiesInDifferentFolders()
-    {
-        string dirA = Path.Combine(Path.GetTempPath(), "dvlibA_" + Guid.NewGuid().ToString("N"));
-        string dirB = Path.Combine(Path.GetTempPath(), "dvlibB_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(dirA);
-        Directory.CreateDirectory(dirB);
-        byte[] bytes = [9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
-        await File.WriteAllBytesAsync(Path.Combine(dirA, "copy.dem"), bytes);
-        await File.WriteAllBytesAsync(Path.Combine(dirB, "copy.dem"), bytes); // byte-identical, distinct real path
-        try
-        {
-            int parses = 0;
-            DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
-                _ =>
-                {
-                    Interlocked.Increment(ref parses);
-                    return SyntheticDemo();
-                });
-            using DemoLibraryService svc = new(_inline, Path.Combine(dirA, "library.json"));
-            using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-            svc.Coordinator = coord;
-
-            await svc.AddFoldersAsync([dirA, dirB]);
-            await WaitForAsync(
-                () => svc.Entries.Count == 1 && svc.Entries.All(e => e.State == DemoIndexState.Indexed),
-                "the copy indexed once");
-
-            await Assert.That(svc.Entries.Count).IsEqualTo(1).Because("byte-identical copies appear once");
-            await Assert.That(parses).IsEqualTo(1).Because("and are processed once");
-            await Assert.That(svc.Entries[0].HasDuplicates).IsTrue()
-                .Because("the primary card knows a copy exists in the other folder");
-        }
-        finally
-        {
-            try
-            {
-                Directory.Delete(dirA, true);
-            }
-            catch
-            {
-                /* best-effort cleanup */
-            }
-
-            try
-            {
-                Directory.Delete(dirB, true);
-            }
-            catch
-            {
-                /* best-effort cleanup */
-            }
-        }
-    }
-
-    /// <summary>
-    ///     Interactive-open fan-out over a REAL demo: the synthetic sibling proves the no-reparse control
-    ///     flow; this proves the actual work: handing a real, fully-parsed demo to
-    ///     <see cref="DemoLibraryService.OnParsedOpportunistically" /> runs the real entity-decode score
-    ///     replay through the opportunistic hook and fills the card (players + duration + final score),
-    ///     while the background queue never parses the file. As in the synthetic sibling, the demo is held in
-    ///     the coordinator BACKLOG (rejected: the single background slot is occupied by a blocking sacrifice
-    ///     file), which is exactly the case fan-out uniquely covers (a queued item would instead coalesce
-    ///     onto the foreground open). Closes the gap where every other test in this group used an
-    ///     empty-frame demo.
-    /// </summary>
-    [Test]
-    public async Task OpenFanOut_RealDemo_FillsCardFromHeldParse_NoBackgroundParse()
+    public async Task Open_RealDemo_FillsCardFromItsOwnParse_NoBackgroundParse()
     {
         string? demo = DemoTestHelper.FindDemoPath("vitality-vs-fut-m2-dust2.dem")
                        ?? DemoTestHelper.FindDemoPath("vitality-vs-fut-m3-nuke.dem");
@@ -568,16 +518,14 @@ public class DemoLibraryServiceTests
         {
             ConcurrentBag<string> parsedNames = new();
             using ManualResetEventSlim release = new(false);
-            // A just-created sacrifice file: its mtime is newer than the (older) real demo, so it is
-            // considered first and occupies the single background slot; the real demo is then REJECTED to
-            // the coordinator backlog. It blocks so the slot never frees before the "open" lands.
+            // A just-created sacrifice file: its mtime is newer than the (older) real demo, so it is planned
+            // first and occupies the single background slot; the real demo is then REJECTED and stays dirty.
+            // It blocks so the slot never frees before the open is active.
             await File.WriteAllBytesAsync(Path.Combine(dir, "zzz_block.dem"), [1, 2, 3]);
             DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
                 path =>
                 {
                     parsedNames.Add(Path.GetFileName(path));
-                    // Hold well past the real ~half-GB parse below (a short timeout would free the slot
-                    // mid-parse, letting the coordinator re-submit the real demo before the open lands).
                     if (Path.GetFileName(path) == "zzz_block.dem")
                     {
                         release.Wait(60_000);
@@ -590,36 +538,37 @@ public class DemoLibraryServiceTests
             };
 
             using DemoLibraryService svc = new(_inline, dataPath);
-            using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-            svc.Coordinator = coord;
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
 
             await svc.AddFoldersAsync([dir]);
             await WaitForAsync(() => parsedNames.Contains("zzz_block.dem"), "the sacrifice occupies the worker");
             DemoEntry entry = svc.Entries.Single(e => Path.GetFileName(e.FilePath) == realName);
             string canonical = entry.FilePath; // the symlink resolves to the real demo path
             await Assert.That(svc.Wants(canonical)).IsTrue()
-                .Because("the real demo is pending, rejected to the coordinator backlog");
+                .Because("the real demo is pending, refused by the full tier");
             await Assert.That(parsedNames.Contains(realName)).IsFalse().Because("it hasn't been parsed");
 
-            // Simulate the interactive open: parse the real demo and hand it over.
+            // The user opens the real demo: the open parses the bytes in hand once the sacrifice frees the
+            // slot, and the library's pass runs on that parse.
             byte[] bytes = await File.ReadAllBytesAsync(demo);
-            ParsedDemo real = await Task.Run(() => DemoParser.Parse(bytes.AsMemory()));
-            svc.OnParsedOpportunistically(canonical, real);
-            // Free the worker now (the card is already indexed, Wants is false. The capacity re-poll must
-            // not (re)parse the real demo). Releasing before the assertions also avoids a stuck 60 s waiter
-            // if one fails.
+            using IDemoOpenTicket open = queue.BeginOpen(canonical, realName);
+            Task<ParsedDemo> parsing = open.ParseAsync(bytes);
             release.Set();
+            ParsedDemo real = await parsing;
+            await open.RunPassesAsync(real, () => coord.PlanOpenDemo(canonical));
+            open.Complete();
 
-            // The REAL entity-decode path ran through the opportunistic hook → real card data.
+            // The REAL entity-decode path ran on the open's parse → real card data.
             await Assert.That(entry.State).IsEqualTo(DemoIndexState.Indexed);
             await Assert.That(entry.Players.Count).IsGreaterThan(0).Because("players decoded from the real parse");
             await Assert.That(entry.DurationSeconds).IsGreaterThan(0);
             await Assert.That(entry.HasScore).IsTrue().Because("the final score replayed over real frames");
             await Assert.That(svc.Wants(canonical)).IsFalse().Because("indexed from the open → no longer wanted");
 
-            await Task.Delay(150); // let any (wrong) capacity re-submit run
+            await Task.Delay(150); // let any (wrong) re-submit run
             await Assert.That(parsedNames.Contains(realName)).IsFalse()
-                .Because("the open parse filled the card; the real demo was never background-parsed");
+                .Because("the open's parse filled the card; the real demo was never background-parsed");
         }
         finally
         {
@@ -649,8 +598,8 @@ public class DemoLibraryServiceTests
         {
             DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), _ => SyntheticDemo());
             using DemoLibraryService svc = new(_inline, Path.Combine(dir, "library.json"));
-            using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-            svc.Coordinator = coord;
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
 
             await svc.AddFoldersAsync([dir]);
             await WaitForAsync(() => svc.Entries.Count == 2 && svc.Entries.All(e => e.State == DemoIndexState.Indexed),
@@ -699,8 +648,10 @@ public class DemoLibraryServiceTests
                     return SyntheticDemo();
                 });
             using DemoLibraryService svc = new(_inline, Path.Combine(dir1, "library.json"));
-            using DemoEvaluationCoordinator coord = new([svc], queue, svc.Tier2Backlog);
-            svc.Coordinator = coord;
+            // Past the settle window, or two just-written copies have no fingerprint to match on.
+            svc.Time = new Extensions.ManualClock { Now = DateTimeOffset.UtcNow.AddHours(1) };
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
 
             await svc.AddFoldersAsync([dir1, dir2]);
             await WaitForAsync(() => svc.Entries.Count == 1 && svc.Entries[0].State == DemoIndexState.Indexed,
@@ -736,6 +687,132 @@ public class DemoLibraryServiceTests
             try
             {
                 Directory.Delete(dir2, true);
+            }
+            catch
+            {
+                /* best-effort cleanup */
+            }
+        }
+    }
+
+    /// <summary>
+    ///     A demo rewritten in place between rescans is indexed again on the next rescan, without a
+    ///     relaunch. An untouched demo is not.
+    /// </summary>
+    [Test]
+    public async Task Rescan_DemoModifiedInPlace_IsIndexedAgain()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        string demo = Path.Combine(dir, "m.dem");
+        await File.WriteAllBytesAsync(demo, [7, 7, 7, 7]);
+        try
+        {
+            int parses = 0;
+            DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+                _ =>
+                {
+                    Interlocked.Increment(ref parses);
+                    return SyntheticDemo();
+                });
+            using DemoLibraryService svc = new(_inline, Path.Combine(dir, "library.json"));
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
+
+            await svc.AddFoldersAsync([dir]);
+            await WaitForAsync(() => svc.Entries.Count == 1 && svc.Entries[0].State == DemoIndexState.Indexed,
+                "first index");
+
+            await svc.RescanAsync();
+            await Task.Delay(100);
+            await Assert.That(parses).IsEqualTo(1).Because("an unchanged demo is not indexed again");
+
+            await File.WriteAllBytesAsync(demo, [8, 8, 8, 8, 8, 8, 8, 8]);
+            File.SetLastWriteTime(demo, File.GetLastWriteTime(demo).AddMinutes(1));
+            await svc.RescanAsync();
+            await WaitForAsync(
+                () => parses == 2 && svc.Entries.Count == 1 && svc.Entries[0].FileSizeBytes == 8
+                      && svc.Entries[0].State == DemoIndexState.Indexed,
+                "the modified demo indexed again");
+
+            await svc.RescanAsync();
+            await Task.Delay(100);
+            await Assert.That(parses).IsEqualTo(2).Because("the new size and mtime are now the cache key");
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                /* best-effort cleanup */
+            }
+        }
+    }
+
+    /// <summary>
+    ///     A rescan that replaces one between its reconcile and its tier-2 hand-off still indexes the demos the
+    ///     first one added, and a demo whose parse failed is not read again by the next rescan.
+    /// </summary>
+    [Test]
+    public async Task ARescanReplacingOneMidFlight_IndexesWhatTheFirstFound_AndAFailedDemoIsNotReadAgain()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        await File.WriteAllBytesAsync(Path.Combine(dir, "good.dem"), [1, 2, 3]);
+        await File.WriteAllBytesAsync(Path.Combine(dir, "bad.dem"), [4, 5, 6, 7]);
+        try
+        {
+            int goodParses = 0, badParses = 0;
+            DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+                path =>
+                {
+                    if (path.EndsWith("bad.dem", StringComparison.Ordinal))
+                    {
+                        Interlocked.Increment(ref badParses);
+                        throw new InvalidDataException("corrupt");
+                    }
+
+                    Interlocked.Increment(ref goodParses);
+                    return SyntheticDemo();
+                });
+            using DemoLibraryService svc = new(_inline, Path.Combine(dir, "library.json"));
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
+
+            // Hold the queue as soon as the first rescan has reconciled, so it is replaced before tier 2.
+            bool held = false;
+            svc.Changed += () =>
+            {
+                if (!held && svc.Entries.Count == 2)
+                {
+                    held = true;
+                    queue.Pause();
+                }
+            };
+            Task first = svc.AddFoldersAsync([dir]);
+            await WaitForAsync(() => held, "the first rescan's reconcile");
+            Task second = svc.RescanAsync();
+            queue.Resume();
+            await Task.WhenAll(first, second);
+            await WaitForAsync(() => svc.Entries.All(e => e.State is DemoIndexState.Indexed or DemoIndexState.Failed),
+                "both demos indexed or failed");
+
+            await svc.RescanAsync();
+            await Task.Delay(200);
+            using (Assert.Multiple())
+            {
+                await Assert.That(goodParses).IsEqualTo(1);
+                await Assert.That(badParses).IsEqualTo(1).Because("a failed parse is not retried by a rescan");
+            }
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
             }
             catch
             {
@@ -949,6 +1026,59 @@ public class DemoLibraryServiceTests
         finally
         {
             Cleanup(cfgDir);
+        }
+    }
+
+    /// <summary>
+    ///     A save killed between writing its temporary file and replacing library.json leaves the previous
+    ///     file whole: the next start loads it and ignores the stray temporary file, and a reader holding the
+    ///     old file open through the next save still reads the old file, not a truncated rewrite of it.
+    /// </summary>
+    [Test]
+    public async Task ASaveKilledBeforeItsRename_LeavesThePreviousLibraryJson_AndTheNextSaveReplacesItWhole()
+    {
+        string cfgDir = NewTempDir();
+        string folder = NewTempDir();
+        string libJson = Path.Combine(cfgDir, "library.json");
+        string stray = Path.Combine(cfgDir, ".library.json." + Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            WriteLegacyLibraryJson(libJson, folder);
+            byte[] previous = await File.ReadAllBytesAsync(libJson);
+            await File.WriteAllTextAsync(stray, "{\"SchemaVersion\":");
+
+            using DemoLibraryService svc = new(_inline, libJson);
+            await Assert.That(svc.Folders.Contains(folder)).IsTrue()
+                .Because("the previous library.json loads; the half-written temporary file is not read");
+
+            byte[] seenByReader;
+            await using (FileStream reader = new(libJson, FileMode.Open, FileAccess.Read,
+                             FileShare.ReadWrite | FileShare.Delete))
+            {
+                svc.Save();
+                using MemoryStream copy = new();
+                await reader.CopyToAsync(copy);
+                seenByReader = copy.ToArray();
+            }
+
+            svc.Save();
+            DemoLibraryData? saved = JsonSerializer.Deserialize<DemoLibraryData>(await File.ReadAllTextAsync(libJson));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(seenByReader).IsEquivalentTo(previous)
+                    .Because("the save replaces library.json; it never rewrites the open file in place");
+                await Assert.That(saved?.Folders).IsNotNull();
+                await Assert.That(saved!.Folders).Contains(folder);
+                await Assert.That(Directory.GetFiles(cfgDir).Order())
+                    .IsEquivalentTo(new[] { libJson, stray }.Order())
+                    .Because("a save leaves no temporary file of its own");
+            }
+        }
+        finally
+        {
+            Cleanup(cfgDir);
+            Cleanup(folder);
         }
     }
 

@@ -133,7 +133,7 @@ public sealed class HeavyJobGate : IDisposable
     /// <summary>
     ///     Non-blocking peek used by the queue pump as its budget check: <c>true</c> when a
     ///     background parse could START right now (a free slot, no interactive pending, no reel, no
-    ///     export). The authoritative gate check still happens in <see cref="AcquireBackgroundAsync" />.
+    ///     export). The authoritative gate check still happens in <see cref="AcquireBackgroundAsync(CancellationToken)" />.
     ///     This only spares the pump from spawning a worker that would immediately poll-block.
     /// </summary>
     public bool CanStartBackground
@@ -222,14 +222,23 @@ public sealed class HeavyJobGate : IDisposable
     ///     caller keeps polling, so a background worker drains one demo at a time and steps aside at
     ///     the next demo boundary.
     /// </summary>
-    public async Task<IDisposable> AcquireBackgroundAsync(CancellationToken cancellationToken = default)
+    public Task<IDisposable> AcquireBackgroundAsync(CancellationToken cancellationToken = default) =>
+        AcquireBackgroundAsync(false, cancellationToken);
+
+    /// <summary>
+    ///     <see cref="AcquireBackgroundAsync(CancellationToken)" /> for a queue item that an export session does not
+    ///     hold back: a pack export reads its demos through such items while its own session is open.
+    /// </summary>
+    /// <param name="duringExport">True for an item the running export reads its demos through.</param>
+    /// <param name="cancellationToken">Stops the wait.</param>
+    public async Task<IDisposable> AcquireBackgroundAsync(bool duringExport, CancellationToken cancellationToken = default)
     {
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             lock (_sync)
             {
-                if (_reelSessions == 0 && _exportSessions == 0 && _interactivePending == 0 &&
+                if (_reelSessions == 0 && (_exportSessions == 0 || duringExport) && _interactivePending == 0 &&
                     _held < _maxConcurrency)
                 {
                     _held++;

@@ -4,13 +4,13 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 /// <summary>
 ///     One generated Dossier line before the user's edits: its stable key, its section, the generated

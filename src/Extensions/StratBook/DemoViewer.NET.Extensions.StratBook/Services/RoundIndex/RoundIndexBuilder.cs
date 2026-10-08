@@ -2,13 +2,12 @@
 
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Modules;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     Folds one demo's position walk into its index document and its positions file. Pure: no I/O,
@@ -85,7 +84,7 @@ public static class RoundIndexBuilder
         RoundIndexDocument document = new()
         {
             Fingerprint = fingerprint,
-            Clock = RoundFactsClock.From(FrameClock.IdentityFor(demo)),
+            Clock = RoundFactsClock.For(demo),
             Map = demo.MapName,
             CadenceTicks = cadenceTicks,
             Rounds = [.. windows.Select(w => w.Round)]
@@ -173,11 +172,11 @@ public static class RoundIndexBuilder
     /// </summary>
     private static List<RoundWindow> Windows(RoundFactsRows facts, int lastFrameTick)
     {
-        List<RoundFacts.RoundFacts> rounds = [.. facts.Rounds.OrderBy(r => r.Number)];
+        List<RoundFacts> rounds = [.. facts.Rounds.OrderBy(r => r.Number)];
         List<RoundWindow> windows = [];
         for (int i = 0; i < rounds.Count; i++)
         {
-            RoundFacts.RoundFacts round = rounds[i];
+            RoundFacts round = rounds[i];
             if (!round.IsLive)
             {
                 continue;

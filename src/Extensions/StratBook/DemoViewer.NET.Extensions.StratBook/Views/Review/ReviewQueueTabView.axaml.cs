@@ -4,7 +4,7 @@ using Avalonia.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Views.Review;
+namespace DemoViewer.NET.Extensions.StratBook.Views.Review;
 
 /// <summary>The Review tab view. Bindings only; every behaviour lives on the VM.</summary>
 public partial class ReviewQueueTabView : UserControl

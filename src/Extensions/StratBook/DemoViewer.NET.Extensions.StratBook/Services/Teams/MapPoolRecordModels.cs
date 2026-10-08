@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     One map's aggregate over a team's demos. Every number

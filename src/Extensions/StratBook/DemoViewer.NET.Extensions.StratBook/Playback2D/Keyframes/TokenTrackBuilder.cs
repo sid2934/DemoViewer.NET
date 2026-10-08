@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Keyframes;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 /// <summary>One step as the track builder sees it: its tick and how a token leaves it.</summary>
 /// <param name="Tick">The step's strat frame-clock tick (<see cref="StepSchedule" />).</param>

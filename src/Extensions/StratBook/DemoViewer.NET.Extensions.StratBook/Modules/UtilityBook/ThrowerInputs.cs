@@ -5,7 +5,7 @@ using CS2OpenSchema.Protos;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     The thrower's inputs around a throw: the seam the jump-throw flag reads, so

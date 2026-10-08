@@ -1,23 +1,21 @@
 #region
 
-using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.RoundTagger;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
 
 /// <summary>
 ///     The Matrix: a pivot over every tag instance in scope, codes down the
@@ -40,12 +38,12 @@ namespace DemoViewer.NET.ViewModels.RoundTagger;
 ///     </para>
 ///     <para>
 ///         <b>Threading.</b> Loading every document is measured at 222 ms warm over a thousand demos, so a
-///         rebuild is debounced and runs off the UI thread (the <c>LoadRecords</c> rule), and the result is
+///         rebuild is debounced and runs off the UI thread (no library walk on the UI thread), and the result is
 ///         posted back and dropped when a newer request has been made since. A store or team change while
 ///         the tab is not showing only marks it stale; the next activation rebuilds.
 ///     </para>
 /// </summary>
-public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class TagMatrixTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     /// <summary>What the browser host says: the documents the Matrix reads are the session's.</summary>
     public const string BrowserNote = "session only: this browser tab forgets tags when it reloads";
@@ -63,7 +61,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     private static readonly int[] _lastCounts = [3, 6, 10, 20];
 
     private readonly TimeSpan _debounce;
-    private readonly Func<string, DemoCacheIndexEntry?> _indexBySha;
+    private readonly Func<string, LibraryDemo?> _indexBySha;
     private readonly Action<Action> _post;
     private readonly Func<Action, Task> _run;
     private readonly ReviewQueue? _review;
@@ -107,7 +105,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
 
     /// <param name="store">The tag store the documents come from.</param>
     /// <param name="review">The Review Queue a cell sends its clips to; null says there is none.</param>
-    /// <param name="indexBySha">Hash to library row (<see cref="DemoCacheStore.TryGetIndexBySha256" />), for paths, maps and dates.</param>
+    /// <param name="indexBySha">Hash to library row (<see cref="IExtensionLibrary.FindBySha256" />), for paths, maps and dates.</param>
     /// <param name="teams">Team Identity, for the team and side fields; null offers neither.</param>
     /// <param name="selectTab">Shows a tab by id, for the Review tab after a send; null stays on the Matrix.</param>
     /// <param name="post">Marshals a finished rebuild onto the UI thread; defaults to synchronous.</param>
@@ -117,7 +115,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     public TagMatrixTabViewModel(
         TagStore store,
         ReviewQueue? review = null,
-        Func<string, DemoCacheIndexEntry?>? indexBySha = null,
+        Func<string, LibraryDemo?>? indexBySha = null,
         TeamIdentityService? teams = null,
         Func<string, bool>? selectTab = null,
         Action<Action>? post = null,
@@ -244,7 +242,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
         _active = true;
         if (_dirty)
         {
-            using (QueueWork.UserAction())
+            using (JobScope.UserAction())
             {
                 Refresh();
             }
@@ -330,7 +328,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
         int missing = 0;
         foreach (TagInstanceRef instance in cell.Refs)
         {
-            if (TagClips.FromTag(instance, sha => _indexBySha(sha)?.Path, _tickRates.GetValueOrDefault(instance.Sha256)) is { } clip)
+            if (TagClips.FromTag(instance, sha => _indexBySha(sha)?.FilePath, _tickRates.GetValueOrDefault(instance.Sha256)) is { } clip)
             {
                 clips.Add(clip);
             }
@@ -414,7 +412,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     {
         if (!_applying && value is not null)
         {
-            using (QueueWork.UserAction())
+            using (JobScope.UserAction())
             {
                 Refresh();
             }
@@ -425,7 +423,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
     {
         if (!_applying)
         {
-            using (QueueWork.UserAction())
+            using (JobScope.UserAction())
             {
                 Refresh();
             }
@@ -506,12 +504,12 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
             Exception? failure = null;
             await _run(() =>
             {
-                QueueWork.ThrowIfStopped();
+                JobScope.ThrowIfStopped();
                 try
                 {
                     result = Compute(inputs);
                 }
-                catch (Exception ex) when (!QueueWork.IsStop(ex))
+                catch (Exception ex) when (!JobScope.IsStop(ex))
                 {
                     failure = ex;
                 }
@@ -564,15 +562,15 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
             :
             [
                 .. tagged.Select(sha => (Sha: sha, Row: _indexBySha(sha)))
-                    .OrderByDescending(d => d.Row?.ModifiedTicks ?? long.MinValue)
+                    .OrderByDescending(d => d.Row?.Modified.Ticks ?? long.MinValue)
                     .ThenBy(d => d.Sha, StringComparer.Ordinal)
-                    .Select(d => (d.Sha, d.Row?.Path))
+                    .Select(d => (d.Sha, d.Row?.FilePath))
             ];
 
-        List<string> maps = [.. scope.Select(d => _indexBySha(d.Sha)?.Map).OfType<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        List<string> maps = [.. scope.Select(d => _indexBySha(d.Sha)?.MapName).OfType<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
         if (inputs.Map is { } map)
         {
-            scope = [.. scope.Where(d => string.Equals(_indexBySha(d.Sha)?.Map, map, StringComparison.Ordinal))];
+            scope = [.. scope.Where(d => string.Equals(_indexBySha(d.Sha)?.MapName, map, StringComparison.Ordinal))];
         }
 
         if (inputs.Last is int last)
@@ -632,7 +630,7 @@ public sealed partial class TagMatrixTabViewModel : ViewModelBase, IWorkspaceTab
         foreach (TagDocument doc in docs)
         {
             string sha = doc.Demo.Sha256;
-            string? path = scope.FirstOrDefault(d => d.Sha == sha).Path ?? _indexBySha(sha)?.Path;
+            string? path = scope.FirstOrDefault(d => d.Sha == sha).Path ?? _indexBySha(sha)?.FilePath;
             names[sha] = path is not null ? Path.GetFileName(path) : doc.Demo.FileName ?? sha[..Math.Min(12, sha.Length)];
             rates[sha] = doc.Clock.TickRate;
         }
@@ -808,7 +806,7 @@ public sealed class TagMatrixRowViewModel(string display, IReadOnlyList<TagMatri
 }
 
 /// <summary>One count of the Matrix and the refs behind it; a click sends those clips to the Review Queue.</summary>
-public sealed partial class TagMatrixCellViewModel : ViewModelBase
+public sealed partial class TagMatrixCellViewModel : ExtensionViewModel
 {
     private readonly TagMatrixTabViewModel _owner;
 

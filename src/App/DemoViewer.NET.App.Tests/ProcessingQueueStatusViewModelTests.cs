@@ -81,17 +81,196 @@ public class ProcessingQueueStatusViewModelTests
 
         ProcessingQueueStatusViewModel vm = new(q);
 
-        await Assert.That(vm.Rows.Count).IsEqualTo(5);
+        await Assert.That(vm.Rows.Count).IsEqualTo(1).Because("finished items live in Recent");
         await Assert.That(vm.IsEmpty).IsFalse();
         // Running → Working dot + pulsing.
         await Assert.That(vm.Rows[0].IsStateWorking).IsTrue();
         await Assert.That(vm.Rows[0].IsPulsing).IsTrue();
         await Assert.That(vm.Rows[0].StateLabel).IsEqualTo("Running");
-        // Completed → Good; Failed → Error; Rejected → Degraded; Cancelled → Off.
-        await Assert.That(vm.Rows[1].IsStateGood).IsTrue();
-        await Assert.That(vm.Rows[2].IsStateError).IsTrue();
-        await Assert.That(vm.Rows[3].IsStateDegraded).IsTrue();
-        await Assert.That(vm.Rows[4].IsStateOff).IsTrue();
+        // Completed → Good; Failed → Error; Rejected → Degraded; Cancelled → Off. Recent is newest first.
+        DemoQueueRowViewModel Recent(string name) => vm.RecentRows.Single(r => r.DisplayText == name);
+        await Assert.That(vm.RecentRows.Count).IsEqualTo(4);
+        await Assert.That(Recent("done.dem").IsStateGood).IsTrue();
+        await Assert.That(Recent("fail.dem").IsStateError).IsTrue();
+        await Assert.That(Recent("rej.dem").IsStateDegraded).IsTrue();
+        await Assert.That(Recent("cancel.dem").IsStateOff).IsTrue();
+    }
+
+    [Test]
+    public async Task AFinishingItem_LeavesTheLiveList_AndHeadsRecent_KeepingItsError()
+    {
+        FakeQueue q = new();
+        DemoQueueItem a = q.Add("a.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
+        DemoQueueItem b = q.Add("b.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued);
+        q.Add("old.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Completed);
+        ProcessingQueueStatusViewModel vm = new(q);
+        await Assert.That(vm.RecentViewLabel).IsEqualTo("Recent (1)");
+
+        a.State = DemoQueueItemState.Failed;
+        a.Error = "Unexpected end of stream";
+        a.EndedSeq = 5;
+        b.State = DemoQueueItemState.Running;
+        q.RaiseChanged();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Rows.Select(r => r.DisplayText)).IsEquivalentTo(["b.dem"]);
+            await Assert.That(vm.RecentRows.Select(r => r.DisplayText).ToList()).IsEquivalentTo(["a.dem", "old.dem"]);
+            await Assert.That(vm.RecentRows[0].DisplayText).IsEqualTo("a.dem");
+            await Assert.That(vm.RecentRows[0].HasError).IsTrue();
+            await Assert.That(vm.RecentRows[0].Error).IsEqualTo("Unexpected end of stream");
+            await Assert.That(vm.RecentRows[0].CanRemove).IsFalse();
+            await Assert.That(vm.QueueViewLabel).IsEqualTo("Queue (1)");
+            await Assert.That(vm.RecentViewLabel).IsEqualTo("Recent (2)");
+        }
+
+        // The queue later prunes its history; Recent keeps the session's.
+        q.Drop(a);
+        await Assert.That(vm.RecentRows.Select(r => r.DisplayText).ToList()).IsEquivalentTo(["a.dem", "old.dem"]);
+    }
+
+    [Test]
+    public async Task AnItemTheQueueDropsUnfinished_IsNotHistory()
+    {
+        FakeQueue q = new();
+        DemoQueueItem save = q.Add("save", "store", DemoJobPriority.Background, DemoQueueItemState.Running);
+        ProcessingQueueStatusViewModel vm = new(q);
+        q.Drop(save);
+
+        await Assert.That(vm.Rows.Count).IsEqualTo(0);
+        await Assert.That(vm.RecentRows.Count).IsEqualTo(0);
+        await Assert.That(vm.IsRecentEmpty).IsTrue();
+    }
+
+    [Test]
+    public async Task Recent_IsCapped_NewestFirst()
+    {
+        FakeQueue q = new();
+        ProcessingQueueStatusViewModel vm = new(q);
+        int total = ProcessingQueueStatusViewModel.RecentCap + 5;
+        for (int i = 1; i <= total; i++)
+        {
+            DemoQueueItem item = q.Add($"d{i}.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
+            item.EndedSeq = i;
+            item.State = DemoQueueItemState.Completed;
+            q.RaiseChanged();
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.RecentRows.Count).IsEqualTo(ProcessingQueueStatusViewModel.RecentCap);
+            await Assert.That(vm.RecentRows[0].DisplayText).IsEqualTo($"d{total}.dem");
+            await Assert.That(vm.RecentRows[^1].DisplayText).IsEqualTo("d6.dem");
+        }
+
+        // An evicted item the queue still lists does not come back.
+        q.RaiseChanged();
+        await Assert.That(vm.RecentRows.Any(r => r.DisplayText == "d1.dem")).IsFalse();
+        await Assert.That(vm.RecentRows[0].DisplayText).IsEqualTo($"d{total}.dem");
+    }
+
+    [Test]
+    public async Task LiveRows_AreRunningFirst_ThenQueuedByTheQueuesStartRank_AndFollowARankChange()
+    {
+        FakeQueue q = new();
+        DemoQueueItem late = q.Add("late.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued);
+        DemoQueueItem soon = q.Add("soon.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued);
+        DemoQueueItem light = q.Add("section", "stats", DemoJobPriority.Background, DemoQueueItemState.Queued);
+        q.Add("running.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
+        late.StartRank = 1;
+        soon.StartRank = 0;
+        light.StartRank = 0;
+        light.Light = true;
+        ProcessingQueueStatusViewModel vm = new(q);
+        DemoQueueRowViewModel lateRow = vm.Rows.Single(r => r.DisplayText == "late.dem");
+
+        await Assert.That(string.Join(",", vm.Rows.Select(r => r.DisplayText)))
+            .IsEqualTo("running.dem,soon.dem,late.dem,section");
+
+        late.StartRank = 0;
+        soon.StartRank = 1;
+        q.RaiseChanged();
+        await Assert.That(string.Join(",", vm.Rows.Select(r => r.DisplayText)))
+            .IsEqualTo("running.dem,late.dem,soon.dem,section");
+        await Assert.That(vm.Rows[1]).IsSameReferenceAs(lateRow).Because("rows move, they are not rebuilt");
+    }
+
+    [Test]
+    public async Task TheHeadStarting_InALongQueue_MovesNoRow()
+    {
+        FakeQueue q = new();
+        List<DemoQueueItem> items = [];
+        for (int i = 0; i < 200; i++)
+        {
+            DemoQueueItem item = q.Add($"d{i}.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued);
+            item.StartRank = i;
+            items.Add(item);
+        }
+
+        ProcessingQueueStatusViewModel vm = new(q);
+        int changes = 0;
+        vm.Rows.CollectionChanged += (_, _) => changes++;
+
+        // The mirror update a start makes: the head runs and every other rank drops by one, item by item.
+        items[0].State = DemoQueueItemState.Running;
+        items[0].StartRank = null;
+        for (int i = 1; i < items.Count; i++)
+        {
+            items[i].StartRank = i - 1;
+        }
+
+        q.RaiseChanged();
+        await Assert.That(changes).IsEqualTo(0);
+        await Assert.That(vm.Rows[0].IsRunning).IsTrue();
+    }
+
+    [Test]
+    public async Task MoveToTop_IsOfferedOnQueuedRowsOnly_AndForwardsToTheQueue()
+    {
+        FakeQueue q = new();
+        DemoQueueItem queued = q.Add("q.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued);
+        q.Add("r.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
+        DemoQueueItem open = q.Add("open", "shell", DemoJobPriority.Foreground, DemoQueueItemState.Queued);
+        open.Kind = QueueJobKind.DemoOpen;
+        DemoQueueItem save = q.Add("save", "store", DemoJobPriority.Background, DemoQueueItemState.Queued);
+        save.Light = true;
+        ProcessingQueueStatusViewModel vm = new(q);
+        DemoQueueRowViewModel Row(string name) => vm.Rows.Single(r => r.DisplayText == name);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Row("q.dem").CanPromote).IsTrue();
+            await Assert.That(Row("q.dem").PromoteLabel).IsEqualTo("Move to top");
+            await Assert.That(Row("q.dem").RemoveLabel).IsEqualTo("Remove from queue");
+            await Assert.That(Row("r.dem").IsQueued).IsFalse();
+            await Assert.That(Row("r.dem").CanPromote).IsFalse();
+            await Assert.That(Row("r.dem").RemoveLabel).IsEqualTo("Stop and remove");
+            await Assert.That(Row("open").CanPromote).IsFalse().Because("an open already goes first");
+            await Assert.That(Row("save").CanPromote).IsFalse().Because("the queue refuses light items");
+        }
+
+        Row("q.dem").PromoteCommand.Execute(null);
+        await Assert.That(q.Promoted).IsEquivalentTo([queued.Id]);
+
+        queued.Promoted = true;
+        await Assert.That(Row("q.dem").IsPromoted).IsTrue();
+        queued.Hold = DemoQueueHold.BackgroundOff;
+        await Assert.That(Row("q.dem").PromoteLabel).IsEqualTo("Move to top (waits: background processing off)");
+        queued.Hold = DemoQueueHold.Paused;
+        await Assert.That(Row("q.dem").PromoteLabel).IsEqualTo("Move to top (waits: background work paused)");
+    }
+
+    [Test]
+    public async Task TheViewToggle_ShowsOneViewAtATime_AndAReclickKeepsIt()
+    {
+        ProcessingQueueStatusViewModel vm = new(new FakeQueue());
+        await Assert.That(vm.IsQueueView).IsTrue();
+        vm.IsRecentView = true;
+        await Assert.That(vm.IsQueueView).IsFalse();
+        vm.IsRecentView = false;
+        await Assert.That(vm.IsQueueView).IsTrue();
+        vm.IsQueueView = true;
+        await Assert.That(vm.IsRecentView).IsFalse();
     }
 
     [Test]
@@ -206,6 +385,8 @@ public class ProcessingQueueStatusViewModelTests
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) =>
             throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
+
         public IDemoQueueHandle SubmitJob(QueueJobRequest request) => throw new NotSupportedException();
 
         public int ActiveCount(QueueJobKind kind) => 0;
@@ -220,9 +401,17 @@ public class ProcessingQueueStatusViewModelTests
         {
         }
 
-        public void Add(string name, string owners, DemoJobPriority priority, DemoQueueItemState state)
+        public List<Guid> Promoted { get; } = [];
+
+        public bool Promote(Guid itemId)
         {
-            _items.Add(new DemoQueueItem
+            Promoted.Add(itemId);
+            return true;
+        }
+
+        public DemoQueueItem Add(string name, string owners, DemoJobPriority priority, DemoQueueItemState state)
+        {
+            DemoQueueItem item = new()
             {
                 Id = Guid.NewGuid(),
                 Path = "/demos/" + name,
@@ -230,8 +419,18 @@ public class ProcessingQueueStatusViewModelTests
                 Owners = owners,
                 Priority = priority,
                 State = state
-            });
+            };
+            _items.Add(item);
+            Changed?.Invoke();
+            return item;
+        }
+
+        public void Drop(DemoQueueItem item)
+        {
+            _items.Remove(item);
             Changed?.Invoke();
         }
+
+        public void RaiseChanged() => Changed?.Invoke();
     }
 }

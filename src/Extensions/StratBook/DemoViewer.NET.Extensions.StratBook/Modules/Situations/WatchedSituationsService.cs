@@ -5,15 +5,14 @@ using System.Text.Json;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     Watched Situations: the saved queries, their persistence and
@@ -36,17 +35,17 @@ namespace DemoViewer.NET.Modules.Situations;
 ///         set of keys would have frozen the watch at the day it was made.
 ///     </para>
 ///     <para>
-///         Persistence follows <c>teams.json</c>: whole-file atomic writes under the config root, a file
-///         that cannot be read is refused and never overwritten, and a null root (the browser, tests)
+///         Persistence follows <c>teams.json</c>: whole-file atomic writes, a file that cannot be read is
+///         refused and never overwritten, and a null path (the browser, tests)
 ///         keeps the watches for the session only.
 ///     </para>
 /// </summary>
-public sealed class WatchedSituationsService : IPackResident, IDisposable
+public sealed class WatchedSituationsService : IExtensionResident, IDisposable
 {
-    /// <summary>The file under the config root.</summary>
+    /// <summary>The file's name.</summary>
     public const string FileName = "watched-situations.json";
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly object _gate = new();
     private readonly ISituationIndex _index;
 
@@ -63,37 +62,37 @@ public sealed class WatchedSituationsService : IPackResident, IDisposable
     private WatchedSituationsFile _file = new();
     private bool _refused;
 
-    /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
+    /// <param name="path">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
     /// <param name="index">The in-memory situation index the watches run against.</param>
-    /// <param name="demoCache">The index rows the filter's demo set and the stamps read.</param>
+    /// <param name="library">The index rows the filter's demo set and the stamps read.</param>
     /// <param name="teams">Team Identity, for the opponent and our-side fields; null leaves both inert.</param>
     /// <param name="provenance">Demo Provenance Labels, for the source field; null leaves it inert.</param>
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
     /// <param name="now">The clock a watermark is set from, UTC ticks; defaults to <see cref="DateTime.UtcNow" />. Tests pin it.</param>
     public WatchedSituationsService(
-        string? configRoot,
+        string? path,
         ISituationIndex index,
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
         TeamIdentityService? teams = null,
         IDemoProvenanceSource? provenance = null,
         Action<Action>? post = null,
         Func<long>? now = null)
     {
         ArgumentNullException.ThrowIfNull(index);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         _index = index;
-        _demoCache = demoCache;
+        _library = library;
         _teams = teams;
         _provenance = provenance;
         _post = post ?? (action => action());
         _now = now ?? (() => DateTime.UtcNow.Ticks);
-        _path = configRoot is null ? null : Path.Combine(configRoot, FileName);
+        _path = path;
 
         Load();
         Attach();
     }
 
-    /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
+    /// <summary>True when nothing persists: the browser host, and tests without a file.</summary>
     public bool IsSessionOnly => _path is null;
 
     /// <summary>
@@ -394,7 +393,7 @@ public sealed class WatchedSituationsService : IPackResident, IDisposable
     public SituationQuery ToQuery(WatchedSituation watch, IReadOnlySet<string>? demos = null, long? indexedAfter = null)
     {
         ArgumentNullException.ThrowIfNull(watch);
-        IReadOnlySet<string>? filtered = watch.Filters.ToDemos(_demoCache, _teams, _provenance);
+        IReadOnlySet<string>? filtered = watch.Filters.ToDemos(_library, _teams, _provenance);
         IReadOnlySet<string>? scope = demos is null ? filtered
             : filtered is null ? demos
             : new HashSet<string>(demos.Where(filtered.Contains), StringComparer.Ordinal);
@@ -438,32 +437,32 @@ public sealed class WatchedSituationsService : IPackResident, IDisposable
 
         if (filters.BuyCt is { } buyCt)
         {
-            yield return $"CT buy {RoundFactsValues.LowerCamel(buyCt)}";
+            yield return $"CT buy {RoundFactsRules.LowerCamel(buyCt)}";
         }
 
         if (filters.BuyT is { } buyT)
         {
-            yield return $"T buy {RoundFactsValues.LowerCamel(buyT)}";
+            yield return $"T buy {RoundFactsRules.LowerCamel(buyT)}";
         }
 
         if (filters.Phase is { } phase)
         {
-            yield return RoundFactsValues.LowerCamel(phase);
+            yield return RoundFactsRules.LowerCamel(phase);
         }
 
         if (filters.Clock is { } clock)
         {
-            yield return RoundFactsValues.LowerCamel(clock);
+            yield return RoundFactsRules.LowerCamel(clock);
         }
 
         if (filters.ManCount is { } manCount)
         {
-            yield return RoundFactsValues.LowerCamel(manCount);
+            yield return RoundFactsRules.LowerCamel(manCount);
         }
 
         if (filters.Score is { } score)
         {
-            yield return RoundFactsValues.LowerCamel(score);
+            yield return RoundFactsRules.LowerCamel(score);
         }
 
         if (filters.Opponent is not null)
@@ -538,7 +537,7 @@ public sealed class WatchedSituationsService : IPackResident, IDisposable
                     foreach (IGrouping<string, SituationHit> demo in _index.Query(ToQuery(watch, indexedAfter: watch.WatermarkTicks))
                                  .GroupBy(h => h.DemoStableKey, StringComparer.Ordinal))
                     {
-                        long stamp = _demoCache.TryGetIndex(demo.First().DemoPath)?.RoundIndexComputedAtTicks() ?? 0;
+                        long stamp = _index.IndexedAtTicks(demo.First().DemoPath);
                         next[demo.Key] = new NewGroup(stamp, [.. demo]);
                     }
                 }
@@ -665,7 +664,7 @@ public sealed class WatchedSituationsService : IPackResident, IDisposable
 
         try
         {
-            DemoCacheStore.WriteAtomic(_path, JsonSerializer.Serialize(_file, WatchedSituationsFile.JsonOptions));
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_file, WatchedSituationsFile.JsonOptions));
         }
         catch (Exception)
         {

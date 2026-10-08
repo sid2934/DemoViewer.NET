@@ -8,12 +8,12 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
 ///     A feature that needs a background parse of a demo (demo-processing-queue "one parse, many
-///     evaluators"). The <see cref="DemoEvaluationCoordinator" /> polls every registered evaluator's
-///     cheap <see cref="Wants" /> for a path and, for each interested evaluator, submits ONE queue
-///     request tagged <see cref="Id" />; the queue coalesces them by path so the demo is parsed ONCE
-///     and each interested evaluator's <see cref="Evaluate" /> runs on that single held
-///     <see cref="ParsedDemo" />. Adding a new background feature = implementing this interface and
-///     registering it: no extra parse.
+///     evaluators"). The <see cref="DemoScheduler" /> asks every registered evaluator's cheap
+///     <see cref="Wants" /> for a demo it was told about and submits the interested ones together as one
+///     visit; the queue parses the demo ONCE and each interested evaluator's <see cref="Evaluate" /> runs on
+///     that single held <see cref="ParsedDemo" />, in After order. Adding a new background feature =
+///     implementing this interface and registering it: no extra parse. Wrapped as an
+///     <see cref="IDemoPass" /> by <see cref="EvaluatorPassAdapter" />.
 ///     <para>
 ///         WASM-safe: the abstraction assumes no ASP.NET and no physical-file specifics beyond a path
 ///         string, mirroring <see cref="IDemoProcessingQueue" />.
@@ -25,11 +25,20 @@ public interface IDemoEvaluator
     string Id { get; }
 
     /// <summary>
-    ///     Cheap interest/staleness check for <paramref name="path" />: NO <see cref="ParsedDemo" /> yet
-    ///     (mirrors the current per-feeder "needs work?" gate). Returning false means this evaluator has
-    ///     nothing to do for the demo, so it is not submitted on its behalf.
+    ///     Cheap interest/staleness check for <paramref name="path" />: NO <see cref="ParsedDemo" /> yet.
+    ///     Returning false means this evaluator has nothing to do for the demo, so it is not submitted on its
+    ///     behalf. Asked again right before the evaluator's turn in the slot. Called off the UI thread: answer
+    ///     from the index, never from the file.
     /// </summary>
     bool Wants(string path);
+
+    /// <summary>
+    ///     True when <see cref="Wants" /> is false only because the demo lacks what an evaluator this one runs
+    ///     after writes (the library's parse stamp, the Round Facts rows). The visit then carries this evaluator
+    ///     when that upstream evaluator is on it, and asks <see cref="Wants" /> again once upstream has run.
+    ///     Default false: the evaluator reads nothing another one writes.
+    /// </summary>
+    bool WantsAfterUpstream(string path) => false;
 
     /// <summary>
     ///     Does this evaluator's work on the single held parse. Runs INSIDE the queue's gate slot with
@@ -73,34 +82,6 @@ public interface IDemoEvaluator
         // no-op by default
     }
 
-    /// <summary>Like <see cref="OnParsedOpportunistically" />, for a forward pass another evaluator produced.</summary>
-    void OnForwardOpportunistically(string path, ForwardDemoResult pass)
-    {
-        // no-op by default
-    }
-
     /// <summary>Within-tier ordering hint, higher = sooner (typically the file's mtime ticks, newest first).</summary>
     long OrderHint(string path) => 0;
-
-    /// <summary>
-    ///     Paths this evaluator still wants, read from the worker-readable backlog (never the UI-bound
-    ///     Entries collection). The coordinator's candidate universe on <see cref="IDemoProcessingQueue.CapacityAvailable" />
-    ///     is the union of every registered evaluator's snapshot. Default empty for an evaluator with no
-    ///     backlog of its own.
-    /// </summary>
-    IReadOnlyList<string> PendingPaths() => [];
-
-    /// <summary>
-    ///     Opportunistic hand-off of a demo that is ALREADY parsed elsewhere (an interactive open, or
-    ///     another evaluator's tier-2), routed via <see cref="DemoEvaluationCoordinator.FanOutParsed" />.
-    ///     Unlike <see cref="Evaluate" /> this is NOT gated on <see cref="Wants" />: it is the "here is a
-    ///     free parse, refresh from it if useful" hook (the order-independence the old Library→Highlights
-    ///     piggyback provided): the evaluator decides internally whether the demo is one it tracks and
-    ///     whether a refresh is warranted. It runs SYNCHRONOUSLY on the caller's thread with the parse held
-    ///     (the caller offloads the UI thread), and failures are isolated by the coordinator. Default no-op.
-    /// </summary>
-    void OnParsedOpportunistically(string path, ParsedDemo parsed)
-    {
-        // no-op by default
-    }
 }

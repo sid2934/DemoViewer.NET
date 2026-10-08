@@ -4,13 +4,14 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
@@ -49,7 +50,7 @@ public class PackDataRemoverTests
             StoreDescriptor roundIndex = new("round-index", "Round Index", StoreRoot.Cache, ["round-index"], false);
             PackDataRemover remover = new(new DemoCacheStore(null), configRoot, cacheRoot);
 
-            PackDataInventory before = await remover.InventoryAsync([strats, teams, roundIndex], "fake", "count");
+            ExtensionDataInventory before = await remover.InventoryAsync([strats, teams, roundIndex], "fake", "count");
             using (Assert.Multiple())
             {
                 await Assert.That(before.Items.First(i => i.Descriptor.Id == "strats").FileCount).IsEqualTo(2);
@@ -59,7 +60,7 @@ public class PackDataRemoverTests
                 await Assert.That(before.UserWorkItems.Select(i => i.Descriptor.Id)).IsEquivalentTo(["strats", "teams"]);
             }
 
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [strats, teams, roundIndex], [], "fake", "delete");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [strats, teams, roundIndex], [], "fake", "delete");
 
             using (Assert.Multiple())
             {
@@ -96,8 +97,8 @@ public class PackDataRemoverTests
             StoreDescriptor descriptor = new("escape", "Escape", StoreRoot.Config, [relative], false);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataInventory inventory = await remover.InventoryAsync([descriptor], "fake", "count");
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+            ExtensionDataInventory inventory = await remover.InventoryAsync([descriptor], "fake", "count");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
 
             using (Assert.Multiple())
             {
@@ -126,7 +127,7 @@ public class PackDataRemoverTests
             StoreDescriptor descriptor = new("rooted", "Rooted", StoreRoot.Config, [outsideFile], false);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
 
             await Assert.That(result.Removed.Items[0].FileCount).IsEqualTo(0);
             await Assert.That(File.Exists(outsideFile)).IsTrue();
@@ -152,7 +153,7 @@ public class PackDataRemoverTests
             StoreDescriptor nested = new("nested", "Nested", StoreRoot.Config, ["nested/inner"], false);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataInventory inventory = await remover.InventoryAsync([trailing, nested], "fake", "count");
+            ExtensionDataInventory inventory = await remover.InventoryAsync([trailing, nested], "fake", "count");
 
             using (Assert.Multiple())
             {
@@ -183,7 +184,7 @@ public class PackDataRemoverTests
                 ["demos/*.grenades.json.gz", "demos/*.grenades.paths.json.gz"], false);
             PackDataRemover remover = new(new DemoCacheStore(null), null, cacheRoot);
 
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
 
             using (Assert.Multiple())
             {
@@ -212,7 +213,7 @@ public class PackDataRemoverTests
             StoreDescriptor descriptor = new("dem", "Dem", StoreRoot.Config, ["match.dem"], false);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [descriptor], [], "fake", "delete");
 
             await Assert.That(result.Removed.Items[0].FileCount).IsEqualTo(0);
             await Assert.That(File.Exists(demFile)).IsTrue();
@@ -259,6 +260,47 @@ public class PackDataRemoverTests
     }
 
     [Test]
+    public async Task Delete_TheFactsOfARuleset_TakesItsSidecarsAndStamp_AndNoOtherRulesets()
+    {
+        string cacheRoot = TempRoot("facts");
+        try
+        {
+            DemoCacheStore store = new(cacheRoot);
+            const string path = "/demos/facts.dem";
+            store.Update(path, 1, 1, r => r.Sha256 = "ffff");
+            const string mine = "dev_example_x__kills";
+            const string other = "dev_example_y__kills";
+            foreach (string ruleset in new[] { mine, other })
+            {
+                store.WriteSiblingBytes(path, StampedFacts.Suffix(new FactKey(ruleset, "kills_table")), [1]);
+                store.UpdateExisting(path, r => r.SetStamp(new PackStamp(StampedFacts.StampId(ruleset), StampedFacts.Schema, "fp")));
+            }
+
+            store.SaveIndex();
+            StoreDescriptor facts = new(StampedFacts.StampId(mine), "Facts", StoreRoot.Cache, ["demos/*" + StampedFacts.RulesetSuffix(mine)], false);
+
+            ExtensionDataRemovalResult result = await new PackDataRemover(store, null, cacheRoot)
+                .DeleteAsync(PackId, [facts], [StampedFacts.StampId(mine)], "fake", "delete");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.Removed.Items.Single().FileCount).IsEqualTo(1);
+                await Assert.That(store.TryReadSiblingBytes(path, StampedFacts.Suffix(new FactKey(mine, "kills_table")))).IsNull();
+                await Assert.That(store.TryReadSiblingBytes(path, StampedFacts.Suffix(new FactKey(other, "kills_table")))).IsNotNull();
+                await Assert.That(store.TryGetIndex(path)!.Stamp(StampedFacts.StampId(mine))).IsNull();
+                await Assert.That(store.TryGetIndex(path)!.Stamp(StampedFacts.StampId(other))).IsNotNull();
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(cacheRoot))
+            {
+                Directory.Delete(cacheRoot, true);
+            }
+        }
+    }
+
+    [Test]
     public async Task Delete_StripsPackPayloadAndStamps_WithoutTouchingOtherPacksOrCoreFields()
     {
         string cacheRoot = TempRoot("strip");
@@ -281,7 +323,7 @@ public class PackDataRemoverTests
             store.SaveIndex();
 
             PackDataRemover remover = new(store, null, null);
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a", "facet-b"], "fake", "strip");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a", "facet-b"], "fake", "strip");
 
             await Assert.That(result.RecordsUpdated).IsEqualTo(1);
 
@@ -310,6 +352,118 @@ public class PackDataRemoverTests
     }
 
     [Test]
+    public async Task Delete_StripsADemoNoFolderListsAnyMore_SoItsFolderComingBackBringsNoneOfItBack()
+    {
+        string cacheRoot = TempRoot("strip-orphan");
+        try
+        {
+            DemoCacheStore store = new(cacheRoot);
+            DemoCacheRecord record = ParsedRecord("/d/a.dem", sha: "sha-a");
+            record.Packs[PackId] = System.Text.Json.JsonSerializer.SerializeToElement("mine");
+            record.SetStamp(new PackStamp("facet-a", 1, "fp-a"));
+            record.SetStamp(new PackStamp("other-facet", 1, "fp-other"));
+            store.Upsert(record);
+            store.Detach("/d/a.dem");
+
+            ExtensionDataRemovalResult result = await new PackDataRemover(store, null, null)
+                .DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
+
+            DemoCacheStore reopened = new(cacheRoot);
+            await Assert.That(reopened.TryGetOrphan("sha-a")!.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
+            await Assert.That(reopened.Reattach("/d/a.dem", record.Size, record.ModifiedTicks)).IsTrue();
+            DemoCacheRecord back = reopened.TryLoadRecord("/d/a.dem")!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.RecordsUpdated).IsEqualTo(1);
+                await Assert.That(back.Packs.ContainsKey(PackId)).IsFalse();
+                await Assert.That(back.PackStamps.Select(s => s.Id)).IsEquivalentTo(["other-facet"]);
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
+        }
+    }
+
+    [Test]
+    public async Task Delete_StripsADemoHeldAtTwoPaths_Once_AndEveryPathLosesTheStamp()
+    {
+        string cacheRoot = TempRoot("strip-copies");
+        try
+        {
+            DemoCacheStore store = new(cacheRoot);
+            foreach (string path in new[] { "/nfs/a.dem", "/smb/a.dem" })
+            {
+                DemoCacheRecord record = ParsedRecord(path, sha: "sha-a");
+                record.Packs[PackId] = System.Text.Json.JsonSerializer.SerializeToElement("mine");
+                record.SetStamp(new PackStamp("facet-a", 1, "fp-a"));
+                store.Upsert(record);
+            }
+
+            store.SaveIndex();
+            await Assert.That(store.TryGetIndex("/smb/a.dem")!.Locations).HasCount(2);
+
+            PackDataRemover remover = new(store, null, null);
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
+
+            DemoCacheStore reopened = new(cacheRoot);
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.RecordsUpdated).IsEqualTo(1).Because("two paths of one demo are one record");
+                foreach (string path in new[] { "/nfs/a.dem", "/smb/a.dem" })
+                {
+                    await Assert.That(reopened.TryGetIndex(path)!.PackStamps).IsEmpty();
+                    await Assert.That(reopened.TryLoadRecord(path)!.Packs.ContainsKey(PackId)).IsFalse();
+                }
+
+                await Assert.That(reopened.TryGetIndex("/smb/a.dem")!.Locations.All(l => l.Confirmed)).IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
+        }
+    }
+
+    // The demo's only path was matched by fingerprint and its share is offline: the strip changes the record
+    // and nothing else, so the path stays in the row and the demo is not orphaned.
+    [Test]
+    public async Task Delete_StripsADemoListedOnlyAtAnUnconfirmedPath_WithoutMovingThePath()
+    {
+        string cacheRoot = TempRoot("strip-unconfirmed");
+        const string offline = "/Volumes/offline-share/a.dem";
+        try
+        {
+            DemoCacheStore store = new(cacheRoot);
+            DemoCacheRecord record = ParsedRecord("/nfs/a.dem", sha: "sha-a");
+            record.Packs[PackId] = JsonSerializer.SerializeToElement("mine");
+            record.SetStamp(new PackStamp("facet-a", 1, "fp-a"));
+            store.Upsert(record);
+            store.AttachUnconfirmed("sha-a", offline, record.Size, record.ModifiedTicks + 1);
+            store.Detach("/nfs/a.dem");
+            store.SaveIndex();
+
+            ExtensionDataRemovalResult result =
+                await new PackDataRemover(store, null, null).DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.RecordsUpdated).IsEqualTo(1);
+                await Assert.That(store.LocationOf(offline)?.ContentId).IsEqualTo("sha-a");
+                await Assert.That(store.LocationOf(offline)?.Location.Confirmed).IsFalse();
+                await Assert.That(store.IsOrphaned("sha-a")).IsFalse();
+                await Assert.That(store.TryGetIndex(offline)!.PackStamps).IsEmpty();
+                await Assert.That(store.TryLoadRecord(offline)!.Packs.ContainsKey(PackId)).IsFalse();
+                await Assert.That(store.TryLoadRecord(offline)!.Parse.IsPresent).IsTrue();
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
+        }
+    }
+
+    [Test]
     public async Task Delete_SkipsARowWhoseSidecarDoesNotLoad_RatherThanFabricatingOne()
     {
         string cacheRoot = TempRoot("missing-sidecar");
@@ -328,7 +482,7 @@ public class PackDataRemoverTests
             // A fresh store: seed's capacity-1 record cache would otherwise still answer the deleted file.
             DemoCacheStore store = new(cacheRoot);
             PackDataRemover remover = new(store, null, null);
-            PackDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");
 
             using (Assert.Multiple())
             {
@@ -364,7 +518,7 @@ public class PackDataRemoverTests
 
             StoreDescriptor descriptor = new("strats", "Strats", StoreRoot.Config, ["strats"], true);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null, queue);
-            Task<PackDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete");
+            Task<ExtensionDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete");
 
             await Task.Delay(150);
             using (Assert.Multiple())
@@ -374,7 +528,7 @@ public class PackDataRemoverTests
             }
 
             release.Set();
-            PackDataRemovalResult result = await delete;
+            ExtensionDataRemovalResult result = await delete;
 
             using (Assert.Multiple())
             {
@@ -418,12 +572,12 @@ public class PackDataRemoverTests
             bool stillOff = true;
             StoreDescriptor descriptor = new("strats", "Strats", StoreRoot.Config, ["strats"], true);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null, queue);
-            Task<PackDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete", stillOff: () => stillOff);
+            Task<ExtensionDataRemovalResult> delete = remover.DeleteAsync(PackId, [descriptor], [], serial, "delete", stillOff: () => stillOff);
 
             await Task.Delay(150);
             stillOff = false; // the pack was re-enabled while the job still sat behind the blocker
             release.Set();
-            PackDataRemovalResult result = await delete;
+            ExtensionDataRemovalResult result = await delete;
 
             using (Assert.Multiple())
             {
@@ -451,7 +605,7 @@ public class PackDataRemoverTests
             StoreDescriptor descriptor = new("strats", "Strats", StoreRoot.Config, ["strats"], true);
             PackDataRemover remover = new(new DemoCacheStore(null), root, null);
 
-            PackDataRemovalResult result = await DeleteWithTheFileUnremovable(remover, descriptor, dir, locked);
+            ExtensionDataRemovalResult result = await DeleteWithTheFileUnremovable(remover, descriptor, dir, locked);
 
             using (Assert.Multiple())
             {
@@ -472,7 +626,7 @@ public class PackDataRemoverTests
     // Windows refuses a delete of a file open without FileShare.Delete; Unix refuses a delete inside a
     // directory whose own write bit is off. Either way the directory's permissions are restored before the
     // caller's own cleanup runs, win or lose.
-    private static async Task<PackDataRemovalResult> DeleteWithTheFileUnremovable(
+    private static async Task<ExtensionDataRemovalResult> DeleteWithTheFileUnremovable(
         PackDataRemover remover, StoreDescriptor descriptor, string dir, string locked)
     {
         if (OperatingSystem.IsWindows())
@@ -494,10 +648,60 @@ public class PackDataRemoverTests
     }
 
     /// <summary>
+    ///     A record written while the rows rode the Strat Book's payload: deleting the Strat Book's data takes
+    ///     its payload and its passes' stamps, and the Round Facts rows, lifted onto the record on read, stay
+    ///     current under their own stamp, so nothing re-runs.
+    /// </summary>
+    [Test]
+    public async Task Delete_OfTheStratBooksData_LeavesTheCoreRoundFacts()
+    {
+        string cacheRoot = TempRoot("core-facts");
+        try
+        {
+            RoundFactsRows rows = Facts(Round(1, 1000, 2000), Round(2, 3000, 4000));
+            DemoCacheStore store = new(cacheRoot);
+            DemoCacheRecord record = ParsedRecord("/d/a.dem", map: "de_nuke");
+            JsonObject payload = new()
+            {
+                ["RoundFacts"] = JsonSerializer.SerializeToNode(rows),
+                ["GrenadeInputCoverage"] = 0.75
+            };
+            record.Packs[LegacyPackFields.PackId] = JsonSerializer.SerializeToElement(payload);
+            record.SetStamp(new PackStamp(RoundFactsEvaluator.EvaluatorId, rows.Schema, "rf-A"));
+            record.SetStamp(new PackStamp(RoundIndexEvaluator.EvaluatorId, 1, "ri"));
+            // Saved as an older build saved it: the rows inside the payload, the record member empty.
+            store.Upsert(record);
+            store.SaveIndex();
+
+            DemoCacheStore reading = new(cacheRoot);
+            PackDataRemover remover = new(reading, null, null);
+            string[] stratBookPasses = [RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId];
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(LegacyPackFields.PackId, [], stratBookPasses, "fake", "strip");
+
+            DemoCacheStore reopened = new(cacheRoot);
+            DemoCacheRecord reloaded = reopened.TryLoadRecord("/d/a.dem")!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(result.RecordsUpdated).IsEqualTo(1);
+                await Assert.That(reloaded.Packs).IsEmpty();
+                await Assert.That(reloaded.RoundFacts?.Rounds.Count).IsEqualTo(2);
+                await Assert.That(reloaded.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
+                await Assert.That(reopened.TryGetIndex("/d/a.dem")!.IsRoundFactsCurrent("rf-A")).IsTrue()
+                    .Because("the rows stay current, so no demo is queued again");
+            }
+        }
+        finally
+        {
+            Directory.Delete(cacheRoot, true);
+        }
+    }
+
+    /// <summary>
     ///     A legacy-shape record (flat pack fields, folded into <see cref="DemoCacheRecord.Packs" /> and
     ///     <see cref="DemoCacheRecord.PackStamps" /> on read) must strip clean in the very read
-    ///     that folds it: no stamp, no payload, and the fold must not resurrect the flat fields on the next
-    ///     load (there is no sidecar write between the fold and the strip to re-derive from if it did).
+    ///     that folds it: no pack stamp, no payload, and the fold must not resurrect the flat fields on the next
+    ///     load (there is no sidecar write between the fold and the strip to re-derive from if it did). The
+    ///     Round Facts rows and their stamp are core and survive.
     /// </summary>
     [Test]
     public async Task Delete_FoldsAndStripsAnOldShapeRecord_InTheSameRead()
@@ -551,15 +755,11 @@ public class PackDataRemoverTests
 
             DemoCacheStore store = new(cacheRoot);
             PackDataRemover remover = new(store, null, null);
-            string[] facetIds =
-            [
-                RoundFactsEvaluator.EvaluatorId, RoundIndexEvaluator.EvaluatorId,
-                SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId
-            ];
+            string[] facetIds = [RoundIndexEvaluator.EvaluatorId, SuggestedTagsService.EvaluatorId, GrenadeIndexEvaluator.EvaluatorId];
 
             // The legacy fold always writes the payload under LegacyPackFields.PackId: the literal the old
             // Strat Book sidecars carried, not whatever pack id a caller happens to pass.
-            PackDataRemovalResult result = await remover.DeleteAsync(LegacyPackFields.PackId, [], facetIds, "fake", "strip");
+            ExtensionDataRemovalResult result = await remover.DeleteAsync(LegacyPackFields.PackId, [], facetIds, "fake", "strip");
 
             await Assert.That(result.RecordsUpdated).IsEqualTo(1).Because("the fold on read already promoted the flat fields to a payload and stamps");
 
@@ -569,9 +769,11 @@ public class PackDataRemoverTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(reloaded.PackStamps).IsEmpty();
+                await Assert.That(reloaded.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
                 await Assert.That(reloaded.Packs).IsEmpty().Because("the fold's payload must not come back on the next load");
-                await Assert.That(entry.PackStamps).IsEmpty();
+                await Assert.That(entry.PackStamps.Select(s => s.Id)).IsEquivalentTo([RoundFactsEvaluator.EvaluatorId]);
+                await Assert.That(reloaded.RoundFacts?.Rounds.Count).IsEqualTo(2).Because("the rows are core, not the pack's");
+                await Assert.That(entry.IsRoundFactsCurrent("rf-A")).IsTrue();
             }
         }
         finally

@@ -11,3 +11,11 @@ global using CS2OpenSchema.Protos;
 // records our own generator used to emit; importing them globally keeps unqualified references
 // reading the way the generated ones did.
 global using CS2OpenSchema.Events;
+
+// The extension SDK's contract types (IExtension, the contribution records) are used across the host.
+global using DemoViewer.NET.Extensions.Sdk;
+
+// The SDK's UI kit (shared controls, collections and display helpers) is used across the host's views too.
+global using DemoViewer.NET.Extensions.Sdk.Ui;
+global using DemoViewer.NET.Extensions.Sdk.Ui.Controls;
+global using DemoViewer.NET.Extensions.Sdk.Ui.Theming;

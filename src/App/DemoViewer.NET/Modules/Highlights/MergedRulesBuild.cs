@@ -11,7 +11,6 @@ using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -21,47 +20,48 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Modules.Highlights;
 
 /// <summary>
-///     The one rules read and the one bare build the background passes share: the core rulesets plus
-///     every pack-owned ruleset whose pack is on, evaluated together. Highlights are stamped with
-///     <see cref="Fingerprint" />, which covers the core rulesets only; a pack stamps its rows with
-///     <see cref="RulesetIdentity" /> of its own ruleset, so a pack toggle moves neither.
+///     The one rules read and the one bare build the background passes share: the highlight rulesets plus
+///     every stamped ruleset that is on, evaluated together. Highlights are stamped with
+///     <see cref="Fingerprint" />, which covers the highlight rulesets only; a stamped ruleset's outputs are
+///     stamped with its own <see cref="RulesetIdentity" />, so neither an owner's toggle nor a broken stamped
+///     ruleset moves the highlights stamp.
 /// </summary>
 public sealed class MergedRulesBuild
 {
     private static ILogger? _diagLog;
 
     // One bare run per held parse: the highlight scan and round facts read the same run on a retained entry.
-    // Stamped with the gate mask it ran under; a run from before a pack toggle is not the merged set's run.
+    // Keyed by the stamped rulesets that were off when it ran; a run from before a toggle is not the merged set's run.
     private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private readonly Func<RuleConfigLoadResult> _load;
-    private readonly Lazy<IReadOnlyList<GatedRuleset>> _packRulesets;
+    private readonly Lazy<IReadOnlyList<StampedRuleset>> _stamped;
     private RuleConfigLoadResult? _rules;
     private IReadOnlyList<RulesetDoc>? _coreDocs;
-    private (ulong Mask, IReadOnlyList<RulesetDoc> Docs)? _merged;
+    private (string Off, IReadOnlyList<RulesetDoc> Docs)? _merged;
 
-    /// <summary>The shipped rules with the user's overlay and no pack-owned rulesets.</summary>
+    /// <summary>The shipped rules with the user's overlay and no stamped rulesets.</summary>
     public MergedRulesBuild() : this(LoadShippedWithUserOverlay)
     {
     }
 
-    /// <summary>The shipped rules with the user's overlay, gated by <paramref name="packRulesets" />.</summary>
-    public MergedRulesBuild(Func<IReadOnlyList<GatedRuleset>> packRulesets) : this(LoadShippedWithUserOverlay, packRulesets)
+    /// <summary>The shipped rules with the user's overlay and the <paramref name="stamped" /> rulesets.</summary>
+    public MergedRulesBuild(Func<IReadOnlyList<StampedRuleset>> stamped) : this(LoadShippedWithUserOverlay, stamped)
     {
     }
 
     /// <param name="load">Reads the rule set; called once until <see cref="Invalidate" />.</param>
-    /// <param name="packRulesets">
-    ///     The pack-owned rulesets and their gates; read once, on the first build. Null means no pack owns
-    ///     any ruleset, so the merged set is the whole read.
+    /// <param name="stamped">
+    ///     The stamped rulesets with their owners and gates; read once, on the first build. Null means there
+    ///     are none, so every ruleset read is a highlight ruleset.
     /// </param>
-    public MergedRulesBuild(Func<RuleConfigLoadResult> load, Func<IReadOnlyList<GatedRuleset>>? packRulesets = null)
+    public MergedRulesBuild(Func<RuleConfigLoadResult> load, Func<IReadOnlyList<StampedRuleset>>? stamped = null)
     {
         _load = load;
-        _packRulesets = new Lazy<IReadOnlyList<GatedRuleset>>(
-            packRulesets is null ? () => [] : packRulesets, LazyThreadSafetyMode.ExecutionAndPublication);
+        _stamped = new Lazy<IReadOnlyList<StampedRuleset>>(
+            stamped is null ? () => [] : () => Distinct(stamped()), LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
@@ -77,51 +77,36 @@ public sealed class MergedRulesBuild
         }
     }
 
-    /// <summary>The pack-owned rulesets this build knows, gated by their owners.</summary>
-    public IReadOnlyList<GatedRuleset> PackRulesets
-    {
-        get
-        {
-            IReadOnlyList<GatedRuleset> packs = _packRulesets.Value;
-            // The gate snapshot is one bit per pack ruleset in a ulong.
-            if (packs.Count > 64)
-            {
-                throw new InvalidOperationException($"{packs.Count} pack-owned rulesets; the gate mask holds 64.");
-            }
-
-            return packs;
-        }
-    }
+    /// <summary>The stamped rulesets this build knows, with their owners and gates. One entry per id, the first registered.</summary>
+    public IReadOnlyList<StampedRuleset> StampedRulesets => _stamped.Value;
 
     /// <summary>
-    ///     Every ruleset the background passes run now: the core rulesets plus the pack-owned ones whose
-    ///     pack is on, in the order the directories were read. Re-derived when a gate answer changes.
+    ///     Every ruleset the background passes run now: the highlight rulesets plus the stamped ones that are
+    ///     on, in the order the directories were read. Re-derived when a gate answer changes.
     /// </summary>
     public IReadOnlyList<RulesetDoc> Docs => MergedDocs().Docs;
 
-    // The merged set under one gate snapshot, with the snapshot it was derived from. Each gate is read
-    // once, outside the lock: a gate may be any object, and the first read also resolves the contributions.
-    private (ulong Mask, IReadOnlyList<RulesetDoc> Docs) MergedDocs()
+    // The merged set under one gate snapshot, keyed by the ids that were off. Each gate is read once,
+    // outside the lock: a gate may be any object, and the first read also resolves the contributions.
+    private (string Off, IReadOnlyList<RulesetDoc> Docs) MergedDocs()
     {
-        IReadOnlyList<GatedRuleset> packs = PackRulesets;
-        ulong mask = 0;
+        IReadOnlyList<StampedRuleset> stamped = StampedRulesets;
         HashSet<string>? off = null;
-        for (int i = 0; i < packs.Count; i++)
+        StringBuilder? key = null;
+        foreach (StampedRuleset ruleset in stamped)
         {
-            if (packs[i].Enabled())
+            if (!ruleset.Enabled())
             {
-                mask |= 1UL << i;
-            }
-            else
-            {
-                (off ??= new HashSet<string>(StringComparer.Ordinal)).Add(packs[i].RulesetId);
+                (off ??= new HashSet<string>(StringComparer.Ordinal)).Add(ruleset.RulesetId);
+                (key ??= new StringBuilder()).Append(ruleset.RulesetId).Append('\n');
             }
         }
 
+        string offKey = key?.ToString() ?? "";
         RuleConfigLoadResult rules = Rules;
         lock (_gate)
         {
-            if (ReferenceEquals(rules, _rules) && _merged is { } hit && hit.Mask == mask)
+            if (ReferenceEquals(rules, _rules) && _merged is { } hit && string.Equals(hit.Off, offKey, StringComparison.Ordinal))
             {
                 return hit;
             }
@@ -131,22 +116,23 @@ public sealed class MergedRulesBuild
                 : [.. rules.Rulesets.Where(r => !off.Contains(r.Id))];
             if (ReferenceEquals(rules, _rules))
             {
-                _merged = (mask, docs);
+                _merged = (offKey, docs);
             }
 
-            return (mask, docs);
+            return (offKey, docs);
         }
     }
 
     /// <summary>
-    ///     The rulesets no pack owns, whatever the gates say: what the highlights fingerprint covers and
-    ///     what the open demo's Stats run evaluates.
+    ///     Every ruleset that is not stamped, whatever the gates say: what the highlights fingerprint covers
+    ///     and what the open demo's Stats run evaluates. An always-on stamped ruleset stays out too, so a
+    ///     broken copy of it can never stop the fingerprint from composing.
     /// </summary>
     public IReadOnlyList<RulesetDoc> CoreDocs
     {
         get
         {
-            IReadOnlyList<GatedRuleset> packs = PackRulesets;
+            IReadOnlyList<StampedRuleset> stamped = StampedRulesets;
             RuleConfigLoadResult rules = Rules;
             lock (_gate)
             {
@@ -155,7 +141,7 @@ public sealed class MergedRulesBuild
                     return hit;
                 }
 
-                IReadOnlyList<RulesetDoc> docs = WithoutPackRulesets(rules.Rulesets, packs);
+                IReadOnlyList<RulesetDoc> docs = WithoutStampedRulesets(rules.Rulesets, stamped);
                 if (ReferenceEquals(rules, _rules))
                 {
                     _coreDocs = docs;
@@ -166,16 +152,47 @@ public sealed class MergedRulesBuild
         }
     }
 
-    /// <summary><paramref name="rulesets" /> minus every pack-owned ruleset, for a read made elsewhere.</summary>
-    public IReadOnlyList<RulesetDoc> WithoutPackRulesets(IReadOnlyList<RulesetDoc> rulesets)
+    /// <summary><paramref name="rulesets" /> minus every stamped ruleset, for a read made elsewhere.</summary>
+    public IReadOnlyList<RulesetDoc> WithoutStampedRulesets(IReadOnlyList<RulesetDoc> rulesets)
     {
         ArgumentNullException.ThrowIfNull(rulesets);
-        return WithoutPackRulesets(rulesets, PackRulesets);
+        return WithoutStampedRulesets(rulesets, StampedRulesets);
+    }
+
+    /// <summary>True when <paramref name="rulesetId" /> is a stamped ruleset, on or off.</summary>
+    /// <param name="rulesetId">The ruleset's id.</param>
+    public bool IsStamped(string rulesetId) =>
+        StampedRulesets.Any(r => string.Equals(r.RulesetId, rulesetId, StringComparison.Ordinal));
+
+    /// <summary>
+    ///     The configured outputs the stamped rulesets that are on declare (their <c>show: tables:</c>), limited to
+    ///     those whose ruleset <paramref name="stale" /> answers true for. Null keeps every one.
+    /// </summary>
+    /// <param name="stale">Whether a stamped ruleset's stored outputs need writing, by its id.</param>
+    public IReadOnlySet<string> StampedOutputs(Func<string, bool>? stale = null)
+    {
+        HashSet<string> outputs = new(StringComparer.Ordinal);
+        IReadOnlyList<RulesetDoc> docs = Docs;
+        foreach (StampedRuleset ruleset in StampedRulesets)
+        {
+            RulesetDoc? doc = docs.FirstOrDefault(d => d.Enabled && string.Equals(d.Id, ruleset.RulesetId, StringComparison.Ordinal));
+            if (doc?.Show is not { } show || (stale is not null && !stale(ruleset.RulesetId)))
+            {
+                continue;
+            }
+
+            foreach (TableDef table in show.Tables)
+            {
+                outputs.Add(table.Name);
+            }
+        }
+
+        return outputs;
     }
 
     /// <summary>
     ///     The enabled ruleset with this id in the merged set (a user's same-id override wins), or null
-    ///     when there is none: not in the directories, disabled by an override, or owned by a pack that is off.
+    ///     when there is none: not in the directories, disabled by an override, or stamped and off.
     /// </summary>
     public RulesetDoc? EnabledDoc(string rulesetId) => Docs.FirstOrDefault(r =>
         r.Enabled && string.Equals(r.Id, rulesetId, StringComparison.Ordinal));
@@ -209,7 +226,7 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     One ruleset's own identity, for rows a pack stores under it. Composes the ruleset alone, so a
+    ///     One ruleset's own identity, for the outputs stamped under it. Composes the ruleset alone, so a
     ///     broken highlight file never blocks it, and throws when it does not compose or is not enabled.
     ///     The engine's fingerprint hashes highlight definitions only, which a ruleset without highlights
     ///     has none of, so the source and the engine version carry the identity.
@@ -240,21 +257,24 @@ public sealed class MergedRulesBuild
     /// </summary>
     public AnalysisRun BareRun(ParsedDemo parsed)
     {
-        (ulong mask, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
+        (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
         lock (_gate)
         {
-            if (_runs.TryGetValue(parsed, out CachedRun? cached) && cached.Mask == mask)
+            if (_runs.TryGetValue(parsed, out CachedRun? cached) && string.Equals(cached.Off, off, StringComparison.Ordinal))
             {
                 return cached.Run;
             }
         }
 
-        BuildResult build = ForwardDemoPass.Build(parsed, docs);
+        // A held parse is rare and shared by every pass on it, so it records every stamped output, and
+        // round_facts whether or not this build stamps it.
+        HashSet<string> outputs = [.. StampedOutputs(), ForwardDemoPass.RoundFactsTable];
+        BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs);
         RulesetExclusionReport.Report(Log, build);
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
         lock (_gate)
         {
-            _runs.AddOrUpdate(parsed, new CachedRun(mask, run));
+            _runs.AddOrUpdate(parsed, new CachedRun(off, run));
         }
 
         return run;
@@ -273,8 +293,8 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     The snapshot run a forced scan asks for, over the core rulesets only: the scoreboard is
-    ///     projected from these snapshots, and a pack's index-time ruleset would add nodes and memory to both.
+    ///     The snapshot run a forced scan asks for, over <see cref="CoreDocs" /> only: the scoreboard is
+    ///     projected from these snapshots, and a stamped ruleset would add nodes and memory to both.
     /// </summary>
     public AnalysisRun FullRun(ParsedDemo parsed)
     {
@@ -297,25 +317,35 @@ public sealed class MergedRulesBuild
         }
     }
 
-    private sealed record CachedRun(ulong Mask, AnalysisRun Run);
+    private sealed record CachedRun(string Off, AnalysisRun Run);
 
-    private static IReadOnlyList<RulesetDoc> WithoutPackRulesets(IReadOnlyList<RulesetDoc> rulesets, IReadOnlyList<GatedRuleset> packs)
+    // The first registration of an id wins: the composition root lists core's before any extension's.
+    private static IReadOnlyList<StampedRuleset> Distinct(IReadOnlyList<StampedRuleset> stamped) =>
+        [.. stamped.DistinctBy(r => r.RulesetId, StringComparer.Ordinal)];
+
+    private static IReadOnlyList<RulesetDoc> WithoutStampedRulesets(IReadOnlyList<RulesetDoc> rulesets, IReadOnlyList<StampedRuleset> stamped)
     {
-        if (packs.Count == 0)
+        if (stamped.Count == 0)
         {
             return rulesets;
         }
 
-        HashSet<string> owned = new(packs.Select(p => p.RulesetId), StringComparer.Ordinal);
+        HashSet<string> owned = new(stamped.Select(p => p.RulesetId), StringComparer.Ordinal);
         return [.. rulesets.Where(r => !owned.Contains(r.Id))];
     }
 
-    // The file the effective doc was read from; the doc's JSON where there is no readable file (Browser).
+    // The file the effective doc was read from, the YAML an extension supplied, or the doc's JSON where
+    // there is no readable file (Browser).
     private static string SourceIdentity(RulesetDoc? doc)
     {
         if (doc is null)
         {
             return "";
+        }
+
+        if (RuleLayers.SourceOf(doc) is { } contributed)
+        {
+            return contributed;
         }
 
         try
@@ -338,6 +368,15 @@ public sealed class MergedRulesBuild
         {
             return doc.Id;
         }
+    }
+
+    /// <summary>The shipped rules, then <paramref name="extensions" />, then the user's overlay (<see cref="RuleLayers" />).</summary>
+    /// <param name="extensions">The rulesets the extensions contributed.</param>
+    public static RuleConfigLoadResult LoadShippedExtensionsUser(IReadOnlyList<ContributedRuleset> extensions)
+    {
+        string shippedDir = RuleSetLocator.ResolveShippedRulesDirectory();
+        string? userDir = OperatingSystem.IsBrowser() ? null : RuleSetLocator.EnsureUserRulesDirectory(shippedDir);
+        return RuleLayers.Load(shippedDir, userDir, extensions, Log);
     }
 
     private static RuleConfigLoadResult LoadShippedWithUserOverlay()

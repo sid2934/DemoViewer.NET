@@ -16,7 +16,8 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
@@ -83,7 +84,7 @@ public class ForwardPassRealDemoTests
                 await Assert.That(forward[key]).IsEqualTo(value).Because($"{key}, forward vs retained, {Path.GetFileName(path)}");
             }
 
-            await Assert.That(rulesOnly).IsEqualTo(forward["round facts"]).Because("the first-launch pass reads rules only");
+            await Assert.That(rulesOnly).IsEqualTo(forward["round facts"]).Because("a Round Facts backlog visit reads rules only");
             await Assert.That(forward["firings"]).IsEqualTo(old["firings"]).Because("merged build vs highlights alone");
             await Assert.That(forward["round facts"]).IsEqualTo(old["round facts"]).Because("merged build vs round_facts alone");
             // The engine's fingerprint hashes highlight definitions only, so adding round_facts leaves it as it was.
@@ -120,7 +121,7 @@ public class ForwardPassRealDemoTests
                 {
                     cancel.Cancel();
                 }
-            }, cancel.Token));
+            }, cancellationToken: cancel.Token));
         await Assert.That(seen).IsGreaterThan(0.25).And.IsLessThan(0.5);
     }
 
@@ -131,7 +132,7 @@ public class ForwardPassRealDemoTests
         ParsedDemo parsed = BackgroundPlanRealDemoTests.ParseMapped(path, DemoProcessingQueue.WithoutUserCommands);
         Dictionary<string, string> written = Write(path, merged, (library, entry, highlights, facts) =>
         {
-            library.IndexTier2Core(entry, parsed, false);
+            library.IndexTier2Core(entry, parsed);
             highlights.Evaluate(path, parsed);
             facts.Evaluate(path, parsed);
         });
@@ -147,7 +148,7 @@ public class ForwardPassRealDemoTests
         RoundFactsTable factsTable =
             EngineRoundFactsRowSource.FromTable(table, EngineRoundFactsRowSource.ParametersOf(doc), ClipRounds.Derive(parsed));
         RoundFactsRows rows = RoundFactsProjection.Project(ClipRounds.Derive(parsed), factsTable);
-        rows.Clock = RoundFactsClock.From(FrameClock.IdentityFor(parsed));
+        rows.Clock = RoundFactsClock.For(parsed);
 
         Dictionary<string, string> old = new()
         {
@@ -156,7 +157,7 @@ public class ForwardPassRealDemoTests
             ["round facts"] = factsTable.Rows.Count == 0 ? None : WithoutSha(rows),
             ["highlight fingerprint"] = HighlightConfigFingerprint.Compute(
                 HighlightsOnly(rules), parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint,
-            ["round facts fingerprint"] = RoundFactsFingerprint.Combine(StratBookCache.RoundFactsSchema,
+            ["round facts fingerprint"] = RoundFactsFingerprint.Combine(RoundFactsRecords.Schema,
                 HighlightConfigFingerprint.Compute([doc], parsed.TickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint)
         };
         return (written, old);
@@ -168,7 +169,7 @@ public class ForwardPassRealDemoTests
         ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, merged.Docs);
         Dictionary<string, string> written = Write(path, merged, (library, entry, highlights, facts) =>
         {
-            library.IndexTier2Core(entry, pass, false);
+            library.IndexTier2Core(entry, pass);
             highlights.EvaluateForward(path, pass);
             facts.EvaluateForward(path, pass);
         });
@@ -176,7 +177,7 @@ public class ForwardPassRealDemoTests
         return written;
     }
 
-    // What a round-facts-only entry runs: no final-state tracker, the build's own plan plus the freeze ends.
+    // What a round-facts-only visit runs: no final-state tracker, the build's own plan plus the freeze ends.
     private static string RulesOnlyRoundFacts(string path, MergedRulesBuild merged)
     {
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
@@ -190,7 +191,7 @@ public class ForwardPassRealDemoTests
         });
         RulesRoundFactsRulesetIdentity identity = new(merged);
         new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(identity), identity).EvaluateForward(path, pass);
-        return WithoutSha(cache.TryLoadRecord(path)?.RoundFacts());
+        return WithoutSha(cache.TryLoadRecord(path)?.RoundFacts);
     }
 
     private static Dictionary<string, string> Write(string path, MergedRulesBuild merged,
@@ -221,7 +222,7 @@ public class ForwardPassRealDemoTests
             return new Dictionary<string, string>
             {
                 ["record"] = recordJson.ToJsonString(),
-                ["round facts"] = WithoutSha(record.RoundFacts()),
+                ["round facts"] = WithoutSha(record.RoundFacts),
                 ["highlight fingerprint"] = record.ConfigFingerprint ?? "",
                 ["round facts fingerprint"] = record.RoundFactsFingerprint() ?? "",
                 ["library"] = JsonSerializer.Serialize(new

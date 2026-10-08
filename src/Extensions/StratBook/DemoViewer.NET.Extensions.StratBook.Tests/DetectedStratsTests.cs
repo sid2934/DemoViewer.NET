@@ -5,14 +5,16 @@ using Avalonia.Headless;
 using System.Text.RegularExpressions;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 using Library = DemoViewer.NET.AppTests.StratMiningServiceTests.Library;
 
 #endregion
@@ -189,9 +191,9 @@ public class DetectedStratsTests
         int steps = preview.Document!.Steps.Count;
 
         // What a user can reach on the preview's canvas: keys and step edits are swallowed, not applied.
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.AddStep)).IsTrue();
-        canvas.ExecuteAction(Playback2DAction.DeleteStep);
-        canvas.ExecuteAction(Playback2DAction.Undo);
+        await Assert.That(canvas.ExecuteAction(StratBookActions.AddStep)).IsTrue();
+        canvas.ExecuteAction(StratBookActions.DeleteStep);
+        canvas.ExecuteAction(nameof(Playback2DAction.Undo));
         canvas.PlaceTokensCommand.Execute(null);
 
         using (Assert.Multiple())

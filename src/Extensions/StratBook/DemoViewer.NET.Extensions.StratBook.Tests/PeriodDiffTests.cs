@@ -1,8 +1,8 @@
 #region
 
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.Dossier;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 #endregion
 
@@ -64,7 +64,7 @@ public class PeriodDiffTests
     private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams, Guid TeamA)> Library()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -94,7 +94,7 @@ public class PeriodDiffTests
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA) = await Library();
 
-        PeriodDiffSet set = PeriodDiffService.Build(teams, cache, teamA, windowSize: 3);
+        PeriodDiffSet set = PeriodDiffService.Build(teams, cache.Library(), teamA, windowSize: 3);
 
         using (Assert.Multiple())
         {
@@ -133,7 +133,7 @@ public class PeriodDiffTests
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA) = await Library();
 
-        PeriodDiffSet set = PeriodDiffService.Build(teams, cache, teamA, windowSize: 5);
+        PeriodDiffSet set = PeriodDiffService.Build(teams, cache.Library(), teamA, windowSize: 5);
 
         using (Assert.Multiple())
         {
@@ -142,7 +142,7 @@ public class PeriodDiffTests
             await Assert.That(set.HasBothPeriods).IsTrue();
         }
 
-        PeriodDiffSet none = PeriodDiffService.Build(teams, cache, teamA, windowSize: 10);
+        PeriodDiffSet none = PeriodDiffService.Build(teams, cache.Library(), teamA, windowSize: 10);
         using (Assert.Multiple())
         {
             await Assert.That(none.Recent.Count).IsEqualTo(6);
@@ -161,7 +161,7 @@ public class PeriodDiffTests
         // The same five players sit on both sides of the boundary; only the user-drawn line changes.
         teams.StartRoster(teamA, boundary, "post day 3");
 
-        PeriodDiffSet set = PeriodDiffService.Build(teams, cache, teamA, windowSize: 3);
+        PeriodDiffSet set = PeriodDiffService.Build(teams, cache.Library(), teamA, windowSize: 3);
 
         using (Assert.Multiple())
         {
@@ -182,7 +182,7 @@ public class PeriodDiffTests
     public async Task AStandIn_IsCountedAtTierOne_AndNotAgainstAnExtendedCore()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -207,8 +207,8 @@ public class PeriodDiffTests
             await Assert.That(tierTwo.StandIn).IsTrue().Because("the stamp is stored at both tiers");
         }
 
-        PeriodDiffSet a = PeriodDiffService.Build(teams, cache, tierOne.TeamId!.Value, windowSize: 3);
-        PeriodDiffSet b = PeriodDiffService.Build(teams, cache, tierTwo.TeamId!.Value, windowSize: 3);
+        PeriodDiffSet a = PeriodDiffService.Build(teams, cache.Library(), tierOne.TeamId!.Value, windowSize: 3);
+        PeriodDiffSet b = PeriodDiffService.Build(teams, cache.Library(), tierTwo.TeamId!.Value, windowSize: 3);
         using (Assert.Multiple())
         {
             await Assert.That(a.Recent.StandInCount).IsEqualTo(1);
@@ -222,7 +222,7 @@ public class PeriodDiffTests
     public async Task TheDossier_ShowsThePeriodDiffSection_AndThePickerRebuildsIt()
     {
         (DemoCacheStore cache, TeamIdentityService teams, Guid teamA) = await Library();
-        using DossierTabViewModel vm = new(teams, cache, new VetoHistoryStore(null), isBrowser: false);
+        using DossierTabViewModel vm = new(teams, cache.Library(), new VetoHistoryStore(null), isBrowser: false);
 
         await Assert.That(vm.HasPeriodDiff).IsFalse();
         vm.SelectedTeam = vm.Teams.Single(t => t.Id == teamA);

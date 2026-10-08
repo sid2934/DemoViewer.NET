@@ -695,7 +695,7 @@ public class HighlightsTabViewModelTests
             .IsEqualTo(128).Because("the tray must follow the store, not a snapshot of it");
 
         // The demo goes away entirely (deleted on disk, pruned from the cache) while the tab is open.
-        store.RemoveWhere(r => r.Path == "/d/b.dem");
+        store.Remove("/d/b.dem");
         await Assert.That(vm.StagedCount).IsEqualTo(1);
         await Assert.That(vm.StagedSelections[0].Record.Path).IsEqualTo("/d/a.dem");
         await Assert.That(vm.StatusMessage).Contains("no longer in the highlights cache");

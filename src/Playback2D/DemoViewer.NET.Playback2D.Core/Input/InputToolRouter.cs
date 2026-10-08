@@ -102,6 +102,28 @@ public sealed class InputToolRouter
     }
 
     /// <summary>
+    ///     Drops a registered tool, falling back to pan/zoom if it was active. A kind registered to a different
+    ///     tool since is left alone. Pan/zoom itself cannot be dropped.
+    /// </summary>
+    /// <param name="tool">The tool.</param>
+    public void Unregister(IPointerTool tool)
+    {
+        ArgumentNullException.ThrowIfNull(tool);
+        if (tool.Kind == ToolKind.PanZoom || !_tools.TryGetValue(tool.Kind, out IPointerTool? current)
+            || !ReferenceEquals(current, tool))
+        {
+            return;
+        }
+
+        if (ActiveKind == tool.Kind)
+        {
+            SetActive(ToolKind.PanZoom);
+        }
+
+        _tools.Remove(tool.Kind);
+    }
+
+    /// <summary>
     ///     Selects a tool, cancelling any gesture in flight first: a half-drawn stroke must not be
     ///     completed by whichever tool the user just switched to.
     /// </summary>

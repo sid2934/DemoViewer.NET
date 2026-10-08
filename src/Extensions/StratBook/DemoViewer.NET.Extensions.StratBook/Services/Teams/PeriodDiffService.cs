@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a team's <see cref="PeriodDiffSet" />: its last
@@ -25,13 +25,13 @@ public static class PeriodDiffService
     public const int DefaultWindowSize = 5;
 
     /// <param name="teams">The service <see cref="TeamIdentityService.SidesOf" /> and the roster labels read.</param>
-    /// <param name="demoCache">The cache a demo's map, score and side-round totals come from.</param>
+    /// <param name="library">The library a demo's map, score and side-round totals come from.</param>
     /// <param name="teamId">The team the diff is for.</param>
     /// <param name="windowSize">Demos per period; <see cref="DefaultWindowSize" /> when zero or negative.</param>
-    public static PeriodDiffSet Build(TeamIdentityService teams, DemoCacheStore demoCache, Guid teamId, int windowSize = DefaultWindowSize)
+    public static PeriodDiffSet Build(TeamIdentityService teams, IExtensionLibrary library, Guid teamId, int windowSize = DefaultWindowSize)
     {
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         if (windowSize <= 0)
         {
             windowSize = DefaultWindowSize;
@@ -51,8 +51,8 @@ public static class PeriodDiffService
                 continue;
             }
 
-            DemoCacheIndexEntry? entry = demoCache.TryGetIndex(demo.Path);
-            string map = entry?.Map is { Length: > 0 } m ? m : "";
+            LibraryDemo? entry = library.Find(demo.Path);
+            string map = entry?.MapName is { Length: > 0 } m ? m : "";
 
             bool? won = null;
             if (entry?.CtScore is { } ctScore && entry.TScore is { } tScore && ctScore != tScore)
@@ -62,13 +62,8 @@ public static class PeriodDiffService
                 won = teamScore > opponentScore;
             }
 
-            int ctRounds = 0;
-            int tRounds = 0;
-            if (demoCache.TryLoadRecord(demo.Path) is { } record)
-            {
-                ctRounds = record.CtSideWins ?? 0;
-                tRounds = record.TSideWins ?? 0;
-            }
+            int ctRounds = entry?.CtSideWins ?? 0;
+            int tRounds = entry?.TSideWins ?? 0;
 
             SideAssignment sideAssignment = assignment.Side(side);
             string? rosterId = sideAssignment.RosterId;
@@ -76,7 +71,7 @@ public static class PeriodDiffService
                 ? ""
                 : team?.Rosters.FirstOrDefault(r => string.Equals(r.Id, rosterId, StringComparison.Ordinal))?.Label ?? rosterId;
 
-            rows.Add(new PeriodDiffDemoRow(demo.Path, demo.Sha256, map, entry?.ModifiedTicks ?? 0, side,
+            rows.Add(new PeriodDiffDemoRow(demo.Path, demo.Sha256, map, entry?.Modified.Ticks ?? 0, side,
                 rosterId, rosterLabel, sideAssignment.StandIn && sideAssignment.Tier == 1, won, ctRounds, tRounds));
         }
 

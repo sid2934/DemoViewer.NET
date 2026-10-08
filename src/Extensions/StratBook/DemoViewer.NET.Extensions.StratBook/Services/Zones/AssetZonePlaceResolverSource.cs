@@ -5,12 +5,12 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Zones;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 /// <summary>
 ///     The app's zone resolver source: the map's baked <c>zones.json</c> plus the user overlay under
@@ -27,16 +27,16 @@ namespace DemoViewer.NET.Services.Zones;
 ///         not watched.
 ///     </para>
 /// </summary>
-public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IPackResident
+public sealed class AssetZonePlaceResolverSource : IZonePlaceResolverSource, IExtensionResident
 {
     private readonly Func<string, string?> _bundleDirFor;
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Entry> _maps = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<string?> _overlayDir;
 
-    /// <summary>The composition root's source: bundles beside the executable, the overlay under the config root.</summary>
+    /// <summary>Bundles beside the executable and no user overlay.</summary>
     public AssetZonePlaceResolverSource()
-        : this(MapAssetBundleReader.FindBundleDirectory, () => AppPaths.ZonesDirectory)
+        : this(MapAssetBundleReader.FindBundleDirectory, () => null)
     {
     }
 

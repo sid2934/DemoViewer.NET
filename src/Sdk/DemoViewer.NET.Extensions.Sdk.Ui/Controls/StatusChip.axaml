@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
+             x:Class="DemoViewer.NET.Extensions.Sdk.Ui.Controls.StatusChip"
+             x:DataType="vm:StatusChipViewModel">
+
+    <UserControl.Resources>
+        <Flyout x:Key="CardFlyout" Placement="Top">
+            <Border Classes="card-flyout" Padding="0" MaxWidth="360">
+                <ContentControl Content="{Binding FlyoutContent}" />
+            </Border>
+        </Flyout>
+    </UserControl.Resources>
+
+    <!--
+        A dot and a neutral label that opens a card-flyout for detail and actions.
+
+        The dot colour is not a code-held brush: the host's `Ellipse.dot.*` styles resolve it from a
+        palette token through the bound state-to-class selector, so it re-themes live. The label is
+        always the neutral TextMid token, the only label that is AA-safe across the built-in themes;
+        the word carries the state and the dot is a redundant colour cue.
+    -->
+
+    <!-- Chip body: a ghost button [dot][label]. Click / Enter opens the flyout when there is content to show,
+         else runs the primary action; the code-behind decides which. -->
+    <Button x:Name="Body" Classes="ghost" Padding="8 2" MinHeight="0" VerticalAlignment="Center"
+            ToolTip.Tip="{Binding Tooltip}">
+        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <Ellipse Classes="dot" Width="9" Height="9"
+                     Classes.stateOff="{Binding IsStateOff}"
+                     Classes.stateWorking="{Binding IsStateWorking}"
+                     Classes.stateGood="{Binding IsStateGood}"
+                     Classes.stateDegraded="{Binding IsStateDegraded}"
+                     Classes.stateError="{Binding IsStateError}"
+                     Classes.hollow="{Binding IsHollow}"
+                     Classes.pulsing="{Binding IsPulsing}" />
+            <TextBlock Text="{Binding Label}" Classes="mono"
+                       Foreground="{DynamicResource TextMid}" FontSize="11"
+                       VerticalAlignment="Center" />
+        </StackPanel>
+
+    </Button>
+
+</UserControl>

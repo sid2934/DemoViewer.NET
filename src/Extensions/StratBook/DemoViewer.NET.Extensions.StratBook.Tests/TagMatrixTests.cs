@@ -1,13 +1,14 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.RoundTagger;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -326,10 +327,10 @@ public class TagMatrixTests
         private Corpus()
         {
             Cache = new DemoCacheStore(null);
-            Teams = new TeamIdentityService(null, Cache, _facts, run: _inline);
+            Teams = new TeamIdentityService(null, Cache.Library(), _facts, run: _inline);
             Store = new TagStore(null);
             Queue = new ReviewQueue(null);
-            Matrix = new TagMatrixTabViewModel(Store, Queue, Cache.TryGetIndexBySha256, Teams,
+            Matrix = new TagMatrixTabViewModel(Store, Queue, Cache.Library().FindBySha256, Teams,
                 tab =>
                 {
                     SelectedTabs.Add(tab);
@@ -385,7 +386,7 @@ public class TagMatrixTests
 
         public static string PathOf(int n) => $"/d/f{n}.dem";
 
-        public string PathOf(string sha) => Cache.TryGetIndexBySha256(sha)!.Path;
+        public string PathOf(string sha) => Cache.TryGetByContentId(sha)!.Path;
 
         public async Task Pick(Action pick)
         {
@@ -498,7 +499,7 @@ public class TagMatrixTests
     {
         public Dictionary<string, RoundFactsRows> Rows { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public int Schema => StratBookCache.RoundFactsSchema;
+        public int Schema => RoundFactsRecords.Schema;
 
         public event Action<string>? Updated
         {
@@ -509,7 +510,7 @@ public class TagMatrixTests
         public RoundFactsRows? TryGet(string demoPath) => Rows.GetValueOrDefault(demoPath);
 
         public RoundFacts? RoundAt(string demoPath, int frameClockTick) =>
-            TryGet(demoPath) is { } rows ? RoundFactsSource.FindRound(rows.Rounds, frameClockTick) : null;
+            TryGet(demoPath) is { } rows ? RoundFactsRules.FindRound(rows.Rounds, frameClockTick) : null;
 
         public IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> Query(RoundFactsFilter filter) => [];
 

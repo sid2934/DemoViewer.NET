@@ -4,12 +4,12 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook.Canvas;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 /// <summary>
 ///     Turns a closed canvas gesture into <see cref="PatchOp" />s against the strat: the canvas's one

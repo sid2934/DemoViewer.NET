@@ -5,13 +5,14 @@ using System.Diagnostics;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -63,7 +64,7 @@ public class RoundPositionsRealDemoTests
     {
         RoundIndexBuild build = Build();
         RoundPositionsDocument positions = build.Positions;
-        byte[] gz = positions.SerializeGzip();
+        byte[] gz = Gzip(positions.SerializeUtf8());
         Console.WriteLine($"positions: {positions.Serialize().Length / 1024} KB json, {gz.Length / 1024} KB gz, " +
                           $"{positions.Rounds.Sum(r => r.Pos.Count)} steps, {positions.Places.Count} places");
 
@@ -89,7 +90,7 @@ public class RoundPositionsRealDemoTests
         {
             await Assert.That(checkedSteps).IsEqualTo(build.Index.RowCount);
             await Assert.That(gz.Length).IsLessThan(160 * 1024).Because("measured 56 to 60 KB gzipped on the three demos");
-            await Assert.That(RoundPositionsDocument.TryDeserializeGzip(gz)!.Rounds.Count).IsEqualTo(positions.Rounds.Count);
+            await Assert.That(RoundPositionsDocument.TryDeserialize(Gunzip(gz))!.Rounds.Count).IsEqualTo(positions.Rounds.Count);
         }
     }
 
@@ -170,8 +171,8 @@ public class RoundPositionsRealDemoTests
             Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
         });
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        facts.OnParsedOpportunistically(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("the evaluator wrote no rows");
+        facts.Evaluate(path, parsed);
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("the evaluator wrote no rows");
 
         List<SituationHit> hits =
         [
@@ -179,12 +180,12 @@ public class RoundPositionsRealDemoTests
                 r.Number, r.FreezeEndTick, r.FreezeEndTick, r.FreezeEndTick, 1))
         ];
 
-        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexStore sidecars = new(store.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         // Only the facts matter here, so the renderer and the decoder are stubs, the same convention
         // ResultCardTests' Harness uses: no bundle load, no bitmap decode.
-        ResultCardsViewModel vm = new(store, sidecars, sources, () => null, renderer: () => new SituationThumbnailRenderer(_ => null),
-            post: action => action(), decode: _ => null);
+        ResultCardsViewModel vm = new(store.Library(), sidecars, sources, () => null, renderer: () => new SituationThumbnailRenderer(_ => null),
+            post: action => action(), decode: _ => null, roundFacts: store.RoundFacts());
         vm.Load(hits);
         await vm.BatchTask;
 
@@ -194,12 +195,31 @@ public class RoundPositionsRealDemoTests
             foreach ((ResultCardViewModel card, RoundFacts row) in vm.Cards.Zip(rows.Rounds))
             {
                 await Assert.That(card.ScoreText).IsEqualTo($"CT {row.Ct.ScoreBefore} : {row.T.ScoreBefore} T");
-                await Assert.That(card.CtBuyText).IsEqualTo(RoundFactsValues.LowerCamel(row.Ct.BuyType));
-                await Assert.That(card.TBuyText).IsEqualTo(RoundFactsValues.LowerCamel(row.T.BuyType));
+                await Assert.That(card.CtBuyText).IsEqualTo(RoundFactsRules.LowerCamel(row.Ct.BuyType));
+                await Assert.That(card.TBuyText).IsEqualTo(RoundFactsRules.LowerCamel(row.T.BuyType));
                 await Assert.That(card.EndReasonText).IsEqualTo(ResultCardViewModel.EndReasonLabel(row.EndReason));
             }
 
             await Assert.That(vm.Cards.Any(c => c.CtBuyText != ResultCardViewModel.NoData)).IsTrue();
         }
+    }
+
+    private static byte[] Gzip(byte[] bytes)
+    {
+        using MemoryStream buffer = new();
+        using (System.IO.Compression.GZipStream gzip = new(buffer, System.IO.Compression.CompressionLevel.Optimal, true))
+        {
+            gzip.Write(bytes);
+        }
+
+        return buffer.ToArray();
+    }
+
+    private static byte[] Gunzip(byte[] bytes)
+    {
+        using System.IO.Compression.GZipStream gzip = new(new MemoryStream(bytes), System.IO.Compression.CompressionMode.Decompress);
+        using MemoryStream all = new();
+        gzip.CopyTo(all);
+        return all.ToArray();
     }
 }

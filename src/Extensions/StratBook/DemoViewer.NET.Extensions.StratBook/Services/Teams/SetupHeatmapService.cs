@@ -1,16 +1,14 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a team's <see cref="SetupHeatmapSet" />: for each map
@@ -46,24 +44,28 @@ public sealed class SetupHeatmapService
     // A record without a clock header is still a CS2 demo; the frame clock of every build here is 64.
     private const int FallbackTickRate = 64;
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFacts _roundFacts;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly RoundIndexStore _positions;
     private readonly TeamIdentityService _teams;
 
     /// <param name="teams">Team Identity: the team's demos and its side per round.</param>
-    /// <param name="demoCache">The records: map, hash and Round Facts rows per demo.</param>
+    /// <param name="library">The library: map and hash per demo, and the players.</param>
+    /// <param name="roundFacts">The Round Facts rows per demo.</param>
     /// <param name="positions">The round positions files.</param>
     /// <param name="fingerprintFor">The fingerprint current positions carry per map; a file under another is stale.</param>
-    public SetupHeatmapService(TeamIdentityService teams, DemoCacheStore demoCache, RoundIndexStore positions,
+    public SetupHeatmapService(TeamIdentityService teams, IExtensionLibrary library, IRoundFacts roundFacts, RoundIndexStore positions,
         Func<string?, string> fingerprintFor)
     {
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(fingerprintFor);
         _teams = teams;
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
         _positions = positions;
         _fingerprintFor = fingerprintFor;
     }
@@ -79,10 +81,10 @@ public sealed class SetupHeatmapService
 
         foreach ((DemoRef demo, _, _) in _teams.SidesOf(teamId))
         {
-            QueueWork.ThrowIfStopped(); // one demo at a time: a user's build may take the lane between them
+            JobScope.ThrowIfStopped(); // one demo at a time: a user's build may take the lane between them
             if (!seen.Add(demo.Path)
-                || _demoCache.TryGetIndex(demo.Path)?.Map is not { Length: > 0 } map
-                || _demoCache.TryLoadWithRoundFacts(demo.Path) is not ({ } record, { } rows))
+                || _library.Find(demo.Path) is not { MapName: { Length: > 0 } map } record
+                || _roundFacts.TryGet(demo.Path) is not { } rows)
             {
                 continue;
             }
@@ -103,7 +105,7 @@ public sealed class SetupHeatmapService
                 rate = FallbackTickRate;
             }
 
-            foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
+            foreach (RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
             {
                 if (!round.IsLive || _teams.SideAtRound(demo.Path, teamId, round.Number) != 3)
                 {
@@ -144,7 +146,7 @@ public sealed class SetupHeatmapService
     /// <summary>The setup window of a round in frame-clock ticks, inclusive; empty when <c>to &lt; from</c>.</summary>
     /// <param name="round">The round.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
-    public static (int From, int To) SetupWindow(RoundFacts.RoundFacts round, int tickRate)
+    public static (int From, int To) SetupWindow(RoundFacts round, int tickRate)
     {
         ArgumentNullException.ThrowIfNull(round);
         int from = round.FreezeEndTick + SetupFromSeconds * tickRate;
@@ -173,7 +175,7 @@ public sealed class SetupHeatmapService
 
         public List<SetupHeatmapRound> Rounds { get; } = [];
 
-        public void Add(string path, string? sha, RoundFacts.RoundFacts round, RoundPositionsDocument? positions, int rate)
+        public void Add(string path, string? sha, RoundFacts round, RoundPositionsDocument? positions, int rate)
         {
             (int from, int to) = SetupWindow(round, rate);
             bool sampled = false;

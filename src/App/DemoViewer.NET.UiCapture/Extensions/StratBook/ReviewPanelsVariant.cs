@@ -5,10 +5,10 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 
 #endregion
@@ -34,7 +34,11 @@ public static partial class Variants
         PaneContext ctx = new();
         ReviewPanelsPlaybackContribution review = new();
         SituationsPlaybackContribution situations = new();
-        PlaybackContributionHost host = new([(new StratBookPack(), [review, situations])], packOn ? null : new OffGate());
+        StratBookPack pack = new();
+        ExtensionGuard guard = ExtensionGuard.Standalone(pack);
+        PlaybackContributionHost host = new(
+            [(pack, [new SdkPlaybackContribution(review, guard), new SdkPlaybackContribution(situations, guard)])],
+            packOn ? null : new OffGate());
         Playback2DTabViewModel vm = new() { Contributions = host };
         vm.OnActivated(ctx);
 

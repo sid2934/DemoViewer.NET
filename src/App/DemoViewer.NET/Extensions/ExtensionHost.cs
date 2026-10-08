@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Extensions;
 ///         that needs it. The contract is the surface a pack's own assembly references or implements, not
 ///         every type under <c>DemoViewer.NET.Extensions</c>: host-side types that no pack touches
 ///         (<c>Loading</c>, <c>CompatibilityReport</c>) change freely. Major: a breaking change to a type a
-///         pack does reference or implement, including <c>IModuleContext</c>, <c>IHostTabViewModel</c> or
+///         pack does reference or implement, including <c>IModuleContext</c>, <c>IExtensionContributions</c> or
 ///         the <c>IPlaybackSurface</c> family (a removed or renamed member, a changed signature, a new
 ///         abstract member on an interface a pack implements). Minor: an additive change (a new
 ///         contribution kind, a new optional member with a default). Patch: never; a contract has no
@@ -27,8 +27,12 @@ namespace DemoViewer.NET.Extensions;
 /// </summary>
 public static class ExtensionHost
 {
-    /// <summary>The pack contract version this app implements.</summary>
-    public static SemVersion ContractVersion { get; } = new(1, 0, 0);
+    /// <summary>
+    ///     The extension SDK version this app implements: the SDK assembly's release, without prerelease or
+    ///     build metadata, so a manifest's <c>requiresHost</c> range compares against a plain version. Apps
+    ///     from before the SDK reported 1.0.0, so the SDK line starts at 1.1.
+    /// </summary>
+    public static SemVersion ContractVersion { get; } = ReadContractVersion();
 
     /// <summary>The app release (<see cref="AppVersionInfo.CurrentReleaseVersion" />), or null when unstamped.</summary>
     public static SemVersion? AppVersion { get; } =
@@ -60,6 +64,15 @@ public static class ExtensionHost
 
         Version v = assemblyVersion ?? new Version(0, 0, 0);
         return new SemVersion(Math.Max(v.Major, 0), Math.Max(v.Minor, 0), Math.Max(v.Build, 0));
+    }
+
+    private static SemVersion ReadContractVersion()
+    {
+        Assembly sdk = typeof(IExtension).Assembly;
+        SemVersion version = ResolveVersion(
+            sdk.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion,
+            sdk.GetName().Version);
+        return new SemVersion(version.Major, version.Minor, version.Patch);
     }
 
     private static SemVersion ReadCs2DemoKitVersion()

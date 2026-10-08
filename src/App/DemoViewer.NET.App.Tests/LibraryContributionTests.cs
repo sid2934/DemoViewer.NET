@@ -1,8 +1,10 @@
 #region
 
+using System.Collections.Concurrent;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.ViewModels.Library;
+using Microsoft.Extensions.DependencyInjection;
 
 #endregion
 
@@ -52,32 +54,32 @@ public class LibraryContributionTests
         public string? FeatureId { get; set; }
         public LibraryFilter? FilterValue { get; set; }
         public bool HasBadgeValue { get; set; }
-        public Func<DemoEntry, LibraryBadge?>? BadgeForFunc { get; set; }
+        public Func<LibraryDemo, LibraryBadge?>? BadgeForFunc { get; set; }
         public IReadOnlyList<string> BadgeLabelsValue { get; set; } = [];
         public string? BadgeResetLabelValue { get; set; }
         public string? BadgeResetTooltipValue { get; set; }
         public int BadgeForCalls { get; private set; }
         public int BadgesForCalls { get; private set; }
-        public List<(DemoEntry Entry, string? Label)> SetLabelCalls { get; } = [];
+        public List<(LibraryDemo Entry, string? Label)> SetLabelCalls { get; } = [];
 
         public event Action? Changed;
 
         public LibraryFilter? Filter => FilterValue;
         public bool HasBadge => HasBadgeValue;
 
-        public LibraryBadge? BadgeFor(DemoEntry entry)
+        public LibraryBadge? BadgeFor(LibraryDemo demo)
         {
             BadgeForCalls++;
-            return BadgeForFunc?.Invoke(entry);
+            return BadgeForFunc?.Invoke(demo);
         }
 
-        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries)
+        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<LibraryDemo> demos)
         {
             BadgesForCalls++;
             Dictionary<string, LibraryBadge?> result = new(StringComparer.Ordinal);
-            foreach (DemoEntry entry in entries)
+            foreach (LibraryDemo demo in demos)
             {
-                result[entry.FilePath] = BadgeForFunc?.Invoke(entry);
+                result[demo.FilePath] = BadgeForFunc?.Invoke(demo);
             }
 
             return result;
@@ -87,9 +89,73 @@ public class LibraryContributionTests
         public string? BadgeResetLabel => BadgeResetLabelValue;
         public string? BadgeResetTooltip => BadgeResetTooltipValue;
 
-        public void SetLabel(DemoEntry entry, string? label) => SetLabelCalls.Add((entry, label));
+        public void SetLabel(LibraryDemo demo, string? label) => SetLabelCalls.Add((demo, label));
 
         public void RaiseChanged() => Changed?.Invoke();
+    }
+
+    [Test]
+    public async Task AContribution_SeesTheLibrarysRow_WhenTheCacheHasOne()
+    {
+        DemoLibraryService lib = NewLibrary("/demos/a.dem", "/demos/b.dem");
+        Services.DemoCache.DemoCacheStore cache = new(null);
+        Services.DemoCache.DemoCacheRecord record = HostLibraryTests.Parsed("/demos/a.dem");
+        cache.Upsert(record);
+        HostLibrary library = new(cache, null, () => false);
+        List<LibraryDemo> seen = [];
+        FakeContribution c = new()
+        {
+            FilterValue = new LibraryFilter("Clan", [new LibraryFilterItem("", "All"), new LibraryFilterItem("blue", "Blue")],
+                (demo, key) => string.Equals(demo.CtClan, key, StringComparison.OrdinalIgnoreCase)),
+            HasBadgeValue = true,
+            BadgeForFunc = demo =>
+            {
+                seen.Add(demo);
+                return null;
+            }
+        };
+        LibraryTabViewModel vm = new(lib, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]),
+            contributions: [c], findDemo: library.Find);
+
+        LibraryFilterViewModel filter = vm.Filters.Single();
+        filter.Selected = filter.Items.Single(i => i.Key == "blue");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.FilteredEntries.Select(e => e.FileName)).IsEquivalentTo(["a.dem"])
+                .Because("the clans come from the cache's row, which the grid entry does not carry");
+            await Assert.That(seen.First(d => d.FilePath == "/demos/a.dem").Sha256).IsEqualTo(record.Sha256);
+            await Assert.That(ReferenceEquals(seen.Last(d => d.FilePath == "/demos/a.dem"), library.Find("/demos/a.dem"))).IsTrue();
+            await Assert.That(seen.First(d => d.FilePath == "/demos/b.dem").Sha256).IsNull()
+                .Because("a demo the cache has no row for falls back to the grid entry");
+        }
+    }
+
+    [Test]
+    public async Task ACardWhoseDemoTheCacheHoldsUnderAnotherPrimary_StillGetsItsBadge()
+    {
+        DemoLibraryService lib = NewLibrary("/demos/a.dem");
+        Services.DemoCache.DemoCacheStore cache = new(null);
+        cache.Upsert(HostLibraryTests.Parsed("/demos/a.dem"));
+        cache.Upsert(HostLibraryTests.Parsed("/Downloads/a.dem"));
+        HostLibrary library = new(cache, null, () => false);
+        FakeContribution c = new()
+        {
+            HasBadgeValue = true,
+            BadgeForFunc = demo => new LibraryBadge("seen", demo.FilePath, false)
+        };
+
+        LibraryTabViewModel vm = new(lib, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]),
+            contributions: [c], findDemo: library.Find);
+        c.RaiseChanged();
+
+        DemoEntry card = vm.FilteredEntries.Single();
+        using (Assert.Multiple())
+        {
+            await Assert.That(library.Find(card.FilePath)!.FilePath).IsEqualTo("/Downloads/a.dem")
+                .Because("the cache's primary is another copy than the card's");
+            await Assert.That(card.BadgeLabel).IsEqualTo("seen");
+        }
     }
 
     private static LibraryFilter KeepFilter() => new("Keep",
@@ -110,15 +176,107 @@ public class LibraryContributionTests
 
         public LibraryFilter? Filter => throw new InvalidOperationException("Filter read while off");
         public bool HasBadge => throw new InvalidOperationException("HasBadge read while off");
-        public LibraryBadge? BadgeFor(DemoEntry entry) => throw new InvalidOperationException("BadgeFor called while off");
+        public LibraryBadge? BadgeFor(LibraryDemo demo) => throw new InvalidOperationException("BadgeFor called while off");
 
-        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<DemoEntry> entries) =>
+        public IReadOnlyDictionary<string, LibraryBadge?> BadgesFor(IEnumerable<LibraryDemo> demos) =>
             throw new InvalidOperationException("BadgesFor called while off");
 
         public IReadOnlyList<string> BadgeLabels => throw new InvalidOperationException("BadgeLabels read while off");
         public string? BadgeResetLabel => throw new InvalidOperationException("BadgeResetLabel read while off");
         public string? BadgeResetTooltip => throw new InvalidOperationException("BadgeResetTooltip read while off");
-        public void SetLabel(DemoEntry entry, string? label) => throw new InvalidOperationException("SetLabel called while off");
+        public void SetLabel(LibraryDemo demo, string? label) => throw new InvalidOperationException("SetLabel called while off");
+    }
+
+    [Test]
+    public async Task AChangedRaisedOffTheUiThread_ReachesTheHostOnlyThroughThePacksMarshal()
+    {
+        DemoLibraryService lib = NewLibrary("/d/keep.dem", "/d/drop.dem");
+        FakeContribution c = new() { FeatureId = "pack.fake" };
+        ConcurrentQueue<Action> posted = new();
+        PackContributions contributions = new(new FakePack(), () => throw new InvalidOperationException(), posted.Enqueue);
+        contributions.Library(c);
+        LibraryTabViewModel vm = NewVm(lib, contributions.LibraryContributions, _ => true);
+        await Assert.That(vm.Filters).IsEmpty();
+
+        c.FilterValue = KeepFilter();
+        await Task.Run(c.RaiseChanged);
+        await Assert.That(vm.Filters).IsEmpty().Because("the raising thread never touches the host's collections");
+        await Assert.That(posted.Count).IsEqualTo(1);
+
+        while (posted.TryDequeue(out Action? run))
+        {
+            run();
+        }
+
+        await Assert.That(vm.Filters.Count).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task ThePacksMarshal_UnsubscribesTheHandlerItWasGiven()
+    {
+        FakeContribution c = new() { FeatureId = "pack.fake" };
+        ConcurrentQueue<Action> posted = new();
+        PackContributions contributions = new(new FakePack(), () => throw new InvalidOperationException(), posted.Enqueue);
+        contributions.Library(c);
+        ILibraryContribution host = contributions.LibraryContributions.Single();
+        int calls = 0;
+        Action handler = () => calls++;
+
+        host.Changed += handler;
+        c.RaiseChanged();
+        host.Changed -= handler;
+        c.RaiseChanged();
+        while (posted.TryDequeue(out Action? run))
+        {
+            run();
+        }
+
+        await Assert.That(calls).IsEqualTo(1);
+    }
+
+    // Collected through the pack's contributions, a filter whose predicate throws keeps every demo and a
+    // badge that throws shows none; the Library still builds and each throw is counted against the pack.
+    [Test]
+    [NotInParallel]
+    public async Task AFilterAndABadgeThatThrow_KeepEveryDemo_AndCountAgainstTheExtension()
+    {
+        DemoViewer.NET.AppTests.Extensions.FaultRig rig = new();
+        DemoLibraryService lib = NewLibrary("/d/a.dem", "/d/b.dem");
+        FakeContribution c = new()
+        {
+            FeatureId = "pack.fake",
+            FilterValue = new LibraryFilter("Throws", [new LibraryFilterItem("", "All"), new LibraryFilterItem("x", "X")],
+                (_, _) => throw new InvalidOperationException("filter")),
+            HasBadgeValue = true,
+            BadgeForFunc = _ => throw new InvalidOperationException("badge")
+        };
+        PackContributions contributions = new(new FakePack(), () => throw new InvalidOperationException(), null, rig.Guard);
+        contributions.Library(c);
+        LibraryTabViewModel vm = NewVm(lib, contributions.LibraryContributions, _ => true);
+
+        LibraryFilterViewModel filter = vm.Filters.Single();
+        filter.Selected = filter.Items.Single(i => i.Key == "x");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.FilteredEntries.Count).IsEqualTo(2).Because("a throwing predicate keeps the demo");
+            await Assert.That(rig.Faults.StateOf("pack.fake").Count).IsGreaterThanOrEqualTo(2);
+        }
+    }
+
+    private sealed class FakePack : IExtension
+    {
+        public string Id => "net.demoviewer.pack.fake";
+        public string FeatureId => "pack.fake";
+        public IEnumerable<ExtensionFeature> Features => [];
+
+        public void Register(IServiceCollection services)
+        {
+        }
+
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
+        {
+        }
     }
 
     [Test]
@@ -171,7 +329,7 @@ public class LibraryContributionTests
         using (Assert.Multiple())
         {
             await Assert.That(c.SetLabelCalls.Count).IsEqualTo(1);
-            await Assert.That(c.SetLabelCalls[0].Entry).IsEqualTo(lib.Entries[0]);
+            await Assert.That(c.SetLabelCalls[0].Entry).IsEqualTo(lib.Entries[0].ToLibraryDemo());
             await Assert.That(c.SetLabelCalls[0].Label).IsEqualTo("picked");
         }
     }

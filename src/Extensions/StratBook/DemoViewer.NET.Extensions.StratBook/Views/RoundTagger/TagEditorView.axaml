@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.Modules.RoundTagger.Review"
-             x:Class="DemoViewer.NET.Views.RoundTagger.TagEditorView"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.RoundTagger.TagEditorView"
              x:DataType="vm:TagEditorViewModel">
 
     <!--

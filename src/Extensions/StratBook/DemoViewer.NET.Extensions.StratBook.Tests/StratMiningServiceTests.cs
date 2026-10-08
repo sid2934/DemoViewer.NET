@@ -2,13 +2,15 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Strats.Mining;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
@@ -51,7 +53,7 @@ public class StratMiningServiceTests
         };
         record.SetRoundFacts(new RoundFactsRows
             {
-                Schema = StratBookCache.RoundFactsSchema,
+                Schema = RoundFactsRecords.Schema,
                 Clock = new RoundFactsClock { TickRate = Rate, FrameCount = 100_000, LastTick = 100_000 },
                 Rounds =
                 [
@@ -128,13 +130,12 @@ public class StratMiningServiceTests
         public required string Root { get; init; }
 
         public StratMiningService Service(Func<Action, Task>? run = null, Func<bool>? enabled = null) =>
-            new(Cache, Positions, _sources.FingerprintFor, null, null, Strats, Tags,
-                Path.Combine(Root, "cache"), Root, run: run ?? _inline, enabled: enabled)
+            new(Cache.Library(), Cache.RoundFacts(), Positions, _sources.FingerprintFor, null, null, Strats, Tags,
+                TestFiles.Mining(Path.Combine(Root, "cache"), Root), run: run ?? _inline, enabled: enabled)
             { QuietDelay = Timeout.InfiniteTimeSpan };
 
         public void Dispose()
         {
-            Positions.Dispose();
             try
             {
                 Directory.Delete(Root, true);
@@ -147,7 +148,7 @@ public class StratMiningServiceTests
         public static Library Create()
         {
             DemoCacheStore cache = new(null);
-            RoundIndexStore positions = new(null, cache);
+            RoundIndexStore positions = new(cache.Data());
             using (cache.BeginBatch())
             {
                 for (int n = 1; n <= 4; n++)
@@ -258,7 +259,7 @@ public class StratMiningServiceTests
     public async Task ACachedGrenade_BecomesAThrowStep_WithItsLandingAndAnArrow()
     {
         RoundPositionsDocument positions = Positions(1, BombSite.A, 0);
-        RoundFacts facts = Record(1, BombSite.A).RoundFacts()!.Rounds[0];
+        RoundFacts facts = Record(1, BombSite.A).RoundFacts!.Rounds[0];
         GrenadeRow incendiary = new()
         {
             Id = "g1",
@@ -313,6 +314,48 @@ public class StratMiningServiceTests
 
         await Assert.That(moves).IsEquivalentTo(new Dictionary<string, string> { ["old"] = "new" })
             .Because("two of old's three rounds are in new; kept kept its key; quiet had no state to carry");
+    }
+
+    [Test]
+    public async Task Fresh_CountsOnlyUnsettledPatterns_ThePreviousMineDidNotHave()
+    {
+        List<MinedPattern> before = [Pattern("old", 1, 2, 3), Pattern("kept", 7, 8)];
+        List<DetectedPattern> after =
+        [
+            new(Pattern("heir", 2, 3, 4), false, null),
+            new(Pattern("kept", 7, 8, 9), false, null),
+            new(Pattern("brand", 15, 16), false, null),
+            new(Pattern("dismissed", 17, 18), true, null)
+        ];
+
+        await Assert.That(StratMiningService.Fresh(before, after)).IsEqualTo(1)
+            .Because("heir took old's rounds, kept kept its key, and a dismissed one is settled");
+    }
+
+    // A mine nobody asked for tells the pack what it found; one the user asked for does not.
+    [Test]
+    public async Task ABackgroundMine_ReportsItsNewPatterns_AndAUserMineDoesNot()
+    {
+        using Library library = Library.Create();
+        using StratMiningService background = library.Service();
+        List<int> found = [];
+        background.PatternsFound += found.Add;
+        await background.MineAsync(user: false);
+
+        using Library other = Library.Create();
+        using StratMiningService user = other.Service();
+        int userFound = 0;
+        user.PatternsFound += _ => userFound++;
+        await user.MineAsync();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(found).IsEquivalentTo([background.Patterns.Count]);
+            await Assert.That(userFound).IsEqualTo(0);
+        }
+
+        await background.MineAsync(user: false);
+        await Assert.That(found).HasCount().EqualTo(1).Because("the same patterns again are nothing new");
     }
 
     [Test]
@@ -447,7 +490,7 @@ public class StratMiningServiceTests
         {
             DetectedPattern pattern = service.Patterns.Single(p => p.Pattern.Key == execute.Key);
             await Assert.That(pattern.StratId).IsNull();
-            await Assert.That(pattern.State).IsEqualTo(Services.Generated.GeneratedState.New);
+            await Assert.That(pattern.State).IsEqualTo(GeneratedState.New);
             await Assert.That(Enumerable.Range(1, 3).Sum(n => library.Tags.TryLoad(Sha(n))!.Instances.Count(i => i.Source == TagSources.Suggested)))
                 .IsEqualTo(0).Because("the three runs the promotion wrote are gone");
             await Assert.That(library.Tags.TryLoad(Sha(1))!.Instances.Single().Source).IsEqualTo(TagSources.Human);

@@ -2,11 +2,11 @@
 
 using Avalonia.Controls;
 using Avalonia.Threading;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.Views.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 
 /// <summary>
 ///     The lineup picker. Bindings only, except focus: a picker that opens takes the focus, so Escape cancels at

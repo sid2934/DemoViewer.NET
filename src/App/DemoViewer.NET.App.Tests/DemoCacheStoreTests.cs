@@ -252,7 +252,7 @@ public class DemoCacheStoreTests
     }
 
     [Test]
-    public async Task CorruptIndex_StartsEmpty_AndRebuilds()
+    public async Task CorruptIndex_IsRebuiltFromTheRecords()
     {
         string root = TempRoot();
         try
@@ -263,7 +263,7 @@ public class DemoCacheStoreTests
             File.WriteAllText(Path.Combine(root, "index.json"), "]]not json[[");
 
             DemoCacheStore reopened = new(root);
-            await Assert.That(reopened.Count).IsEqualTo(0);
+            await Assert.That(reopened.Count).IsEqualTo(1);
 
             reopened.Upsert(Record("/demos/e.dem"));
             reopened.SaveIndex();
@@ -386,6 +386,40 @@ public class DemoCacheStoreTests
                 await Assert.That(third!.Players).HasCount(4);
                 await Assert.That(third.CtScore).IsEqualTo(13);
                 await Assert.That(store.TryGetIndex("/demos/iso.dem")!.CtScore).IsEqualTo(13);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    ///     A bulk walk leaves the capacity-1 record cache holding the demo the user last read. Served from
+    ///     memory, that demo still reads after its sidecar is gone; a walk that took the slot would lose it.
+    /// </summary>
+    [Test]
+    public async Task LoadRecords_LeavesTheRememberedRecordAlone()
+    {
+        string root = TempRoot();
+        try
+        {
+            DemoCacheStore store = new(root);
+            store.Upsert(Record("/demos/seen.dem"));
+            DemoCacheRecord other = Record("/demos/other.dem");
+            other.Sha256 = "sha-other";
+            store.Upsert(other);
+
+            await Assert.That(store.TryLoadRecord("/demos/seen.dem")).IsNotNull();
+            File.Delete(store.SidecarPathFor("/demos/seen.dem")!);
+
+            List<DemoCacheRecord> walked = store.LoadRecords();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(walked).HasCount(2);
+                await Assert.That(store.TryLoadRecord("/demos/seen.dem")).IsNotNull()
+                    .Because("the walk read other.dem last and must not have replaced seen.dem in the cache");
             }
         }
         finally

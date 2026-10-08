@@ -6,8 +6,9 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -102,8 +103,8 @@ public class RoundIndexRealDemoTests
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         DemoCacheStore store = new(null);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        facts.OnParsedOpportunistically(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
+        facts.Evaluate(path, parsed);
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
 
         RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
         await Assert.That(document.RowCount).IsGreaterThan(0);
@@ -121,8 +122,8 @@ public class RoundIndexRealDemoTests
 
         DemoCacheStore store = new(null);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        facts.OnParsedOpportunistically(path, parsed);
-        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
+        facts.Evaluate(path, parsed);
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
         RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
         EmpiricalPlaceAdjacency graph = new(document.Transitions, 1);
 
@@ -158,11 +159,11 @@ public class RoundIndexRealDemoTests
         string folder = Path.GetDirectoryName(reference)!;
         string[] demos = Directory.GetFiles(folder, "*.dem");
         DemoCacheStore store = new(null);
-        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexStore sidecars = new(store.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);
-        using SituationIndex index = new(store, sidecars, sources, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(store.Library(), store.RoundFacts(), sidecars, sources, () => true);
+        using SituationIndex index = new(store.Library(), sidecars, sources, evaluator: evaluator);
         index.Load();
 
         Stopwatch watch = Stopwatch.StartNew();
@@ -179,8 +180,8 @@ public class RoundIndexRealDemoTests
                     ComputedAtTicks = 1
                 }
             });
-            facts.OnParsedOpportunistically(demo, parsed);
-            evaluator.OnParsedOpportunistically(demo, parsed);
+            facts.Evaluate(demo, parsed);
+            evaluator.Evaluate(demo, parsed);
         }
 
         watch.Stop();

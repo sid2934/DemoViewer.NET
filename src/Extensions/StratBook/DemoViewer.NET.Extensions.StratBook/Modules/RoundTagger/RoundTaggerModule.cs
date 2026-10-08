@@ -1,12 +1,12 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.ViewModels.RoundTagger;
-using DemoViewer.NET.Views.RoundTagger;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
+using DemoViewer.NET.Extensions.StratBook.Views.RoundTagger;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.RoundTagger;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger;
 
 /// <summary>
 ///     The Round Tagger module: the home of the Tag Palette hosted by the 2D Playback
@@ -55,7 +55,7 @@ public sealed class RoundTaggerModule : IWorkspaceModule
             TabId = MatrixTabId,
             Header = "Tags",
             Order = 2, // after Situations (1)
-            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new TagMatrixTabView()

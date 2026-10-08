@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Playback2D.Core.Keyframes;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 /// <summary>
 ///     One step's span of the strat frame clock: its strokes are visible over it and its token edits land

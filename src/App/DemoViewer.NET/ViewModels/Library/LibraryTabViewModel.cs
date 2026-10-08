@@ -22,7 +22,24 @@ namespace DemoViewer.NET.ViewModels.Library;
 ///     when it was opened (<see cref="OpenedAtUtc" />, drives the relative-date label). Rebuilt from the
 ///     store on every change, so <see cref="Exists" /> is fresh at build time.
 /// </summary>
-public sealed record RecentFileItem(string Path, string? MapName, string FileName, bool Exists, DateTime OpenedAtUtc)
+/// <param name="Path">The path the store recorded the open at, and the key a prune removes.</param>
+/// <param name="MapName">Parsed map name, or null when unknown.</param>
+/// <param name="FileName">File name shown on the row.</param>
+/// <param name="Exists">True when a file was at <paramref name="Path" /> when the row was built.</param>
+/// <param name="OpenedAtUtc">When the demo was opened (UTC).</param>
+/// <param name="Sha256">The demo's content hash when the open recorded one, else null.</param>
+/// <param name="Relocated">
+///     True when <paramref name="Path" /> is gone but the library lists the same content elsewhere, so a
+///     click opens it from there.
+/// </param>
+public sealed record RecentFileItem(
+    string Path,
+    string? MapName,
+    string FileName,
+    bool Exists,
+    DateTime OpenedAtUtc,
+    string? Sha256 = null,
+    bool Relocated = false)
 {
     /// <summary>Prettified map (e.g. "Mirage"), or "Unknown" when the map wasn't known at open time.</summary>
     public string MapDisplay => DemoEntry.PrettifyMap(MapName);
@@ -34,7 +51,7 @@ public sealed record RecentFileItem(string Path, string? MapName, string FileNam
     public string Meta => $"{MapDisplay} · {DateDisplay}";
 
     /// <summary>Dim a row whose file no longer exists. It stays clickable, and the click prunes it.</summary>
-    public double RowOpacity => Exists ? 1.0 : 0.4;
+    public double RowOpacity => Exists || Relocated ? 1.0 : 0.4;
 }
 
 /// <summary>How demos sort in the browser.</summary>
@@ -103,6 +120,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private readonly Func<string, bool> _isFeatureEnabled;
     private readonly bool[] _contributionOn;
     private readonly LibraryFilterViewModel?[] _filterVms;
+    private readonly Func<string, LibraryDemo?>? _findDemo;
+    private readonly Func<string, IReadOnlyList<string>>? _contentLocations;
     private readonly Action[] _changedHandlers;
 
     [ObservableProperty]
@@ -142,8 +161,12 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         RecentFilesStore? recentFiles = null,
         string? sampleDemoPath = null,
         IReadOnlyList<ILibraryContribution>? contributions = null,
-        Func<string, bool>? isFeatureEnabled = null)
+        Func<string, bool>? isFeatureEnabled = null,
+        Func<string, LibraryDemo?>? findDemo = null,
+        Func<string, IReadOnlyList<string>>? contentLocations = null)
     {
+        _findDemo = findDemo;
+        _contentLocations = contentLocations;
         _library = library;
         _openDemo = openDemo;
         _pickFolders = pickFolders;
@@ -568,7 +591,16 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
         if (!File.Exists(item.Path))
         {
-            _recentFiles?.Remove(item.Path); // stale entry → prune (fires Changed → RefreshRecentFiles)
+            // The open reads the whole file and records it under its hash, so an unconfirmed location is safe
+            // here and the stale entry is replaced rather than pruned.
+            string? moved = OtherLocationsOf(item.Sha256, item.Path).FirstOrDefault(File.Exists);
+            if (moved is null)
+            {
+                _recentFiles?.Remove(item.Path); // stale entry → prune (fires Changed → RefreshRecentFiles)
+                return;
+            }
+
+            await _openDemo(moved);
             return;
         }
 
@@ -586,18 +618,27 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             bool canStat = !OperatingSystem.IsBrowser();
             foreach (RecentFile r in _recentFiles.Items)
             {
+                bool exists = canStat && File.Exists(r.Path);
                 RecentFiles.Add(new RecentFileItem(
                     r.Path,
                     r.MapName,
                     Path.GetFileName(r.Path),
-                    canStat && File.Exists(r.Path),
-                    r.OpenedAtUtc));
+                    exists,
+                    r.OpenedAtUtc,
+                    r.Sha256,
+                    // From the library's own record only: a stat per candidate here would run on the UI thread.
+                    !exists && canStat && OtherLocationsOf(r.Sha256, r.Path).Any()));
             }
         }
 
         OnPropertyChanged(nameof(HasRecentFiles));
         OnPropertyChanged(nameof(ShowHeaderRecents));
     }
+
+    private IEnumerable<string> OtherLocationsOf(string? sha256, string path) =>
+        sha256 is { Length: > 0 } && _contentLocations is not null
+            ? _contentLocations(sha256).Where(p => !string.Equals(p, path, StringComparison.OrdinalIgnoreCase))
+            : [];
 
     [RelayCommand]
     private void ClearFilters()
@@ -660,7 +701,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         {
             // The contribution started offering a filter it did not have at construction or its last
             // transition on (no contribution does this today; kept for a future one that can).
-            LibraryFilterViewModel added = new(filter, ApplyFilter);
+            LibraryFilterViewModel added = new(filter, ApplyFilter, DemoOf);
             _filterVms[i] = added;
             Filters.Add(added);
         }
@@ -729,7 +770,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             {
                 if (_filterVms[i] is null && _contributions[i].Filter is { } filter)
                 {
-                    LibraryFilterViewModel vm = new(filter, ApplyFilter);
+                    LibraryFilterViewModel vm = new(filter, ApplyFilter, DemoOf);
                     _filterVms[i] = vm;
                     Filters.Add(vm);
                 }
@@ -801,7 +842,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     public void SetBadgeLabel(DemoEntry entry, string? label)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        ActiveBadgeContribution()?.SetLabel(entry, label);
+        ActiveBadgeContribution()?.SetLabel(DemoOf(entry), label);
     }
 
     // One BadgesFor call per refresh, not one BadgeFor per entry: a contribution whose per-entry answer
@@ -809,10 +850,13 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     private void RefreshBadges()
     {
         ILibraryContribution? active = ActiveBadgeContribution();
-        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(_library.Entries);
-        foreach (DemoEntry entry in _library.Entries)
+        // The badges come back under each row's own path, which for a demo held at several paths is its
+        // primary in the cache: not always the copy this card shows.
+        List<(DemoEntry Entry, LibraryDemo Demo)> cards = [.. _library.Entries.Select(e => (e, DemoOf(e)))];
+        IReadOnlyDictionary<string, LibraryBadge?>? badges = active?.BadgesFor(cards.Select(c => c.Demo));
+        foreach ((DemoEntry entry, LibraryDemo demo) in cards)
         {
-            LibraryBadge? badge = badges?.GetValueOrDefault(entry.FilePath);
+            LibraryBadge? badge = badges?.GetValueOrDefault(demo.FilePath);
             entry.BadgeLabel = badge?.Label;
             entry.BadgeTooltip = badge?.Tooltip;
             entry.BadgeIsPinned = badge?.IsPinned ?? false;
@@ -1038,4 +1082,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
             CardRows.Add(new CardRow(row));
         }
     }
+
+    // The library's own row when the cache has one: contributions then see the hash, clans and sides.
+    private LibraryDemo DemoOf(DemoEntry entry) => _findDemo?.Invoke(entry.FilePath) ?? entry.ToLibraryDemo();
 }

@@ -14,7 +14,7 @@ using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     One planned Lineup Clip: the representative throw of a Lineup Card, the tick range its GIF covers,
@@ -120,7 +120,20 @@ public static class LineupClipPlanner
     /// <param name="technique">One of its techniques, or null for a lineup without techniques.</param>
     /// <param name="title">The card's cluster title.</param>
     /// <param name="directory">Where clips are written.</param>
-    public static LineupClipJob? Plan(GrenadeLineup lineup, LineupTechnique? technique, string title, string directory)
+    public static LineupClipJob? Plan(GrenadeLineup lineup, LineupTechnique? technique, string title, string directory) =>
+        Plan(lineup, technique, title, directory, null);
+
+    /// <summary>
+    ///     The job for one technique of a lineup, shown from a throw in <paramref name="sourceDemo" /> when it has
+    ///     one with a console line, else from the representative. The job keeps the representative's key either way.
+    /// </summary>
+    /// <param name="lineup">The throw position.</param>
+    /// <param name="technique">One of its techniques, or null for a lineup without techniques.</param>
+    /// <param name="title">The card's cluster title.</param>
+    /// <param name="directory">Where clips are written.</param>
+    /// <param name="sourceDemo">The demo to take the throw from, or null for the representative's.</param>
+    public static LineupClipJob? Plan(GrenadeLineup lineup, LineupTechnique? technique, string title, string directory,
+        string? sourceDemo)
     {
         ArgumentNullException.ThrowIfNull(lineup);
         ArgumentNullException.ThrowIfNull(directory);
@@ -132,13 +145,18 @@ public static class LineupClipPlanner
         }
 
         IndexedGrenade representative = technique?.Representative ?? lineup.Representative;
-        GrenadeRow row = representative.Row;
+        IndexedGrenade shown = (sourceDemo is null
+            ? null
+            : (technique?.Throws ?? lineup.Throws).FirstOrDefault(t =>
+                string.Equals(t.Demo.Path, sourceDemo, StringComparison.OrdinalIgnoreCase) && GrenadeConsole.Format(t.Row) is not null))
+            ?? representative;
+        GrenadeRow row = shown.Row;
         if (GrenadeConsole.Format(row) is not { } console)
         {
             return null;
         }
 
-        int rate = representative.TickRate > 0 ? representative.TickRate : 64;
+        int rate = shown.TickRate > 0 ? shown.TickRate : 64;
         (int from, int to) = Range(row, rate);
         string map = representative.Map;
         GrenadeKind kind = representative.Kind;
@@ -160,7 +178,7 @@ public static class LineupClipPlanner
             ? id
             : null;
 
-        return new LineupClipJob(representative.Key, lineup.Id, representative.Demo.Path, representative.Demo.Sha256,
+        return new LineupClipJob(representative.Key, lineup.Id, shown.Demo.Path, shown.Demo.Sha256,
             representative.Map, title, from, to, rate, steamId, console,
             Path.Combine(directory, stem + GifExtension), Path.Combine(directory, stem + SetposExtension),
             lineup.AliasIds, former) { Throws = technique?.Throws.Count ?? lineup.Throws.Count, TechniqueKey = key };
@@ -169,7 +187,18 @@ public static class LineupClipPlanner
     /// <summary>The job for every lineup and technique that gets one, whatever is on disk, in cluster order.</summary>
     /// <param name="clusters">The index's clusters.</param>
     /// <param name="directory">Where clips are written.</param>
-    public static IReadOnlyList<LineupClipJob> PlanEvery(IEnumerable<GrenadeCluster> clusters, string directory)
+    public static IReadOnlyList<LineupClipJob> PlanEvery(IEnumerable<GrenadeCluster> clusters, string directory) =>
+        PlanEvery(clusters, directory, null);
+
+    /// <summary>
+    ///     The job for every lineup and technique that gets one, in cluster order, each shown from a throw in
+    ///     <paramref name="sourceDemo" /> where it has one.
+    /// </summary>
+    /// <param name="clusters">The index's clusters.</param>
+    /// <param name="directory">Where clips are written.</param>
+    /// <param name="sourceDemo">The demo to take throws from, or null for the representatives.</param>
+    public static IReadOnlyList<LineupClipJob> PlanEvery(IEnumerable<GrenadeCluster> clusters, string directory,
+        string? sourceDemo)
     {
         ArgumentNullException.ThrowIfNull(clusters);
 
@@ -187,7 +216,7 @@ public static class LineupClipPlanner
 
                 if (lineup.Techniques.Count == 0)
                 {
-                    if (Plan(lineup, null, title, directory) is { } only)
+                    if (Plan(lineup, null, title, directory, sourceDemo) is { } only)
                     {
                         jobs.Add(only);
                     }
@@ -197,7 +226,7 @@ public static class LineupClipPlanner
 
                 foreach (LineupTechnique technique in lineup.Techniques)
                 {
-                    if (Plan(lineup, technique, title, directory) is { } job)
+                    if (Plan(lineup, technique, title, directory, sourceDemo) is { } job)
                     {
                         jobs.Add(job);
                     }

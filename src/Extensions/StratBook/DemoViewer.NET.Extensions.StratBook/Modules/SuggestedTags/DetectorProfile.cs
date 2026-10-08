@@ -4,11 +4,10 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>A team's edit to one site's region: places added and places taken away.</summary>
 /// <param name="Add">Places the region gains.</param>
@@ -400,7 +399,7 @@ public sealed class ProfileStore
             else
             {
                 Directory.CreateDirectory(_directory);
-                DemoCacheStore.WriteAtomic(Path.Combine(_directory, FileName), json + "\n");
+                AtomicFile.WriteAllText(Path.Combine(_directory, FileName), json + "\n");
             }
 
             _current = profile;
@@ -482,7 +481,7 @@ public sealed class ProfileStore
         try
         {
             Directory.CreateDirectory(_directory);
-            DemoCacheStore.WriteAtomic(Path.Combine(_directory, FileName), json + "\n");
+            AtomicFile.WriteAllText(Path.Combine(_directory, FileName), json + "\n");
         }
         catch (IOException)
         {

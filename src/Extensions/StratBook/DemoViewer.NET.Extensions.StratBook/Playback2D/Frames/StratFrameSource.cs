@@ -3,7 +3,7 @@
 using System.Globalization;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Export;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 
 #endregion
 
@@ -200,18 +200,25 @@ public sealed class StratFrameSource : ISceneFrameSource
         }
 
         double remaining = _spec.CountsUp ? ElapsedAt(tick) : RoundSecondsAt(_spec.RoundSeconds, tick);
-        Scene2DFrame frame = slot.Frame;
-        frame.TimeField = time;
-        frame.MapField = _map;
-        frame.GameInfoField = SceneGameInfo.Empty with
+        // A new frame shell per call over the slot's pooled lists: the shell is a few fields, the lists
+        // are what a frame costs.
+        return new Scene2DFrame
         {
-            Phase = "Live",
-            RoundSeconds = remaining,
-            RoundTime = _spec.CountsUp || remaining > 0 ? FormatClock(remaining) : "0:00",
-            TScore = 0,
-            CtScore = 0
+            Time = time,
+            Map = _map,
+            GameInfo = SceneGameInfo.Empty with
+            {
+                Phase = "Live",
+                RoundSeconds = remaining,
+                RoundTime = _spec.CountsUp || remaining > 0 ? FormatClock(remaining) : "0:00",
+                TScore = 0,
+                CtScore = 0
+            },
+            Markers = slot.Markers,
+            AreaEffects = slot.AreaEffects,
+            Trails = slot.Trails,
+            Routes = slot.Routes
         };
-        return frame;
     }
 
     /// <summary>The round clock at a strat tick: <paramref name="roundSeconds" /> at tick 0, counting down.</summary>
@@ -397,23 +404,13 @@ public sealed class StratFrameSource : ISceneFrameSource
         return _clockCacheText;
     }
 
-    // One published frame and the pooled lists wired into it, the SceneFrameBuilder shape. The kill feed
-    // stays the frame's empty default: a strat has none.
+    // The pooled lists one published frame reads. The kill feed stays the frame's empty default: a strat
+    // has none.
     private sealed class FrameSlot
     {
         private readonly Dictionary<int, GrenadeTrail> _trailPool = [];
         private readonly Dictionary<int, TokenRouteLine> _routePool = [];
 
-        public FrameSlot() =>
-            Frame = new Scene2DFrame
-            {
-                Markers = Markers,
-                AreaEffects = AreaEffects,
-                Trails = Trails,
-                Routes = Routes
-            };
-
-        public Scene2DFrame Frame { get; }
         public List<PlayerMarker> Markers { get; } = new(TokenSlots.All.Count);
         public List<AreaEffect> AreaEffects { get; } = new(16);
         public List<GrenadeTrail> Trails { get; } = new(8);

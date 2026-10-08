@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>One tunable number of a detector, with the value the shipped profile gives it.</summary>
 /// <param name="Name">The key in the profile's detector section.</param>

@@ -27,7 +27,7 @@ internal static class FakeFeeds
     public sealed record Entry(
         string Version,
         byte[]? Bytes = null,
-        string RequiresHost = "^1.0",
+        string RequiresHost = "^1.1",
         string RequiresCs2DemoKit = "*",
         string? MinAppVersion = null,
         string? Sha256 = null,

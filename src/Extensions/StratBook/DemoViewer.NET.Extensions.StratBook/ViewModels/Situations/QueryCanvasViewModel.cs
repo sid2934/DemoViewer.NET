@@ -4,19 +4,18 @@ using System.Collections.ObjectModel;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 /// <summary>
 ///     The Query Canvas: the map picker, the ten-slot token rail (five CT, five T), the query draft the
@@ -52,13 +51,13 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         a user can tell the zone graph from the one the index folded from its own transitions.
 ///     </para>
 /// </summary>
-public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
+public sealed partial class QueryCanvasViewModel : ExtensionViewModel, IDisposable
 {
     private readonly Func<string, CalloutResolver>? _calloutResolverFor;
     private readonly SituationLiveCount _counter;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly ISituationIndex _index;
-    private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
+    private readonly Func<string, IMapAsset?> _loadMapAsset;
     private readonly Action<Action> _retire;
 
     // Built on a map change, not per drop: a resolver read is a zones-file load behind the seam, and
@@ -93,7 +92,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     /// <summary>The map's bundle, or null when this host has none for it (the canvas then has no pane).</summary>
     [ObservableProperty]
-    private LoadedMapAsset? _mapAsset;
+    private IMapAsset? _mapAsset;
 
     /// <summary>The last search's hit count, or null before a search or after the query changed.</summary>
     [ObservableProperty]
@@ -109,7 +108,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     /// <param name="index">The index the count runs against, and the place centroids the snap reads.</param>
     /// <param name="resolver">Turns a drop into a place.</param>
-    /// <param name="demoCache">The index rows, for the map list.</param>
+    /// <param name="library">The index rows, for the map list.</param>
     /// <param name="loadMapAsset">Finds a map's baked bundle; the pipeline's loader in the app, a stub in a test.</param>
     /// <param name="retire">
     ///     Runs a replaced bundle's dispose after the host has rebound: a Background-priority dispatcher
@@ -125,8 +124,8 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     public QueryCanvasViewModel(
         ISituationIndex index,
         IQueryPlaceResolver resolver,
-        DemoCacheStore demoCache,
-        Func<string, LoadedMapAsset?>? loadMapAsset = null,
+        IExtensionLibrary library,
+        Func<string, IMapAsset?>? loadMapAsset = null,
         Action<Action>? retire = null,
         SearchFiltersViewModel? filters = null,
         Action<Action>? post = null,
@@ -135,10 +134,10 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
         ArgumentNullException.ThrowIfNull(resolver);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         _index = index;
-        _demoCache = demoCache;
-        _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+        _library = library;
+        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
         _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
         _calloutResolverFor = calloutResolverFor;
         _counter = new SituationLiveCount(index, post ?? (action => Dispatcher.UIThread.Post(action)), countDelay);
@@ -147,7 +146,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         Document = new QueryCanvasDocument();
         Draft = new SituationQueryDraft(Document);
         Tool = new QueryTokenTool(Document, resolver);
-        Filters = filters ?? new SearchFiltersViewModel(demoCache);
+        Filters = filters ?? new SearchFiltersViewModel(library);
         Filters.Changed += OnFiltersChanged;
 
         for (int slot = 0; slot < QueryCanvasDocument.SlotsPerSide; slot++)
@@ -162,7 +161,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
         Document.Changed += OnDocumentChanged;
         Tool.Dropped += OnDropped;
-        _demoCache.Changed += OnCacheChanged;
+        _library.Changed += OnLibraryChanged;
         _index.Changed += OnIndexChanged;
         RefreshMaps();
         RefreshRail();
@@ -195,7 +194,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 
     /// <summary>"over 240 of 277 demos" beside the count, "counting" while one is in flight, empty with no map.</summary>
     public string CoverageLine => LiveCount is not null
-        ? $"over {_index.IndexedDemoCount} of {_demoCache.Index.Count} demos"
+        ? $"over {_index.IndexedDemoCount} of {_library.Demos.Count} demos"
         : IsCounting ? "counting" : "";
 
     /// <summary>
@@ -330,7 +329,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         Filters.Dispose();
         Document.Changed -= OnDocumentChanged;
         Tool.Dropped -= OnDropped;
-        _demoCache.Changed -= OnCacheChanged;
+        _library.Changed -= OnLibraryChanged;
         _index.Changed -= OnIndexChanged;
         if (MapAsset is { } asset)
         {
@@ -612,7 +611,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
         // The old bundle is retired one dispatcher hop later, not here: the host rebinds on MapChanged
         // below, and the render thread may still be replaying a picture that references the old radar
         // images. The playback tab's ReplaceMapAsset takes the same hop for the same reason.
-        LoadedMapAsset? previous = MapAsset;
+        IMapAsset? previous = MapAsset;
         MapAsset = value is null ? null : _loadMapAsset(value);
         if (previous is not null)
         {
@@ -654,6 +653,9 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     private void OnDropped(QueryPlaceHit? hit) => HintLine = hit is not null
         ? $"resolved to {DisplayPlace(hit.Place)} ({hit.Source})"
         : "no place near that drop; the token is on the map but not in the query";
+
+    private void OnLibraryChanged(LibraryChange change) => OnCacheChanged(change.Path);
+
 
     // A row that arrived or left moves the coverage and, with a demo-level filter set, the demo set;
     // the count is re-asked either way, debounced, so a library scan does not run one per row.
@@ -700,7 +702,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
     {
         List<string> maps =
         [
-            .. _demoCache.Index.Select(r => r.Map)
+            .. _library.Demos.Select(r => r.MapName)
                 .OfType<string>()
                 .Where(m => m.Length > 0)
                 .Concat(Map is { } picked ? [picked] : [])
@@ -740,7 +742,7 @@ public sealed partial class QueryCanvasViewModel : ViewModelBase, IDisposable
 }
 
 /// <summary>One rail slot: which side and slot, whether it is on the map, where, and whether it is armed.</summary>
-public sealed partial class QueryRailSlotViewModel : ViewModelBase
+public sealed partial class QueryRailSlotViewModel : ExtensionViewModel
 {
     private readonly QueryCanvasViewModel _owner;
 

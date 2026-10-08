@@ -10,8 +10,8 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.ViewModels.Review;
-using DemoViewer.NET.Views.Review;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions.StratBook.Views.Review;
 
 #endregion
 

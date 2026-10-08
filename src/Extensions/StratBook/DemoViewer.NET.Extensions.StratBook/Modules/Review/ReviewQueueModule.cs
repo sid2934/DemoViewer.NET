@@ -2,16 +2,14 @@
 
 using System.Globalization;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.ViewModels.Review;
-using DemoViewer.NET.Views.Review;
-using Microsoft.Extensions.DependencyInjection;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions.StratBook.Views.Review;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Review;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Review;
 
 /// <summary>
 ///     The Review Queue module: the Review section of the Strat Book tab's rail (<c>"review.queue"</c>,
@@ -46,29 +44,27 @@ public sealed class ReviewQueueModule : IWorkspaceModule
     private readonly ReviewQueue? _queue;
     private readonly Func<ReviewQueueTabViewModel> _viewModelFactory;
     private readonly Func<bool> _enabled;
-    private readonly IFeatureGate? _gate;
+    private readonly IExtensionFeatures? _gate;
 
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
     /// <param name="queue">The shared queue, for the badge; null when the pack was off at composition.</param>
     /// <param name="enabled">
-    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack;
-    ///     null resolves <see cref="IFeatureGate" /> from <see cref="App.Services" /> live, failing CLOSED
-    ///     (not the usual fail-open default) since this is a pack-owned id: <see cref="StratBookPack.Contribute" />
-    ///     always passes its own delegate, so the fallback here only matters when nothing has resolved.
+    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack.
     /// </param>
     /// <param name="gate">
     ///     The same gate as <paramref name="enabled" />, kept separately only for its <c>Changed</c> event:
     ///     a live toggle clears the badge going off and recomputes it going on, instead of leaving the last
     ///     value stale until the next unrelated <c>queue.Changed</c>. Null skips that push.
     /// </param>
-    public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, ReviewQueue? queue = null,
-        Func<bool>? enabled = null, IFeatureGate? gate = null)
+    public ReviewQueueModule(Func<ReviewQueueTabViewModel> viewModelFactory, Func<bool> enabled, ReviewQueue? queue = null,
+        IExtensionFeatures? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
         _queue = queue;
         _gate = gate;
-        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? false);
+        ArgumentNullException.ThrowIfNull(enabled);
+        _enabled = enabled;
     }
 
     /// <summary>"12", or null with nothing to review.</summary>
@@ -86,7 +82,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
             TabId = TabId,
             Header = "Review",
             Order = 4, // after Utility (3)
-            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new ReviewQueueTabView()
@@ -112,7 +108,7 @@ public sealed class ReviewQueueModule : IWorkspaceModule
             // leaving it until the next unrelated queue write; going on recomputes without waiting for one.
             if (_gate is { } gate)
             {
-                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(queue.UnreviewedCount) : null;
+                gate.Changed += () => tab.Badge = _enabled() ? BadgeFor(queue.UnreviewedCount) : null;
             }
         }
 

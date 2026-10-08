@@ -7,18 +7,16 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using Microsoft.Extensions.Logging;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     What the tagger changed before accepting, in the editor. A null field keeps
@@ -63,9 +61,9 @@ public sealed record TagInstanceEdit(
 ///         forced request (the queue's "Detect" button) always runs.
 ///     </para>
 /// </summary>
-public sealed class SuggestedTagsService : IDemoEvaluator
+public sealed class SuggestedTagsService : IExtensionPass
 {
-    /// <summary>The queue owner tag and the coordinator's id.</summary>
+    /// <summary>The queue owner tag and the pass id.</summary>
     public const string EvaluatorId = "suggestedtags";
 
     /// <summary>
@@ -80,7 +78,11 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     private static ILogger? _diagLog;
 
     private readonly Func<bool> _background;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFacts _roundFacts;
+
+    /// <summary>The Round Facts rows the detectors read, for the tuning preview's re-runs.</summary>
+    internal IRoundFacts RoundFacts => _roundFacts;
     private readonly Func<bool> _enabled;
 
     // Demos whose build threw this session: not wanted again until a forced request, so one bad file is
@@ -113,7 +115,8 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
     private readonly IZonePlaceResolverSource _zones;
 
-    /// <param name="demoCache">The unified demo cache: the stamp and the pending count live on its records.</param>
+    /// <param name="library">The demo library: which demos are parsed and carry Round Facts.</param>
+    /// <param name="roundFacts">The Round Facts rows the detectors bound rounds and seat sides with.</param>
     /// <param name="proposals">Where the proposals files go.</param>
     /// <param name="tags">The Tag Store accepts write into and verdicts live in; null runs without verdicts.</param>
     /// <param name="regions">The learned site region tables.</param>
@@ -129,7 +132,8 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="utcNow">The clock verdicts and instances are stamped with.</param>
     public SuggestedTagsService(
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
+        IRoundFacts roundFacts,
         ProposalStore proposals,
         TagStore? tags,
         SiteRegionStore regions,
@@ -145,13 +149,15 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
         Func<DateTime>? utcNow = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(proposals);
         ArgumentNullException.ThrowIfNull(regions);
         ArgumentNullException.ThrowIfNull(profile);
         ArgumentNullException.ThrowIfNull(enabled);
         ArgumentNullException.ThrowIfNull(background);
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
         _proposals = proposals;
         _tags = tags;
         _regions = regions;
@@ -170,14 +176,17 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(SuggestedTagsLog.Category);
 
-    /// <summary>The coordinator, so a forced request can ask it to reconsider. Null in tests.</summary>
-    public DemoEvaluationCoordinator? Coordinator { get; set; }
+    /// <summary>The scheduling of the extension's passes, so a forced request can ask for the demo again. Null in tests.</summary>
+    public IExtensionPasses? Passes { get; set; }
+
+    /// <summary>The proposals store, whose stamps carry each demo's pending count.</summary>
+    public ProposalStore Proposals => _proposals;
 
     /// <summary>Whether proposals and verdicts outlive the process. False on the browser host.</summary>
     public bool IsPersistent => _proposals.IsPersistent && (_tags?.IsPersistent ?? false);
 
-    /// <summary>True while the coordinator has a build in flight.</summary>
-    public bool IsDetecting => Coordinator?.HasOutstanding(EvaluatorId) ?? false;
+    /// <summary>True while the scheduler has a build in flight.</summary>
+    public bool IsDetecting => Passes?.IsBusy(EvaluatorId) ?? false;
 
     /// <inheritdoc />
     public string Id => EvaluatorId;
@@ -188,14 +197,15 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     /// <summary>A demo's proposals or verdicts changed. Raised through the post delegate with its path.</summary>
     public event Action<string>? Changed;
 
-    /// <inheritdoc />
+    /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     From the index row alone: the gate on, Round Facts rows present, the proposals missing or built
-    ///     under another fingerprint than the map's current one, and the sweep on or the demo forced.
+    ///     under another fingerprint than the map's current one, and the sweep on or the demo forced. The
+    ///     open demo is wanted whatever the opt-in says: its build runs on the parse the open paid for.
     /// </remarks>
     public bool Wants(string path)
     {
-        if (!_enabled() || !NeedsBuild(_demoCache.TryGetIndex(path)))
+        if (!_enabled() || !NeedsBuild(_library.Find(path)))
         {
             return false;
         }
@@ -213,45 +223,71 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             }
         }
 
-        return _background();
+        return _background() || IsOpen(path);
+    }
+
+    /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
+    /// <remarks>
+    ///     A demo without Round Facts rows yet, with the sweep on, the demo forced or the demo open: the
+    ///     proposals follow the rows.
+    /// </remarks>
+    public bool WantsAfterUpstream(string path)
+    {
+        if (!_enabled() || HasInputs(_library.Find(path)))
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            if (_forcedPaths.Contains(path))
+            {
+                return true;
+            }
+
+            if (_failed.Contains(path))
+            {
+                return false;
+            }
+        }
+
+        return _background() || IsOpen(path);
     }
 
     /// <inheritdoc />
-    public DemoJobPriority PriorityFor(string path)
+    public JobPriority PriorityFor(string demoPath)
     {
         lock (_gate)
         {
-            return _forcedPaths.Contains(path) ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
+            return _forcedPaths.Contains(demoPath) ? JobPriority.UserRequested : JobPriority.Background;
         }
     }
 
     /// <inheritdoc />
-    public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _library.Find(demoPath)?.Modified.Ticks ?? 0;
 
     /// <inheritdoc />
+    public DemoInterest Interest(string demoPath) =>
+        Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
+
+    /// <inheritdoc />
+    public void Run(IPassContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        Evaluate(context.DemoPath, context.Parsed);
+    }
+
+    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="parsed">The demo's parse.</param>
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    /// <remarks>
-    ///     The open demo is built on the parse its open paid for whatever the opt-in says;
-    ///     any other demo only when it would have been wanted, so the Library's tier-2 fan-out does not
-    ///     turn a sweep the user left off back on.
-    /// </remarks>
-    public void OnParsedOpportunistically(string path, ParsedDemo parsed)
-    {
-        if (Wants(path)
-            || (_enabled() && IsOpen(path) && !IsFailed(path) && NeedsBuild(_demoCache.TryGetIndex(path))))
-        {
-            Refresh(path, parsed);
-        }
-    }
-
-    /// <inheritdoc />
-    public void OnFailed(string path) => ClearForced(path);
+    public void OnFailed(string demoPath) => ClearForced(demoPath);
 
     /// <summary>
-    ///     The demos that would be submitted: the coordinator's candidate universe for this evaluator,
-    ///     newest first. Derived from the index, never stored.
+    ///     The demos the sweep or a force would submit, newest first, for the pending counts. Derived from
+    ///     the index, never stored.
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
@@ -271,11 +307,11 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
         return
         [
-            .. _demoCache.Index
+            .. _library.Demos
                 .Where(e => NeedsBuild(e)
-                            && (forced.Contains(e.Path) || (background && !failed.Contains(e.Path))))
-                .OrderByDescending(e => e.ModifiedTicks)
-                .Select(e => e.Path)
+                            && (forced.Contains(e.FilePath) || (background && !failed.Contains(e.FilePath))))
+                .OrderByDescending(e => e.Modified.Ticks)
+                .Select(e => e.FilePath)
         ];
     }
 
@@ -292,12 +328,12 @@ public sealed class SuggestedTagsService : IDemoEvaluator
             _forcedPaths.Add(path);
         }
 
-        Coordinator?.Consider(path);
+        Passes?.Request(path);
     }
 
     /// <summary>Whether a demo has what a build needs: a parse and Round Facts rows.</summary>
     /// <param name="path">The demo's path.</param>
-    public bool CanDetect(string path) => HasInputs(_demoCache.TryGetIndex(path));
+    public bool CanDetect(string path) => HasInputs(_library.Find(path));
 
     /// <summary>The detector-set fingerprint for a map's demos under the profile and regions in force.</summary>
     /// <param name="map">The map, or null.</param>
@@ -493,14 +529,14 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
         // The facts a hand-made tag gets as it is made, so the Matrix can slice an accepted tag at once
         // rather than after the next rows rewrite.
-        DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-        if (record is not null && _demoCache.RoundFactsOf(record) is { Schema: StratBookCache.RoundFactsSchema } rows)
+        LibraryDemo? record = _library.Find(path);
+        if (record is not null && _roundFacts.TryGet(path) is { Schema: RoundFactsRows.CurrentSchema } rows)
         {
-            TagFactsRefresher.RefreshInstance(instance, rows.Rounds, StratBookCache.RoundFactsSchema, now);
+            TagFactsRefresher.RefreshInstance(instance, rows.Rounds, RoundFactsRows.CurrentSchema, now);
         }
 
         DemoIdentity demo = new(sha, document.Demo.FileName ?? Path.GetFileName(path),
-            record?.Size ?? document.Demo.SizeBytes);
+            record?.FileSizeBytes ?? document.Demo.SizeBytes);
         if (!_tags.Append(demo, document.Clock.ToIdentity(), instance))
         {
             return false;
@@ -549,28 +585,21 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     private void AfterVerdict(string path, string? sha256)
     {
         int pending = LoadCore(path, sha256).Set.Pending.Count;
-        try
-        {
-            _demoCache.UpdateExisting(path, r => r.SetSuggestionCount(pending));
-            _demoCache.SaveIndex();
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // The count is a mirror; the next build or verdict writes it again.
-        }
+        _proposals.SetCount(path, pending);
 
         RaiseChanged(path);
     }
 
-    private (ProposalDocument? Document, ProposalSet Set) LoadCore(string path, string? sha256)
+    private (ProposalDocument? Document, ProposalSet Set) LoadCore(string path, string? sha256) =>
+        _proposals.TryRead(path) is { } document ? Resolve(path, sha256, document) : (null, ProposalSet.Empty(path, IsPersistent));
+
+    private int CountPending(string path, ProposalDocument document) => Resolve(path, null, document).Set.Pending.Count;
+
+    // The document's proposals matched against the demo's verdicts.
+    private (ProposalDocument? Document, ProposalSet Set) Resolve(string path, string? sha256, ProposalDocument document)
     {
         bool persistent = IsPersistent;
-        if (_proposals.TryRead(path) is not { } document)
-        {
-            return (null, ProposalSet.Empty(path, persistent));
-        }
-
-        string? sha = Normalize(sha256) ?? Normalize(_demoCache.TryGetIndex(path)?.Sha256)
+        string? sha = Normalize(sha256) ?? Normalize(_library.Find(path)?.Sha256)
             ?? Normalize(document.Demo.Sha256);
         if (sha is not null && Normalize(document.Demo.Sha256) is { } written
                             && !string.Equals(sha, written, StringComparison.Ordinal))
@@ -622,22 +651,22 @@ public sealed class SuggestedTagsService : IDemoEvaluator
 
         try
         {
-            if (_demoCache.TryLoadWithRoundFacts(path) is not ({ } record, { Schema: StratBookCache.RoundFactsSchema } facts))
+            if (_library.Find(path) is not { } record || _roundFacts.TryGet(path) is not { Schema: RoundFactsRows.CurrentSchema } facts)
             {
                 return; // nothing to bound rounds and seat sides with; Round Facts has not written this demo
             }
 
-            string map = string.IsNullOrEmpty(parsed.MapName) ? record.Map ?? "" : parsed.MapName;
+            string map = string.IsNullOrEmpty(parsed.MapName) ? record.MapName ?? "" : parsed.MapName;
             DetectorProfile profile = _profile();
             SiteRegionTable? table = TableFor(map);
             string fingerprint = SuggestionsFingerprint.Compose(profile, table);
-            if (!forced && record.IsSuggestionsCurrent(fingerprint)
+            if (!forced && _proposals.IsCurrent(path, fingerprint)
                         && _proposals.TryRead(path) is not null)
             {
-                return; // a queued request the open's fan-out already satisfied
+                return; // a queued request the open's visit already satisfied
             }
 
-            ClockIdentity clock = FrameClock.IdentityFor(parsed);
+            RoundFactsClock clock = RoundFactsClock.For(parsed);
             DetectionInputs inputs = BuildDetectionInputs(path, map, parsed, facts, record);
             SiteRegions regions = SiteRegions.Compose(map, null, table, profile);
             IReadOnlyList<TagProposal> proposals =
@@ -653,11 +682,11 @@ public sealed class SuggestedTagsService : IDemoEvaluator
                 Demo = new ProposalDemoHeader
                 {
                     Sha256 = Normalize(record.Sha256),
-                    StableKey = DemoCacheStore.StableKey(path),
+                    StableKey = DemoKeys.StableKey(path),
                     FileName = fileName,
-                    SizeBytes = record.Size
+                    SizeBytes = record.FileSizeBytes
                 },
-                Clock = RoundFactsClock.From(clock),
+                Clock = clock,
                 DetectorSet = new ProposalDetectorSet
                 {
                     Fingerprint = fingerprint,
@@ -669,12 +698,9 @@ public sealed class SuggestedTagsService : IDemoEvaluator
                 Proposals = [.. proposals.Select(p => StoredProposal.From(p, roundStarts.GetValueOrDefault(p.Round)))]
             };
 
-            // The file first and the stamp last: a crash between them leaves "not built", never a stamp
-            // with nothing behind it.
-            _proposals.Write(path, document);
-            int pending = LoadCore(path, null).Set.Pending.Count;
-            _demoCache.UpdateExisting(path, r => r.SetSuggestions(fingerprint, pending));
-            _demoCache.SaveIndex();
+            // The pending count needs the verdicts matched against these proposals, so it is counted before
+            // the write that stamps it.
+            _proposals.Write(path, document, fingerprint, CountPending(path, document));
             RaiseChanged(path);
         }
         catch (Exception ex)
@@ -714,16 +740,16 @@ public sealed class SuggestedTagsService : IDemoEvaluator
     /// <param name="map">The map, resolved.</param>
     /// <param name="parsed">The held parse.</param>
     /// <param name="facts">The demo's Round Facts rows.</param>
-    /// <param name="record">The demo's cache record, for the Round Index's freshness stamp.</param>
+    /// <param name="record">The demo's library row.</param>
     internal DetectionInputs BuildDetectionInputs(
-        string path, string map, ParsedDemo parsed, RoundFactsRows facts, DemoCacheRecord record)
+        string path, string map, ParsedDemo parsed, RoundFactsRows facts, LibraryDemo record)
     {
         int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
         IReadOnlyList<RoundOccupancy> rounds;
         DetonationCloud? cloud = null;
         string source;
         if (_index is not null && _indexSources is not null
-                               && record.IsRoundIndexCurrent(_indexSources.FingerprintFor(map))
+                               && _index.IsCurrent(path, _indexSources.FingerprintFor(map))
                                && _index.TryRead(path) is { } indexDocument)
         {
             rounds = RoundOccupancyBuilder.FromIndex(indexDocument, facts, tickRate);
@@ -754,11 +780,11 @@ public sealed class SuggestedTagsService : IDemoEvaluator
         return new DetectionInputs(tickRate, rounds, events, source);
     }
 
-    private bool NeedsBuild(DemoCacheIndexEntry? entry) =>
-        entry is not null && HasInputs(entry) && !entry.IsSuggestionsCurrent(FingerprintFor(entry.Map));
+    private bool NeedsBuild(LibraryDemo? entry) =>
+        entry is not null && HasInputs(entry) && !_proposals.IsCurrent(entry.FilePath, FingerprintFor(entry.MapName));
 
-    private static bool HasInputs(DemoCacheIndexEntry? entry) =>
-        entry is { ParseSchema: > 0 } && entry.HasRoundFacts();
+    private static bool HasInputs(LibraryDemo? entry) =>
+        entry is { State: >= LibraryDemoState.Parsed } && entry.Fact(RoundFactsRows.FacetId) is { IsWritten: true };
 
     private SiteRegionTable? TableFor(string? map)
     {

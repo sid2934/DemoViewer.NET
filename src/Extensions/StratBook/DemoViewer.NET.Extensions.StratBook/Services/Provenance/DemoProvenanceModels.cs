@@ -1,11 +1,11 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Provenance;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 
 /// <summary>
 ///     The label vocabulary: four values and

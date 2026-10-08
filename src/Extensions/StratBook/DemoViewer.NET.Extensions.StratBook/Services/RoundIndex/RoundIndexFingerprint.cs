@@ -1,11 +1,11 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     What decides whether a demo's index rows are current. Anything that changes what a row means is
@@ -28,8 +28,8 @@ public static class RoundIndexFingerprint
         ArgumentNullException.ThrowIfNull(source);
 
         string fingerprint =
-            $"ri{StratBookCache.RoundIndexSchema};cadence={options.CadenceSeconds.ToString(CultureInfo.InvariantCulture)}"
-            + $";token={PlaceCountToken.TokenVersion};rf={StratBookCache.RoundFactsSchema};src={source.SourceId}";
+            $"ri{RoundIndexStore.Schema};cadence={options.CadenceSeconds.ToString(CultureInfo.InvariantCulture)}"
+            + $";token={PlaceCountToken.TokenVersion};rf={RoundFactsRows.CurrentSchema};src={source.SourceId}";
         if (source.ZonesVersion is { } version)
         {
             fingerprint = $"{fingerprint};zv={version}";
@@ -51,7 +51,7 @@ public sealed class RoundIndexPlaceSources
     private readonly Func<RoundIndexTokenSource> _tokenSource;
     private readonly IZonePlaceResolverSource _zones;
 
-    /// <param name="tokenSource">The live <c>SituationsSettings.TokenSource</c>.</param>
+    /// <param name="tokenSource">The live <see cref="Extensions.StratBook.StratBookSettings.TokenSource" />.</param>
     /// <param name="zones">Where a map's zone resolver comes from; none until Zone Baking's resolver lands.</param>
     /// <param name="options">The sampling parameters; the shipped defaults when null.</param>
     public RoundIndexPlaceSources(

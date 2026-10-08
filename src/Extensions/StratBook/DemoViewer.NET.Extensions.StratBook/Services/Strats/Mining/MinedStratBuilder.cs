@@ -2,10 +2,11 @@
 
 using System.Globalization;
 using System.Text.Json;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats.Mining;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 /// <summary>
 ///     A mined pattern as a new strat: the medoid round's capture through <see cref="StratFromRound" />, then the
@@ -35,7 +36,7 @@ public static class MinedStratBuilder
     /// <summary>The last tick a pattern's strat captures from its medoid round.</summary>
     /// <param name="pattern">The pattern.</param>
     /// <param name="facts">The medoid round's Round Facts row.</param>
-    public static int WindowEnd(MinedPattern pattern, RoundFacts.RoundFacts facts)
+    public static int WindowEnd(MinedPattern pattern, RoundFacts facts)
     {
         ArgumentNullException.ThrowIfNull(pattern);
         ArgumentNullException.ThrowIfNull(facts);
@@ -57,7 +58,7 @@ public static class MinedStratBuilder
     /// <param name="fileName">The medoid demo's file name, for <c>origin</c>.</param>
     /// <param name="teamName">A team's display name, or null.</param>
     /// <param name="nowUtc">The creation time.</param>
-    public static StratDocument Document(MinedPattern pattern, RoundCapture capture, RoundFacts.RoundFacts facts, StratOwner owner,
+    public static StratDocument Document(MinedPattern pattern, RoundCapture capture, RoundFacts facts, StratOwner owner,
         string fileName, Func<Guid, string?> teamName, DateTime nowUtc)
     {
         ArgumentNullException.ThrowIfNull(pattern);

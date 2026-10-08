@@ -2,14 +2,15 @@
 
 using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Frames;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -32,8 +33,8 @@ public class FindRoundsLikeThisRealDemoTests
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         DemoCacheStore cache = new(null);
         RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        facts.OnParsedOpportunistically(path, parsed);
-        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts() ?? throw new InvalidOperationException("no rows");
+        facts.Evaluate(path, parsed);
+        RoundFactsRows rows = cache.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no rows");
 
         RoundIndexDocument document = RoundIndexBuilder.Build(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance);
 

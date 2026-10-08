@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      A minimal third-party extension, built against the SDK packages alone: it references no app assembly. A
+      real extension would take the DemoViewer.NET.Extensions.Sdk and .Sdk.Ui packages, whose build/ targets
+      stamp and embed extension.json; here the projects and the SDK's targets stand in for the packages.
+    -->
+    <PropertyGroup>
+        <RootNamespace>HelloExtension</RootNamespace>
+        <!-- The manifest's version, fixed so the install folder name is stable. -->
+        <ExtensionManifestVersion>1.0.0</ExtensionManifestVersion>
+    </PropertyGroup>
+
+    <Import Project="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk\build\DemoViewer.NET.Extensions.Sdk.targets"/>
+
+    <ItemGroup>
+        <PackageReference Include="Avalonia"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Include="kills.rules.yaml" LogicalName="HelloExtension.kills.rules.yaml"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <ProjectReference Include="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
+    </ItemGroup>
+
+</Project>

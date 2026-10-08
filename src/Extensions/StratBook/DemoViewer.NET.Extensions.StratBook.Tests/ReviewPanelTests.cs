@@ -8,12 +8,12 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
-using DemoViewer.NET.Modules.RoundTagger.Review;
-using DemoViewer.NET.Modules.RoundTagger.Timeline;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -31,16 +31,16 @@ public class ReviewPanelTests
 {
     private const string DemoPath = "/d/match.dem";
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 0 },
-        new() { Number = 2, StartTickFrameClock = 10_000 },
-        new() { Number = 3, StartTickFrameClock = 20_000 }
+        new LibraryRound(1, 0),
+        new LibraryRound(2, 10_000),
+        new LibraryRound(3, 20_000)
     ];
 
     private static async Task<(TagSession Session, ReviewPanelViewModel Panel, List<int> Seeks, Func<int> SetPlayhead)> Panel(int playhead = 12_000)
     {
-        TagSession session = new(null, _ => _rounds, () => false, () => Created) { AutoSaveDelay = TimeSpan.FromHours(1) };
+        TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created) { AutoSaveDelay = TimeSpan.FromHours(1) };
         await session.AttachAsync(Demo, Clock, DemoPath);
         int tick = playhead;
         TagPaletteViewModel palette = new(session, null, () => tick);

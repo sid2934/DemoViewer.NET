@@ -36,7 +36,7 @@ public enum LoadFailure
     /// <summary>The manifest's <c>entryType</c> is not in the assembly.</summary>
     EntryTypeMissing,
 
-    /// <summary>The entry type does not implement <see cref="IFeaturePack" /> or could not be constructed.</summary>
+    /// <summary>The entry type does not implement <see cref="IExtension" /> or could not be constructed.</summary>
     NotAPack,
 
     /// <summary>The loaded pack's id or embedded manifest version is not the on-disk manifest's.</summary>
@@ -48,8 +48,20 @@ public enum LoadFailure
     /// <summary>Reading the pack's contract members or running its <c>Register</c> on a scratch container threw.</summary>
     ProbeFailed,
 
+    /// <summary>A third-party copy claims an id reserved for extensions this app ships.</summary>
+    ReservedId,
+
+    /// <summary>An unverified third-party copy while the user has not allowed unverified extensions.</summary>
+    Unverified,
+
+    /// <summary>A third-party copy whose features, job kinds or commands collide with ones already loaded.</summary>
+    Conflicts,
+
     /// <summary>The loader itself failed; the shipped copy was used.</summary>
-    LoaderFailed
+    LoaderFailed,
+
+    /// <summary>A third-party copy references the app's own assembly instead of building against the SDK alone.</summary>
+    ReferencesApp
 }
 
 /// <summary>
@@ -65,7 +77,9 @@ public enum LoadFailure
 ///     never a path or an exception message, since Settings shows it.
 /// </param>
 /// <param name="LogDetail">The exception message behind <paramref name="Detail" />, for the log only; null when there is none.</param>
-public sealed record LoadOutcome(string Directory, ExtensionManifest? Manifest, LoadFailure Failure, string Detail, string? LogDetail = null)
+/// <param name="External">A third-party extension rather than an update of one this app ships.</param>
+public sealed record LoadOutcome(
+    string Directory, ExtensionManifest? Manifest, LoadFailure Failure, string Detail, string? LogDetail = null, bool External = false)
 {
     /// <summary>The staged version, when the manifest parsed.</summary>
     public SemVersion? Version => Manifest?.Version;
@@ -76,5 +90,7 @@ public sealed record LoadOutcome(string Directory, ExtensionManifest? Manifest, 
     /// </summary>
     public string UserMessage => Manifest is null
         ? $"An update in '{Path.GetFileName(Path.TrimEndingDirectorySeparator(Directory))}' was not loaded: {Detail}"
-        : $"Update {Manifest.Version} was not loaded: {Detail}";
+        : External
+            ? $"{Manifest.Name} {Manifest.Version} was not loaded: {Detail}"
+            : $"Update {Manifest.Version} was not loaded: {Detail}";
 }

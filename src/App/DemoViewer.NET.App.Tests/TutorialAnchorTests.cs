@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.ViewModels.Tutorial;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 

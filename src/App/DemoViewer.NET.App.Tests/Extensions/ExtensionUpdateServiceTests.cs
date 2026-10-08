@@ -680,7 +680,7 @@ public class ExtensionUpdateServiceTests
         return stream.ToArray();
     }
 
-    private static string StageVersion(string extensions, string version, string id = Id, string requiresHost = "^1.0")
+    private static string StageVersion(string extensions, string version, string id = Id, string requiresHost = "^1.1")
     {
         string dir = Path.Combine(extensions, id, version);
         Directory.CreateDirectory(dir);

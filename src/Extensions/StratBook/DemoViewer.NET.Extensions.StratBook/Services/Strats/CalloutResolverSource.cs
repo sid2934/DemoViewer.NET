@@ -3,11 +3,11 @@
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     Builds a <see cref="CalloutResolver" /> for one owner on one map: the store's alias table over the map's
@@ -24,9 +24,9 @@ public sealed class CalloutResolverSource
     private readonly Func<string?> _overlayDir;
     private readonly StratStore _store;
 
-    /// <param name="store">The alias tables.</param>
+    /// <param name="store">The alias tables. Bundles beside the executable and no user overlay.</param>
     public CalloutResolverSource(StratStore store)
-        : this(store, MapAssetBundleReader.FindBundleDirectory, () => AppPaths.ZonesDirectory)
+        : this(store, MapAssetBundleReader.FindBundleDirectory, () => null)
     {
     }
 

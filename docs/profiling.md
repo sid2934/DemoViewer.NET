@@ -88,6 +88,47 @@ Always pass `--no-golden` on verification runs so they don't re-baseline the com
 > ~0; the decode cost lands in `Digest fold (Σ workers)` instead, as worker time summed across the
 > producer's workers rather than wall-clock. This is expected, not a regression.
 
+### Pricing the queue's forward pass: `bg-run --read=app-forward`
+
+`bg-run` runs a list of demos back to back the way the processing queue does, one process per
+configuration. `--read=app-forward` is the queue's forward pass: one merged build over the shipped rules,
+final state, and the recorded tables projected as the facts passes project them. `--with=<file>` adds one
+`*.rules.yaml` to the merged run the way an extension's ruleset rides it. `--outputs=` picks the tables
+the run records: omitted keeps `round_facts` alone, `none` records nothing, `all` records every declared
+table, or a comma list. Each `@BGJOB` line carries `tableRows`, the rows the job recorded.
+
+```sh
+dotnet build tools/AnalysisBench -c Release
+ls "$PWD"/demos/benchmarks/*.dem > /tmp/list.txt
+K=samples/Extensions/HelloExtension/kills.rules.yaml
+dotnet artifacts/bin/AnalysisBench/release/AnalysisBench.dll bg-run --list=/tmp/list.txt --read=app-forward
+dotnet artifacts/bin/AnalysisBench/release/AnalysisBench.dll bg-run --list=/tmp/list.txt --read=app-forward --with=$K --outputs=round_facts,hello_kills
+```
+
+Interleave the configurations in one sweep (A, B, C, D, then the next round); timings drift between
+sessions, so two separate sweeps are not comparable.
+
+**Recording only stale stamped outputs (2026-10-05).** The forward pass records the tables of stamped
+rulesets whose stored outputs are stale for the demo, where it used to record `round_facts` alone, and
+`round_facts` itself now rides every merged run. Five benchmark demos (172-279 MB), Release, M2 Pro, five
+interleaved rounds of five configurations in one sweep, the first job of each process dropped as warm-up:
+
+| Config | Rulesets in the run | Recorded | Rows/demo | Job, paired median vs A | Wall, median of 5 | Alloc | Peak heap, median |
+|---|---|---|---|---|---|---|---|
+| A | shipped | `round_facts` (the old cut) | 32-48 | 1.000 | 10.82 s | 2.26 GiB | 968 MiB |
+| B | shipped + sample ruleset | `round_facts`, `hello_kills` (both stale) | 42-58 | 1.020 | 10.48 s | 2.27 GiB | 1046 MiB |
+| C | shipped + sample ruleset | nothing (all current) | 0 | 0.977 | 10.56 s | 2.26 GiB | 1035 MiB |
+| D | shipped + sample ruleset | every declared table | 212-308 | 0.962 | 10.36 s | 2.26 GiB | 1101 MiB |
+| E | shipped without `round_facts` | nothing | 0 | 0.966 | 9.88 s | 2.22 GiB | 1026 MiB |
+
+Paired per-job ratios spread from 0.73 to 1.30, so B, C and D sit inside the noise: at today's table sizes
+neither the narrower cut nor an extension ruleset riding the merged run costs anything measurable. The
+nodes are paid by the merged build whatever is recorded; the cut only decides which rows are kept and
+projected. E is the price of `round_facts` riding every run: about 3% per job, 9% of the sweep's wall time
+and 0.04 GiB of allocation, the one difference the sweep shows in the same direction on every measure.
+Re-measure when an extension ships a table keyed per tick or per event, where the row count is no longer
+a few hundred.
+
 ## Profiling the shipped app (no rebuild): `dotnet-trace` / `dotnet-counters`
 
 Because the runtime sources ship in the default binary, you can attach to a **running** Desktop app

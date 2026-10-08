@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels.Situations"
-             xmlns:situations="using:DemoViewer.NET.Modules.Situations"
-             xmlns:views="using:DemoViewer.NET.Views.Situations"
-             x:Class="DemoViewer.NET.Views.Situations.QueryCanvasView"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.ViewModels.Situations"
+             xmlns:situations="using:DemoViewer.NET.Extensions.StratBook.Modules.Situations"
+             xmlns:views="using:DemoViewer.NET.Extensions.StratBook.Views.Situations"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.Situations.QueryCanvasView"
              x:DataType="vm:QueryCanvasViewModel">
 
     <!--

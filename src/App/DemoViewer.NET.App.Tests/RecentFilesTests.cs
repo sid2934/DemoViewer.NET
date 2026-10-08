@@ -1,9 +1,13 @@
 #region
 
+using System.Text.Json.Nodes;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.Library;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -115,6 +119,205 @@ public class RecentFilesTests
             // De-dup is case-insensitive (matches the library indexer's path keying).
             store.RecordOpen("/DEMOS/A.dem", null);
             await Assert.That(store.Items.Count).IsEqualTo(2);
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task RecordOpen_SameContentAtANewPath_ReplacesTheEntry()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            RecentFilesStore store = NewStore(dir);
+            store.RecordOpen("/nfs/demos/m.dem", "de_nuke", "sha-m");
+            store.RecordOpen("/demos/b.dem", null, "sha-b");
+            store.RecordOpen("/smb/archive/renamed.dem", "de_nuke", "sha-m");
+
+            await Assert.That(store.Items.Count).IsEqualTo(2);
+            await Assert.That(store.Items[0].Path).IsEqualTo("/smb/archive/renamed.dem");
+            await Assert.That(store.Items[0].Sha256).IsEqualTo("sha-m");
+            await Assert.That(store.Items[1].Path).IsEqualTo("/demos/b.dem");
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task RecordOpen_AnUnknownHash_MatchesByPathOnly()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            RecentFilesStore store = NewStore(dir);
+            store.RecordOpen("/demos/a.dem", null);
+            store.RecordOpen("/demos/b.dem", null);
+            store.RecordOpen("/demos/c.dem", null, "sha-c");
+
+            await Assert.That(store.Items.Count).IsEqualTo(3);
+
+            // A hashless re-open of a path still replaces the hashed entry there: the path is the same file
+            // as far as anything knows, and a stale hash must not outlive it.
+            store.RecordOpen("/demos/c.dem", null);
+            await Assert.That(store.Items.Count).IsEqualTo(3);
+            await Assert.That(store.Items[0].Sha256).IsNull();
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task Sha256_RoundTrips_AndAnEntryWrittenWithoutOneStillLoads()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "settings.json"), """
+                {
+                  "Recents": [
+                    { "Path": "/demos/old.dem", "MapName": "de_inferno", "OpenedAtUtc": "2026-09-01T10:00:00Z" }
+                  ]
+                }
+                """);
+
+            RecentFilesStore store = NewStore(dir);
+            await Assert.That(store.Items.Count).IsEqualTo(1);
+            await Assert.That(store.Items[0].Path).IsEqualTo("/demos/old.dem");
+            await Assert.That(store.Items[0].Sha256).IsNull();
+
+            store.RecordOpen("/demos/new.dem", "de_mirage", "sha-new");
+            RecentFilesStore reloaded = NewStore(dir);
+            await Assert.That(reloaded.Items.Count).IsEqualTo(2);
+            await Assert.That(reloaded.Items[0].Sha256).IsEqualTo("sha-new");
+            await Assert.That(reloaded.Items[1].Sha256).IsNull();
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task Load_CollapsesEntriesThatShareAHash_KeepingTheNewest()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "settings.json"), """
+                {
+                  "Recents": [
+                    { "Path": "/smb/m.dem", "MapName": null, "OpenedAtUtc": "2026-09-02T10:00:00Z", "Sha256": "sha-m" },
+                    { "Path": "/nfs/m.dem", "MapName": null, "OpenedAtUtc": "2026-09-01T10:00:00Z", "Sha256": "sha-m" },
+                    { "Path": "/nfs/x.dem", "MapName": null, "OpenedAtUtc": "2026-08-01T10:00:00Z" }
+                  ]
+                }
+                """);
+
+            RecentFilesStore store = NewStore(dir);
+            await Assert.That(store.Items.Select(r => r.Path)).IsEquivalentTo(["/smb/m.dem", "/nfs/x.dem"], CollectionOrdering.Matching);
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task Load_AnUnmarkedSection_IsRewrittenOnceNormalized_AndStamped()
+    {
+        string dir = NewConfigDir();
+        string file = Path.Combine(dir, "settings.json");
+        try
+        {
+            File.WriteAllText(file, """
+                {
+                  "Theme": "Light",
+                  "Recents": [
+                    { "Path": "/smb/m.dem", "MapName": null, "OpenedAtUtc": "2026-09-03T10:00:00Z", "Sha256": "sha-m" },
+                    { "Path": "/nfs/m.dem", "MapName": null, "OpenedAtUtc": "2026-09-02T10:00:00Z", "Sha256": "sha-m" },
+                    { "Path": "/nfs/X.dem", "MapName": null, "OpenedAtUtc": "2026-09-01T10:00:00Z" },
+                    { "Path": "/nfs/x.dem", "MapName": null, "OpenedAtUtc": "2026-08-01T10:00:00Z" }
+                  ]
+                }
+                """);
+
+            _ = NewStore(dir);
+            JsonObject migrated = (JsonObject)JsonNode.Parse(File.ReadAllText(file))!;
+            await Assert.That((int)migrated["RecentsVersion"]!).IsEqualTo(SettingsService.RecentsFormatVersion);
+            await Assert.That(migrated["Recents"]!.AsArray().Select(r => (string)r!["Path"]!))
+                .IsEquivalentTo(["/smb/m.dem", "/nfs/X.dem"], CollectionOrdering.Matching);
+            await Assert.That((string)migrated["Theme"]!).IsEqualTo("Light");
+
+            string after = File.ReadAllText(file);
+            _ = NewStore(dir);
+            await Assert.That(File.ReadAllText(file)).IsEqualTo(after).Because("a stamped section is not rewritten");
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task Load_AnEmptyConfig_WritesNothing()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            RecentFilesStore store = NewStore(dir);
+            await Assert.That(store.Items.Count).IsEqualTo(0);
+            await Assert.That(File.Exists(Path.Combine(dir, "settings.json"))).IsFalse();
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task LegacyRecentFilesImport_IsStamped()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "recent-files.json"), """
+                [ { "Path": "/demos/legacy.dem", "MapName": "de_nuke", "OpenedAtUtc": "2026-09-01T10:00:00Z" } ]
+                """);
+
+            RecentFilesStore store = NewStore(dir);
+            await Assert.That(store.Items.Count).IsEqualTo(1);
+            await Assert.That(new SettingsService(dir).LoadRecentsVersion()).IsEqualTo(SettingsService.RecentsFormatVersion);
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task RecentsMarker_SurvivesAPreferenceWrite_AndANewerOneIsNotLowered()
+    {
+        string dir = NewConfigDir();
+        string file = Path.Combine(dir, "settings.json");
+        try
+        {
+            NewStore(dir).RecordOpen("/demos/a.dem", null, "sha-a");
+            SettingsService settings = new(dir);
+            settings.Write(s => s.Theme = "Light");
+            await Assert.That(new SettingsService(dir).LoadRecentsVersion()).IsEqualTo(SettingsService.RecentsFormatVersion);
+
+            JsonObject newer = (JsonObject)JsonNode.Parse(File.ReadAllText(file))!;
+            newer["RecentsVersion"] = SettingsService.RecentsFormatVersion + 1;
+            File.WriteAllText(file, newer.ToJsonString());
+            NewStore(dir).RecordOpen("/demos/b.dem", null);
+            await Assert.That(new SettingsService(dir).LoadRecentsVersion()).IsEqualTo(SettingsService.RecentsFormatVersion + 1);
         }
         finally
         {
@@ -246,6 +449,129 @@ public class RecentFilesTests
         {
             TryDeleteDir(dir);
         }
+    }
+
+    [Test]
+    public async Task Vm_OpenRecent_AMovedDemo_OpensFromWhereTheLibraryFoundIt()
+    {
+        string dir = NewConfigDir();
+        string moved = TempFilePath();
+        File.WriteAllText(moved, "x");
+        const string Gone = "/nfs/demos/gone.dem";
+        try
+        {
+            // The scan found the bytes at a new path by fingerprint and dropped the old one, so the only path
+            // the library has for the content is unconfirmed.
+            DemoCacheStore cache = new(null);
+            cache.Upsert(Hashed(Gone, "sha-moved"));
+            await Assert.That(cache.AttachUnconfirmed("sha-moved", moved, 1000, 3000)).IsTrue();
+            cache.Detach(Gone);
+            await Assert.That(cache.PathsOfContent("sha-moved")).IsEquivalentTo([moved]);
+
+            RecentFilesStore store = NewStore(dir);
+            store.RecordOpen(Gone, "de_nuke", "sha-moved");
+
+            string? openedPath = null;
+            using DemoLibraryService lib = NewLibrary();
+            LibraryTabViewModel vm = new(
+                lib,
+                p =>
+                {
+                    openedPath = p;
+                    store.RecordOpen(p, "de_nuke", "sha-moved"); // what the shell's open records
+                    return Task.CompletedTask;
+                },
+                () => Task.FromResult<IReadOnlyList<string>>([]),
+                () => Task.CompletedTask,
+                store,
+                contentLocations: cache.PathsOfContent);
+
+            RecentFileItem row = vm.RecentFiles[0];
+            await Assert.That(row.Exists).IsFalse();
+            await Assert.That(row.Relocated).IsTrue();
+            await Assert.That(row.RowOpacity).IsEqualTo(1.0);
+
+            await vm.OpenRecentCommand.ExecuteAsync(row);
+
+            await Assert.That(openedPath).IsEqualTo(moved);
+            await Assert.That(store.Items.Count).IsEqualTo(1);
+            await Assert.That(store.Items[0].Path).IsEqualTo(moved);
+            await Assert.That(vm.RecentFiles.Count).IsEqualTo(1);
+            await Assert.That(vm.RecentFiles[0].Exists).IsTrue();
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+            TryDelete(moved);
+        }
+    }
+
+    [Test]
+    public async Task Vm_OpenRecent_AHashedEntryNoPathHolds_IsPruned()
+    {
+        string dir = NewConfigDir();
+        try
+        {
+            DemoCacheStore cache = new(null);
+            cache.Upsert(Hashed("/nfs/demos/gone.dem", "sha-gone"));
+
+            RecentFilesStore store = NewStore(dir);
+            store.RecordOpen("/nfs/demos/gone.dem", null, "sha-gone");
+
+            string? openedPath = null;
+            using DemoLibraryService lib = NewLibrary();
+            LibraryTabViewModel vm = new(
+                lib,
+                p =>
+                {
+                    openedPath = p;
+                    return Task.CompletedTask;
+                },
+                () => Task.FromResult<IReadOnlyList<string>>([]),
+                () => Task.CompletedTask,
+                store,
+                contentLocations: cache.PathsOfContent);
+
+            // The cache still lists only the dead path, so nothing else holds the content.
+            RecentFileItem row = vm.RecentFiles[0];
+            await Assert.That(row.Relocated).IsFalse();
+            await Assert.That(row.RowOpacity).IsEqualTo(0.4);
+
+            await vm.OpenRecentCommand.ExecuteAsync(row);
+
+            await Assert.That(openedPath).IsNull();
+            await Assert.That(store.Items.Count).IsEqualTo(0);
+        }
+        finally
+        {
+            TryDeleteDir(dir);
+        }
+    }
+
+    [Test]
+    public async Task PathsOfContent_ListsConfirmedPathsFirst()
+    {
+        DemoCacheStore cache = new(null);
+        cache.Upsert(Hashed("/z/confirmed.dem", "sha-p"));
+        cache.AttachUnconfirmed("sha-p", "/a/unconfirmed.dem", 1000, 3000);
+
+        await Assert.That(cache.PathsOfContent("sha-p")).IsEquivalentTo(
+            ["/z/confirmed.dem", "/a/unconfirmed.dem"], CollectionOrdering.Matching);
+        await Assert.That(cache.PathsOfContent("sha-none")).IsEmpty();
+        await Assert.That(cache.PathsOfContent(null)).IsEmpty();
+    }
+
+    private static DemoCacheRecord Hashed(string path, string sha)
+    {
+        DemoCacheRecord record = new()
+        {
+            Path = path,
+            Size = 1000,
+            ModifiedTicks = 2000
+        };
+        record.SetContentHash(sha, new DemoContentFingerprint(1000, 64, "head", "tail"));
+        DemoCacheStore.StampParse(record);
+        return record;
     }
 
     [Test]

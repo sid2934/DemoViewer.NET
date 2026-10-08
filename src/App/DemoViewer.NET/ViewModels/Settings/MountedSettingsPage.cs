@@ -45,7 +45,7 @@ public sealed partial class MountedSettingsPage : ObservableObject
 
     /// <summary>The built VM, or null before <see cref="EnsureBuilt" /> has run. Exposed so <c>SettingsViewModel.Dispose</c> can dispose it.</summary>
     [ObservableProperty]
-    private ViewModelBase? _viewModel;
+    private object? _viewModel;
 
     /// <summary>The built View, DataContext already set to <see cref="ViewModel" />, or null before <see cref="EnsureBuilt" /> has run.</summary>
     [ObservableProperty]
@@ -66,7 +66,7 @@ public sealed partial class MountedSettingsPage : ObservableObject
             return;
         }
 
-        ViewModelBase viewModel = _contribution.ViewModelFactory();
+        object viewModel = _contribution.ViewModelFactory();
         Control view = _contribution.ViewFactory();
         view.DataContext = viewModel;
         ViewModel = viewModel;

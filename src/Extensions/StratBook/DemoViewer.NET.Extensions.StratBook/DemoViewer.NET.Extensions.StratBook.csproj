@@ -3,10 +3,9 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-        <!-- The pack keeps the app's namespaces (DemoViewer.NET.Services.*, .ViewModels.*, .Views.*), so the
-             root namespace is the app's. The assembly name is what the heads reference and the ViewLocator
-             searches. -->
-        <RootNamespace>DemoViewer.NET</RootNamespace>
+        <!-- Its own namespace, so a type of the app it still uses needs a using and shows up as one. The
+             assembly name is what the heads reference and the ViewLocator searches. -->
+        <RootNamespace>DemoViewer.NET.Extensions.StratBook</RootNamespace>
         <AssemblyName>DemoViewer.NET.Extensions.StratBook</AssemblyName>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     </PropertyGroup>
@@ -28,8 +27,11 @@
 
     <!-- The manifest: ..\extension.json is a template whose version is stamped from
          ..\version.json at build. The stamped copy is embedded (StratBookPack.Manifest) and copied beside the
-         DLL for the loader. -->
-    <Import Project="..\..\ExtensionManifest.targets"/>
+         DLL for the loader. The targets are the SDK package's, imported from source here. -->
+    <PropertyGroup>
+        <ExtensionManifestTemplate>$(MSBuildProjectDirectory)/../extension.json</ExtensionManifestTemplate>
+    </PropertyGroup>
+    <Import Project="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk\build\DemoViewer.NET.Extensions.Sdk.targets"/>
 
     <ItemGroup>
         <!-- Direct, not transitive: the Avalonia build tasks (XAML compilation) and the MVVM source generators
@@ -42,8 +44,22 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- The extension references the app; the app never references the extension.
-             The heads reference both and hand the pack list to FeaturePacks. -->
+        <Using Include="DemoViewer.NET.Extensions.Sdk"/>
+        <Using Include="DemoViewer.NET.Extensions.Sdk.Ui"/>
+        <Using Include="DemoViewer.NET.Extensions.Sdk.Ui.Controls"/>
+        <Using Include="DemoViewer.NET.Extensions.Sdk.Ui.Theming"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The SDK and its UI kit, with the scene package through the SDK, are the packages a third party
+             takes; the projects stand in for them, as for the sample. Everything Playback2D the extension
+             draws with comes from those. The app reference is the first-party seam (export, clip export, the
+             review queue and the playback host the strat canvas mounts), and it grants the extension no
+             internals; PackPlayback2DBindingTests pins which unpublished Playback2D types it may bind. The
+             app never references the extension; the heads reference both and hand the pack list to
+             FeaturePacks. -->
+        <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
+        <ProjectReference Include="..\..\..\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
         <ProjectReference Include="..\..\..\App\DemoViewer.NET\DemoViewer.NET.csproj"/>
     </ItemGroup>
 

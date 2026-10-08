@@ -80,16 +80,13 @@ mkdir -p "$STAGE_DIR"
 echo "[pack-extension] id=$ID csproj=$CSPROJ_FILE manifest=$MANIFEST_PATH out=$OUT_BASE"
 
 # ── Host values this build offers, for the compatibility report ───────────────────────────────────────
-# Read from source rather than restated: a contract or CS2DemoKit bump that forgets one of these two
-# files is a real defect this step should catch.
-CONTRACT_HOST_FILE="src/App/DemoViewer.NET/Extensions/ExtensionHost.cs"
-CONTRACT_MATCHES="$(grep -oE 'ContractVersion \{ get; \} = new\([0-9]+, *[0-9]+, *[0-9]+\)' "$CONTRACT_HOST_FILE" || true)"
-CONTRACT_COUNT="$(printf '%s\n' "$CONTRACT_MATCHES" | grep -c . || true)"
-if [ "$CONTRACT_COUNT" -ne 1 ]; then
-    echo "error: expected exactly one 'ContractVersion' literal in $CONTRACT_HOST_FILE, found $CONTRACT_COUNT" >&2
-    exit 2
+# Read from source rather than restated, so a contract or CS2DemoKit bump cannot leave this report behind.
+# The contract is the extension SDK's version without prerelease or build metadata, which is what
+# ExtensionHost.ContractVersion reads from the SDK assembly at run time.
+if ! dotnet nbgv --version >/dev/null 2>&1; then
+    dotnet tool restore >/dev/null
 fi
-CONTRACT_VERSION="$(printf '%s\n' "$CONTRACT_MATCHES" | grep -oE '[0-9]+' | tr '\n' '.' | sed 's/\.$//')"
+CONTRACT_VERSION="$(dotnet nbgv get-version -p src/Sdk/DemoViewer.NET.Extensions.Sdk -v SimpleVersion)"
 
 PACKAGES_PROPS="Directory.Packages.props"
 KIT_MATCHES="$(grep -c 'PackageVersion Include="CS2DemoKit.Analysis"' "$PACKAGES_PROPS" || true)"
@@ -103,12 +100,12 @@ CS2DEMOKIT_VERSION="$(grep -oE 'PackageVersion Include="CS2DemoKit.Analysis" Ver
 echo "[pack-extension] host: contract=$CONTRACT_VERSION cs2demokit=$CS2DEMOKIT_VERSION"
 
 # ── The version being released is the one Nerdbank.GitVersioning computes for the extension ───────────
-# The repo manifest is a template: its "version" is the literal "{nbgv}" and the build stamps the real
-# value from the extension directory's version.json (src/Extensions/ExtensionManifest.targets). The
+# The repo manifest is a template: its "version" is the literal "{version}" and the build stamps the real
+# value from the extension directory's version.json (the SDK's build/DemoViewer.NET.Extensions.Sdk.targets). The
 # same nbgv call the build makes decides the version here, so the tag check runs before any build.
 MANIFEST_TEMPLATE_VERSION="$(jq -r .version "$MANIFEST_PATH")"
-if [ "$MANIFEST_TEMPLATE_VERSION" != "{nbgv}" ]; then
-    echo "error: $MANIFEST_PATH must keep \"version\": \"{nbgv}\"; the build stamps the version from version.json." >&2
+if [ "$MANIFEST_TEMPLATE_VERSION" != "{version}" ]; then
+    echo "error: $MANIFEST_PATH must keep \"version\": \"{version}\"; the build stamps the version from version.json." >&2
     exit 2
 fi
 if ! dotnet nbgv --version >/dev/null 2>&1; then
@@ -247,7 +244,7 @@ if ! cmp -s "$EMBEDDED_MANIFEST_PATH" "$BUILT_MANIFEST_PATH"; then
 fi
 rm -f "$EMBEDDED_MANIFEST_PATH"
 EXPECTED_MANIFEST_PATH="$OUT_BASE/expected-manifest.json"
-sed "s/\"{nbgv}\"/\"$MANIFEST_VERSION\"/" "$MANIFEST_PATH" > "$EXPECTED_MANIFEST_PATH"
+sed "s/\"{version}\"/\"$MANIFEST_VERSION\"/" "$MANIFEST_PATH" > "$EXPECTED_MANIFEST_PATH"
 if ! cmp -s "$EXPECTED_MANIFEST_PATH" "$BUILT_MANIFEST_PATH"; then
     echo "error: the stamped manifest $BUILT_MANIFEST_PATH is not the template $MANIFEST_PATH with its version filled in." >&2
     echo "       rebuild after editing extension.json." >&2

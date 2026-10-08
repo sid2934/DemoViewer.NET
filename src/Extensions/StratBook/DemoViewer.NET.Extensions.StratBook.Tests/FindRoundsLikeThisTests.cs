@@ -7,12 +7,12 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using DemoViewer.NET.Views.Playback2D;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
@@ -55,22 +55,22 @@ public class FindRoundsLikeThisTests
         Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
         using (Assert.Multiple())
         {
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, false, out Playback2DAction find))
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, false, out string? find))
                 .IsTrue();
-            await Assert.That(find).IsEqualTo(Playback2DAction.FindRoundsLikeThis);
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.None, false, out Playback2DAction follow))
+            await Assert.That(find).IsEqualTo(StratBookActions.FindRoundsLikeThis);
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.None, false, out string? follow))
                 .IsTrue();
-            await Assert.That(follow).IsEqualTo(Playback2DAction.CycleFollowNext);
+            await Assert.That(follow).IsEqualTo(nameof(Playback2DAction.CycleFollowNext));
 
             // A drawing tool does not take the chord away: the row is Always-scoped and nothing
             // tool-scoped claims it.
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, true, out Playback2DAction tool))
+            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, true, out string? tool))
                 .IsTrue();
-            await Assert.That(tool).IsEqualTo(Playback2DAction.FindRoundsLikeThis);
+            await Assert.That(tool).IsEqualTo(StratBookActions.FindRoundsLikeThis);
 
             // Not a shell accelerator and not one the browser eats, so a user may keep it on either head.
             await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.F, KeyModifiers.Control));
-            await Assert.That(keymap.GestureText(Playback2DAction.FindRoundsLikeThis)).IsEqualTo("Ctrl+F");
+            await Assert.That(keymap.GestureText(StratBookActions.FindRoundsLikeThis)).IsEqualTo("Ctrl+F");
         }
     }
 
@@ -228,7 +228,7 @@ public class FindRoundsLikeThisTests
     public async Task TheShippedSeam_LoadsTheCanvas_AndShowsTheTab_OrRefusesWhenTheTabIsGone()
     {
         using Harness h = new();
-        using SituationsTabViewModel tab = new(h.Index, null, h.Cache, h.Sources,
+        using SituationsTabViewModel tab = new(h.Index, null, h.Cache.Library(), h.Sources,
             () => RoundIndexTokenSource.Pawn, false, h.Vm);
         List<string> shown = [];
         bool tabOnStrip = true;
@@ -270,7 +270,7 @@ public class FindRoundsLikeThisTests
         await HeadlessSession.RunOnUi(async () =>
         {
             RecordingSeam seam = new();
-            PlaybackContributionHost host = new([(new StratBookPack(), [new SituationsPlaybackContribution()])], null);
+            PlaybackContributionHost host = Extensions.StratBook.ReviewPanelsHarness.Host(null, new SituationsPlaybackContribution());
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab(
                 contributions: host, configure: c =>
                 {
@@ -323,11 +323,11 @@ public class FindRoundsLikeThisTests
         public Harness()
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Index = new SituationIndex(Cache, Sidecars, Sources);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources);
             Index.Load();
-            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache, _ => null,
+            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache.Library(), _ => null,
                 dispose => dispose());
         }
 
@@ -341,7 +341,6 @@ public class FindRoundsLikeThisTests
         {
             Vm.Dispose();
             Index.Dispose();
-            Sidecars.Dispose();
         }
     }
 }

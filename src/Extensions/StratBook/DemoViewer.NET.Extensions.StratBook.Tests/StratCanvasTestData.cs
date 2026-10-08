@@ -1,8 +1,8 @@
 #region
 
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -96,11 +96,7 @@ internal static class StratCanvasTestData
     /// <summary>A canvas over the session with no map bundle, a hand-cranked clock and the shipped keymap.</summary>
     public static StratCanvasViewModel Canvas(StratSession session, ManualTicker ticker, StratStore? store = null)
     {
-        StratCanvasViewModel canvas = new(session, _ => null, ticker, id => store?.Load(id).Document, () => []);
-
-        // Wide enough that no two steps' markers fold into one glyph, as they would on a zero-width bar.
-        canvas.Timeline.PixelWidth = 6000;
-        return canvas;
+        return new StratCanvasViewModel(session, _ => null, ticker, id => store?.Load(id).Document, StratTestKeymap.Shipped);
     }
 }
 

@@ -12,7 +12,7 @@ using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Views;
 
 #endregion
@@ -37,7 +37,7 @@ public class StratBookShellRenderTests
         {
             ModuleRegistry registry = new();
             registry.Register(new LabelledSectionsModule());
-            MainViewModel vm = new(null, registry, TestLibraries.Empty(), hostTabs: [StratBookHubAccess.HubHost()]);
+            MainViewModel vm = new(null, registry, TestLibraries.Empty(), hubTabs: [StratBookHubAccess.HubHost()]);
             vm.RestoreSession();
             try
             {
@@ -102,13 +102,13 @@ public class StratBookShellRenderTests
         {
             ModuleRegistry registry = new();
             registry.Register(new LabelledSectionsModule());
-            MainViewModel vm = new(null, registry, TestLibraries.Empty(), hostTabs: [StratBookHubAccess.HubHost()]);
+            MainViewModel vm = new(null, registry, TestLibraries.Empty(), hubTabs: [StratBookHubAccess.HubHost()]);
             vm.RestoreSession();
             try
             {
                 Window window = new() { Width = 1280, Height = 800, Content = new MainView { DataContext = vm } };
                 window.Show();
-                vm.StratBookHub().Layout.IsRailCollapsed = true;
+                vm.StratBookHub().IsRailCollapsed = true;
                 foreach (string id in ids)
                 {
                     vm.TrySelectTab(id);
@@ -172,12 +172,12 @@ public class StratBookShellRenderTests
 
         public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
         {
-            yield return Section("stratbook.browser", "Strats", 0, StratBookHubViewModel.HostId, null);
-            yield return Section("situations.search", "Situations", 1, StratBookHubViewModel.HostId, "3 new");
-            yield return Section("tagger.matrix", "Tags", 2, StratBookHubViewModel.HostId, null);
-            yield return Section("utilitybook.browser", "Utility", 3, StratBookHubViewModel.HostId, null);
-            yield return Section("review.queue", "Review", 4, StratBookHubViewModel.HostId, "12");
-            yield return Section("dossier.browser", "Dossier", 5, StratBookHubViewModel.HostId, null);
+            yield return Section("stratbook.browser", "Strats", 0, HostIds.StratBookHub, null);
+            yield return Section("situations.search", "Situations", 1, HostIds.StratBookHub, "3 new");
+            yield return Section("tagger.matrix", "Tags", 2, HostIds.StratBookHub, null);
+            yield return Section("utilitybook.browser", "Utility", 3, HostIds.StratBookHub, null);
+            yield return Section("review.queue", "Review", 4, HostIds.StratBookHub, "12");
+            yield return Section("dossier.browser", "Dossier", 5, HostIds.StratBookHub, null);
             yield return Section("teams.browser", "Teams", 0, LibraryTabViewModel.HostId, null);
         }
 

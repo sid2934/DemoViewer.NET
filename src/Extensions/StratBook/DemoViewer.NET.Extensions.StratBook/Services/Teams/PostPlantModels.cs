@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     One team's Post-Plant And Retake: one block per map and side the team

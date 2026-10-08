@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:settings="using:DemoViewer.NET.ViewModels.Settings"
+             xmlns:sdk="using:DemoViewer.NET.Extensions.Sdk"
+             x:Class="DemoViewer.NET.Views.Settings.SchemaSettingsPageView"
+             x:DataType="settings:SchemaSettingsPageViewModel">
+
+    <!-- One row per setting of an extension's schema, laid out like the host's own settings rows. -->
+    <ItemsControl ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+                <StackPanel Spacing="12" />
+            </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.DataTemplates>
+            <DataTemplate DataType="settings:ToggleSettingRow">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="1">
+                        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextValue}" FontSize="12" />
+                        <TextBlock Text="{Binding Help}" IsVisible="{Binding HasHelp}"
+                                   Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" VerticalAlignment="Center" OnContent="" OffContent=""
+                                  IsChecked="{Binding Value, Mode=TwoWay}" />
+                </Grid>
+            </DataTemplate>
+            <DataTemplate DataType="settings:NumberSettingRow">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="1">
+                        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextValue}" FontSize="12" />
+                        <TextBlock Text="{Binding Help}" IsVisible="{Binding HasHelp}"
+                                   Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <NumericUpDown Grid.Column="1" VerticalAlignment="Center" MinWidth="120"
+                                   Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                   Increment="{Binding Increment}" FormatString="{Binding FormatString}"
+                                   Value="{Binding Value, Mode=TwoWay}" />
+                </Grid>
+            </DataTemplate>
+            <DataTemplate DataType="settings:ChoiceSettingRow">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="1">
+                        <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextValue}" FontSize="12" />
+                        <TextBlock Text="{Binding Help}" IsVisible="{Binding HasHelp}"
+                                   Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ComboBox Grid.Column="1" VerticalAlignment="Center" MinWidth="160"
+                              ItemsSource="{Binding Choices}" SelectedItem="{Binding Selected, Mode=TwoWay}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="sdk:SettingChoice">
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </DataTemplate>
+            <DataTemplate DataType="settings:TextSettingRow">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextValue}" FontSize="12" />
+                    <TextBlock Text="{Binding Help}" IsVisible="{Binding HasHelp}"
+                               Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                    <TextBox Text="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </StackPanel>
+            </DataTemplate>
+            <DataTemplate DataType="settings:FolderSettingRow">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextValue}" FontSize="12" />
+                    <TextBlock Text="{Binding Help}" IsVisible="{Binding HasHelp}"
+                               Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                        <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="{Binding Shown}"
+                                   Foreground="{DynamicResource TextValue}" FontSize="11" TextTrimming="CharacterEllipsis" />
+                        <Button Grid.Column="1" Content="Choose…" Click="OnChooseFolder" />
+                        <Button Grid.Column="2" Content="Clear" Command="{Binding ClearCommand}" IsVisible="{Binding HasPath}" />
+                    </Grid>
+                </StackPanel>
+            </DataTemplate>
+        </ItemsControl.DataTemplates>
+    </ItemsControl>
+</UserControl>

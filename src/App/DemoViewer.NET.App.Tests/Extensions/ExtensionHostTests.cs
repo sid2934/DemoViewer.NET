@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 /// <summary>
 ///     <see cref="ExtensionHost" />: the CS2DemoKit version it reads from the referenced assembly equals
 ///     the <c>Directory.Packages.props</c> pin, so a package bump cannot leave the two apart; the contract
-///     version is the documented 1.x; the app version is <see cref="AppVersionInfo" />'s.
+///     version is the extension SDK's, 1.1 or later; the app version is <see cref="AppVersionInfo" />'s.
 /// </summary>
 public class ExtensionHostTests
 {
@@ -57,11 +57,13 @@ public class ExtensionHostTests
     }
 
     [Test]
-    public async Task ContractVersion_IsOneDotX_AndCurrentCarriesAllThree()
+    public async Task ContractVersion_IsTheSdksMajor_AndCurrentCarriesAllThree()
     {
         using (Assert.Multiple())
         {
-            await Assert.That(ExtensionHost.ContractVersion.Major).IsEqualTo(1);
+            // 1.1 and up: 1.0.0 is what an app from before the SDK reports for its internal contract.
+            await Assert.That(ExtensionHost.ContractVersion).IsGreaterThanOrEqualTo(new SemVersion(1, 1, 0));
+            await Assert.That(ExtensionHost.ContractVersion.Major).IsEqualTo(typeof(IExtension).Assembly.GetName().Version!.Major);
             await Assert.That(ExtensionHost.ContractVersion.IsPrerelease).IsFalse();
             await Assert.That(SemVersion.TryParse(ExtensionHost.ContractVersion.ToString(), out _)).IsTrue();
             await Assert.That(ExtensionHost.Current.ContractVersion).IsEqualTo(ExtensionHost.ContractVersion);

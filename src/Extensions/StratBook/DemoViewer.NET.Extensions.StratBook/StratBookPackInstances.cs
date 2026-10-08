@@ -1,13 +1,14 @@
 #region
 
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats.Mining;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
@@ -28,7 +29,7 @@ namespace DemoViewer.NET.Extensions.StratBook;
 internal sealed class StratBookPackInstances
 {
     private readonly object _gate = new();
-    private readonly List<IPackResident> _residents = [];
+    private readonly List<IExtensionResident> _residents = [];
 
     public SituationIndex? Situations { get; set; }
     public GrenadeIndex? Grenades { get; set; }
@@ -38,10 +39,9 @@ internal sealed class StratBookPackInstances
     public WatchedSituationsService? Watched { get; set; }
     public StratMiningService? Mining { get; set; }
 
-    // The four evaluator-registry contributions, set inline by their own factories, not
-    // through Record: they are plain fan-out evaluators, not IPackResident, so Clear/Restore leave
+    // The three evaluator-registry contributions, set inline by their own factories, not
+    // through Record: they are plain fan-out evaluators, not IExtensionResident, so Clear/Restore leave
     // them alone. Once set they stay set for the session: "was ever constructed", not "is live now".
-    public RoundFactsEvaluator? RoundFacts { get; set; }
     public RoundIndexEvaluator? RoundIndex { get; set; }
     public SuggestedTagsService? SuggestedTags { get; set; }
     public GrenadeIndexEvaluator? GrenadeWalk { get; set; }
@@ -50,8 +50,11 @@ internal sealed class StratBookPackInstances
     // something built it, so a never-opened pack reads no tags directory at exit.
     public TagStore? Tags { get; set; }
 
+    // The Strat Book tab's module, set by Contribute. Shutdown commits the open strat through it.
+    public StratBookModule? StratBook { get; set; }
+
     /// <summary>Every resident built this session, in build order; survives a release.</summary>
-    public IReadOnlyList<IPackResident> Residents
+    public IReadOnlyList<IExtensionResident> Residents
     {
         get
         {
@@ -63,7 +66,7 @@ internal sealed class StratBookPackInstances
     }
 
     /// <summary>A factory built one: remembered for the next release and attach, and live from now.</summary>
-    public void Record(IPackResident built)
+    public void Record(IExtensionResident built)
     {
         ArgumentNullException.ThrowIfNull(built);
         lock (_gate)
@@ -80,7 +83,7 @@ internal sealed class StratBookPackInstances
     /// <summary>Points the typed properties at the built residents again, after a release.</summary>
     public void Restore()
     {
-        foreach (IPackResident resident in Residents)
+        foreach (IExtensionResident resident in Residents)
         {
             Assign(resident);
         }
@@ -98,7 +101,7 @@ internal sealed class StratBookPackInstances
         Mining = null;
     }
 
-    private void Assign(IPackResident resident)
+    private void Assign(IExtensionResident resident)
     {
         switch (resident)
         {

@@ -1,11 +1,11 @@
 #region
 
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats.Mining;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 /// <summary>What a mined pattern is: a site take, or how a side stands and throws before anything happens.</summary>
 public enum PatternKind

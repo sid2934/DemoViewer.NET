@@ -1,11 +1,11 @@
 #region
 
 using Avalonia.Controls;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 #endregion
 
-namespace DemoViewer.NET.Views.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Views.Situations;
 
 /// <summary>The Result Cards view. Bindings only, apart from handing the VM the width in cards.</summary>
 public partial class ResultCardsView : UserControl

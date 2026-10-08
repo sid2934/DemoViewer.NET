@@ -34,6 +34,11 @@
              moving the pack's OWN tests out didn't remove this project's need for the pack assembly. -->
         <ProjectReference Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
         <ProjectReference Include="..\..\Testing\DemoViewer.NET.TestSupport\DemoViewer.NET.TestSupport.csproj"/>
+        <!-- Built, not referenced: the third-party extension tests install its output under a temp extensions folder. -->
+        <ProjectReference Include="..\..\..\samples\Extensions\HelloExtension\HelloExtension.csproj"
+                          ReferenceOutputAssembly="false" Private="false"/>
+        <!-- Referenced for its view models, and installed from its own output by the external loading test. -->
+        <ProjectReference Include="..\..\Testing\ThirdPartyFake\ThirdPartyFake.csproj"/>
     </ItemGroup>
 
     <!-- These four files moved to the extension test project along with the rest of
@@ -46,6 +51,7 @@
              ForwardQueueTests. -->
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\RoundIndexTestData.cs" Link="RoundIndexTestData.cs"/>
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\CacheRecordTestExtensions.cs" Link="CacheRecordTestExtensions.cs"/>
+        <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\LibraryTestExtensions.cs" Link="LibraryTestExtensions.cs"/>
         <!-- UiThreadAuditTests walks the StratBook hub like every other section's. -->
         <Compile Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook.Tests\StratBookHubAccess.cs" Link="StratBookHubAccess.cs"/>
         <!-- ZonePlaceResolverSourceTests (core: Services/Zones) checks the adjacency-seam naming through
@@ -59,5 +65,11 @@
     <ItemGroup>
         <Compile Include="..\..\..\tools\extension-signing\FeedMerge.cs" Link="Extensions\FeedMerge.cs"/>
     </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="DemoViewer.NET.Extensions.Sdk"/>
+    </ItemGroup>
+
+    <Import Project="..\..\Testing\DemoViewer.NET.Extensions.Testing\DemoViewer.NET.Extensions.Testing.props"/>
 
 </Project>

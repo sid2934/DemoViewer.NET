@@ -2,19 +2,18 @@
 
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk.Playback;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Modules;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 
 /// <summary>
 ///     Create Strat From Round in 2D Playback as one playback contribution: the
@@ -23,7 +22,10 @@ namespace DemoViewer.NET.Modules.StratBook;
 ///     reaches it: off, the service resolves null and the band offers nothing.
 /// </summary>
 /// <param name="post">Marshals the walk's result onto the UI thread; synchronous when omitted (tests).</param>
-public sealed class CreateStratPlaybackContribution(Action<Action>? post = null) : IPlaybackContribution
+/// <param name="jobs">The queue the round's walk runs on; the pool when null (tests).</param>
+/// <param name="roundFacts">The library's Round Facts, which end the round's walk; none when null (tests).</param>
+public sealed class CreateStratPlaybackContribution(Action<Action>? post = null, IExtensionJobs? jobs = null, IRoundFacts? roundFacts = null)
+    : Sdk.Playback.IPlaybackContribution
 {
     /// <summary>The round band's menu entry.</summary>
     public const string Label = "Create strat from this round";
@@ -33,10 +35,10 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null)
     private IDisposable? _menu;
     private Func<CreateStratDialogViewModel>? _next;
     private IPaneHandle? _pane;
-    private IPlaybackSurface? _surface;
+    private Sdk.Playback.IPlaybackSurface? _surface;
 
     /// <inheritdoc />
-    public void Attach(IPlaybackSurface surface, IModuleContext context)
+    public void Attach(Sdk.Playback.IPlaybackSurface surface, IModuleContext context)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(context);
@@ -60,9 +62,9 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null)
     }
 
     /// <summary>The entry for a round band when a capture with a demo is there; nothing otherwise.</summary>
-    internal IEnumerable<MenuEntry> MenuFor(TimelineBandViewModel band)
+    internal IEnumerable<MenuEntry> MenuFor(PlaybackBand band)
     {
-        if (!Playback2DTimelineViewModel.IsRoundBand(band) || Capture() is null)
+        if (!band.IsRound || Capture() is null)
         {
             return [];
         }
@@ -116,13 +118,13 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null)
         ClipRound round = rounds[at];
         int? windowEnd = at + 1 < rounds.Count ? rounds[at + 1].StartTickFrameClock : null;
         string? path = context.DemoPath;
-        RoundFacts? facts = path is null ? null : context.GetService<IRoundFactsSource>()?.RoundAt(path, round.StartTickFrameClock);
+        RoundFacts? facts = path is null ? null : roundFacts?.RoundAt(path, round.StartTickFrameClock);
         if (facts is not null && facts.Number != round.Number)
         {
             facts = null;
         }
 
-        StratCaptureRequest request = BuildRequest(host, context, round, windowEnd, facts, demo.MapName, surface.MapLevels);
+        StratCaptureRequest request = BuildRequest(host, context, round, windowEnd, facts, demo.MapName, Levels(surface));
         OpenWith(request,
             (progress, ct) => RoundCaptureWalker.Walk(demo, round.Number, round.StartTickFrameClock, windowEnd, facts?.EndTick,
                 progress, ct),
@@ -143,13 +145,19 @@ public sealed class CreateStratPlaybackContribution(Action<Action>? post = null)
 
         _next = () =>
         {
-            CreateStratDialogViewModel dialog = new(request, walk, host.Store, _post);
+            CreateStratDialogViewModel dialog = new(request, walk, host.Store, _post, jobs: jobs);
             dialog.Closed += () => pane.Close();
             dialog.StratCreated += id => host.OpenStrat?.Invoke(id);
             return dialog;
         };
         pane.Open();
     }
+
+    // The SDK's floors as the capture's level keys read them.
+    private static List<MapLevel> Levels(Sdk.Playback.IPlaybackSurface surface) =>
+    [
+        .. surface.Levels.Select(l => new MapLevel { Id = MapSpace.IdForZMin(l.ZMin), Name = l.Name, ZMin = l.ZMin, ZMax = l.ZMax })
+    ];
 
     private object BuildPane() =>
         _next?.Invoke() ?? throw new InvalidOperationException("The Create Strat pane opens from a round band's menu entry.");

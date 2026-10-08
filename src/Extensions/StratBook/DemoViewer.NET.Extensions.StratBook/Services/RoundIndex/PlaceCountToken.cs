@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The per-side situation token: the alive players on one side grouped by place, written as

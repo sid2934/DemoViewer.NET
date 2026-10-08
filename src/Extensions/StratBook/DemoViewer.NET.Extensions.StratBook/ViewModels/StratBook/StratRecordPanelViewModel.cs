@@ -4,15 +4,15 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     The Strat Record Panel: run / won / lost / aborted, split by Demo
@@ -36,14 +36,14 @@ namespace DemoViewer.NET.ViewModels.StratBook;
 ///         this strat's evidence.
 ///     </para>
 /// </summary>
-public sealed partial class StratRecordPanelViewModel : ViewModelBase, IDisposable
+public sealed partial class StratRecordPanelViewModel : ExtensionViewModel, IDisposable
 {
     private static readonly TimeSpan _defaultDebounce = TimeSpan.FromMilliseconds(150);
 
     private readonly Action<Action> _post;
     private readonly TimeSpan _debounce;
     private readonly StratEvidenceService _evidence;
-    private readonly Func<string, DemoCacheIndexEntry?> _indexBySha;
+    private readonly Func<string, LibraryDemo?> _indexBySha;
     private readonly ReviewQueue? _review;
     private readonly Func<string, bool>? _selectTab;
     private readonly TagStore _tags;
@@ -74,7 +74,7 @@ public sealed partial class StratRecordPanelViewModel : ViewModelBase, IDisposab
     /// <param name="evidence">Computes the record from the Tag Store.</param>
     /// <param name="tags">The store the panel listens to, for the live rebuild.</param>
     /// <param name="review">Where a number's clips go; null says there is none on this host.</param>
-    /// <param name="indexBySha">Hash to library row (<see cref="DemoCacheStore.TryGetIndexBySha256" />), for a clip's path.</param>
+    /// <param name="indexBySha">Hash to library row (<see cref="IExtensionLibrary.FindBySha256" />), for a clip's path.</param>
     /// <param name="selectTab">Shows a tab by id, for the Review tab after a send; null stays on the Strat Book.</param>
     /// <param name="post">Marshals a finished rebuild onto the UI thread; defaults to synchronous.</param>
     /// <param name="debounce">How long a burst of Tag Store changes is folded; 150 ms by default.</param>
@@ -82,7 +82,7 @@ public sealed partial class StratRecordPanelViewModel : ViewModelBase, IDisposab
         StratEvidenceService evidence,
         TagStore tags,
         ReviewQueue? review = null,
-        Func<string, DemoCacheIndexEntry?>? indexBySha = null,
+        Func<string, LibraryDemo?>? indexBySha = null,
         Func<string, bool>? selectTab = null,
         Action<Action>? post = null,
         TimeSpan? debounce = null)
@@ -307,7 +307,7 @@ public sealed partial class StratRecordPanelViewModel : ViewModelBase, IDisposab
         int missing = 0;
         foreach (StratRun run in runs)
         {
-            if (TagClips.FromTag(run.Ref, sha => _indexBySha(sha)?.Path) is { } clip)
+            if (TagClips.FromTag(run.Ref, sha => _indexBySha(sha)?.FilePath) is { } clip)
             {
                 clips.Add(clip);
             }
@@ -370,7 +370,7 @@ public sealed class StratRecordFailureRow(string failure, int count, StratRecord
 }
 
 /// <summary>One clickable number: the runs behind it, and the command a button binds to send them to Review.</summary>
-public sealed partial class StratRecordCountCell : ViewModelBase
+public sealed partial class StratRecordCountCell : ExtensionViewModel
 {
     private readonly StratRecordPanelViewModel? _owner;
 

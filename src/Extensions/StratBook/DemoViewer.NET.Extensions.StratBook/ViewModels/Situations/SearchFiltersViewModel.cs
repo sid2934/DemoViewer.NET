@@ -3,16 +3,15 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 /// <summary>One choice of a filter field. The base carries the text the ComboBox renders; the typed record carries the value.</summary>
 /// <param name="Display">The label.</param>
@@ -29,7 +28,7 @@ public sealed record SearchFilterOption<T>(string Display, T Value) : SearchFilt
 ///     <see cref="Replace" /> keeps a selection across a rebuilt option list by value, the way the
 ///     Library's team filter keeps its team across a rename.
 /// </summary>
-public sealed class SearchFilterField<T> : ViewModelBase
+public sealed class SearchFilterField<T> : ExtensionViewModel
 {
     private SearchFilterOption<T>? _selected;
 
@@ -133,7 +132,7 @@ public sealed class SearchFilterField<T> : ViewModelBase
 ///         <see cref="Apply" /> puts a stored one back on the rail for a re-run.
 ///     </para>
 /// </summary>
-public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
+public sealed partial class SearchFiltersViewModel : ExtensionViewModel, IDisposable
 {
     /// <summary>The source option for demos that carry no label: <see cref="SearchFilterOptions.Unlabeled" />, spelt once for the rail and a stored filter.</summary>
     public const string Unlabeled = SearchFilterOptions.Unlabeled;
@@ -144,7 +143,7 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
     private static readonly SearchFilterOption<int?> _anySide = new("Any side", null);
     private static readonly SearchFilterOption<Guid?> _anyOpponent = new("Any opponent", null);
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly IDemoProvenanceSource? _provenance;
     private readonly TeamIdentityService? _teams;
 
@@ -159,13 +158,13 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private DateTime? _to;
 
-    /// <param name="demoCache">The index rows the date and source fields read.</param>
+    /// <param name="library">The index rows the date and source fields read.</param>
     /// <param name="teams">Team Identity, for the opponent list and our side; null offers neither.</param>
     /// <param name="provenance">Demo Provenance Labels, for the source field; null offers no source filter.</param>
-    public SearchFiltersViewModel(DemoCacheStore demoCache, TeamIdentityService? teams = null, IDemoProvenanceSource? provenance = null)
+    public SearchFiltersViewModel(IExtensionLibrary library, TeamIdentityService? teams = null, IDemoProvenanceSource? provenance = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
-        _demoCache = demoCache;
+        ArgumentNullException.ThrowIfNull(library);
+        _library = library;
         _teams = teams;
         _provenance = provenance;
 
@@ -182,9 +181,9 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
         Clock = new SearchFilterField<ClockBand?>("Clock",
         [
             new SearchFilterOption<ClockBand?>("Any time", null),
-            new SearchFilterOption<ClockBand?>($"First {RoundFactsSource.EarlyBandSeconds} s", ClockBand.Early),
-            new SearchFilterOption<ClockBand?>($"{RoundFactsSource.EarlyBandSeconds} s to {MinutesAndSeconds(RoundFactsSource.LateBandSeconds)}", ClockBand.Middle),
-            new SearchFilterOption<ClockBand?>($"After {MinutesAndSeconds(RoundFactsSource.LateBandSeconds)}", ClockBand.Late)
+            new SearchFilterOption<ClockBand?>($"First {RoundFactsRules.EarlyBandSeconds} s", ClockBand.Early),
+            new SearchFilterOption<ClockBand?>($"{RoundFactsRules.EarlyBandSeconds} s to {MinutesAndSeconds(RoundFactsRules.LateBandSeconds)}", ClockBand.Middle),
+            new SearchFilterOption<ClockBand?>($"After {MinutesAndSeconds(RoundFactsRules.LateBandSeconds)}", ClockBand.Late)
         ]);
         ManCount = new SearchFilterField<ManCountState?>("Man count",
         [
@@ -325,7 +324,7 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
     ///     The demos the opponent, date and source fields keep, as stable keys, or null when none of the
     ///     three is set. The three intersect: a demo must pass every set field.
     /// </summary>
-    public IReadOnlySet<string>? ToDemos() => Values.ToDemos(_demoCache, _teams, _provenance);
+    public IReadOnlySet<string>? ToDemos() => Values.ToDemos(_library, _teams, _provenance);
 
     /// <summary>
     ///     Puts stored values back on the rail, one <see cref="Changed" /> for the lot. A value the rail
@@ -390,7 +389,7 @@ public sealed partial class SearchFiltersViewModel : ViewModelBase, IDisposable
         yield return new SearchFilterOption<BuyType?>("Any buy", null);
         foreach (BuyType buy in new[] { BuyType.Pistol, BuyType.Eco, BuyType.Semi, BuyType.Force, BuyType.Full })
         {
-            yield return new SearchFilterOption<BuyType?>(RoundFactsValues.LowerCamel(buy), buy);
+            yield return new SearchFilterOption<BuyType?>(RoundFactsRules.LowerCamel(buy), buy);
         }
     }
 

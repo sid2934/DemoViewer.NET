@@ -4,11 +4,13 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Profiles;
+using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.ViewModels.Highlights;
 
 #endregion
 
@@ -48,10 +50,10 @@ public class HighlightScanServiceTests
         "",
         DemoProfile.Unknown);
 
-    // Builds a scanner wired to a real queue THROUGH the coordinator, the production path (phase 3b): the
-    // coordinator submits the scanner's Wants'd rows, the queue (fake parser, no filesystem) drives the
-    // drain/gate, and the scanner's Evaluate does the per-row work via its processorOverride. The queue +
-    // coordinator are kept alive by scanner.Coordinator; tests dispose only the scanner.
+    // Builds a scanner wired to a real queue THROUGH the scheduler, the production path: the scheduler
+    // submits the scanner's Wants'd rows, the queue (fake parser, no filesystem) drives the drain/gate, and
+    // the scanner's Evaluate does the per-row work via its processorOverride. The queue + scheduler are kept
+    // alive by scanner.Scheduler; tests dispose only the scanner.
     private static HighlightScanService NewScanner(
         DemoCacheStore store,
         IHighlightHarvester harvester,
@@ -64,8 +66,8 @@ public class HighlightScanServiceTests
             _ => SyntheticDemo());
         HighlightScanService scanner = new(store, harvester, libraryDemoPaths, backgroundScanEnabled,
             a => a(), processorOverride);
-        DemoEvaluationCoordinator coordinator = new([scanner], queue, scanner.PendingPaths);
-        scanner.Coordinator = coordinator;
+        DemoScheduler coordinator = new([scanner], queue, scanner.PendingPaths);
+        scanner.Scheduler = coordinator;
         return scanner;
     }
 
@@ -192,6 +194,80 @@ public class HighlightScanServiceTests
     }
 
     [Test]
+    public async Task Backlog_ListsADemoHeldAtTwoPathsOnce()
+    {
+        DemoCacheStore store = new(null);
+        FakeHarvester harvester = new();
+        DemoCacheRecord stale = IndexedRow("/smb/stale.dem", 0, fingerprint: "OLD@64");
+        stale.Sha256 = "sha-stale";
+        store.Upsert(stale);
+        DemoCacheRecord copy = IndexedRow("/nfs/stale.dem", 0, fingerprint: "OLD@64");
+        copy.Sha256 = "sha-stale";
+        store.Upsert(copy);
+
+        using HighlightScanService scanner = NewScanner(store, harvester, () => ["/nfs/stale.dem"], () => false,
+            (_, _) => null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scanner.PendingPaths()).IsEquivalentTo(["/nfs/stale.dem"]);
+            await Assert.That(scanner.QueueLength).IsEqualTo(1);
+        }
+    }
+
+    [Test]
+    public async Task TheStatusCounts_CountADemoHeldAtTwoPathsOnce()
+    {
+        DemoCacheStore store = new(null);
+        foreach (string path in new[] { "/smb/bad.dem", "/nfs/bad.dem" })
+        {
+            DemoCacheRecord failed = IndexedRow(path, 0);
+            failed.Sha256 = "sha-bad";
+            failed.AnalysisState = DemoAnalysisState.Failed;
+            store.Upsert(failed);
+        }
+
+        using HighlightScanService scanner = NewScanner(store, new FakeHarvester(), () => [], () => false, (_, _) => null);
+        HighlightScanStatusViewModel status = new(scanner, store);
+
+        await Assert.That(status.FailedCount).IsEqualTo(1);
+    }
+
+    // Demos scanned before Round Facts became a core stamped ruleset carry the pinned fingerprint; they stay
+    // current under the composed build, and a user override of round_facts that does not compose leaves the
+    // highlights backlog exactly as it was rather than reading every demo as current.
+    [Test]
+    public async Task RoundFactsAsCore_RequeuesNoHighlights_AndABrokenOverrideKeepsTheBacklog()
+    {
+        string shipped = RuleSetLocator.ResolveShippedRulesDirectory();
+        DirectoryInfo user = Directory.CreateTempSubdirectory("dv-hss-broken-");
+        try
+        {
+            string yaml = await File.ReadAllTextAsync(Path.Combine(shipped, "round_facts.rules.yaml"));
+            await File.WriteAllTextAsync(Path.Combine(user.FullName, "round_facts.rules.yaml"),
+                yaml + "\nhighlights:\n  broken:\n    when: no_such_stat >= 1\n    per: round\n    title: broken\n");
+
+            foreach (MergedRulesBuild rules in new[]
+                     {
+                         new MergedRulesBuild(() => YamlConfigLoader.LoadWithOverlay(shipped, null), () => [StampedRuleset.Core("round_facts")]),
+                         new MergedRulesBuild(() => YamlConfigLoader.LoadWithOverlay(shipped, user.FullName), () => [StampedRuleset.Core("round_facts")])
+                     })
+            {
+                DemoCacheStore store = new(null);
+                store.Upsert(IndexedRow("/demos/scanned.dem", 0, fingerprint: MergedRulesBuildTests.ShippedFingerprint64));
+                store.Upsert(IndexedRow("/demos/stale.dem", 0, fingerprint: "OLD"));
+                using HighlightScanService scanner = new(store, new RulesHighlightHarvester(rules), () => [], () => false);
+
+                await Assert.That(scanner.PendingPaths()).IsEquivalentTo(["/demos/stale.dem"]);
+            }
+        }
+        finally
+        {
+            user.Delete(true);
+        }
+    }
+
+    [Test]
     public async Task Backfill_DrainsNewestFirst_OneAtATime_UnderOptIn()
     {
         DemoCacheStore store = new(null);
@@ -277,37 +353,35 @@ public class HighlightScanServiceTests
     }
 
     [Test]
-    public async Task OnParsedOpportunistically_RunsAnalysisOnlyWhenOptInOn()
+    public async Task AMissingRow_IsWantedOnlyWithTheOptIn_AndAFreshRowNever()
     {
         DemoCacheStore store = new(null);
         FakeHarvester harvester = new();
         bool optIn = false;
         using HighlightScanService scanner = NewScanner(store, harvester,
             () => [],
-            () => optIn,
-            (_, _) => null);
+            () => optIn);
 
         ParsedDemo parsed = SyntheticDemo();
 
-        // Opt-in OFF: a missing row does the cheap fingerprint compare but must NOT run the full
-        // replay (library indexing stays single-pass), and writes no row.
-        scanner.OnParsedOpportunistically("/d/a.dem", parsed);
-        await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(0)
-            .Because("the piggyback analysis is gated behind the opt-in");
+        // Opt-in OFF: a missing row is not wanted, so no visit carries this pass and no row is written.
+        await Assert.That(scanner.Wants("/d/a.dem")).IsFalse().Because("the sweep is gated behind the opt-in");
         await Assert.That(store.TryLoadRecord("/d/a.dem")).IsNull().Because("no analysis, no row");
 
-        // Opt-in ON: the same missing row now drives the bare analysis (the fake records the call).
+        // Opt-in ON: the same missing row is wanted, and its turn on a visit runs the bare analysis.
         optIn = true;
-        scanner.OnParsedOpportunistically("/d/a.dem", parsed);
+        await Assert.That(scanner.Wants("/d/a.dem")).IsTrue();
+        scanner.Evaluate("/d/a.dem", parsed);
         await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(1)
-            .Because("with the opt-in on the piggyback runs a full replay");
+            .Because("with the opt-in on the sweep runs a bare replay");
 
-        // Fresh matching row (mtime/size 0 == missing-file identity, fingerprint fp-A@64): the fast
-        // path returns even with the opt-in on. The counter must not advance.
+        // Fresh matching row (mtime/size 0 == missing-file identity, fingerprint fp-A@64): not wanted even
+        // with the opt-in on, and its turn would skip. The counter must not advance.
         store.Upsert(IndexedRow("/d/fresh.dem", 0));
-        scanner.OnParsedOpportunistically("/d/fresh.dem", parsed);
+        await Assert.That(scanner.Wants("/d/fresh.dem")).IsFalse();
+        scanner.Evaluate("/d/fresh.dem", parsed);
         await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(1)
-            .Because("the fresh-row fast path skips analysis regardless of the opt-in");
+            .Because("a current row is skipped regardless of the opt-in");
     }
 
     [Test]

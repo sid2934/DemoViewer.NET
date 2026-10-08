@@ -5,12 +5,13 @@ using System.Text.Json;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -65,13 +66,13 @@ public class WatchedSituationsTests
             ];
 
             WatchedSituation saved;
-            using (WatchedSituationsService first = new(root, h.Index, h.Cache, now: () => 5000))
+            using (WatchedSituationsService first = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => 5000))
             {
                 saved = first.Watch("  their A hold  ", "de_nuke", tokens, SituationTolerance.Adjacent, filters);
                 first.Watch("", "de_dust2", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
             }
 
-            using WatchedSituationsService second = new(root, h.Index, h.Cache, now: () => 9000);
+            using WatchedSituationsService second = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => 9000);
             WatchedSituation loaded = second.Watches[0];
             JsonDocument json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, WatchedSituationsService.FileName)));
 
@@ -99,7 +100,7 @@ public class WatchedSituationsTests
             }
 
             second.Remove(saved.Id);
-            using WatchedSituationsService third = new(root, h.Index, h.Cache);
+            using WatchedSituationsService third = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library());
             await Assert.That(third.Watches.Select(w => w.Map)).IsEquivalentTo(["de_dust2"]);
         }
         finally
@@ -122,7 +123,7 @@ public class WatchedSituationsTests
             await File.WriteAllTextAsync(path, "{ not json");
             using Harness h = new();
 
-            using WatchedSituationsService service = new(root, h.Index, h.Cache);
+            using WatchedSituationsService service = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library());
             service.Watch("kept for the session", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
 
             using (Assert.Multiple())
@@ -148,13 +149,13 @@ public class WatchedSituationsTests
         try
         {
             using Harness h = new();
-            using WatchedSituationsService service = new(root, h.Index, h.Cache, now: () => Before);
+            using WatchedSituationsService service = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before);
             int raised = 0;
             service.Changed += () => raised++;
 
             // The tab header's badge, before the tab's VM exists: the module drives it from the service.
-            WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), service,
-                    enabled: () => true)
+            WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), () => true,
+                    service)
                 .CreateTabs(null!).Single();
 
             WatchedSituation watch = service.Watch("A hold", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
@@ -200,7 +201,7 @@ public class WatchedSituationsTests
 
             // The restart path: a fresh service reads the same file and counts at the watermark through
             // the index stamps, with no Indexed event, and lands on the same number.
-            using (WatchedSituationsService restarted = new(root, h.Index, h.Cache, now: () => Before))
+            using (WatchedSituationsService restarted = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before))
             {
                 using (Assert.Multiple())
                 {
@@ -212,7 +213,7 @@ public class WatchedSituationsTests
             // Mark as seen: the watermark moves past every counted stamp (the pinned clock is behind
             // them), the badge clears, and the file holds the new watermark.
             service.MarkSeen(watch.Id);
-            long newest = h.Cache.TryGetIndex("/d/e.dem")!.RoundIndexComputedAtTicks();
+            long newest = h.Cache.RoundIndexComputedAtTicks("/d/e.dem");
             using (Assert.Multiple())
             {
                 await Assert.That(service.NewCount).IsEqualTo(0);
@@ -220,7 +221,7 @@ public class WatchedSituationsTests
                 await Assert.That(service.Watches.Single().WatermarkTicks).IsGreaterThanOrEqualTo(newest);
             }
 
-            using (WatchedSituationsService restarted = new(root, h.Index, h.Cache, now: () => Before))
+            using (WatchedSituationsService restarted = new(Path.Combine(root, WatchedSituationsService.FileName), h.Index, h.Cache.Library(), now: () => Before))
             {
                 await Assert.That(restarted.NewCount).IsEqualTo(0).Because("the seen watermark survives a restart");
             }
@@ -251,12 +252,12 @@ public class WatchedSituationsTests
     public async Task WithThePackOff_TheSituationsBadge_IsNeverShown_AndTheServiceIsIgnored()
     {
         using Harness h = new();
-        using WatchedSituationsService service = new(null, h.Index, h.Cache, now: () => Before);
+        using WatchedSituationsService service = new(null, h.Index, h.Cache.Library(), now: () => Before);
         WatchedSituation watch = service.Watch("A hold", "de_nuke", FiveOnA(), SituationTolerance.Exact, SearchFilterValues.None);
         h.Evaluate("/d/b.dem", "de_nuke", 1000); // a matching demo, so NewCount would be nonzero if read
 
-        WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), service,
-                enabled: () => false)
+        WorkspaceTabDescriptor tab = new SituationsModule(() => throw new InvalidOperationException("never built here"), () => false,
+                service)
             .CreateTabs(null!).Single();
 
         await Assert.That(service.NewCount).IsGreaterThan(0).Because("the service itself still counts the hit");
@@ -271,7 +272,7 @@ public class WatchedSituationsTests
     public async Task TheFiltersDemoSet_IsDerivedPerEvaluation_SoALaterDemoInRangeCounts()
     {
         using Harness h = new();
-        using WatchedSituationsService service = new(null, h.Index, h.Cache, now: () => Before);
+        using WatchedSituationsService service = new(null, h.Index, h.Cache.Library(), now: () => Before);
         SearchFilterValues september = new()
         {
             From = new DateTime(2026, 9, 1),
@@ -297,8 +298,8 @@ public class WatchedSituationsTests
     {
         using Harness h = new();
         // The real clock here: a demo indexed before the watch is seen, one indexed after it is new.
-        using WatchedSituationsService service = new(null, h.Index, h.Cache);
-        using QueryCanvasViewModel canvas = new(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache, _ => null,
+        using WatchedSituationsService service = new(null, h.Index, h.Cache.Library());
+        using QueryCanvasViewModel canvas = new(h.Index, new QueryPlaceResolver(h.Index, h.Sources.Zones), h.Cache.Library(), _ => null,
             dispose => dispose());
         using WatchedSituationsViewModel list = new(service, canvas);
         List<SituationHit> searched = [];
@@ -363,10 +364,10 @@ public class WatchedSituationsTests
         public Harness()
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Evaluator = new RoundIndexEvaluator(Cache, Sidecars, Sources, () => true, walk: _ => _samples);
-            Index = new SituationIndex(Cache, Sidecars, Sources, evaluator: Evaluator);
+            Evaluator = new RoundIndexEvaluator(Cache.Library(), Cache.RoundFacts(), Sidecars, Sources, () => true, walk: _ => _samples);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources, evaluator: Evaluator);
 
             RoundIndexDocument seeded = Document("de_nuke", Sources.FingerprintFor("de_nuke"),
                 (1, 1000, 1200, [new RoundIndexRun(0, 1, "BombsiteA:5", "Ramp:5")]));
@@ -383,7 +384,6 @@ public class WatchedSituationsTests
         public void Dispose()
         {
             Index.Dispose();
-            Sidecars.Dispose();
         }
 
         /// <summary>Indexes a demo with a round per freeze end; null puts every CT in Outside instead of on A.</summary>

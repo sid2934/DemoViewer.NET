@@ -4,7 +4,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
@@ -23,7 +23,7 @@ public class SuggestedInboxModuleTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(ParsedRecord(path));
-        cache.UpdateExisting(path, r => r.SetSuggestionCount(pending));
+        cache.SetSuggestionCount(path, pending);
         return cache;
     }
 
@@ -31,12 +31,12 @@ public class SuggestedInboxModuleTests
     public async Task WithThePackOff_TheBadge_IsNeverRecomputed()
     {
         DemoCacheStore cache = CacheWithPending("/d/a.dem", 3);
-        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), cache, enabled: () => false);
+        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), () => false, new ProposalStore(cache.Data()));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the pack is off");
 
-        cache.UpdateExisting("/d/a.dem", r => r.SetSuggestionCount(9));
+        cache.SetSuggestionCount("/d/a.dem", 9);
         await Assert.That(tab.Badge).IsNull().Because("cache.Changed must not recompute it while the pack is off");
     }
 
@@ -44,12 +44,12 @@ public class SuggestedInboxModuleTests
     public async Task WithThePackOn_TheBadge_FollowsTheIndex()
     {
         DemoCacheStore cache = CacheWithPending("/d/a.dem", 0);
-        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), cache, enabled: () => true);
+        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), () => true, new ProposalStore(cache.Data()));
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsNull();
 
-        cache.UpdateExisting("/d/a.dem", r => r.SetSuggestionCount(5));
+        cache.SetSuggestionCount("/d/a.dem", 5);
         await Assert.That(tab.Badge).IsEqualTo("5");
     }
 
@@ -58,8 +58,8 @@ public class SuggestedInboxModuleTests
     {
         DemoCacheStore cache = CacheWithPending("/d/a.dem", 4);
         FakeGate gate = new();
-        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"), cache,
-            enabled: () => gate.IsEnabled(SuggestedInboxModule.TabFeatureId), gate: gate);
+        SuggestedInboxModule module = new(() => throw new InvalidOperationException("never built here"),
+            () => gate.IsEnabled(SuggestedInboxModule.TabFeatureId), new ProposalStore(cache.Data()), gate);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsEqualTo("4");
@@ -68,7 +68,7 @@ public class SuggestedInboxModuleTests
         gate.RaiseChanged();
         await Assert.That(tab.Badge).IsNull().Because("the gate's own Changed clears a stale count going off");
 
-        cache.UpdateExisting("/d/a.dem", r => r.SetSuggestionCount(9));
+        cache.SetSuggestionCount("/d/a.dem", 9);
         await Assert.That(tab.Badge).IsNull().Because("cache.Changed still does nothing while off");
 
         gate.Answers[SuggestedInboxModule.TabFeatureId] = true;
@@ -77,18 +77,14 @@ public class SuggestedInboxModuleTests
             .Because("the gate's own Changed recomputes going on, without waiting for a cache write");
     }
 
-    private sealed class FakeGate : IFeatureGate
+    private sealed class FakeGate : IExtensionFeatures
     {
         public Dictionary<string, bool> Answers { get; } = new(StringComparer.Ordinal);
 
-        public UserCategory Category => UserCategory.Developer;
-
-        public int HiddenCount => 0;
-
         public bool IsEnabled(string featureId) => !Answers.TryGetValue(featureId, out bool value) || value;
 
-        public event EventHandler? Changed;
+        public event Action? Changed;
 
-        public void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
+        public void RaiseChanged() => Changed?.Invoke();
     }
 }

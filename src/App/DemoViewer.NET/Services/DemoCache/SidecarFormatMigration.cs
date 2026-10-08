@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>What one legacy conversion did for one demo.</summary>
-internal enum SidecarConversion
+public enum SidecarConversion
 {
     /// <summary>Nothing to convert.</summary>
     None,
@@ -26,7 +26,7 @@ internal enum SidecarConversion
 ///     names. No parse. Resumable, since a converted demo has nothing left to convert, and marker-gated
 ///     once a pass finishes with no failures.
 /// </summary>
-internal static class SidecarFormatMigration
+public static class SidecarFormatMigration
 {
     /// <summary>Written into the cache root when a pass converted everything it found.</summary>
     public const string MarkerFileName = "sidecar-format-v2.done";
@@ -72,7 +72,7 @@ internal static class SidecarFormatMigration
     /// <param name="progress">Demos done of the total, before each batch.</param>
     /// <param name="batchSize">Demos per batch.</param>
     /// <param name="cancellationToken">Stops between demos.</param>
-    public static async Task<SidecarFormatResult> RunAsync(
+    internal static async Task<SidecarFormatResult> RunAsync(
         DemoCacheStore cache,
         IReadOnlyList<Func<string, SidecarConversion>> converters,
         Func<Task>? betweenBatches = null,

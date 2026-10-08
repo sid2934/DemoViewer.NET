@@ -21,7 +21,7 @@ namespace DemoViewer.NET.Services.Export;
 /// <param name="locate">Finds ffmpeg given the managed directory; <c>FfmpegLocator.Locate</c> in production.</param>
 /// <param name="log">Line sink for the chosen encoder and ffmpeg's stderr, or null.</param>
 /// <param name="encoders">Resolves and verifies the rung.</param>
-internal sealed class ExportEncoding(
+public sealed class ExportEncoding(
     Func<string?> managedFfmpegDirectory,
     Func<string?, FfmpegLocation> locate,
     Action<string>? log,

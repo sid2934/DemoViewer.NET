@@ -76,8 +76,6 @@ public class PackOffCompositionTests
                     .Because("the pack is off: Tag Facts Refresher does not start");
                 await Assert.That(instances.Watched).IsNull()
                     .Because("the pack is off: Watched Situations service does not start");
-                await Assert.That(instances.RoundFacts).IsNull()
-                    .Because("the pack is off: Round Facts evaluator is not constructed at startup");
                 await Assert.That(instances.RoundIndex).IsNull()
                     .Because("the pack is off: Round Index evaluator is not constructed at startup");
                 await Assert.That(instances.SuggestedTags).IsNull()
@@ -112,24 +110,23 @@ public class PackOffCompositionTests
         });
     }
 
-    // The evaluator registry is what is actually responsible for the four fields above staying null:
-    // it reads PackContributionSet lazily and never invokes a disabled pack's evaluator
-    // factory. Forcing a poll here (EvaluatorIds), something the test above never does, proves the
-    // gate itself rather than merely "nothing happened to construct them yet".
+    // The pass registry is what is actually responsible for the four fields above staying null: it reads
+    // PackContributionSet lazily and never invokes a disabled pack's evaluator factory. Resolving the pass
+    // list here (PassIds), something the test above never does, proves the gate itself rather than merely
+    // "nothing happened to construct them yet".
     [Test]
-    public async Task PackOff_PollingTheCoordinator_StillNeverConstructsThePacksFourEvaluators()
+    public async Task PackOff_ResolvingThePasses_StillNeverConstructsThePacksThreeEvaluators()
     {
         await WithProvider(async provider =>
         {
-            DemoEvaluationCoordinator coordinator = provider.GetRequiredService<DemoEvaluationCoordinator>();
+            DemoScheduler coordinator = provider.GetRequiredService<DemoScheduler>();
 
-            await Assert.That(coordinator.EvaluatorIds).IsEquivalentTo(["library", "highlights"])
-                .Because("the pack is off: its four evaluators are never in the fan-out");
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts"])
+                .Because("the pack is off: its three evaluators are never in the fan-out");
 
             StratBookPackInstances instances = provider.GetRequiredService<StratBookPackInstances>();
             using (Assert.Multiple())
             {
-                await Assert.That(instances.RoundFacts).IsNull();
                 await Assert.That(instances.RoundIndex).IsNull();
                 await Assert.That(instances.SuggestedTags).IsNull();
                 await Assert.That(instances.GrenadeWalk).IsNull();
@@ -160,11 +157,11 @@ public class PackOffCompositionTests
             const string demoPath = "/test/demo.dem";
 
             // When the pack is off, these evaluators want nothing because their Wants() predicate
-            // gates on the feature flag.
-            Services.RoundFacts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<Services.RoundFacts.RoundFactsEvaluator>();
-            Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<Services.RoundIndex.RoundIndexEvaluator>();
-            Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<Modules.SuggestedTags.SuggestedTagsService>();
-            Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<Modules.UtilityBook.GrenadeIndexEvaluator>();
+            // gates on the feature flag; Round Facts is the host's, gated on the pack's claim of its ruleset.
+            DemoViewer.NET.Services.Facts.RoundFactsEvaluator roundFacts = provider.GetRequiredService<DemoViewer.NET.Services.Facts.RoundFactsEvaluator>();
+            DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator roundIndex = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator>();
+            DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService suggestedTags = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService>();
+            DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator grenades = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator>();
 
             using (Assert.Multiple())
             {

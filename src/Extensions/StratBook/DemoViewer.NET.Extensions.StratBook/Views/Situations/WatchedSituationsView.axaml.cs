@@ -4,7 +4,7 @@ using Avalonia.Controls;
 
 #endregion
 
-namespace DemoViewer.NET.Views.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Views.Situations;
 
 /// <summary>The watched situations list. Bindings only; every behaviour lives on the VM.</summary>
 public partial class WatchedSituationsView : UserControl

@@ -1,10 +1,11 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -28,12 +29,12 @@ public class SearchFiltersRealDemoTests
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
 
         DemoCacheStore store = new(null);
-        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexStore sidecars = new(store.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
         RoundFactsSource factsSource = new(store, facts);
-        RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);
-        using SituationIndex index = new(store, sidecars, sources, factsSource, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(store.Library(), store.RoundFacts(), sidecars, sources, () => true);
+        using SituationIndex index = new(store.Library(), sidecars, sources, factsSource, evaluator: evaluator);
         index.Load();
 
         store.Upsert(new DemoCacheRecord
@@ -46,8 +47,8 @@ public class SearchFiltersRealDemoTests
                 ComputedAtTicks = 1
             }
         });
-        facts.OnParsedOpportunistically(path, parsed);
-        evaluator.OnParsedOpportunistically(path, parsed);
+        facts.Evaluate(path, parsed);
+        evaluator.Evaluate(path, parsed);
         await Assert.That(index.IndexedDemoCount).IsEqualTo(1);
 
         SituationQuery all = new(parsed.MapName, [], []);

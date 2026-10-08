@@ -60,7 +60,7 @@ public class QueuePreemptionTests
             }
         }
 
-        IDemoQueueHandle clips = queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", async ctx =>
+        IDemoQueueHandle clips = queue.SubmitJob(Job(QueueJobKind.Extension, "clips", async ctx =>
         {
             runs++;
             started.Release();
@@ -74,7 +74,7 @@ public class QueuePreemptionTests
         }));
         await started.WaitAsync(TimeSpan.FromSeconds(5));
         await WaitForAsync(() => nextChunk >= 2, "two chunks");
-        queue.SubmitJob(Job(QueueJobKind.StratMining, "other background", _ =>
+        queue.SubmitJob(Job(QueueJobKind.Extension, "other background", _ =>
         {
             Note("other");
             return Task.CompletedTask;
@@ -111,7 +111,7 @@ public class QueuePreemptionTests
         using DemoProcessingQueue queue = NewQueue(gate);
         using SemaphoreSlim started = new(0);
         using SemaphoreSlim userGate = new(0);
-        IDemoQueueHandle clips = queue.SubmitJob(Job(QueueJobKind.LineupClips, "clips", async ctx =>
+        IDemoQueueHandle clips = queue.SubmitJob(Job(QueueJobKind.Extension, "clips", async ctx =>
         {
             started.Release();
             await Task.Delay(Timeout.Infinite, ctx.CancellationToken);
@@ -342,10 +342,10 @@ public class QueuePreemptionTests
 
         List<Task> all =
         [
-            QueueWork.Run(queue, QueueJobKind.TeamsCommand, "replay", "t", Body, serial: "teams"),
-            QueueWork.Run(queue, QueueJobKind.TeamsCommand, "rename", "t", Body, DemoJobPriority.UserRequested, serial: "teams"),
-            QueueWork.Run(queue, QueueJobKind.TeamsCommand, "merge", "t", Body, DemoJobPriority.UserRequested, serial: "teams"),
-            QueueWork.Run(queue, QueueJobKind.TeamsCommand, "replay", "t", Body, serial: "teams")
+            QueueWork.Run(queue, QueueJobKind.SectionCompute, "replay", "t", Body, serial: "teams"),
+            QueueWork.Run(queue, QueueJobKind.SectionCompute, "rename", "t", Body, DemoJobPriority.UserRequested, serial: "teams"),
+            QueueWork.Run(queue, QueueJobKind.SectionCompute, "merge", "t", Body, DemoJobPriority.UserRequested, serial: "teams"),
+            QueueWork.Run(queue, QueueJobKind.SectionCompute, "replay", "t", Body, serial: "teams")
         ];
         await Task.WhenAll(all).WaitAsync(TimeSpan.FromSeconds(10));
         await Assert.That(peak).IsEqualTo(1);

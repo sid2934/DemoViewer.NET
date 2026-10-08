@@ -28,6 +28,9 @@
         <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Manifest\PackCompatibility.cs" Link="Shared\PackCompatibility.cs"/>
         <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Manifest\CompatibilityReport.cs" Link="Shared\CompatibilityReport.cs"/>
         <Compile Include="..\..\src\App\DemoViewer.NET\Extensions\Updates\ExtensionFeed.cs" Link="Shared\ExtensionFeed.cs"/>
+        <!-- The manifest checks ruleset names with the SDK's rule; the SDK project itself pulls in Avalonia. -->
+        <Compile Include="..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk\Rulesets.cs" Link="Shared\Rulesets.cs"/>
+        <Using Include="DemoViewer.NET.Extensions.Sdk"/>
     </ItemGroup>
 
 </Project>

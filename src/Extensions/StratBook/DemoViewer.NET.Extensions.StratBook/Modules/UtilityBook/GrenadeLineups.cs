@@ -6,7 +6,7 @@ using System.Text;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>How the index groups grenades into landing groups and lineups.</summary>
 public enum GrenadeGrouping

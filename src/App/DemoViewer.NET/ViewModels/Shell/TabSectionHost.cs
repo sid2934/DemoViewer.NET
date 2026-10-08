@@ -2,6 +2,7 @@
 
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 
 #endregion
@@ -62,7 +63,7 @@ public sealed partial class TabSectionHost : ObservableObject
                 SelectedSection = ChooseNeighbor(removed, desired);
             }
 
-            removed.Deactivate();
+            ExtensionTabs.Deactivate(removed);
             Sections.Remove(removed);
         }
 
@@ -111,22 +112,25 @@ public sealed partial class TabSectionHost : ObservableObject
     {
         _context = context;
         _hostActive = true;
-        SelectedSection?.Activate(context);
+        if (SelectedSection is { } section)
+        {
+            ExtensionTabs.Activate(section, context);
+        }
     }
 
     /// <summary>The host tab stopped being selected: the selected section goes dormant with it.</summary>
     public void OnHostDeactivated()
     {
         _hostActive = false;
-        SelectedSection?.Deactivate();
+        ExtensionTabs.Deactivate(SelectedSection);
     }
 
     partial void OnSelectedSectionChanged(WorkspaceTabDescriptor? oldValue, WorkspaceTabDescriptor? newValue)
     {
-        oldValue?.Deactivate();
-        if (_hostActive && _context is { } context)
+        ExtensionTabs.Deactivate(oldValue);
+        if (_hostActive && _context is { } context && newValue is not null)
         {
-            newValue?.Activate(context);
+            ExtensionTabs.Activate(newValue, context);
         }
 
         OnPropertyChanged(nameof(HasSelection));

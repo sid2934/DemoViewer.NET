@@ -1,0 +1,9 @@
+{
+  "id": "dev.example.thirdpartyfake",
+  "name": "Third Party Fake",
+  "version": "{version}",
+  "assembly": "ThirdPartyFake.dll",
+  "entryType": "ThirdPartyFake.FakeExtension",
+  "requiresHost": "^1.1",
+  "requiresCs2DemoKit": "*"
+}

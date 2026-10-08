@@ -2,14 +2,14 @@
 
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
@@ -43,7 +43,7 @@ public class StratBookStoresTests
             WriteOneItemPerStore(configRoot, cacheRoot);
 
             PackDataRemover remover = new(new DemoCacheStore(null), configRoot, cacheRoot);
-            PackDataInventory inventory = await remover.InventoryAsync(StratBookStores.All, "fake", "count");
+            ExtensionDataInventory inventory = await remover.InventoryAsync(StratBookStores.All, "fake", "count");
 
             int coveredFiles = inventory.Items.Sum(i => i.FileCount);
             int realFiles = CountFiles(configRoot) + CountFiles(cacheRoot);
@@ -80,7 +80,7 @@ public class StratBookStoresTests
         try
         {
             PackDataRemover remover = new(new DemoCacheStore(null), configRoot, cacheRoot);
-            PackDataInventory inventory = await remover.InventoryAsync(StratBookStores.All, "fake", "count");
+            ExtensionDataInventory inventory = await remover.InventoryAsync(StratBookStores.All, "fake", "count");
 
             await Assert.That(inventory.TotalBytes).IsEqualTo(0)
                 .Because("core's own files must never match a pack descriptor");
@@ -126,41 +126,38 @@ public class StratBookStoresTests
         File.WriteAllText(Path.Combine(configRoot, WatchedSituationsService.FileName), "{}");
 
         // veto-history.json: real API.
-        new VetoHistoryStore(configRoot).Add(new VetoEntry { OpponentTeamId = Guid.NewGuid(), Order = 0, Map = "de_dust2" });
+        new VetoHistoryStore(Path.Combine(configRoot, VetoHistoryStore.FileName)).Add(new VetoEntry { OpponentTeamId = Guid.NewGuid(), Order = 0, Map = "de_dust2" });
 
         // dossier-notes.json: real API.
-        new DossierNotesStore(configRoot).AddNote(Guid.NewGuid(), "a note");
+        new DossierNotesStore(Path.Combine(configRoot, DossierNotesStore.FileName)).AddNote(Guid.NewGuid(), "a note");
 
-        // strat-mining.json: StratMiningService's user-truth file; its own doc comment fixes this path.
+        // strat-mining.json: the old layout of Strat Mining's user file, copied once into the extension's folder.
         File.WriteAllText(Path.Combine(configRoot, "strat-mining.json"), "{}");
 
-        // round-index/: real API.
-        DemoCacheStore demoCache = new(null);
-        new RoundIndexStore(cacheRoot, demoCache).Write("/d/a.dem", new RoundIndexDocument());
+        // round-index/ and suggestions/: the old layout, written by older builds.
+        Directory.CreateDirectory(Path.Combine(cacheRoot, "round-index"));
+        File.WriteAllText(Path.Combine(cacheRoot, "round-index", "a.dvri.json"), "{}");
+        Directory.CreateDirectory(Path.Combine(cacheRoot, "suggestions"));
+        File.WriteAllText(Path.Combine(cacheRoot, "suggestions", "a.json"), "{}");
 
-        // suggestions/: real API.
-        new ProposalStore(cacheRoot, demoCache).Write("/d/a.dem", new ProposalDocument());
-
-        // strat-mining/: StratMiningService's derived cache; its own doc comment fixes this path.
+        // strat-mining/: the old layout of Strat Mining's derived cache.
         Directory.CreateDirectory(Path.Combine(cacheRoot, "strat-mining"));
         File.WriteAllText(Path.Combine(cacheRoot, "strat-mining", "detected.json"), "{}");
 
-        // team-index.json: TeamIdentityService's derived cache; its own doc comment fixes this path.
+        // team-index.json: the old layout of Team Identity's derived index.
         File.WriteAllText(Path.Combine(cacheRoot, "team-index.json"), "{}");
 
-        // grenade-lineups.json.gz: real API.
+        // grenade-lineups.json.gz: the old layout's file, in the format the lineup store reads.
         new GrenadeLineupStore(cacheRoot).Save();
 
-        // grenades-v3.attempts.json: GrenadeStoreMigration.AttemptsFileName is public.
-        File.WriteAllText(Path.Combine(cacheRoot, GrenadeStoreMigration.AttemptsFileName), "{}");
-
-        // demos/*.grenades*.json.gz, *.grenades.log.gz: the grenade walk's sidecar suffixes, all public.
+        // grenades-v3.attempts.json and demos/*.grenades*: the old layout, written by older builds.
+        File.WriteAllText(Path.Combine(cacheRoot, "grenades-v3.attempts.json"), "{}");
         string demos = Path.Combine(cacheRoot, "demos");
         Directory.CreateDirectory(demos);
-        File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.Suffix), "g1");
-        File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.PathsSuffix), "g2");
+        File.WriteAllText(Path.Combine(demos, "a.grenades.json.gz"), "g1");
+        File.WriteAllText(Path.Combine(demos, "a.grenades.paths.json.gz"), "g2");
         File.WriteAllText(Path.Combine(demos, "a" + GrenadeThrowLog.Suffix), "g3");
-        File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.LegacySuffix), "g4");
-        File.WriteAllText(Path.Combine(demos, "a" + GrenadeSidecar.LegacyPathsSuffix), "g5");
+        File.WriteAllText(Path.Combine(demos, "a.grenades.json"), "g4");
+        File.WriteAllText(Path.Combine(demos, "a.grenades.paths.json"), "g5");
     }
 }

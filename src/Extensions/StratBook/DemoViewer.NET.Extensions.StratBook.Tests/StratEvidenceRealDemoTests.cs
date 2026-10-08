@@ -3,9 +3,10 @@
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
 using static DemoViewer.NET.AppTests.TagTestData;
 
@@ -44,7 +45,7 @@ public class StratEvidenceRealDemoTests
                 (TagStore.StratGroup, stratId.ToString("D")), (StratEvidence.RevisionGroup, "1"), (StratEvidence.OutcomeGroup, StratEvidence.OutcomeWon)))
         ]));
         using TagFactsRefresher refresher = new(tags, facts, _ => Sha, action => action());
-        evaluator.OnParsedOpportunistically(path, parsed);
+        evaluator.Evaluate(path, parsed);
 
         RoundFactsRows rows = facts.TryGet(path) ?? throw new InvalidOperationException("the evaluator wrote no rows");
         StratDocument strat = StratDocument.Create(stratId, StratOwner.Me(), parsed.MapName ?? "de_mirage", StratVocabulary.SideT, "execute", "real", Created);
@@ -55,7 +56,7 @@ public class StratEvidenceRealDemoTests
             await Assert.That(record.Runs.Count).IsEqualTo(rounds.Count);
             foreach (StratRun run in record.Runs)
             {
-                RoundFacts round = RoundFactsSource.FindRound(rows.Rounds, run.Ref.FromTick)!;
+                RoundFacts round = RoundFactsRules.FindRound(rows.Rounds, run.Ref.FromTick)!;
                 RunOutcome expected = round.WinnerLabel switch
                 {
                     StratVocabulary.SideT => RunOutcome.Won,

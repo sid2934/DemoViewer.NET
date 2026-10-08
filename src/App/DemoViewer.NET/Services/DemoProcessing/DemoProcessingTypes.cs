@@ -41,18 +41,6 @@ public enum QueueJobKind
     /// <summary>The one-off re-encode of pre-gzip sidecars.</summary>
     SidecarMigration,
 
-    /// <summary>A Strat Mining pass over the library's cached files.</summary>
-    StratMining,
-
-    /// <summary>Building one detected pattern's strat for the Detected preview, from cached files.</summary>
-    StratPreview,
-
-    /// <summary>One demo's batch of Lineup Clip GIFs.</summary>
-    LineupClips,
-
-    /// <summary>Reading every demo's Suggested Tags proposals for the Strat Book's Suggested section.</summary>
-    SuggestionsInbox,
-
     /// <summary>The heap compaction after the queue drains.</summary>
     HeapCompaction,
 
@@ -65,10 +53,18 @@ public enum QueueJobKind
     /// <summary>A section building what it shows. Light.</summary>
     SectionCompute,
 
-    /// <summary>A Team Identity command the user gave. Light.</summary>
-    TeamsCommand,
+    /// <summary>
+    ///     A job an extension submitted. Its label, rank and light flag come from the extension's declared
+    ///     kind, named by <see cref="QueueJobRequest.ExtensionKind" />.
+    /// </summary>
+    Extension,
 
-    /// <summary>The library's folder walk, copy detection and header reads. Runs with the background switch off.</summary>
+    /// <summary>
+    ///     The library reading a demo file in full for its content hash: a path only a fingerprint placed, or a
+    ///     file only a full read can tell apart from a known demo. Heavy, so it starts only while no parse runs,
+    ///     and stopped by the background switch. Copy detection by fingerprint runs as
+    ///     <see cref="LibraryListing" /> slices.
+    /// </summary>
     LibraryScan,
 
     /// <summary>An extension feed check, a download being staged, or the staging cleanup at startup. Light.</summary>
@@ -78,7 +74,22 @@ public enum QueueJobKind
     ///     A user opening a demo (<see cref="IDemoProcessingQueue.BeginOpen" />). It sits at the front, ignores
     ///     pause and the background switch, and no other heavy item starts while it is active.
     /// </summary>
-    DemoOpen
+    DemoOpen,
+
+    /// <summary>The scheduler asking every pass about the demos marked dirty, then submitting their visits. Light.</summary>
+    Scheduling,
+
+    /// <summary>The record passes reading cached records, no demo file. Light.</summary>
+    RecordPass,
+
+    /// <summary>
+    ///     A slice of one library folder's walk or of its demos' header reads. Light: it holds no heavy slot, and
+    ///     a read that does not answer within a moment ends the slice instead of holding the lane while it waits.
+    /// </summary>
+    LibraryListing,
+
+    /// <summary>The demo cache deleting demos no path has listed for longer than the grace period. Light.</summary>
+    CacheSweep
 }
 
 /// <summary>Lifecycle of a queued item (drives the UI badge).</summary>
@@ -195,6 +206,12 @@ public interface IQueueJobContext
 ///     would otherwise keep running beside the user's item while counted as stopped.
 /// </param>
 /// <param name="Serial">Items sharing it never run at the same time; one runs, the rest wait.</param>
+/// <param name="ExtensionKind">With <see cref="QueueJobKind.Extension" />, the declared kind id that labels and ranks the item.</param>
+/// <param name="Level">
+///     Where it sits among items of its <paramref name="Priority" />: <see cref="PassLevel.Backlog" /> runs ahead of
+///     other background work. Null takes <see cref="PassLevel.UserRequested" /> for a user's item and
+///     <see cref="PassLevel.Background" /> otherwise.
+/// </param>
 public sealed record QueueJobRequest(
     QueueJobKind Kind,
     string Title,
@@ -206,11 +223,35 @@ public sealed record QueueJobRequest(
     long OrderHint = 0,
     bool ReplacePending = false,
     bool Preemptible = true,
-    string? Serial = null);
+    string? Serial = null,
+    string? ExtensionKind = null,
+    PassLevel? Level = null);
+
+/// <summary>Why a queued item may not start when its turn comes.</summary>
+public enum DemoQueueHold
+{
+    /// <summary>Nothing holds it.</summary>
+    None,
+
+    /// <summary>Background work is paused; it starts after Resume.</summary>
+    Paused,
+
+    /// <summary>Background processing is off in Settings; it starts once it is back on.</summary>
+    BackgroundOff,
+
+    /// <summary>A visit of the demo being opened: it runs on that open's parse.</summary>
+    OnOpen
+}
 
 /// <summary>
 ///     An immutable, thread-safe snapshot of one queue item (for code/tests that must read state
 ///     without touching the UI-thread-bound <see cref="IDemoProcessingQueue.Items" /> mirror).
+///     <para>
+///         <c>StartRank</c> is a queued item's place in the order its lane will start it, from 0, and null once
+///         it runs or ends; the heavy and light lanes rank separately (<c>Light</c>). <c>Promoted</c> is set
+///         from <see cref="IDemoProcessingQueue.Promote" /> until the item starts. <c>Hold</c> says what keeps it
+///         from starting when its turn comes. <c>EndedSeq</c> grows with each item that ends, 0 while active.
+///     </para>
 /// </summary>
 public sealed record DemoQueueItemSnapshot(
     Guid Id,
@@ -222,7 +263,13 @@ public sealed record DemoQueueItemSnapshot(
     string? Error,
     QueueJobKind Kind = QueueJobKind.DemoProcessing,
     double? Progress = null,
-    string? Detail = null);
+    string? Detail = null,
+    string? ExtensionKind = null,
+    int? StartRank = null,
+    bool Light = false,
+    bool Promoted = false,
+    DemoQueueHold Hold = DemoQueueHold.None,
+    long EndedSeq = 0);
 
 /// <summary>A handle to a submitted background item: read its state, await completion, or cancel it.</summary>
 public interface IDemoQueueHandle
@@ -238,6 +285,30 @@ public interface IDemoQueueHandle
 
     /// <summary>Cancels THIS owner's submission (per-owner removal, a coalesced co-owner survives).</summary>
     void Cancel();
+}
+
+/// <summary>
+///     The shell's loaded demo, lent to the queue so a visit of that demo runs on the parse the shell already
+///     holds instead of reading the file again. The shell hands out a hold only while the demo is loaded and
+///     waits for every hold to end before it releases the parse.
+/// </summary>
+public interface IShellDemoLease
+{
+    /// <summary>
+    ///     The held parse of <paramref name="path" /> when it is the loaded demo, else null. The caller
+    ///     disposes the hold when its passes are done.
+    /// </summary>
+    IHeldParse? TryHold(string path);
+
+    /// <summary>The loaded demo's path without taking a hold, or null. Read under the queue's lock: no work, no locks.</summary>
+    string? LoadedPath => null;
+}
+
+/// <summary>A hold on the shell's parse: the parse stays loaded until this is disposed.</summary>
+public interface IHeldParse : IDisposable
+{
+    /// <summary>The loaded demo's parse, decoded with every message category.</summary>
+    ParsedDemo Parsed { get; }
 }
 
 /// <summary>
@@ -277,6 +348,18 @@ public interface IDemoProcessingQueue
     /// <summary>True while background processing is transiently paused.</summary>
     bool IsPaused { get; }
 
+    /// <summary>
+    ///     The shell's loaded demo. When set, a visit of that demo runs its passes on the held parse and reads
+    ///     nothing. A stand-in queue ignores it.
+    /// </summary>
+    IShellDemoLease? ShellDemo
+    {
+        get => null;
+        set
+        {
+        }
+    }
+
     // ── Counts (status line) ──────────────────────────────────────────────────
 
     /// <summary>Items waiting for a slot.</summary>
@@ -287,6 +370,9 @@ public interface IDemoProcessingQueue
 
     /// <summary>Queued plus running items of one kind.</summary>
     int ActiveCount(QueueJobKind kind);
+
+    /// <summary>Queued plus running items of one extension-declared kind.</summary>
+    int ActiveCount(string extensionKind) => 0;
     // ── Foreground (awaitable, highest priority) ──────────────────────────────
 
     /// <summary>
@@ -302,7 +388,9 @@ public interface IDemoProcessingQueue
 
     /// <summary>
     ///     Starts a user's demo open as a <see cref="QueueJobKind.DemoOpen" /> item at the front of the queue.
-    ///     A newer open replaces this one. The caller runs the stages and ends the item through the ticket.
+    ///     A newer open replaces this one. The caller runs the stages and ends the item through the ticket. A
+    ///     queued visit of the same demo, and one submitted while the open is active, waits for the open and
+    ///     runs on its parse through <see cref="IDemoOpenTicket.RunPassesAsync" /> instead of reading the file.
     /// </summary>
     /// <param name="path">The demo's path, the key for joining a running parse of it; null when it has none.</param>
     /// <param name="fileName">The file name the list shows.</param>
@@ -319,6 +407,15 @@ public interface IDemoProcessingQueue
     ///     queued/running (Foreground/UserRequested never rejected).
     /// </summary>
     IDemoQueueHandle SubmitBackground(DemoProcessingRequest request);
+
+    /// <summary>
+    ///     Submits passes for one demo's visit, coalesced by path: a queued visit of the demo takes them, a
+    ///     running one takes those its read can serve, and the demo is read once in the mode the passes on it
+    ///     need. In the slot the passes run in <see cref="IDemoPass.After" /> order, each asked again first.
+    ///     Rejected under the same size cap as <see cref="SubmitBackground" />. The scheduler submits every
+    ///     demo through this member, so a stand-in queue must handle it.
+    /// </summary>
+    IDemoQueueHandle SubmitVisit(DemoVisitRequest request);
 
     /// <summary>
     ///     Submits a job that is not a demo parse. It is never rejected for size, obeys pause and cancel, and runs
@@ -347,6 +444,15 @@ public interface IDemoProcessingQueue
     void RemoveByUser(Guid itemId);
 
     /// <summary>
+    ///     The user moves a queued item to the top: it starts next in its lane once the running item there
+    ///     finishes, ahead of every priority, and the newest promotion goes first. It preempts nothing, and
+    ///     pause and the background switch still hold it, and a user's item submitted after it does not stop
+    ///     running work to go first. Cleared when it starts. False when the item is not queued, is an open, a
+    ///     compaction or a light item, or waits to run on an open's parse.
+    /// </summary>
+    bool Promote(Guid itemId) => false;
+
+    /// <summary>
     ///     A module cancels ITS OWN submission for <paramref name="path" />; a coalesced co-owner
     ///     keeps the item alive.
     /// </summary>
@@ -358,6 +464,15 @@ public interface IDemoProcessingQueue
     ///     (a co-owner keeps the parse alive). An open is never touched.
     /// </summary>
     void CancelOwned(string ownerTag);
+
+    /// <summary>
+    ///     Takes one pass off the queued or running visit of <paramref name="path" />, leaving the visit's other
+    ///     passes, and ends the visit when nothing else wants it. A pass already taking its turn is not stopped
+    ///     here; it sees its own cancellation.
+    /// </summary>
+    void CancelPass(string path, IDemoPass pass)
+    {
+    }
 
     /// <summary>Pause background processing (transient; in-flight parses finish; foreground unaffected).</summary>
     void Pause();
@@ -386,6 +501,16 @@ public interface IDemoOpenTicket : IDisposable
     /// <summary>The stage the list shows, and the fraction done.</summary>
     void Report(double progress, string stage);
 
+    /// <summary>
+    ///     Runs the demo's visit on the shell's parse, from a worker: first <paramref name="plan" />, which may
+    ///     submit the demo's passes (they queue behind this open), then every pass queued behind this open, in
+    ///     <see cref="IDemoPass.After" /> order. Those passes read the parse in hand instead of the file. The
+    ///     task completes when they have run; the caller then ends the item.
+    /// </summary>
+    /// <param name="parsed">The parse this open produced or joined.</param>
+    /// <param name="plan">Plans the demo's visit at the open level, or null when nothing plans visits.</param>
+    Task RunPassesAsync(ParsedDemo parsed, Action? plan = null);
+
     /// <summary>Ends the item as completed, or cancelled when it was cancelled.</summary>
     void Complete();
 
@@ -406,6 +531,10 @@ public sealed class PassThroughDemoOpen(Func<ReadOnlyMemory<byte>, CancellationT
     public void Report(double progress, string stage)
     {
     }
+
+    /// <inheritdoc />
+    public Task RunPassesAsync(ParsedDemo parsed, Action? plan = null) =>
+        plan is null ? Task.CompletedTask : Task.Run(plan);
 
     public void Complete()
     {

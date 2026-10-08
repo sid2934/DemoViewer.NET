@@ -5,18 +5,17 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats.Mining;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 /// <summary>A pattern as the inbox lists it: whether the user dismissed it, and the strat it became.</summary>
 public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid? StratId)
@@ -30,13 +29,29 @@ public sealed record DetectedPattern(MinedPattern Pattern, bool Dismissed, Guid?
 /// <summary>A previewed strat's save: the strat, or null; PatternChanged when the pattern moved since the preview.</summary>
 public sealed record PromoteResult(StratDocument? Document, bool PatternChanged);
 
+/// <summary>Where Strat Mining keeps its files; a null file is kept in memory.</summary>
+/// <param name="Detected">The last mine's patterns, rebuilt by every mine.</param>
+/// <param name="Signatures">The per-demo round signatures, rebuilt for a demo whose inputs changed.</param>
+/// <param name="State">The user's dismissed and promoted patterns, <c>strat-mining.json</c>.</param>
+public sealed record StratMiningFiles(StoredFile? Detected, StoredFile? Signatures, StoredFile? State)
+{
+    /// <summary>The detected file under the extension's cache folder.</summary>
+    public const string DetectedPath = "strat-mining/detected.json";
+
+    /// <summary>The signature cache under the extension's cache folder.</summary>
+    public const string SignaturesPath = "strat-mining/signatures.json.gz";
+
+    /// <summary>The user's choices under the extension's config folder.</summary>
+    public const string StatePath = "strat-mining.json";
+}
+
 /// <summary>
 ///     Strat Mining's inbox (owner, 2026-09-27): mines the library from cached files, keeps what it found, and turns
 ///     a pattern into a strat only when the user promotes it.
 ///     <para>
-///         Two files. <c>&lt;cache&gt;/strat-mining/detected.json</c> is derived and rebuilt by every mine;
-///         <c>&lt;config&gt;/strat-mining.json</c> is user truth (dismissed and promoted pattern keys), so a re-mine
-///         never brings back what the user put away. Null roots keep both in memory.
+///         Three files (<see cref="StratMiningFiles" />). The detected patterns and the signature cache are derived
+///         and rebuilt by a mine; <c>strat-mining.json</c> is user truth (dismissed and promoted pattern keys), so a
+///         re-mine never brings back what the user put away. A missing file is kept in memory.
 ///     </para>
 ///     <para>
 ///         After the first mine, a change to the demo cache or the Grenade Index re-mines once things go quiet
@@ -46,7 +61,7 @@ public sealed record PromoteResult(StratDocument? Document, bool PatternChanged)
 ///         inputs changed (<see cref="SignatureCache" />).
 ///     </para>
 /// </summary>
-public sealed class StratMiningService : IPackResident, IDisposable
+public sealed class StratMiningService : IExtensionResident, IDisposable
 {
     /// <summary>The detected file's shape version.</summary>
     public const int SchemaVersion = 1;
@@ -65,18 +80,21 @@ public sealed class StratMiningService : IPackResident, IDisposable
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = false };
 
-    private readonly DemoCacheStore _demoCache;
-    private readonly string? _detectedPath;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFacts _roundFacts;
+    private readonly StoredFile? _detected;
     private readonly Func<bool> _enabled;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly object _gate = new();
     private readonly GrenadeIndex? _grenadeIndex;
     private readonly RoundIndexStore _positions;
     private readonly Action<Action> _post;
-    private readonly IDemoProcessingQueue? _queue;
+    private readonly IExtensionJobs? _jobs;
+    private readonly IExtensionPasses? _passes;
+    private int _minesInFlight;
     private readonly Func<Action, Task> _run;
     private readonly RoundSignatureBuilder _signatures;
-    private readonly string? _statePath;
+    private readonly StoredFile? _stateFile;
     private readonly StratStore _strats;
     private readonly TagStore? _tags;
     private readonly TeamIdentityService? _teams;
@@ -93,50 +111,54 @@ public sealed class StratMiningService : IPackResident, IDisposable
     private bool _stateRefused;
     private bool _stateUnread;
 
-    /// <param name="demoCache">Records, Round Facts and the cache events a quiet re-mine follows.</param>
+    /// <param name="library">The library rows and the change events a quiet re-mine follows.</param>
+    /// <param name="roundFacts">The Round Facts rows per demo.</param>
     /// <param name="positions">The round positions files.</param>
     /// <param name="fingerprintFor">The positions fingerprint per map.</param>
     /// <param name="grenadeIndex">The Grenade Index; null mines positions only.</param>
     /// <param name="teams">Team Identity; null leaves every pattern unowned.</param>
     /// <param name="strats">Where a promoted pattern is saved.</param>
     /// <param name="tags">Where a promoted pattern's runs are written; null writes none.</param>
-    /// <param name="cacheRoot">The demo cache directory; null keeps the detected patterns in memory.</param>
-    /// <param name="configRoot">The config root; null keeps dismissals and promotions in memory.</param>
+    /// <param name="files">Where the detected patterns, the signature cache and the user's choices are kept; null keeps all three in memory.</param>
     /// <param name="post">UI-thread marshal for <see cref="Changed" />.</param>
     /// <param name="run">Runs a mine off the UI thread; defaults to <see cref="Task.Run(Action)" />.</param>
-    /// <param name="queue">
-    ///     The processing queue a mine runs in, and whose pending demo parses hold back the quiet re-mine; null mines
-    ///     on <paramref name="run" /> directly.
+    /// <param name="jobs">The processing queue a mine runs in; null mines on <paramref name="run" /> directly.</param>
+    /// <param name="passes">
+    ///     The pack's passes, whose demos in flight hold back the quiet re-mine (it reads what they write); null
+    ///     holds nothing back.
     /// </param>
     /// <param name="enabled">
     ///     The owning pack's gate for the cache-quiet re-mine only; a user-requested <see cref="MineAsync()" />
     ///     always runs. Defaults to always-on.
     /// </param>
-    public StratMiningService(DemoCacheStore demoCache, RoundIndexStore positions, Func<string?, string> fingerprintFor,
-        GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags, string? cacheRoot,
-        string? configRoot, Action<Action>? post = null, Func<Action, Task>? run = null,
-        IDemoProcessingQueue? queue = null, Func<bool>? enabled = null)
+    public StratMiningService(IExtensionLibrary library, IRoundFacts roundFacts, RoundIndexStore positions, Func<string?, string> fingerprintFor,
+        GrenadeIndex? grenadeIndex, TeamIdentityService? teams, StratStore strats, TagStore? tags,
+        StratMiningFiles? files, Action<Action>? post = null, Func<Action, Task>? run = null,
+        IExtensionJobs? jobs = null, Func<bool>? enabled = null, IExtensionPasses? passes = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(fingerprintFor);
         ArgumentNullException.ThrowIfNull(strats);
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
         _positions = positions;
         _fingerprintFor = fingerprintFor;
         _grenadeIndex = grenadeIndex;
         _teams = teams;
         _strats = strats;
         _tags = tags;
-        _detectedPath = cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "detected.json");
-        _statePath = configRoot is null ? null : Path.Combine(configRoot, "strat-mining.json");
+        _detected = files?.Detected;
+        _stateFile = files?.State;
         _post = post ?? (action => action());
         _run = run ?? Task.Run;
-        _queue = queue;
+        _jobs = jobs;
+        _passes = passes;
         _enabled = enabled ?? (() => true);
-        _signatures = new RoundSignatureBuilder(demoCache, positions, fingerprintFor,
+        _signatures = new RoundSignatureBuilder(library, roundFacts, positions, fingerprintFor,
             grenadeIndex is null ? null : RoundSignatureBuilder.FromIndex(grenadeIndex), teams,
-            new SignatureCache(cacheRoot is null ? null : Path.Combine(cacheRoot, "strat-mining", "signatures.json.gz")));
+            new SignatureCache(files?.Signatures));
         Load();
         Attach();
     }
@@ -208,15 +230,15 @@ public sealed class StratMiningService : IPackResident, IDisposable
         }
 
         _strats.Deleted += OnStratDeleted;
-        _demoCache.Changed += OnSourceChanged;
+        _library.Changed += OnLibraryChanged;
         if (_grenadeIndex is not null)
         {
             _grenadeIndex.Changed += OnSourceChanged;
         }
 
-        if (_queue is not null)
+        if (_passes is not null)
         {
-            _queue.Changed += OnQueueChanged;
+            _passes.Changed += OnQueueChanged;
         }
     }
 
@@ -290,15 +312,15 @@ public sealed class StratMiningService : IPackResident, IDisposable
         }
 
         _strats.Deleted -= OnStratDeleted;
-        _demoCache.Changed -= OnSourceChanged;
+        _library.Changed -= OnLibraryChanged;
         if (_grenadeIndex is not null)
         {
             _grenadeIndex.Changed -= OnSourceChanged;
         }
 
-        if (_queue is not null)
+        if (_passes is not null)
         {
-            _queue.Changed -= OnQueueChanged;
+            _passes.Changed -= OnQueueChanged;
         }
 
         return true;
@@ -325,7 +347,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
                 StateUsable();
             }
 
-            if (_queue is null && _running)
+            if (_jobs is null && _running)
             {
                 _rerun = true;
                 return Task.CompletedTask;
@@ -334,9 +356,9 @@ public sealed class StratMiningService : IPackResident, IDisposable
             _running = true;
         }
 
-        if (_queue is null)
+        if (_jobs is null)
         {
-            Task loop = _run(MineLoop);
+            Task loop = _run(() => MineLoop(user));
             lock (_gate)
             {
                 _mine = loop;
@@ -345,14 +367,14 @@ public sealed class StratMiningService : IPackResident, IDisposable
             return loop;
         }
 
-        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: library",
-            "strat-mining", user ? DemoJobPriority.UserRequested : DemoJobPriority.Background, MineQueuedAsync,
-            Key: "strat-mining"));
+        Interlocked.Increment(ref _minesInFlight);
+        IJobHandle handle = _jobs.Enqueue(new JobRequest("Strat mining: library", job => MineQueuedAsync(job, user),
+            new JobOptions(StratBookJobKinds.Mining, user ? JobPriority.UserRequested : JobPriority.Background, "strat-mining")));
         Task mine = handle.Completion.ContinueWith(_ =>
         {
             lock (_gate)
             {
-                _running = _queue.ActiveCount(QueueJobKind.StratMining) > 0;
+                _running = Interlocked.Decrement(ref _minesInFlight) > 0;
             }
 
             _post(() => Changed?.Invoke());
@@ -366,7 +388,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
     }
 
     // One pass as a queue item. Steps aside between batches, so a demo open waits for one batch at most.
-    private async Task MineQueuedAsync(IQueueJobContext job)
+    private async Task MineQueuedAsync(IJobContext job, bool user)
     {
         IReadOnlyList<RoundSignature> signatures = [];
         IReadOnlyList<MinedPattern> patterns = [];
@@ -412,7 +434,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
             // A file mid-write: the next mine reads it.
         }
 
-        Published(signatures, patterns);
+        Published(signatures, patterns, user);
     }
 
     // One step of a mine, skipped once the pack released this service: nothing it would read is wanted and
@@ -435,7 +457,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
         return attached;
     }
 
-    private void MineLoop()
+    private void MineLoop(bool user)
     {
         while (true)
         {
@@ -452,29 +474,55 @@ public sealed class StratMiningService : IPackResident, IDisposable
                 // A file mid-write: the next mine reads it.
             }
 
-            if (!Completed(signatures, patterns))
+            if (!Completed(signatures, patterns, user))
             {
                 return;
             }
         }
     }
 
-    private void Published(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns)
+    private void Published(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns, bool user)
     {
         int demos = signatures.Select(s => s.DemoPath).Distinct(StringComparer.Ordinal).Count();
         _post(() =>
         {
             MinedUtc = DateTime.UtcNow;
             LastRead = (demos, signatures.Count);
-            CarryState([.. Patterns.Select(p => p.Pattern)], patterns);
+            IReadOnlyList<MinedPattern> previous = [.. Patterns.Select(p => p.Pattern)];
+            CarryState(previous, patterns);
             Publish(patterns);
+            int fresh = Fresh(previous, Patterns);
+            if (!user && fresh > 0)
+            {
+                PatternsFound?.Invoke(fresh);
+            }
         });
     }
 
-    // Publishes a pass; true when another pass was asked for while it ran.
-    private bool Completed(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns)
+    /// <summary>
+    ///     Raised on the UI thread after a mine nobody asked for publishes patterns the previous one did not
+    ///     have, with how many are new and unsettled. A mine the user asked for raises nothing: they are
+    ///     already looking.
+    /// </summary>
+    public event Action<int>? PatternsFound;
+
+    /// <summary>
+    ///     How many of <paramref name="next" /> are new to the inbox: unsettled, and neither kept from
+    ///     <paramref name="previous" /> nor the heir of a previous pattern whose key moved.
+    /// </summary>
+    public static int Fresh(IReadOnlyList<MinedPattern> previous, IReadOnlyList<DetectedPattern> next)
     {
-        Published(signatures, patterns);
+        ArgumentNullException.ThrowIfNull(previous);
+        ArgumentNullException.ThrowIfNull(next);
+        HashSet<string> known = new(previous.Select(p => p.Key), StringComparer.Ordinal);
+        known.UnionWith(KeyMoves(previous, [.. next.Select(p => p.Pattern)], known.Contains).Values);
+        return next.Count(p => p.State == GeneratedState.New && !known.Contains(p.Pattern.Key));
+    }
+
+    // Publishes a pass; true when another pass was asked for while it ran.
+    private bool Completed(IReadOnlyList<RoundSignature> signatures, IReadOnlyList<MinedPattern> patterns, bool user)
+    {
+        Published(signatures, patterns, user);
         lock (_gate)
         {
             if (!_rerun)
@@ -510,6 +558,24 @@ public sealed class StratMiningService : IPackResident, IDisposable
         ArgumentNullException.ThrowIfNull(owner);
         if (Patterns.FirstOrDefault(p => p.Pattern.Key == key)?.Pattern is not { } pattern
             || Build(pattern, owner, nowUtc ?? DateTime.UtcNow) is not { } doc)
+        {
+            return null;
+        }
+
+        return Commit(pattern, doc);
+    }
+
+    /// <summary>
+    ///     <see cref="Promote(string, StratOwner, DateTime?)" /> with the build read on the processing queue, for a
+    ///     caller on the UI thread. The save runs back on the caller's context.
+    /// </summary>
+    /// <param name="key"><see cref="MinedPattern.Key" />.</param>
+    /// <param name="owner">The book.</param>
+    public async Task<StratDocument?> PromoteAsync(string key, StratOwner owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (Patterns.FirstOrDefault(p => p.Pattern.Key == key)?.Pattern is not { } pattern
+            || await PreviewAsync(pattern, owner, DateTime.UtcNow) is not { } doc)
         {
             return null;
         }
@@ -589,7 +655,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
         ArgumentNullException.ThrowIfNull(pattern);
         ArgumentNullException.ThrowIfNull(owner);
         StratDocument? built = null;
-        if (_queue is null)
+        if (_jobs is null)
         {
             try
             {
@@ -603,13 +669,12 @@ public sealed class StratMiningService : IPackResident, IDisposable
             return cancellationToken.IsCancellationRequested ? null : built;
         }
 
-        IDemoQueueHandle handle = _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratPreview,
-            $"Strat preview: {MinedStratBuilder.Name(pattern)}", "strat-mining", DemoJobPriority.UserRequested,
+        IJobHandle handle = _jobs.Enqueue(new JobRequest($"Strat preview: {MinedStratBuilder.Name(pattern)}",
             async job =>
             {
                 job.CancellationToken.ThrowIfCancellationRequested();
                 await _run(() => built = Build(pattern, owner, nowUtc, job.CancellationToken)).ConfigureAwait(false);
-            }));
+            }, new JobOptions(StratBookJobKinds.Preview, JobPriority.UserRequested)));
         await using (cancellationToken.Register(handle.Cancel))
         {
             await handle.Completion.ConfigureAwait(false);
@@ -628,11 +693,12 @@ public sealed class StratMiningService : IPackResident, IDisposable
         ArgumentNullException.ThrowIfNull(pattern);
         RoundSignature medoid = pattern.Medoid;
         cancellationToken.ThrowIfCancellationRequested();
-        if (_demoCache.TryLoadWithRoundFacts(medoid.DemoPath) is not ({ } record, { } rows)
+        if (_library.Find(medoid.DemoPath) is not { } record || _roundFacts.TryGet(medoid.DemoPath) is not { } rows
             || rows.Rounds.FirstOrDefault(r => r.Number == medoid.Round) is not { } facts
             || cancellationToken.IsCancellationRequested
             || _positions.TryReadPositions(medoid.DemoPath, _fingerprintFor(pattern.Map), record.Sha256) is not { } positions
-            || positions.Round(medoid.Round) is not { } stored)
+            || positions.Round(medoid.Round) is not { } stored
+            || _library.Detail(medoid.DemoPath) is not { } detail)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return null;
@@ -648,9 +714,9 @@ public sealed class StratMiningService : IPackResident, IDisposable
         ];
         cancellationToken.ThrowIfCancellationRequested();
         Dictionary<int, (ulong, string)> players = [];
-        foreach (CachedPlayerInfo player in record.Players)
+        foreach (LibraryPlayer player in detail.Players)
         {
-            players[player.Slot] = (ulong.TryParse(player.SteamId64, out ulong id) ? id : 0, player.Name);
+            players[player.Slot] = (player.SteamId64, player.Name);
         }
 
         RoundCapture capture = CachedRoundCapture.Build(positions, stored, facts, grenades, players, medoid.TickRate,
@@ -670,13 +736,13 @@ public sealed class StratMiningService : IPackResident, IDisposable
             : pattern.Side == 2 ? DefaultCode : SetupCode;
         foreach (MinedMember member in pattern.Members)
         {
-            string? sha = member.Sha256 ?? _demoCache.TryGetIndex(member.DemoPath)?.Sha256;
-            if (sha is null || _demoCache.TryLoadRecord(member.DemoPath) is not { } record)
+            string? sha = member.Sha256 ?? _library.Find(member.DemoPath)?.Sha256;
+            if (sha is null || _library.Find(member.DemoPath) is not { } record)
             {
                 continue;
             }
 
-            RoundFacts.RoundFactsRows? facts = _demoCache.RoundFactsOf(record);
+            RoundFactsRows? facts = _roundFacts.TryGet(member.DemoPath);
             (int from, int to) = RunSpan(pattern, member, facts?.Rounds.FirstOrDefault(r => r.Number == member.Round));
             TagInstance run = new()
             {
@@ -695,7 +761,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
                     new TagLabel(StratEvidence.RevisionGroup, "1")
                 ]
             };
-            _tags.Append(new DemoIdentity(sha, Path.GetFileName(member.DemoPath), record.Size),
+            _tags.Append(new DemoIdentity(sha, Path.GetFileName(member.DemoPath), record.FileSizeBytes),
                 facts?.Clock?.ToIdentity() ?? ClockIdentity.Unknown, run);
         }
     }
@@ -718,14 +784,13 @@ public sealed class StratMiningService : IPackResident, IDisposable
         }
 
         Mutate(state => state.Promoted.Remove(key));
-        LastRunRemoval = _queue is null
+        LastRunRemoval = _jobs is null
             ? _run(() => RemoveRuns(id))
-            : _queue.SubmitJob(new QueueJobRequest(QueueJobKind.StratMining, "Strat mining: remove a deleted strat's runs",
-                "strat-mining", DemoJobPriority.UserRequested, _ =>
-                {
-                    RemoveRuns(id);
-                    return Task.CompletedTask;
-                }, Key: "strat-runs:" + id.ToString("N"))).Completion;
+            : _jobs.Enqueue(new JobRequest("Strat mining: remove a deleted strat's runs", _ =>
+            {
+                RemoveRuns(id);
+                return Task.CompletedTask;
+            }, new JobOptions(StratBookJobKinds.Mining, JobPriority.UserRequested, "strat-runs:" + id.ToString("N")))).Completion;
     }
 
     /// <summary>
@@ -757,7 +822,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
         && instance.Labels.Any(l => l.Group == TagStore.StratGroup && l.Value == stratId);
 
     // The window the strat covers in that round: the setup's opening, or the take from 10 s before to the plant.
-    private static (int From, int To) RunSpan(MinedPattern pattern, MinedMember member, RoundFacts.RoundFacts? facts)
+    private static (int From, int To) RunSpan(MinedPattern pattern, MinedMember member, RoundFacts? facts)
     {
         int rate = Math.Max(1, member.TickRate);
         int end = facts?.EndTick ?? int.MaxValue;
@@ -841,6 +906,9 @@ public sealed class StratMiningService : IPackResident, IDisposable
         }, publish: false);
     }
 
+    private void OnLibraryChanged(LibraryChange change) => OnSourceChanged(change.Path);
+
+
     private void OnSourceChanged(string? _) => OnSourceChanged();
 
     // Gated: the owning pack's state is read live, so a toggle mid-session stops this arming without a
@@ -859,8 +927,10 @@ public sealed class StratMiningService : IPackResident, IDisposable
         }
     }
 
-    // Demo parses only: the queue's other jobs (clips, this mine) must not hold the re-mine back forever.
-    private bool QueueBusy => _queue is { } queue && queue.ActiveCount(QueueJobKind.DemoProcessing) > 0;
+    // The passes whose writes a mine reads: while one has a demo in flight, the library is still changing under it.
+    private bool QueueBusy => _passes is { } passes
+                              && (passes.IsBusy(HostIds.RoundFactsPass) || passes.IsBusy(RoundIndexEvaluator.EvaluatorId)
+                                  || passes.IsBusy(GrenadeIndexEvaluator.EvaluatorId));
 
     /// <summary>
     ///     The quiet timer: re-mines unless the processing queue has work, in which case it waits for the
@@ -923,11 +993,11 @@ public sealed class StratMiningService : IPackResident, IDisposable
         lock (_gate)
         {
             change(_state);
-            if (_statePath is not null && StateUsable())
+            if (_stateFile is not null && StateUsable())
             {
                 try
                 {
-                    WriteAtomic(_statePath, JsonSerializer.Serialize(_state, JsonOptions));
+                    _stateFile.Write(JsonSerializer.SerializeToUtf8Bytes(_state, JsonOptions));
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
@@ -944,9 +1014,9 @@ public sealed class StratMiningService : IPackResident, IDisposable
 
     private void Save(IReadOnlyList<MinedPattern> patterns)
     {
-        if (_detectedPath is not null)
+        if (_detected is not null)
         {
-            WriteAtomic(_detectedPath, JsonSerializer.Serialize(
+            _detected.Write(JsonSerializer.SerializeToUtf8Bytes(
                 new DetectedFile(SchemaVersion, DateTime.UtcNow, [.. patterns]), JsonOptions));
         }
     }
@@ -956,9 +1026,8 @@ public sealed class StratMiningService : IPackResident, IDisposable
         LoadState();
         try
         {
-            if (_detectedPath is not null && File.Exists(_detectedPath)
-                                          && JsonSerializer.Deserialize<DetectedFile>(File.ReadAllText(_detectedPath), JsonOptions) is
-                                              { SchemaVersion: SchemaVersion } file)
+            if (_detected?.Read() is { } bytes
+                && JsonSerializer.Deserialize<DetectedFile>(bytes, JsonOptions) is { SchemaVersion: SchemaVersion } file)
             {
                 MinedUtc = file.MinedUtc;
                 Publish(file.Patterns);
@@ -984,21 +1053,20 @@ public sealed class StratMiningService : IPackResident, IDisposable
 
     private void LoadState()
     {
-        if (_statePath is null)
+        if (_stateFile is null)
         {
             return;
         }
 
         try
         {
-            if (!File.Exists(_statePath))
+            if (_stateFile.Read() is not { } json)
             {
                 _stateUnread = false;
                 StateProblem = null;
                 return;
             }
 
-            string json = File.ReadAllText(_statePath);
             MiningState? state;
             try
             {
@@ -1006,13 +1074,13 @@ public sealed class StratMiningService : IPackResident, IDisposable
             }
             catch (JsonException ex)
             {
-                RefuseState($"{_statePath} is not readable ({ex.Message}). Move it aside and restart to start a new one.");
+                RefuseState($"{_stateFile.Name} is not readable ({ex.Message}). Move it aside and restart to start a new one.");
                 return;
             }
 
             if (state is null || state.SchemaVersion > StateSchemaVersion)
             {
-                RefuseState($"{_statePath} is at schema {state?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads. Use the newer build, or move the file aside and restart.");
+                RefuseState($"{_stateFile.Name} is at schema {state?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads. Use the newer build, or move the file aside and restart.");
                 return;
             }
 
@@ -1032,7 +1100,7 @@ public sealed class StratMiningService : IPackResident, IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _stateUnread = true;
-            StateProblem = $"{_statePath} could not be opened ({ex.Message}). Changes are kept for this session and saved once it opens.";
+            StateProblem = $"{_stateFile.Name} could not be opened ({ex.Message}). Changes are kept for this session and saved once it opens.";
         }
     }
 
@@ -1042,15 +1110,6 @@ public sealed class StratMiningService : IPackResident, IDisposable
         _stateUnread = false;
         StateProblem = problem;
         _state = new MiningState();
-    }
-
-    private static void WriteAtomic(string path, string content)
-    {
-        string directory = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(directory);
-        string temp = Path.Combine(directory, $".mining-{Guid.NewGuid():N}.tmp");
-        File.WriteAllText(temp, content);
-        File.Move(temp, path, true);
     }
 
     private sealed record DetectedFile(int SchemaVersion, DateTime MinedUtc, List<MinedPattern> Patterns);

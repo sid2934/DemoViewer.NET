@@ -9,11 +9,12 @@ using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -97,17 +98,17 @@ public class BackgroundPlanRealDemoTests
         });
 
         new RoundFactsEvaluator(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity())
-            .OnParsedOpportunistically(path, parsed);
-        outputs["round facts"] = JsonSerializer.Serialize(cache.TryLoadRecord(path)?.RoundFacts(), Json);
+            .Evaluate(path, parsed);
+        outputs["round facts"] = JsonSerializer.Serialize(cache.TryLoadRecord(path)?.RoundFacts, Json);
 
-        RoundIndexStore index = new(null, cache);
+        RoundIndexStore index = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        new RoundIndexEvaluator(cache, index, sources, () => true).Evaluate(path, parsed);
+        new RoundIndexEvaluator(cache.Library(), cache.RoundFacts(), index, sources, () => true).Evaluate(path, parsed);
         outputs["round index"] = index.TryReadText(path) ?? "null";
         outputs["round positions"] = JsonSerializer.Serialize(index.TryReadPositions(path), Json);
 
-        using ProposalStore proposals = new(null, cache);
-        SuggestedTagsService tags = new(cache, proposals, null, new SiteRegionStore(null),
+        ProposalStore proposals = new(cache.Data());
+        SuggestedTagsService tags = new(cache.Library(), cache.RoundFacts(), proposals, null, new SiteRegionStore(null),
             () => DetectorProfile.Default, () => true, () => true, index, sources);
         tags.Evaluate(path, parsed);
         outputs["suggested tags"] = JsonSerializer.Serialize(

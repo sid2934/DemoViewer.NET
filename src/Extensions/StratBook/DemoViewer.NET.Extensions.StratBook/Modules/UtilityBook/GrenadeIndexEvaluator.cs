@@ -3,20 +3,18 @@
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.Logging;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
-///     The evaluator that walks a demo's grenades: an <see cref="IDemoEvaluator" />
+///     The evaluator that walks a demo's grenades: an <see cref="IExtensionPass" />
 ///     on the same one-parse fan-out as the others, registered last because it reads nothing they write.
-///     Per demo the work is one <see cref="GrenadeWalker.Walk" /> on the parse the queue already paid for,
-///     the rows sibling, then one record stamp, the stamp last so a crash between them leaves "not walked"
-///     and never a stamp without its file.
+///     Per demo the work is one <see cref="GrenadeWalker.Walk" /> on the parse the queue already paid for and
+///     one write of the demo's grenade facet, stamped last so a crash leaves "not walked" and never a stamp
+///     without its rows.
 ///     <para>
 ///         <b>Background indexing is off by default</b> (the <c>HighlightsSettings.BackgroundScan</c>
 ///         precedent: two to three seconds per demo is half an hour over a large library). Off, the demo
@@ -26,39 +24,42 @@ namespace DemoViewer.NET.Modules.UtilityBook;
 ///         Suggested Tags rule.
 ///     </para>
 ///     <para>
-///         A throw stamps <see cref="DemoAnalysisState.Failed" />, which the backlog excludes until the
+///         A throw marks the facet <see cref="DemoDataState.Failed" />, which the backlog excludes until the
 ///         user asks again; the parse itself failing is not this evaluator's to mark.
 ///     </para>
 /// </summary>
-public sealed class GrenadeIndexEvaluator : IDemoEvaluator
+public sealed class GrenadeIndexEvaluator : IExtensionPass
 {
-    /// <summary>The queue owner tag and the coordinator's id for this evaluator.</summary>
+    /// <summary>The queue owner tag and the pass id for this evaluator.</summary>
     public const string EvaluatorId = "grenades";
 
     private static ILogger? _diagLog;
 
     private readonly Func<bool> _backgroundIndex;
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly Func<bool> _enabled;
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Dictionary<string, List<TrajectoryPoint>>> _flights = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _gate = new();
     private readonly Func<string?> _openDemo;
     private readonly Action<Action> _post;
+    private readonly GrenadeStore _store;
     private readonly Func<int> _stride;
 
     // Test seam: the walk for a parse. Null is the real walker; a synthetic parse has no entities to walk.
     private readonly Func<ParsedDemo, GrenadeWalk>? _walk;
 
-    /// <param name="demoCache">The unified demo cache: the stamp and the siblings live there.</param>
-    /// <param name="backgroundIndex">The live <c>GrenadesSettings.BackgroundIndex</c>; forced paths and the open demo ignore it.</param>
+    /// <param name="library">The library: which demos are parsed, and their rows.</param>
+    /// <param name="store">The grenade rows and their stamps.</param>
+    /// <param name="backgroundIndex">The live <see cref="Extensions.StratBook.StratBookSettings.GrenadesBackgroundIndex" />; forced paths and the open demo ignore it.</param>
     /// <param name="openDemo">The open demo's path, resolved at call time; null when none.</param>
-    /// <param name="stride">The live <c>GrenadesSettings.TrajectoryStride</c>; null defaults to 4.</param>
+    /// <param name="stride">The live <see cref="Extensions.StratBook.StratBookSettings.TrajectoryStride" />; null defaults to 4.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The walk to run; null walks the parse through <see cref="GrenadeWalker" />.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted, not even the open demo. Defaults to always-on.</param>
     public GrenadeIndexEvaluator(
-        DemoCacheStore demoCache,
+        IExtensionLibrary library,
+        GrenadeStore store,
         Func<bool> backgroundIndex,
         Func<string?>? openDemo = null,
         Func<int>? stride = null,
@@ -66,9 +67,11 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
         Func<ParsedDemo, GrenadeWalk>? walk = null,
         Func<bool>? enabled = null)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(backgroundIndex);
-        _demoCache = demoCache;
+        _library = library;
+        _store = store;
         _backgroundIndex = backgroundIndex;
         _openDemo = openDemo ?? (() => null);
         _stride = stride ?? (() => 4);
@@ -79,11 +82,14 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
 
-    /// <summary>The coordinator, so a forced request can ask it to reconsider. Null in tests.</summary>
-    public DemoEvaluationCoordinator? Coordinator { get; set; }
+    /// <summary>The grenade rows and their stamps.</summary>
+    public GrenadeStore Store => _store;
 
-    /// <summary>True while the coordinator has a walk in flight.</summary>
-    public bool IsIndexing => Coordinator?.HasOutstanding(EvaluatorId) ?? false;
+    /// <summary>The scheduling of the extension's passes, so a forced request can ask for the demo again. Null in tests.</summary>
+    public IExtensionPasses? Passes { get; set; }
+
+    /// <summary>True while the scheduler has a walk in flight.</summary>
+    public bool IsIndexing => Passes?.IsBusy(EvaluatorId) ?? false;
 
     /// <inheritdoc />
     public string Id => EvaluatorId;
@@ -91,10 +97,17 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
     /// <summary>A demo's grenades were written and stamped. Raised through the post delegate with its path.</summary>
     public event Action<string>? Indexed;
 
-    /// <inheritdoc />
+    /// <summary>
+    ///     A demo's grenades were written and stamped. Raised on the walking thread, inside the demo's visit, before
+    ///     <see cref="Indexed" />, so a later pass on the same visit sees what a handler did with them.
+    /// </summary>
+    public event Action<string>? Walked;
+
+    /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     From the index row alone: the owning pack's gate on, a parsed demo whose grenades are missing,
     ///     stale under the walker version or the schema, and not failed, with the sweep on or the demo forced.
+    ///     The open demo is wanted whatever the opt-in says: its walk runs on the parse the open paid for.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -103,57 +116,70 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
             return false;
         }
 
-        DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
+        LibraryDemo? entry = _library.Find(path);
         lock (_gate)
         {
             if (_forcedPaths.Contains(path))
             {
-                return entry is { ParseSchema: > 0 } && !entry.IsGrenadesCurrent(GrenadeWalker.Version);
+                return entry is { State: >= LibraryDemoState.Parsed } && !_store.IsCurrent(path);
             }
         }
 
-        return NeedsWalk(entry) && _backgroundIndex();
+        return NeedsWalk(entry) && (_backgroundIndex() || IsOpen(path));
+    }
+
+    /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
+    /// <remarks>
+    ///     A demo the Library has not parsed yet, with the sweep on, the demo forced or the demo open: the
+    ///     walk follows the parse stamp.
+    /// </remarks>
+    public bool WantsAfterUpstream(string path)
+    {
+        if (!_enabled() || _library.Find(path) is { State: >= LibraryDemoState.Parsed })
+        {
+            return false;
+        }
+
+        lock (_gate)
+        {
+            return _forcedPaths.Contains(path) || _backgroundIndex() || IsOpen(path);
+        }
     }
 
     /// <inheritdoc />
-    public DemoJobPriority PriorityFor(string path)
+    public JobPriority PriorityFor(string demoPath)
     {
         lock (_gate)
         {
-            return _forcedPaths.Contains(path) ? DemoJobPriority.UserRequested : DemoJobPriority.Background;
+            return _forcedPaths.Contains(demoPath) ? JobPriority.UserRequested : JobPriority.Background;
         }
     }
 
     /// <inheritdoc />
-    public long OrderHint(string path) => _demoCache.TryGetIndex(path)?.ModifiedTicks ?? 0;
+    public long OrderHint(string demoPath) => _library.Find(demoPath)?.Modified.Ticks ?? 0;
 
     /// <inheritdoc />
+    public DemoInterest Interest(string demoPath) =>
+        Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
+
+    /// <inheritdoc />
+    public void Run(IPassContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        Evaluate(context.DemoPath, context.Parsed);
+    }
+
+    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="parsed">The demo's parse.</param>
     public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
 
     /// <inheritdoc />
-    /// <remarks>
-    ///     The open demo is walked on the parse its open paid for whatever the opt-in says; any other
-    ///     demo only when it would have been wanted. Neither runs while the owning pack's gate is off.
-    /// </remarks>
-    public void OnParsedOpportunistically(string path, ParsedDemo parsed)
-    {
-        if (!_enabled())
-        {
-            return;
-        }
-
-        if (Wants(path) || (IsOpen(path) && NeedsWalk(_demoCache.TryGetIndex(path))))
-        {
-            Refresh(path, parsed);
-        }
-    }
-
-    /// <inheritdoc />
-    public void OnFailed(string path) => ClearForced(path);
+    public void OnFailed(string demoPath) => ClearForced(demoPath);
 
     /// <summary>
-    ///     The demos that would be submitted: the coordinator's candidate universe for this evaluator,
-    ///     newest first. Derived from the index, never stored.
+    ///     The demos the sweep or a force would submit, newest first, for the pending counts. Derived from
+    ///     the index, never stored.
     /// </summary>
     public IReadOnlyList<string> PendingPaths()
     {
@@ -176,19 +202,18 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
         return
         [
-            .. _demoCache.Index
-                .Where(e => forced.Contains(e.Path)
-                    ? e.ParseSchema > 0 && !e.IsGrenadesCurrent(GrenadeWalker.Version)
+            .. _library.Demos
+                .Where(e => forced.Contains(e.FilePath)
+                    ? e.State >= LibraryDemoState.Parsed && !_store.IsCurrent(e.FilePath)
                     : background && NeedsWalk(e))
-                .OrderByDescending(e => e.ModifiedTicks)
-                .Select(e => e.Path)
+                .OrderByDescending(e => e.Modified.Ticks)
+                .Select(e => e.FilePath)
         ];
     }
 
     /// <summary>Whether a demo's grenades are walked and current: the Match Overview action hides when they are.</summary>
     /// <param name="path">The demo's path.</param>
-    public bool IsCurrent(string path) =>
-        _demoCache.TryGetIndex(path)?.IsGrenadesCurrent(GrenadeWalker.Version) ?? false;
+    public bool IsCurrent(string path) => _store.IsCurrent(path);
 
     /// <summary>
     ///     Walks one demo at user priority regardless of the opt-in and of an earlier failure: Match
@@ -206,10 +231,7 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
 
         try
         {
-            if (_demoCache.TryGetIndex(path)?.GrenadesStamp() is { State: DemoAnalysisState.Failed })
-            {
-                _demoCache.UpdateExisting(path, r => r.ClearFailed(EvaluatorId));
-            }
+            _store.ClearFailed(path);
         }
         catch (Exception)
         {
@@ -221,11 +243,11 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
             _forcedPaths.Add(path);
         }
 
-        Coordinator?.Consider(path);
+        Passes?.Request(path);
     }
 
-    private static bool NeedsWalk(DemoCacheIndexEntry? entry) =>
-        entry is { ParseSchema: > 0 } && entry.NeedsGrenades(GrenadeWalker.Version);
+    private bool NeedsWalk(LibraryDemo? entry) =>
+        entry is { State: >= LibraryDemoState.Parsed } && _store.Needs(entry.FilePath);
 
     private bool IsOpen(string path) =>
         _openDemo() is { } open && string.Equals(open, path, StringComparison.OrdinalIgnoreCase);
@@ -245,11 +267,10 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
         {
             GrenadeWalk walk = _walk?.Invoke(parsed)
                                ?? GrenadeWalker.Walk(parsed, new GrenadeWalkOptions(TrajectoryStride: Math.Max(1, _stride())));
-            DemoCacheRecord? record = _demoCache.TryLoadRecord(path);
-            (GrenadeDocument rows, _) = GrenadeSidecar.Build(path, record, parsed, walk);
+            (GrenadeDocument rows, _) = GrenadeSidecar.Build(path, _library.Find(path), parsed, walk);
 
-            // Rows first, stamp last: a crash between them leaves the demo "not walked".
-            GrenadeSidecar.WriteRows(_demoCache, path, rows);
+            // The store stamps the rows as it writes them: a crash before the stamp leaves the demo "not walked".
+            _store.Write(path, rows);
             lock (_gate)
             {
                 // Nothing takes them when no index listens (a test, a host without the Utility Book).
@@ -261,17 +282,8 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
                 _flights[path] = walk.Rows.ToDictionary(r => r.Id, r => r.Trajectory, StringComparer.Ordinal);
             }
 
-            _demoCache.UpdateExisting(path, r =>
-            {
-                r.SetGrenades(GrenadeWalker.Version, rows.Grenades.Count);
-                _demoCache.UpdatePayload(r, p => p.GrenadeInputCoverage = rows.Source.InputCoverage);
-            });
-            if (!GrenadeSidecar.DeleteLegacy(_demoCache, path))
-            {
-                GrenadeIndexLog.LegacyKept(Log, fileName);
-            }
-            _demoCache.SaveIndex();
             GrenadeIndexLog.Walked(Log, fileName, rows.Grenades.Count, rows.Source.InputCoverage);
+            RaiseWalked(path);
             _post(() => Indexed?.Invoke(path));
         }
         catch (Exception ex)
@@ -279,11 +291,11 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
             GrenadeIndexLog.WalkFailed(Log, fileName, ex);
             try
             {
-                _demoCache.UpdateExisting(path, r => r.MarkFailed(EvaluatorId));
+                _store.MarkFailed(path);
             }
             catch (Exception)
             {
-                // The row could not be marked; the next pass will try the demo again.
+                // The stamp could not be marked; the next pass will try the demo again.
             }
         }
         finally
@@ -299,6 +311,20 @@ public sealed class GrenadeIndexEvaluator : IDemoEvaluator
         lock (_gate)
         {
             return _flights.Remove(path, out Dictionary<string, List<TrajectoryPoint>>? flights) ? flights : null;
+        }
+    }
+
+    // A handler's throw must not mark a walk that was written as failed.
+    private void RaiseWalked(string path)
+    {
+        try
+        {
+            Walked?.Invoke(path);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            string fileName = Path.GetFileName(path);
+            GrenadeIndexLog.WalkedHandlerFailed(Log, fileName, ex);
         }
     }
 
@@ -334,14 +360,13 @@ internal static partial class GrenadeIndexLog
     [LoggerMessage(EventId = 5, Level = LogLevel.Information, Message = "lineup clips: {line}")]
     public static partial void LineupClip(ILogger logger, string line);
 
-    [LoggerMessage(EventId = 6, Level = LogLevel.Warning,
-        Message = "{fileName}: new grenade sidecars did not read back; pre-gzip files kept")]
-    public static partial void LegacyKept(ILogger logger, string fileName);
-
     [LoggerMessage(EventId = 7, Level = LogLevel.Debug,
         Message = "{fileName}: parse carried no user commands; grenades left for a full parse")]
     public static partial void NoUserCommands(ILogger logger, string fileName);
 
     [LoggerMessage(EventId = 8, Level = LogLevel.Warning, Message = "the lineup store was not saved")]
     public static partial void LineupsNotSaved(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 9, Level = LogLevel.Warning, Message = "{fileName}: a handler of the walked grenades failed")]
+    public static partial void WalkedHandlerFailed(ILogger logger, string fileName, Exception exception);
 }

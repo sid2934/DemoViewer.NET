@@ -1,8 +1,7 @@
 #region
 
-using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
@@ -12,10 +11,10 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The sidecar store: the file lands beside the cache under the stable key, a write is atomic
-///     (no temp file survives), a corrupt sidecar reads as absent, the null-root store keeps documents
-///     in memory, the orphan sweep and the <c>Changed</c> subscriber delete what the index forgot,
-///     and the v1 shape round-trips through the committed fixture byte for byte.
+///     The round index store over the per-demo data: a write stamps the index and its positions, the stamp
+///     answers freshness without a file read, a failure and a rebuild move the stamp, a corrupt file reads as
+///     absent, a demo that leaves the library loses its index, and the v1 shape round-trips through the
+///     committed fixture byte for byte.
 /// </summary>
 [NotInParallel]
 public class RoundIndexStoreTests
@@ -60,35 +59,33 @@ public class RoundIndexStoreTests
     }
 
     [Test]
-    public async Task Write_LandsUnderTheStableKey_Atomically_AndReadsBack()
+    public async Task Write_StampsTheIndexAndItsPositions_AndAReadNeedsNoFile()
     {
         string root = TempRoot();
         try
         {
             DemoCacheStore cache = new(root);
-            using RoundIndexStore store = new(root, cache);
-            store.Write(Demo, Sample());
-
-            string expected = Path.Combine(root, "round-index", DemoCacheStore.StableKey(Demo) + ".dvri.json");
-            RoundIndexDocument? read = store.TryRead(Demo);
+            cache.Upsert(ParsedRecord(Demo, sha: "abcd"));
+            RoundIndexStore store = new(cache.DiskData(root));
+            RoundIndexDocument sample = Sample();
+            store.Write(Demo, sample, new RoundPositionsDocument { Fingerprint = sample.Fingerprint }, sample.Fingerprint);
 
             using (Assert.Multiple())
             {
-                await Assert.That(store.PathFor(Demo)).IsEqualTo(expected);
-                await Assert.That(File.Exists(expected)).IsTrue();
-                await Assert.That(Directory.GetFiles(Path.Combine(root, "round-index"), "*.tmp")).IsEmpty()
-                    .Because("the temp file is replaced, never left beside the sidecar");
-                await Assert.That(read).IsNotNull();
-                await Assert.That(read!.Rounds.Single().Runs.Count).IsEqualTo(3);
-                await Assert.That(read.Rounds[0].Runs[1].Ct).IsEqualTo("BombsiteA:2|Outside:3");
-                await Assert.That(File.ReadAllText(expected)).DoesNotContain("\n").Because("compact, not indented");
+                await Assert.That(store.IsCurrent(Demo, sample.Fingerprint)).IsTrue();
+                await Assert.That(store.Needs(Demo, sample.Fingerprint)).IsFalse();
+                await Assert.That(store.Needs(Demo, "another")).IsTrue().Because("another fingerprint is another index");
+                await Assert.That(store.Stamp(Demo)!.Count).IsEqualTo(sample.RowCount);
+                await Assert.That(store.TryRead(Demo)!.Rounds.Single().Runs.Count).IsEqualTo(3);
+                await Assert.That(store.TryReadPositions(Demo, sample.Fingerprint)).IsNotNull();
+                await Assert.That(store.TryReadPositions(Demo, "another")).IsNull().Because("positions built under another fingerprint read as absent");
+                await Assert.That(Directory.GetFiles(root, "*.tmp", SearchOption.AllDirectories)).IsEmpty()
+                    .Because("every file is replaced whole, never left half written");
             }
 
-            // Overwrite through the same path: the replace branch.
-            RoundIndexDocument second = Sample();
-            second.Rounds[0].Number = 4;
-            store.Write(Demo, second);
-            await Assert.That(store.TryRead(Demo)!.Rounds[0].Number).IsEqualTo(4);
+            // A fresh store over the same folder reads the stamp from the index file, not the demo files.
+            RoundIndexStore reopened = new(cache.DiskData(root));
+            await Assert.That(reopened.ComputedAtTicks(Demo)).IsEqualTo(store.ComputedAtTicks(Demo));
         }
         finally
         {
@@ -97,15 +94,40 @@ public class RoundIndexStoreTests
     }
 
     [Test]
-    public async Task ACorruptSidecar_ReadsAsAbsent()
+    public async Task AFailure_LeavesTheBacklog_UntilCleared_AndARebuildKeepsTheOldRowsReadable()
+    {
+        DemoCacheStore cache = new(null);
+        cache.Upsert(ParsedRecord(Demo));
+        RoundIndexStore store = new(cache.Data());
+        RoundIndexDocument sample = Sample();
+        store.Write(Demo, sample, new RoundPositionsDocument(), sample.Fingerprint);
+
+        store.MarkFailed(Demo);
+        await Assert.That(store.Needs(Demo, "another")).IsFalse().Because("retrying a failure is the user's call");
+        store.ClearFailed(Demo);
+        await Assert.That(store.Needs(Demo, "another")).IsTrue();
+
+        store.InvalidateAll();
+        using (Assert.Multiple())
+        {
+            await Assert.That(store.IsCurrent(Demo, sample.Fingerprint)).IsFalse();
+            await Assert.That(store.TryRead(Demo)).IsNotNull().Because("the old rows answer until the demo is rebuilt");
+        }
+    }
+
+    [Test]
+    public async Task ACorruptIndex_ReadsAsAbsent()
     {
         string root = TempRoot();
         try
         {
             DemoCacheStore cache = new(root);
-            using RoundIndexStore store = new(root, cache);
-            store.Write(Demo, Sample());
-            File.WriteAllText(store.PathFor(Demo)!, "{ not json");
+            cache.Upsert(ParsedRecord(Demo, sha: "abcd"));
+            RoundIndexStore store = new(cache.DiskData(root));
+            RoundIndexDocument sample = Sample();
+            store.Write(Demo, sample, new RoundPositionsDocument(), sample.Fingerprint);
+            string file = Directory.GetFiles(root, "abcd.json.gz", SearchOption.AllDirectories).Single();
+            File.WriteAllBytes(file, [1, 2, 3]);
 
             await Assert.That(store.TryRead(Demo)).IsNull();
             await Assert.That(store.TryRead("/d/never.dem")).IsNull();
@@ -117,59 +139,12 @@ public class RoundIndexStoreTests
     }
 
     [Test]
-    public async Task ANullRoot_KeepsDocumentsInMemory()
-    {
-        DemoCacheStore cache = new(null);
-        using RoundIndexStore store = new(null, cache);
-        store.Write(Demo, Sample());
-        store.Write("/d/other.dem", Sample());
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(store.Root).IsNull();
-            await Assert.That(store.PathFor(Demo)).IsNull();
-            await Assert.That(store.TryRead(Demo)).IsNotNull();
-            await Assert.That(store.TryRead("/d/other.dem")).IsNotNull().Because("more than one demo, unlike a capacity-1 cache");
-        }
-
-        store.Delete(Demo);
-        await Assert.That(store.TryRead(Demo)).IsNull();
-    }
-
-    [Test]
-    public async Task TheOrphanSweep_DeletesSidecarsTheIndexDoesNotCarry()
-    {
-        string root = TempRoot();
-        try
-        {
-            DemoCacheStore cache = new(root);
-            cache.Upsert(ParsedRecord(Demo));
-            using RoundIndexStore store = new(root, cache);
-            store.Write(Demo, Sample());
-            store.Write("/d/gone.dem", Sample());
-
-            int removed = store.SweepOrphans();
-
-            using (Assert.Multiple())
-            {
-                await Assert.That(removed).IsEqualTo(1);
-                await Assert.That(store.TryRead(Demo)).IsNotNull();
-                await Assert.That(store.TryRead("/d/gone.dem")).IsNull();
-            }
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
-    }
-
-    [Test]
-    public async Task ADemoRemovedFromTheIndex_LosesItsSidecarOnChanged()
+    public async Task ADemoRemovedFromTheLibrary_LosesItsIndex()
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(ParsedRecord(Demo));
         cache.Upsert(ParsedRecord("/d/other.dem"));
-        using RoundIndexStore store = new(null, cache);
+        RoundIndexStore store = new(cache.Data());
         store.Write(Demo, Sample());
         store.Write("/d/other.dem", Sample());
 
@@ -177,11 +152,11 @@ public class RoundIndexStoreTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(store.TryRead(Demo)).IsNull().Because("the Changed subscriber deleted it");
+            await Assert.That(store.TryRead(Demo)).IsNull();
             await Assert.That(store.TryRead("/d/other.dem")).IsNotNull();
         }
 
-        // A re-upsert of a demo still in the index is not a removal.
+        // A re-upsert of a demo still in the library is not a removal.
         cache.Upsert(ParsedRecord("/d/other.dem"));
         await Assert.That(store.TryRead("/d/other.dem")).IsNotNull();
     }
@@ -218,7 +193,7 @@ public class RoundIndexStoreTests
         using (Assert.Multiple())
         {
             await Assert.That(loaded).IsNotNull();
-            await Assert.That(loaded!.SchemaVersion).IsEqualTo(StratBookCache.RoundIndexSchema);
+            await Assert.That(loaded!.SchemaVersion).IsEqualTo(RoundIndexStore.Schema);
             await Assert.That(loaded.Clock.Kind).IsEqualTo("dv-frame-clock");
             await Assert.That(loaded.Demo.Sha256).IsNull();
             await Assert.That(loaded.RowCount).IsEqualTo(11);

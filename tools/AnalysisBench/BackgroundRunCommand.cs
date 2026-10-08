@@ -32,6 +32,13 @@ namespace AnalysisBench;
 ///         without user commands, the highlights build, a separate round_facts build, the library's
 ///         final-state replay and round derivation. <c>--read=app-forward</c>: the queue's forward pass for
 ///         the same three consumers (<c>ForwardDemoPass</c>, one merged build). Both imply <c>--eval</c>.
+///         <c>--without=&lt;ruleset id&gt;</c> drops one ruleset from the read, to price it against a run with it.
+///     </para>
+///     <para>
+///         <c>--with=&lt;file&gt;</c> adds one <c>*.rules.yaml</c> to the read, as an extension's ruleset rides the
+///         merged run. <c>--outputs=&lt;a,b&gt;|none|all</c> sets the tables <c>app-forward</c> records: the queue
+///         records only those of stamped rulesets whose stored outputs are stale, and omitting it keeps
+///         <c>round_facts</c> alone.
 ///     </para>
 ///     Emits one <c>@BGJOB</c> JSON line per demo and one <c>@BGRUN</c> line at the end.
 /// </summary>
@@ -46,6 +53,9 @@ internal static class BackgroundRunCommand
         string compact = named.GetValueOrDefault("--compact", "none");
         string? plan = named.GetValueOrDefault("--plan");
         bool eval = flags.Contains("--eval") || read.StartsWith("app-", StringComparison.Ordinal);
+        string? without = named.GetValueOrDefault("--without");
+        string? with = named.GetValueOrDefault("--with");
+        string? outputsArg = named.GetValueOrDefault("--outputs");
 
         RuleConfigLoadResult? rules = null;
         if (eval)
@@ -55,7 +65,31 @@ internal static class BackgroundRunCommand
             {
                 throw new RuleConfigException(rules.Errors);
             }
+
+            if (without is not null)
+            {
+                rules = rules with { Rulesets = [.. rules.Rulesets.Where(r => r.Id != without)] };
+            }
+
+            if (with is not null)
+            {
+                RuleConfigLoadResult extra = YamlConfigLoader.LoadDocuments([(Path.GetFileName(with), File.ReadAllText(with))]);
+                if (!extra.Success)
+                {
+                    throw new RuleConfigException(extra.Errors);
+                }
+
+                rules = rules with { Rulesets = [.. rules.Rulesets, .. extra.Rulesets] };
+            }
         }
+
+        IReadOnlySet<string>? outputs = outputsArg switch
+        {
+            null => null,
+            "none" => new HashSet<string>(StringComparer.Ordinal),
+            "all" => new HashSet<string>(rules?.Rulesets.SelectMany(r => r.Show?.Tables.Select(t => t.Name) ?? []) ?? [], StringComparer.Ordinal),
+            _ => new HashSet<string>(outputsArg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), StringComparer.Ordinal)
+        };
 
         PeakSampler sampler = new();
         int gen0 = GC.CollectionCount(0), gen1 = GC.CollectionCount(1), gen2 = GC.CollectionCount(2);
@@ -67,7 +101,7 @@ internal static class BackgroundRunCommand
         {
             long tj = Stopwatch.GetTimestamp();
             long sizeBytes = new FileInfo(demos[i]).Length;
-            (double parseMs, int highlights) = Job(demos[i], read, plan, rules);
+            (double parseMs, int highlights) = Job(demos[i], read, plan, rules, outputs);
             if (compact == "each")
             {
                 Compact();
@@ -81,6 +115,7 @@ internal static class BackgroundRunCommand
                 sizeMb = sizeBytes / Mb,
                 parseMs,
                 highlights,
+                tableRows = _lastTableRows,
                 jobMs = Stopwatch.GetElapsedTime(tj).TotalMilliseconds,
                 committedMb = gi.TotalCommittedBytes / Mb,
                 heapMb = gi.HeapSizeBytes / Mb,
@@ -110,6 +145,9 @@ internal static class BackgroundRunCommand
             compact,
             plan,
             eval,
+            without,
+            with,
+            outputs = outputsArg,
             demos = demos.Length,
             wallMs,
             peakWsMb = sampler.PeakWs / Mb,
@@ -125,10 +163,14 @@ internal static class BackgroundRunCommand
         return 0;
     }
 
+    // Rows of the tables the last app-forward job recorded; -1 on every other read.
+    private static int _lastTableRows = -1;
+
     // NoInlining keeps the demo and the evaluation result out of the caller's frame, so they are
     // unreachable once the job returns, as they are when the queue moves on.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static (double ParseMs, int Highlights) Job(string path, string read, string? plan, RuleConfigLoadResult? rules)
+    private static (double ParseMs, int Highlights) Job(string path, string read, string? plan, RuleConfigLoadResult? rules,
+        IReadOnlySet<string>? outputs)
     {
         AnalysisOptions bare = new()
         {
@@ -138,7 +180,9 @@ internal static class BackgroundRunCommand
         if (read == "app-forward")
         {
             using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
-            ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, rules!.Rulesets);
+            ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, rules!.Rulesets, outputs: outputs);
+            // The recorded tables are projected as the facts and Round Facts passes do, so their cost lands in the job.
+            _lastTableRows = pass.Run!.ProjectConfiguredOutputs().Sum(table => table.Rows.Count);
             return (Stopwatch.GetElapsedTime(t).TotalMilliseconds, pass.Run!.Highlights.Count);
         }
 

@@ -1,12 +1,12 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.ViewModels.UtilityBook;
-using DemoViewer.NET.Views.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     The Utility Book module: the Utility section of the Strat Book tab's rail (<see cref="BrowserTabId" />,
@@ -52,7 +52,7 @@ public sealed class UtilityBookModule : IWorkspaceModule
             TabId = BrowserTabId,
             Header = "Utility",
             Order = 3, // after Tags (2)
-            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new UtilityBookTabView()

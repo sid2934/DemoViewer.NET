@@ -20,6 +20,7 @@ using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Abstractions;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Services.Zones;
@@ -58,6 +59,12 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     private readonly IDisposable? _settingsSub;
     private readonly string? _shippedDir;
     private readonly string? _userDir; // null on WASM / no writable filesystem
+    private readonly Func<IReadOnlyList<ContributedRuleset>>? _extensionRulesets;
+    private readonly Func<ContributedRuleset, bool>? _extensionOn;
+    private readonly Dictionary<string, string> _extensionTexts = new(StringComparer.Ordinal);
+
+    // An extension's ruleset has no file; its entry carries this prefix, the owner and the id instead of a path.
+    private const string ExtensionPathPrefix = "extension:";
 
     private IModuleContext? _context;
 
@@ -132,11 +139,23 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     ///     <c>AppSettings.Features.DeveloperMode</c> live and this VM re-raises <see cref="IsReadOnlyFile" />
     ///     on change. Null → the DEMOVIEWER_DEVELOPER_MODE env fallback (designer / tests).
     /// </param>
-    public RuleWorkbenchTabViewModel(IOptionsMonitor<AppSettings>? settings = null)
+    /// <param name="extensionRulesets">The rulesets the loaded extensions contribute; listed read-only beside the files.</param>
+    /// <param name="extensionOn">Whether a contributed ruleset's feature is on; an off one is labelled so.</param>
+    public RuleWorkbenchTabViewModel(IOptionsMonitor<AppSettings>? settings = null,
+        Func<IReadOnlyList<ContributedRuleset>>? extensionRulesets = null, Func<ContributedRuleset, bool>? extensionOn = null)
+        : this(settings, extensionRulesets, extensionOn, DefaultDirs())
+    {
+    }
+
+    internal RuleWorkbenchTabViewModel(IOptionsMonitor<AppSettings>? settings,
+        Func<IReadOnlyList<ContributedRuleset>>? extensionRulesets, Func<ContributedRuleset, bool>? extensionOn,
+        (string? Shipped, string? User) dirs)
     {
         _settings = settings;
-        _shippedDir = SafeShippedDir();
-        _userDir = OperatingSystem.IsBrowser() ? null : SafeUserDir(_shippedDir);
+        _extensionRulesets = extensionRulesets;
+        _extensionOn = extensionOn;
+        _shippedDir = dirs.Shipped;
+        _userDir = dirs.User;
         Paths = BuildPaths();
         PathTree = WorkbenchPathTree.Build(Paths);
         RefreshFiles();
@@ -155,6 +174,7 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
             Dispatcher.UIThread.Post(() =>
             {
                 OnPropertyChanged(nameof(IsReadOnlyFile));
+                OnPropertyChanged(nameof(IsShippedReadOnly));
                 OnPropertyChanged(nameof(CanSave));
             }));
     }
@@ -175,11 +195,20 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
             ? _settings.CurrentValue.Features.DeveloperMode
             : Environment.GetEnvironmentVariable("DEMOVIEWER_DEVELOPER_MODE") is "1" or "true" or "True";
 
-    /// <summary>Shipped + user <c>*.rules.yaml</c> in the Authoring dropdown.</summary>
+    /// <summary>Shipped + user <c>*.rules.yaml</c> in the Authoring dropdown, then the extensions' rulesets.</summary>
     public ObservableCollection<RulesetFileRef> OpenableFiles { get; } = [];
 
-    /// <summary>True when the open file is a shipped baseline and DeveloperMode is off. Save must save-as.</summary>
-    public bool IsReadOnlyFile => SelectedFile is { IsShipped: true } && !DeveloperMode;
+    /// <summary>
+    ///     True when the open file is an extension's ruleset, or a shipped baseline while DeveloperMode is off. Save
+    ///     must save-as; saving an extension's ruleset under its id into the user folder overrides it.
+    /// </summary>
+    public bool IsReadOnlyFile => IsExtensionFile || IsShippedReadOnly;
+
+    /// <summary>True when the open file is a shipped baseline and DeveloperMode is off.</summary>
+    public bool IsShippedReadOnly => SelectedFile is { IsShipped: true } && !DeveloperMode;
+
+    /// <summary>True when the open file is a ruleset an extension contributed.</summary>
+    public bool IsExtensionFile => SelectedFile is { IsExtension: true };
 
     /// <summary>Every diagnostic from the last check (all rulesets).</summary>
     public ObservableCollection<WorkbenchDiagnostic> Diagnostics { get; } = [];
@@ -589,6 +618,16 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
                 });
             }
         }
+
+        foreach (RulesetFileRef extension in OpenableFiles.Where(f => f.IsExtension))
+        {
+            EvaluableFiles.Add(new EvaluableFile
+            {
+                FullPath = extension.FullPath,
+                Display = extension.Display,
+                IsSelected = wasSelected.Count == 0 || wasSelected.Contains(extension.FullPath)
+            });
+        }
     }
 
     /// <summary>
@@ -750,6 +789,8 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
     partial void OnSelectedFileChanged(RulesetFileRef? value)
     {
         OnPropertyChanged(nameof(IsReadOnlyFile));
+        OnPropertyChanged(nameof(IsShippedReadOnly));
+        OnPropertyChanged(nameof(IsExtensionFile));
         OnPropertyChanged(nameof(CanSave));
         OnPropertyChanged(nameof(CanSaveAs));
         SaveAsName = SuggestSaveAsName(value);
@@ -892,7 +933,8 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         try
         {
             _loadingDocument = true;
-            DocumentText = File.Exists(path) ? File.ReadAllText(path) : "";
+            DocumentText = _extensionTexts.TryGetValue(path, out string? yaml) ? yaml
+                : File.Exists(path) ? File.ReadAllText(path) : "";
             IsDirty = false;
         }
         catch
@@ -1005,6 +1047,11 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
                 }
             }
         }
+
+        foreach ((string path, string text) in _extensionTexts)
+        {
+            yield return (path, string.Equals(path, openPath, StringComparison.Ordinal) ? DocumentText : text);
+        }
     }
 
     private string? OpenFilePath() => SelectedFile?.FullPath;
@@ -1030,6 +1077,11 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
                 string name = Path.GetFileName(path);
                 OpenableFiles.Add(new RulesetFileRef(path, name, shipped ? $"{name}  (shipped)" : name, shipped));
             }
+        }
+
+        foreach (RulesetFileRef extension in ExtensionFiles())
+        {
+            OpenableFiles.Add(extension);
         }
 
         if (previousPath is not null)
@@ -1139,6 +1191,60 @@ public sealed partial class RuleWorkbenchTabViewModel : ObservableObject, IWorks
         + "show:\n"
         + "  scoreboard:\n"
         + "    - { stat: kills, label: Kills, group: game }\n";
+
+    // An extension's ruleset sits between the shipped rules and the user's folder: a file of the same id in either
+    // hides it, as the rule layers do. Its YAML is read once per refresh, never per keystroke.
+    private List<RulesetFileRef> ExtensionFiles()
+    {
+        _extensionTexts.Clear();
+        List<RulesetFileRef> files = [];
+        IReadOnlyList<ContributedRuleset> contributed;
+        try
+        {
+            contributed = _extensionRulesets?.Invoke() ?? [];
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            AppLog.OperationFailed(DiagLog, "list the extensions' rulesets", ex);
+            return files;
+        }
+
+        if (contributed.Count == 0)
+        {
+            return files;
+        }
+
+        HashSet<string> taken = new(StringComparer.Ordinal);
+        foreach (string? dir in new[] { _shippedDir, _userDir })
+        {
+            if (dir is not null && Directory.Exists(dir))
+            {
+                taken.UnionWith(YamlConfigLoader.TryLoadDirectory(dir).Rulesets.Select(r => r.Id));
+            }
+        }
+
+        foreach (ContributedRuleset ruleset in contributed)
+        {
+            if (taken.Contains(ruleset.RulesetId) || ruleset.ReadYaml() is not { } yaml)
+            {
+                continue;
+            }
+
+            string name = ruleset.RulesetId + ".rules.yaml";
+            string path = ExtensionPathPrefix + ruleset.Owner + "/" + name;
+            string state = (_extensionOn?.Invoke(ruleset) ?? true) ? "" : ", off";
+            _extensionTexts[path] = yaml;
+            files.Add(new RulesetFileRef(path, name, $"{name}  ({ruleset.Owner}{state})", false, ruleset.Owner));
+        }
+
+        return files;
+    }
+
+    private static (string? Shipped, string? User) DefaultDirs()
+    {
+        string? shipped = SafeShippedDir();
+        return (shipped, OperatingSystem.IsBrowser() ? null : SafeUserDir(shipped));
+    }
 
     private static string? SafeShippedDir()
     {

@@ -1,0 +1,203 @@
+<Project>
+    <!-- Generates ThemeTokens (every key of the host palette) and StyleClasses (every class the host's shared
+         style files select on) from the app's own files, so the published names cannot drift from what the
+         host loads. A renamed key or class removes a constant, which the public API files then refuse. -->
+
+    <PropertyGroup>
+        <ThemeNamesStylesDirectory>$(MSBuildThisFileDirectory)../../App/DemoViewer.NET/Styles/</ThemeNamesStylesDirectory>
+        <ThemeNamesPalette>$(ThemeNamesStylesDirectory)DarkPalette.axaml</ThemeNamesPalette>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- The shared class layer. Stats.axaml is left out: its classes only style the app's own stats
+             controls, which an extension cannot use. -->
+        <ThemeNamesStyleFile Include="$(ThemeNamesStylesDirectory)Primitives.axaml"/>
+        <ThemeNamesStyleFile Include="$(ThemeNamesStylesDirectory)Cards.axaml"/>
+        <ThemeNamesStyleFile Include="$(ThemeNamesStylesDirectory)Tables.axaml"/>
+        <ThemeNamesStyleFile Include="$(ThemeNamesStylesDirectory)Chrome.axaml"/>
+    </ItemGroup>
+
+    <UsingTask TaskName="GenerateThemeNames" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+        <ParameterGroup>
+            <Palette ParameterType="System.String" Required="true"/>
+            <StyleFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true"/>
+            <Namespace ParameterType="System.String" Required="true"/>
+            <OutputPath ParameterType="System.String" Required="true"/>
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System.Collections.Generic"/>
+            <Using Namespace="System.Linq"/>
+            <Using Namespace="System.Text"/>
+            <Using Namespace="System.Text.RegularExpressions"/>
+            <Using Namespace="System.Xml.Linq"/>
+            <Code Type="Fragment" Language="cs"><![CDATA[
+XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+Regex identifier = new Regex("^[A-Za-z_][A-Za-z0-9_]*$");
+Regex className = new Regex(@"\.([A-Za-z_][A-Za-z0-9_-]*)");
+
+XDocument palette = XDocument.Load(Palette);
+Func<string, List<XElement>> entries = variant =>
+{
+    XElement dictionary = palette.Descendants()
+        .FirstOrDefault(e => e.Name.LocalName == "ResourceDictionary" && (string)e.Attribute(x + "Key") == variant);
+    return dictionary == null
+        ? null
+        : dictionary.Elements().Where(e => e.Attribute(x + "Key") != null).ToList();
+};
+
+List<XElement> dark = entries("Dark");
+List<XElement> light = entries("Light");
+if (dark == null || light == null)
+{
+    Log.LogError("{0} has no Dark or no Light theme dictionary.", Palette);
+    return false;
+}
+
+Func<XElement, string> keyOf = e => (string)e.Attribute(x + "Key");
+Func<XElement, string> describe = e => (string)e.Attribute("Color") ?? e.Name.LocalName;
+var darkKeys = dark.Select(keyOf).ToList();
+var lightByKey = light.ToDictionary(keyOf, describe);
+var mismatched = darkKeys.Except(lightByKey.Keys).Concat(lightByKey.Keys.Except(darkKeys)).ToList();
+if (mismatched.Count > 0)
+{
+    Log.LogError("{0}: the Dark and Light dictionaries differ in: {1}", Palette, string.Join(", ", mismatched));
+    return false;
+}
+
+foreach (string key in darkKeys)
+{
+    if (!identifier.IsMatch(key))
+    {
+        Log.LogError("{0}: palette key '{1}' is not a valid C# identifier, so it cannot be published as a constant.", Palette, key);
+        return false;
+    }
+}
+
+// class -> the control types its selectors target, in first-seen order.
+var classes = new List<string>();
+var targets = new Dictionary<string, List<string>>();
+foreach (ITaskItem file in StyleFiles)
+{
+    XDocument styles = XDocument.Load(file.ItemSpec);
+    foreach (XAttribute selector in styles.Descendants().Select(e => e.Attribute("Selector")).Where(a => a != null))
+    {
+        foreach (string part in selector.Value.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            int typeEnd = part.IndexOfAny(new[] { '.', ':', '#' });
+            string type = typeEnd < 0 ? part : part.Substring(0, typeEnd);
+            foreach (Match match in className.Matches(part))
+            {
+                string name = match.Groups[1].Value;
+                if (!targets.ContainsKey(name))
+                {
+                    classes.Add(name);
+                    targets[name] = new List<string>();
+                }
+
+                if (type.Length > 0 && type != "^" && !targets[name].Contains(type))
+                {
+                    targets[name].Add(type);
+                }
+            }
+        }
+    }
+}
+
+var members = new Dictionary<string, string>();
+foreach (string name in classes)
+{
+    string member = string.Concat(name.Split('-').Where(p => p.Length > 0).Select(p => char.ToUpperInvariant(p[0]) + p.Substring(1)));
+    if (!identifier.IsMatch(member))
+    {
+        Log.LogError("Style class '{0}' does not map to a C# identifier.", name);
+        return false;
+    }
+
+    if (members.ContainsKey(member))
+    {
+        Log.LogError("Style classes '{0}' and '{1}' both map to the constant {2}.", members[member], name, member);
+        return false;
+    }
+
+    members[member] = name;
+}
+
+var code = new StringBuilder();
+code.AppendLine("// Generated at build from the host's palette and style files. Do not edit.");
+code.AppendLine("#nullable enable");
+code.AppendLine();
+code.AppendLine("namespace " + Namespace + ";");
+code.AppendLine();
+code.AppendLine("/// <summary>");
+code.AppendLine("///     The host palette's resource keys. Every key exists in each theme, so a view resolves it with");
+code.AppendLine("///     <c>{DynamicResource Key}</c> and code resolves it with <see cref=\"ThemeColors\" />.");
+code.AppendLine("/// </summary>");
+code.AppendLine("public static class ThemeTokens");
+code.AppendLine("{");
+foreach (XElement entry in dark)
+{
+    string key = keyOf(entry);
+    code.AppendLine(entry.Name.LocalName == "SolidColorBrush"
+        ? "    /// <summary>The <c>" + key + "</c> brush: <c>" + describe(entry) + "</c> in the dark theme, <c>" + lightByKey[key] + "</c> in the light theme.</summary>"
+        : "    /// <summary>The <c>" + key + "</c> " + entry.Name.LocalName + ", defined in each theme.</summary>");
+    code.AppendLine("    public const string " + key + " = \"" + key + "\";");
+    code.AppendLine();
+}
+
+code.AppendLine("    /// <summary>Every key, in palette order.</summary>");
+code.AppendLine("    public static IReadOnlyList<string> All { get; } =");
+code.AppendLine("    [");
+code.AppendLine(string.Join(",\n", darkKeys.Select(k => "        " + k)));
+code.AppendLine("    ];");
+code.AppendLine("}");
+code.AppendLine();
+code.AppendLine("/// <summary>");
+code.AppendLine("///     The style classes the host's shared styles select on. Set one with <c>Classes=\"ghost\"</c> in XAML or");
+code.AppendLine("///     <c>control.Classes.Add(StyleClasses.Ghost)</c> in code; the control type each class styles is listed.");
+code.AppendLine("/// </summary>");
+code.AppendLine("public static class StyleClasses");
+code.AppendLine("{");
+foreach (KeyValuePair<string, string> member in members)
+{
+    string types = targets[member.Value].Count == 0 ? "" : " Styles " + string.Join(", ", targets[member.Value].Select(t => "<c>" + t + "</c>")) + ".";
+    code.AppendLine("    /// <summary>The <c>" + member.Value + "</c> class." + types + "</summary>");
+    code.AppendLine("    public const string " + member.Key + " = \"" + member.Value + "\";");
+    code.AppendLine();
+}
+
+code.AppendLine("    /// <summary>Every class, in style-file order.</summary>");
+code.AppendLine("    public static IReadOnlyList<string> All { get; } =");
+code.AppendLine("    [");
+code.AppendLine(string.Join(",\n", members.Keys.Select(k => "        " + k)));
+code.AppendLine("    ];");
+code.AppendLine("}");
+
+string text = code.ToString().Replace("\r\n", "\n");
+Directory.CreateDirectory(Path.GetDirectoryName(OutputPath));
+if (!File.Exists(OutputPath) || File.ReadAllText(OutputPath) != text)
+{
+    File.WriteAllText(OutputPath, text, new UTF8Encoding(false));
+}
+]]></Code>
+        </Task>
+    </UsingTask>
+
+    <Target Name="GenerateThemeNames" BeforeTargets="BeforeCompile;CoreCompile">
+        <Error Condition="!Exists('$(ThemeNamesPalette)')" Text="The host palette $(ThemeNamesPalette) is missing; ThemeTokens cannot be generated."/>
+
+        <PropertyGroup>
+            <ThemeNamesOutput>$(IntermediateOutputPath)ThemeNames.g.cs</ThemeNamesOutput>
+        </PropertyGroup>
+
+        <GenerateThemeNames Palette="$(ThemeNamesPalette)"
+                            StyleFiles="@(ThemeNamesStyleFile)"
+                            Namespace="$(RootNamespace).Theming"
+                            OutputPath="$(ThemeNamesOutput)"/>
+
+        <ItemGroup>
+            <Compile Remove="$(ThemeNamesOutput)"/>
+            <Compile Include="$(ThemeNamesOutput)"/>
+            <FileWrites Include="$(ThemeNamesOutput)"/>
+        </ItemGroup>
+    </Target>
+</Project>

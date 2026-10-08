@@ -3,13 +3,13 @@
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 
 /// <summary>
 ///     One Result Card: a matching (demo, round) with its mini-radar thumbnail of the matched state,
@@ -24,7 +24,7 @@ namespace DemoViewer.NET.ViewModels.Situations;
 ///         <see cref="ApplyFacts" /> and <see cref="ApplyThumbnail" />.
 ///     </para>
 /// </summary>
-public sealed partial class ResultCardViewModel : ViewModelBase
+public sealed partial class ResultCardViewModel : ExtensionViewModel
 {
     /// <summary>What a fact reads when the demo has no Round Facts rows.</summary>
     public const string NoData = "no data";
@@ -85,7 +85,7 @@ public sealed partial class ResultCardViewModel : ViewModelBase
     /// <param name="owner">The result set this card belongs to.</param>
     /// <param name="hit">The matching (demo, round).</param>
     /// <param name="entry">The demo's index row, for the match label; null when the library lost it.</param>
-    public ResultCardViewModel(ResultCardsViewModel owner, SituationHit hit, DemoCacheIndexEntry? entry)
+    public ResultCardViewModel(ResultCardsViewModel owner, SituationHit hit, LibraryDemo? entry)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(hit);
@@ -149,7 +149,7 @@ public sealed partial class ResultCardViewModel : ViewModelBase
         RoundEndReason.CTSurrender => "CT surrendered",
         RoundEndReason.Draw => "draw",
         RoundEndReason.Unknown => NoData,
-        _ => RoundFactsValues.LowerCamel(reason)
+        _ => RoundFactsRules.LowerCamel(reason)
     };
 
     /// <summary>Fills the facts from the demo's rows, or marks them absent. Called on the UI thread.</summary>
@@ -175,8 +175,8 @@ public sealed partial class ResultCardViewModel : ViewModelBase
         else
         {
             ScoreText = $"CT {round.Ct.ScoreBefore} : {round.T.ScoreBefore} T";
-            CtBuyText = RoundFactsValues.LowerCamel(round.Ct.BuyType);
-            TBuyText = RoundFactsValues.LowerCamel(round.T.BuyType);
+            CtBuyText = RoundFactsRules.LowerCamel(round.Ct.BuyType);
+            TBuyText = RoundFactsRules.LowerCamel(round.T.BuyType);
             EndReasonText = EndReasonLabel(round.EndReason);
             EndReasonIconKey = EndReasonIcon(round.EndReason);
             double elapsed = Math.Max(0, (Hit.FirstMatchTick - round.FreezeEndTick) / (double)TickRate);
@@ -215,7 +215,7 @@ public sealed partial class ResultCardViewModel : ViewModelBase
         OnPropertyChanged(nameof(SeekTick));
     }
 
-    private static string MatchLabelFor(SituationHit hit, DemoCacheIndexEntry? entry)
+    private static string MatchLabelFor(SituationHit hit, LibraryDemo? entry)
     {
         if (entry is { CtClan.Length: > 0, TClan.Length: > 0 })
         {

@@ -1,13 +1,13 @@
 #region
 
 using System.Globalization;
-using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>How one run of a strat ended, for the record.</summary>
 public enum RunOutcome
@@ -318,16 +318,19 @@ public static class StratEvidence
 /// </summary>
 public sealed class StratEvidenceService
 {
+    private readonly IExtensionJobs? _jobs;
     private readonly IDemoProvenanceSource? _provenance;
     private readonly TagStore _tags;
 
     /// <param name="tags">The tag documents.</param>
     /// <param name="provenance">Demo Provenance Labels; null leaves every run unlabeled.</param>
-    public StratEvidenceService(TagStore tags, IDemoProvenanceSource? provenance = null)
+    /// <param name="jobs">The queue <see cref="ComputeAsync" /> runs on; the pool when null.</param>
+    public StratEvidenceService(TagStore tags, IDemoProvenanceSource? provenance = null, IExtensionJobs? jobs = null)
     {
         ArgumentNullException.ThrowIfNull(tags);
         _tags = tags;
         _provenance = provenance;
+        _jobs = jobs;
     }
 
     /// <summary>The record of a strat as it stands now.</summary>
@@ -349,8 +352,7 @@ public sealed class StratEvidenceService
         ArgumentNullException.ThrowIfNull(strat);
         StratDocument snapshot = strat.Clone();
         cancellationToken.ThrowIfCancellationRequested();
-        return QueueWork.RunAsync<StratRecord?>(QueueWork.Ambient, QueueJobKind.SectionCompute, "Strats: record", "strats",
-                () => Compute(snapshot), null)
+        return StratBookJobs.RunAsync<StratRecord?>(_jobs, "Strats: record", () => Compute(snapshot), null, new JobOptions())
             .ContinueWith(t => t.Result ?? throw new OperationCanceledException(cancellationToken), cancellationToken,
                 TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }

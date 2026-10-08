@@ -16,11 +16,13 @@ namespace DemoViewer.NET.ViewModels.Library;
 /// </summary>
 public sealed partial class LibraryFilterViewModel : ObservableObject
 {
-    private Func<DemoEntry, string, bool> _matches;
+    private readonly Func<DemoEntry, LibraryDemo> _demoOf;
+    private Func<LibraryDemo, string, bool> _matches;
     private bool _suppress;
 
-    internal LibraryFilterViewModel(LibraryFilter filter, Action onSelectionChanged)
+    internal LibraryFilterViewModel(LibraryFilter filter, Action onSelectionChanged, Func<DemoEntry, LibraryDemo>? demoOf = null)
     {
+        _demoOf = demoOf ?? (static e => e.ToLibraryDemo());
         ArgumentNullException.ThrowIfNull(filter);
         ArgumentNullException.ThrowIfNull(onSelectionChanged);
         OnSelectionChanged = onSelectionChanged;
@@ -54,7 +56,7 @@ public sealed partial class LibraryFilterViewModel : ObservableObject
     }
 
     /// <summary>Whether <paramref name="entry" /> passes the current selection. Always true for the "" choice.</summary>
-    public bool Matches(DemoEntry entry) => Selected.Key.Length == 0 || _matches(entry, Selected.Key);
+    public bool Matches(DemoEntry entry) => Selected.Key.Length == 0 || _matches(_demoOf(entry), Selected.Key);
 
     /// <summary>True while a real choice (not "") is selected: drives the host's "Clear" affordance.</summary>
     public bool IsActive => Selected.Key.Length > 0;

@@ -2,19 +2,18 @@
 
 using System.Globalization;
 using System.Text.Json;
-using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     The optional, user-entered veto history the Map Pool Record's "Done" line asks for:
 ///     manual entry only, no scraping, filed per opponent team.
 ///     <para>
 ///         <b>Persistence.</b> <c>veto-history.json</c> beside <c>teams.json</c>, written whole through
-///         <see cref="DemoCacheStore.WriteAtomic" /> after every mutation, the same small-file rule
-///         <see cref="Review.ReviewQueue" /> follows. A null config root (the browser, tests) keeps the
+///         <see cref="AtomicFile" /> after every mutation, the same small-file rule
+///         <see cref="DemoViewer.NET.Services.Review.ReviewQueue" /> follows. A null path (the browser, tests) keeps the
 ///         history for the session; a file that cannot be read, or is at a newer schema, is refused and
 ///         never overwritten.
 ///     </para>
@@ -22,21 +21,21 @@ namespace DemoViewer.NET.Services.Teams;
 /// </summary>
 public sealed class VetoHistoryStore
 {
-    /// <summary>The file under the config root.</summary>
+    /// <summary>The file's name.</summary>
     public const string FileName = "veto-history.json";
 
     private readonly List<VetoEntry> _entries = [];
     private readonly string? _path;
     private bool _refused;
 
-    /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
-    public VetoHistoryStore(string? configRoot)
+    /// <param name="path">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
+    public VetoHistoryStore(string? path)
     {
-        _path = configRoot is null ? null : Path.Combine(configRoot, FileName);
+        _path = path;
         Load();
     }
 
-    /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
+    /// <summary>True when nothing persists: the browser host, and tests without a file.</summary>
     public bool IsSessionOnly => _path is null;
 
     /// <summary>Why the file could not be read, or null. While set the file is never written.</summary>
@@ -129,7 +128,7 @@ public sealed class VetoHistoryStore
         try
         {
             VetoHistoryFile file = new() { Entries = [.. _entries] };
-            DemoCacheStore.WriteAtomic(_path, JsonSerializer.Serialize(file, VetoHistoryFile.JsonOptions));
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(file, VetoHistoryFile.JsonOptions));
         }
         catch (Exception)
         {

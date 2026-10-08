@@ -5,7 +5,7 @@ using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     Joins a grenade detonation to the projectile that caused it (#56, #59): a <see cref="ProjectileSample" />'s

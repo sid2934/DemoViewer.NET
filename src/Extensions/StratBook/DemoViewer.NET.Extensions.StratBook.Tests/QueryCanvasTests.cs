@@ -1,14 +1,13 @@
 #region
 
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Annotations;
-using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Query;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using SkiaSharp;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
@@ -206,15 +205,15 @@ public class QueryCanvasTests
 
         // A release over no band sends the token back to the rail.
         h.Press(ox, oy);
-        h.Tool.OnReleased(h.At(null, 0, 0, ToolPointerButton.Left), h.Services);
+        h.Tool.OnReleased(h.At(null, 0, 0, MapToolButton.Left), h.Services);
         await Assert.That(h.Vm.Document.IsPlaced(QuerySide.Ct, 0)).IsFalse();
 
         // Right-press on a token lifts it in one gesture; right-press on empty map is refused.
         h.Drop(QuerySide.T, 0, "Ramp");
         (double rx, double ry) = _centroids["Ramp"];
-        await Assert.That(h.Press(rx, ry, ToolPointerButton.Right)).IsTrue();
+        await Assert.That(h.Press(rx, ry, MapToolButton.Right)).IsTrue();
         await Assert.That(h.Vm.Document.IsPlaced(QuerySide.T, 0)).IsFalse();
-        await Assert.That(h.Press(rx, ry, ToolPointerButton.Right)).IsFalse();
+        await Assert.That(h.Press(rx, ry, MapToolButton.Right)).IsFalse();
     }
 
     [Test]
@@ -276,16 +275,16 @@ public class QueryCanvasTests
         LevelPane upper = h.Panes.Panes.Single(p => p.Level.ZMin >= -528);
 
         h.Arm(QuerySide.T, 0);
-        h.Tool.OnPressed(h.At(lower, 0, 0, ToolPointerButton.Left), h.Services);
-        h.Tool.OnReleased(h.At(lower, 0, 0, ToolPointerButton.Left), h.Services);
+        h.Tool.OnPressed(h.At(lower, 0, 0, MapToolButton.Left), h.Services);
+        h.Tool.OnReleased(h.At(lower, 0, 0, MapToolButton.Left), h.Services);
         QueryToken token = h.Vm.Document.Get(QuerySide.T, 0)!.Value;
 
         using (Assert.Multiple())
         {
             await Assert.That(token.LevelMinZ).IsEqualTo(MapSpace.QuantizeZ(lower.Level.ZMin));
-            await Assert.That(h.Tool.OnPressed(h.At(upper, 0, 0, ToolPointerButton.Left), h.Services)).IsFalse()
+            await Assert.That(h.Tool.OnPressed(h.At(upper, 0, 0, MapToolButton.Left), h.Services)).IsFalse()
                 .Because("the same world XY on the other storey is empty map");
-            await Assert.That(h.Tool.OnPressed(h.At(lower, 0, 0, ToolPointerButton.Left), h.Services)).IsTrue();
+            await Assert.That(h.Tool.OnPressed(h.At(lower, 0, 0, MapToolButton.Left), h.Services)).IsTrue();
         }
 
         h.Tool.OnCancelled(h.Services);
@@ -311,7 +310,7 @@ public class QueryCanvasTests
             await Assert.That(mapChanges).IsEqualTo(1);
         }
 
-        using SituationsTabViewModel tab = new(h.Index, null, h.Cache, h.Sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
+        using SituationsTabViewModel tab = new(h.Index, null, h.Cache.Library(), h.Sources, () => RoundIndexTokenSource.Pawn, isBrowser: false);
         await Assert.That(tab.Canvas.Maps).IsEquivalentTo(["de_nuke"]);
         await Assert.That(tab.Canvas.CanSearch).IsTrue();
     }
@@ -326,9 +325,9 @@ public class QueryCanvasTests
         public Harness(IReadOnlyList<FloorSlice>? floors = null)
         {
             Cache = new DemoCacheStore(null);
-            Sidecars = new RoundIndexStore(null, Cache);
+            Sidecars = new RoundIndexStore(Cache.Data());
             Sources = new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Index = new SituationIndex(Cache, Sidecars, Sources);
+            Index = new SituationIndex(Cache.Library(), Sidecars, Sources);
 
             RoundIndexDocument document = Document("de_nuke", Sources.FingerprintFor("de_nuke"),
                 (1, 10746, 17138, [new RoundIndexRun(0, 4, CtToken, TToken)]));
@@ -344,7 +343,7 @@ public class QueryCanvasTests
             Indexed(Cache, Sidecars, Demo, document);
             Index.Load();
 
-            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache, _ => null,
+            Vm = new QueryCanvasViewModel(Index, new QueryPlaceResolver(Index, Sources.Zones), Cache.Library(), _ => null,
                 dispose => dispose());
             Tool = Vm.Tool;
 
@@ -363,13 +362,12 @@ public class QueryCanvasTests
         public QueryCanvasViewModel Vm { get; }
         public QueryTokenTool Tool { get; }
         public PaneSet Panes { get; }
-        public IToolServices Services { get; }
+        public IMapToolContext Services { get; }
 
         public void Dispose()
         {
             Vm.Dispose();
             Index.Dispose();
-            Sidecars.Dispose();
         }
 
         public void Arm(QuerySide side, int slot) => Vm.Arm(Vm.Slots.Single(s => s.Side == side && s.Slot == slot));
@@ -383,44 +381,33 @@ public class QueryCanvasTests
             Release(x, y);
         }
 
-        public bool Press(double worldX, double worldY, ToolPointerButton button = ToolPointerButton.Left) =>
+        public bool Press(double worldX, double worldY, MapToolButton button = MapToolButton.Left) =>
             Tool.OnPressed(At(Panes.Panes[0], worldX, worldY, button), Services);
 
         public void Move(double worldX, double worldY) =>
-            Tool.OnMoved(At(Panes.Panes[0], worldX, worldY, ToolPointerButton.Left), Services);
+            Tool.OnMoved(At(Panes.Panes[0], worldX, worldY, MapToolButton.Left), Services);
 
         public void Release(double worldX, double worldY) =>
-            Tool.OnReleased(At(Panes.Panes[0], worldX, worldY, ToolPointerButton.Left), Services);
+            Tool.OnReleased(At(Panes.Panes[0], worldX, worldY, MapToolButton.Left), Services);
 
-        public ToolPointerEvent At(LevelPane? pane, double worldX, double worldY, ToolPointerButton button)
+        public MapToolEvent At(LevelPane? pane, double worldX, double worldY, MapToolButton button)
         {
             SKPoint world = new((float)worldX, (float)worldY);
             SKPoint screen = pane is null ? default : Services.WorldToScreen(pane, world);
-            return new ToolPointerEvent
+            return new MapToolEvent
             {
                 Pane = pane,
                 Screen = screen,
                 PaneLocal = pane is null ? default : new SKPoint(screen.X - pane.ViewportRect.Left, screen.Y - pane.ViewportRect.Top),
                 World = world,
-                Pressure = 0.5f,
                 Button = button
             };
         }
 
-        // Real panes and cameras, no window: the same seam the draw and erase tools are tested through.
-        private sealed class Services_(PaneSet panes) : IToolServices
+        // Real panes and cameras, no window.
+        private sealed class Services_(PaneSet panes) : IMapToolContext
         {
-            public AnnotationSession Session { get; } = new(new AnnotationDocument());
-            public int CurrentTick => 0;
-            public long NowMilliseconds => 0;
             public LevelPane? PaneAt(SKPoint screen) => panes.PaneAt(screen.X, screen.Y);
-
-            public SKPoint ScreenToWorld(LevelPane pane, SKPoint screen)
-            {
-                (double x, double y) = pane.Camera.Current.ScreenToWorld(
-                    screen.X - pane.ViewportRect.Left, screen.Y - pane.ViewportRect.Top);
-                return new SKPoint((float)x, (float)y);
-            }
 
             public SKPoint WorldToScreen(LevelPane pane, SKPoint world)
             {
@@ -429,29 +416,6 @@ public class QueryCanvasTests
             }
 
             public double WorldUnitsPerPixel(LevelPane pane) => 1 / pane.Camera.Current.EffectiveScale;
-
-            public bool TryResolveEntityAnchor(LevelPane pane, SKPoint world, float worldRadius,
-                out ulong steamId, out float dx, out float dy)
-            {
-                steamId = 0;
-                dx = 0;
-                dy = 0;
-                return false;
-            }
-
-            public bool TryResolveDrawOffset(LevelPane pane, AnnotationElement element,
-                out float offsetX, out float offsetY)
-            {
-                offsetX = 0;
-                offsetY = 0;
-                return false;
-            }
-
-            public void RequestTextEdit(Guid elementId)
-            {
-            }
-
-            public ITokenEditor? Tokens => null;
 
             public void RequestRender()
             {

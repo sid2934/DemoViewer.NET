@@ -5,7 +5,7 @@ using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     Thins a projectile's flight to a polyline: the first point is

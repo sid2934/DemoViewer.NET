@@ -1,6 +1,6 @@
 #region
 
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 #endregion
 

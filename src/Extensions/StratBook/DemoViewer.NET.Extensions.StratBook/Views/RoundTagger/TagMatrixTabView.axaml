@@ -1,9 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:DemoViewer.NET.ViewModels.RoundTagger"
-             xmlns:filters="using:DemoViewer.NET.ViewModels.Situations"
-             xmlns:tags="using:DemoViewer.NET.Services.Tags"
-             x:Class="DemoViewer.NET.Views.RoundTagger.TagMatrixTabView"
+             xmlns:vm="using:DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger"
+             xmlns:filters="using:DemoViewer.NET.Extensions.StratBook.ViewModels.Situations"
+             xmlns:tags="using:DemoViewer.NET.Extensions.StratBook.Services.Tags"
+             x:Class="DemoViewer.NET.Extensions.StratBook.Views.RoundTagger.TagMatrixTabView"
              x:DataType="vm:TagMatrixTabViewModel">
 
     <!--

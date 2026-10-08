@@ -2,10 +2,10 @@
 
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.ViewModels.Review;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 #endregion
 
@@ -82,7 +82,7 @@ public class ReviewQueueTabTests
     public async Task TheModule_ContributesTheReviewSection_UnderThePersistedIds_WithTheClipCountAsBadge()
     {
         ReviewQueue queue = new(null);
-        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), queue, enabled: () => true);
+        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), () => true, queue);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
         await Assert.That(tab.Badge).IsNull();
         queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
@@ -93,7 +93,7 @@ public class ReviewQueueTabTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.review");
             await Assert.That(tab.TabId).IsEqualTo("review.queue");
             await Assert.That(tab.Header).IsEqualTo("Review");
-            await Assert.That(tab.HostId).IsEqualTo(StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(4).Because("after Utility on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
@@ -110,7 +110,7 @@ public class ReviewQueueTabTests
     {
         ReviewQueue queue = new(null);
         queue.Add([Clip("/d/a.dem", 1, 2)], "A section");
-        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), queue, enabled: () => false);
+        ReviewQueueModule module = new(() => throw new InvalidOperationException("never built here"), () => false, queue);
         WorkspaceTabDescriptor tab = module.CreateTabs(null!).Single();
 
         await Assert.That(tab.Badge).IsNull().Because("the initial read is skipped while the section is off");

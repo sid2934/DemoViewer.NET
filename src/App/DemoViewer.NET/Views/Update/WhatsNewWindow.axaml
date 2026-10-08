@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
         xmlns:controls="using:DemoViewer.NET.Controls"
         xmlns:update="using:DemoViewer.NET.ViewModels.Update"
         x:Class="DemoViewer.NET.Views.Update.WhatsNewWindow"
@@ -41,7 +42,7 @@
                            IsVisible="{Binding NotesFallback, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
                            Text="{Binding NotesFallback}" />
                 <ScrollViewer>
-                    <controls:MarkdownBlock Markdown="{Binding NotesMarkdown}" />
+                    <ui:MarkdownBlock Markdown="{Binding NotesMarkdown}" />
                 </ScrollViewer>
             </Panel>
         </Border>

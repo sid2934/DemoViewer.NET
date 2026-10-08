@@ -1,12 +1,12 @@
 #region
 
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook.Canvas;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 
 /// <summary>One lineup of a grouped map with what a picker shows for it.</summary>
 /// <param name="Lineup">The lineup.</param>

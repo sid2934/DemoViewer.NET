@@ -4,14 +4,13 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.SuggestedTags;
-using DemoViewer.NET.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
 
 /// <summary>One proposal as the Suggested section lists it.</summary>
 public sealed class SuggestedInboxRow(SuggestedInboxItem item)
@@ -144,13 +143,13 @@ public sealed partial class SuggestedInboxViewModel : ObservableObject, IWorkspa
     partial void OnShowSettledChanged(bool value) => Refresh();
 
     [RelayCommand]
-    private void Accept(SuggestedInboxRow? row) => Verdict(row, i => _inbox!.Accept(i), "The tag could not be written.");
+    private Task Accept(SuggestedInboxRow? row) => Verdict(row, i => _inbox!.AcceptAsync(i), "The tag could not be written.");
 
     [RelayCommand]
-    private void Dismiss(SuggestedInboxRow? row) => Verdict(row, i => _inbox!.Dismiss(i), "The dismissal could not be written.");
+    private Task Dismiss(SuggestedInboxRow? row) => Verdict(row, i => _inbox!.DismissAsync(i), "The dismissal could not be written.");
 
     [RelayCommand]
-    private void Restore(SuggestedInboxRow? row) => Verdict(row, i => _inbox!.Restore(i), "The restore could not be written.");
+    private Task Restore(SuggestedInboxRow? row) => Verdict(row, i => _inbox!.RestoreAsync(i), "The restore could not be written.");
 
     [RelayCommand]
     private async Task Open(SuggestedInboxRow? row)
@@ -166,14 +165,14 @@ public sealed partial class SuggestedInboxViewModel : ObservableObject, IWorkspa
         }
     }
 
-    private void Verdict(SuggestedInboxRow? row, Func<SuggestedInboxItem, bool> write, string failed)
+    private async Task Verdict(SuggestedInboxRow? row, Func<SuggestedInboxItem, Task<bool>> write, string failed)
     {
         if (_inbox is null || row is null)
         {
             return;
         }
 
-        if (!write(row.Item))
+        if (!await write(row.Item))
         {
             StatusLine = failed;
         }

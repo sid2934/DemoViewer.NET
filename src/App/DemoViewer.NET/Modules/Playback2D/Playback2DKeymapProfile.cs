@@ -1,5 +1,6 @@
 #region
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.RegularExpressions;
 using Avalonia.Input;
 using DemoViewer.NET.Extensions;
@@ -31,13 +32,13 @@ public sealed class Playback2DKeymapProfile
     // by a future table edit lands in _multiBound instead: "which row did you mean" has no answer a
     // settings file can express, so those rows stay un-rebindable rather than silently picking one.
     private static readonly Playback2DBinding[] _shipped;
-    private static readonly Dictionary<Playback2DAction, int> _indexByAction;
-    private static readonly HashSet<Playback2DAction> _multiBound;
+    private static readonly Dictionary<string, int> _indexByAction;
+    private static readonly HashSet<string> _multiBound;
     private static readonly (Key Key, KeyModifiers Modifiers)[] _shell;
     private static readonly (Key Key, KeyModifiers Modifiers)[] _shellAndBrowser;
 
     private readonly Playback2DBinding[] _bindings;
-    private readonly HashSet<Playback2DAction> _overridden;
+    private readonly HashSet<string> _overridden;
 
     // Ordered, not field initializers: BuildIndex hands _multiBound back through an out parameter, and
     // Default is built from the same shipped table both of them read. _shipped is core (Playback2DKeymap)
@@ -49,10 +50,10 @@ public sealed class Playback2DKeymapProfile
         _indexByAction = BuildIndex(out _multiBound);
         _shell = [.. Playback2DKeymap.ReservedGestures(false)];
         _shellAndBrowser = [.. Playback2DKeymap.ReservedGestures(true)];
-        Default = new Playback2DKeymapProfile([.. _shipped], [], []);
+        Default = new Playback2DKeymapProfile([.. _shipped], new HashSet<string>(StringComparer.OrdinalIgnoreCase), []);
     }
 
-    private Playback2DKeymapProfile(Playback2DBinding[] bindings, HashSet<Playback2DAction> overridden,
+    private Playback2DKeymapProfile(Playback2DBinding[] bindings, HashSet<string> overridden,
         IReadOnlyList<string> rejected)
     {
         _bindings = bindings;
@@ -83,9 +84,26 @@ public sealed class Playback2DKeymapProfile
     // desktop runner (the same seam ShellModuleFeatureGate and AnnotationSessionController use).
     private static bool HostIsBrowser(bool? isBrowser) => isBrowser ?? OperatingSystem.IsBrowser();
 
-    /// <summary>Whether <paramref name="action" />'s gesture came from the user rather than the shipped table.</summary>
-    /// <param name="action">The action.</param>
-    public bool IsOverridden(Playback2DAction action) => _overridden.Contains(action);
+    /// <summary>Whether <paramref name="actionId" />'s gesture came from the user rather than the shipped table.</summary>
+    /// <param name="actionId">The action's id.</param>
+    public bool IsOverridden(string actionId) => _overridden.Contains(actionId);
+
+    /// <summary>Whether a core action's gesture came from the user rather than the shipped table.</summary>
+    /// <param name="action">The core action.</param>
+    public bool IsOverridden(Playback2DAction action) => IsOverridden(Playback2DActionIds.Of(action));
+
+    /// <summary>
+    ///     The current id an override row's left-hand side names: a core or command id in its own casing, or
+    ///     an old command id through <see cref="CommandRegistry.Aliases" />. <paramref name="name" /> itself,
+    ///     trimmed, when it names no action.
+    /// </summary>
+    /// <param name="name">The id as written.</param>
+    public static string CanonicalActionId(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        string trimmed = name.Trim();
+        return CommandRegistry.Default.Canonical(trimmed) ?? trimmed;
+    }
 
     /// <summary>
     ///     Composes <paramref name="overrides" /> (<c>"Action=Gesture"</c> rows, e.g. <c>"NextRound=Shift+R"</c>)
@@ -108,7 +126,7 @@ public sealed class Playback2DKeymapProfile
         (Key Key, KeyModifiers Modifiers)[] reserved = Reserved(browser);
 
         List<string> problems = [];
-        List<(string Row, Playback2DAction Action, Key Key, KeyModifiers Modifiers)> accepted = [];
+        List<(string Row, string Action, Key Key, KeyModifiers Modifiers)> accepted = [];
 
         foreach (string raw in overrides)
         {
@@ -120,14 +138,14 @@ public sealed class Playback2DKeymapProfile
             }
 
             string row = raw.Trim();
-            if (!TryParseRow(row, browser, out Playback2DAction action, out Key key,
+            if (!TryParseRow(row, browser, out string action, out Key key,
                     out KeyModifiers modifiers, out string error))
             {
                 problems.Add($"{row}: {error}");
                 continue;
             }
 
-            if (accepted.Exists(a => a.Action == action))
+            if (accepted.Exists(a => string.Equals(a.Action, action, StringComparison.OrdinalIgnoreCase)))
             {
                 problems.Add($"{row}: {action} is already rebound by an earlier row");
                 continue;
@@ -140,20 +158,20 @@ public sealed class Playback2DKeymapProfile
         // only as a batch: checked row by row, its first half collides with the second half's not-yet-
         // replaced default. This pass is what lets a user exchange two keys at all.
         Playback2DBinding[] table = [.. _shipped];
-        foreach ((string _, Playback2DAction action, Key key, KeyModifiers modifiers) in accepted)
+        foreach ((string _, string action, Key key, KeyModifiers modifiers) in accepted)
         {
             table[_indexByAction[action]] = Rebind(table[_indexByAction[action]], key, modifiers);
         }
 
-        HashSet<Playback2DAction> overridden = [.. accepted.Select(a => a.Action)];
+        HashSet<string> overridden = new(accepted.Select(a => a.Action), StringComparer.OrdinalIgnoreCase);
 
         if (Playback2DKeymap.FindConflicts(table, reserved).Count > 0)
         {
             // The batch does not stand up. Re-apply row by row and drop only the rows that actually
             // collide, so the report names the offending row instead of condemning the whole file.
             table = [.. _shipped];
-            overridden = [];
-            foreach ((string row, Playback2DAction action, Key key, KeyModifiers modifiers) in accepted)
+            overridden = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach ((string row, string action, Key key, KeyModifiers modifiers) in accepted)
             {
                 Playback2DBinding[] candidate = [.. table];
                 candidate[_indexByAction[action]] = Rebind(candidate[_indexByAction[action]], key, modifiers);
@@ -193,9 +211,10 @@ public sealed class Playback2DKeymapProfile
         // The candidate goes LAST and its own action's previous row is dropped: the rows already in the
         // file win, so the new gesture has to justify itself against them rather than silently unseating
         // one. That is also what makes the reason below always be about the candidate.
-        string action = ActionPartOf(candidate);
+        // Compared by current id, so an old-id row for the same action is replaced too.
+        string action = ActionIdOfRow(candidate);
         List<string> rows =
-            [.. existing.Where(r => !string.Equals(ActionPartOf(r), action, StringComparison.OrdinalIgnoreCase))];
+            [.. existing.Where(r => !string.Equals(ActionIdOfRow(r), action, StringComparison.OrdinalIgnoreCase))];
         rows.Add(candidate);
 
         _ = FromOverrides(rows, out IReadOnlyList<string> rejected, isBrowser);
@@ -217,11 +236,18 @@ public sealed class Playback2DKeymapProfile
     ///     display text also comes from, asked for the tokens <see cref="KeyGesture.Parse" /> accepts
     ///     rather than the human ones: <c>"←"</c> and <c>"Esc"</c> would not survive the next load.
     /// </summary>
-    /// <param name="action">The action being rebound.</param>
+    /// <param name="actionId">The id of the action being rebound.</param>
+    /// <param name="key">The key.</param>
+    /// <param name="modifiers">The modifiers.</param>
+    public static string Row(string actionId, Key key, KeyModifiers modifiers) =>
+        $"{actionId}={Playback2DKeymap.Format(key, modifiers, false)}";
+
+    /// <summary>The persisted row for a core action's gesture.</summary>
+    /// <param name="action">The core action being rebound.</param>
     /// <param name="key">The key.</param>
     /// <param name="modifiers">The modifiers.</param>
     public static string Row(Playback2DAction action, Key key, KeyModifiers modifiers) =>
-        $"{action}={Playback2DKeymap.Format(key, modifiers, false)}";
+        Row(Playback2DActionIds.Of(action), key, modifiers);
 
     /// <summary>
     ///     Resolves a keypress against THIS profile. Same two rules as the shipped table: a tool-scoped
@@ -231,76 +257,77 @@ public sealed class Playback2DKeymapProfile
     /// <param name="key">The pressed key.</param>
     /// <param name="modifiers">The active modifiers.</param>
     /// <param name="toolActive">Whether a pointer tool (draw / erase) is selected.</param>
-    /// <param name="action">The resolved action.</param>
-    public bool TryResolve(Key key, KeyModifiers modifiers, bool toolActive, out Playback2DAction action)
+    /// <param name="actionId">The resolved action's id.</param>
+    public bool TryResolve(Key key, KeyModifiers modifiers, bool toolActive, [NotNullWhen(true)] out string? actionId)
     {
         if (toolActive && TryFind(Playback2DBindingScope.WhenToolActive, key, modifiers,
                 out Playback2DBinding tool))
         {
-            action = tool.IsReserved ? Playback2DAction.None : tool.Action;
+            actionId = tool.IsReserved ? null : tool.ActionId;
             return !tool.IsReserved;
         }
 
         if (TryFind(Playback2DBindingScope.Always, key, modifiers, out Playback2DBinding always)
             && !always.IsReserved)
         {
-            action = always.Action;
+            actionId = always.ActionId;
             return true;
         }
 
-        action = Playback2DAction.None;
+        actionId = null;
         return false;
     }
 
     /// <summary>
-    ///     Resolves a keypress against ONE scope's rows of this profile. The Tag Palette asks it for
-    ///     <see cref="Playback2DBindingScope.WhenPaletteFocused" /> before its button hotkeys and before
-    ///     <see cref="TryResolve(Key, KeyModifiers, bool, out Playback2DAction)" />, which is what puts the
-    ///     palette scope above the tool and always scopes. A reserved row resolves to nothing.
+    ///     Resolves a keypress against ONE scope's rows of this profile. An extension's focus scope asks it
+    ///     from a key handler, which runs before
+    ///     <see cref="TryResolve(Key, KeyModifiers, bool, out string)" />: that is what puts the scope above
+    ///     the tool and always scopes. A reserved row resolves to nothing.
     /// </summary>
     /// <param name="scope">The scope to look in.</param>
     /// <param name="key">The pressed key.</param>
     /// <param name="modifiers">The active modifiers.</param>
-    /// <param name="action">The resolved action.</param>
+    /// <param name="actionId">The resolved action's id.</param>
     public bool TryResolveInScope(Playback2DBindingScope scope, Key key, KeyModifiers modifiers,
-        out Playback2DAction action)
+        [NotNullWhen(true)] out string? actionId)
     {
         if (TryFind(scope, key, modifiers, out Playback2DBinding found) && !found.IsReserved)
         {
-            action = found.Action;
+            actionId = found.ActionId;
             return true;
         }
 
-        action = Playback2DAction.None;
+        actionId = null;
         return false;
     }
 
     /// <summary>Convenience overload for the view's KeyDown handler.</summary>
     /// <param name="e">The key event.</param>
     /// <param name="toolActive">Whether a pointer tool is selected.</param>
-    /// <param name="action">The resolved action.</param>
-    public bool TryResolve(KeyEventArgs e, bool toolActive, out Playback2DAction action)
+    /// <param name="actionId">The resolved action's id.</param>
+    public bool TryResolve(KeyEventArgs e, bool toolActive, [NotNullWhen(true)] out string? actionId)
     {
         if (e is null)
         {
-            action = Playback2DAction.None;
+            actionId = null;
             return false;
         }
 
-        return TryResolve(e.Key, e.KeyModifiers, toolActive, out action);
+        return TryResolve(e.Key, e.KeyModifiers, toolActive, out actionId);
     }
 
     /// <summary>
-    ///     This profile's binding for <paramref name="action" />, or null when unbound. The view's KeyUp
+    ///     This profile's binding for <paramref name="actionId" />, or null when unbound. The view's KeyUp
     ///     needs it: hold-to-pan is released by KEY, and a rebound pan key released against a hard-coded
     ///     <c>Space</c> would leave the surface panning forever.
     /// </summary>
-    /// <param name="action">The action.</param>
-    public Playback2DBinding? BindingFor(Playback2DAction action)
+    /// <param name="actionId">The action's id, matched ignoring case.</param>
+    public Playback2DBinding? BindingFor(string actionId)
     {
+        ArgumentNullException.ThrowIfNull(actionId);
         foreach (Playback2DBinding binding in _bindings)
         {
-            if (binding.Action == action)
+            if (string.Equals(binding.ActionId, actionId, StringComparison.OrdinalIgnoreCase))
             {
                 return binding;
             }
@@ -309,14 +336,22 @@ public sealed class Playback2DKeymapProfile
         return null;
     }
 
+    /// <summary>This profile's binding for a core action, or null when unbound.</summary>
+    /// <param name="action">The core action.</param>
+    public Playback2DBinding? BindingFor(Playback2DAction action) => BindingFor(Playback2DActionIds.Of(action));
+
     /// <summary>
     ///     Display text for an action's gesture (e.g. "Shift+E"), "" when unbound. For tooltips and the
     ///     Settings rows, resolved from THIS profile, so a rebound key shows the user's gesture rather
     ///     than the shipped one.
     /// </summary>
-    /// <param name="action">The action.</param>
-    public string GestureText(Playback2DAction action) =>
-        BindingFor(action) is { } binding ? Playback2DKeymap.Format(binding.Key, binding.Modifiers) : "";
+    /// <param name="actionId">The action's id.</param>
+    public string GestureText(string actionId) =>
+        BindingFor(actionId) is { } binding ? Playback2DKeymap.Format(binding.Key, binding.Modifiers) : "";
+
+    /// <summary>Display text for a core action's gesture, "" when unbound.</summary>
+    /// <param name="action">The core action.</param>
+    public string GestureText(Playback2DAction action) => GestureText(Playback2DActionIds.Of(action));
 
     private bool TryFind(Playback2DBindingScope scope, Key key, KeyModifiers modifiers,
         out Playback2DBinding found)
@@ -347,10 +382,10 @@ public sealed class Playback2DKeymapProfile
     // about which pack a chord belongs to, not whether it is live right now.
     private static string AnnotatePackOwners(string conflict)
     {
-        foreach (KeyValuePair<Playback2DAction, PackCommand> entry in CommandRegistry.Default.PackOwnerByAction)
+        foreach (PackCommand entry in CommandRegistry.Default.PackCommands)
         {
-            conflict = Regex.Replace(conflict, $@"\b{Regex.Escape(entry.Key.ToString())}\b",
-                $"{entry.Key} ({entry.Value.PackLabel})");
+            string id = entry.Command.Id;
+            conflict = Regex.Replace(conflict, $@"(?<![\w.]){Regex.Escape(id)}(?![\w.])", $"{id} ({entry.PackLabel})");
         }
 
         return conflict;
@@ -358,10 +393,10 @@ public sealed class Playback2DKeymapProfile
 
     // "Action=Gesture" → the two halves, with every reason a row can be refused. Split at the FIRST '='
     // because no gesture Avalonia parses contains one.
-    private static bool TryParseRow(string row, bool isBrowser, out Playback2DAction action, out Key key,
+    private static bool TryParseRow(string row, bool isBrowser, out string action, out Key key,
         out KeyModifiers modifiers, out string error)
     {
-        action = Playback2DAction.None;
+        action = "";
         key = Key.None;
         modifiers = KeyModifiers.None;
 
@@ -375,16 +410,15 @@ public sealed class Playback2DKeymapProfile
         string name = row[..split].Trim();
         string gesture = row[(split + 1)..].Trim();
 
-        // Enum.TryParse happily accepts "7" and yields a defined member, so a leading non-letter is
-        // refused up front: an ordinal in a settings file is a typo, not a binding.
-        if (name.Length == 0 || !char.IsLetter(name[0])
-                             || !Enum.TryParse(name, true, out action)
-                             || !Enum.IsDefined(action) || action == Playback2DAction.None)
+        // Matched ignoring case, and an old command id through the registry's aliases, so a row written
+        // before a command id changed still applies to the action it always named.
+        if (name.Length == 0 || !char.IsLetter(name[0]) || CommandRegistry.Default.Canonical(name) is not { } id)
         {
             error = $"'{name}' is not a 2D playback action";
-            action = Playback2DAction.None;
             return false;
         }
+
+        action = id;
 
         if (_multiBound.Contains(action) || !_indexByAction.TryGetValue(action, out int at))
         {
@@ -445,23 +479,31 @@ public sealed class Playback2DKeymapProfile
         return true;
     }
 
+    /// <summary>The current id an override row's left-hand side names, through <see cref="CanonicalActionId" />.</summary>
+    /// <param name="row">An <c>"Action=Gesture"</c> row.</param>
+    public static string ActionIdOfRow(string row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return CanonicalActionId(ActionPartOf(row));
+    }
+
     private static string ActionPartOf(string row)
     {
         int split = row.IndexOf('=', StringComparison.Ordinal);
         return split <= 0 ? row.Trim() : row[..split].Trim();
     }
 
-    private static Dictionary<Playback2DAction, int> BuildIndex(out HashSet<Playback2DAction> multiBound)
+    private static Dictionary<string, int> BuildIndex(out HashSet<string> multiBound)
     {
-        Dictionary<Playback2DAction, int> index = new();
-        multiBound = [];
+        Dictionary<string, int> index = new(StringComparer.OrdinalIgnoreCase);
+        multiBound = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         Playback2DBinding[] shipped = _shipped;
         for (int i = 0; i < shipped.Length; i++)
         {
-            if (!index.TryAdd(shipped[i].Action, i))
+            if (!index.TryAdd(shipped[i].ActionId, i))
             {
-                multiBound.Add(shipped[i].Action);
+                multiBound.Add(shipped[i].ActionId);
             }
         }
 

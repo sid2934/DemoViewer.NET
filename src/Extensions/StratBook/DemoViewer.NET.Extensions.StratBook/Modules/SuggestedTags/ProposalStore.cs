@@ -2,12 +2,11 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.SuggestedTags;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
 ///     One demo's proposals, <c>&lt;cache&gt;/suggestions/&lt;StableKey&gt;.json</c> (schema 1). Derived and
@@ -177,141 +176,84 @@ public sealed class StoredEvidence
 public sealed partial class SuggestedTagsJsonContext : JsonSerializerContext;
 
 /// <summary>
-///     The proposals files: one per demo under <c>&lt;config&gt;/cache/suggestions/</c>, beside
-///     <c>demos/</c>, named by <see cref="DemoCacheStore.StableKey" />. The stamp that says whether a file is current lives on the cache
-///     record (<see cref="Extensions.StratBook.StratBookCache.SetSuggestions" />); this store only holds the payloads.
-///     <para>
-///         The Round Index's sibling-directory rules, for the same reasons: atomic writes, in memory when
-///         there is no cache root (the browser host, tests), a corrupt file reads as absent so its demo
-///         is simply rebuilt, and a demo that leaves the index loses its file through a
-///         <see cref="DemoCacheStore.Changed" /> subscriber. A proposals file is derived, so losing one
-///         costs a rebuild and never a verdict.
-///     </para>
+///     Each demo's proposals, kept as the Strat Book's per-demo data under one facet whose fingerprint is the
+///     detector set. The stamp carries the pending count, so the badge sums the store's index without a
+///     file read. A file that does not parse reads as absent and its demo is rebuilt; a proposals file is
+///     derived, so losing one costs a rebuild and never a verdict. A demo that leaves the library loses it.
 /// </summary>
-public sealed class ProposalStore : IDisposable
+public sealed class ProposalStore
 {
-    /// <summary>The file suffix; the whole name is <c>&lt;StableKey&gt;.json</c>.</summary>
-    public const string Suffix = ".json";
+    /// <summary>The facet's name in the per-demo data.</summary>
+    public const string Facet = "suggestions";
 
-    private readonly DemoCacheStore _demoCache;
-    private readonly Lock _gate = new();
+    /// <summary>The stamp's schema; the detector set is the fingerprint.</summary>
+    public const int Schema = 1;
 
-    // In-memory documents keyed by stable key, used when there is no cache root. Under _gate.
-    private readonly Dictionary<string, string> _memory = new(StringComparer.Ordinal);
-    private readonly string? _root;
-
-    private bool _disposed;
-
-    /// <param name="cacheRoot">The cache directory (<c>&lt;config&gt;/cache</c>), or null for an in-memory store.</param>
-    /// <param name="demoCache">The index the files follow: a demo it forgets loses its file here.</param>
-    public ProposalStore(string? cacheRoot, DemoCacheStore demoCache)
+    /// <param name="data">The extension's per-demo data.</param>
+    public ProposalStore(IExtensionDemoData data)
     {
-        ArgumentNullException.ThrowIfNull(demoCache);
-        _root = cacheRoot is null ? null : Path.Combine(cacheRoot, "suggestions");
-        _demoCache = demoCache;
-        _demoCache.Changed += OnCacheChanged;
+        ArgumentNullException.ThrowIfNull(data);
+        Data = data;
     }
 
-    /// <summary>False on the browser host and in tests without a root: proposals die with the process.</summary>
-    public bool IsPersistent => _root is not null;
+    /// <summary>The per-demo data the facet lives in.</summary>
+    public IExtensionDemoData Data { get; }
 
-    /// <inheritdoc />
-    public void Dispose()
+    /// <summary>False on the browser host and in tests kept in memory: proposals die with the process.</summary>
+    public bool IsPersistent => Data is not Extensions.StratBook.MemoryDemoData;
+
+    /// <summary>Raised on the UI thread when a demo's stamp moved, with its path, or null for many.</summary>
+    public event Action<string?>? Changed
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        _demoCache.Changed -= OnCacheChanged;
+        add => Data.Changed += value;
+        remove => Data.Changed -= value;
     }
 
-    /// <summary>The file for a demo, or null in memory.</summary>
-    /// <param name="demoPath">The demo's path as the library knows it.</param>
-    public string? PathFor(string demoPath) =>
-        _root is null ? null : Path.Combine(_root, DemoCacheStore.StableKey(demoPath) + Suffix);
+    /// <summary>A demo's stamp, or null when nothing was built or counted.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public DemoDataStamp? Stamp(string demoPath) => Data.Stamp(demoPath, Facet);
 
-    /// <summary>Writes a demo's proposals atomically. Throws on an I/O failure: the service leaves the stamp unset.</summary>
+    /// <summary>Every demo's stamp.</summary>
+    public IReadOnlyList<DemoDataStamp> Stamps() => Data.Stamps(Facet);
+
+    /// <summary>Proposals with no verdict yet across every demo: the badge.</summary>
+    public int PendingTotal() => Stamps().Sum(s => s.Count);
+
+    /// <summary>Are the demo's proposals current under <paramref name="fingerprint" /> (the detector set)?</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    /// <param name="fingerprint">The detector-set fingerprint in force for the demo's map.</param>
+    public bool IsCurrent(string demoPath, string fingerprint) => Stamp(demoPath)?.IsCurrent(Schema, fingerprint) ?? false;
+
+    /// <summary>
+    ///     Writes a demo's proposals built under <paramref name="fingerprint" /> with <paramref name="pending" />
+    ///     open proposals. Throws on an I/O failure: the service leaves the stamp as it was.
+    /// </summary>
     /// <param name="demoPath">The demo's path.</param>
     /// <param name="document">The proposals.</param>
-    public void Write(string demoPath, ProposalDocument document)
+    /// <param name="fingerprint">The detector-set fingerprint.</param>
+    /// <param name="pending">Proposals with no verdict yet.</param>
+    public void Write(string demoPath, ProposalDocument document, string fingerprint, int pending)
     {
         ArgumentNullException.ThrowIfNull(document);
-        string json = document.Serialize();
-        string? file = PathFor(demoPath);
-        if (file is null)
+        Data.Write(demoPath, new DemoDataWrite(Facet, Schema, fingerprint, System.Text.Encoding.UTF8.GetBytes(document.Serialize()))
         {
-            lock (_gate)
-            {
-                _memory[DemoCacheStore.StableKey(demoPath)] = json;
-            }
-
-            return;
-        }
-
-        DemoCacheStore.WriteAtomic(file, json);
+            Count = pending
+        });
     }
 
-    /// <summary>A demo's proposals, or null when the file is missing or does not parse.</summary>
+    /// <summary>Updates the pending count alone, after a verdict; a demo with no stamp gets a pending one carrying the count.</summary>
     /// <param name="demoPath">The demo's path.</param>
-    public ProposalDocument? TryRead(string demoPath)
-    {
-        string? json;
-        string? file = PathFor(demoPath);
-        if (file is null)
-        {
-            lock (_gate)
-            {
-                json = _memory.GetValueOrDefault(DemoCacheStore.StableKey(demoPath));
-            }
-        }
-        else
-        {
-            try
-            {
-                json = File.Exists(file) ? File.ReadAllText(file) : null;
-            }
-            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-            {
-                json = null;
-            }
-        }
+    /// <param name="pending">Proposals with no verdict yet.</param>
+    public void SetCount(string demoPath, int pending) => Data.SetCount(demoPath, Facet, pending);
 
-        return json is null ? null : ProposalDocument.TryDeserialize(json);
-    }
-
-    /// <summary>Forgets a demo's proposals. Best effort.</summary>
+    /// <summary>A demo's proposals, or null when there are none or they do not parse.</summary>
     /// <param name="demoPath">The demo's path.</param>
-    public void Delete(string demoPath)
-    {
-        string? file = PathFor(demoPath);
-        if (file is null)
-        {
-            lock (_gate)
-            {
-                _memory.Remove(DemoCacheStore.StableKey(demoPath));
-            }
+    public ProposalDocument? TryRead(string demoPath) =>
+        Data.ReadAny(demoPath, Facet) is { Schema: Schema } record
+            ? ProposalDocument.TryDeserialize(System.Text.Encoding.UTF8.GetString(record.Content))
+            : null;
 
-            return;
-        }
-
-        try
-        {
-            File.Delete(file);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            // An orphan costs disk and nothing else: the index no longer names its demo.
-        }
-    }
-
-    // A path that changed and is no longer in the index was removed: its file goes with it.
-    private void OnCacheChanged(string? path)
-    {
-        if (path is not null && _demoCache.TryGetIndex(path) is null)
-        {
-            Delete(path);
-        }
-    }
+    /// <summary>Forgets a demo's proposals.</summary>
+    /// <param name="demoPath">The demo's path.</param>
+    public void Delete(string demoPath) => Data.Delete(demoPath, Facet);
 }

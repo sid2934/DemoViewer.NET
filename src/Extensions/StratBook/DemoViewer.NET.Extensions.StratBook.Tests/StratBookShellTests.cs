@@ -12,12 +12,12 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Export;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -26,7 +26,7 @@ using Microsoft.Extensions.Options;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Strat Book shell: sections a module hosts on <see cref="StratBookHubViewModel.HostId" /> leave
+///     The Strat Book shell: sections a module hosts on <see cref="HostIds.StratBookHub" /> leave
 ///     the strip for one Strat Book tab's rail, a <see cref="LibraryTabViewModel.HostId" /> section lives
 ///     behind the Library's Demos / Teams toggle, and every id a section had as a strip tab still navigates,
 ///     gates and persists. Pinned with fake modules and the real hub contribution, so the mechanism is tested
@@ -47,8 +47,10 @@ public class StratBookShellTests
             registry.Register(module);
         }
 
+        StratBookLayout layout = new();
         MainViewModel vm = new(null, registry, TestLibraries.Empty(), null, gate, null, settings,
-            hostTabs: [StratBookHubAccess.HubHost()]);
+            hubTabs: [StratBookHubAccess.HubHost(layout)]);
+        vm.HoldsStratBookLayout(layout);
         vm.RestoreSession();
         return vm;
     }
@@ -76,7 +78,7 @@ public class StratBookShellTests
         MainViewModel vm = new(null, registry, TestLibraries.WithEntry(
             Path.Combine(Path.GetTempPath(), "dvstratshell_" + Guid.NewGuid().ToString("N") + ".dem")),
             null, gate, null, null,
-            libraryContributions: contributions, hostTabs: [StratBookHubAccess.HubHost()]);
+            libraryContributions: contributions, hubTabs: [StratBookHubAccess.HubHost()]);
         vm.RestoreSession();
         return vm;
     }
@@ -101,7 +103,7 @@ public class StratBookShellTests
 
                 using (Assert.Multiple())
                 {
-                    await Assert.That(strip).Contains(StratBookHubViewModel.TabId);
+                    await Assert.That(strip).Contains(HostIds.StratBookHub);
                     await Assert.That(strip).DoesNotContain("situations.search");
                     await Assert.That(strip).DoesNotContain("review.queue");
                     await Assert.That(strip).DoesNotContain("teams.browser");
@@ -125,7 +127,7 @@ public class StratBookShellTests
             MainViewModel vm = NewShell(null);
             try
             {
-                await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(StratBookHubViewModel.TabId);
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(HostIds.StratBookHub);
             }
             finally
             {
@@ -156,17 +158,17 @@ public class StratBookShellTests
                 MainViewModel vm = NewShell(gate, svc, new SectionsModule());
                 try
                 {
-                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId)
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostIds.StratBookHub)
                         .Because("the pack defaults on, so its sections synthesize the hub tab");
 
                     svc.Write(s => s.Features.Overrides[StratBookPack.PackFeatureId] = false);
 
-                    await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(StratBookHubViewModel.TabId)
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(HostIds.StratBookHub)
                         .Because("every section cascades off with the master switch, leaving nothing to host the hub");
 
                     svc.Write(s => s.Features.Overrides.Remove(StratBookPack.PackFeatureId));
 
-                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId)
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostIds.StratBookHub)
                         .Because("clearing the override brings the hub right back, live, with no rebuild");
                 }
                 finally
@@ -196,7 +198,7 @@ public class StratBookShellTests
             MainViewModel vm = NewShell(null, null, module);
             try
             {
-                WorkspaceTabDescriptor hub = vm.Tabs.First(t => t.TabId == StratBookHubViewModel.TabId);
+                WorkspaceTabDescriptor hub = vm.Tabs.First(t => t.TabId == HostIds.StratBookHub);
                 WorkspaceTabDescriptor strats = vm.StratBookHub().Sections.Sections[0];
                 WorkspaceTabDescriptor situations = vm.StratBookHub().Sections.Sections[1];
 
@@ -250,7 +252,7 @@ public class StratBookShellTests
                 using (Assert.Multiple())
                 {
                     await Assert.That(found).IsTrue();
-                    await Assert.That(vm.SelectedTab!.TabId).IsEqualTo(StratBookHubViewModel.TabId);
+                    await Assert.That(vm.SelectedTab!.TabId).IsEqualTo(HostIds.StratBookHub);
                     await Assert.That(vm.StratBookHub().Sections.SelectedSection!.TabId).IsEqualTo("review.queue");
                     await Assert.That(vm.StratBookHub().Sections.SelectedSection!.IsActive).IsTrue();
                 }
@@ -299,7 +301,7 @@ public class StratBookShellTests
                         .IsEquivalentTo(_withoutSituations);
                     await Assert.That(vm.StratBookHub().Sections.SelectedSection!.TabId).IsEqualTo("stratbook.browser")
                         .Because("the removed selection falls to its lower neighbour");
-                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId);
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostIds.StratBookHub);
                 }
 
                 gate.Answers["tab.stratbook"] = false;
@@ -308,7 +310,7 @@ public class StratBookShellTests
                 using (Assert.Multiple())
                 {
                     await Assert.That(vm.StratBookHub().Sections.Sections).IsEmpty();
-                    await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(StratBookHubViewModel.TabId)
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(HostIds.StratBookHub)
                         .Because("a rail with nothing on it has no tab");
                     await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library")
                         .Because("the hub's own order-neighbour is not always Library, but a disabled pack falls back to it specifically");
@@ -318,7 +320,7 @@ public class StratBookShellTests
                 gate.RaiseChanged();
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId);
+                    await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostIds.StratBookHub);
                     await Assert.That(vm.StratBookHub().Sections.Sections.Select(s => s.TabId)).IsEquivalentTo(_reviewOnly);
                 }
 
@@ -425,7 +427,7 @@ public class StratBookShellTests
                 MainViewModel vm2 = NewShell(null, svc, new SectionsModule());
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm2.SelectedTab!.TabId).IsEqualTo(StratBookHubViewModel.TabId);
+                    await Assert.That(vm2.SelectedTab!.TabId).IsEqualTo(HostIds.StratBookHub);
                     await Assert.That(vm2.StratBookHub().Sections.SelectedSection!.TabId).IsEqualTo("review.queue");
                     await Assert.That(vm2.StratBookHub().Sections.SelectedSection!.IsActive).IsTrue();
                 }
@@ -452,7 +454,7 @@ public class StratBookShellTests
                 MainViewModel vm3 = NewShell(null, svc, new SectionsModule());
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm3.SelectedTab!.TabId).IsEqualTo(StratBookHubViewModel.TabId);
+                    await Assert.That(vm3.SelectedTab!.TabId).IsEqualTo(HostIds.StratBookHub);
                     await Assert.That(vm3.StratBookHub().Sections.SelectedSection!.TabId).IsEqualTo("situations.search");
                 }
 
@@ -495,7 +497,7 @@ public class StratBookShellTests
     private static (DemoCacheStore Cache, TeamIdentityService Teams) NewTeams()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: a =>
+        TeamIdentityService teams = new(null, cache.Library(), run: a =>
         {
             a();
             return Task.CompletedTask;
@@ -514,13 +516,11 @@ public class StratBookShellTests
             CountingProvenanceSource provenance = new();
 
             MainViewModel vm = NewShellWithTeams(gate, teams, provenance, new SectionsModule());
-            StratBookExportChipSlot slot = new();
-            vm.AttachStatusChips([new StatusChipContribution("stratbook.export", 0, slot, StratBookPack.PackFeatureId)]);
             FakeExportJob job = new();
             Playback2DExportStatusViewModel status = new(job);
             try
             {
-                slot.Mount(status);
+                vm.MountExportStatus(StratBookPack.ExportChipId, StratBookPack.PackFeatureId, status);
                 job.Push(new ExportJobStatus(ExportPhase.Rendering, 1, 10, 0, TimeSpan.Zero, "strat.webm", null));
 
                 using (Assert.Multiple())
@@ -573,9 +573,10 @@ public class StratBookShellTests
                     {
                         await Assert.That(vm.SelectedTab!.TabId).IsEqualTo("builtin.library")
                             .Because("a persisted pack section with the pack off lands on Library, not nothing");
-                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsFalse()
-                            .Because("the pack is off: its session blob is never restored into the hub");
-                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsFalse();
+                        await Assert.That(vm.StratBookHub().IsRailCollapsed).IsTrue()
+                            .Because("the rail is the host's own state, folded from the old blob, and needs no pack");
+                        await Assert.That(vm.StratsLayout().IsListCollapsed).IsFalse()
+                            .Because("the pack is off: its session blob is never restored");
                     }
 
                     vm.SaveSession();
@@ -596,9 +597,9 @@ public class StratBookShellTests
                 {
                     using (Assert.Multiple())
                     {
-                        await Assert.That(vmOn.StratBookHub().Layout.IsRailCollapsed).IsTrue()
+                        await Assert.That(vmOn.StratBookHub().IsRailCollapsed).IsTrue()
                             .Because("re-enabling the pack restores exactly what was carried through while it was off");
-                        await Assert.That(vmOn.StratBookHub().Layout.IsListCollapsed).IsTrue();
+                        await Assert.That(vmOn.StratsLayout().IsListCollapsed).IsTrue();
                     }
                 }
                 finally
@@ -629,7 +630,7 @@ public class StratBookShellTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 SettingsService svc = new(dir);
-                JsonElement b0 = JsonSerializer.SerializeToElement(new { RailCollapsed = true, ListCollapsed = false });
+                JsonElement b0 = JsonSerializer.SerializeToElement(new { ListCollapsed = true });
                 svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
                     new Dictionary<string, JsonElement>(StringComparer.Ordinal) { [StratBookPack.PackId] = b0 }));
 
@@ -638,18 +639,14 @@ public class StratBookShellTests
                 MainViewModel vm = NewShell(gate, svc, new SectionsModule());
                 try
                 {
-                    await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsFalse()
+                    await Assert.That(vm.StratsLayout().IsListCollapsed).IsFalse()
                         .Because("the pack is off at startup: B0 is not restored yet");
 
                     SetPackOn(gate);
                     gate.RaiseChanged();
 
-                    using (Assert.Multiple())
-                    {
-                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsTrue()
-                            .Because("a live enable restores the carried blob, not the just-built default");
-                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsFalse();
-                    }
+                    await Assert.That(vm.StratsLayout().IsListCollapsed).IsTrue()
+                        .Because("a live enable restores the carried blob, not the just-built default");
 
                     vm.SaveSession();
                 }
@@ -685,7 +682,7 @@ public class StratBookShellTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 SettingsService svc = new(dir);
-                JsonElement b0 = JsonSerializer.SerializeToElement(new { RailCollapsed = false, ListCollapsed = false });
+                JsonElement b0 = JsonSerializer.SerializeToElement(new { ListCollapsed = false });
                 svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
                     new Dictionary<string, JsonElement>(StringComparer.Ordinal) { [StratBookPack.PackId] = b0 }));
 
@@ -697,7 +694,7 @@ public class StratBookShellTests
                     SetPackOn(gate);
                     gate.RaiseChanged();
 
-                    vm.StratBookHub().Layout.IsRailCollapsed = true; // the user's live change, after enabling
+                    vm.StratsLayout().IsListCollapsed = true; // the user's live change, after enabling
 
                     vm.SaveSession();
                 }
@@ -707,12 +704,8 @@ public class StratBookShellTests
                 }
 
                 SessionPayload? reloaded = svc.LoadSession();
-                using (Assert.Multiple())
-                {
-                    await Assert.That(reloaded!.Packs![StratBookPack.PackId].GetProperty("RailCollapsed").GetBoolean()).IsTrue()
-                        .Because("the live change made after enabling must win over B0's saved false");
-                    await Assert.That(reloaded.Packs[StratBookPack.PackId].GetProperty("ListCollapsed").GetBoolean()).IsFalse();
-                }
+                await Assert.That(reloaded!.Packs![StratBookPack.PackId].GetProperty("ListCollapsed").GetBoolean()).IsTrue()
+                    .Because("the live change made after enabling must win over B0's saved false");
             });
         }
         finally
@@ -737,7 +730,7 @@ public class StratBookShellTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 SettingsService svc = new(dir);
-                JsonElement startup = JsonSerializer.SerializeToElement(new { RailCollapsed = false, ListCollapsed = false });
+                JsonElement startup = JsonSerializer.SerializeToElement(new { ListCollapsed = false });
                 svc.SaveSession(new SessionPayload(null, null, null, false, false, null, null, null,
                     new Dictionary<string, JsonElement>(StringComparer.Ordinal) { [StratBookPack.PackId] = startup }));
 
@@ -745,10 +738,10 @@ public class StratBookShellTests
                 MainViewModel vm = NewShell(gate, svc, new SectionsModule());
                 try
                 {
-                    await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsFalse()
+                    await Assert.That(vm.StratsLayout().IsListCollapsed).IsFalse()
                         .Because("restored from the startup blob while the pack was already on");
 
-                    vm.StratBookHub().Layout.IsRailCollapsed = true; // the user's live change, while still on
+                    vm.StratsLayout().IsListCollapsed = true; // the user's live change, while still on
 
                     SetPackOff(gate);
                     gate.RaiseChanged();
@@ -761,7 +754,7 @@ public class StratBookShellTests
                 }
 
                 SessionPayload? reloaded = svc.LoadSession();
-                await Assert.That(reloaded!.Packs![StratBookPack.PackId].GetProperty("RailCollapsed").GetBoolean()).IsTrue()
+                await Assert.That(reloaded!.Packs![StratBookPack.PackId].GetProperty("ListCollapsed").GetBoolean()).IsTrue()
                     .Because("the pack was live for this change; disabling it afterward must not revert to the startup blob");
             });
         }
@@ -805,9 +798,9 @@ public class StratBookShellTests
                 {
                     using (Assert.Multiple())
                     {
-                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsTrue()
-                            .Because("the pre-Packs blob folds into Packs[stratbook] and restores through the same path");
-                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsFalse();
+                        await Assert.That(vm.StratBookHub().IsRailCollapsed).IsTrue()
+                            .Because("the pre-Packs blob folds into Packs[stratbook], and its rail flag into the host's hub state");
+                        await Assert.That(vm.StratsLayout().IsListCollapsed).IsFalse();
                     }
                 }
                 finally
@@ -852,9 +845,9 @@ public class StratBookShellTests
                 {
                     using (Assert.Multiple())
                     {
-                        await Assert.That(vm.StratBookHub().Layout.IsRailCollapsed).IsFalse()
+                        await Assert.That(vm.StratBookHub().IsRailCollapsed).IsFalse()
                             .Because("a wrong-typed member is ignored, leaving the pane at its default");
-                        await Assert.That(vm.StratBookHub().Layout.IsListCollapsed).IsTrue()
+                        await Assert.That(vm.StratsLayout().IsListCollapsed).IsTrue()
                             .Because("a well-typed member beside a bad one still restores");
                     }
                 }
@@ -872,7 +865,7 @@ public class StratBookShellTests
                 MainViewModel vm2 = NewShell(new FakeGate(), svc, new SectionsModule());
                 try
                 {
-                    await Assert.That(vm2.StratBookHub().Layout.IsRailCollapsed).IsFalse();
+                    await Assert.That(vm2.StratBookHub().IsRailCollapsed).IsFalse();
                 }
                 finally
                 {
@@ -882,16 +875,10 @@ public class StratBookShellTests
                 // The above proves no throw, but a fresh Layout defaults to false anyway, so it does not
                 // prove the bad blob was ignored rather than applied. Set a value true first and prove a
                 // non-object blob leaves it exactly as it was.
-                StratBookLayout layout = new();
-                layout.IsRailCollapsed = true;
-                layout.IsListCollapsed = true;
+                StratBookLayout layout = new() { IsListCollapsed = true };
                 layout.RestoreSessionState(JsonSerializer.SerializeToElement(42));
-                using (Assert.Multiple())
-                {
-                    await Assert.That(layout.IsRailCollapsed).IsTrue()
-                        .Because("a non-object blob is ignored outright, not applied as all-false");
-                    await Assert.That(layout.IsListCollapsed).IsTrue();
-                }
+                await Assert.That(layout.IsListCollapsed).IsTrue()
+                    .Because("a non-object blob is ignored outright, not applied as all-false");
             });
         }
         finally
@@ -919,7 +906,7 @@ public class StratBookShellTests
             await HeadlessSession.RunOnUi(async () =>
             {
                 SettingsService svc = new(dir);
-                svc.SaveSession(new SessionPayload(null, null, null, false, false, StratBookHubViewModel.HostId));
+                svc.SaveSession(new SessionPayload(null, null, null, false, false, HostIds.StratBookHub));
 
                 FakeGate gate = new();
                 SetPackOff(gate);
@@ -958,19 +945,17 @@ public class StratBookShellTests
             CountingProvenanceSource provenance = new();
             SectionsModule module = new();
             MainViewModel vm = NewShellWithTeams(gate, teams, provenance, module);
-            StratBookExportChipSlot slot = new();
-            vm.AttachStatusChips([new StatusChipContribution("stratbook.export", 0, slot, StratBookPack.PackFeatureId)]);
             FakeExportJob job = new();
             Playback2DExportStatusViewModel status = new(job);
             try
             {
-                slot.Mount(status);
+                vm.MountExportStatus(StratBookPack.ExportChipId, StratBookPack.PackFeatureId, status);
                 job.Push(new ExportJobStatus(ExportPhase.Rendering, 1, 10, 0, TimeSpan.Zero, "strat.webm", null));
 
                 await Assert.That(vm.TrySelectTab("stratbook.browser")).IsTrue();
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm.SelectedTab!.TabId).IsEqualTo(StratBookHubViewModel.TabId);
+                    await Assert.That(vm.SelectedTab!.TabId).IsEqualTo(HostIds.StratBookHub);
                     await Assert.That(vm.LibraryTab.Filters).IsNotEmpty();
                     await Assert.That(vm.LibraryTab.HasBadge).IsTrue();
                     await Assert.That(vm.Chips.Contains(status.Chip)).IsTrue();
@@ -1050,8 +1035,8 @@ public class StratBookShellTests
 
                 MainViewModel vm1 = NewShell(null, svc, new SectionsModule());
                 vm1.TrySelectTab("stratbook.browser");
-                vm1.StratBookHub().Layout.IsRailCollapsed = true;
-                vm1.StratBookHub().Layout.IsListCollapsed = true;
+                vm1.StratBookHub().IsRailCollapsed = true;
+                vm1.StratsLayout().IsListCollapsed = true;
                 vm1.SaveSession();
                 vm1.Dispose();
 
@@ -1060,9 +1045,9 @@ public class StratBookShellTests
                 MainViewModel vm2 = NewShell(null, svc, new SectionsModule());
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm2.SelectedTab!.TabId).IsNotEqualTo(StratBookHubViewModel.TabId);
-                    await Assert.That(vm2.StratBookHub().Layout.IsRailCollapsed).IsTrue();
-                    await Assert.That(vm2.StratBookHub().Layout.IsListCollapsed).IsTrue();
+                    await Assert.That(vm2.SelectedTab!.TabId).IsNotEqualTo(HostIds.StratBookHub);
+                    await Assert.That(vm2.StratBookHub().IsRailCollapsed).IsTrue();
+                    await Assert.That(vm2.StratsLayout().IsListCollapsed).IsTrue();
                 }
 
                 vm2.SaveSession();
@@ -1071,9 +1056,9 @@ public class StratBookShellTests
                 MainViewModel vm3 = NewShell(null, svc, new SectionsModule());
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm3.StratBookHub().Layout.IsRailCollapsed).IsTrue()
+                    await Assert.That(vm3.StratBookHub().IsRailCollapsed).IsTrue()
                         .Because("a session that never opened the Strat Book still writes its panes back");
-                    await Assert.That(vm3.StratBookHub().Layout.IsListCollapsed).IsTrue();
+                    await Assert.That(vm3.StratsLayout().IsListCollapsed).IsTrue();
                 }
 
                 vm3.Dispose();
@@ -1083,8 +1068,8 @@ public class StratBookShellTests
                 MainViewModel vm4 = NewShell(null, svc, new SectionsModule());
                 using (Assert.Multiple())
                 {
-                    await Assert.That(vm4.StratBookHub().Layout.IsRailCollapsed).IsFalse();
-                    await Assert.That(vm4.StratBookHub().Layout.IsListCollapsed).IsFalse();
+                    await Assert.That(vm4.StratBookHub().IsRailCollapsed).IsFalse();
+                    await Assert.That(vm4.StratsLayout().IsListCollapsed).IsFalse();
                 }
 
                 vm4.Dispose();
@@ -1150,9 +1135,9 @@ public class StratBookShellTests
 
         public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
         {
-            yield return Section("review.queue", "Review", 4, StratBookHubViewModel.HostId, "tab.review");
-            yield return Section("stratbook.browser", "Strats", 0, StratBookHubViewModel.HostId, "tab.stratbook");
-            yield return Section("situations.search", "Situations", 1, StratBookHubViewModel.HostId, "tab.situations");
+            yield return Section("review.queue", "Review", 4, HostIds.StratBookHub, "tab.review");
+            yield return Section("stratbook.browser", "Strats", 0, HostIds.StratBookHub, "tab.stratbook");
+            yield return Section("situations.search", "Situations", 1, HostIds.StratBookHub, "tab.situations");
             yield return Section("teams.browser", "Teams", 0, LibraryTabViewModel.HostId, "tab.teams");
         }
 

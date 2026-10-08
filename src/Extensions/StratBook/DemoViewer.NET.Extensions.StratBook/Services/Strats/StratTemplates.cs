@@ -2,11 +2,11 @@
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>One step of a template, on the round clock. Places are canonical nav names.</summary>
 /// <param name="AtSeconds">Round clock remaining; negative after a plant.</param>

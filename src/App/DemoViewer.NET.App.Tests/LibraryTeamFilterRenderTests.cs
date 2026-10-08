@@ -6,7 +6,7 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.Views.Library;
 
@@ -63,7 +63,7 @@ public class LibraryTeamFilterRenderTests
         await HeadlessSession.RunOnUi(async () =>
         {
             DemoCacheStore cache = new(null);
-            TeamIdentityService teams = new(null, cache, run: _inline);
+            TeamIdentityService teams = new(null, cache.Library(), run: _inline);
             await teams.StartAsync();
             // Two rosters recurring across a and b (so each clusters into a team), and a one-off on c
             // (no recurrence, no team): the same shape TeamsModuleTests.Library() uses.

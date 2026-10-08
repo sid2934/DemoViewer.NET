@@ -1,10 +1,11 @@
 #region
 
-using DemoViewer.NET.Services.DemoCache;
+using System.IO.Compression;
+using System.Text.Json;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>
 ///     A lineup's fixed identity: where it is thrown from and where it lands, as first seen. Never moves, so
@@ -48,38 +49,60 @@ public sealed class GrenadeLineupDocument
 }
 
 /// <summary>
-///     The persisted lineup identities, alias maps and representative flights, one gzipped JSON file in the
-///     cache root. A host with no cache root (the browser) keeps them in memory. Not thread-safe: the
-///     <see cref="GrenadeIndex" /> calls it under its own lock.
+///     The persisted lineup identities, alias maps and representative flights: one gzipped JSON file. In the app
+///     it is a file of the extension's own cache folder, copied once from where an older build kept it, since
+///     it holds hand-tuned state a rebuild would lose. A store with nowhere to write (the browser) keeps them in
+///     memory. Not thread-safe: the <see cref="GrenadeIndex" /> calls it under its own lock.
 /// </summary>
 public sealed class GrenadeLineupStore
 {
     public const string FileName = "grenade-lineups.json.gz";
 
-    private readonly string? _file;
+    private readonly Func<byte[]?> _read;
+    private readonly Action<byte[]>? _write;
     private GrenadeLineupDocument? _loaded;
 
-    /// <param name="cacheRoot">The demo cache root, or null to keep everything in memory.</param>
-    public GrenadeLineupStore(string? cacheRoot)
+    /// <param name="directory">The folder holding <see cref="FileName" />, or null to keep everything in memory.</param>
+    public GrenadeLineupStore(string? directory)
+        : this(directory is null ? () => null : () => ReadFile(Path.Combine(directory, FileName)),
+            directory is null ? null : bytes => AtomicFile.WriteAllBytes(Path.Combine(directory, FileName), bytes))
     {
-        _file = cacheRoot is null ? null : Path.Combine(cacheRoot, FileName);
+    }
+
+    private GrenadeLineupStore(Func<byte[]?> read, Action<byte[]>? write)
+    {
+        _read = read;
+        _write = write;
+    }
+
+    /// <summary>
+    ///     The store in the extension's own cache folder. When that has no file yet and <paramref name="legacy" />
+    ///     returns a lineup document, its bytes are copied over first. The browser build, which has no folders,
+    ///     keeps the lineups in memory.
+    /// </summary>
+    /// <param name="storage">The extension's files.</param>
+    /// <param name="legacy">Reads the file where an older build kept it, or null when there is none.</param>
+    public static GrenadeLineupStore In(IExtensionStorage storage, Func<byte[]?>? legacy)
+    {
+        ArgumentNullException.ThrowIfNull(storage);
+        return new GrenadeLineupStore(() =>
+        {
+            byte[]? bytes = storage.ReadAsync(StoreRoot.Cache, FileName).GetAwaiter().GetResult();
+            if (bytes is not null || legacy is null || ReadLegacy(legacy) is not { } old || Parse(old) is null)
+            {
+                return bytes;
+            }
+
+            storage.WriteAtomicAsync(StoreRoot.Cache, FileName, old).GetAwaiter().GetResult();
+            return old;
+        }, bytes => storage.WriteAtomicAsync(StoreRoot.Cache, FileName, bytes).GetAwaiter().GetResult());
     }
 
     // Read on first use, not in the constructor: the file holds every flight and the index is built on the UI thread.
-    private GrenadeLineupDocument Doc => _loaded ??= Read(_file) ?? new GrenadeLineupDocument();
-
-    /// <summary>The store for <paramref name="cache" />'s root.</summary>
-    public static GrenadeLineupStore For(DemoCacheStore cache)
-    {
-        ArgumentNullException.ThrowIfNull(cache);
-        return new GrenadeLineupStore(cache.CacheRoot);
-    }
+    private GrenadeLineupDocument Doc => _loaded ??= Read() ?? new GrenadeLineupDocument();
 
     /// <summary>Drops the in-memory document; the next use reads the file again. In memory this empties the store.</summary>
     public void Unload() => _loaded = null;
-
-    /// <summary>True when the file exists (always false in memory).</summary>
-    public bool Exists => _file is not null && File.Exists(_file);
 
     /// <summary>A map's lineups, created empty on first use.</summary>
     public MapLineups For(string map)
@@ -94,7 +117,7 @@ public sealed class GrenadeLineupStore
         return lineups;
     }
 
-    /// <summary>Writes the file (temp plus replace). A no-op in memory.</summary>
+    /// <summary>Writes the file whole. A no-op in memory.</summary>
     public void Save() => Write(Snapshot());
 
     /// <summary>
@@ -122,21 +145,29 @@ public sealed class GrenadeLineupStore
     public void Write(GrenadeLineupDocument snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (_file is not null)
+        if (_write is null)
         {
-            DemoCacheStore.WriteAtomicBytes(_file, SidecarJson.SerializeGzip(snapshot, GrenadeSidecar.JsonOptions));
+            return;
         }
+
+        using MemoryStream buffer = new();
+        using (GZipStream gzip = new(buffer, CompressionLevel.Optimal, true))
+        {
+            JsonSerializer.Serialize(gzip, snapshot, GrenadeSidecar.JsonOptions);
+        }
+
+        _write(buffer.ToArray());
     }
 
     /// <summary>Re-reads the file, as a check that a save reads back. False when it does not.</summary>
     public bool ReadsBack()
     {
-        if (_file is null)
+        if (_write is null)
         {
             return true;
         }
 
-        GrenadeLineupDocument? back = Read(_file);
+        GrenadeLineupDocument? back = Read();
         return back is not null && back.Maps.Count == Doc.Maps.Count
                                 && back.Maps.All(m => Doc.Maps.TryGetValue(m.Key, out MapLineups? mine)
                                                       && mine.Anchors.Count == m.Value.Anchors.Count
@@ -144,17 +175,59 @@ public sealed class GrenadeLineupStore
                                                       && mine.Aliases.Count == m.Value.Aliases.Count);
     }
 
-    private static GrenadeLineupDocument? Read(string? file)
+    private GrenadeLineupDocument? Read()
     {
-        if (file is null || !File.Exists(file))
+        try
+        {
+            return _read() is { } bytes ? Parse(bytes) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
         }
+    }
 
+    private static byte[]? ReadLegacy(Func<byte[]?> read)
+    {
         try
         {
-            if (SidecarJson.ReadFile<GrenadeLineupDocument>(file, GrenadeSidecar.JsonOptions) is not
-                { SchemaVersion: GrenadeLineupDocument.CurrentSchema } document)
+            return read();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static byte[]? ReadFile(string file)
+    {
+        try
+        {
+            return File.Exists(file) ? File.ReadAllBytes(file) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    // Gzipped or plain, sniffed by the magic bytes.
+    private static GrenadeLineupDocument? Parse(byte[] bytes)
+    {
+        try
+        {
+            GrenadeLineupDocument? document;
+            if (bytes.Length >= 2 && bytes[0] == 0x1F && bytes[1] == 0x8B)
+            {
+                using GZipStream gzip = new(new MemoryStream(bytes), CompressionMode.Decompress);
+                document = JsonSerializer.Deserialize<GrenadeLineupDocument>(gzip, GrenadeSidecar.JsonOptions);
+            }
+            else
+            {
+                document = JsonSerializer.Deserialize<GrenadeLineupDocument>(bytes, GrenadeSidecar.JsonOptions);
+            }
+
+            if (document is not { SchemaVersion: GrenadeLineupDocument.CurrentSchema })
             {
                 return null;
             }
@@ -168,7 +241,7 @@ public sealed class GrenadeLineupStore
 
             return document;
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException)
         {
             return null;
         }

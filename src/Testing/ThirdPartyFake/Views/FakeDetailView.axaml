@@ -1,0 +1,15 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
+             xmlns:vm="using:ThirdPartyFake.ViewModels"
+             x:Class="ThirdPartyFake.Views.FakeDetailView"
+             x:DataType="vm:FakeDetailViewModel">
+
+    <Border Classes="card" Padding="10">
+        <StackPanel Spacing="4">
+            <TextBlock Classes="mono" Text="{Binding Title}" Foreground="{DynamicResource TextValue}" />
+            <ui:MarkdownBlock Markdown="{Binding Notes}" />
+        </StackPanel>
+    </Border>
+
+</UserControl>

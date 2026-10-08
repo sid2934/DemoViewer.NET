@@ -2,26 +2,25 @@
 
 using System.Globalization;
 using System.Text.Json;
-using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     The user's edits to each team's Dossier: stars, rewritten
 ///     lines, left-out lines, free notes and the summary, filed per team.
 ///     <para>
 ///         <b>Persistence.</b> <c>dossier-notes.json</c> beside <c>teams.json</c>, written whole through
-///         <see cref="DemoCacheStore.WriteAtomic" /> after every mutation, as <see cref="VetoHistoryStore" />
-///         does. A null config root (the browser, tests) keeps the notes for the session; a file that cannot
+///         <see cref="AtomicFile" /> after every mutation, as <see cref="VetoHistoryStore" />
+///         does. A null path (the browser, tests) keeps the notes for the session; a file that cannot
 ///         be read, or is at a newer schema, is refused and never overwritten.
 ///     </para>
 ///     <para><b>Threading.</b> UI thread only: every caller is a view model reacting to a click or an edit.</para>
 /// </summary>
 public sealed class DossierNotesStore
 {
-    /// <summary>The file under the config root.</summary>
+    /// <summary>The file's name.</summary>
     public const string FileName = "dossier-notes.json";
 
     /// <summary>The key prefix of a user-written finding.</summary>
@@ -31,14 +30,14 @@ public sealed class DossierNotesStore
     private readonly List<DossierTeamNotes> _teams = [];
     private bool _refused;
 
-    /// <param name="configRoot">The app config root, or null for a session-only store (the browser, tests).</param>
-    public DossierNotesStore(string? configRoot)
+    /// <param name="path">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
+    public DossierNotesStore(string? path)
     {
-        _path = configRoot is null ? null : Path.Combine(configRoot, FileName);
+        _path = path;
         Load();
     }
 
-    /// <summary>True when nothing persists: the browser host, and tests without a root.</summary>
+    /// <summary>True when nothing persists: the browser host, and tests without a file.</summary>
     public bool IsSessionOnly => _path is null;
 
     /// <summary>Why the file could not be read, or null. While set the file is never written.</summary>
@@ -297,7 +296,7 @@ public sealed class DossierNotesStore
         try
         {
             DossierNotesFile file = new() { Teams = [.. _teams] };
-            DemoCacheStore.WriteAtomic(_path, JsonSerializer.Serialize(file, DossierNotesFile.JsonOptions));
+            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(file, DossierNotesFile.JsonOptions));
         }
         catch (Exception)
         {

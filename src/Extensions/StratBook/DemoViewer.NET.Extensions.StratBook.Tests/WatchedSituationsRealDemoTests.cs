@@ -1,11 +1,12 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -31,11 +32,11 @@ public class WatchedSituationsRealDemoTests
         {
             DemoCacheStore cache = new(null);
             RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-            facts.OnParsedOpportunistically(path, parsed);
-            using RoundIndexStore sidecars = new(null, cache);
+            facts.Evaluate(path, parsed);
+            RoundIndexStore sidecars = new(cache.Data());
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-            RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true);
-            using SituationIndex index = new(cache, sidecars, sources, evaluator: evaluator);
+            RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), sidecars, sources, () => true);
+            using SituationIndex index = new(cache.Library(), sidecars, sources, evaluator: evaluator);
             index.Load();
 
             // The run is only known once the demo is indexed, so the watch is saved against the
@@ -53,13 +54,13 @@ public class WatchedSituationsRealDemoTests
                 }
             }
 
-            using WatchedSituationsService service = new(root, index, cache, now: () => 1000);
+            using WatchedSituationsService service = new(Path.Combine(root, WatchedSituationsService.FileName), index, cache.Library(), now: () => 1000);
             WatchedSituation watch = service.Watch("", document.Map, tokens, SituationTolerance.Exact, SearchFilterValues.None);
             evaluator.RebuildAll();
             evaluator.Evaluate(path, parsed);
             await Assert.That(service.NewCountOf(watch.Id)).IsGreaterThanOrEqualTo(1);
 
-            using WatchedSituationsService restarted = new(root, index, cache, now: () => 1000);
+            using WatchedSituationsService restarted = new(Path.Combine(root, WatchedSituationsService.FileName), index, cache.Library(), now: () => 1000);
             await Assert.That(restarted.NewCountOf(watch.Id)).IsEqualTo(service.NewCountOf(watch.Id));
         }
         finally

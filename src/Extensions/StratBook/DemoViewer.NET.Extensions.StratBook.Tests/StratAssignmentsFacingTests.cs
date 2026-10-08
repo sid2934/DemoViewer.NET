@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using static DemoViewer.NET.AppTests.StratAssignmentsTests;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratTestData;
@@ -207,7 +207,7 @@ public class StratAssignmentsFacingTests
         StratDocument document = Watching(new StepWatch { Places = ["Ramp"] });
         TaskCompletionSource<IZonePlaceResolver?> zones = new();
         (StratStore _, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [], readOnly: true,
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped, readOnly: true,
             placesFor: _ => zones.Task, post: a => a());
 
         await Assert.That(YawAt(canvas.Tracks.Get("B")!, Two)).IsEqualTo(10f).Because("no centres until the zones load");

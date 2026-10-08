@@ -2,13 +2,14 @@
 
 using Avalonia.Input;
 using DemoViewer.NET.AppTests.Extensions.StratBook;
-using DemoViewer.NET.Modules.RoundTagger.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
-using DemoViewer.NET.Modules.RoundTagger.Palette;
-using DemoViewer.NET.Modules.RoundTagger.Timeline;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
+using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -26,12 +27,12 @@ public class TagLabelModeTests
 {
     private const string DemoPath = "/d/match.dem";
 
-    private static readonly List<CachedRound> _rounds =
+    private static readonly List<LibraryRound> _rounds =
     [
-        new() { Number = 1, StartTickFrameClock = 0 },
-        new() { Number = 2, StartTickFrameClock = 10_000 },
-        new() { Number = 3, StartTickFrameClock = 20_000 },
-        new() { Number = 4, StartTickFrameClock = 30_000 }
+        new LibraryRound(1, 0),
+        new LibraryRound(2, 10_000),
+        new LibraryRound(3, 20_000),
+        new LibraryRound(4, 30_000)
     ];
 
     private static readonly string[] OutcomeValues = ["won", "lost"];
@@ -44,7 +45,7 @@ public class TagLabelModeTests
 
     private static async Task<TagSession> Attached()
     {
-        TagSession session = new(null, _ => _rounds, () => false, () => Created)
+        TagSession session = new(null, _ => Task.FromResult<IReadOnlyList<LibraryRound>?>(_rounds), () => false, () => Created)
         {
             AutoSaveDelay = TimeSpan.FromHours(1)
         };
@@ -237,15 +238,15 @@ public class TagLabelModeTests
     public async Task TheLabelModeKeys_ArePaletteScoped_AndRebindable()
     {
         Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
-        await Assert.That(profile.TryResolveInScope(Playback2DBindingScope.WhenPaletteFocused, Key.L,
-            KeyModifiers.Control, out Playback2DAction mode)).IsTrue();
-        await Assert.That(mode).IsEqualTo(Playback2DAction.TagLabelMode);
+        await Assert.That(profile.TryResolveInScope(new Playback2DBindingScope(StratBookActions.PaletteScope), Key.L,
+            KeyModifiers.Control, out string? mode)).IsTrue();
+        await Assert.That(mode).IsEqualTo(StratBookActions.TagLabelMode);
         await Assert.That(profile.TryResolve(Key.L, KeyModifiers.Control, false, out _)).IsFalse()
             .Because("unfocused, the palette's chords are nobody's");
 
         using TagSession session = await Attached();
         using TagPaletteViewModel palette = Palette(session, () => 12_000);
-        palette.ApplyKeymap(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected));
+        palette.ApplyKeymap(PaletteKeymaps.From(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected)));
         await Assert.That(rejected).IsEmpty();
         await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsFalse();
         await Assert.That(Hit(palette, Key.L, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();
@@ -263,7 +264,7 @@ public class TagLabelModeTests
         session.Apply(new TagDelta.Add(early));
         session.Apply(new TagDelta.Add(apart));
         using TagTrack track = new(session, static action => action());
-        FakeTimelineData data = new(1_000);
+        SdkTimeline data = new(new FakeTimelineData(1_000));
 
         using (Assert.Multiple())
         {

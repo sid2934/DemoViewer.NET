@@ -7,10 +7,12 @@ using DemoViewer.NET.Modules.Abstractions;
 namespace DemoViewer.NET.Extensions;
 
 /// <summary>
-///     What a pack adds to the 2D Playback tab. A contribution is a pair, an entry point and the surface
-///     it opens (a band-menu entry and the pane its action shows), so the tab never has to know the
-///     pane's view model to show it. Attached once per tab view-model instance while the owning pack
-///     resolves on; detached when the pack goes off or the tab is disposed. After <see cref="Detach" />
+///     The 2D Playback tab's own contribution contract. Extensions do not implement it: an extension's
+///     <c>Sdk.Playback.IPlaybackContribution</c> reaches the tab through <c>SdkPlaybackContribution</c>, which
+///     implements this and runs every call under the extension's guard. A contribution is a pair, an entry
+///     point and the surface it opens (a band-menu entry and the pane its action shows), so the tab never has
+///     to know the pane's view model to show it. Attached once per tab view-model instance while the owning
+///     pack resolves on; detached when the pack goes off or the tab is disposed. After <see cref="Detach" />
 ///     nothing the contribution added may remain on the surface.
 /// </summary>
 public interface IPlaybackContribution

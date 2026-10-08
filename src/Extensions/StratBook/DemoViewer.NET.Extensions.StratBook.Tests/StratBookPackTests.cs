@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.AppTests.Extensions;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.StratBook.Modules;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Extensions.StratBook;
@@ -11,7 +12,7 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -46,10 +47,27 @@ public class StratBookPackTests
         // The extension updater, registered when a config root exists to stage into.
         "DemoViewer.NET.Extensions.Updates.ExtensionUpdateService",
         "DemoViewer.NET.Features.IFeatureGate",
-        "DemoViewer.NET.Extensions.IPackLifecycle",
+        // The process's extension fault tracker, which the gate takes.
+        "DemoViewer.NET.Extensions.ExtensionFaults",
+        "DemoViewer.NET.Extensions.Sdk.IExtensionLifecycle",
+        // The export seam the pack renders Pack Export and strat exports through.
+        "DemoViewer.NET.Extensions.FirstPartyExports",
+        // Where the user's own work already lives, one member per store, and the read-only zones overlay.
+        "DemoViewer.NET.Extensions.FirstPartyHost",
+        // The extension host: the job-kind registry, the shell hub, the first-party shell state and export
+        // chips it serves, the notification center, and the pack's own context.
+        "DemoViewer.NET.Extensions.JobKindRegistry",
+        "DemoViewer.NET.Extensions.ExtensionShellHub",
+        "DemoViewer.NET.Extensions.IFirstPartyShellState",
+        "DemoViewer.NET.Extensions.IFirstPartyExportChips",
+        "DemoViewer.NET.Extensions.NotificationCenter",
+        "DemoViewer.NET.Extensions.Sdk.IExtensionContext",
+        "DemoViewer.NET.Extensions.Sdk.IExtensionContextAccess",
         // Every pack's Contribute collected once, read by the module registry and MergedRulesBuild.
         "DemoViewer.NET.Extensions.PackContributionSet",
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
+        "DemoViewer.NET.Extensions.StratBook.StratBookSettings",
+        "DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeStore",
         "DemoViewer.NET.Theming.ThemeRegistry",
         "DemoViewer.NET.Services.IWindowService",
         "System.Func`1[DemoViewer.NET.ViewModels.Settings.SettingsViewModel]",
@@ -64,58 +82,60 @@ public class StratBookPackTests
         "DemoViewer.NET.ViewModels.Highlights.HighlightsTabViewModel",
         "DemoViewer.NET.ViewModels.Highlights.HighlightScanStatusViewModel",
         "DemoViewer.NET.Modules.Highlights.HighlightScanService",
-        "DemoViewer.NET.Services.RoundFacts.RulesRoundFactsRulesetIdentity",
-        "DemoViewer.NET.Services.RoundFacts.IRoundFactsRulesetIdentity",
-        "DemoViewer.NET.Services.RoundFacts.IRoundFactsRowSource",
-        "DemoViewer.NET.Services.RoundFacts.RoundFactsEvaluator",
-        "DemoViewer.NET.Services.RoundFacts.IRoundFactsSource",
-        "DemoViewer.NET.Services.RoundIndex.IZonePlaceResolverSource",
-        "DemoViewer.NET.Services.RoundIndex.RoundIndexPlaceSources",
-        "DemoViewer.NET.Services.RoundIndex.RoundIndexStore",
-        "DemoViewer.NET.Services.RoundIndex.RoundIndexEvaluator",
-        "DemoViewer.NET.Services.RoundIndex.SituationIndex",
-        "DemoViewer.NET.Services.RoundIndex.ISituationIndex",
-        "DemoViewer.NET.Modules.Situations.ISituationPlayback",
-        "DemoViewer.NET.ViewModels.Situations.SituationsTabViewModel",
+        "DemoViewer.NET.Services.Facts.RulesRoundFactsRulesetIdentity",
+        "DemoViewer.NET.Services.Facts.IRoundFactsRulesetIdentity",
+        "DemoViewer.NET.Services.Facts.IRoundFactsRowSource",
+        "DemoViewer.NET.Services.Facts.RoundFactsEvaluator",
+        "DemoViewer.NET.Services.Facts.IRoundFactsSource",
+        "DemoViewer.NET.Services.Facts.StampedFacts",
+        "DemoViewer.NET.Services.Facts.FactsEvaluator",
+        "DemoViewer.NET.Services.Facts.AnalysisFacts",
+        "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.IZonePlaceResolverSource",
+        "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexPlaceSources",
+        "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexStore",
+        "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator",
+        "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.SituationIndex",
+        "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.ISituationIndex",
+        "DemoViewer.NET.Extensions.StratBook.Modules.Situations.ISituationPlayback",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.Situations.SituationsTabViewModel",
         "DemoViewer.NET.Services.Review.ReviewQueue",
-        "DemoViewer.NET.ViewModels.Review.ReviewQueueTabViewModel",
-        "DemoViewer.NET.Modules.SuggestedTags.SuggestedInboxService",
-        "DemoViewer.NET.ViewModels.SuggestedTags.SuggestedInboxViewModel",
-        "DemoViewer.NET.Modules.Situations.WatchedSituationsService",
-        "DemoViewer.NET.Services.Tags.TagStore",
-        "DemoViewer.NET.Services.Tags.TagFactsRefresher",
-        "DemoViewer.NET.ViewModels.RoundTagger.TagMatrixTabViewModel",
-        "DemoViewer.NET.Modules.SuggestedTags.ProposalStore",
-        "DemoViewer.NET.Modules.SuggestedTags.SiteRegionStore",
-        "DemoViewer.NET.Modules.SuggestedTags.ProfileStore",
-        "DemoViewer.NET.Modules.SuggestedTags.SuggestedTagsService",
-        "DemoViewer.NET.Modules.SuggestedTags.SuggestedTagsTuningService",
-        "DemoViewer.NET.Services.Tags.TagPaletteStore",
-        "DemoViewer.NET.Services.Teams.TeamIdentityService",
-        "DemoViewer.NET.Services.Provenance.DemoProvenanceSource",
-        "DemoViewer.NET.Services.Provenance.IDemoProvenanceSource",
-        "DemoViewer.NET.ViewModels.Teams.TeamsTabViewModel",
-        "DemoViewer.NET.Services.Strats.StratStore",
-        "DemoViewer.NET.Modules.IStratCapture | Transient",
-        "DemoViewer.NET.Modules.StratBook.IStratExport | Transient",
-        "DemoViewer.NET.Services.Strats.CalloutResolverSource",
-        "DemoViewer.NET.Services.Strats.StratEvidenceService",
-        "DemoViewer.NET.Services.Strats.Mining.StratMiningService",
-        "DemoViewer.NET.ViewModels.StratBook.StratBookLayout",
-        "DemoViewer.NET.ViewModels.StratBook.StratBookTabViewModel",
-        "DemoViewer.NET.Modules.Situations.ISituationResultWalk",
-        "DemoViewer.NET.Modules.Situations.IFindRoundsLikeThis",
-        "DemoViewer.NET.Modules.UtilityBook.GrenadeIndexEvaluator",
-        "DemoViewer.NET.Modules.UtilityBook.GrenadeIndex",
-        "DemoViewer.NET.ViewModels.UtilityBook.UtilityBookTabViewModel",
-        "DemoViewer.NET.Services.Teams.VetoHistoryStore",
-        "DemoViewer.NET.Services.Teams.DossierNotesStore",
-        "DemoViewer.NET.ViewModels.Dossier.DossierTabViewModel",
-        "DemoViewer.NET.Modules.UtilityBook.LineupClipService",
-        "DemoViewer.NET.Services.DemoProcessing.DemoEvaluationCoordinator",
-        // The Strat Book export chip's mount point, shared by the StatusChip
-        // contribution and the IStratExport factory's mount callback.
-        "DemoViewer.NET.Extensions.StratBook.StratBookExportChipSlot",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.Review.ReviewQueueTabViewModel",
+        "DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedInboxService",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags.SuggestedInboxViewModel",
+        "DemoViewer.NET.Extensions.StratBook.Modules.Situations.WatchedSituationsService",
+        "DemoViewer.NET.Extensions.StratBook.Services.Tags.TagStore",
+        "DemoViewer.NET.Extensions.StratBook.Services.Tags.TagFactsRefresher",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger.TagMatrixTabViewModel",
+        "DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.ProposalStore",
+        "DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SiteRegionStore",
+        "DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.ProfileStore",
+        "DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService",
+        "DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsTuningService",
+        "DemoViewer.NET.Extensions.StratBook.Services.Tags.TagPaletteStore",
+        "DemoViewer.NET.Extensions.StratBook.Services.Teams.TeamIdentityService",
+        "DemoViewer.NET.Extensions.StratBook.Services.Provenance.DemoProvenanceSource",
+        "DemoViewer.NET.Extensions.StratBook.Services.Provenance.IDemoProvenanceSource",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.Teams.TeamsTabViewModel",
+        "DemoViewer.NET.Extensions.StratBook.Services.Strats.StratStore",
+        "DemoViewer.NET.Extensions.StratBook.Modules.IStratCapture | Transient",
+        "DemoViewer.NET.Extensions.StratBook.Modules.StratBook.IStratExport | Transient",
+        "DemoViewer.NET.Extensions.StratBook.Services.Strats.CalloutResolverSource",
+        "DemoViewer.NET.Extensions.StratBook.Services.Strats.StratEvidenceService",
+        "DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining.StratMiningService",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookLayout",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook.StratBookTabViewModel",
+        "DemoViewer.NET.Extensions.StratBook.Modules.Situations.ISituationResultWalk",
+        "DemoViewer.NET.Extensions.StratBook.Modules.Situations.IFindRoundsLikeThis",
+        "DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator",
+        "DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndex",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook.UtilityBookTabViewModel",
+        "DemoViewer.NET.Extensions.StratBook.Services.Teams.VetoHistoryStore",
+        "DemoViewer.NET.Extensions.StratBook.Services.Teams.DossierNotesStore",
+        "DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier.DossierTabViewModel",
+        "DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.LineupClipService",
+        "DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.LineupClipPass",
+        "DemoViewer.NET.Services.DemoProcessing.DemoScheduler",
+        "DemoViewer.NET.Services.DemoProcessing.RecordPassRunner",
         "DemoViewer.NET.Extensions.PackSwitch",
         "DemoViewer.NET.Services.RecentFilesStore",
         "DemoViewer.NET.Modules.ModuleRegistry",
@@ -174,10 +194,10 @@ public class StratBookPackTests
         });
     }
 
-    // The two desktop-only settings pages, the one status-chip slot and the one re-index estimate,
-    // every one stamped with the pack's own feature id by the collector.
+    // The two desktop-only settings pages and the one re-index estimate, every one stamped with the pack's
+    // own feature id by the collector. The export chip is the host's, mounted on the first Export.
     [Test]
-    public async Task ThePack_ContributesTheSettingsPagesTheStatusChipAndTheReindexEstimate()
+    public async Task ThePack_ContributesTheSettingsPagesAndTheReindexEstimate_AndNoChip()
     {
         await WithProvider(null, async provider =>
         {
@@ -190,13 +210,10 @@ public class StratBookPackTests
                     TUnit.Assertions.Enums.CollectionOrdering.Matching);
                 await Assert.That(pack.SettingsPages.All(p => p.FeatureId == StratBookPack.PackFeatureId)).IsTrue();
 
-                StatusChipContribution chip = pack.StatusChips.Single();
-                await Assert.That(chip.Id).IsEqualTo("stratbook.export");
-                await Assert.That(chip.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
-                await Assert.That(chip.Source).IsTypeOf<StratBookExportChipSlot>();
+                await Assert.That(pack.StatusChips).IsEmpty();
 
-                IPackReindexEstimate estimate = pack.ReindexEstimates.Single();
-                await Assert.That(estimate.PackFeatureId).IsEqualTo(StratBookPack.PackFeatureId);
+                IReindexEstimate estimate = pack.ReindexEstimates.Single();
+                await Assert.That(estimate.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
             }
         });
     }
@@ -220,12 +237,16 @@ public class StratBookPackTests
         });
     }
 
-    // The round_facts ruleset is the pack's. With the pack on the merged set is the whole read
-    // (the forward pass is byte-identical to before the pack); off, the ruleset alone leaves it.
+    // round_facts is core and always on: the pack claims no ruleset, so its state moves neither the merged
+    // set nor the core set, and the rows it reads are written with the pack on or off. Its Round Index
+    // still orders after the core Round Facts pass, which writes those rows on the same visit.
     [Test]
-    public async Task ThePack_ClaimsTheRoundFactsRuleset_WhichLeavesTheMergedSetOnlyWhenOff()
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task ThePack_ClaimsNoRuleset_AndRoundFactsRunsWithThePackOnOrOff(bool packOn)
     {
-        await WithProvider(null, async provider =>
+        string? settings = packOn ? null : """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
+        await WithProvider(settings, async provider =>
         {
             PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
             Modules.Highlights.MergedRulesBuild build = provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>();
@@ -239,23 +260,16 @@ public class StratBookPackTests
             using (Assert.Multiple())
             {
                 await Assert.That(pack.Pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
-                await Assert.That(pack.Rulesets.Select(r => r.RulesetId)).IsEquivalentTo(["round_facts"]);
-                await Assert.That(build.PackRulesets.Select(r => r.RulesetId)).IsEquivalentTo(["round_facts"]);
+                await Assert.That(build.StampedRulesets.Select(r => (r.RulesetId, r.Owner)))
+                    .IsEquivalentTo([("round_facts", Modules.Highlights.StampedRuleset.CoreOwner)]);
                 await Assert.That(read).Contains("round_facts");
                 await Assert.That(string.Join(",", build.Docs.Select(d => d.Id))).IsEqualTo(read)
-                    .Because("pack on: the merged set is the whole read, in read order");
-            }
-        });
-
-        const string packOff = """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
-        await WithProvider(packOff, async provider =>
-        {
-            Modules.Highlights.MergedRulesBuild build = provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>();
-            using (Assert.Multiple())
-            {
-                await Assert.That(build.Docs.Select(d => d.Id)).DoesNotContain("round_facts");
+                    .Because("the merged set is the whole read, in read order, whatever the pack says");
                 await Assert.That(build.CoreDocs.Select(d => d.Id)).DoesNotContain("round_facts");
-                await Assert.That(build.EnabledDoc("round_facts")).IsNull();
+                await Assert.That(build.EnabledDoc("round_facts")).IsNotNull();
+                await Assert.That(pack.Passes.Single(p => p.Id == "roundindex").After).IsEquivalentTo([DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass]);
+                await Assert.That(pack.Passes.Select(p => p.Id)).DoesNotContain(DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass)
+                    .Because("Delete extension data strips the pack's own pass stamps, never the core Round Facts one");
             }
         });
     }
@@ -314,46 +328,23 @@ public class StratBookPackTests
                 }
             }
 
-            string[] packTabIds = [.. new StratBookPack().Features.Where(f => f.Scope == FeatureScope.Tab).Select(f => f.Id)];
+            string[] packTabIds = [.. new StratBookPack().Features.Where(f => f.Kind == ExtensionFeatureKind.Tab).Select(f => f.Id)];
             await Assert.That(declaredIds).IsEquivalentTo(packTabIds)
                 .Because("every tab id the pack registers must be declared by exactly one module, and vice versa");
         });
     }
 
-    // The pack contributes its job kinds through Contribute(...), and BuildRegistry checks that
-    // list against the DI-free JobKinds property (the one JobKindRegistry.Build(packs) reads). If either
-    // channel drifted, composing the provider here would throw before this test's own assertions run.
     [Test]
-    public async Task ThePack_ContributesTheSameJobKinds_ItsJobKindsPropertyDeclares()
+    public async Task ThePack_JobKinds_AreTheSixStratBookKinds_UnderTheExtensionsPrefix()
     {
-        await WithProvider(null, async provider =>
-        {
-            PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
-            await Assert.That(pack.JobKinds).IsEquivalentTo(new StratBookPack().JobKinds,
-                TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        });
-    }
+        ExtensionJobKind[] kinds = [.. new StratBookPack().JobKinds];
 
-    [Test]
-    public async Task ThePack_JobKinds_MatchTheFiveStratBookKinds_WithOwnersAmongTheLifecycleTags()
-    {
-        JobKindDescriptor[] kinds = [.. new StratBookPack().JobKinds];
-
-        await Assert.That(kinds.Select(k => k.Kind)).IsEquivalentTo(
+        await Assert.That(kinds.Select(k => k.Id)).IsEquivalentTo(
         [
-            QueueJobKind.StratMining, QueueJobKind.StratPreview, QueueJobKind.LineupClips,
-            QueueJobKind.SuggestionsInbox, QueueJobKind.TeamsCommand
+            StratBookJobKinds.Mining, StratBookJobKinds.Preview, StratBookJobKinds.LineupClips,
+            StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams, StratBookJobKinds.Tuning
         ]);
-
-        using (Assert.Multiple())
-        {
-            foreach (JobKindDescriptor kind in kinds)
-            {
-                await Assert.That(kind.Owner).IsNotNull().Because($"{kind.Kind} must carry an owner tag");
-                await Assert.That(StratBookLifecycle.OwnerTags).Contains(kind.Owner!)
-                    .Because($"{kind.Kind}'s owner '{kind.Owner}' must be one of the CancelOwned tags");
-            }
-        }
+        await Assert.That(kinds.All(k => k.Id.StartsWith("stratbook.", StringComparison.Ordinal))).IsTrue();
     }
 
     [Test]
@@ -457,7 +448,7 @@ public class StratBookPackTests
             MainViewModel vm = provider.GetRequiredService<MainViewModel>();
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(StratBookHubViewModel.TabId)
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).DoesNotContain(HostIds.StratBookHub)
                     .Because("a rail with nothing on it has no tab");
                 await Assert.That(vm.StratBookHub().Sections.Sections).IsEmpty();
                 await Assert.That(vm.LibraryTab.HasTeamsView).IsFalse();
@@ -474,7 +465,7 @@ public class StratBookPackTests
             MainViewModel vm = provider.GetRequiredService<MainViewModel>();
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(StratBookHubViewModel.TabId);
+                await Assert.That(vm.Tabs.Select(t => t.TabId)).Contains(HostIds.StratBookHub);
                 await Assert.That(vm.StratBookHub().Sections.Sections.Count).IsEqualTo(7);
                 await Assert.That(vm.LibraryTab.HasTeamsView).IsTrue();
                 await Assert.That(vm.LibraryTab.Filters).IsNotEmpty();
@@ -491,34 +482,35 @@ public class StratBookPackTests
 
     private static readonly string[] _railHeaders = ["Strats", "Situations", "Tags", "Utility", "Review", "Dossier", "Suggested"];
 
-    // The hub is a contribution now, and the rail must read exactly as it did when the shell built it.
+    // The hub is a declaration the host draws, and the rail must read exactly as it did when the pack drew it.
     // The rail's entries are the modules' own descriptors, so the badge a module moves is the badge the rail shows.
     [Test]
-    public async Task TheHub_IsThePacksHostTab_AndTheRailKeepsItsSevenSectionsInOrder()
+    public async Task TheHub_IsThePacksHubTab_AndTheRailKeepsItsSevenSectionsInOrder()
     {
         await WithProvider(null, async provider =>
         {
             PackContributions pack = provider.GetRequiredService<PackContributionSet>().Packs.Single();
             MainViewModel vm = provider.GetRequiredService<MainViewModel>();
-            HostTabContribution host = pack.HostTabs.Single();
+            ContributedHub host = pack.HubTabs.Single();
             IReadOnlyList<WorkspaceTabDescriptor> rail = vm.StratBookHub().Sections.Sections;
-            WorkspaceTabDescriptor hubTab = vm.Tabs.Single(t => t.TabId == StratBookHubViewModel.TabId);
+            WorkspaceTabDescriptor hubTab = vm.Tabs.Single(t => t.TabId == HostIds.StratBookHub);
 
             using (Assert.Multiple())
             {
-                await Assert.That(host.HostId).IsEqualTo(StratBookHubViewModel.HostId);
+                await Assert.That(host.Id).IsEqualTo(HostIds.StratBookHub);
+                await Assert.That(host.PackId).IsEqualTo(StratBookPack.PackId);
                 await Assert.That(host.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
                 await Assert.That(host.RailLabel).IsEqualTo("STRAT BOOK");
                 await Assert.That(vm.StratBookHub().RailLabel).IsEqualTo("STRAT BOOK")
-                    .Because("the shell hands the contribution's label to the VM the view binds");
+                    .Because("the host's hub VM carries the declaration's label");
                 await Assert.That(hubTab.Header).IsEqualTo("Strat Book");
                 await Assert.That(hubTab.Order).IsEqualTo(4).Because("after 2D Playback, before Authoring");
                 await Assert.That(hubTab.FeatureId).IsEqualTo(StratBookPack.PackFeatureId);
                 await Assert.That(hubTab.ViewModelFactory!()).IsSameReferenceAs(vm.StratBookHub())
-                    .Because("the strip tab's VM is the one the contribution built, not a second hub");
+                    .Because("the strip tab's VM is the host's one hub VM, not a second hub");
                 await Assert.That(rail.Select(s => s.TabId)).IsEquivalentTo(_railOrder, TUnit.Assertions.Enums.CollectionOrdering.Matching);
                 await Assert.That(rail.Select(s => s.Header)).IsEquivalentTo(_railHeaders, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-                await Assert.That(rail.All(s => s.HostId == StratBookHubViewModel.HostId)).IsTrue()
+                await Assert.That(rail.All(s => s.HostId == HostIds.StratBookHub)).IsTrue()
                     .Because("every rail entry is a pack module's own descriptor, so the badge a module moves is the badge the rail shows");
             }
         });
@@ -540,13 +532,13 @@ public class StratBookPackTests
     public async Task ThePack_Manifest_NamesItself_AndIsCompatibleWithThisBuild()
     {
         StratBookPack pack = new();
+        ExtensionManifest manifest = ExtensionManifests.Of(pack);
         using (Assert.Multiple())
         {
-            await Assert.That(pack.Manifest).IsNotNull();
-            await Assert.That(pack.Manifest.Id).IsEqualTo(StratBookPack.PackId);
+            await Assert.That(manifest.Id).IsEqualTo(StratBookPack.PackId);
             // Stamped from src/Extensions/StratBook/version.json at build; the 0.x line until the first major.
-            await Assert.That(pack.Manifest.Version.Major).IsEqualTo(0);
-            await Assert.That(pack.Manifest.EntryType).IsEqualTo(typeof(StratBookPack).FullName);
+            await Assert.That(manifest.Version.Major).IsEqualTo(0);
+            await Assert.That(manifest.EntryType).IsEqualTo(typeof(StratBookPack).FullName);
             await Assert.That(PackStatus.Evaluate(pack, ExtensionHost.Current).IsCompatible).IsTrue();
         }
     }
@@ -556,7 +548,7 @@ public class StratBookPackTests
     {
         StratBookPack pack = new();
         await Assert.That(pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
-        await Assert.That(pack.Id).IsNotEqualTo(new Modules.StratBook.StratBookModule(() => null!).Id)
+        await Assert.That(pack.Id).IsNotEqualTo(new DemoViewer.NET.Extensions.StratBook.Modules.StratBook.StratBookModule(() => null!).Id)
             .Because("the pack and its Strats module are different persisted keys");
     }
 
@@ -572,30 +564,12 @@ public class StratBookPackTests
         await Assert.That(Message(() => FeatureCatalog.Build([wrongScope]))).Contains("exactly one Pack-scope descriptor");
     }
 
+    // An SDK feature has no Required flag and no group, so neither core rule can be broken from an extension.
     [Test]
-    public async Task Build_RefusesRequired_OnAPackRow_OrOnATabUnderAPack()
+    public async Task Build_ComposesTheShippedPack_WithoutMovingTheCoreGroupLeaders()
     {
-        FakePack requiredPack = new("pack.req", [Pack("pack.req") with { Required = true }]);
-        FakePack requiredTab = new("pack.reqtab", [Pack("pack.reqtab"), Tab("tab.reqtab", "pack.reqtab") with { Required = true }]);
-        // Owned via OwnerPackId alone: parented to a CORE tab (tab.library), not to the pack directly, the
-        // playback2d.tagger shape.
-        FakePack requiredSubFeatureUnderCoreTab = new("pack.reqsub",
-            [Pack("pack.reqsub"), SubFeature("sub.reqsub", "tab.library") with { Required = true }]);
-
-        await Assert.That(Message(() => FeatureCatalog.Build([requiredPack]))).Contains("may not be Required");
-        await Assert.That(Message(() => FeatureCatalog.Build([requiredTab]))).Contains("may not be Required");
-        await Assert.That(Message(() => FeatureCatalog.Build([requiredSubFeatureUnderCoreTab]))).Contains("may not be Required");
-    }
-
-    [Test]
-    public async Task Build_RefusesAPackRow_InACoreGroup()
-    {
-        FakePack grouped = new("pack.grp",
-            [Pack("pack.grp"), Tab("tab.grp", "pack.grp") with { GroupId = FeatureCatalog.GroupParserDeepDive }]);
-
-        await Assert.That(Message(() => FeatureCatalog.Build([grouped]))).Contains("may not join core group");
-        // The shipped pack passes every rule, and its rows keep the core leaders where they are.
         await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Count(d => d.Scope == FeatureScope.Pack)).IsEqualTo(1);
+        await Assert.That(FeatureCatalog.Build(FeaturePacks.Default).Where(d => d.OwnerPackId is not null).All(d => !d.Required)).IsTrue();
         await Assert.That(FeatureCatalog.GroupLeader(FeatureCatalog.GroupParserDeepDive)!.Id).IsEqualTo("parser.hex");
     }
 
@@ -604,7 +578,7 @@ public class StratBookPackTests
     {
         FakePack tabUnderTab = new("pack.tt", [Pack("pack.tt"), Tab("tab.tt", "tab.library")]);
         FakePack subUnderPack = new("pack.sp",
-            [Pack("pack.sp"), Tab("tab.sp", "pack.sp") with { Id = "sub.sp", Scope = FeatureScope.SubFeature }]);
+            [Pack("pack.sp"), Tab("tab.sp", "pack.sp") with { Id = "sub.sp", Kind = ExtensionFeatureKind.SubFeature }]);
         FakePack unknownParent = new("pack.up", [Pack("pack.up"), Tab("tab.up", "pack.missing")]);
 
         await Assert.That(Message(() => FeatureCatalog.Build([tabUnderTab]))).Contains("may not have 'tab.library'");
@@ -699,14 +673,11 @@ public class StratBookPackTests
     private static string Message(Func<object> build) =>
         Assert.Throws<InvalidOperationException>(() => build()).Message;
 
-    private static FeatureDescriptor Pack(string id) =>
-        new(id, FeatureScope.Pack, id, id, null, null, false, FeatureCatalog.Defaults(true, true, true));
+    private static ExtensionFeature Pack(string id) =>
+        new(id, ExtensionFeatureKind.Extension, id, id, null, AudienceDefaults.Everyone);
 
-    private static FeatureDescriptor Tab(string id, string? parent) =>
-        new(id, FeatureScope.Tab, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
-
-    private static FeatureDescriptor SubFeature(string id, string? parent) =>
-        new(id, FeatureScope.SubFeature, id, id, parent, null, false, FeatureCatalog.Defaults(true, true, true));
+    private static ExtensionFeature Tab(string id, string? parent) =>
+        new(id, ExtensionFeatureKind.Tab, id, id, parent, AudienceDefaults.Everyone);
 
     // CreateTabs never reads Context or logs; this is only here to satisfy the parameter.
     private sealed class FakeHost : IModuleHost
@@ -719,18 +690,18 @@ public class StratBookPackTests
         }
     }
 
-    private sealed class FakePack(string featureId, FeatureDescriptor[] features) : IFeaturePack
+    private sealed class FakePack(string featureId, ExtensionFeature[] features) : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.test." + featureId;
         public string FeatureId => featureId;
         public ExtensionManifest Manifest => FakeManifests.For(Id);
-        public IEnumerable<FeatureDescriptor> Features => features;
+        public IEnumerable<ExtensionFeature> Features => features;
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }

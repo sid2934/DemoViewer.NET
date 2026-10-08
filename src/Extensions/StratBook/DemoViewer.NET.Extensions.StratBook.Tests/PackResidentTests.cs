@@ -2,12 +2,12 @@
 
 using System.Numerics;
 using DemoViewer.NET.Extensions;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -15,7 +15,7 @@ using static DemoViewer.NET.AppTests.RoundIndexTestData;
 namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 
 /// <summary>
-///     <see cref="IPackResident" /> on each resident, outside any container: Release empties and
+///     <see cref="IExtensionResident" /> on each resident, outside any container: Release empties and
 ///     unsubscribes, a source change after it changes nothing, Attach plus the load bring the state back, and
 ///     both calls are idempotent.
 /// </summary>
@@ -25,10 +25,10 @@ public class PackResidentTests
     public async Task SituationIndex_ReleaseEmptiesAndUnsubscribes_LoadBringsItBack()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, sidecars, sources, () => true, walk: _ => []);
-        using SituationIndex index = new(cache, sidecars, sources, evaluator: evaluator);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), sidecars, sources, () => true, walk: _ => []);
+        using SituationIndex index = new(cache.Library(), sidecars, sources, evaluator: evaluator);
         Indexed(cache, sidecars, "/d/a.dem", Document("de_nuke", sources.FingerprintFor("de_nuke"),
             (1, 1000, 1200, [new RoundIndexRun(0, 1, "BombsiteA:5", "Ramp:5")])));
         Indexed(cache, sidecars, "/d/b.dem", Document("de_nuke", sources.FingerprintFor("de_nuke"),
@@ -75,7 +75,7 @@ public class PackResidentTests
         {
             DemoCacheStore cache = new(null);
             IndexOneGrenade(cache, "/d/a.dem", "de_dust2");
-            using GrenadeIndex grenades = new(cache, lineups: new GrenadeLineupStore(root), scheduleSave: _ => Task.CompletedTask);
+            using GrenadeIndex grenades = new(cache.Library(), lineups: new GrenadeLineupStore(root), scheduleSave: _ => Task.CompletedTask);
             grenades.Load();
             _ = grenades.Query(new GrenadeQuery("de_dust2")); // mints an anchor: the lineup store is dirty
             Task loaded = grenades.WhenLoaded;
@@ -119,7 +119,7 @@ public class PackResidentTests
         {
             DemoCacheStore cache = new(null);
             int scheduled = 0;
-            using TeamIdentityService teams = new(root, cache, run: work =>
+            using TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), run: work =>
             {
                 work();
                 return Task.CompletedTask;
@@ -181,7 +181,7 @@ public class PackResidentTests
             };
 
             // An attached service writes the user's file, then goes away.
-            using (TeamIdentityService writer = new(root, cache, run: inline, scheduleLoad: inline))
+            using (TeamIdentityService writer = new(TestFiles.Teams(root), cache.Library(), run: inline, scheduleLoad: inline))
             {
                 writer.SetSquad(["76561198000000001", "76561198000000002"], "us");
             }
@@ -194,7 +194,7 @@ public class PackResidentTests
             // Detached from the start, the way the shell builds it before the wizard has asked. A read that
             // reaches it anyway (a mutator's own Ensure stands in for a stale queued "Load: teams" here)
             // reads nothing, and what the mutator then computes over nothing reaches no file.
-            using TeamIdentityService teams = new(root, cache, run: inline, scheduleLoad: inline, loadAtStart: false);
+            using TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), run: inline, scheduleLoad: inline, loadAtStart: false);
             teams.SetSquad(["76561198000000009", "76561198000000010"], "not us");
             using (Assert.Multiple())
             {
@@ -221,13 +221,13 @@ public class PackResidentTests
     public async Task WatchedSituations_ReleaseDropsTheNewHits_AndStopsFollowingTheIndex_AttachReevaluates()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
         Indexed(cache, sidecars, "/d/a.dem", Document("de_nuke", sources.FingerprintFor("de_nuke"),
             (1, 1000, 1200, [new RoundIndexRun(0, 1, "BombsiteA:5", "Ramp:5")])), computedAt: 100);
         index.Load();
-        using WatchedSituationsService watched = new(null, index, cache, now: () => 50);
+        using WatchedSituationsService watched = new(null, index, cache.Library(), now: () => 50);
         watched.Watch("A hold", "de_nuke", [.. Enumerable.Range(0, 5).Select(i => new QueryToken(QuerySide.Ct, i, 600 + i, -400, -416, "BombsiteA"))],
             SituationTolerance.Exact, SearchFilterValues.None);
         index.Load(); // the index's Changed is what makes a watch count
@@ -257,7 +257,7 @@ public class PackResidentTests
             DemoCacheStore cache = new(null);
             IndexOneGrenade(cache, "/d/a.dem", "de_dust2");
             IndexOneGrenade(cache, "/d/b.dem", "de_dust2");
-            using GrenadeIndex grenades = new(cache, lineups: new GrenadeLineupStore(null), scheduleSave: _ => Task.CompletedTask);
+            using GrenadeIndex grenades = new(cache.Library(), lineups: new GrenadeLineupStore(null), scheduleSave: _ => Task.CompletedTask);
             grenades.Load();
             using LineupClipService clips = new(() => [.. grenades.Maps().SelectMany(m => grenades.Query(new GrenadeQuery(m)))], root,
                 () => true, new NoRenderer(), fileExists: _ => false, planDebounce: TimeSpan.Zero);
@@ -301,14 +301,14 @@ public class PackResidentTests
             Demo = new GrenadeDemoHeader { Sha256 = null, StableKey = DemoCacheStore.StableKey(path) },
             Grenades = [row]
         };
-        cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-        record.StampGrenades(document.Grenades.Count);
         cache.Upsert(record);
+        cache.WriteGrenades(path, document);
     }
 
     private sealed class NoRenderer : ILineupClipRenderer
     {
-        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, IReadOnlyList<LineupClipJob> jobs, CancellationToken ct) =>
+        public Task<IReadOnlyList<LineupClipJob>> RenderAsync(string demoPath, CS2DemoKit.Parser.ParsedDemo? demo, IReadOnlyList<LineupClipJob> jobs,
+            CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<LineupClipJob>>([]);
     }
 }

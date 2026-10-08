@@ -4,15 +4,16 @@ using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Features;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 
@@ -330,7 +331,7 @@ public class StratRoutingTests
         StratDocument document = ExecuteB(map);
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         bool routing = false;
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(map), post: a => a(), routing: () => routing);
 
         StratSceneProjection off = canvas.Projection!;
@@ -357,9 +358,8 @@ public class StratRoutingTests
         }
     }
 
-    // With no explicit routing func, the canvas falls back to an injected gate (constructor
-    // lookup, not App.Services) and reprojects when it fires Changed, the same way the old
-    // App.Services-backed fallback did.
+    // With no explicit routing func, the canvas falls back to the injected feature switches and
+    // reprojects when they fire Changed.
     [Test]
     public async Task AnInjectedGate_DrivesRoutingReactively_WithNoExplicitRoutingFunc()
     {
@@ -367,7 +367,7 @@ public class StratRoutingTests
         StratDocument document = ExecuteB(map);
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
         FakeFeatureGate gate = new();
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(map), post: a => a(),
             lookups: new StratCanvasServices(gate, null, null));
 
@@ -386,7 +386,7 @@ public class StratRoutingTests
         ZonePlaceResolverAdapter map = Map(Dust2);
         StratDocument document = Sent("de_dust2", "TSpawn", "move", "LongDoors", -99968, map);
         (StratStore _, StratSession session) = StratCanvasTestData.Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(map), post: a => a(), routing: () => true);
         TokenTrack a = canvas.Projection!.Tracks.Single(t => t.Slot == "A");
         int arrive = a.Keyframes[^1].Tick;
@@ -553,13 +553,11 @@ public class StratRoutingTests
     }
 
     // Ignores featureId: the canvas asks for one id, and the test only needs one on/off switch.
-    private sealed class FakeFeatureGate : IFeatureGate
+    private sealed class FakeFeatureGate : IExtensionFeatures
     {
         public bool Enabled { get; set; }
-        public UserCategory Category => UserCategory.Developer;
-        public int HiddenCount => 0;
         public bool IsEnabled(string featureId) => Enabled;
-        public event EventHandler? Changed;
-        public void Raise() => Changed?.Invoke(this, EventArgs.Empty);
+        public event Action? Changed;
+        public void Raise() => Changed?.Invoke();
     }
 }

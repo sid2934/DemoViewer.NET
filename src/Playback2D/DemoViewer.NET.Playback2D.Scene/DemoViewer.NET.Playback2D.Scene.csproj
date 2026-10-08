@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+      The scene contract of the 2D map: the frame, the layer interface and compositor, floors and panes,
+      places, the viewport transform, cameras and the palette, plus the annotation, timeline, tool and HUD
+      contracts, the query, overlay and utility layers an extension draws with, the zone loaders and the demo
+      content key. SkiaSharp and the BCL only, enforced by ArchitectureTests, which also pins its public types
+      to an allow-list.
+      The types keep the namespaces they had in Core and Pipeline; the app's own layers, the drawing tools,
+      export, keyframes and rendering backends stay in DemoViewer.NET.Playback2D.Core, which is not published.
+    -->
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <RootNamespace>DemoViewer.NET.Playback2D.Core</RootNamespace>
+        <!-- Published with the extension SDK at the SDK's version: the SDK's version.json path filters
+             include this project. Its public API is pinned by the PublicAPI files. -->
+        <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
+        <IsPackable>true</IsPackable>
+        <PackageId>DemoViewer.NET.Playback2D.Scene</PackageId>
+        <Description>The 2D map scene of DemoViewer.NET: the frame, the layer contract and compositor, floors and panes, place lookup, the viewport transform and the palette. SkiaSharp only.</Description>
+        <PackageTags>demoviewer;cs2;counter-strike;demo;extension;sdk;skiasharp;map</PackageTags>
+        <!-- Every public member is documented: this package is read by people who cannot see the app. -->
+        <NoWarn>$(NoWarn.Replace('CS1591', ''))</NoWarn>
+        <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="SkiaSharp"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
+        <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!--
+          The scene's typeface, embedded rather than resolved from the host.
+          SKTypeface.Default is "Segoe UI" on Windows and something else entirely on the ubuntu golden
+          lane, so a system face makes every text-bearing golden machine-specific. Licence notice:
+          THIRD-PARTY-NOTICES.md §d (SIL OFL 1.1).
+        -->
+        <EmbeddedResource Include="Assets\Inter-Regular.ttf"
+                          LogicalName="DemoViewer.NET.Playback2D.Core.Assets.Inter-Regular.ttf"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Core"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Pipeline"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.Playback2D.Tests"/>
+        <!-- The compositor's profiler hook, stats and caching options are first-party: dv2d prints
+             the per-layer perf report and the app's host tests read the stats. -->
+        <InternalsVisibleTo Include="dv2d"/>
+        <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
+    </ItemGroup>
+
+</Project>

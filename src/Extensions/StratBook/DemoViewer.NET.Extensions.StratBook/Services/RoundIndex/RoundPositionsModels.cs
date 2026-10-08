@@ -4,11 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The round positions file: the <c>.dvrp.json.gz</c> sibling of a demo's <c>.dvri.json</c>. Per
@@ -39,7 +38,7 @@ public sealed class RoundPositionsDocument
     ///     the fingerprint is theirs together: a version 1 <c>.dvri.json</c> counted <c>""</c> as a place
     ///     in its summaries and transitions and gated its tokens on the Round Facts kill tick. The
     ///     sidecar's own <c>schemaVersion</c> stays 1, because its shape did not change and
-    ///     <c>SituationIndex</c> holds it equal to <c>StratBookCache.RoundIndexSchema</c>.
+    ///     <c>SituationIndex</c> holds it equal to <c>RoundIndexStore.Schema</c>.
     /// </summary>
     public const int PositionSchema = 2;
 
@@ -98,8 +97,8 @@ public sealed class RoundPositionsDocument
     /// <summary>The compact JSON text.</summary>
     public string Serialize() => JsonSerializer.Serialize(this, JsonOptions);
 
-    /// <summary>The gzipped compact JSON: what the store writes.</summary>
-    public byte[] SerializeGzip() => SidecarJson.SerializeGzip(this, JsonOptions);
+    /// <summary>The compact JSON as UTF-8: what the store writes.</summary>
+    public byte[] SerializeUtf8() => JsonSerializer.SerializeToUtf8Bytes(this, JsonOptions);
 
     /// <summary>The document a file's text describes, or null when it does not parse.</summary>
     /// <param name="json">The uncompressed text.</param>
@@ -115,30 +114,15 @@ public sealed class RoundPositionsDocument
         }
     }
 
-    /// <summary>The document a gzipped file holds, or null when it does not inflate or parse.</summary>
-    /// <param name="gzipped">The file bytes.</param>
-    public static RoundPositionsDocument? TryDeserializeGzip(byte[] gzipped)
+    /// <summary>The document UTF-8 JSON describes, or null when it does not parse.</summary>
+    /// <param name="utf8">The JSON.</param>
+    public static RoundPositionsDocument? TryDeserialize(byte[] utf8)
     {
         try
         {
-            return SidecarJson.Deserialize<RoundPositionsDocument>(gzipped, JsonOptions);
+            return JsonSerializer.Deserialize<RoundPositionsDocument>(utf8, JsonOptions);
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>The document a positions file holds, or null when it is missing, does not inflate, or does not parse.</summary>
-    /// <param name="path">The file.</param>
-    public static RoundPositionsDocument? TryReadFile(string path)
-    {
-        try
-        {
-            return File.Exists(path) ? SidecarJson.ReadFile<RoundPositionsDocument>(path, JsonOptions) : null;
-        }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException
-                                       or UnauthorizedAccessException)
+        catch (JsonException)
         {
             return null;
         }

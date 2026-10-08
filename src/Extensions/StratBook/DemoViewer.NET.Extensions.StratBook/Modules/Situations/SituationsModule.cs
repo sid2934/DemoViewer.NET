@@ -1,15 +1,13 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.ViewModels.Situations;
-using DemoViewer.NET.Views.Situations;
-using Microsoft.Extensions.DependencyInjection;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.Views.Situations;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     The Situations module: Situation Search over the round index. Contributes the Situations section of
@@ -43,29 +41,27 @@ public sealed class SituationsModule : IWorkspaceModule
     private readonly Func<SituationsTabViewModel> _viewModelFactory;
     private readonly WatchedSituationsService? _watched;
     private readonly Func<bool> _enabled;
-    private readonly IFeatureGate? _gate;
+    private readonly IExtensionFeatures? _gate;
 
     /// <param name="viewModelFactory">Builds the tab VM on first activation, at the composition root.</param>
     /// <param name="watched">Watched Situations, for the badge; null when the pack was off at composition.</param>
     /// <param name="enabled">
-    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack;
-    ///     null resolves <see cref="IFeatureGate" /> from <see cref="App.Services" /> live, failing CLOSED
-    ///     (not the usual fail-open default) since this is a pack-owned id: <see cref="StratBookPack.Contribute" />
-    ///     always passes its own delegate, so the fallback here only matters when nothing has resolved.
+    ///     This section's own <see cref="TabFeatureId" /> gate, which already cascades off with the pack.
     /// </param>
     /// <param name="gate">
     ///     The same gate as <paramref name="enabled" />, kept separately only for its <c>Changed</c> event:
     ///     a live toggle clears the badge going off and recomputes it going on, instead of leaving the last
     ///     value stale until the next unrelated <c>watched.Changed</c>. Null skips that push.
     /// </param>
-    public SituationsModule(Func<SituationsTabViewModel> viewModelFactory, WatchedSituationsService? watched = null,
-        Func<bool>? enabled = null, IFeatureGate? gate = null)
+    public SituationsModule(Func<SituationsTabViewModel> viewModelFactory, Func<bool> enabled, WatchedSituationsService? watched = null,
+        IExtensionFeatures? gate = null)
     {
         ArgumentNullException.ThrowIfNull(viewModelFactory);
         _viewModelFactory = viewModelFactory;
         _watched = watched;
         _gate = gate;
-        _enabled = enabled ?? (() => App.Services?.GetService<IFeatureGate>()?.IsEnabled(TabFeatureId) ?? false);
+        ArgumentNullException.ThrowIfNull(enabled);
+        _enabled = enabled;
     }
 
     /// <summary>"3 new", or null when nothing is new.</summary>
@@ -83,7 +79,7 @@ public sealed class SituationsModule : IWorkspaceModule
             TabId = "situations.search",
             Header = "Situations",
             Order = 1, // after Strats (0)
-            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new SituationsTabView()
@@ -109,7 +105,7 @@ public sealed class SituationsModule : IWorkspaceModule
             // leaving it until the next unrelated service write; going on recomputes without waiting for one.
             if (_gate is { } gate)
             {
-                gate.Changed += (_, _) => tab.Badge = _enabled() ? BadgeFor(watched.NewCount) : null;
+                gate.Changed += () => tab.Badge = _enabled() ? BadgeFor(watched.NewCount) : null;
             }
         }
 

@@ -1,15 +1,16 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Modules.Dossier;
+using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.Dossier;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 using SkiaSharp;
 
 #endregion
@@ -57,7 +58,7 @@ public class SetupHeatmapTests
     // first contact at 20 s cuts its window to 15..19 s; round 3's at 5 s leaves it no window at all.
     private static DemoCacheRecord Record() => Record(Demo, "de_nuke", 0, new RoundFactsRows
     {
-        Schema = StratBookCache.RoundFactsSchema,
+        Schema = RoundFactsRecords.Schema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [
@@ -232,7 +233,7 @@ public class SetupHeatmapTests
         using Harness h = await Harness.Create();
         ReviewQueue queue = new(null);
         List<string> shown = [];
-        using DossierTabViewModel vm = new(h.Teams, h.Cache, new VetoHistoryStore(null), false,
+        using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
             h.Service, queue, id =>
             {
                 shown.Add(id);
@@ -311,14 +312,13 @@ public class SetupHeatmapTests
 
         public void Dispose()
         {
-            Store.Dispose();
             Teams.Dispose();
         }
 
         public static async Task<Harness> Create(string? positionsFingerprint = null)
         {
             DemoCacheStore cache = new(null);
-            TeamIdentityService teams = new(null, cache, new RoundFactsSource(cache), run: _inline);
+            TeamIdentityService teams = new(null, cache.Library(), new RoundFactsSource(cache), run: _inline);
             await teams.StartAsync();
             using (cache.BeginBatch())
             {
@@ -328,10 +328,10 @@ public class SetupHeatmapTests
 
             await teams.Idle;
 
-            RoundIndexStore store = new(null, cache);
+            RoundIndexStore store = new(cache.Data());
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
             store.WritePositions(Demo, Positions(positionsFingerprint ?? sources.FingerprintFor("de_nuke")));
-            SetupHeatmapService service = new(teams, cache, store, sources.FingerprintFor);
+            SetupHeatmapService service = new(teams, cache.Library(), cache.RoundFacts(), store, sources.FingerprintFor);
 
             Guid teamA = teams.Teams.First(t => t.Rosters.Any(r => r.CoreLineup?.Contains(Id(1)) == true)).Id;
             Guid teamB = teams.Teams.First(t => t.Rosters.Any(r => r.CoreLineup?.Contains(Id(11)) == true)).Id;

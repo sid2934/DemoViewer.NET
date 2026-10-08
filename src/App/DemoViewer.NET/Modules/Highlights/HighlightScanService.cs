@@ -50,6 +50,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     // retry click on one demo must never trigger a whole-library scan marathon. Cleared when the demo's
     // Evaluate/OnFailed runs. Drives PriorityFor (forced → UserRequested).
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
+
+    // Demos whose harvest from the shell's own analysis run is still being written. Under _lifecycle.
+    private readonly HashSet<string> _openHarvestPending = new(StringComparer.OrdinalIgnoreCase);
     private readonly IHighlightHarvester _harvester;
     private readonly Func<IReadOnlyList<string>> _libraryDemoPaths;
 
@@ -88,61 +91,18 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         _processorOverride = processorOverride;
         _demoCache = demoCache;
 
-        // The coordinator owns submission + the CapacityAvailable re-feed; this service no longer touches
-        // the queue directly (it is registered as an IDemoEvaluator, and Coordinator is set post-construct).
+        // The scheduler owns submission; this service never touches the queue for a parse (it is registered
+        // as an IDemoEvaluator, and Scheduler is set post-construct).
     }
 
-    /// <summary>The evaluation coordinator that submits this evaluator's work; null → nothing is fed.</summary>
-    public DemoEvaluationCoordinator? Coordinator { get; set; }
+    /// <summary>The scheduler that submits this evaluator's work; null → nothing is fed.</summary>
+    public DemoScheduler? Scheduler { get; set; }
 
     /// <summary>Queued-demo count: the tab toolbar's "⟳ scan: N queued". DERIVED, never stored.</summary>
     public int QueueLength => BacklogNewestFirst().Count;
 
-    /// <summary>True while any highlights demo is outstanding in the shared queue (via the coordinator).</summary>
-    public bool IsScanning => Coordinator?.HasOutstanding(Id) ?? false;
-
-    /// <summary>
-    ///     Opportunistic hand-off: a demo parsed elsewhere, the Library
-    ///     tier-2 slot (holding the parse) or an interactive open, is handed over via the coordinator's
-    ///     <see cref="DemoEvaluationCoordinator.FanOutParsed" />. Refreshes the row only when missing/stale
-    ///     AND the opt-in is on. The common fresh case (and every demo when the opt-in is off) costs one
-    ///     fingerprint compare. Not gated on <see cref="Wants" /> (order-independent: it refreshes a row
-    ///     that may not exist yet), which is exactly what the old Library <c>Tier2DemoParsed</c> piggyback
-    ///     guaranteed before this generalized it.
-    /// </summary>
-    public void OnParsedOpportunistically(string path, ParsedDemo parsed)
-    {
-        try
-        {
-            // Fingerprint BEFORE the analysis: a rule save mid-run then errs on the stale side.
-            (string fingerprint, IReadOnlyDictionary<string, string> hashes) =
-                _harvester.ComputeFingerprint(parsed.TickRate);
-            DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
-            if (entry is { AnalysisState: DemoAnalysisState.Indexed })
-            {
-                (long size, long modified) = SafeFileIdentity(path);
-                if (string.Equals(entry.ConfigFingerprint, fingerprint, StringComparison.Ordinal)
-                    && entry.ModifiedTicks == modified && entry.Size == size)
-                {
-                    return;
-                }
-            }
-
-            // The full replay below is gated behind the background-scan opt-in like the backfill.
-            if (!_backgroundScanEnabled())
-            {
-                return;
-            }
-
-            AnalysisRun run = _harvester.RunBareAnalysis(parsed);
-            WriteHarvest(path, HarvestFacts.From(parsed), run.Highlights, fingerprint, hashes);
-            RaiseProgress();
-        }
-        catch (Exception)
-        {
-            MarkFailed(path);
-        }
-    }
+    /// <summary>True while any highlights demo is outstanding in the shared queue (via the scheduler).</summary>
+    public bool IsScanning => Scheduler?.HasOutstanding(Id) ?? false;
 
     // ── Backfill: feed Pending rows into the shared queue ──────────────────────
 
@@ -157,7 +117,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     /// <inheritdoc />
     /// <remarks>
     ///     Interested when the row is Pending AND either it was manually forced or the opt-in is
-    ///     on. Forced rows flow regardless of the opt-in, auto rows only while it holds.
+    ///     on. Forced rows flow regardless of the opt-in, auto rows only while it holds. The demo the shell
+    ///     just analysed is not wanted while its harvest from that run is still being written: the open's
+    ///     visit would otherwise re-run the analysis the shell has already done.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -170,6 +132,10 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         lock (_lifecycle)
         {
             forced = _forcedPaths.Contains(path);
+            if (!forced && _openHarvestPending.Contains(path))
+            {
+                return false;
+            }
         }
 
         return forced || _backgroundScanEnabled();
@@ -189,9 +155,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     Runs in the queue's gate slot with the parse held. Re-checks the row is still Pending:
-    ///     the Library piggyback may have refreshed it while this was queued (re-processing would waste
-    ///     the slot). Clears the forced flag either way.
+    ///     Runs in the queue's gate slot with the parse held. Re-checks the row is still Pending: the shell's
+    ///     own harvest may have refreshed it while this was queued (re-processing would waste the slot).
+    ///     Clears the forced flag either way.
     /// </remarks>
     public void Evaluate(string path, ParsedDemo parsed)
     {
@@ -211,13 +177,11 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
             // A FORCED request runs even when the row is no longer Pending.
             //
-            // The skip below exists so a demo the Library piggyback already refreshed does not burn a queue
-            // slot being re-scanned: sound while every run was equivalent, and WRONG the moment bare and
-            // full stopped being the same thing. Both owners coalesce onto one parse, so the Library's
-            // Evaluate fans out to OnParsedOpportunistically (a BARE run, which upserts Indexed) and can
-            // easily win the race against this. The user's press would then be silently consumed: the row
-            // reads Indexed, this returns early, `finally` clears the forced flag, and they get highlights
-            // with no scoreboard and no indication anything was skipped.
+            // The skip below exists so a demo another channel already refreshed does not burn a queue slot
+            // being re-scanned: sound while every run was equivalent, and WRONG the moment bare and full
+            // stopped being the same thing. The user's press would then be silently consumed: the row reads
+            // Indexed, this returns early, `finally` clears the forced flag, and they get highlights with no
+            // scoreboard and no indication anything was skipped.
             if (!forced && !NeedsScan(path))
             {
                 return;
@@ -287,7 +251,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     {
         lock (_lifecycle)
         {
-            // Forced after this entry was submitted: leave the flag, and the next poll submits it retained.
+            // Forced after this entry was submitted: leave the flag, and the next plan submits it retained.
             if (_forcedPaths.Contains(path))
             {
                 return;
@@ -321,37 +285,6 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         }
     }
 
-    public void OnForwardOpportunistically(string path, ForwardDemoResult pass)
-    {
-        try
-        {
-            (string fingerprint, IReadOnlyDictionary<string, string> hashes) =
-                _harvester.ComputeFingerprint(pass.Demo.TickRate);
-            DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(path);
-            if (entry is { AnalysisState: DemoAnalysisState.Indexed })
-            {
-                (long size, long modified) = SafeFileIdentity(path);
-                if (string.Equals(entry.ConfigFingerprint, fingerprint, StringComparison.Ordinal)
-                    && entry.ModifiedTicks == modified && entry.Size == size)
-                {
-                    return;
-                }
-            }
-
-            if (!_backgroundScanEnabled() || pass.Run is null)
-            {
-                return;
-            }
-
-            WriteHarvest(path, HarvestFacts.From(pass), pass.Run.Highlights, fingerprint, hashes);
-            RaiseProgress();
-        }
-        catch (Exception)
-        {
-            MarkFailed(path);
-        }
-    }
-
     public void OnFailed(string path)
     {
         lock (_lifecycle)
@@ -370,7 +303,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         {
             _disposed = true;
         }
-        // The coordinator owns the CapacityAvailable subscription now. Nothing queue-side to detach here.
+        // The scheduler owns the queue subscription. Nothing queue-side to detach here.
     }
 
     /// <summary>
@@ -392,7 +325,8 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         string? fingerprint = TryFingerprint();
         Dictionary<string, long> wanted = new(StringComparer.OrdinalIgnoreCase);
 
-        foreach (DemoCacheIndexEntry entry in _demoCache.Index)
+        // One entry per demo: its other paths hold the same bytes and share its record.
+        foreach (DemoCacheIndexEntry entry in _demoCache.Contents)
         {
             if (entry.NeedsAnalysis(fingerprint))
             {
@@ -484,7 +418,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     private void RefreshStalenessCore()
     {
         // WRITES NOTHING. The backlog is derived (see BacklogNewestFirst), so "refreshing staleness" is now
-        // just re-deriving it and asking the coordinator to reconsider. The pass that used to stamp Pending
+        // just re-deriving it and asking the scheduler to check again. The pass that used to stamp Pending
         // across the library has no work left to do.
         //
         // AND IT MUST NOT PRUNE. The old version dropped every row whose demo was not in the current
@@ -526,7 +460,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         }
 
         RaiseProgress();
-        EnsureBackfillRunning();
+        Scheduler?.Request(path);
     }
 
     /// <summary>
@@ -559,6 +493,11 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             return;
         }
 
+        lock (_lifecycle)
+        {
+            _openHarvestPending.Add(path);
+        }
+
         _ = QueueWork.Run(QueueWork.Ambient, QueueJobKind.StoreSave, "Save: open demo's highlights", "highlights", _ =>
         {
             try
@@ -570,19 +509,26 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             {
                 MarkFailed(path);
             }
+            finally
+            {
+                lock (_lifecycle)
+                {
+                    _openHarvestPending.Remove(path);
+                }
+            }
         });
     }
 
     /// <summary>
-    ///     Pending row paths (newest first): this evaluator's slice of the coordinator's candidate
-    ///     universe (worker-readable snapshot; never enumerated off-thread against a UI collection).
+    ///     Pending row paths (newest first), for the scan strip's counts: a worker-readable snapshot, never
+    ///     enumerated off-thread against a UI collection.
     /// </summary>
     public IReadOnlyList<string> PendingPaths() => BacklogNewestFirst();
 
     /// <summary>
-    ///     Asks the coordinator to (re-)consider the Pending rows: a call-site-compatible shim over the
-    ///     old queue feeder. Per-row gating (forced set + opt-in) lives in <see cref="Wants" /> now, and
-    ///     the coordinator's outstanding set makes it idempotent.
+    ///     Asks the scheduler to plan every demo again: the row set or the fingerprint moved. Per-row gating
+    ///     (forced set + opt-in) lives in <see cref="Wants" />, and the scheduler's outstanding set makes it
+    ///     idempotent.
     /// </summary>
     public void EnsureBackfillRunning(bool force = false)
     {
@@ -595,7 +541,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             }
         }
 
-        Coordinator?.ConsiderAll();
+        Scheduler?.RecheckAll();
         RaiseProgress();
     }
 
@@ -701,7 +647,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             // disagree about which firings are moments.
             record.Highlights =
             [
-                .. HighlightSurfacing.Surface(events).Select(e => new CachedHighlightEvent
+                .. HighlightSurfacing.Surface(events.Where(e => _harvester.IsHighlightRuleset(e.RulesetId)).ToList()).Select(e => new CachedHighlightEvent
                 {
                     RulesetId = e.RulesetId,
                     HighlightId = e.HighlightId,
@@ -788,8 +734,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     ///     <para>
     ///         This used to read <c>LastWriteTimeUtc</c>, the scanner's old convention from when it owned its
     ///         own file. Nothing was corrupted by that: this value is only ever COMPARED, never written, but
-    ///         for every user not on UTC the compare could not match, so the freshness early-out in
-    ///         <see cref="OnParsedOpportunistically" /> never fired and a current demo was re-harvested on
+    ///         for every user not on UTC the compare could not match, so a current demo read as stale on
     ///         every hand-off. Read-side alignment is safe precisely because it is read-side: it changes no
     ///         stored value and invalidates nothing.
     ///     </para>

@@ -10,9 +10,11 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 
@@ -27,7 +29,8 @@ public class StratDragWindowTests
     public async Task DraggingATokenWithThePointer_ChangesTheRowsField() =>
         await HeadlessSession.RunOnUi(async () =>
         {
-            using StratBookTabViewModel vm = new(new StratStore(null), null, a => Dispatcher.UIThread.Post(a), false, layout: new StratBookLayout());
+            using StratBookTabViewModel vm = new(new StratStore(null), null, a => Dispatcher.UIThread.Post(a), false, layout: new StratBookLayout(),
+                canvasServices: new StratCanvasServices(null, null, StratTestKeymap.Shipped));
             vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
             vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
             vm.SelectedMap = "de_mirage";

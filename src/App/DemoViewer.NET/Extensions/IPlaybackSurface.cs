@@ -2,67 +2,21 @@
 
 using Avalonia.Controls;
 using Avalonia.Input;
+using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
+using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
+using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
+using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using DemoViewer.NET.Playback2D.Core.Tools;
+using DemoViewer.NET.Playback2D.Core.Zones;
 
 #endregion
 
 namespace DemoViewer.NET.Extensions;
-
-/// <summary>Where a pane sits in the 2D Playback tab.</summary>
-public enum PanePlacement
-{
-    /// <summary>The side pane over the viewport's right edge, the export pane's place. One open at a time.</summary>
-    Side,
-
-    /// <summary>
-    ///     The right column under the player cards. Several panels show at once, in order; see
-    ///     <see cref="IPlaybackSurface.AddPanel" /> and <see cref="IPanelHandle" />.
-    /// </summary>
-    RightColumn
-}
-
-/// <summary>A pane a contribution added. Opening builds the view model from the factory; closing disposes it.</summary>
-public interface IPaneHandle : IDisposable
-{
-    /// <summary>True while the pane shows.</summary>
-    bool IsOpen { get; }
-
-    /// <summary>
-    ///     Shows the pane with a fresh view model. For a side pane, open already means rebuilt and the other
-    ///     side pane closes; for a right-column panel, open already is a no-op and the others stay.
-    /// </summary>
-    void Open();
-
-    /// <summary>Hides the pane and disposes its view model. No-op when closed.</summary>
-    void Close();
-
-    /// <summary>The pane closed, by <see cref="Close" />, by the host's Close button or because another pane took its place.</summary>
-    event Action? Closed;
-}
-
-/// <summary>
-///     A right-column panel a contribution added. Several panels are open at once and show in order, each
-///     while its gate is on and the <see cref="ModeToggle" /> it was bound to, if any, is on. A panel can
-///     hold the keyboard (<see cref="HasKeyboard" />): its focus scope, under which the contribution's key
-///     handlers run before the tab's keymap and its action handlers see every action first.
-/// </summary>
-public interface IPanelHandle : IPaneHandle
-{
-    /// <summary>Open, gate on and the panel's mode on. What the user sees.</summary>
-    bool IsShown { get; }
-
-    /// <summary><see cref="IsShown" /> changed: the gate, the mode or the panel's own open state moved.</summary>
-    event Action? ShownChanged;
-
-    /// <summary>
-    ///     The panel's focus scope. The contribution sets it from its own focus state; the host reads it only
-    ///     while the panel <see cref="IsShown" />.
-    /// </summary>
-    bool HasKeyboard { get; set; }
-}
 
 /// <summary>
 ///     The 2D Playback tab as a contribution sees it. Each tab view-model owns one; a
@@ -76,6 +30,12 @@ public interface IPlaybackSurface
     ///     no surface with levels is mounted (the legacy viewport, a headless test).
     /// </summary>
     IReadOnlyList<MapLevel> MapLevels { get; }
+
+    /// <summary>
+    ///     The open map's place resolver, or null when the map has no zones or none is open. Read on demand:
+    ///     the first read loads the zones file, and a zones reload replaces the instance, so never cache it.
+    /// </summary>
+    PlaceResolver? Zones { get; }
 
     /// <summary>The tab's resolved keymap: the shipped table under the user's overrides. Replaced whole on a rebind.</summary>
     Playback2DKeymapProfile Keymap { get; }
@@ -138,8 +98,24 @@ public interface IPlaybackSurface
     /// <returns>Removes the handler.</returns>
     IDisposable AddPointerPreHandler(Func<ScenePointer, bool> handler);
 
-    /// <summary>The gesture text for <paramref name="action" /> under <see cref="Keymap" />, parenthesised, or "" unbound.</summary>
-    string GestureHint(Playback2DAction action);
+    /// <summary>
+    ///     A scene layer on the tab's map, built by <paramref name="layer" /> now and again whenever the map
+    ///     rebuilds its scene. Adding <paramref name="layerId" /> again replaces it.
+    /// </summary>
+    /// <param name="layerId">The id the layer is filed under; never one of the map's own.</param>
+    /// <param name="layer">Builds the layer.</param>
+    /// <returns>Removes the layer.</returns>
+    IDisposable AddLayer(string layerId, Func<ISceneLayer> layer);
+
+    /// <summary>
+    ///     A pointer tool offered every primary press not diverted to pan, after the pointer pre-handlers and
+    ///     before the drawing tools. The tool that takes a press owns the gesture.
+    /// </summary>
+    /// <returns>Removes the tool.</returns>
+    IDisposable AddTool(IMapTool tool);
+
+    /// <summary>The gesture text for <paramref name="actionId" /> under <see cref="Keymap" />, parenthesised, or "" unbound.</summary>
+    string GestureHint(string actionId);
 
     /// <summary>
     ///     A right-click menu contributor for timeline bands. Asked for every band pressed; returns no
@@ -150,7 +126,8 @@ public interface IPlaybackSurface
 
     /// <summary>
     ///     A pane the contribution opens and closes through the handle. The view model's view comes from
-    ///     the ViewLocator convention, so it must derive from <c>ViewModelBase</c> and have a <c>…View</c>.
+    ///     the ViewLocator convention, so it must be a <c>ViewModelBase</c> or an <see cref="IExtensionViewModel" />
+    ///     and have a matching <c>View</c>.
     ///     For <see cref="PanePlacement.RightColumn" /> this is <see cref="AddPanel" /> with no gate and
     ///     the located view, and the handle is an <see cref="IPanelHandle" />.
     /// </summary>
@@ -167,7 +144,8 @@ public interface IPlaybackSurface
     /// <param name="viewModel">Builds the view model on <see cref="IPaneHandle.Open" />; disposed on close when it is <see cref="IDisposable" />.</param>
     /// <param name="view">
     ///     Builds the panel's control; the host sets its DataContext to the view model. Null takes the
-    ///     ViewLocator convention, which needs a <c>ViewModelBase</c> with a <c>…View</c>.
+    ///     ViewLocator convention, which needs a <c>ViewModelBase</c> or an <see cref="IExtensionViewModel" />
+    ///     with a matching <c>View</c>.
     /// </param>
     /// <param name="featureId">The gate the panel shows under, read through the tab's features; null for the owning pack's alone.</param>
     /// <param name="mode">The mode the panel shows under; null shows it whenever it is open with its gate on.</param>
@@ -176,18 +154,17 @@ public interface IPlaybackSurface
 
     /// <summary>
     ///     A key handler asked before the tab's keymap, in registration order, for every key the view gets
-    ///     while no text input has focus. True consumes the key. This is how a focus-scoped keymap row
-    ///     (<see cref="Playback2DBindingScope.WhenPaletteFocused" />, <see cref="Playback2DBindingScope.WhenSuggestionSelected" />)
-    ///     shadows the tab's own; the handler resolves the scope itself against <see cref="Keymap" />.
+    ///     while no text input has focus. True consumes the key. This is how an extension's focus-scoped
+    ///     keymap rows shadow the tab's own; the handler resolves its scope itself against <see cref="Keymap" />.
     /// </summary>
     /// <returns>Removes the handler.</returns>
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);
 
     /// <summary>
-    ///     An action handler for the tab's keymap actions. Asked for every action the tab does not handle
+    ///     An action handler for the keymap's actions, by id. Asked for every action the tab does not handle
     ///     itself, and, while a shown panel <see cref="IPanelHandle.HasKeyboard" />, for every action before
     ///     the tab's own (undo and redo are the focused document's). True consumes the action.
     /// </summary>
     /// <returns>Removes the handler.</returns>
-    IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);
+    IDisposable AddActionHandler(Func<string, bool> handler);
 }

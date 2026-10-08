@@ -3,10 +3,11 @@
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.Dossier;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
 #endregion
 
@@ -70,7 +71,7 @@ public class PostPlantTests
     // Rounds 6 to 8: B plants A at (0, 0); the retake is together, trickled, then nobody. Round 9: no plant.
     private static RoundFactsRows Rows() => new()
     {
-        Schema = StratBookCache.RoundFactsSchema,
+        Schema = RoundFactsRecords.Schema,
         Clock = new RoundFactsClock { TickRate = Rate },
         Rounds =
         [
@@ -288,7 +289,7 @@ public class PostPlantTests
         ReviewQueue queue = new(null);
         List<string> shown = [];
         QueuedPost posted = new();
-        using DossierTabViewModel vm = new(h.Teams, h.Cache, new VetoHistoryStore(null), false,
+        using DossierTabViewModel vm = new(h.Teams, h.Cache.Library(), new VetoHistoryStore(null), false,
             review: queue,
             selectTab: id =>
             {
@@ -382,14 +383,13 @@ public class PostPlantTests
 
         public void Dispose()
         {
-            Store.Dispose();
             Teams.Dispose();
         }
 
         public static async Task<Harness> Create(bool writePositions = true)
         {
             DemoCacheStore cache = new(null);
-            TeamIdentityService teams = new(null, cache, new RoundFactsSource(cache), run: _inline);
+            TeamIdentityService teams = new(null, cache.Library(), new RoundFactsSource(cache), run: _inline);
             await teams.StartAsync();
 
             using (cache.BeginBatch())
@@ -400,14 +400,14 @@ public class PostPlantTests
 
             await teams.Idle;
 
-            RoundIndexStore store = new(null, cache);
+            RoundIndexStore store = new(cache.Data());
             RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
             if (writePositions)
             {
                 store.WritePositions(Demo, Positions(sources.FingerprintFor("de_nuke")));
             }
 
-            PostPlantService service = new(teams, cache, store, sources.FingerprintFor);
+            PostPlantService service = new(teams, cache.Library(), cache.RoundFacts(), store, sources.FingerprintFor);
             Guid teamA = teams.Teams.First(t => t.Rosters.Any(r => r.CoreLineup?.Contains(Id(1)) == true)).Id;
             return new Harness(cache, teams, store, service, teamA);
         }

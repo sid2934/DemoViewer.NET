@@ -3,8 +3,9 @@
 using DemoViewer.NET.Extensions.StratBook;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
@@ -120,66 +121,56 @@ public class RoundPositionsTests
     public async Task TheFingerprint_CarriesPos_AndASidecarWithoutIt_IsStale()
     {
         string current = RoundIndexFingerprint.Compose(RoundIndexOptions.Default, PawnPlaceSource.Instance);
-        DemoCacheRecord record = ParsedRecord(Demo);
-        record.StampRoundIndex("ri1;cadence=1;token=1;rf=1;src=pawn", 1);
+        DemoCacheStore cache = new(null);
+        cache.Upsert(ParsedRecord(Demo));
+        cache.StampRoundIndex(Demo, "ri1;cadence=1;token=1;rf=1;src=pawn", 1);
+        RoundIndexStore store = new(cache.Data());
 
         using (Assert.Multiple())
         {
             await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=2");
             await Assert.That(current).EndsWith($";pos={RoundPositionsDocument.PositionSchema}");
-            await Assert.That(record.IsRoundIndexCurrent(current)).IsFalse();
-            await Assert.That(record.NeedsRoundIndex(current)).IsTrue()
+            await Assert.That(store.IsCurrent(Demo, current)).IsFalse();
+            await Assert.That(store.Needs(Demo, current)).IsTrue()
                 .Because("indexed before positions existed and never indexed are one state");
         }
     }
 
     [Test]
-    public async Task TheStore_WritesGzippedBesideTheSidecar_ReadsBack_AndRefusesStaleOrForeignFiles()
+    public async Task TheStore_ReadsPositionsBack_AndRefusesStaleOrForeignOnes()
     {
         string root = TempRoot();
         try
         {
             DemoCacheStore cache = new(root);
-            using RoundIndexStore store = new(root, cache);
+            cache.Upsert(ParsedRecord(Demo, sha: "abc"));
+            RoundIndexStore store = new(cache.DiskData(root));
             RoundIndexBuild build = Build();
-            store.WritePositions(Demo, build.Positions);
-            store.Write(Demo, build.Index);
+            store.Write(Demo, build.Index, build.Positions, build.Positions.Fingerprint);
 
-            string expected = Path.Combine(root, "round-index", DemoCacheStore.StableKey(Demo) + ".dvrp.json.gz");
-            byte[] bytes = File.ReadAllBytes(expected);
             RoundPositionsDocument? read = store.TryReadPositions(Demo);
-
             using (Assert.Multiple())
             {
-                await Assert.That(store.PositionsPathFor(Demo)).IsEqualTo(expected);
-                await Assert.That(bytes.Length).IsGreaterThan(2);
-                await Assert.That((bytes[0], bytes[1])).IsEqualTo(((byte)0x1f, (byte)0x8b)).Because("gzip magic");
-                await Assert.That(Directory.GetFiles(Path.Combine(root, "round-index"), "*.tmp")).IsEmpty();
                 await Assert.That(read).IsNotNull();
                 await Assert.That(read!.Rounds.Single().At(0).Count).IsEqualTo(10);
                 await Assert.That(read.Demo.Sha256).IsEqualTo("abc");
                 await Assert.That(store.TryReadPositions(Demo, build.Positions.Fingerprint, "abc")).IsNotNull();
                 await Assert.That(store.TryReadPositions(Demo, "ri1;cadence=2;token=1;rf=1;src=pawn;pos=1")).IsNull()
-                    .Because("a file under another fingerprint is stale, so absent");
+                    .Because("positions under another fingerprint are stale, so absent");
                 await Assert.That(store.TryReadPositions(Demo, null, "def")).IsNull()
-                    .Because("a file naming another demo's hash is ignored");
+                    .Because("positions naming another demo's hash are ignored");
                 await Assert.That(store.TryReadPositions("/d/never.dem")).IsNull();
+                await Assert.That(Directory.GetFiles(root, "*.tmp", SearchOption.AllDirectories)).IsEmpty();
             }
 
-            // A corrupt file reads as absent, like the sidecar.
-            File.WriteAllBytes(expected, [1, 2, 3]);
+            // A corrupt positions file reads as absent.
+            string file = Directory.GetFiles(root, "abc.positions.json.gz", SearchOption.AllDirectories).Single();
+            File.WriteAllBytes(file, [1, 2, 3]);
             await Assert.That(store.TryReadPositions(Demo)).IsNull();
 
-            // Delete takes both files; the sweep takes an orphan positions file on its own.
-            store.WritePositions(Demo, build.Positions);
+            // Delete takes the index and its positions.
             store.Delete(Demo);
-            await Assert.That(File.Exists(expected)).IsFalse();
-            await Assert.That(File.Exists(store.PathFor(Demo)!)).IsFalse();
-
-            store.WritePositions("/d/orphan.dem", build.Positions);
-            int swept = store.SweepOrphans();
-            await Assert.That(swept).IsEqualTo(1);
-            await Assert.That(File.Exists(store.PositionsPathFor("/d/orphan.dem")!)).IsFalse();
+            await Assert.That(Directory.GetFiles(root, "abc*.json.gz", SearchOption.AllDirectories)).IsEmpty();
         }
         finally
         {
@@ -191,11 +182,11 @@ public class RoundPositionsTests
     public async Task TheInMemoryStore_HoldsPositionsToo()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore store = new(null, cache);
+        cache.Upsert(ParsedRecord(Demo));
+        RoundIndexStore store = new(cache.Data());
         RoundIndexBuild build = Build();
 
         store.WritePositions(Demo, build.Positions);
-        await Assert.That(store.PositionsPathFor(Demo)).IsNull();
         await Assert.That(store.TryReadPositions(Demo)!.Rounds.Count).IsEqualTo(1);
 
         store.Delete(Demo);
@@ -207,15 +198,14 @@ public class RoundPositionsTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(ParsedRecord(Demo, sha: "abc", facts: Facts(Round(1, 1000, 1200))));
-        using RoundIndexStore store = new(null, cache);
+        RoundIndexStore store = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, store, sources, () => true, walk: _ => [.. Placed(1000), .. Placed(1064)]);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), store, sources, () => true, walk: _ => [.. Placed(1000), .. Placed(1064)]);
 
         evaluator.Evaluate(Demo, RoundIndexTestData.Demo(lastTick: 5000));
 
         RoundIndexDocument index = store.TryRead(Demo)!;
         RoundPositionsDocument? positions = store.TryReadPositions(Demo, sources.FingerprintFor("de_nuke"), "abc");
-        DemoCacheRecord record = cache.TryLoadRecord(Demo)!;
 
         using (Assert.Multiple())
         {
@@ -224,8 +214,8 @@ public class RoundPositionsTests
             await Assert.That(positions.Demo.StableKey).IsEqualTo(index.Demo.StableKey);
             await Assert.That(positions.Demo.Sha256).IsEqualTo("abc");
             await Assert.That(positions.Rounds.Single().At(1).Count).IsEqualTo(10);
-            await Assert.That(record.RoundIndexFingerprint()).IsEqualTo(positions.Fingerprint);
-            await Assert.That(record.IsRoundIndexCurrent(sources.FingerprintFor("de_nuke"))).IsTrue();
+            await Assert.That(cache.RoundIndexFingerprint(Demo)).IsEqualTo(positions.Fingerprint);
+            await Assert.That(store.IsCurrent(Demo, sources.FingerprintFor("de_nuke"))).IsTrue();
         }
     }
 
@@ -271,8 +261,8 @@ public class RoundPositionsTests
                 .Because("the v1 positions file is a published format; a round trip must be field-identical");
             await Assert.That(FixtureDocument().Serialize() + "\n").IsEqualTo(original.Replace("\r\n", "\n", StringComparison.Ordinal))
                 .Because("this build still writes the committed shape");
-            await Assert.That(RoundPositionsDocument.TryDeserializeGzip(loaded.SerializeGzip())!.Serialize())
-                .IsEqualTo(loaded.Serialize()).Because("the gzip round trip is the store's path");
+            await Assert.That(RoundPositionsDocument.TryDeserialize(loaded.SerializeUtf8())!.Serialize())
+                .IsEqualTo(loaded.Serialize()).Because("the UTF-8 round trip is the store's path");
         }
     }
 

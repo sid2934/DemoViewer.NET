@@ -2,14 +2,15 @@
 
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Overlay;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
-using DemoViewer.NET.ViewModels.Situations;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
@@ -184,13 +185,13 @@ public class OverlayViewTests
     public async Task TheTab_PutsTheResultsOverlayOnTheCanvas_AndTheMapClearsIt()
     {
         DemoCacheStore cache = new(null);
-        using RoundIndexStore sidecars = new(null, cache);
+        RoundIndexStore sidecars = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        using SituationIndex index = new(cache, sidecars, sources);
+        using SituationIndex index = new(cache.Library(), sidecars, sources);
         index.Load();
-        using QueryCanvasViewModel canvas = new(index, new QueryPlaceResolver(index, sources.Zones), cache,
+        using QueryCanvasViewModel canvas = new(index, new QueryPlaceResolver(index, sources.Zones), cache.Library(),
             _ => null, dispose => dispose(), post: action => action(), countDelay: TimeSpan.Zero);
-        using SituationsTabViewModel tab = new(index, null, cache, sources, () => RoundIndexTokenSource.Pawn, false,
+        using SituationsTabViewModel tab = new(index, null, cache.Library(), sources, () => RoundIndexTokenSource.Pawn, false,
             canvas, sidecars: sidecars);
 
         await Assert.That(tab.Results.Overlay).IsSameReferenceAs(canvas.Overlay);
@@ -243,7 +244,7 @@ public class OverlayViewTests
         }
 
         DemoCacheStore store = new(null);
-        using RoundIndexStore sidecars = new(null, store);
+        RoundIndexStore sidecars = new(store.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
         store.Upsert(new DemoCacheRecord
         {
@@ -252,9 +253,9 @@ public class OverlayViewTests
             Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 }
         });
         RoundFactsEvaluator facts = new(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity());
-        facts.OnParsedOpportunistically(path, parsed);
-        RoundIndexEvaluator evaluator = new(store, sidecars, sources, () => true);
-        evaluator.OnParsedOpportunistically(path, parsed);
+        facts.Evaluate(path, parsed);
+        RoundIndexEvaluator evaluator = new(store.Library(), store.RoundFacts(), sidecars, sources, () => true);
+        evaluator.Evaluate(path, parsed);
 
         RoundPositionsDocument positions = sidecars.TryReadPositions(path, sources.FingerprintFor(parsed.MapName!))
             ?? throw new InvalidOperationException("the evaluator wrote no positions");
@@ -331,9 +332,9 @@ public class OverlayViewTests
         {
             Cache = cache ?? new DemoCacheStore(null);
             _ownsSidecars = sidecars is null;
-            Sidecars = sidecars ?? new RoundIndexStore(null, Cache);
+            Sidecars = sidecars ?? new RoundIndexStore(Cache.Data());
             Sources = sources ?? new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn);
-            Vm = new ResultCardsViewModel(Cache, Sidecars, Sources, () => null, new SituationThumbnailCache(),
+            Vm = new ResultCardsViewModel(Cache.Library(), Sidecars, Sources, () => null, new SituationThumbnailCache(),
                 () => new SituationThumbnailRenderer(_ => null), Post.Run, _ => null, Canvas);
         }
 
@@ -348,7 +349,6 @@ public class OverlayViewTests
         {
             if (_ownsSidecars)
             {
-                Sidecars.Dispose();
             }
         }
     }

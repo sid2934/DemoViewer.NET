@@ -7,7 +7,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 // The on-disk shape of a tag sidecar (<config>/tags/demos/<sha256>.dvtag.json) and of the index beside
 // it. Mutable classes serialized directly, the DemoCacheRecord idiom, rather than a DTO layer over
@@ -126,7 +126,7 @@ public sealed class TagClockHeader
 ///     A timeline instance: a named span of one demo with the labels said about it.
 ///     <para>
 ///         <b>Ticks, never frame indices.</b> <see cref="FromTick" /> and <see cref="ToTick" /> are frame-clock
-///         ticks, inclusive, the same values the annotation sidecar and <c>CachedRound.StartTickFrameClock</c>
+///         ticks, inclusive, the same values the annotation sidecar and <c>LibraryRound.StartTick</c>
 ///         carry. Frame indices shift on a re-parse; ticks do not.
 ///     </para>
 ///     <para>

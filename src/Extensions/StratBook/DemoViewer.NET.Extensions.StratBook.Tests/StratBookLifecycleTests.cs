@@ -8,17 +8,17 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
-using DemoViewer.NET.Modules.Review;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.StratBook;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.ViewModels.Shell;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -190,7 +190,7 @@ public class StratBookLifecycleTests
         services.AddSingleton(_ =>
         {
             constructed++;
-            return new GrenadeIndex(new DemoCacheStore(null));
+            return new GrenadeIndex(new DemoCacheStore(null).Library());
         });
         using ServiceProvider sp = services.BuildServiceProvider();
         StratBookLifecycle lifecycle = new(sp, instances);
@@ -213,7 +213,7 @@ public class StratBookLifecycleTests
             IndexOneGrenade(cache, "/d/a.dem", "de_dust2");
             // No background drain: the default schedule (Task.Run) writes the moment Query marks the
             // store dirty, racing this test's "before" check. Only an explicit Flush should write here.
-            using GrenadeIndex grenades = new(cache, lineups: new GrenadeLineupStore(root), scheduleSave: _ => Task.CompletedTask);
+            using GrenadeIndex grenades = new(cache.Library(), lineups: new GrenadeLineupStore(root), scheduleSave: _ => Task.CompletedTask);
             grenades.Load();
             // Minting the first anchor for this map marks the lineup store dirty (GrenadeIndex.EnsureAssignedLocked).
             _ = grenades.Query(new GrenadeQuery("de_dust2"));
@@ -242,23 +242,19 @@ public class StratBookLifecycleTests
         try
         {
             string indexPath = Path.Combine(root, "index.json");
-            StratBookPackInstances instances = new();
             StratStore store = new(root);
             StratBookTabViewModel vm = new(store);
             StratBookModule module = new(() => vm);
-            ServiceCollection services = new();
-            ModuleRegistry registry = new();
-            registry.Register(module);
-            services.AddSingleton(registry);
-            using ServiceProvider sp = services.BuildServiceProvider();
+            StratBookPackInstances instances = new() { StratBook = module };
+            using ServiceProvider sp = new ServiceCollection().BuildServiceProvider();
             StratBookLifecycle lifecycle = new(sp, instances);
 
             // Never activated: Shutdown is StratBookModule's own no-op (StratBookModuleTests' guard, not
-            // this one's). OnShutdown must still reach the registry and the module without throwing.
+            // this one's). OnShutdown must still reach the module without throwing.
             lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
 
             // Activated once (the tab was opened this session): the lifecycle's OnShutdown now reaches
-            // the real VM, whose own Shutdown writes the strat index, proving the registry lookup found it.
+            // the real VM, whose own Shutdown writes the strat index, proving the lifecycle reached the module the pack recorded.
             module.CreateTabs(null!).Single().ViewModelFactory!.Invoke();
             lifecycle.OnShutdown(TimeSpan.FromSeconds(1));
             await Assert.That(File.Exists(indexPath)).IsTrue();
@@ -287,9 +283,9 @@ public class StratBookLifecycleTests
             module.CreateTabs(null!).Single().ViewModelFactory!.Invoke(); // "opened Strats": activates the real tab
 
             // The fixed shutdown: every pack's lifecycle, unconditionally, by its own id (no Ran check).
-            foreach (IFeaturePack pack in FeaturePacks.Default)
+            foreach (IExtension pack in FeaturePacks.Default)
             {
-                if (provider.GetKeyedService<IPackLifecycle>(pack.Id) is { } lifecycle)
+                if (provider.GetKeyedService<IExtensionLifecycle>(pack.Id) is { } lifecycle)
                 {
                     lifecycle.OnShutdown(TimeSpan.FromSeconds(5));
                 }
@@ -326,9 +322,8 @@ public class StratBookLifecycleTests
             Demo = new GrenadeDemoHeader { Sha256 = null, StableKey = DemoCacheStore.StableKey(path) },
             Grenades = [row]
         };
-        cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-        record.StampGrenades(document.Grenades.Count);
         cache.Upsert(record);
+        cache.WriteGrenades(path, document);
     }
 
     // Records every queue job's title, in submission order, without running its body: the pack's
@@ -360,6 +355,8 @@ public class StratBookLifecycleTests
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) => throw new NotSupportedException();
+
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
 
         public IDemoQueueHandle SubmitJob(QueueJobRequest request)
         {
@@ -436,7 +433,7 @@ public class StratBookLifecycleTests
                 try
                 {
                     QueueWork.Ambient = provider.GetRequiredService<IDemoProcessingQueue>();
-                    provider.GetRequiredService<DemoEvaluationCoordinator>();
+                    provider.GetRequiredService<DemoScheduler>();
                     await body(provider, recorder);
                 }
                 finally

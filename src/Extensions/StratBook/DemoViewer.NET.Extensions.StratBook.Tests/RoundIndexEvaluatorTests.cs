@@ -4,8 +4,9 @@ using DemoViewer.NET.Extensions.StratBook;
 using System.Text.Json;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -34,9 +35,9 @@ public class RoundIndexEvaluatorTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(ParsedRecord(Demo, sha: "abc", facts: withFacts ? facts ?? TwoRounds() : null));
-        RoundIndexStore store = new(null, cache);
+        RoundIndexStore store = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, store, sources, () => background, walk: _ => []);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), store, sources, () => background, walk: _ => []);
         return (cache, store, evaluator);
     }
 
@@ -48,21 +49,24 @@ public class RoundIndexEvaluatorTests
         evaluator.Written += _ => written++;
 
         await Assert.That(evaluator.Wants(Demo)).IsFalse();
+        await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsTrue().Because("the index follows Round Facts on the same visit");
+        await Assert.That(Wire(background: false, withFacts: false).Evaluator.WantsAfterUpstream(Demo)).IsFalse()
+            .Because("with the sweep off nothing follows");
         await Assert.That(evaluator.PendingPaths()).IsEmpty();
 
-        evaluator.OnParsedOpportunistically(Demo, Parse());
         evaluator.Evaluate(Demo, Parse());
 
         using (Assert.Multiple())
         {
             await Assert.That(written).IsEqualTo(0);
             await Assert.That(store.TryRead(Demo)).IsNull().Because("there is no extractor to fall back to");
-            await Assert.That(cache.TryLoadRecord(Demo)!.RoundIndexSchema()).IsEqualTo(0);
+            await Assert.That(cache.RoundIndexSchema(Demo)).IsEqualTo(0);
         }
 
         // Round Facts lands: the same pass's next fan-out reaches this one.
         cache.UpdateExisting(Demo, r => r.SetRoundFacts(TwoRounds(), "rf-A"));
         await Assert.That(evaluator.Wants(Demo)).IsTrue();
+        await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsFalse().Because("Wants answers once the rows are there");
         await Assert.That(evaluator.PendingPaths()).Contains(Demo);
     }
 
@@ -84,7 +88,7 @@ public class RoundIndexEvaluatorTests
             await File.WriteAllTextAsync(first.SidecarPathFor(Demo)!, JsonSerializer.Serialize(stale));
 
             DemoCacheStore cache = new(root);
-            RoundIndexEvaluator evaluator = new(cache, new RoundIndexStore(null, cache),
+            RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), new RoundIndexStore(cache.Data()),
                 new RoundIndexPlaceSources(() => RoundIndexTokenSource.Pawn), () => true, walk: _ => []);
             await Assert.That(evaluator.Wants(Demo)).IsTrue().Because("the stale row claims Round Facts");
 
@@ -117,7 +121,6 @@ public class RoundIndexEvaluatorTests
 
         evaluator.Evaluate(Demo, Parse());
         DemoCacheRecord record = cache.TryLoadRecord(Demo)!;
-        DemoCacheIndexEntry entry = cache.TryGetIndex(Demo)!;
         RoundIndexDocument? document = store.TryRead(Demo);
 
         using (Assert.Multiple())
@@ -128,18 +131,16 @@ public class RoundIndexEvaluatorTests
             await Assert.That(document.Demo.FileName).IsEqualTo("match.dem");
             await Assert.That(document.Rounds.Count).IsEqualTo(2);
             await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=2");
-            await Assert.That(record.RoundIndexSchema()).IsEqualTo(StratBookCache.RoundIndexSchema);
-            await Assert.That(record.RoundIndexState()).IsEqualTo(DemoAnalysisState.Indexed);
-            await Assert.That(record.RoundIndexFingerprint()).IsEqualTo(document.Fingerprint);
-            await Assert.That(record.RoundFacts()).IsNotNull().Because("the rows stay");
-            await Assert.That(entry.RoundIndexState()).IsEqualTo(DemoAnalysisState.Indexed);
-            await Assert.That(entry.RoundIndexComputedAtTicks()).IsEqualTo(record.RoundIndexComputedAtTicks());
+            await Assert.That(cache.RoundIndexSchema(Demo)).IsEqualTo(RoundIndexStore.Schema);
+            await Assert.That(cache.RoundIndexState(Demo)).IsEqualTo(DemoDataState.Written);
+            await Assert.That(cache.RoundIndexFingerprint(Demo)).IsEqualTo(document.Fingerprint);
+            await Assert.That(record.RoundFacts).IsNotNull().Because("the rows stay");
             await Assert.That(written.Count).IsEqualTo(1);
             await Assert.That(indexed.Count).IsEqualTo(1);
             await Assert.That(indexed[0].DemoPath).IsEqualTo(Demo);
             await Assert.That(indexed[0].DemoSha256).IsEqualTo("abc");
             await Assert.That(indexed[0].Map).IsEqualTo("de_nuke");
-            await Assert.That(indexed[0].ComputedAtTicks).IsEqualTo(record.RoundIndexComputedAtTicks());
+            await Assert.That(indexed[0].ComputedAtTicks).IsEqualTo(cache.RoundIndexComputedAtTicks(Demo));
             await Assert.That(evaluator.Wants(Demo)).IsFalse();
             await Assert.That(evaluator.PendingPaths()).IsEmpty();
         }
@@ -158,12 +159,11 @@ public class RoundIndexEvaluatorTests
         cache.UpdateExisting(Demo, r => r.UpdateRoundFacts(rows => rows.Rounds[0].Ct.Slots = null!));
 
         evaluator.Evaluate(Demo, Parse());
-        DemoCacheIndexEntry entry = cache.TryGetIndex(Demo)!;
 
         using (Assert.Multiple())
         {
-            await Assert.That(entry.RoundIndexState()).IsEqualTo(DemoAnalysisState.Failed);
-            await Assert.That(entry.RoundIndexSchema()).IsEqualTo(0).Because("no stamp without a file");
+            await Assert.That(cache.RoundIndexState(Demo)).IsEqualTo(DemoDataState.Failed);
+            await Assert.That(cache.RoundIndexSchema(Demo)).IsEqualTo(0).Because("no stamp without a file");
             await Assert.That(evaluator.Wants(Demo)).IsFalse().Because("a failed row is never re-queued on its own");
             await Assert.That(evaluator.PendingPaths()).IsEmpty();
         }
@@ -172,13 +172,13 @@ public class RoundIndexEvaluatorTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(cache.TryGetIndex(Demo)!.RoundIndexState()).IsEqualTo(DemoAnalysisState.Pending);
+            await Assert.That(cache.RoundIndexState(Demo)).IsEqualTo(DemoDataState.Pending);
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.UserRequested);
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.UserRequested);
         }
 
         evaluator.OnFailed(Demo);
-        await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.Background)
+        await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.Background)
             .Because("a failed parse clears the forced flag and leaves the stamp alone");
     }
 
@@ -187,42 +187,42 @@ public class RoundIndexEvaluatorTests
     {
         DemoCacheStore cache = new(null);
         cache.Upsert(ParsedRecord(Demo, sha: "abc", facts: TwoRounds()));
-        RoundIndexStore store = new(null, cache);
+        RoundIndexStore store = new(cache.Data());
         RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
-        RoundIndexEvaluator evaluator = new(cache, store, sources, () => true, walk: _ => [], enabled: () => false);
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), store, sources, () => true, walk: _ => [], enabled: () => false);
 
-        await Assert.That(evaluator.Wants(Demo)).IsFalse();
-        await Assert.That(evaluator.PendingPaths()).IsEmpty();
-
-        evaluator.OnParsedOpportunistically(Demo, Parse());
-        await Assert.That(store.TryRead(Demo)).IsNull().Because("the opportunistic hand-off follows Wants, which the pack gate forces false");
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsFalse();
+            await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsFalse()
+                .Because("the pack gate keeps the demo off every visit, so the index is never written");
+            await Assert.That(evaluator.PendingPaths()).IsEmpty();
+            await Assert.That(store.TryRead(Demo)).IsNull();
+        }
     }
 
     [Test]
-    public async Task WithBackgroundOff_OnlyForcedPathsAreWanted_AndTheHandOffIsGated()
+    public async Task WithBackgroundOff_OnlyForcedPathsAreWanted()
     {
         (DemoCacheStore cache, RoundIndexStore store, RoundIndexEvaluator evaluator) = Wire(background: false);
 
-        await Assert.That(evaluator.Wants(Demo)).IsFalse();
+        await Assert.That(evaluator.Wants(Demo)).IsFalse().Because("with the sweep off the demo joins no visit");
         await Assert.That(evaluator.PendingPaths()).IsEmpty();
-
-        evaluator.OnParsedOpportunistically(Demo, Parse());
-        await Assert.That(store.TryRead(Demo)).IsNull().Because("the hand-off is a no-op when the demo is not wanted");
 
         evaluator.Request(Demo);
         using (Assert.Multiple())
         {
             await Assert.That(evaluator.Wants(Demo)).IsTrue();
             await Assert.That(evaluator.PendingPaths()).Contains(Demo);
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.UserRequested);
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.UserRequested);
         }
 
-        evaluator.OnParsedOpportunistically(Demo, Parse());
+        evaluator.Evaluate(Demo, Parse());
         using (Assert.Multiple())
         {
             await Assert.That(store.TryRead(Demo)).IsNotNull();
-            await Assert.That(cache.TryGetIndex(Demo)!.RoundIndexState()).IsEqualTo(DemoAnalysisState.Indexed);
-            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(Services.DemoProcessing.DemoJobPriority.Background)
+            await Assert.That(cache.RoundIndexState(Demo)).IsEqualTo(DemoDataState.Written);
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.Background)
                 .Because("the forced flag clears once the demo is evaluated");
         }
     }
@@ -233,15 +233,15 @@ public class RoundIndexEvaluatorTests
         (DemoCacheStore cache, RoundIndexStore store, RoundIndexEvaluator evaluator) = Wire();
         evaluator.Evaluate(Demo, Parse());
         int changed = 0;
-        cache.Changed += _ => changed++;
+        store.Changed += _ => changed++;
 
         evaluator.RebuildAll();
 
         using (Assert.Multiple())
         {
-            await Assert.That(changed).IsEqualTo(1).Because("a batch raises Changed once");
-            await Assert.That(cache.TryGetIndex(Demo)!.RoundIndexFingerprint()).IsNull();
-            await Assert.That(cache.TryGetIndex(Demo)!.RoundIndexState()).IsEqualTo(DemoAnalysisState.Indexed)
+            await Assert.That(changed).IsEqualTo(1).Because("a rebuild of every demo raises Changed once");
+            await Assert.That(cache.RoundIndexFingerprint(Demo)).IsNull();
+            await Assert.That(cache.RoundIndexState(Demo)).IsEqualTo(DemoDataState.Written)
                 .Because("stale, not gone: the old rows keep answering until replaced");
             await Assert.That(store.TryRead(Demo)).IsNotNull();
             await Assert.That(evaluator.Wants(Demo)).IsTrue();

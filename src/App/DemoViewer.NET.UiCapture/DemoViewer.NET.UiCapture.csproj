@@ -23,6 +23,12 @@
         <ProjectReference Include="..\DemoViewer.NET\DemoViewer.NET.csproj"/>
         <!-- The Strat Book variants render the extension's views. -->
         <ProjectReference Include="..\..\Extensions\StratBook\DemoViewer.NET.Extensions.StratBook\DemoViewer.NET.Extensions.StratBook.csproj"/>
+        <!-- The out-of-tree stand-in, rendered from its own namespace with the host's look. -->
+        <ProjectReference Include="..\..\Testing\ThirdPartyFake\ThirdPartyFake.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="DemoViewer.NET.Extensions.Sdk"/>
     </ItemGroup>
 
 </Project>

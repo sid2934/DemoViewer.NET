@@ -1,12 +1,13 @@
 #region
 
 using CS2DemoKit.Parser;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Modules;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 
 /// <summary>
 ///     What 2D Playback needs for Create Strat From Round and cannot see through

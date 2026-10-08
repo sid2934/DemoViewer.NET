@@ -10,7 +10,7 @@ Users see it as an **extension** ("Strat Book extension").
 ## 1. Summary
 
 The Strat Book ships as `DemoViewer.NET.Extensions.StratBook`, a first-party extension that is built
-against the app and loaded by it (`IFeaturePack`, `extension.json`, `FeaturePacks`), rather than a
+against the app and loaded by it (`IExtension`, `extension.json`, `FeaturePacks`), rather than a
 third-party, runtime-loaded plugin. It lives in its own project under `src/Extensions/StratBook/`,
 references the app (never the reverse), and carries its own manifest and version, so it can be signed,
 staged under the config root and updated on its own release cadence, independent of the app build.
@@ -21,7 +21,17 @@ evaluators and background jobs stop at the next poll, and its resident indexes (
 `GrenadeIndex`, `SignatureCache`, Team Identity) release their memory in session rather than waiting for a
 restart. Data on disk is untouched; re-enabling backfills whatever indexing was missed while it was off.
 
-The extension reaches the shell, 2D Playback and the Library through `IPackContributions` (tabs,
+The public contract is the `DemoViewer.NET.Extensions.Sdk` package (`src/Sdk/DemoViewer.NET.Extensions.Sdk`,
+author guide in its README): `IExtension`, `IExtensionContributions`, `IExtensionContext` (jobs, passes, the
+library and its facts, storage, settings, notifications, the keymap) and the SDK's playback types, with the UI kit
+(`DemoViewer.NET.Extensions.Sdk.Ui`, including the embeddable `MapView`, `SceneView` and `SceneTimeline`) and the scene contract
+(`DemoViewer.NET.Playback2D.Scene`) beside it. Surfaces the SDK does not carry (export, the review queue, the
+user-work folders) stay first-party as `IFirstPartyShellState`, `IFirstPartyExportChips`,
+`FirstPartyExports` and `FirstPartyHost`, app types the Strat Book resolves from the container and an
+extension installed from outside the app cannot reference. Third-party extensions load from the same
+extensions folder; unverified ones only with the user's consent, and none at all in safe mode.
+
+The extension reaches the shell, 2D Playback and the Library through `IExtensionContributions` (tabs,
 evaluators, job kinds, settings pages, playback panels and lanes, library filters and badges, session
 state, commands, stores) instead of being wired by hand into `App.axaml.cs` and
 `Playback2DTabViewModel`.
@@ -37,23 +47,23 @@ add-on work wants it.
 ### 2.1 The pack
 
 ```csharp
-public interface IFeaturePack
+public interface IExtension
 {
     string Id { get; }                       // "net.demoviewer.pack.stratbook"; persisted key, distinct from the module id
     string FeatureId { get; }                // "pack.stratbook"; the umbrella gate
     IEnumerable<FeatureDescriptor> Features { get; }   // parented to FeatureId
     void Register(IServiceCollection services);        // all DI, unconditional (factories are lazy)
-    void Contribute(IPackContributions to, IServiceProvider sp);
+    void Contribute(IExtensionContributions to, IServiceProvider sp);
 }
 
-public interface IPackLifecycle            // optional, resolved from the pack's own registrations
+public interface IExtensionLifecycle            // optional, resolved from the pack's own registrations
 {
-    Task OnEnabledAsync(PackStartReason reason, CancellationToken ct);  // startup loads, subscriptions
+    Task OnEnabledAsync(ExtensionStartReason reason, CancellationToken ct);  // startup loads, subscriptions
     Task OnDisabledAsync();                  // unsubscribe, cancel owned jobs, release resident indexes (completes when released)
     void OnShutdown(TimeSpan budget);        // flushes
 }
 
-public interface IPackResident              // a pack-built singleton whose state can be dropped and rebuilt
+public interface IExtensionResident              // a pack-built singleton whose state can be dropped and rebuilt
 {
     void Attach();                           // subscribe to the sources that keep it current; loads nothing
     void Release();                          // unsubscribe, flush what is pending, drop the state
@@ -67,7 +77,7 @@ contributions' visibility.
 ### 2.2 Contributions
 
 ```csharp
-public interface IPackContributions
+public interface IExtensionContributions
 {
     void Module(IWorkspaceModule module);                    // tabs and sections
     void HostTab(HostTabContribution host);                  // a tab that hosts sections (the hub)
@@ -120,10 +130,10 @@ public interface IPlaybackSurface
     IPanelHandle AddPanel(int order, Func<object> viewModel, Func<Control>? view = null, string? featureId = null,
         ModeToggle? mode = null);                                  // shown while open, gate on and the mode on
     IDisposable AddKeyHandler(Func<Key, KeyModifiers, bool> handler);             // before the tab's keymap, in order
-    IDisposable AddActionHandler(Func<Playback2DAction, bool> handler);           // unhandled actions; first while a panel has the keyboard
+    IDisposable AddActionHandler(Func<string, bool> handler);                     // unhandled action ids; first while a panel has the keyboard
     IDisposable AddToolbarItem(ToolbarItem item);                                 // the toolbar and the overflow menu both list it
     IDisposable AddPointerPreHandler(Func<ScenePointer, bool> handler);           // before the tool router, on a primary press not diverted to pan
-    string GestureHint(Playback2DAction action);                                  // " (Ctrl+F)" under Keymap, or "" unbound
+    string GestureHint(string actionId);                                          // " (Ctrl+F)" under Keymap, or "" unbound
     // Not built yet, in the order the items need them:
     void AddLayer(string layerId, Func<ISceneLayer> layer);                                     // later; guides
     void AddTool(IPointerTool tool);                                                            // later; token
@@ -135,7 +145,7 @@ public sealed record ScenePointer(MapLevel Level, double WorldX, double WorldY, 
 public sealed class ToolbarItem   // a button a contribution adds; also an overflow-menu entry
 {
     public ToolbarItem(string id, string label, string tooltip, Func<Scene2DFrame, bool> run,
-        Playback2DAction? action = null, int order = 0, string? icon = null);
+        string? actionId = null, int order = 0, string? icon = null);
     public string Label { get; set; }        // mutable: the owner refreshes it on KeymapChanged
     public string Tooltip { get; set; }
     public ICommand? Command { get; }         // wired by AddToolbarItem; what the view binds
@@ -159,7 +169,7 @@ public interface ILaneHandle : IDisposable   // Dispose unregisters the track an
 
 public sealed class ModeToggle   // a mode of the tab a contribution owns
 {
-    public ModeToggle(string id, string label, string tooltip, Playback2DAction? action = null, string? icon = null);
+    public ModeToggle(string id, string label, string tooltip, string? actionId = null, string? icon = null);
     public bool IsOn { get; set; }           // raises Changed on a flip
     public bool IsAvailable { get; set; }    // off: the toolbar hides the toggle; the action only leaves the mode
     public event Action? Changed;
@@ -218,8 +228,8 @@ cards) keeps its rows; the panels fill the third row as the inline views did, so
 passes unchanged.
 
 Keys and actions route through the surface rather than the tab naming a panel. `AddKeyHandler` is asked by the
-view before the tab's keymap, in registration order, which is how the `WhenPaletteFocused` and
-`WhenSuggestionSelected` rows shadow the always rows (the handler resolves its scope against `Keymap`);
+view before the tab's keymap, in registration order, which is how the Strat Book's palette and suggestion
+scope rows shadow the always rows (the handler resolves its scope against `Keymap`);
 `AddActionHandler` is asked for every action the tab does not handle itself, and for every action first while
 a shown panel `HasKeyboard`, which is how undo and redo are the tags' while the palette has the keyboard. The
 tab's `IsReviewAvailable` is "an open panel whose gate is on", so a tab with no contributed panel offers no
@@ -266,8 +276,8 @@ the mode and the session are the pack's, and the three hooks the panel work left
   to watch.
 
 The contribution (`ReviewPanelsPlaybackContribution`, now `IDisposable` because it owns the track) builds the
-`TagSession` on attach from `context.GetService<T>()`: `TagStore` (null for session-only tags), `DemoCacheStore`
-for the rounds a new tag's `round` is derived from, and `IRoundFactsSource` for its facts. It registers
+`TagSession` on attach: `TagStore` (null for session-only tags) from `context.GetService<T>()`, the SDK library
+for the rounds a new tag's `round` is derived from, and the library's `Facts.RoundFacts` for its facts. It registers
 `TagTrack` and `ProposalTrack` on the lane row in that order with a `TagLaneBehaviour` (Label Mode's pick on a
 press, the edit and delete entries, the new label on an empty-lane click, the editor's span on a handle drag)
 and a `ProposalLaneBehaviour` (the queue's pick on a press, the review entries); the proposal track's
@@ -313,10 +323,11 @@ trades its one-off `TryTagPositionAt(level,
 x, y)` for a default-`false` `TryPointerPreHandler(ScenePointer pointer)`; `Scene2DHost.OnPointerPressed` builds
 one `ScenePointer` per primary press not diverted to pan (Space, Ctrl, the middle button) and offers it to the
 bound host before the router. `Playback2DTabViewModel` forwards its `TryPointerPreHandler` to
-`Surface.TryHandlePointerPress`, which tries every `AddPointerPreHandler` registration in order; the strat
-canvas implements it as `ISceneFrameHost.TryPointerPreHandler(pointer) => TryTagPositionAt(pointer.Level,
-pointer.WorldX, pointer.WorldY)`, an explicit forwarder that keeps its own public `TryTagPositionAt` (Set On
-Map) exactly as the ~30 strat canvas tests call it. `ScenePointer.Zones` is a `Func<PlaceResolver?>`, not a
+`Surface.TryHandlePointerPress`, which tries every `AddPointerPreHandler` registration in order. The strat
+canvas is not a frame host: the UI kit's `SceneView` adapts its `ISceneSource` to one, turning each
+`ScenePointer` into a `ScenePress`, and the canvas implements `ISceneSource.OnPress(press) =>
+TryTagPositionAt(press.Level, press.WorldX, press.WorldY)`, an explicit forwarder that keeps its own public
+`TryTagPositionAt` (Set On Map) exactly as the ~30 strat canvas tests call it. `ScenePointer.Zones` is a `Func<PlaceResolver?>`, not a
 value: the review contribution's old `OnMapClick` read `surface.Zones` only after the focus checks passed, and
 an eager field would force `LoadedMapAsset.ZoneLoad` on every pan click instead.
 
@@ -324,12 +335,12 @@ an eager field would force `LoadedMapAsset.ZoneLoad` on every pan click instead.
 (`Playback2DSurface`, ordered by `ToolbarItem.Order`); `Playback2DView.axaml` renders it in the slot the
 static "Rounds like this" `Button` held, and `Playback2DView.axaml.cs` rebuilds the overflow `MenuItem`s from
 it on every open, after the divider `Separator` (`IsVisible="{Binding Surface.HasToolbarItems}"`, as the toolbar
-row's own divider is). `TryExecute` tries a `ModeToggle` whose `Action` matches first, then a `ToolbarItem`
-whose `Action` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
+row's own divider is). `TryExecute` tries a `ModeToggle` whose `ActionId` matches first, then a `ToolbarItem`
+whose `ActionId` matches (`item.Run(_frame())`), then the `AddActionHandler` list, so the button, the menu entry
 and the keymap action are one funnel. The Situations contribution
 (`src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/Situations/SituationsPlaybackContribution.cs`) registers the button's own text,
 "Rounds like this", as `Label` (icon `⌕`, restoring today's button face, which the menu entry does not carry)
-and keeps the tooltip's "Find rounds like this" wording, both with that funnel (`Playback2DAction.FindRoundsLikeThis`);
+and keeps the tooltip's "Find rounds like this" wording, both with that funnel (`StratBookActions.FindRoundsLikeThis`);
 its `Run` resolves `IFindRoundsLikeThis` through `context.GetService<T>()` as `TryFindRoundsLikeThis` used to
 from `App.Services`. The item is added only while `IModuleContext.MapName` is non-empty (checked at attach,
 for a live pack toggle with a demo already open, and on every `OnDemoChanged`) and removed when it closes, so
@@ -347,17 +358,18 @@ through the surface. The token tool and guides layer stay core-registered instea
 a strat frame host and cost nothing. Code keeps the word "pack" for the type names; user-facing copy says
 "extension".
 
-**As built, not on `IPlaybackSurface` but on `Scene2DHost` directly.** Nothing contributes a
-layer or a tool to the 2D Playback tab yet, so `IPlaybackSurface.AddLayer`/`AddTool` are still unbuilt; the
+**As built, not on `IPlaybackSurface` but on the UI kit's `SceneView`.** `IPlaybackSurface.AddLayer` and
+`AddTool` are built (`SdkPlaybackSurface` files each under the extension's id and guards every call), but the
 strat canvas does not go through a pack contribution or `IPlaybackSurface` at all; its own `StratCanvasView`
-mounts a private `Scene2DHost` instance directly in its XAML (`<pb:Scene2DHost x:Name="Host" />`), distinct
-from the Playback2D tab's. `Scene2DHost` gained the same two members, narrower: `AddTool(IPointerTool tool)`
-is `Router.Register(tool)`; `AddLayer(string layerId, Func<ISceneLayer> layer)` adds the layer once,
-immediately, and keeps the factory so a release/rebuild (a re-parent, a re-template) can rebuild it the way
-the fixed layer set already rebuilds itself. Both are called exactly once, from `StratCanvasView`'s
-constructor, right after `FindControl<Scene2DHost>("Host")`: `host.AddTool(new TokenTool())` and
-`host.AddLayer(SceneLayerIds.Guides, () => new GuideLayer(() => (host.FrameHost as IGuidesHost)?.Guides ??
-SceneGuides.None))`. Nothing calls either for the Playback2D tab's own host, so pack off (and the regular
+mounts a `SceneView` (`<ui:SceneView x:Name="Scene" />`) and hands it the canvas as its `ISceneSource`. The
+app draws each `SceneView` with a private `Scene2DHost` (`HostedSceneView`), distinct from the Playback2D
+tab's, whose frame host answers from the source and fixes the toggles a source does not carry. `SceneView`
+has the same two members, each returning a removal: `AddTool(IPointerTool tool)` registers the tool on the
+host's router; `AddLayer(string id, Func<ISceneLayer> layer)` adds the layer once, immediately, and keeps the
+factory so a release/rebuild (a re-parent, a re-template) can rebuild it the way the fixed layer set already
+rebuilds itself. Both are called exactly once, from `StratCanvasView`'s constructor:
+`_scene.AddTool(new TokenTool())` and `_scene.AddLayer(SceneLayerIds.Guides, () => new GuideLayer(() =>
+_bound?.Guides ?? SceneGuides.None))`. Nothing calls either for the Playback2D tab's own host, so pack off (and the regular
 tab, pack on) carries neither: not inert-and-present as before, but absent. `TokenTool` and `GuideLayer` are
 pure consumers of core contracts (`IPointerTool`, `ISceneLayer`) and move to the extension with the rest of
 the Playback2D Core/Pipeline split; `ITokenEditor` and `SceneGuides` do not, because `IToolServices.Tokens` and the new `IGuidesHost`
@@ -382,14 +394,14 @@ public interface ISessionParticipant
 public sealed record StoreDescriptor(string Id, string Label, StoreRoot Root, IReadOnlyList<string> Paths);
 ```
 
-As built (`Extensions/IPackContributions.cs`): one filter and one badge per contribution rather than
+As built (`Extensions/IExtensionContributions.cs`): one filter and one badge per contribution rather than
 a list of filters, since the Library hosts N *contributions* (each optionally offering a filter, a badge, or
 both) instead of one contribution offering N filters. `LibraryFilter(Label, Items, Matches)` carries its own
 items and predicate; `LibraryFilterItem(Key, Display)` reserves `Key == ""` as the neutral "All" choice the
 Library skips when applying predicates. A badge needs a fourth member beyond the sketch,
 `bool HasBadge { get; }`: `BadgeLabels` alone cannot say whether a contribution renders a badge at all, since
 a read-only badge (no settable menu) legitimately has an empty label list. `FeatureId` (nullable, default
-`null`) and `Changed` complete the interface, matching 2.2's general contract; `IPackContributions.Library(...)`
+`null`) and `Changed` complete the interface, matching 2.2's general contract; `IExtensionContributions.Library(...)`
 stamps a null `FeatureId` to the owning pack's id the same way `SettingsPage` does, through a small internal
 wrapper (`PackContributions.StampedLibraryContribution`) rather than a record `with`, since `ILibraryContribution`
 is an interface, not a record. `LibraryTabViewModel` owns a generic host: it calls into a contribution only
@@ -438,7 +450,7 @@ Theme tokens are not a contribution: they stay in the core dictionaries, which c
 when unused. A pack token manifest only matters for third-party add-ons.
 
 As built (session only): no
-`IPackContributions.Session` and no standalone `ISessionParticipant`. Wiring the sketch above would have
+`IExtensionContributions.Session` and no standalone `ISessionParticipant`. Wiring the sketch above would have
 meant handing `MainViewModel`'s constructor a new `PackContributionSet`-derived parameter, and that
 constructor region already belongs to the library contributions' own timing window. Instead `IHostTabViewModel` (`ViewModels/Shell/`)
 carries three new, all-default members: `string? SessionPackId`, `JsonElement? SnapshotPackState()`,
@@ -450,16 +462,22 @@ different-signature override would shadow it (CS0108) and risk double-persisting
 (`StratBookPack.PackId`, `"net.demoviewer.pack.stratbook"`), a new trailing nullable parameter;
 `ModuleTabs` is unchanged. `MainViewModel.RestoreSession`/`SnapshotSession` walk the existing `_hosts` list
 (unconditional, pack-on or off, built once in `BuildWorkspaceTabs`) and read/write each host's blob by
-`SessionPackId`, gated on `host.Tab.FeatureId` (the pack's umbrella gate, as `PackContributions.HostTab`
+`SessionPackId`, gated on `host.Tab.FeatureId` (the pack's umbrella gate, as `PackContributions.HubTab`
 stamps it) through `_gate?.IsEnabled(...)`. A pre-`Packs` file's top-level `StratBook` member folds once
 into `Packs` under the pack's id via `IJsonOnDeserialized`/`[JsonExtensionData]` on `SessionPayload`, the
 same mechanism the demo cache record's own pack-payload fold uses; `SessionPayload` keeps its own literal copy of the
 id string (`Models` cannot depend on `Services` or on the pack) rather than naming `StratBookPack.PackId`.
-An already-present `Packs` entry for that id wins. `StratBookHubViewModel` implements the three members
-over `StratBookLayout` (now in the extension project,
-with `StratBookLayoutState`), whose `RestoreSessionState(JsonElement)` reads `RailCollapsed`/`ListCollapsed`
-independently and accepts only `True`/`False`, so a missing member, a wrong-typed one, or a non-object
+An already-present `Packs` entry for that id wins. The hub itself is the host's `HubTabViewModel`, built from
+the Strat Book's `HubTab` contribution; its rail state is kept per hub id in `SessionPayload.Hubs`, and a
+legacy `RailCollapsed` in the pack's blob is folded into that once. `StratBookLayout` (in the extension
+project, with `StratBookLayoutState`) keeps the Strats list's state; its `RestoreSessionState(JsonElement)`
+reads `ListCollapsed` and accepts only `True`/`False`, so a missing member, a wrong-typed one, or a non-object
 blob leaves that pane as it is instead of throwing or discarding the rest.
+
+Since superseded: the hub is a public `HubTabContribution` the host draws, and `IHostTabViewModel` is gone.
+The pack's session blob rides on the declaration's `Session` (`IExtensionSessionState`, still keyed by pack id
+in `Packs`) and holds `ListCollapsed` only; the rail's collapsed state is the host's, per hub id in
+`SessionPayload.Hubs`, folded once from an older blob's `RailCollapsed`.
 
 The hub's view model is built unconditionally in `BuildWorkspaceTabs` regardless of the gate
 (`StratBookHubAccess`'s own doc comment says so), so "pack off" here is a gate check in the session code,
@@ -476,7 +494,7 @@ blob, not the one loaded at startup, wins), and a pack that was never enabled th
 its loaded blob through unread and unwritten.
 
 **As built.** `StoreDescriptor` gained a fifth field, `IsUserWork`, read by the Settings
-confirmation; `IPackContributions` gained `Store(StoreDescriptor)` and `DataRemoval(IPackDataRemoval)`,
+confirmation; `IExtensionContributions` gained `Store(StoreDescriptor)` and `DataRemoval(IExtensionDataRemoval)`,
 aggregated on `PackContributionSet` as `Stores` and `DataRemovals`. `PackDataRemover`
 (`Services/DemoCache/PackDataRemover.cs`) resolves a descriptor's paths against `AppPaths.ConfigRoot` or
 `AppPaths.DemoCacheDir`, refuses anything rooted, carrying a `..` segment, or resolving to the root itself,
@@ -488,16 +506,16 @@ cannot widen to match the core record sidecars beside it. Both of `PackDataRemov
 through `QueueWork.Run` on serial `ownerTag` (`QueueWork.RunAsync` has no serial parameter), so a delete
 never overlaps the pack's own release item on the same serial.
 
-`StratBookStores.All` is the pack's descriptor list, corrected against the real writers rather than this
-section's original table: `grenade-lineups.json.gz` and `grenades-v3.attempts.json` are under the CACHE
-root (`GrenadeLineupStore`/`GrenadeStoreMigration` both combine with `DemoCacheStore.CacheRoot`, never
-`AppPaths.ConfigRoot`), and `review-queue.json` is dropped (the boundary rule keeps Review Queue core, shared
-with Reels, live with the pack off; deleting it would take Reels' own queue with it). Facet ids for the
-record strip are the pack's four evaluator ids (`StratBookDataRemoval.FacetIds`), not a separate list: a
-`PackStamp.Id` is a facet, not a pack id, and the convention every writer follows is that a stamp always
-rides with the payload it describes.
+`StratBookStores.All` is the pack's descriptor list of what lives outside its own folders: the user's own
+work where users have it, and the cache entries of the layout older builds used (`round-index/`,
+`suggestions/`, `grenade-lineups.json.gz`, `grenades-v3.attempts.json`, the `demos/*.grenades*` siblings),
+which nothing writes now. `review-queue.json` is not listed (the boundary rule keeps Review Queue core,
+shared with Reels, live with the pack off; deleting it would take Reels' own queue with it). The host's
+delete (`HostDataRemoval`) adds the extension's own folders, its per-demo data included, and strips the
+record payload and the stamps of every pass the pack contributed: a `PackStamp.Id` is a facet, not a pack
+id, and the convention every writer follows is that a stamp always rides with the payload it describes.
 
-**Release path, as decided:** turn the pack off first, delete, leave it off. `StratBookDataRemoval.DeleteAsync`
+**Release path, as decided:** turn the pack off first, delete, leave it off. `HostDataRemoval.DeleteAsync`
 writes the gate override off through `SettingsService.Write` (the same write the Extensions master switch
 makes) and awaits `PackSwitch.Pending`. That wait is never stale: `FeatureGate.RaiseChanged` fires inline,
 synchronously, for a self-write made from the UI thread, so by the time the override write returns,
@@ -517,8 +535,8 @@ actually running aborts cleanly on either side rather than deleting against a li
 `WatchedSituationsService` and `StratMiningService`'s state file are explicitly NOT released on disable
 (section 3: "the pack's small user-truth stores... are not released"), so deleting their files while they stay
 resident in memory would leave the deleted content on screen if the pack were re-enabled in the same
-session, and the next edit would save it straight back. `DeleteAsync` closes this by calling each store's
-own recovery after a successful delete: `StratStore.RebuildIndexFromDisk` and `TagStore.RebuildIndexFromDisk`
+session, and the next edit would save it straight back. The pack's `DataDeleted` callback
+(`StratBookStores.ReloadLiveStores`) closes this by calling each store's own recovery after a successful delete: `StratStore.RebuildIndexFromDisk` and `TagStore.RebuildIndexFromDisk`
 already existed (the lost-index recovery); `DossierNotesStore.Reload`, `VetoHistoryStore.Reload` and
 `WatchedSituationsService.Reload` are new, each clearing exactly what the store's own `Load`/`Refuse` pair
 already touches; `StratMiningService.ResetState` is new for the same reason, and matters more than the
@@ -530,9 +548,9 @@ and `ProfileStore.Reload` (both pre-existing) cover `palettes/` and `suggested-t
 
 ```csharp
 public sealed record CommandDescriptor(
-    string Id,                // "stratbook.step.add"; persisted override key
+    string Id,                // "net.demoviewer.pack.stratbook.AddStep"; persisted override key
     string Label,
-    string Scope,             // "playback2d", "playback2d.palette", "stratbook.canvas"
+    string Scope,             // "playback2d", "playback2d.tool", or a scope the extension declares
     KeyGesture? DefaultChord,
     Func<CommandContext, bool> Run,
     Func<CommandContext, bool>? CanRun = null);
@@ -542,11 +560,17 @@ public sealed record CommandDescriptor(
 returning false means unhandled, so the key falls through to whatever else wants it) has to survive
 through a command, or a resolved key that does nothing would read as handled anyway.
 
-Core `Playback2DAction` values map to command ids one to one, so persisted keybind overrides keep working.
-The built ids equal the action's own enum name (not the `stratbook.step.add` style sketched
-above), since that is what keeps a persisted `KeybindOverrides` row readable unchanged; check the actual
-ids before copying the dotted style for a future pack. A command palette, if one
-is ever built, reads the same registry.
+Action ids are strings end to end. Core ids stay bare: a core `Playback2DAction` member's name is its id,
+and the enum is a closed vocabulary the tab maps to at the edge. An extension's ids carry its extension id
+and a dot (`net.demoviewer.pack.stratbook.TagNote`); the registry refuses a third-party command without the
+prefix. The Strat Book's commands shipped under bare ids, so the host keeps an alias table for it
+(`LegacyCommandIds`, keyed by extension id, never read for a third-party extension) and override parsing
+resolves an old `TagNote=Ctrl+Shift+M` row to the current id. The old ids live in the host's settings file,
+which is why the table is the host's and not the extension's. Ids are unique across the merged set ignoring case: a
+compiled-in pack that repeats one fails the registry build, a third-party command that does is reported in
+`CommandRegistry.Conflicts` and left out. Focus scopes beyond `playback2d` and `playback2d.tool` are declared
+by the extension (`IExtension.CommandScopes`, with the label Settings shows) and resolved by its own key
+handler. A command palette, if one is ever built, reads the same registry.
 
 ### 2.6 How the gate folds in
 
@@ -572,13 +596,13 @@ references these.
 under the logical name `extension.json` and copied beside the DLL on build (`None` with
 `CopyToOutputDirectory`, which flows through every project reference, so a head's publish output and the
 test binary's directory both carry it). The loader reads the on-disk copy before loading the
-assembly; the pack reports the embedded copy in process through `IFeaturePack.Manifest`.
+assembly; the pack reports the embedded copy in process through `IExtension.Manifest`.
 
 ```json
 {
   "id": "net.demoviewer.pack.stratbook",
   "name": "Strat Book",
-  "version": "{nbgv}",
+  "version": "{version}",
   "assembly": "DemoViewer.NET.Extensions.StratBook.dll",
   "entryType": "DemoViewer.NET.Extensions.StratBook.StratBookPack",
   "requiresHost": "^1.0",
@@ -586,18 +610,18 @@ assembly; the pack reports the embedded copy in process through `IFeaturePack.Ma
 }
 ```
 
-The committed file is a template (section 2.11): `"{nbgv}"` is replaced at build with the version
+The committed file is a template (section 2.11): `"{version}"` is replaced at build with the version
 Nerdbank.GitVersioning computes from `src/Extensions/StratBook/version.json`, and the stamped copy is what is
 embedded and copied beside the DLL. The placeholder is not a semantic version on purpose, so an unstamped
 copy fails to parse rather than load.
 
 | Member | Required | Meaning |
 |---|---|---|
-| `id` | yes | The pack id; must equal `IFeaturePack.Id` or the status is `ManifestInvalid`. Reverse-DNS, no whitespace. |
+| `id` | yes | The pack id; must equal `IExtension.Id` or the status is `ManifestInvalid`. Reverse-DNS, no whitespace. |
 | `name` | yes | The user-facing name. |
-| `version` | yes | The extension's own SemVer 2.0 version. Stamped at build from the extension's `version.json`; the committed template holds `{nbgv}`. |
+| `version` | yes | The extension's own SemVer 2.0 version. Stamped at build from the extension's `version.json`; the committed template holds `{version}`. |
 | `assembly` | yes | A bare `.dll` file name; a path is refused so a manifest cannot point outside its own directory. |
-| `entryType` | yes | The full name of the `IFeaturePack` type the loader instantiates. |
+| `entryType` | yes | The full name of the `IExtension` type the loader instantiates. |
 | `requiresHost` | yes | A range over `ExtensionHost.ContractVersion`. |
 | `requiresCs2DemoKit` | yes | A range over `ExtensionHost.Cs2DemoKitVersion`. Exact by default: the extension uses CS2DemoKit types directly, so only the same version is known good. |
 | `minAppVersion` | no | The oldest app release the extension runs on. |
@@ -620,7 +644,7 @@ when written the same.
   the surface a pack's own assembly references or implements, not every type under
   `DemoViewer.NET.Extensions`: host-side types that no pack touches (`Loading`, `CompatibilityReport`)
   change freely. **Major** on a breaking change to a type a pack does reference or implement, including
-  `IModuleContext`, `IHostTabViewModel` or the `IPlaybackSurface` family: a removed or renamed member, a
+  `IModuleContext`, `IExtensionContributions` or the `IPlaybackSurface` family: a removed or renamed member, a
   changed signature, a new abstract member on an interface a pack implements. **Minor** on an additive
   change: a new contribution kind, a new optional member with a default. Never patch; a contract has no
   behaviour of its own to fix. The pinning rule (section 4) adds a release rule on top: a **major** bump of the
@@ -680,7 +704,7 @@ table test pins `PackCompatibility.Check`'s semantics over representative host/m
 **The reference check.** The extension's compiled `GetReferencedAssemblies()` is checked against the app
 assembly's own transitive closure (loaded by simple name, minus the BCL), not a fixed list: the extension
 references `CS2OpenDev.Sdk`, `CS2OpenDev.Protos`, `Google.Protobuf`, `DemoViewer.NET.Modules.Abstractions`
-and `.Modules.Abstractions.Ui` directly, five of the eighteen non-BCL assemblies it references today, none
+and `.Extensions.Sdk` directly, five of the eighteen non-BCL assemblies it references today, none
 in this section's example families; a fixed list drawn from those families would have missed them. Every
 one of the eighteen is app-shipped, so the private allowlist is empty today; the heads are deliberately not
 walked, so a dependency only a head adds trips the exhaustiveness test instead of passing unnoticed. The
@@ -733,7 +757,7 @@ after `VelopackApp.Build().Run()` and before Avalonia starts, and returns the `P
    Every higher candidate it passed over is recorded with its reason; candidates below the chosen one are
    not examined.
 3. `Load` loads the chosen assembly, resolves `entryType` by name (`EntryTypeMissing`), requires it to
-   implement `IFeaturePack` with a public parameterless constructor (`NotAPack`), constructs it, and
+   implement `IExtension` with a public parameterless constructor (`NotAPack`), constructs it, and
    checks that the pack's `Id` and the version of its embedded manifest equal the on-disk manifest
    (`IdentityMismatch`). A corrupt or missing file is `AssemblyLoadFailed`.
 4. Two skew checks run on the loaded copy before it is accepted. `CheckReferences` compares every assembly
@@ -799,14 +823,15 @@ before. The same prototype confirmed the other half of the trap: a method that m
   contract and CS2DemoKit ranges in its manifest cover the first-party ones); a new package reference in an
   extension release needs an app release that carries it, which the packaging and compatibility-matrix
   checks enforce.
-- *Internals.* The app's `InternalsVisibleTo("DemoViewer.NET.Extensions.StratBook")` matches by simple name,
-  so the staged copy sees the same internals the shipped one does.
+- *Internals.* Neither the app nor a Playback2D assembly grants the extension its internals, so a staged
+  copy reaches exactly what the shipped one does: the public types.
 
 **Trust.** `ITrustPolicy.Judge(directory, manifest)` is asked once per candidate, after the compatibility
 check and before the assembly is touched; a policy that throws reads as untrusted. As built (section 2.9),
 `TrustPolicy.Default` trusts a directory signed by one of `PublisherKeys.Current`, or,
 failing that, the developer opt-in `DEMOVIEWER_EXTENSIONS_TRUST_UNSIGNED=1` set in the process
-environment, which trusts every staged copy regardless of its signature. Nothing in the app or the
+environment, which trusts every staged copy regardless of its signature. At launch the opt-in counts only
+while the user has turned on "Allow unverified and potentially dangerous extensions" (`TrustPolicy.ForLaunch`). Nothing in the app or the
 installer sets the variable; it is the documented way to run an unsigned local build.
 
 **Logging.** The loader runs before any logger exists, so it records its outcome on each `PackStatus`
@@ -1051,7 +1076,7 @@ the signed zip is what the trust policy judges.
 
 | Member | Required | Meaning |
 |---|---|---|
-| `id` | yes | The extension id; every entry's manifest must carry it. Only `[A-Za-z0-9._-]`, since it names a folder. |
+| `id` | yes | The extension id; every entry's manifest must carry it. Only lowercase `[a-z0-9._-]`, since it names folders and the filesystem may ignore case. |
 | `entries` | yes | Every published version, in any order; parsed highest first. At most 500. |
 | `entries[].version` | yes | SemVer 2.0; must equal the manifest's `version`. No two entries share one. |
 | `entries[].manifest` | yes | The section 2.7 manifest, so the app can judge a version before downloading it. Parsed by the same strict parser; must name `id`. |
@@ -1387,7 +1412,7 @@ is `0.1.<height>` where the height counts the commits that touched `src/Extensio
 `pathFilters` are `.` and an exclusion for the test project) since that line was last changed;
 `versionHeightOffset` is -1 so the commit that introduced the file reads `0.1.0`. A change anywhere else
 in the repo leaves the extension's version alone, which is what the independent-cadence structure rule asked for;
-that includes `src/Extensions/ExtensionManifest.targets` itself, one level up, so a fix to the stamping
+that includes `src/Sdk/DemoViewer.NET.Extensions.Sdk/build/DemoViewer.NET.Extensions.Sdk.targets` itself, one level up, so a fix to the stamping
 ships under the extension's current version. Its `publicReleaseRefSpec` is `main`, the app's own `v*`
 release tags (an app release builds from its tag, not from `main`, and bundles the extension, so the
 bundled copy must read clean) and the extension's release tags; a build off any other ref carries a
@@ -1397,8 +1422,8 @@ bundled copy must read clean) and the extension's release tags; a build off any 
 build. `release.tagName` is `extensions/net.demoviewer.pack.stratbook/v{version}`, which is what
 `nbgv tag` creates, from the plain `major.minor.patch` on any commit.
 
-The committed `extension.json` is a template whose `version` is the literal `{nbgv}`.
-`src/Extensions/ExtensionManifest.targets`, imported by the extension csproj, runs before
+The committed `extension.json` is a template whose `version` is the literal `{version}`.
+`src/Sdk/DemoViewer.NET.Extensions.Sdk/build/DemoViewer.NET.Extensions.Sdk.targets`, imported by the extension csproj, runs before
 `AssignTargetPaths` (after NBGV's `GetBuildVersion`), writes the template with `$(NuGetPackageVersion)`
 in place of the placeholder to `obj/.../extension.json`, and adds that file as the embedded resource and
 the copy beside the DLL; the placeholder must appear exactly once or the build fails. A second extension
@@ -1435,7 +1460,7 @@ change adds that second extension, not done here.
 |---|---|---|
 | UI (tabs, sections, panes, lanes, menus, keybinds, settings pages, chips) | Gone immediately (gate is already live; sections reconcile by identity) | Never built |
 | Background jobs (evaluators, mining, inbox, lineup clips, migrations) | Evaluators stop at the next `Wants()` poll; queued jobs owned by the pack are cancelled by owner tag; a job already running finishes its current unit | Never queued |
-| Indexing passes (Round Index, Grenade walk, Suggested Tags, Round Facts if pack-owned) | Stop at the next demo; nothing new written | Not run. Library indexing does strictly less work |
+| Indexing passes (Round Index, Grenade walk, Suggested Tags) | Stop at the next demo; nothing new written | Not run. Library indexing does strictly less work |
 | Resident memory (`SituationIndex`, `GrenadeIndex`, `SignatureCache`, cached VMs) | Released in session (the in-session release rule; see the live toggle below) | Not allocated |
 | Startup cost (index loads, Team Identity rebuild, store construction) | n/a | None |
 | Data on disk (the pack's config-root and cache-root stores, cache sidecars, record fields) | Kept, untouched | Kept, untouched |
@@ -1445,10 +1470,12 @@ Strat Book data" as a separate, confirmed action that removes the paths in the p
 cache sidecars are regenerable, `strats/`, `tags/`, `teams.json`, `review-queue.json` and the dossier
 stores are user work and must be called out by name in the confirmation.
 
-**Round Facts while off.** Both the writer and the reader are gated: `RoundFactsEvaluator` writes
-nothing and `RoundFactsSource` answers "no rows" and forwards no `Updated`, so winner tints, situation joins
-and tag labels go with the pack rather than showing rows written while it was on. The rows stay in the cache
-records and come back with the pack; a bare run cached under one gate state is not served under another.
+**Round Facts while off.** Round Facts is core and always on: 2D Playback tints its round bands by the
+rows for every user. The `round_facts` ruleset is a core stamped ruleset, so it rides every merged run with
+the pack on or off and never enters the highlights fingerprint. The rows are the record's own
+`DemoCacheRecord.RoundFacts` member; rows an older build kept in the pack's payload are lifted onto it on
+read, under the same stamp, so nothing re-runs. "Delete extension data" leaves them. The pack reads them only
+through the SDK's `IAnalysisFacts.RoundFacts` on its library, with the SDK's `RoundFacts` row types.
 
 **Stale cache while off.** Library keeps indexing new demos without pack passes. The pack fields of those
 records are absent, or the `Packs` entry itself is missing. Fields of records indexed
@@ -1457,8 +1484,8 @@ before the switch stay as they were.
 **Re-enabling.** The pack's evaluators report every demo whose pack fingerprint is missing or stale through
 `PendingPaths()`, which is the existing mechanism, so re-enabling backfills automatically. The cost is a
 re-index of everything indexed while off, which on a large library is the same order as a first index.
-Round Facts is in the pack, and the highlights fingerprint already excludes it, so a toggle does not force
-a library-wide Reels re-scan. The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
+Round Facts is core and the highlights fingerprint excludes it, so a toggle does not force a library-wide
+Reels re-scan or a Round Facts one. The settings page should say so ("N demos will be re-indexed in the background") and the backfill should
 be visible and pausable in the queue, per the standing rule that all background work goes through it.
 
 **Live toggle, as built.** Live in both directions, and turning off releases the pack's memory in
@@ -1487,7 +1514,7 @@ so a settings write that leaves the pack where it was does nothing. `App.StartPa
   live view intact (shutdown's lineup flush still writes), and a fast on-off leaves nothing loaded.
 - *What release means.* The residents are container singletons that core surfaces hold references to
   (Team Identity for the Library filter, the situation index for the shell), so the object cannot be
-  replaced; its state can. Each implements `IPackResident`: `Release` unsubscribes from the sources that
+  replaced; its state can. Each implements `IExtensionResident`: `Release` unsubscribes from the sources that
   would refill it (`DemoCacheStore.Changed`, the evaluators' `Written`/`Indexed`, the index's `Changed`),
   writes anything pending (lineups, the signature cache) and drops the loaded data; `Attach` subscribes
   again and the next load rebuilds. Released: `SituationIndex`, `GrenadeIndex` (and its lineup document),
@@ -1532,8 +1559,8 @@ data for the session only.
 
 ## 4. Release and compatibility rules
 
-1. **Boundary:** the whole Strat Room is in the pack, and so are Round Facts, Teams and Provenance, so "off"
-   removes their indexing cost. The Review Queue stays core, since Reels uses it.
+1. **Boundary:** the whole Strat Room is in the pack, and so are Teams and Provenance, so "off" removes their
+   indexing cost. Round Facts is core. The Review Queue stays core, since Reels uses it.
 2. **Default:** first-run setup asks whether to turn it on; the answer sets the master switch. Upgrades keep
    it on.
 3. **Toggling:** turning it off is live and must also release its memory in session. No "reclaimed on
@@ -1573,7 +1600,7 @@ Before the move to its own project, inside the app project, with namespaces unch
 
 ```
 src/App/DemoViewer.NET/Extensions/StratBook/
-  StratBookPack.cs                      the IFeaturePack
+  StratBookPack.cs                      the IExtension
   Modules/     StratBook, UtilityBook, RoundTagger, SuggestedTags, Situations, Dossier, Teams, Review
   Services/    Strats, RoundIndex, RoundFacts, Tags, Teams, Provenance
   ViewModels/  StratBook, UtilityBook, Situations, Dossier, RoundTagger, SuggestedTags, Teams, Review
@@ -1624,7 +1651,7 @@ src/Extensions/StratBook/
                                                        linked back into App.Tests: core tests use them as fixtures
   extension.json                                    the manifest template (section 2.7); stamped, embedded and copied beside the DLL
   version.json                                      the extension's own Nerdbank.GitVersioning file (0.1, pathFilters on this directory)
-src/Extensions/ExtensionManifest.targets            the stamping target every extension csproj imports
+src/Sdk/DemoViewer.NET.Extensions.Sdk/build/DemoViewer.NET.Extensions.Sdk.targets            the stamping target every extension csproj imports
 src/App/DemoViewer.NET.App.Tests/Extensions/PackBoundaryTests.cs   pack-agnostic; pulled out of the test-project move
 src/App/DemoViewer.NET.UiCapture/Extensions/StratBook/      the pack's capture variants; the test-project move did not touch this
 src/App/DemoViewer.NET/Extensions/Loading/        the loader (section 2.8) and the signing and
@@ -1684,21 +1711,43 @@ Rules as built:
   with the same list, a no-op after Main, because the XAML previewer calls that method without running Main.
   The tests that build the composition root are unchanged, and the pack-off tests override the gate rather
   than the list.
-- **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook` (a first-party extension
-  composes over the same internal seams the app's own composition root uses; the loader loads only
-  first-party signed assemblies, so this exposes nothing to third parties) and
-  `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal seams App.Tests reaches). The
-  extension grants `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and
-  `DemoViewer.NET.Extensions.StratBook.Tests`. **The Playback2D Core/Pipeline split** adds a second grantor: `DemoViewer.NET.Playback2D.Core`
-  also grants `DemoViewer.NET.Extensions.StratBook`, because the strat frame source (moved there) writes
-  `Scene2DFrame`'s internal backing fields directly, the pooled-refill pattern `SceneFrameBuilder` itself
-  uses; `Scene2DHost.AddTool`/`AddLayer`/`FrameHost` stay covered by the app's existing grant. No core
-  member was widened to public for the split.
+- **InternalsVisibleTo.** The app grants `DemoViewer.NET.Extensions.StratBook.Tests` (the same internal
+  seams App.Tests reaches) and nothing to the extension itself; no Playback2D assembly grants it either, which
+  `PackBoundaryTests` pins. The extension builds on public types: the SDK, the UI kit's `MapView` for the
+  Query Canvas and the Utility Book map, the UI kit's `SceneView` and `SceneTimeline` for the strat canvas,
+  the published scene contract, and the first-party seam (`IFirstPartyShellState`,
+  `IFirstPartyExportChips`, `FirstPartyExports`, `FirstPartyHost`, `FirstPartySceneExport`). The strat frame source builds a frame shell per
+  call over its pooled lists instead of refilling `Scene2DFrame`'s internals. In the two unpublished
+  Playback2D assemblies it binds only export, clip export and Review Queue types, which
+  `PackPlayback2DBindingTests` reads from its metadata against a list with a reason per type; maps, map
+  pictures and icons come from the UI kit's `MapAssets` and `MapIcons`. The extension grants
+  `DemoViewer.NET.App.Tests`, `DemoViewer.NET.UiCapture` and `DemoViewer.NET.Extensions.StratBook.Tests`.
+- **App types it binds.** Besides the SDK packages, the extension binds three groups of app types, and
+  `PackPlayback2DBindingTests` pins the list from its metadata with a reason per type. The first-party seam:
+  `IFirstPartyShellState` (whether Live Sync or a reel render holds the machine), `IFirstPartyExportChips`,
+  `FirstPartyExports`, and `FirstPartySceneExport` with `SceneExportDefaults`, which build the export dialog over the extension's scene,
+  seed it from the 2D export's saved folder and quality, and hold the managed ffmpeg folder and the theme
+  palette. Export, which stays first-party: the export dialog and status view models with their range and
+  size options, and `ExportJobService` with its runners and encoding. The review queue: `ReviewQueue`.
+  One app type falls outside those groups: `FirstPartyHost`, one member per store of the user's own work:
+  strats, tags, teams, watched situations, veto history, dossier notes, palettes, the Suggested Tags profile
+  and lineup clips. That work stays where users have it, so the extension reads and writes those files and
+  folders in place rather than through `IExtensionContext.Storage`. It also holds the zones overlay folder,
+  read only, and two one-time reads of files an older build kept elsewhere (the grenade lineups and Strat
+  Mining's dismissed and promoted patterns), which the extension copies into its own folders. It has no root
+  folder: what the extension can rebuild (Strat Mining's detections and signatures, the team index) lives in
+  its own folders through `IExtensionContext.Storage`, and `FirstPartyHostSurfaceTests` pins the member list
+  with a reason for each. Nothing else: the strat canvas is an `ISceneSource` drawn by the UI kit's `SceneView`, with its scrubber a
+  `SceneTimeline` shown by `TimelineView`, and it resolves keys and names gestures through
+  `IExtensionContext.Keymap` (`ActionFor`, `GestureText`, `Changed`), so the user's rebinds reach it without
+  the settings file. Its tool row (`StratCanvasTools`) is its own, over a plain `AnnotationSession`. The
+  palette checks its hotkeys against the same keymap. The
+  generated-items inbox state (`GeneratedState`, `GeneratedInbox`, `GeneratedCounts`) and the atomic file
+  writer live in the extension; it tells the user about new detected strats through the SDK's notifications.
 - **Views.** `ViewLocator` keeps the naming convention and, when `Type.GetType` finds nothing in the app
   assembly, asks each compatible pack's assembly (`pack.GetType().Assembly.GetType(name)`). Pack views
   carry no `avares://` URI and no `assembly=` xmlns today; theme tokens stay in the app (section 2.4).
-- **Shared namespaces.** `DemoViewer.NET.Services.RoundFacts` (models and `IRoundFactsSource` in core,
-  `RoundFactsSource` and the evaluator in the pack), `DemoViewer.NET.Services.RoundIndex`
+- **Shared namespaces.** `DemoViewer.NET.Services.RoundIndex`
   (`RoundIndexTokenSource` in core, the index in the pack) and `DemoViewer.NET.Services.Zones` (Zone Baking in
   core, the resolver source in the pack) are declared by both assemblies. `PackBoundaryTests` treats a
   namespace both declare as shared and scans core only for the pack-owned ones.
@@ -1717,7 +1766,7 @@ Rules as built:
   Section 2.11 has the rest.
 
 What stays in the app: generic capabilities the work added to core regardless of the pack (lanes, shape
-tools, `MapSceneHost`, zones, `QueueWork`, the processing queue) and the Review Queue (the boundary rule).
+tools, the map renderer behind the SDK's `MapView`, zones, `QueueWork`, the processing queue) and the Review Queue (the boundary rule).
 Capabilities the Strat Book work added that core features also consume moved with the extension once
 their contribution seams existed. Which `Services/` folders are pack-only versus shared was settled by
 the initial move list, reviewed before the move.

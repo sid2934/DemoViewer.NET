@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///     Reads and writes the cache's JSON sidecars as UTF-8 bytes, gzipped or plain. Readers sniff the gzip
 ///     magic rather than trusting the file name, so a plain file under a <c>.gz</c> name still reads.
 /// </summary>
-internal static class SidecarJson
+public static class SidecarJson
 {
     // Guards the rent sized from the gzip trailer, which a corrupt file can set to anything.
     private const int MaxTrailerHint = 256 * 1024 * 1024;

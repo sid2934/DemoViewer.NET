@@ -1,12 +1,12 @@
 #region
 
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.ViewModels.Dossier;
-using DemoViewer.NET.Views.Dossier;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
+using DemoViewer.NET.Extensions.StratBook.Views.Dossier;
 
 #endregion
 
-namespace DemoViewer.NET.Modules.Dossier;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 
 /// <summary>
 ///     The Opponent Dossier module: the Dossier section of the Strat Book tab's rail (<see cref="BrowserTabId" />,
@@ -53,7 +53,7 @@ public sealed class DossierModule : IWorkspaceModule
             TabId = BrowserTabId,
             Header = "Dossier",
             Order = 5, // after Review (4)
-            HostId = DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId,
+            HostId = HostIds.StratBookHub,
             FeatureId = TabFeatureId,
             ViewModelFactory = _viewModelFactory,
             ViewFactory = () => new DossierTabView()

@@ -2,18 +2,18 @@
 
 using System.Collections.Concurrent;
 using System.Numerics;
-using DemoViewer.NET.Modules.StratBook.Canvas;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Input;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using SkiaSharp;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratTestData;
-using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
+using GrenadeKind = DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeKind;
 
 #endregion
 
@@ -47,7 +47,7 @@ public class StratThrowOriginTests
         three.Actor = "B";
         three.Utility = new UtilityRef { Kind = "smoke", LineupId = lineup.Id };
         (StratStore store, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
 
         StratExportCapture capture = canvas.CaptureForExport()!;
@@ -79,7 +79,7 @@ public class StratThrowOriginTests
         document.Steps[2].Actor = "B";
         document.Steps[2].Utility = new UtilityRef { Kind = "smoke", LineupId = lineup.Id };
         (StratStore store, StratSession session) = Opened(document);
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
 
         TokenKeyframe before = BAt(canvas);
@@ -111,9 +111,9 @@ public class StratThrowOriginTests
         using LineupOriginSource origins = new(index, a => a());
         origins.Load(Map);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
-        canvas.Timeline.RequestSeekToFrame(StepThreeTick + 10);
+        canvas.Timeline.RequestSeek(StepThreeTick + 10);
         List<IReadOnlyList<PatchOp>> applied = [];
         session.OpsApplied += applied.Add;
         int depth = session.UndoDepth;
@@ -139,9 +139,9 @@ public class StratThrowOriginTests
         ConcurrentQueue<Action> posted = new();
         using LineupOriginSource origins = new(index, posted.Enqueue);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
             lineupOrigins: origins);
-        canvas.Timeline.RequestSeekToFrame(330);
+        canvas.Timeline.RequestSeek(330);
 
         canvas.BeginDrag("A", TokenGrip.Body);
         for (int i = 0; i < 500 && posted.IsEmpty; i++)
@@ -330,12 +330,11 @@ public class StratThrowOriginTests
                 Demo = new GrenadeDemoHeader { Sha256 = $"sha{n}", StableKey = DemoCacheStore.StableKey(path) },
                 Grenades = [row]
             };
-            cache.WriteSibling(path, GrenadeSidecar.Suffix, GrenadeSidecar.Serialize(document));
-            record.StampGrenades(1);
             cache.Upsert(record);
+            cache.WriteGrenades(path, document);
         }
 
-        GrenadeIndex index = new(cache);
+        GrenadeIndex index = new(cache.Library());
         index.Load();
         GrenadeLineup lineup = index.Query(new GrenadeQuery(Map)).SelectMany(c => c.Lineups).Single();
         return (index, lineup);
@@ -344,7 +343,7 @@ public class StratThrowOriginTests
     private static GrenadeLineup Lineup(Guid id, IReadOnlyList<Guid> aliases)
     {
         GrenadeRow row = new() { Id = id.ToString(), Kind = GrenadeKind.Smoke };
-        IndexedGrenade throwOf = new(new DemoRef("/d/x.dem", "x", null), Map, row, new WorldPoint(1, 2, 3), new WorldPoint(4, 5, 6), null, null);
+        IndexedGrenade throwOf = new(new global::DemoViewer.NET.Extensions.StratBook.DemoRef("/d/x.dem", "x", null), Map, row, new WorldPoint(1, 2, 3), new WorldPoint(4, 5, 6), null, null);
         return new GrenadeLineup(new WorldPoint(1, 2, 3), false, [throwOf], id) { AliasIds = [id, .. aliases] };
     }
 }

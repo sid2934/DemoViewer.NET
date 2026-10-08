@@ -1,11 +1,11 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core.Overlay;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     One team's Setup Heatmaps By Buy: one heatmap per map and CT buy the team

@@ -6,7 +6,7 @@ using System.Text.Json.Nodes;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The one reading of a location field (<see cref="PlaceRef" />, a landing, a watched entry): a place, a point

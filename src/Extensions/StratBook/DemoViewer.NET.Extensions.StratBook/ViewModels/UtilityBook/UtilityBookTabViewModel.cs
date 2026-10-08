@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Services.DemoProcessing;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Runtime.ExceptionServices;
@@ -8,17 +7,17 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.Situations;
-using DemoViewer.NET.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Utility;
-using GrenadeKind = DemoViewer.NET.Modules.UtilityBook.GrenadeKind;
+using GrenadeKind = DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeKind;
 using GrenadeTrailPoint = DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
+using DemoViewer.NET.ViewModels;
+using DemoViewer.NET.Playback2D.Core.Levels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.UtilityBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 
 /// <summary>A picker entry: the label shown and the value it stands for, null for "any".</summary>
 /// <typeparam name="T">The value type.</typeparam>
@@ -37,7 +36,7 @@ public sealed record UtilityBookOption<T>(string Label, T? Value) where T : stru
 ///         lineup. The toggle brings the single throws back, and the map says how many it is hiding.
 ///     </para>
 /// </summary>
-public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
     /// <summary>Frame-clock ticks a watch starts before the release: two seconds at 64 ticks.</summary>
     public const int WatchLeadTicks = 128;
@@ -57,7 +56,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
 
     private readonly Func<string, DateTime?> _demoDate;
     private readonly GrenadeIndex _index;
-    private readonly Func<string, LoadedMapAsset?> _loadMapAsset;
+    private readonly Func<string, IMapAsset?> _loadMapAsset;
     private readonly Action<Action> _retire;
     private readonly ISituationPlayback? _playback;
     private readonly Dictionary<string, LandingGroup> _groups = new(StringComparer.Ordinal);
@@ -131,7 +130,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     ///     the strat canvas's): it is then never disposed here.
     /// </param>
     public UtilityBookTabViewModel(GrenadeIndex index, ISituationPlayback? playback = null, bool? isBrowser = null,
-        Func<string, LoadedMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
+        Func<string, IMapAsset?>? loadMapAsset = null, Func<string, DateTime?>? demoDate = null,
         Action<Action>? retire = null, string? clipDirectory = null, Action<Action>? background = null,
         Action<Action>? post = null, string? lockedMap = null, bool ownsMapAsset = true)
     {
@@ -144,7 +143,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
         ArgumentNullException.ThrowIfNull(index);
         _index = index;
         _playback = playback;
-        _loadMapAsset = loadMapAsset ?? (map => MapAssetPipeline.TryLoad(map));
+        _loadMapAsset = loadMapAsset ?? (map => MapAssets.TryLoad(map));
         _retire = retire ?? (dispose => Dispatcher.UIThread.Post(dispose, DispatcherPriority.Background));
         _demoDate = demoDate ?? (_ => null);
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
@@ -184,7 +183,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     public UtilityMapDocument Document { get; } = new();
 
     /// <summary>The selected map's baked bundle, or null when this host has none.</summary>
-    public LoadedMapAsset? MapAsset { get; private set; }
+    public IMapAsset? MapAsset { get; private set; }
 
     /// <summary>The map the document lies on.</summary>
     public string MapName => SelectedMap ?? "";
@@ -249,7 +248,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     // A click or a showing: the read goes to the front of the queue.
     private void RefreshForUser()
     {
-        using (QueueWork.UserAction())
+        using (JobScope.UserAction())
         {
             Refresh();
         }
@@ -316,7 +315,7 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             {
                 result = Compute(map, place, kinds, side);
             }
-            catch (Exception ex) when (!QueueWork.IsStop(ex))
+            catch (Exception ex) when (!JobScope.IsStop(ex))
             {
                 ExceptionDispatchInfo failure = ExceptionDispatchInfo.Capture(ex);
                 _post(failure.Throw);
@@ -341,9 +340,9 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
     {
         IReadOnlyList<string> maps = _lockedMap is { } locked ? [locked] : _index.Maps();
         string? map = _lockedMap ?? (selectedMap is not null && maps.Contains(selectedMap) ? selectedMap : maps.Count > 0 ? maps[0] : null);
-        QueueWork.ThrowIfStopped();
+        JobScope.ThrowIfStopped();
         List<string> places = [AnyPlace, .. map is not null ? _index.LandingPlaces(map) : []];
-        QueueWork.ThrowIfStopped();
+        JobScope.ThrowIfStopped();
         string place = selectedPlace is not null && places.Contains(selectedPlace) ? selectedPlace : AnyPlace;
         IReadOnlyList<GrenadeCluster> clusters = map is not { Length: > 0 }
             ? []
@@ -505,13 +504,13 @@ public sealed partial class UtilityBookTabViewModel : ViewModelBase, IWorkspaceT
             return;
         }
 
-        LoadedMapAsset? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
+        IMapAsset? asset = SelectedMap is { } map ? _loadMapAsset(map) : null;
         if (sameMap && asset is null)
         {
             return;
         }
 
-        LoadedMapAsset? previous = MapAsset;
+        IMapAsset? previous = MapAsset;
         MapAsset = asset;
         _boundMap = SelectedMap;
         OnPropertyChanged(nameof(MapAsset));

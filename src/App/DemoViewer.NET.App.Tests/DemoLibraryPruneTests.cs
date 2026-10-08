@@ -31,7 +31,8 @@ public class DemoLibraryPruneTests
         return dir;
     }
 
-    // Writes a library.json holding rows for paths that may or may not exist, plus the folder list.
+    // Writes a library.json holding rows for paths that may or may not exist, plus the folder list. A file
+    // that exists is keyed by its real size and mtime, so its row is a cache hit and nothing reads it.
     private static string SeedCache(string dir, IEnumerable<string> folders, params string[] cachedPaths)
     {
         string dataPath = Path.Combine(dir, "library.json");
@@ -43,8 +44,8 @@ public class DemoLibraryPruneTests
                 .. cachedPaths.Select(p => new DemoLibraryCacheEntry
                 {
                     Path = p,
-                    Size = 10,
-                    ModifiedTicks = 20,
+                    Size = File.Exists(p) ? new FileInfo(p).Length : 10,
+                    ModifiedTicks = File.Exists(p) ? new FileInfo(p).LastWriteTime.Ticks : 20,
                     Map = "de_dust2",
                     Players = ["someone"],
                     DurationSeconds = 100,
@@ -273,8 +274,52 @@ public class DemoLibraryPruneTests
     }
 
     /// <summary>
+    ///     A hashed demo whose file is gone keeps its sidecar as an orphan: the analysis is what a folder
+    ///     coming back, or the same bytes found elsewhere, would otherwise have to parse again.
+    /// </summary>
+    [Test]
+    public async Task KeepsTheUnifiedCacheSidecarOfAHashedDemo_AsAnOrphan()
+    {
+        string dir = TempDir();
+        string demos = Path.Combine(dir, "demos");
+        Directory.CreateDirectory(demos);
+        try
+        {
+            string live = Path.Combine(demos, "live.dem");
+            File.WriteAllBytes(live, new byte[16]);
+            string deleted = Path.Combine(demos, "deleted.dem");
+
+            string dataPath = SeedCache(dir, [demos], live, deleted);
+
+            DemoCacheStore cache = new(Path.Combine(dir, "cache"));
+            cache.Update(deleted, 10, 20, r =>
+            {
+                r.SetContentHash("sha-deleted", null);
+                DemoCacheStore.StampParse(r);
+            });
+            DemoLibraryService svc = new(_inline, dataPath, demoCache: cache);
+            await svc.RescanAsync();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(cache.TryGetIndex(deleted)).IsNull();
+                await Assert.That(cache.TryGetOrphan("sha-deleted")).IsNotNull();
+                await Assert.That(File.Exists(Path.Combine(dir, "cache", "demos", "sha-deleted" + DemoCacheStore.RecordSuffix)))
+                    .IsTrue().Because("the orphan's record moves off the path's key and stays");
+            }
+
+            svc.Dispose();
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    /// <summary>
     ///     A stale row in the unified cache costs a whole sidecar FILE, not a line of JSON, so the prune has
-    ///     to reach that store too.
+    ///     to reach that store too. A row with no hash cannot be told from another file at its path, so it
+    ///     goes at once.
     /// </summary>
     [Test]
     public async Task Prunes_TheUnifiedCacheSidecarToo()

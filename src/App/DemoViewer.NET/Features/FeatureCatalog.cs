@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Features;
 
 /// <summary>
 ///     The single source of truth for the set of gatable features and their per-category default
-///     visibility: the core descriptors below plus every <see cref="IFeaturePack.Features" />, composed once
+///     visibility: the core descriptors below plus every <see cref="IExtension.Features" />, composed once
 ///     by <see cref="Compose" /> (or from <see cref="FeaturePacks.Compatible" /> on first use) and immutable
 ///     after. <see cref="IFeatureGate" /> resolves a live on/off decision from these descriptors plus the
 ///     user's category and explicit overrides; nothing else defines a feature.
@@ -30,9 +30,6 @@ public static class FeatureCatalog
 
     /// <summary>Group whose members toggle atomically: rule-graph / debugger developer chrome.</summary>
     public const string GroupGraphDebug = "graphDebug";
-
-    /// <summary>Strat tokens follow the map's nav round walls; off moves them in straight lines.</summary>
-    public const string StratRoutingFeatureId = "stratbook.routing";
 
     /// <summary>The prefix every pack umbrella id carries. The gate never fails open on it.</summary>
     public const string PackIdPrefix = "pack.";
@@ -230,7 +227,7 @@ public static class FeatureCatalog
     ///     that order. The first call fixes the catalog; a later call with the same ids is a no-op and one
     ///     with a different set throws, so the catalog never changes under a live gate.
     /// </summary>
-    public static void Compose(IEnumerable<IFeaturePack> packs)
+    public static void Compose(IEnumerable<IExtension> packs)
     {
         ArgumentNullException.ThrowIfNull(packs);
         lock (_composeLock)
@@ -255,12 +252,12 @@ public static class FeatureCatalog
     // parent a tab; a tab parents a sub-feature; chrome and packs have none), nothing under a pack is
     // Required (Required would defeat the pack switch), no pack row in a core group (it could become the
     // leader), and each pack's FeatureId names exactly one Pack-scope row of its own.
-    internal static FeatureDescriptor[] Build(IEnumerable<IFeaturePack> packs)
+    internal static FeatureDescriptor[] Build(IEnumerable<IExtension> packs)
     {
         List<FeatureDescriptor> fromPacks = [];
-        foreach (IFeaturePack pack in packs)
+        foreach (IExtension pack in packs)
         {
-            FeatureDescriptor[] features = [.. pack.Features];
+            FeatureDescriptor[] features = [.. pack.Features.Select(FromExtension)];
             int umbrellas = features.Count(f => f.Id == pack.FeatureId && f.Scope == FeatureScope.Pack);
             if (umbrellas != 1)
             {
@@ -397,6 +394,21 @@ public static class FeatureCatalog
     /// </summary>
     public static FeatureDescriptor? GroupLeader(string groupId) =>
         Composed.FirstOrDefault(d => d.GroupId == groupId);
+
+    /// <summary>The catalog row for an extension's declared feature.</summary>
+    internal static FeatureDescriptor FromExtension(ExtensionFeature feature)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        FeatureScope scope = feature.Kind switch
+        {
+            ExtensionFeatureKind.Extension => FeatureScope.Pack,
+            ExtensionFeatureKind.Tab => FeatureScope.Tab,
+            _ => FeatureScope.SubFeature
+        };
+        AudienceDefaults d = feature.Defaults;
+        return new FeatureDescriptor(feature.Id, scope, feature.Label, feature.Description, feature.ParentId, null, false,
+            Defaults(d.Consumer, d.PowerUser, d.Developer));
+    }
 
     // Builds a category→default map without a constant-array argument (CA1861-clean) and reads left-to-right.
     // Concrete return type per CA1859; the descriptor's IReadOnlyDictionary param accepts it directly.

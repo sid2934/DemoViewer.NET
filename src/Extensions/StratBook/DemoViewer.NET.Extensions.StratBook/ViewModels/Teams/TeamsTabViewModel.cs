@@ -1,18 +1,18 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Generated;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Generated;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 
 /// <summary>
 ///     The Teams tab: the team list, the rosters and members of the selected team, its
@@ -24,9 +24,9 @@ namespace DemoViewer.NET.ViewModels.Teams;
 ///         service and sanitized here, at the render boundary, like every player name.
 ///     </para>
 /// </summary>
-public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
+public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTabViewModel, IDisposable
 {
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
     private readonly Func<string, Task>? _openDemo;
     private readonly TeamIdentityService _teams;
     private bool _disposed;
@@ -90,7 +90,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     private bool _showHidden;
 
     /// <param name="teams">The service.</param>
-    /// <param name="demoCache">The index rows, for a demo's map and file name.</param>
+    /// <param name="library">The library rows, for a demo's map and file name.</param>
     /// <param name="openDemo">Opens a demo in the workspace; null when the host has no shell.</param>
     /// <param name="isBrowser">Whether the host is the WASM head; null reads the runtime.</param>
     /// <param name="command">
@@ -98,11 +98,11 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     ///     tab shows it as busy until it lands.
     /// </param>
     /// <param name="post">Brings a finished command back to the UI thread; inline when null.</param>
-    public TeamsTabViewModel(TeamIdentityService teams, DemoCacheStore demoCache, Func<string, Task>? openDemo = null, bool? isBrowser = null,
+    public TeamsTabViewModel(TeamIdentityService teams, IExtensionLibrary library, Func<string, Task>? openDemo = null, bool? isBrowser = null,
         Func<string, Action, Task>? command = null, Action<Action>? post = null)
     {
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
         _command = command ?? ((_, action) =>
         {
             action();
@@ -110,7 +110,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
         });
         _post = post ?? (action => action());
         _teams = teams;
-        _demoCache = demoCache;
+        _library = library;
         _openDemo = openDemo;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
         _teams.Changed += Refresh;
@@ -317,7 +317,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     {
         if (row is not null)
         {
-            _teams.AcceptSuggestion(row.Id);
+            Apply("Accepting the suggestion…", () => _teams.AcceptSuggestion(row.Id));
         }
     }
 
@@ -326,7 +326,7 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
     {
         if (row is not null)
         {
-            _teams.DismissSuggestion(row.Id);
+            Apply("Dismissing the suggestion…", () => _teams.DismissSuggestion(row.Id));
         }
     }
 
@@ -340,11 +340,11 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
 
         if (row.Id.StartsWith("me:", StringComparison.Ordinal))
         {
-            _teams.RestoreMeSuggestion();
+            Apply("Restoring the suggestion…", _teams.RestoreMeSuggestion);
         }
         else
         {
-            _teams.RestoreSuggestion(row.Id);
+            Apply("Restoring the suggestion…", () => _teams.RestoreSuggestion(row.Id));
         }
     }
 
@@ -378,18 +378,21 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
 
         SquadHint = "";
         IsEditingSquad = false;
-        _teams.SetSquad(picked);
+        Apply("Saving the squad…", () => _teams.SetSquad(picked));
     }
 
     [RelayCommand]
-    private void SaveMyAccounts() =>
-        _teams.SetMyAccounts([.. MyAccountsText.Split([',', ';', ' ', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)]);
+    private void SaveMyAccounts()
+    {
+        List<string> accounts = [.. MyAccountsText.Split([',', ';', ' ', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+        Apply("Saving your accounts…", () => _teams.SetMyAccounts(accounts));
+    }
 
     [RelayCommand]
-    private void ConfirmMeSuggestion() => _teams.ConfirmMeSuggestion();
+    private void ConfirmMeSuggestion() => Apply("Saving your account…", _teams.ConfirmMeSuggestion);
 
     [RelayCommand]
-    private void DismissMeSuggestion() => _teams.DismissMeSuggestion();
+    private void DismissMeSuggestion() => Apply("Dismissing the suggestion…", _teams.DismissMeSuggestion);
 
     [RelayCommand]
     private Task OpenDemo(DemoRow? row) => row is not null && _openDemo is not null ? _openDemo(row.Path) : Task.CompletedTask;
@@ -463,12 +466,12 @@ public sealed partial class TeamsTabViewModel : ViewModelBase, IWorkspaceTabView
             string opponent = otherId is { } o && _teams.AllTeams.FirstOrDefault(t => t.Id == o) is { } team
                 ? DisplayText.Sanitize(team.Name)
                 : "(unaffiliated)";
-            DemoCacheIndexEntry? entry = _demoCache.TryGetIndex(demo.Path);
-            long ticks = entry?.ModifiedTicks ?? 0;
+            LibraryDemo? entry = _library.Find(demo.Path);
+            long ticks = entry?.Modified.Ticks ?? 0;
             Demos.Add(new DemoRow(demo.Path, side, ticks)
             {
                 FileName = Path.GetFileName(demo.Path),
-                Map = entry?.Map ?? "",
+                Map = entry?.MapName ?? "",
                 Date = ticks > 0 ? new DateTime(ticks).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "",
                 Opponent = opponent,
                 // Surfaced at tier 1 only: "with a stand-in" has no referent until a five exists.

@@ -3,7 +3,7 @@
              xmlns:vm="using:DemoViewer.NET.ViewModels.DemoProcessing"
              x:Class="DemoViewer.NET.Views.DemoProcessing.ProcessingQueueStatusView"
              x:DataType="vm:ProcessingQueueStatusViewModel"
-             MinWidth="300" MaxWidth="340">
+             Width="340">
 
     <!--
         Background-work queue flyout body (docs/demo-processing-queue.md): demo parses and every other heavy
@@ -18,7 +18,7 @@
         <!-- Header: title + live status line -->
         <TextBlock Text="BACKGROUND WORK" Classes="col-label"
                    Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
-        <TextBlock Text="{Binding StatusLine}" Classes="mono" FontSize="11"
+        <TextBlock Text="{Binding StatusLine}" Classes="mono" FontSize="11" TextWrapping="Wrap"
                    Foreground="{DynamicResource TextMid}" />
 
         <!-- Background-disabled note: the persisted master switch is off; only foreground opens run. -->
@@ -42,80 +42,152 @@
 
         <Rectangle Classes="divider" Height="1" />
 
-        <!-- Empty state -->
-        <TextBlock Text="Nothing queued." FontSize="11" Foreground="{DynamicResource TextDim}"
-                   IsVisible="{Binding IsEmpty}" />
+        <!-- Queue / Recent: live work, or what finished this session. Same toggle pair as Library's Demos / Teams. -->
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <ToggleButton x:Name="QueueViewToggle" Classes="chip" IsChecked="{Binding IsQueueView}"
+                          Content="{Binding QueueViewLabel}"
+                          ToolTip.Tip="Running work, then queued work in the order it will start." />
+            <ToggleButton x:Name="RecentViewToggle" Classes="chip" IsChecked="{Binding IsRecentView}"
+                          Content="{Binding RecentViewLabel}"
+                          ToolTip.Tip="Work that finished, failed or was cancelled this session, newest first." />
+        </StackPanel>
 
-        <!-- Item list: title / kind or owner chip / priority / state + detail, progress rail + per-item remove (✕) -->
-        <ListBox Classes="data-list" MaxHeight="300"
-                 IsVisible="{Binding !IsEmpty}"
-                 ItemsSource="{Binding Rows}"
-                 Background="Transparent">
-            <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:DemoQueueRowViewModel">
-                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="0 3">
+        <!-- Live list: running first, then queued in start order. Right-click a queued row to move it to the top. -->
+        <StackPanel IsVisible="{Binding IsQueueView}">
+            <TextBlock Text="Nothing queued." FontSize="11" Foreground="{DynamicResource TextDim}"
+                       IsVisible="{Binding IsEmpty}" />
+            <ListBox x:Name="LiveList" Classes="data-list" MaxHeight="300"
+                     IsVisible="{Binding !IsEmpty}"
+                     ItemsSource="{Binding Rows}"
+                     Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DemoQueueRowViewModel">
+                        <Grid ColumnDefinitions="Auto,*,Auto" Margin="0 3" Background="Transparent">
+                            <Grid.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="{Binding PromoteLabel}"
+                                              IsVisible="{Binding IsQueued}"
+                                              IsEnabled="{Binding CanPromote}"
+                                              Command="{Binding PromoteCommand}" />
+                                    <MenuItem Header="{Binding RemoveLabel}"
+                                              Command="{Binding RemoveCommand}" />
+                                </ContextMenu>
+                            </Grid.ContextMenu>
 
-                        <!-- State dot: the shared Ellipse.dot.* state→token styles (never a code-held brush) -->
-                        <Ellipse Grid.Column="0" Classes="dot" Width="8" Height="8"
-                                 VerticalAlignment="Top" Margin="0 4 8 0"
-                                 Classes.stateOff="{Binding IsStateOff}"
-                                 Classes.stateWorking="{Binding IsStateWorking}"
-                                 Classes.stateGood="{Binding IsStateGood}"
-                                 Classes.stateDegraded="{Binding IsStateDegraded}"
-                                 Classes.stateError="{Binding IsStateError}"
-                                 Classes.pulsing="{Binding IsPulsing}"
-                                 ToolTip.Tip="{Binding Error}" />
+                            <!-- State dot: the shared Ellipse.dot.* state→token styles (never a code-held brush) -->
+                            <Ellipse Grid.Column="0" Classes="dot" Width="8" Height="8"
+                                     VerticalAlignment="Top" Margin="0 4 8 0"
+                                     Classes.stateWorking="{Binding IsStateWorking}"
+                                     Classes.pulsing="{Binding IsPulsing}" />
 
-                        <!-- Name + meta line -->
-                        <StackPanel Grid.Column="1" Spacing="2">
-                            <TextBlock Text="{Binding DisplayText}"
-                                       Foreground="{DynamicResource TextValue}" FontSize="12"
-                                       TextTrimming="CharacterEllipsis"
-                                       ToolTip.Tip="{Binding Path}" />
-                            <ProgressBar Minimum="0" Maximum="1" Height="3" MinHeight="3"
-                                         Value="{Binding ProgressValue}"
-                                         Foreground="{DynamicResource AccentInteractive}"
-                                         IsVisible="{Binding HasProgress}" />
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="{Binding StateLabel}" FontSize="10"
+                            <!-- Name + meta line -->
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="{Binding DisplayText}"
+                                           Foreground="{DynamicResource TextValue}" FontSize="12"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding Path}" />
+                                <ProgressBar Minimum="0" Maximum="1" Height="3" MinHeight="3"
+                                             Value="{Binding ProgressValue}"
+                                             Foreground="{DynamicResource AccentInteractive}"
+                                             IsVisible="{Binding HasProgress}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding StateLabel}" FontSize="10"
+                                               Foreground="{DynamicResource TextDim}"
+                                               VerticalAlignment="Center" />
+                                    <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
+                                            IsVisible="{Binding IsPromoted}"
+                                            ToolTip.Tip="Moved to the top: starts next in its lane.">
+                                        <TextBlock Classes="mono" FontSize="9"
+                                                   Foreground="{DynamicResource AccentInteractive}"
+                                                   Text="top" />
+                                    </Border>
+                                    <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
+                                            IsVisible="{Binding HasKind}">
+                                        <TextBlock Classes="mono" FontSize="9"
+                                                   Foreground="{DynamicResource TextChainBadge}"
+                                                   Text="{Binding KindLabel}" />
+                                    </Border>
+                                    <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
+                                            IsVisible="{Binding HasOwners}">
+                                        <TextBlock Classes="mono" FontSize="9"
+                                                   Foreground="{DynamicResource TextChainBadge}"
+                                                   Text="{Binding Owners}" />
+                                    </Border>
+                                    <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
+                                            IsVisible="{Binding HasElevatedPriority}">
+                                        <TextBlock Classes="mono" FontSize="9"
+                                                   Foreground="{DynamicResource TextChainBadge}"
+                                                   Text="{Binding PriorityLabel}" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Detail}" FontSize="10" Classes="mono"
                                            Foreground="{DynamicResource TextDim}"
-                                           VerticalAlignment="Center" />
-                                <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
-                                        IsVisible="{Binding HasKind}">
-                                    <TextBlock Classes="mono" FontSize="9"
-                                               Foreground="{DynamicResource TextChainBadge}"
-                                               Text="{Binding KindLabel}" />
-                                </Border>
-                                <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
-                                        IsVisible="{Binding HasOwners}">
-                                    <TextBlock Classes="mono" FontSize="9"
-                                               Foreground="{DynamicResource TextChainBadge}"
-                                               Text="{Binding Owners}" />
-                                </Border>
-                                <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
-                                        IsVisible="{Binding HasElevatedPriority}">
-                                    <TextBlock Classes="mono" FontSize="9"
-                                               Foreground="{DynamicResource TextChainBadge}"
-                                               Text="{Binding PriorityLabel}" />
-                                </Border>
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding Detail}"
+                                           IsVisible="{Binding HasDetail}" />
                             </StackPanel>
-                            <TextBlock Text="{Binding Detail}" FontSize="10" Classes="mono"
-                                       Foreground="{DynamicResource TextDim}"
-                                       TextTrimming="CharacterEllipsis"
-                                       ToolTip.Tip="{Binding Detail}"
-                                       IsVisible="{Binding HasDetail}" />
-                        </StackPanel>
 
-                        <!-- Per-item remove -->
-                        <Button Grid.Column="2" Classes="icon-btn" Content="✕"
-                                AutomationProperties.Name="Remove from queue"
-                                VerticalAlignment="Center"
-                                Command="{Binding RemoveCommand}"
-                                ToolTip.Tip="Remove from the queue. A running job stops at its next step." />
-                    </Grid>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+                            <!-- Per-item remove -->
+                            <Button Grid.Column="2" Classes="icon-btn" Content="✕"
+                                    AutomationProperties.Name="Remove from queue"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding RemoveCommand}"
+                                    ToolTip.Tip="Remove from the queue. A running job stops at its next step." />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
+        <!-- Recent: finished rows, newest first. No actions; a failure keeps its message under it. -->
+        <StackPanel IsVisible="{Binding IsRecentView}">
+            <TextBlock Text="Nothing has finished yet." FontSize="11" Foreground="{DynamicResource TextDim}"
+                       IsVisible="{Binding IsRecentEmpty}" />
+            <ListBox x:Name="RecentList" Classes="data-list" MaxHeight="300"
+                     IsVisible="{Binding !IsRecentEmpty}"
+                     ItemsSource="{Binding RecentRows}"
+                     Background="Transparent">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DemoQueueRowViewModel">
+                        <Grid ColumnDefinitions="Auto,*" Margin="0 3">
+                            <Ellipse Grid.Column="0" Classes="dot" Width="8" Height="8"
+                                     VerticalAlignment="Top" Margin="0 4 8 0"
+                                     Classes.stateOff="{Binding IsStateOff}"
+                                     Classes.stateGood="{Binding IsStateGood}"
+                                     Classes.stateDegraded="{Binding IsStateDegraded}"
+                                     Classes.stateError="{Binding IsStateError}" />
+                            <StackPanel Grid.Column="1" Spacing="2">
+                                <TextBlock Text="{Binding DisplayText}"
+                                           Foreground="{DynamicResource TextValue}" FontSize="12"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding Path}" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding StateLabel}" FontSize="10"
+                                               Foreground="{DynamicResource TextDim}"
+                                               VerticalAlignment="Center" />
+                                    <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
+                                            IsVisible="{Binding HasKind}">
+                                        <TextBlock Classes="mono" FontSize="9"
+                                                   Foreground="{DynamicResource TextChainBadge}"
+                                                   Text="{Binding KindLabel}" />
+                                    </Border>
+                                    <Border Classes="badge" Padding="4 1" VerticalAlignment="Center"
+                                            IsVisible="{Binding HasOwners}">
+                                        <TextBlock Classes="mono" FontSize="9"
+                                                   Foreground="{DynamicResource TextChainBadge}"
+                                                   Text="{Binding Owners}" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Error}" FontSize="10" Classes="mono"
+                                           Foreground="{DynamicResource TextMid}"
+                                           TextWrapping="Wrap" MaxLines="3"
+                                           IsVisible="{Binding HasError}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
 
     </StackPanel>
 

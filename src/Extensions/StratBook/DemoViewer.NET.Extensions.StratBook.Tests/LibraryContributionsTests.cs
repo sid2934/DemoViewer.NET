@@ -3,8 +3,8 @@
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 #endregion
 
@@ -56,22 +56,14 @@ public class LibraryContributionsTests
         return record;
     }
 
-    private static DemoEntry Entry(string path, string map = "de_nuke") => new()
-    {
-        FilePath = path,
-        FileName = Path.GetFileName(path),
-        Directory = "/d",
-        FileSizeBytes = 1000,
-        Modified = new DateTime(2026, 3, 1),
-        MapName = map,
-        State = DemoIndexState.Indexed
-    };
+    private static LibraryDemo Entry(string path, string map = "de_nuke") =>
+        new(path, Path.GetFileName(path), map, new DateTime(2026, 3, 1), 1000);
 
     // Two rosters that met twice (clusters into one team each), and a demo nobody recurs on.
     private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> Library()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -135,8 +127,8 @@ public class LibraryContributionsTests
                 await Assert.That(contribution.BadgeLabels).IsEmpty();
             }
 
-            DemoEntry a = Entry("/d/a.dem");
-            DemoEntry c = Entry("/d/c.dem");
+            LibraryDemo a = Entry("/d/a.dem");
+            LibraryDemo c = Entry("/d/c.dem");
             Guid teamId = teams.Teams[0].Id;
             string teamKey = teamId.ToString();
 
@@ -166,7 +158,7 @@ public class LibraryContributionsTests
                 () =>
                 {
                     provenanceResolves++;
-                    return source = new DemoProvenanceSource(cache, teams);
+                    return source = new DemoProvenanceSource(cache.Library(), teams);
                 },
                 () =>
                 {
@@ -179,7 +171,7 @@ public class LibraryContributionsTests
             await Assert.That(contribution.Filter).IsNull().Because("the provenance chip offers no filter");
             await Assert.That(provenanceResolves).IsEqualTo(0).Because("reading Filter must not resolve anything either");
 
-            DemoEntry a = Entry("/d/a.dem");
+            LibraryDemo a = Entry("/d/a.dem");
             contribution.BadgeFor(a);
             using (Assert.Multiple())
             {
@@ -205,7 +197,7 @@ public class LibraryContributionsTests
         using (teams)
         {
             DemoCacheStore cache = new(null);
-            ProvenanceLibraryContribution contribution = new(() => new DemoProvenanceSource(cache, teams), () => teams);
+            ProvenanceLibraryContribution contribution = new(() => new DemoProvenanceSource(cache.Library(), teams), () => teams);
 
             using (Assert.Multiple())
             {
@@ -223,11 +215,11 @@ public class LibraryContributionsTests
         (DemoCacheStore cache, TeamIdentityService teams) = await Library();
         using (teams)
         {
-            DemoProvenanceSource real = new(cache, teams);
+            DemoProvenanceSource real = new(cache.Library(), teams);
             CountingProvenanceSource counting = new(real);
             ProvenanceLibraryContribution contribution = new(() => counting, () => teams);
 
-            DemoEntry[] entries = [Entry("/d/a.dem"), Entry("/d/b.dem"), Entry("/d/c.dem")];
+            LibraryDemo[] entries = [Entry("/d/a.dem"), Entry("/d/b.dem"), Entry("/d/c.dem")];
             IReadOnlyDictionary<string, LibraryBadge?> badges = contribution.BadgesFor(entries);
 
             using (Assert.Multiple())
@@ -295,9 +287,9 @@ public class LibraryContributionsTests
 
             await teams.Idle;
             teams.SetMyAccounts([Ids(1)[0]]);
-            DemoProvenanceSource source = new(cache, teams);
+            DemoProvenanceSource source = new(cache.Library(), teams);
             ProvenanceLibraryContribution contribution = new(() => source, () => teams);
-            DemoEntry a = Entry("/d/a.dem");
+            LibraryDemo a = Entry("/d/a.dem");
 
             LibraryBadge? before = contribution.BadgeFor(a);
             using (Assert.Multiple())

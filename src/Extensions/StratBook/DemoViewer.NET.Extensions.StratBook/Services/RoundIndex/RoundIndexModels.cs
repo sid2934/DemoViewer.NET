@@ -2,11 +2,11 @@
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
-namespace DemoViewer.NET.Services.RoundIndex;
+namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 /// <summary>
 ///     The parameters that decide what a row means. Every one of them is in the fingerprint, so a
@@ -129,7 +129,7 @@ public sealed class RoundIndexDemo
     /// <summary>Null until Content Identity has hashed the demo; a reader with a hash ignores a mismatching file.</summary>
     public string? Sha256 { get; set; }
 
-    /// <summary><c>DemoCacheStore.StableKey</c> of the path: the join key until the hash exists, the file name afterwards.</summary>
+    /// <summary><c>DemoKeys.StableKey</c> of the path: the join key until the hash exists, the file name afterwards.</summary>
     public string StableKey { get; set; } = "";
 
     public string FileName { get; set; } = "";

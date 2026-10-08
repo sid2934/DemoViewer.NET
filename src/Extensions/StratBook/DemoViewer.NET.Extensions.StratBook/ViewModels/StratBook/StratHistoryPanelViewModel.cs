@@ -3,12 +3,13 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.ViewModels;
 
 #endregion
 
-namespace DemoViewer.NET.ViewModels.StratBook;
+namespace DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 
 /// <summary>
 ///     Strat Version History: the append-only diff log as a pane, newest entry
@@ -30,7 +31,7 @@ namespace DemoViewer.NET.ViewModels.StratBook;
 ///         column exists; this panel adds no cost of its own beyond one more scan.
 ///     </para>
 /// </summary>
-public sealed partial class StratHistoryPanelViewModel : ViewModelBase, IDisposable
+public sealed partial class StratHistoryPanelViewModel : ExtensionViewModel, IDisposable
 {
     private static readonly TimeSpan _defaultDebounce = TimeSpan.FromMilliseconds(150);
 

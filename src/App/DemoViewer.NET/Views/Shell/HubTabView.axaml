@@ -1,0 +1,138 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.Shell"
+             xmlns:modules="using:DemoViewer.NET.Modules.Abstractions"
+             x:Class="DemoViewer.NET.Views.Shell.HubTabView"
+             x:DataType="vm:HubTabViewModel">
+
+    <!--
+      A hub tab: a left rail of the sections that name the hub and the selected section's view filling the
+      rest. The host draws all of it for every hub, first-party or extension. A rail item shows the
+      section's header and its live badge, and the selected section's ActiveContent is the same realized
+      view a strip tab would have shown.
+
+      Colour: every value is a {DynamicResource} token; the selected rail item is carried by the
+      selection fill and a brighter label, never by tint.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="ListBox.hub-rail">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6 4" />
+        </Style>
+        <Style Selector="ListBox.hub-rail ListBoxItem">
+            <Setter Property="Padding" Value="10 7" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Margin" Value="0 1" />
+            <Setter Property="CornerRadius" Value="4" />
+        </Style>
+        <Style Selector="ListBox.hub-rail ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHover}" />
+        </Style>
+        <Style Selector="ListBox.hub-rail ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PanelHeaderHoverDeep}" />
+        </Style>
+        <Style Selector="ListBox.hub-rail ListBoxItem TextBlock.railLabel">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="ListBox.hub-rail ListBoxItem:selected TextBlock.railLabel">
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="ListBox.hub-rail-compact">
+            <Setter Property="Padding" Value="2 0" />
+        </Style>
+        <Style Selector="ListBox.hub-rail-compact ListBoxItem">
+            <Setter Property="Padding" Value="3 8" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Border.railBadge">
+            <Setter Property="Background" Value="{DynamicResource LibraryCardBadgeBg}" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="6 1" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- The badge fill is dark in every theme, so its text is the overlay's bright ink, not the theme's. -->
+        <Style Selector="Border.railBadge TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource LibraryCardTextBright}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="Auto,Auto,*" Background="{DynamicResource ShellBg}">
+
+        <!-- The rail. « collapses it to the strip below; the choice is kept in the session file. -->
+        <DockPanel Grid.Column="0" Width="164" Background="{DynamicResource PanelHeaderBg}"
+                   IsVisible="{Binding !IsRailCollapsed}">
+            <Border DockPanel.Dock="Top" Classes="sectionHeader" Padding="14 4 6 4">
+                <DockPanel>
+                    <Button x:Name="CollapseRail" DockPanel.Dock="Right" Classes="pane-toggle" Content="«"
+                            Command="{Binding ToggleRailCommand}"
+                            ToolTip.Tip="{Binding CollapseTip}" />
+                    <TextBlock Text="{Binding RailLabel}" Classes="sectionLabel" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+            <ListBox Classes="hub-rail"
+                     ItemsSource="{Binding Sections.Sections}"
+                     SelectedItem="{Binding Sections.SelectedSection, Mode=TwoWay}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="modules:WorkspaceTabDescriptor">
+                        <DockPanel LastChildFill="True">
+                            <Border DockPanel.Dock="Right" Classes="railBadge" IsVisible="{Binding HasBadge}"
+                                    Margin="6 0 0 0">
+                                <TextBlock Text="{Binding Badge}" FontSize="10" />
+                            </Border>
+                            <TextBlock Text="{Binding Header}" Classes="railLabel"
+                                       FontFamily="Consolas,Menlo,monospace" FontSize="13"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <!-- The collapsed rail: » reopens it; the sections stay one click away, read top to bottom with
+             their badges. -->
+        <DockPanel Grid.Column="0" Width="32" Background="{DynamicResource PanelHeaderBg}"
+                   IsVisible="{Binding IsRailCollapsed}">
+            <Button x:Name="ExpandRail" DockPanel.Dock="Top" Classes="pane-toggle" Content="»"
+                    Margin="0 5 0 4" HorizontalAlignment="Center"
+                    Command="{Binding ToggleRailCommand}"
+                    ToolTip.Tip="{Binding ExpandTip}" />
+            <ListBox Classes="hub-rail hub-rail-compact"
+                     ItemsSource="{Binding Sections.Sections}"
+                     SelectedItem="{Binding Sections.SelectedSection, Mode=TwoWay}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="modules:WorkspaceTabDescriptor">
+                        <LayoutTransformControl ToolTip.Tip="{Binding Header}">
+                            <LayoutTransformControl.LayoutTransform>
+                                <RotateTransform Angle="90" />
+                            </LayoutTransformControl.LayoutTransform>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding Header}" Classes="railLabel"
+                                           FontFamily="Consolas,Menlo,monospace" FontSize="12"
+                                           VerticalAlignment="Center" />
+                                <Border Classes="railBadge" IsVisible="{Binding HasBadge}">
+                                    <TextBlock Text="{Binding Badge}" FontSize="10" />
+                                </Border>
+                            </StackPanel>
+                        </LayoutTransformControl>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <Border Grid.Column="1" Width="1" Background="{DynamicResource BorderStrong}" />
+
+        <!-- The selected section, or the one line the rail shows when the gate has hidden every section
+             (the shell hides the whole tab then, so this is the transient state between the two). -->
+        <Panel Grid.Column="2">
+            <ContentControl Content="{Binding Sections.SelectedSection.ActiveContent}" />
+            <TextBlock Text="{Binding EmptyText}"
+                       IsVisible="{Binding !Sections.HasSections}"
+                       FontSize="12" Foreground="{DynamicResource TextMid}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Panel>
+    </Grid>
+</UserControl>

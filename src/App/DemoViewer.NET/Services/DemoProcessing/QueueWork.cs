@@ -19,9 +19,10 @@ public static class QueueWork
     ///     a user's item may stop it and it runs again later. False for work that cannot stop part-way.
     /// </param>
     /// <param name="serial">Items sharing it never run at the same time.</param>
+    /// <param name="extensionKind">With <see cref="QueueJobKind.Extension" />, the declared kind id.</param>
     public static Task Run(IDemoProcessingQueue? queue, QueueJobKind kind, string title, string owner,
         Action<CancellationToken> work, DemoJobPriority priority = DemoJobPriority.Background, string? key = null,
-        bool preemptible = false, string? serial = null)
+        bool preemptible = false, string? serial = null, string? extensionKind = null)
     {
         ArgumentNullException.ThrowIfNull(work);
         if (queue is null || Bypass)
@@ -29,26 +30,20 @@ public static class QueueWork
             return Task.Run(() => work(CancellationToken.None));
         }
 
-        if (_userAction.Value && priority < DemoJobPriority.UserRequested)
+        if (JobScope.IsUserAction && priority < DemoJobPriority.UserRequested)
         {
             priority = DemoJobPriority.UserRequested;
         }
 
         IDemoQueueHandle handle = queue.SubmitJob(new QueueJobRequest(kind, title, owner, priority, ctx =>
         {
-            CancellationToken outer = _current.Value;
-            _current.Value = ctx.CancellationToken;
-            try
+            using (JobScope.Enter(ctx.CancellationToken))
             {
                 work(ctx.CancellationToken);
             }
-            finally
-            {
-                _current.Value = outer;
-            }
 
             return Task.CompletedTask;
-        }, key, ReplacePending: key is not null, Preemptible: preemptible, Serial: serial));
+        }, key, ReplacePending: key is not null, Preemptible: preemptible, Serial: serial, ExtensionKind: extensionKind));
 
         // A disposed queue refuses without running; the work still has to happen.
         return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(CancellationToken.None)) : handle.Completion;
@@ -76,30 +71,77 @@ public static class QueueWork
             return Task.Run(() => work(PoolContext.Instance));
         }
 
-        if (_userAction.Value && priority < DemoJobPriority.UserRequested)
+        if (JobScope.IsUserAction && priority < DemoJobPriority.UserRequested)
         {
             priority = DemoJobPriority.UserRequested;
         }
 
         IDemoQueueHandle handle = queue.SubmitJob(new QueueJobRequest(kind, title, owner, priority, async ctx =>
         {
-            CancellationToken outer = _current.Value;
-            _current.Value = ctx.CancellationToken;
-            try
+            using (JobScope.Enter(ctx.CancellationToken))
             {
                 await work(ctx).ConfigureAwait(false);
-            }
-            finally
-            {
-                _current.Value = outer;
             }
         }, key, ReplacePending: key is not null, Preemptible: false));
 
         return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => work(PoolContext.Instance)) : handle.Completion;
     }
 
-    private static readonly AsyncLocal<bool> _userAction = new();
-    private static readonly AsyncLocal<CancellationToken> _current = new();
+    /// <summary>
+    ///     Submits a prepared request with the same rules as <see cref="Run" />: a user action's priority, the
+    ///     item's token visible to <see cref="ThrowIfStopped" />, and the pool when there is no queue or it refused.
+    /// </summary>
+    internal static Task Submit(IDemoProcessingQueue? queue, QueueJobRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (queue is null || Bypass)
+        {
+            return Task.Run(() => request.RunAsync(PoolContext.Instance));
+        }
+
+        if (JobScope.IsUserAction && request.Priority < DemoJobPriority.UserRequested)
+        {
+            request = request with { Priority = DemoJobPriority.UserRequested };
+        }
+
+        Func<IQueueJobContext, Task> body = request.RunAsync;
+        IDemoQueueHandle handle = queue.SubmitJob(request with
+        {
+            RunAsync = async ctx =>
+            {
+                using (JobScope.Enter(ctx.CancellationToken))
+                {
+                    await body(ctx).ConfigureAwait(false);
+                }
+            }
+        });
+        return handle.State == DemoQueueItemState.Rejected ? Task.Run(() => body(PoolContext.Instance)) : handle.Completion;
+    }
+
+    /// <summary>True when there is no queue to submit to, or a test asked for the pool.</summary>
+    internal static bool RunsOnPool(IDemoProcessingQueue? queue) => queue is null || Bypass;
+
+    /// <summary>
+    ///     <paramref name="body" /> with the item's token visible to <see cref="ThrowIfStopped" /> and
+    ///     <see cref="IsStop" /> while it runs.
+    /// </summary>
+    internal static Func<IQueueJobContext, Task> WithStopToken(Func<IQueueJobContext, Task> body) =>
+        async ctx =>
+        {
+            using (JobScope.Enter(ctx.CancellationToken))
+            {
+                await body(ctx).ConfigureAwait(false);
+            }
+        };
+
+    /// <summary>Runs <paramref name="body" /> with <paramref name="token" /> visible to <see cref="ThrowIfStopped" />.</summary>
+    internal static async Task WithStopToken(Func<Task> body, CancellationToken token)
+    {
+        using (JobScope.Enter(token))
+        {
+            await body().ConfigureAwait(false);
+        }
+    }
 
     // The context a body gets when there is no queue: nothing to report to, nothing that stops it.
     private sealed class PoolContext : IQueueJobContext
@@ -123,30 +165,20 @@ public static class QueueWork
     ///     Work run through a delegate that carries no token calls this at its natural boundaries (per demo,
     ///     per card, per section). Outside a queue item it never throws.
     /// </summary>
-    public static void ThrowIfStopped() => _current.Value.ThrowIfCancellationRequested();
+    public static void ThrowIfStopped() => JobScope.ThrowIfStopped();
 
     /// <summary>True when an exception is the queue stopping the work, which must reach the queue.</summary>
-    public static bool IsStop(Exception ex) => ex is OperationCanceledException && _current.Value.IsCancellationRequested;
+    public static bool IsStop(Exception ex) => JobScope.IsStop(ex);
 
     /// <summary>
     ///     Marks the work submitted inside the scope, and in what it awaits, as asked for by the user: it
     ///     goes to the front of the queue. Section builds use one runner for a click and for a store
     ///     change; the click's handler opens the scope.
     /// </summary>
-    public static IDisposable UserAction()
-    {
-        bool outer = _userAction.Value;
-        _userAction.Value = true;
-        return new Scope(() => _userAction.Value = outer);
-    }
+    public static IDisposable UserAction() => JobScope.UserAction();
 
     /// <summary>Test seam: runs everything on the pool, the behaviour before the queue took this work.</summary>
     internal static bool Bypass { get; set; }
-
-    private sealed class Scope(Action end) : IDisposable
-    {
-        public void Dispose() => end();
-    }
 
     /// <summary>
     ///     The app's queue, for the few sites that sit too deep to be handed one (a strat's working-copy save,

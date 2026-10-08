@@ -1,0 +1,96 @@
+# The extension SDK's release: DemoViewer.NET.Modules.Abstractions, DemoViewer.NET.GameIcons,
+# DemoViewer.NET.Extensions.Sdk, DemoViewer.NET.Extensions.Sdk.Ui and DemoViewer.NET.Playback2D.Scene, packed
+# at the version Nerdbank.GitVersioning computes from src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json and
+# pushed to nuget.org.
+#
+# Publishes only on a tag push matching sdk/v<version>, which must equal the computed version (create it with
+# `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main, after scripts/ship-public-api.sh). A
+# workflow_dispatch run packs and reports without pushing. Needs the NUGET_API_KEY repository secret.
+name: release-sdk
+
+on:
+  push:
+    tags: ['sdk/v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-sdk
+  cancel-in-progress: false
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Nerdbank.GitVersioning needs full history
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore CLI tools (nbgv)
+        run: dotnet tool restore
+
+      - name: Version
+        id: version
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          VERSION="$(dotnet nbgv get-version -p src/Sdk/DemoViewer.NET.Extensions.Sdk -v NuGetPackageVersion)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$REF" =~ ^refs/tags/sdk/v(.+)$ ]]; then
+            if [ "${BASH_REMATCH[1]}" != "$VERSION" ]; then
+              echo "error: tag says ${BASH_REMATCH[1]}, the computed version is $VERSION" >&2
+              exit 1
+            fi
+            echo "publish=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A published API is a promise: it is listed as shipped before the tag, so removing any of it later
+      # fails the build. scripts/ship-public-api.sh moves the lists.
+      - name: Public API is shipped
+        if: steps.version.outputs.publish == '1'
+        run: |
+          set -euo pipefail
+          for list in src/App/DemoViewer.NET.Modules.Abstractions/PublicAPI.Unshipped.txt src/GameIcons/DemoViewer.NET.GameIcons/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/PublicAPI.Unshipped.txt src/Playback2D/DemoViewer.NET.Playback2D.Scene/PublicAPI.Unshipped.txt; do
+            if grep -qv '^#nullable' "$list"; then
+              echo "error: $list still has entries; run scripts/ship-public-api.sh and tag that commit" >&2
+              exit 1
+            fi
+          done
+
+      - name: Pack
+        run: |
+          dotnet pack src/App/DemoViewer.NET.Modules.Abstractions -c Release -o artifacts/sdk-packages
+          dotnet pack src/GameIcons/DemoViewer.NET.GameIcons -c Release -o artifacts/sdk-packages
+          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk -c Release -o artifacts/sdk-packages
+          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui -c Release -o artifacts/sdk-packages
+          dotnet pack src/Playback2D/DemoViewer.NET.Playback2D.Scene -c Release -o artifacts/sdk-packages
+          ls -l artifacts/sdk-packages
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdk-packages-${{ steps.version.outputs.version }}
+          path: artifacts/sdk-packages
+
+      - name: Push to nuget.org
+        if: steps.version.outputs.publish == '1'
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo "error: the NUGET_API_KEY secret is not set" >&2
+            exit 1
+          fi
+          for package in artifacts/sdk-packages/*.nupkg; do
+            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done

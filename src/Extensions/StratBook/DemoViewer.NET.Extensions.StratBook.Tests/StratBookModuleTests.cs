@@ -3,11 +3,11 @@
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Modules.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Teams;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -56,7 +56,7 @@ public class StratBookModuleTests
             await Assert.That(module.Id).IsEqualTo("net.demoviewer.stratbook");
             await Assert.That(tab.TabId).IsEqualTo("stratbook.browser");
             await Assert.That(tab.Header).IsEqualTo("Strats");
-            await Assert.That(tab.HostId).IsEqualTo(DemoViewer.NET.ViewModels.StratBook.StratBookHubViewModel.HostId);
+            await Assert.That(tab.HostId).IsEqualTo(HostIds.StratBookHub);
             await Assert.That(tab.Order).IsEqualTo(0).Because("first on the rail");
             await Assert.That(tab.ViewModelFactory is not null).IsTrue().Because("lazy and retained, never DataContext");
             await Assert.That(tab.DataContext).IsNull();
@@ -91,7 +91,7 @@ public class StratBookModuleTests
     public async Task TheBooks_AreMePlusEveryTeam_WithUsTheDefault()
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
         await teams.StartAsync();
         string[] five = ["76560001", "76560002", "76560003", "76560004", "76560005"];
         string[] other = ["76560011", "76560012", "76560013", "76560014", "76560015"];

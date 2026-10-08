@@ -1,10 +1,10 @@
 #region
 
-using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a <see cref="MapPoolRecord" /> for one team over <see cref="TeamIdentityService.SidesOf" />
@@ -18,18 +18,18 @@ public static class MapPoolRecordService
     private readonly record struct DemoResult(string Map, bool? Won, int CtRounds, int TRounds, Guid? Opponent, long OrderTicks);
 
     /// <param name="teams">The service <see cref="TeamIdentityService.SidesOf" /> reads.</param>
-    /// <param name="demoCache">The cache a demo's map, score and side-round totals come from.</param>
+    /// <param name="library">The library a demo's map, score and side-round totals come from.</param>
     /// <param name="teamId">The team the record is for.</param>
-    public static MapPoolRecord Build(TeamIdentityService teams, DemoCacheStore demoCache, Guid teamId)
+    public static MapPoolRecord Build(TeamIdentityService teams, IExtensionLibrary library, Guid teamId)
     {
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
 
         List<DemoResult> results = [];
         foreach ((DemoRef demo, int side, TeamAssignment assignment) in teams.SidesOf(teamId))
         {
-            DemoCacheIndexEntry? entry = demoCache.TryGetIndex(demo.Path);
-            if (entry?.Map is not { Length: > 0 } map)
+            LibraryDemo? entry = library.Find(demo.Path);
+            if (entry?.MapName is not { Length: > 0 } map)
             {
                 continue;
             }
@@ -42,19 +42,11 @@ public static class MapPoolRecordService
                 won = teamScore > opponentScore;
             }
 
-            // The side-round totals live only on the full record (a fat sidecar), not on the index
-            // row; a team's demo count is small enough that loading each one here is the documented cost
-            // the Strat Record Panel and the Matrix already pay for their own evidence passes.
-            int ctRounds = 0;
-            int tRounds = 0;
-            if (demoCache.TryLoadRecord(demo.Path) is { } record)
-            {
-                ctRounds = record.CtSideWins ?? 0;
-                tRounds = record.TSideWins ?? 0;
-            }
+            int ctRounds = entry.CtSideWins ?? 0;
+            int tRounds = entry.TSideWins ?? 0;
 
             Guid? opponentId = assignment.Side(side == 2 ? 3 : 2).TeamId;
-            results.Add(new DemoResult(map, won, ctRounds, tRounds, opponentId, entry.ModifiedTicks));
+            results.Add(new DemoResult(map, won, ctRounds, tRounds, opponentId, entry.Modified.Ticks));
         }
 
         List<MapPoolMapRow> mapRows =

@@ -31,13 +31,13 @@ using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.RuleWorkbench;
-using DemoViewer.NET.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.LiveSync;
-using DemoViewer.NET.Services.Provenance;
-using DemoViewer.NET.Services.Teams;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Commands;
@@ -69,6 +69,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Path = System.IO.Path;
+using DemoViewer.NET.Extensions.StratBook.Controls;
 
 #endregion
 
@@ -204,6 +205,14 @@ public static partial class Variants
             // pack off so the column shows the core content alone; 1280x900.
             ["playback2d-review-panels"] = Playback2DReviewPanels,
             ["playback2d-review-panels-pack-off"] = Playback2DReviewPanelsPackOff,
+            // The SDK UI kit: every status chip dot state, the moved controls, and the third-party fake's tab
+            // resolved from its own namespace (Extensions/UiKitVariants.cs).
+            ["uikit-status-chips"] = UiKitStatusChips,
+            ["uikit-controls"] = UiKitControls,
+            ["uikit-third-party-fake"] = UiKitThirdPartyFake,
+            // The notification stack over the status strip: two extensions, every severity, one capped
+            // flood; 720x520.
+            ["uikit-notifications"] = UiKitNotifications,
             ["highlights-populated"] = () => Highlights(true, false),
             ["highlights-empty"] = () => Highlights(false, false),
             ["highlights-narrow"] = () => Highlights(true, true),
@@ -233,6 +242,7 @@ public static partial class Variants
             ["reel-chips"] = ReelChips,
             ["queue-flyout"] = () => QueueFlyout(true),
             ["queue-flyout-empty"] = () => QueueFlyout(false),
+            ["queue-flyout-recent"] = () => QueueFlyout(true, true),
             ["queue-chips"] = QueueChips,
             // First-run Visual Walkthrough overlay. Render at --size 1100x680 so the
             // seeded SpotlightRects line up with the coarse backdrop regions.
@@ -719,7 +729,7 @@ public static partial class Variants
     private static IReadOnlyList<ILibraryContribution> LibraryPackContributions(DemoLibraryService lib)
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache, run: a =>
+        TeamIdentityService teams = new(null, DemoViewer.NET.Extensions.HostLibrary.For(cache, null), run: a =>
         {
             a();
             return Task.CompletedTask;
@@ -761,7 +771,7 @@ public static partial class Variants
         return
         [
             new TeamLibraryContribution(() => teams),
-            new ProvenanceLibraryContribution(() => new DemoProvenanceSource(cache, teams), () => teams)
+            new ProvenanceLibraryContribution(() => new DemoProvenanceSource(DemoViewer.NET.Extensions.HostLibrary.For(cache, null), teams), () => teams)
         ];
     }
 
@@ -1425,27 +1435,30 @@ public static partial class Variants
                 "stratbook.suggested-tags-tuning", "SUGGESTED TAGS TUNING", 0, "extension",
                 () => new SuggestedTagsTuningViewModel(
                     new SuggestedTagsTuningService(
-                        cache,
-                        new SuggestedTagsService(cache, new ProposalStore(null, cache), null, new SiteRegionStore(null),
+                        DemoViewer.NET.Extensions.HostLibrary.For(cache, null),
+                        new SuggestedTagsService(DemoViewer.NET.Extensions.HostLibrary.For(cache, null), new DemoViewer.NET.Services.Facts.RoundFactsSource(cache),
+                            new ProposalStore(MemoryDemoData.For(DemoViewer.NET.Extensions.HostLibrary.For(cache, null))), null, new SiteRegionStore(null),
                             () => new ProfileStore(null).Current, () => true, () => false),
                         null,
-                        new SiteRegionStore(null)),
+                        new SiteRegionStore(null),
+                        new ExtensionJobs(StratBookPack.PackId, () => null, () => JobKindRegistry.Default)),
                     new ProfileStore(null)),
                 () => new SuggestedTagsTuningView(),
                 StratBookPack.PackFeatureId),
             new(
                 "stratbook.grenade-index", "GRENADE INDEX", 1, "extension",
-                () => new GrenadeIndexSettingsViewModel(svc, monitor),
-                () => new GrenadeIndexSettingsView(),
+                () => new SchemaSettingsPageViewModel(StratBookSettings.GrenadeIndexSchema,
+                    new ExtensionSettingsStore(StratBookPack.PackId, null, a => a())),
+                () => new SchemaSettingsPageView(),
                 StratBookPack.PackFeatureId)
         ];
 
         // "Delete extension data": a canned inventory, no real PackDataRemover, so the capture
         // is deterministic and needs no temp files. Sizes are plausible, not measured.
-        IPackDataRemoval[]? dataRemovals = armDelete
+        IExtensionDataRemoval[]? dataRemovals = armDelete
             ?
             [
-                new CapturePackDataRemoval(new PackDataInventory(
+                new CapturePackDataRemoval(new ExtensionDataInventory(
                 [
                     new StoreInventoryItem(new StoreDescriptor("strats", "Strats", StoreRoot.Config, ["strats"], true), 14, 182_000),
                     new StoreInventoryItem(new StoreDescriptor("tags", "Tags", StoreRoot.Config, ["tags"], true), 9, 54_000),
@@ -1554,7 +1567,7 @@ public static partial class Variants
 
     // A capture-only second extension: never configured, never composed; only its status exists,
     // and only for "settings-extensions-incompatible".
-    private sealed class CaptureIncompatiblePack : IFeaturePack
+    private sealed class CaptureIncompatiblePack : IExtension, IManifestSource
     {
         public string Id => "net.demoviewer.pack.future";
         public string FeatureId => "pack.future";
@@ -1563,24 +1576,24 @@ public static partial class Variants
             Id, "Future Book", new SemVersion(1, 2, 0), "DemoViewer.NET.Extensions.FutureBook.dll",
             "DemoViewer.NET.Extensions.FutureBook.FutureBookPack", VersionRange.Parse("^2.0"), VersionRange.Any);
 
-        public IEnumerable<FeatureDescriptor> Features => [];
+        public IEnumerable<ExtensionFeature> Features => [];
 
         public void Register(IServiceCollection services)
         {
         }
 
-        public void Contribute(IPackContributions contributions, IServiceProvider sp)
+        public void Contribute(IExtensionContributions contributions, IServiceProvider services)
         {
         }
     }
 
-    // A capture-only IPackDataRemoval: returns a fixed inventory, never actually deletes (DeleteAsync is
+    // A capture-only IExtensionDataRemoval: returns a fixed inventory, never actually deletes (DeleteAsync is
     // unused by the "settings-extensions-delete-confirm" variant, which only arms the confirmation).
-    private sealed class CapturePackDataRemoval(PackDataInventory inventory) : IPackDataRemoval
+    private sealed class CapturePackDataRemoval(ExtensionDataInventory inventory) : IExtensionDataRemoval
     {
-        public string PackFeatureId => StratBookPack.PackFeatureId;
-        public Task<PackDataInventory> InventoryAsync() => Task.FromResult(inventory);
-        public Task<PackDataRemovalResult> DeleteAsync() => Task.FromResult(new PackDataRemovalResult(true, inventory, 0));
+        public string FeatureId => StratBookPack.PackFeatureId;
+        public Task<ExtensionDataInventory> InventoryAsync() => Task.FromResult(inventory);
+        public Task<ExtensionDataRemovalResult> DeleteAsync() => Task.FromResult(new ExtensionDataRemovalResult(true, inventory, 0));
     }
 
     // Renders the Playback2D HUD DOMAIN accents (health/armor/headshot/…) as text + glyphs on the real
@@ -4078,23 +4091,32 @@ public static partial class Variants
     ///     The queue flyout body over a fake queue: the live queue-management surface (item list with
     ///     state dot + owner/priority chips + per-item ✕, status line, Pause/Resume).
     /// </summary>
-    private static Border QueueFlyout(bool populated)
+    private static Border QueueFlyout(bool populated, bool recent = false)
     {
         FakeProcessingQueue queue = new();
         if (populated)
         {
+            // Arrival order differs from start order: the rows must follow StartRank, the promoted one first.
             queue.Seed(
-                ("faceit_liquid_vs_navi.dem", "library, highlights", DemoJobPriority.Background, DemoQueueItemState.Running, null),
-                ("mirage_scrim_2025.dem", "highlights", DemoJobPriority.UserRequested, DemoQueueItemState.Queued, null),
-                ("de_nuke_pug_night.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued, null),
                 ("ancient_ranked_2650.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Completed, null),
-                ("corrupt_half_download.dem", "highlights", DemoJobPriority.Background, DemoQueueItemState.Failed, "Unexpected end of stream"),
-                ("overpass_faceit.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Rejected, null));
+                ("de_nuke_pug_night.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued, null),
+                ("corrupt_half_download.dem", "highlights", DemoJobPriority.Background, DemoQueueItemState.Failed,
+                    "Unexpected end of stream at byte 48213504: the file is truncated"),
+                ("mirage_scrim_2025.dem", "highlights", DemoJobPriority.UserRequested, DemoQueueItemState.Queued, null),
+                ("faceit_liquid_vs_navi.dem", "library, highlights", DemoJobPriority.Background, DemoQueueItemState.Running, null),
+                ("inferno_retake_drills.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued, null),
+                ("overpass_faceit.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Cancelled, null));
+            queue.Rank("inferno_retake_drills.dem", 0, true);
+            queue.Rank("mirage_scrim_2025.dem", 1);
+            queue.Rank("de_nuke_pug_night.dem", 2);
+            queue.Ended("ancient_ranked_2650.dem", 1);
+            queue.Ended("corrupt_half_download.dem", 2);
+            queue.Ended("overpass_faceit.dem", 3);
             queue.RunningCount = 1;
-            queue.QueuedCount = 2;
+            queue.QueuedCount = 3;
         }
 
-        ProcessingQueueStatusViewModel vm = new(queue, () => { });
+        ProcessingQueueStatusViewModel vm = new(queue, () => { }) { IsRecentView = recent };
         return new Border
         {
             Background = Tok("ShellBg"),
@@ -4557,6 +4579,8 @@ public static partial class Variants
         public IDemoQueueHandle SubmitBackground(DemoProcessingRequest request) =>
             throw new NotSupportedException();
 
+        public IDemoQueueHandle SubmitVisit(DemoVisitRequest request) => throw new NotSupportedException();
+
         public IDemoQueueHandle SubmitJob(QueueJobRequest request) => throw new NotSupportedException();
 
         public int ActiveCount(QueueJobKind kind) => 0;
@@ -4589,6 +4613,15 @@ public static partial class Variants
                 });
             }
         }
+
+        public void Rank(string name, int rank, bool promoted = false)
+        {
+            DemoQueueItem item = _items.Single(i => i.DisplayName == name);
+            item.StartRank = rank;
+            item.Promoted = promoted;
+        }
+
+        public void Ended(string name, long seq) => _items.Single(i => i.DisplayName == name).EndedSeq = seq;
     }
 
     // Minimal IReelJobService double: a fixed status set before the VM is constructed (the VM's ctor maps

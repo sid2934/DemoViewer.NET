@@ -1,16 +1,13 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
-using DemoViewer.NET.Services.DemoProcessing;
-using DemoViewer.NET.Modules.Library;
-using DemoViewer.NET.Modules.UtilityBook;
-using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.RoundFacts;
-using DemoViewer.NET.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>
 ///     Builds a team's <see cref="OpeningTendenciesSet" /> over the
@@ -73,27 +70,31 @@ public sealed class OpeningTendenciesService
     // A record without a clock header is still a CS2 demo; the frame clock of every build here is 64.
     private const int FallbackTickRate = 64;
 
-    private readonly DemoCacheStore _demoCache;
+    private readonly IExtensionLibrary _library;
+    private readonly IRoundFacts _roundFacts;
     private readonly Func<string?, string> _fingerprintFor;
     private readonly GrenadeIndex _grenades;
     private readonly RoundIndexStore _positions;
     private readonly TeamIdentityService _teams;
 
     /// <param name="teams">Team Identity: the team's demos and its side per round.</param>
-    /// <param name="demoCache">The records: map, hash, players and Round Facts rows per demo.</param>
+    /// <param name="library">The library: map and hash per demo, and the players.</param>
+    /// <param name="roundFacts">The Round Facts rows per demo.</param>
     /// <param name="grenades">The Grenade Index: every thrown grenade's release and landing.</param>
     /// <param name="positions">The round positions files, for the lurk.</param>
     /// <param name="fingerprintFor">The fingerprint current positions carry per map; a file under another is stale.</param>
-    public OpeningTendenciesService(TeamIdentityService teams, DemoCacheStore demoCache, GrenadeIndex grenades,
+    public OpeningTendenciesService(TeamIdentityService teams, IExtensionLibrary library, IRoundFacts roundFacts, GrenadeIndex grenades,
         RoundIndexStore positions, Func<string?, string> fingerprintFor)
     {
         ArgumentNullException.ThrowIfNull(teams);
-        ArgumentNullException.ThrowIfNull(demoCache);
+        ArgumentNullException.ThrowIfNull(library);
+        ArgumentNullException.ThrowIfNull(roundFacts);
         ArgumentNullException.ThrowIfNull(grenades);
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(fingerprintFor);
         _teams = teams;
-        _demoCache = demoCache;
+        _library = library;
+        _roundFacts = roundFacts;
         _grenades = grenades;
         _positions = positions;
         _fingerprintFor = fingerprintFor;
@@ -111,10 +112,11 @@ public sealed class OpeningTendenciesService
 
         foreach ((DemoRef demo, int endSide, TeamAssignment assignment) in _teams.SidesOf(teamId))
         {
-            QueueWork.ThrowIfStopped(); // one demo at a time: a user's build may take the lane between them
+            JobScope.ThrowIfStopped(); // one demo at a time: a user's build may take the lane between them
             if (!seen.Add(demo.Path)
-                || _demoCache.TryGetIndex(demo.Path)?.Map is not { Length: > 0 } map
-                || _demoCache.TryLoadWithRoundFacts(demo.Path) is not ({ } record, { } rows))
+                || _library.Find(demo.Path) is not { MapName: { Length: > 0 } map } record
+                || _roundFacts.TryGet(demo.Path) is not { } rows
+                || _library.Detail(demo.Path) is not { } detail)
             {
                 continue;
             }
@@ -140,14 +142,14 @@ public sealed class OpeningTendenciesService
             }
 
             Dictionary<int, string> names = [];
-            foreach (CachedPlayerInfo player in record.Players)
+            foreach (LibraryPlayer player in detail.Players)
             {
                 names[player.Slot] = DisplayText.Sanitize(player.Name);
             }
 
             HashSet<string> roster = new(assignment.Side(endSide).Key, StringComparer.Ordinal);
             DemoContext context = new(demo.Path, record.Sha256, rate, names, grenades.Count > 0 ? grenades : null, positions, roster);
-            foreach (RoundFacts.RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
+            foreach (RoundFacts round in rows.Rounds.OrderBy(x => x.Number))
             {
                 if (!round.IsLive || _teams.SideAtRound(demo.Path, teamId, round.Number) is not { } side)
                 {
@@ -201,7 +203,7 @@ public sealed class OpeningTendenciesService
     /// </summary>
     /// <param name="round">The round.</param>
     /// <param name="side">The team's side that round.</param>
-    public static (KillStep Kill, int Slot, bool Won)? OpeningDuel(RoundFacts.RoundFacts round, int side)
+    public static (KillStep Kill, int Slot, bool Won)? OpeningDuel(RoundFacts round, int side)
     {
         ArgumentNullException.ThrowIfNull(round);
         HashSet<int> ours = [.. (side == 3 ? round.Ct : round.T).Slots];
@@ -230,7 +232,7 @@ public sealed class OpeningTendenciesService
     /// <param name="round">The round.</param>
     /// <param name="side">The side whose players are read: 2 = T, 3 = CT.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
-    public static (int Slot, int Tick)? Lurk(RoundPositionsDocument positions, RoundFacts.RoundFacts round, int side, int tickRate)
+    public static (int Slot, int Tick)? Lurk(RoundPositionsDocument positions, RoundFacts round, int side, int tickRate)
     {
         ArgumentNullException.ThrowIfNull(positions);
         ArgumentNullException.ThrowIfNull(round);
@@ -296,7 +298,7 @@ public sealed class OpeningTendenciesService
     private static string KindLabel(GrenadeKind kind) =>
         kind == GrenadeKind.He ? "HE" : kind.ToString().ToLowerInvariant();
 
-    private static string SiteLabel(RoundFacts.RoundFacts round) =>
+    private static string SiteLabel(RoundFacts round) =>
         round.PlantTick is null ? NoPlant : round.PlantSite == BombSite.Unknown ? "unknown site" : round.PlantSite.ToString();
 
     private static string NameOf(DemoContext demo, int slot) =>
@@ -387,7 +389,7 @@ public sealed class OpeningTendenciesService
 
         public int RoundCount => _rounds.Count;
 
-        public void Add(DemoContext demo, RoundFacts.RoundFacts round, int side)
+        public void Add(DemoContext demo, RoundFacts round, int side)
         {
             int rate = demo.Rate;
             int freezeEnd = round.FreezeEndTick;
@@ -477,7 +479,7 @@ public sealed class OpeningTendenciesService
         };
 
         // The clip for a round, clamped to the live window: never before freeze end, never past the end.
-        private static TendencyRound Clip(DemoContext demo, RoundFacts.RoundFacts round, int from, int to)
+        private static TendencyRound Clip(DemoContext demo, RoundFacts round, int from, int to)
         {
             int start = Math.Max(round.FreezeEndTick, from);
             int end = round.EndTick is { } e ? Math.Min(e, to) : to;

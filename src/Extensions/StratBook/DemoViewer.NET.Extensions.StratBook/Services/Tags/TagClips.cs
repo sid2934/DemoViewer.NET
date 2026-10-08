@@ -5,7 +5,7 @@ using DemoViewer.NET.Services.Review;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>Tag instances as Review Queue clips. The queue is core and knows no tag type; this is the join.</summary>
 public static class TagClips
@@ -17,7 +17,7 @@ public static class TagClips
     ///     library" rather than queueing a dead link).
     /// </summary>
     /// <param name="instance">The located instance.</param>
-    /// <param name="pathForSha256">Hash to path, the cache's <c>TryGetIndexBySha256</c>.</param>
+    /// <param name="pathForSha256">Hash to path, the cache's <c>TryGetByContentId</c>.</param>
     /// <param name="tickRate">The demo's tick rate when the caller knows it, else 0.</param>
     public static ReviewEntry? FromTag(TagInstanceRef instance, Func<string, string?> pathForSha256, int tickRate = 0)
     {

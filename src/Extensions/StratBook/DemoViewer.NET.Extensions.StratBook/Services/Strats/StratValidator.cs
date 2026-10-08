@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>How much an issue matters: a refusal blocks a save, a warning and an info never do.</summary>
 public enum StratIssueSeverity

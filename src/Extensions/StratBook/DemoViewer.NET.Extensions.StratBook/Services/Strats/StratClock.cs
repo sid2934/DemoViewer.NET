@@ -2,16 +2,15 @@
 
 using System.Globalization;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Services.DemoCache;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The mapping between a strat's round clock and a demo's frame clock. Pure, both
 ///     directions, on the frame clock only: a round starts at its freeze-end <c>GameTick</c>, which is
-///     <c>CachedRound.StartTickFrameClock</c> (measured equal on 43 of 43 rounds), and a step's
+///     <c>LibraryRound.StartTick</c> (measured equal on 43 of 43 rounds), and a step's
 ///     <c>atSeconds</c> counts DOWN from the round length. Also the strat clock's own rules: a strat timed from its
 ///     trigger counts UP from 0, and both clocks run from strat tick 0 at the start.
 /// </summary>
@@ -59,14 +58,14 @@ public static class StratClock
     /// <param name="clock">The strat's clock block.</param>
     /// <param name="atSeconds">A step's time as stored.</param>
     public static int StratTickOf(StratClockInfo? clock, double atSeconds) =>
-        Math.Max(0, (int)Math.Round(ElapsedOf(clock, atSeconds) * Playback2D.Core.Keyframes.StepSchedule.TicksPerSecond,
+        Math.Max(0, (int)Math.Round(ElapsedOf(clock, atSeconds) * Playback2D.Keyframes.StepSchedule.TicksPerSecond,
             MidpointRounding.AwayFromZero));
 
     /// <summary>The stored time at a strat tick.</summary>
     /// <param name="clock">The strat's clock block.</param>
     /// <param name="tick">A strat tick.</param>
     public static double AtSecondsAtTick(StratClockInfo? clock, int tick) =>
-        AtSecondsOf(clock, tick / (double)Playback2D.Core.Keyframes.StepSchedule.TicksPerSecond);
+        AtSecondsOf(clock, tick / (double)Playback2D.Keyframes.StepSchedule.TicksPerSecond);
 
     /// <summary>Whether <paramref name="a" /> comes after <paramref name="b" /> in the strat: lower on the round clock, higher from a trigger.</summary>
     /// <param name="clock">The strat's clock block.</param>
@@ -166,10 +165,10 @@ public static class StratClock
     /// <param name="round">The round, frame clock.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
     /// <param name="roundSeconds">The round length (<see cref="RoundSecondsFor" />).</param>
-    public static int TickFor(double atSeconds, CachedRound round, int tickRate, double roundSeconds)
+    public static int TickFor(double atSeconds, LibraryRound round, int tickRate, double roundSeconds)
     {
         ArgumentNullException.ThrowIfNull(round);
-        return TickFor(atSeconds, round.StartTickFrameClock, tickRate, roundSeconds);
+        return TickFor(atSeconds, round.StartTick, tickRate, roundSeconds);
     }
 
     /// <summary>The frame-clock tick a round-clock time falls on, from the round's start tick.</summary>
@@ -191,10 +190,10 @@ public static class StratClock
     /// <param name="round">The round, frame clock.</param>
     /// <param name="tickRate">The demo's tick rate.</param>
     /// <param name="roundSeconds">The round length.</param>
-    public static double? AtSecondsFor(int tick, CachedRound round, int tickRate, double roundSeconds)
+    public static double? AtSecondsFor(int tick, LibraryRound round, int tickRate, double roundSeconds)
     {
         ArgumentNullException.ThrowIfNull(round);
-        return AtSecondsFor(tick, round.StartTickFrameClock, tickRate, roundSeconds);
+        return AtSecondsFor(tick, round.StartTick, tickRate, roundSeconds);
     }
 
     /// <summary>The round-clock time of a tick, from the round's start tick; null before it.</summary>

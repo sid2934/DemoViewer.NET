@@ -1,12 +1,12 @@
 #region
 
-using DemoViewer.NET.Modules.Review;
+using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.Provenance;
+using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Services.Review;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Tags;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -219,7 +219,7 @@ public class StratRecordPanelTests
             Cache = new DemoCacheStore(null);
             Queue = new ReviewQueue(null);
             StratEvidenceService evidence = new(Tags, new FixedProvenance(Provenance));
-            Panel = new StratRecordPanelViewModel(evidence, Tags, Queue, Cache.TryGetIndexBySha256,
+            Panel = new StratRecordPanelViewModel(evidence, Tags, Queue, Cache.Library().FindBySha256,
                 tab =>
                 {
                     SelectedTabs.Add(tab);

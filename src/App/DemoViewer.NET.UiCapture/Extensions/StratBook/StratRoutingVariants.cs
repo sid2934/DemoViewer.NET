@@ -5,12 +5,13 @@ using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using DemoViewer.NET.Playback2D.Core.Keyframes;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
-using DemoViewer.NET.Services.Zones;
-using DemoViewer.NET.ViewModels.StratBook;
-using DemoViewer.NET.Views.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using DemoViewer.NET.Views.Shell;
 
 #endregion
 
@@ -22,11 +23,11 @@ public static partial class Variants
     private const double Dust2Floor = -99968;
 
     // Execute B on dust2, paused at a round clock time: tokens on their routes, each with its way ahead.
-    private static StratBookHubView StratRoutingExecuteB(double atSeconds)
+    private static HubTabView StratRoutingExecuteB(double atSeconds)
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        HubTabView view = StratEditor(true, true, true, vm =>
         {
             strats = vm;
             Replace(vm, "Execute B", ExecuteB(zones));
@@ -41,11 +42,11 @@ public static partial class Variants
 
     // B goes to B site through Middle rather than the tunnels, the shortest way: the step row shows its via, and the
     // canvas the route through mid, mid-run.
-    private static StratBookHubView StratRoutingVia()
+    private static HubTabView StratRoutingVia()
     {
         IZonePlaceResolver? zones = new AssetZonePlaceResolverSource().TryGet("de_dust2");
         StratBookTabViewModel? strats = null;
-        StratBookHubView view = StratEditor(true, true, true, vm =>
+        HubTabView view = StratEditor(true, true, true, vm =>
         {
             strats = vm;
             (double X, double Y) spawn = Centre(zones, "TSpawn");

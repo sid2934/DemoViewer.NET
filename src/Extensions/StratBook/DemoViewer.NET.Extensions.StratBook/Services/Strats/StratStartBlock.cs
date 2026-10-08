@@ -3,11 +3,11 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using DemoViewer.NET.Services.Strats.Mining;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>A start entry read from a step of an older file: the step and the entry's index in its <c>positions[]</c>.</summary>
 /// <param name="Step">The step's index.</param>

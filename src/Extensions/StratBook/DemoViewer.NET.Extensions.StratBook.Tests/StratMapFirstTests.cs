@@ -1,17 +1,19 @@
 #region
 
 using System.Numerics;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Modules.StratBook.Canvas;
+using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Levels;
 using DemoViewer.NET.Playback2D.Core.Zones;
-using DemoViewer.NET.Services.RoundIndex;
-using DemoViewer.NET.Services.Strats;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
-using DemoViewer.NET.ViewModels.StratBook;
+using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using SkiaSharp;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
+using DemoViewer.NET.Extensions.StratBook.Services.Zones;
 
 #endregion
 
@@ -48,9 +50,8 @@ public class StratMapFirstTests
     private static StratCanvasViewModel MapCanvas(StratSession session, Func<string, Task<IZonePlaceResolver?>>? places = null,
         Action<Action>? post = null)
     {
-        StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [],
+        StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped,
             placesFor: places ?? (_ => Task.FromResult<IZonePlaceResolver?>(SyntheticZones())), post: post ?? (a => a()));
-        canvas.Timeline.PixelWidth = 6000;
         return canvas;
     }
 
@@ -83,9 +84,9 @@ public class StratMapFirstTests
         }
 
         // The step keys, the scrubber and play all move the selection the rows show.
-        canvas.ExecuteAction(Playback2DAction.PrevStep);
+        canvas.ExecuteAction(StratBookActions.PrevStep);
         await Assert.That(SelectedRows(editor)).IsEqualTo("1");
-        canvas.Timeline.RequestSeekToFrame(Step3 + 700);
+        canvas.Timeline.RequestSeek(Step3 + 700);
         await Assert.That(editor.Steps.Single(r => r.IsSelected).Id).IsEqualTo(editor.Steps[3].Id);
         await Assert.That(selection.SelectedStepId).IsEqualTo(editor.Steps[3].Id);
 
@@ -113,7 +114,7 @@ public class StratMapFirstTests
         using StratStepSelection selection = new(editor, canvas);
 
         // Seeking to the tick alone gives the later step; selecting the row gives that row's.
-        canvas.Timeline.RequestSeekToFrame(Step3);
+        canvas.Timeline.RequestSeek(Step3);
         await Assert.That(canvas.ActiveStepIndex).IsEqualTo(2);
         selection.Select(editor.Steps[1].Id);
         using (Assert.Multiple())
@@ -176,7 +177,7 @@ public class StratMapFirstTests
         await Assert.That(canvas.BeginSetPlace()).IsTrue();
         canvas.TryTagPositionAt(Upper, 150, 50);
         await Assert.That(session.Document!.Steps[1].To!.Place).IsEqualTo("Ramp");
-        await Assert.That(canvas.ExecuteAction(Playback2DAction.Undo)).IsTrue();
+        await Assert.That(canvas.ExecuteAction(nameof(Playback2DAction.Undo))).IsTrue();
         await Assert.That(session.Document!.Steps[1].To!.Place).IsEqualTo("Hut");
     }
 
@@ -369,10 +370,10 @@ public class StratMapFirstTests
     {
         (StratStore _, StratSession session) = Opened(SharedTick());
         ManualTicker ticker = new();
-        using StratCanvasViewModel canvas = new(session, _ => null, ticker, null, () => [],
+        using StratCanvasViewModel canvas = new(session, _ => null, ticker, null, StratTestKeymap.Shipped,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(SyntheticZones()), post: a => a());
-        canvas.Timeline.RequestSeekToFrame(320);
-        canvas.ExecuteAction(Playback2DAction.TogglePlay);
+        canvas.Timeline.RequestSeek(320);
+        canvas.ExecuteAction(nameof(Playback2DAction.TogglePlay));
         ticker.Fire(0.5);
         await Assert.That(canvas.IsPlaying).IsTrue();
 
@@ -390,9 +391,9 @@ public class StratMapFirstTests
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
         ManualTicker ticker = new();
-        using StratCanvasViewModel canvas = new(session, _ => null, ticker, null, () => []);
-        canvas.Timeline.RequestSeekToFrame(Step2);
-        canvas.ExecuteAction(Playback2DAction.TogglePlay);
+        using StratCanvasViewModel canvas = new(session, _ => null, ticker, null, StratTestKeymap.Shipped);
+        canvas.Timeline.RequestSeek(Step2);
+        canvas.ExecuteAction(nameof(Playback2DAction.TogglePlay));
         ticker.Fire(1.0);
         int grabbed = canvas.Transport.Tick;
         await Assert.That(grabbed).IsGreaterThan(Step2);
@@ -417,13 +418,13 @@ public class StratMapFirstTests
         (StratStore _, StratSession session) = Opened(SharedTick());
         using StratCanvasViewModel canvas = MapCanvas(session);
         List<int> forward = [];
-        while (canvas.ExecuteAction(Playback2DAction.NextStep))
+        while (canvas.ExecuteAction(StratBookActions.NextStep))
         {
             forward.Add(canvas.ActiveStepIndex);
         }
 
         List<int> back = [];
-        while (canvas.ExecuteAction(Playback2DAction.PrevStep))
+        while (canvas.ExecuteAction(StratBookActions.PrevStep))
         {
             back.Add(canvas.ActiveStepIndex);
         }
@@ -488,7 +489,7 @@ public class StratMapFirstTests
     public async Task ReadOnly_OffersNothing()
     {
         (StratStore _, StratSession session) = Opened(FiveSteps());
-        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, () => [], readOnly: true,
+        using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped, readOnly: true,
             placesFor: _ => Task.FromResult<IZonePlaceResolver?>(SyntheticZones()));
         canvas.SelectStep(session.Document!.Steps[1].Id);
         using (Assert.Multiple())

@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Teams;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 
 /// <summary>Whether a veto step took a map out of the pool, or left it as the pick.</summary>
 public enum VetoAction

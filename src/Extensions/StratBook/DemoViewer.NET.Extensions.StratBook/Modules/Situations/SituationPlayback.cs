@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Modules.Situations;
+namespace DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 
 /// <summary>
 ///     The seam a Result Card seeks 2D playback through. The Situations tab references no shell, so

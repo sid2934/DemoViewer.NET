@@ -4,13 +4,13 @@ using System.Reflection;
 using System.Text.Json;
 using Avalonia.Input;
 using CS2DemoKit.Analysis.Diagnostics;
-using DemoViewer.NET.Modules.Playback2D;
-using DemoViewer.NET.Services.RoundFacts;
+using DemoViewer.NET.Extensions.StratBook;
+using DemoViewer.NET.Extensions.Sdk;
 using Microsoft.Extensions.Logging;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Tags;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Tags;
 
 /// <summary>
 ///     The tag palettes on offer, loaded the way themes are
@@ -38,6 +38,7 @@ public sealed class TagPaletteStore
     private readonly List<string> _diagnostics = [];
     private readonly string? _directory;
     private readonly IReadOnlyCollection<string> _reservedGroups;
+    private readonly IExtensionKeymap? _keymap;
     private List<TagPaletteDefinition> _user = [];
 
     /// <summary>Creates the store with the built-in palette loaded and no drop-ins yet.</summary>
@@ -46,10 +47,13 @@ public sealed class TagPaletteStore
     ///     Label groups a palette may not write. Null reads the default: Round Facts' fact vocabulary plus
     ///     the reserved strat groups (<see cref="TagPaletteValidator.DefaultReservedGroups" />).
     /// </param>
-    public TagPaletteStore(string? directory, IReadOnlyCollection<string>? reservedGroups = null)
+    /// <param name="keymap">The keymap hotkeys are checked against; null checks them against the pack's own commands only.</param>
+    public TagPaletteStore(string? directory, IReadOnlyCollection<string>? reservedGroups = null,
+        IExtensionKeymap? keymap = null)
     {
         _directory = directory;
         _reservedGroups = reservedGroups ?? TagPaletteValidator.DefaultReservedGroups;
+        _keymap = keymap;
         LoadBuiltIn();
     }
 
@@ -191,7 +195,7 @@ public sealed class TagPaletteStore
             return null;
         }
 
-        TagPaletteValidation result = TagPaletteValidator.Validate(palette, _reservedGroups);
+        TagPaletteValidation result = TagPaletteValidator.Validate(palette, _reservedGroups, _keymap);
         if (!result.IsValid)
         {
             Skip(source, string.Join("; ", result.Errors));
@@ -254,15 +258,26 @@ public static class TagPaletteValidator
 
     /// <summary>
     ///     Round Facts' fact names plus <see cref="StratGroups" />. The fact names
-    ///     are read from <see cref="RoundFactsSource.Labels" /> over a round with every optional fact
+    ///     are read from <see cref="RoundFactsRules.Labels" /> over a round with every optional fact
     ///     present, so a fact Round Facts adds is refused here without a second list to keep in step.
     /// </summary>
     public static IReadOnlyCollection<string> DefaultReservedGroups { get; } = BuildReservedGroups();
 
+    private static readonly KeymapBinding[] _ownBindings =
+    [
+        .. StratBookCommands.All.Where(c => c.DefaultChord is not null)
+            .Select(c => new KeymapBinding(c.Id, c.Label, c.Scope, c.DefaultChord!))
+    ];
+
     /// <summary>Checks a palette. Never throws.</summary>
     /// <param name="palette">The parsed palette.</param>
     /// <param name="reservedGroups">Label groups a palette may not write.</param>
-    public static TagPaletteValidation Validate(TagPaletteDefinition palette, IReadOnlyCollection<string> reservedGroups)
+    /// <param name="keymap">
+    ///     The keymap hotkeys are checked against. Null checks them against the pack's own commands, with no
+    ///     reserved gestures.
+    /// </param>
+    public static TagPaletteValidation Validate(TagPaletteDefinition palette, IReadOnlyCollection<string> reservedGroups,
+        IExtensionKeymap? keymap = null)
     {
         ArgumentNullException.ThrowIfNull(palette);
         ArgumentNullException.ThrowIfNull(reservedGroups);
@@ -309,14 +324,14 @@ public static class TagPaletteValidator
 
         foreach (TagPalettePanel panel in palette.Panels)
         {
-            CheckPanel(palette, panel, reservedGroups, errors, warnings);
+            CheckPanel(palette, panel, reservedGroups, keymap, errors, warnings);
         }
 
         return new TagPaletteValidation(errors, warnings);
     }
 
     private static void CheckPanel(TagPaletteDefinition palette, TagPalettePanel panel,
-        IReadOnlyCollection<string> reservedGroups, List<string> errors, List<string> warnings)
+        IReadOnlyCollection<string> reservedGroups, IExtensionKeymap? keymap, List<string> errors, List<string> warnings)
     {
         if (panel.IsLabels)
         {
@@ -376,49 +391,48 @@ public static class TagPaletteValidator
 
             if (!seen.Add((key, modifiers)))
             {
-                errors.Add($"{name}: hotkey {Playback2DKeymap.Format(key, modifiers)} is used twice in the panel");
+                errors.Add($"{name}: hotkey {KeyGestureText.Format(key, modifiers)} is used twice in the panel");
             }
 
-            CheckHotkey(key, modifiers, name, errors, warnings);
+            CheckHotkey(key, modifiers, name, keymap, errors, warnings);
         }
     }
 
     // A reserved gesture never reaches the tab at all, and a palette-scoped keymap row would win over
     // the button, so both would be a button that cannot fire: refused. A tab binding is only shadowed
     // while the palette has focus: warned, with the shadowed action named.
-    private static void CheckHotkey(Key key, KeyModifiers modifiers, string name, List<string> errors,
-        List<string> warnings)
+    private static void CheckHotkey(Key key, KeyModifiers modifiers, string name, IExtensionKeymap? keymap,
+        List<string> errors, List<string> warnings)
     {
-        string gesture = Playback2DKeymap.Format(key, modifiers);
-        if (Contains(Playback2DKeymap.ShellReservedGestures, key, modifiers))
+        string gesture = KeyGestureText.Format(key, modifiers);
+        if (Contains(keymap?.ShellReserved, key, modifiers))
         {
             errors.Add($"{name}: {gesture} is an app-wide shortcut");
             return;
         }
 
-        if (Contains(Playback2DKeymap.BrowserReservedGestures, key, modifiers))
+        if (Contains(keymap?.BrowserReserved, key, modifiers))
         {
             errors.Add($"{name}: {gesture} is taken by the browser, so the palette would never see it there");
             return;
         }
 
         // The full table, core and every pack's commands, not the bare core one: the palette's own rows
-        // (Tag*, Suggestion*, step keys) moved out of Playback2DKeymap's table into StratBookCommands,
-        // and this guard must still catch a button that collides with one of them.
-        foreach (Playback2DBinding binding in Playback2DKeymapProfile.Default.Bindings)
+        // are StratBookCommands', and this guard must still catch a button that collides with one of them.
+        foreach (KeymapBinding binding in keymap?.Bindings ?? _ownBindings)
         {
-            if (binding.Key != key || binding.Modifiers != modifiers)
+            if (binding.Gesture.Key != key || binding.Gesture.KeyModifiers != modifiers)
             {
                 continue;
             }
 
-            if (binding.Scope == Playback2DBindingScope.WhenPaletteFocused)
+            if (binding.Scope == StratBookActions.PaletteScope)
             {
-                errors.Add($"{name}: {gesture} is the palette's own key for \"{binding.Description}\"");
+                errors.Add($"{name}: {gesture} is the palette's own key for \"{binding.Label}\"");
             }
             else
             {
-                warnings.Add($"{name}: {gesture} shadows \"{binding.Description}\" while the palette has focus");
+                warnings.Add($"{name}: {gesture} shadows \"{binding.Label}\" while the palette has focus");
             }
         }
 
@@ -470,15 +484,15 @@ public static class TagPaletteValidator
         }
     }
 
-    private static bool Contains(IEnumerable<(Key Key, KeyModifiers Modifiers)> gestures, Key key, KeyModifiers modifiers) =>
-        gestures.Any(g => g.Key == key && g.Modifiers == modifiers);
+    private static bool Contains(IEnumerable<KeyGesture>? gestures, Key key, KeyModifiers modifiers) =>
+        gestures?.Any(g => g.Key == key && g.KeyModifiers == modifiers) ?? false;
 
     private static HashSet<string> BuildReservedGroups()
     {
         HashSet<string> groups = new(StratGroups, StringComparer.Ordinal);
 
         // Every optional fact present, so Labels emits every name it can; the values are irrelevant.
-        Services.RoundFacts.RoundFacts probe = new()
+        RoundFacts probe = new()
         {
             Number = 1,
             MatchRoundNumber = 1,
@@ -496,7 +510,7 @@ public static class TagPaletteValidator
 
         try
         {
-            foreach (FactLabel fact in RoundFactsSource.Labels(probe, 0))
+            foreach (FactLabel fact in RoundFactsRules.Labels(probe, 0))
             {
                 groups.Add(fact.Key);
             }

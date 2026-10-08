@@ -20,6 +20,7 @@ using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Vision;
@@ -74,7 +75,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     // can be put over the label's anchor through the same camera that drew it.
     private Point _lastPress;
 
-    private LoadedMapAsset? _boundAsset;
+    private IMapAsset? _boundAsset;
     private AnnotationSession? _boundSession;
 
     private SceneCompositor _compositor;
@@ -104,6 +105,12 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     // Layers a caller added through AddLayer (guides, for the strat canvas): kept here so BuildScene can
     // re-add them after a release/rebuild, which the fixed layer set already does for itself.
     private readonly Dictionary<string, Func<ISceneLayer>> _extraLayers = new();
+
+    // The bound frame host's contributed layers as last added, so a re-sync removes exactly those.
+    private readonly List<string> _contributedLayerIds = [];
+
+    // The contributed tool that owns the gesture in flight, or null.
+    private IMapTool? _contributedGesture;
 
     // The ids this host already manages itself (BuildScene's fixed set, plus BindAnnotations' and
     // BindZones' dynamic ones). AddLayer refuses these outright rather than let a collision surface
@@ -151,7 +158,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     ///     What the host is bound to: the 2D Playback tab, the strat canvas, or nothing. Read by the tool
     ///     services for the token editor; never retained.
     /// </summary>
-    internal ISceneFrameHost? FrameHost => _vm;
+    public ISceneFrameHost? FrameHost => _vm;
 
     /// <summary>The annotation layer, once a session has been bound. Test hook.</summary>
     internal AnnotationLayer? AnnotationLayerForTest { get; private set; }
@@ -168,7 +175,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     ///     view model leaves the tool in place but inert, exactly as an unregistered tool would be.
     /// </summary>
     /// <param name="tool">The tool.</param>
-    internal void AddTool(IPointerTool tool) => Router.Register(tool);
+    public void AddTool(IPointerTool tool) => Router.Register(tool);
+
+    /// <summary>Drops a tool added with <see cref="AddTool" />; the router pans if it was active.</summary>
+    /// <param name="tool">The tool.</param>
+    public void RemoveTool(IPointerTool tool) => Router.Unregister(tool);
+
+    /// <summary>The panes as last arranged, one per floor on screen.</summary>
+    public IReadOnlyList<LevelPane> Panes => _panes.Panes;
 
     /// <summary>
     ///     Registers a scene layer on this host only, built fresh by <paramref name="layer" /> now and
@@ -179,7 +193,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     /// <param name="layerId">The layer's id.</param>
     /// <param name="layer">Builds a fresh layer instance.</param>
     /// <exception cref="ArgumentException"><paramref name="layerId" /> names one of this host's own layers.</exception>
-    internal void AddLayer(string layerId, Func<ISceneLayer> layer)
+    public void AddLayer(string layerId, Func<ISceneLayer> layer)
     {
         ArgumentNullException.ThrowIfNull(layerId);
         ArgumentNullException.ThrowIfNull(layer);
@@ -200,6 +214,24 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             _compositor.Remove(layerId);
             _compositor.Add(layer());
         }
+    }
+
+    /// <summary>Drops a layer added with <see cref="AddLayer" />. Any other id is left alone.</summary>
+    /// <param name="layerId">The layer's id.</param>
+    public void RemoveLayer(string layerId)
+    {
+        ArgumentNullException.ThrowIfNull(layerId);
+        if (!_extraLayers.Remove(layerId) || _released)
+        {
+            return;
+        }
+
+        using (_gate.Enter())
+        {
+            _compositor.Remove(layerId);
+        }
+
+        InvalidateVisual();
     }
 
     /// <summary>The layout policy. <c>SingleLayout</c> can replace it here.</summary>
@@ -497,6 +529,9 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             _compositor.Add(factory());
         }
 
+        _contributedLayerIds.Clear();
+        AddContributedLayers();
+
         // The map bundle and the annotation session are re-pulled on the next SyncFromViewModel, so the
         // fresh layers are bound.
         _boundAsset = null;
@@ -661,6 +696,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
             return;
         }
 
+        if (TryContributedTool(in sample))
+        {
+            e.Pointer.Capture(this);
+            e.Handled = true;
+            return;
+        }
+
         if (Router.OnPressed(in sample))
         {
             e.Pointer.Capture(this);
@@ -672,6 +714,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     {
         base.OnPointerMoved(e);
         ArgumentNullException.ThrowIfNull(e);
+
+        if (_contributedGesture is { } tool)
+        {
+            ToolPointerEvent moved = Translate(e, false);
+            tool.OnMoved(MapToolAdapter.Convert(in moved), MapToolAdapter.ContextOver(_toolServices));
+            return;
+        }
 
         if (!Router.IsGestureOpen)
         {
@@ -695,6 +744,14 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         ToolPointerEvent sample =
             Translate(e, true, ButtonOf(e.InitialPressMouseButton));
 
+        if (_contributedGesture is { } tool && sample.Button is ToolPointerButton.Left or ToolPointerButton.None)
+        {
+            _contributedGesture = null;
+            e.Pointer.Capture(null);
+            tool.OnReleased(MapToolAdapter.Convert(in sample), MapToolAdapter.ContextOver(_toolServices));
+            return;
+        }
+
         // Capture follows the GESTURE. A refused chord release leaves it held, or the remainder of the
         // drag would arrive at whatever is under the cursor instead of at the stroke that owns it.
         if (Router.OnReleased(in sample))
@@ -717,6 +774,7 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+        CancelContributedGesture();
         Router.CancelActive();
     }
 
@@ -755,6 +813,83 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         ScenePointer pointer = new(pane.Level, sample.World.X, sample.World.Y, sample.Screen, sample.Modifiers,
             vm.CurrentFrame, () => vm.Zones);
         return vm.TryPointerPreHandler(pointer);
+    }
+
+    // The same presses the pre-handlers see, offered to the bound host's contributed tools in order. The
+    // first to take one owns the gesture; the router never sees it.
+    private bool TryContributedTool(in ToolPointerEvent sample)
+    {
+        if (sample.Button != ToolPointerButton.Left || sample.Pane is null
+            || Router.IsSpaceHeld || (sample.Modifiers & (ToolModifiers.Space | ToolModifiers.Control)) != 0
+            || _vm is not { } vm || vm.ContributedTools is not { Count: > 0 } tools)
+        {
+            return false;
+        }
+
+        MapToolEvent press = MapToolAdapter.Convert(in sample);
+        IMapToolContext context = MapToolAdapter.ContextOver(_toolServices);
+        foreach (IMapTool tool in tools.ToArray())
+        {
+            if (tool.OnPressed(in press, context))
+            {
+                _contributedGesture = tool;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void CancelContributedGesture()
+    {
+        if (_contributedGesture is { } tool)
+        {
+            _contributedGesture = null;
+            tool.OnCancelled(MapToolAdapter.ContextOver(_toolServices));
+        }
+    }
+
+    private void OnContributedLayersChanged()
+    {
+        if (_released)
+        {
+            return;
+        }
+
+        using (_gate.Enter())
+        {
+            foreach (string id in _contributedLayerIds)
+            {
+                _compositor.Remove(id);
+            }
+
+            _contributedLayerIds.Clear();
+            AddContributedLayers();
+        }
+
+        InvalidateVisual();
+    }
+
+    // Under the gate, or from BuildScene. An id this host or AddLayer already uses is skipped: the host's
+    // own layers are never displaced by a contribution.
+    private void AddContributedLayers()
+    {
+        if (_vm?.ContributedLayers is not { Count: > 0 } layers)
+        {
+            return;
+        }
+
+        foreach ((string id, Func<ISceneLayer> factory) in layers)
+        {
+            if (OwnLayerIds.Contains(id) || _extraLayers.ContainsKey(id) || _contributedLayerIds.Contains(id))
+            {
+                continue;
+            }
+
+            _compositor.Remove(id);
+            _compositor.Add(factory());
+            _contributedLayerIds.Add(id);
+        }
     }
 
     // Avalonia event → pane-resolved, world-resolved tool sample. The coalesced samples are the reason
@@ -1094,9 +1229,17 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         if (_vm is not null)
         {
             _vm.FrameUpdated -= OnFrameUpdated;
+            _vm.ContributedLayersChanged -= OnContributedLayersChanged;
         }
 
+        CancelContributedGesture();
         _vm = vm;
+        if (_vm is not null)
+        {
+            _vm.ContributedLayersChanged += OnContributedLayersChanged;
+        }
+
+        OnContributedLayersChanged();
 
         // A new view-model (or a detach) must not glide markers from a previous demo's positions, and
         // its level split belongs to a different map.
@@ -1155,13 +1298,13 @@ public sealed class Scene2DHost : Control, IPlayback2DSurface, ILevelSurface, IA
         BindZones(vm.ShowZones ? vm.Zones : null);
         _compositor.SetEnabled(SceneLayerIds.Zones, vm.ShowZones && _zoneLayer is not null);
 
-        LoadedMapAsset? asset = vm.MapAsset;
+        IMapAsset? asset = vm.MapAsset;
         if (!ReferenceEquals(asset, _boundAsset))
         {
             _boundAsset = asset;
             _levels.SetAuthoritativeFloors(asset?.Floors);
-            _levels.RadarBinder = asset is null ? null : new MapRadarBinder(asset);
-            _radarLayer.RadarBoundsOverride = asset is null ? null : MapAssetPipeline.RadarBounds(asset);
+            _levels.RadarBinder = asset?.CreateRadarBinder();
+            _radarLayer.RadarBoundsOverride = asset?.RadarBounds;
         }
     }
 

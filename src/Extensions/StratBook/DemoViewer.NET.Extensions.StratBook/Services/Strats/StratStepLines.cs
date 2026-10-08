@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>
 ///     The one reading of who a step names and where each goes. A step with <c>assignments</c> is read from its

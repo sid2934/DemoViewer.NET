@@ -1,16 +1,15 @@
 #region
 
+using System.Globalization;
 using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using CS2OpenSchema.Events;
-using DemoViewer.NET.Modules.Abstractions;
-using DemoViewer.NET.Playback2D.Pipeline.Frames;
 
 #endregion
 
-namespace DemoViewer.NET.Services.Strats;
+namespace DemoViewer.NET.Extensions.StratBook.Services.Strats;
 
 /// <summary>What made Create Strat From Round stop at a tick.</summary>
 public enum CaptureTrigger
@@ -188,7 +187,7 @@ public static class RoundCaptureWalker
         }
 
         EntityTracker tracker = new EntitySeekService(static () => new EntityTracker()).SeekToFrameNoSnapshot(firstFrame, frames).Tracker;
-        TrackerSceneSnapshot snapshot = new();
+        Dictionary<int, ulong> steamIds = [];
         int cursor = firstFrame;
         int lastStopFrame = FrameAtOrAfter(frames, stops[^1].Tick);
         int lastFrame = Math.Max(firstFrame, lastStopFrame >= 0 ? lastStopFrame : frames.Count - 1);
@@ -237,8 +236,7 @@ public static class RoundCaptureWalker
             }
 
             progress?.Report(lastFrame > firstFrame ? (double)(cursor - firstFrame) / (lastFrame - firstFrame) : 1);
-            snapshot.Refresh(tracker);
-            List<CapturedPawn> pawns = ReadPawns(tracker, snapshot);
+            List<CapturedPawn> pawns = ReadPawns(tracker, steamIds);
             moments.Add(stop.Trigger switch
             {
                 CaptureTrigger.Utility or CaptureTrigger.Plant => Resolve(stop, tracker, pawns, projectiles),
@@ -425,30 +423,60 @@ public static class RoundCaptureWalker
         return found;
     }
 
-    private static List<CapturedPawn> ReadPawns(EntityTracker tracker, TrackerSceneSnapshot snapshot)
+    /// <summary>The live T and CT pawns at the tracker's tick, in slot order.</summary>
+    /// <param name="tracker">The tracker to read.</param>
+    /// <param name="steamIds">Each slot's last SteamID seen, kept across calls for a frame whose controller is missing.</param>
+    internal static List<CapturedPawn> ReadPawns(EntityTracker tracker, Dictionary<int, ulong> steamIds)
     {
+        // Controller-anchored through the live pawn only, the same join the scene's marker layer uses, which
+        // keeps orphaned pawns out of every keyframe. Slot order, so a capture never depends on lookup order.
+        SortedDictionary<int, EntityState> live = [];
+        PawnLookup.ForEachLivePawn(tracker, (slot, pawn) => live[slot] = pawn);
+
+        EntitySet set = tracker.CurrentEntities;
         List<CapturedPawn> pawns = [];
-        foreach (IPlayerState player in snapshot.Players)
+        foreach ((int slot, EntityState pawn) in live)
         {
-            // Through the controller's live pawn only: SceneFrameBuilder.BuildMarkers' join, which is what keeps
-            // the orphaned pawns excluded from every keyframe. Alive is the engine's own rule,
-            // re-read off the tracker rather than kept as a local copy (#58).
-            if (!player.HasLivePawn || player.Pawn is not { } pawn || player.WorldPosition is not { } world
-                || player.Team is not (2 or 3)
-                || PawnLookup.ResolvePawn(tracker, player.Slot) is not { } resolved || !PawnLookup.IsAlive(resolved))
+            int team = CoerceInt(pawn["m_iTeamNum"]);
+            if (team is not (2 or 3) || PositionUtil.CellToWorld(pawn) is not { } world
+                || PawnLookup.ResolvePawn(tracker, slot) is not { } resolved || !PawnLookup.IsAlive(resolved))
             {
                 continue;
             }
 
-            float yaw = pawn.TryGet("m_angEyeAngles", out Vector3 eye) ? eye.Y : 0;
-            string? place = pawn.TryGet("m_szLastPlaceName", out string? name) && !string.IsNullOrEmpty(name) ? name : null;
-            string? playerName = player.Controller?["m_iszPlayerName"] as string;
-            pawns.Add(new CapturedPawn(player.Slot, player.Team, snapshot.SteamIdForSlot(player.Slot), playerName,
+            EntityState? controller = set[slot + 1] is { } c
+                                      && c.ClassName.Contains("PlayerController", StringComparison.OrdinalIgnoreCase)
+                ? c
+                : null;
+            float yaw = pawn["m_angEyeAngles"] is Vector3 eye ? eye.Y : 0;
+            string? place = pawn["m_szLastPlaceName"] is string name && !string.IsNullOrEmpty(name) ? name : null;
+            string? playerName = controller?["m_iszPlayerName"] as string;
+            // m_steamID is on the long lane; the typed read avoids a box, the boxed one covers another schema.
+            if (controller?.TryGet<ulong>("m_steamID") is { } typed)
+            {
+                steamIds[slot] = typed;
+            }
+            else if (controller?["m_steamID"] is { } raw)
+            {
+                steamIds[slot] = SteamIdOf(raw);
+            }
+
+            pawns.Add(new CapturedPawn(slot, team, steamIds.GetValueOrDefault(slot), playerName,
                 world.X, world.Y, world.Z, yaw, place));
         }
 
         return pawns;
     }
+
+    private static ulong SteamIdOf(object? raw) => raw switch
+    {
+        ulong u => u,
+        long l => (ulong)l,
+        uint u => u,
+        int i => i >= 0 ? (ulong)i : 0,
+        string s => ulong.TryParse(s, CultureInfo.InvariantCulture, out ulong parsed) ? parsed : 0,
+        _ => 0
+    };
 
     private static bool RoundDecided(EntityTracker tracker)
     {

@@ -172,15 +172,15 @@ public static class ExtensionLoader
             return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.EntryTypeMissing, $"'{m.Assembly}' has no type '{m.EntryType}'"));
         }
 
-        if (!typeof(IFeaturePack).IsAssignableFrom(entry) || entry.IsAbstract)
+        if (!typeof(IExtension).IsAssignableFrom(entry) || entry.IsAbstract)
         {
             return LoadResult.Failed(new LoadOutcome(dir, m, LoadFailure.NotAPack, $"'{m.EntryType}' is not an extension entry type"));
         }
 
-        IFeaturePack pack;
+        IExtension pack;
         try
         {
-            pack = Activator.CreateInstance(entry) as IFeaturePack
+            pack = Activator.CreateInstance(entry) as IExtension
                 ?? throw new MissingMethodException($"'{m.EntryType}' has no public parameterless constructor");
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -197,7 +197,7 @@ public static class ExtensionLoader
         ExtensionManifest embedded;
         try
         {
-            embedded = pack.Manifest ?? throw new ExtensionManifestException("the extension declares no manifest");
+            embedded = ExtensionManifests.Of(pack);
         }
         catch (ExtensionManifestException ex)
         {
@@ -215,7 +215,7 @@ public static class ExtensionLoader
 
     /// <summary>
     ///     The head's one call: for each shipped pack, the staged copy that <see cref="Select" /> picks and
-    ///     <see cref="Load" /> loads, else the shipped one, judged by <see cref="PackStatus.Evaluate(IFeaturePack, ExtensionHostInfo)" />
+    ///     <see cref="Load" /> loads, else the shipped one, judged by <see cref="PackStatus.Evaluate(IExtension, ExtensionHostInfo)" />
     ///     and stamped with its <see cref="PackSource" /> and every rejected staged candidate. A null
     ///     <paramref name="configRoot" /> (the browser) means shipped only. A failure of the loader itself
     ///     is a <see cref="LoadFailure.LoaderFailed" /> outcome on the shipped pack, never an exception.
@@ -232,7 +232,7 @@ public static class ExtensionLoader
         for (int i = 0; i < shipped.Count; i++)
         {
             ShippedPack s = shipped[i];
-            IFeaturePack? staged = null;
+            IExtension? staged = null;
             PackSource source = PackSource.Bundled;
             List<LoadOutcome> rejected = [];
             try
@@ -268,7 +268,7 @@ public static class ExtensionLoader
                 rejected.Add(new LoadOutcome(extensionsDir ?? string.Empty, null, LoadFailure.LoaderFailed, "the extension loader failed", $"{ex.GetType().Name}: {ex.Message}"));
             }
 
-            IFeaturePack pack = staged ?? s.Create();
+            IExtension pack = staged ?? s.Create();
             statuses[i] = PackStatus.Evaluate(pack, host) with { Source = source, Rejected = rejected };
         }
 
@@ -352,7 +352,7 @@ public static class ExtensionLoader
     ///     <see cref="LoadFailure.ProbeFailed" /> outcome, rather than later inside the composition root. Null
     ///     when every call returns. Catches lambdas and views nothing: those are compiled on first use.
     /// </summary>
-    public static LoadOutcome? Probe(ExtensionCandidate candidate, IFeaturePack pack)
+    public static LoadOutcome? Probe(ExtensionCandidate candidate, IExtension pack)
     {
         ArgumentNullException.ThrowIfNull(candidate);
         ArgumentNullException.ThrowIfNull(pack);
@@ -361,7 +361,7 @@ public static class ExtensionLoader
         {
             _ = pack.Id;
             _ = pack.FeatureId;
-            _ = pack.Manifest;
+            _ = ExtensionManifests.Of(pack);
             step = "reading its features";
             _ = pack.Features.ToArray();
             step = "reading its commands";
@@ -517,9 +517,9 @@ public static class ExtensionLoader
     public sealed record Selection(ExtensionCandidate? Chosen, IReadOnlyList<LoadOutcome> Rejected);
 
     /// <summary>What <see cref="Load" /> produced: exactly one of the two.</summary>
-    public sealed record LoadResult(IFeaturePack? Pack, LoadOutcome? Failure)
+    public sealed record LoadResult(IExtension? Pack, LoadOutcome? Failure)
     {
-        internal static LoadResult Loaded(IFeaturePack pack) => new(pack, null);
+        internal static LoadResult Loaded(IExtension pack) => new(pack, null);
         internal static LoadResult Failed(LoadOutcome failure) => new(null, failure);
     }
 }

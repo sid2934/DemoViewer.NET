@@ -30,20 +30,20 @@ public class LibraryBadgeMenuRenderTests
     {
         private string? _pinned;
 
-        public List<(DemoEntry Entry, string? Label)> SetLabelCalls { get; } = [];
+        public List<(LibraryDemo Entry, string? Label)> SetLabelCalls { get; } = [];
 
         public event Action? Changed;
 
         public LibraryFilter? Filter => null;
         public bool HasBadge => true;
-        public LibraryBadge? BadgeFor(DemoEntry entry) => new(_pinned ?? "unlabeled", null, _pinned is not null);
+        public LibraryBadge? BadgeFor(LibraryDemo demo) => new(_pinned ?? "unlabeled", null, _pinned is not null);
         public IReadOnlyList<string> BadgeLabels => ["official", "scrim", "our scrim", "matchmaking"];
         public string? BadgeResetLabel => "Automatic";
         public string? BadgeResetTooltip => "Let the clan tags, the header and Team Identity decide";
 
-        public void SetLabel(DemoEntry entry, string? label)
+        public void SetLabel(LibraryDemo demo, string? label)
         {
-            SetLabelCalls.Add((entry, label));
+            SetLabelCalls.Add((demo, label));
             _pinned = label;
             Changed?.Invoke();
         }
@@ -94,7 +94,7 @@ public class LibraryBadgeMenuRenderTests
             {
                 await Assert.That(contribution.SetLabelCalls.Count).IsEqualTo(1)
                     .Because("the walk-up from the realized MenuItem must reach the card's own DemoEntry");
-                await Assert.That(contribution.SetLabelCalls[0].Entry).IsEqualTo(entry);
+                await Assert.That(contribution.SetLabelCalls[0].Entry).IsEqualTo(entry.ToLibraryDemo());
                 await Assert.That(contribution.SetLabelCalls[0].Label).IsEqualTo("official");
                 await Assert.That(entry.BadgeLabel).IsEqualTo("official");
             }
@@ -109,7 +109,7 @@ public class LibraryBadgeMenuRenderTests
             TrackingContribution contribution = new();
             (_, DemoEntry entry, _, Window window, Button chip) = Attach(contribution);
 
-            contribution.SetLabel(entry, "scrim");
+            contribution.SetLabel(entry.ToLibraryDemo(), "scrim");
             Dispatcher.UIThread.RunJobs();
             await Assert.That(entry.BadgeIsPinned).IsTrue().Because("pinned before the menu is opened, so the reset has something to undo");
 
@@ -126,7 +126,7 @@ public class LibraryBadgeMenuRenderTests
             using (Assert.Multiple())
             {
                 await Assert.That(contribution.SetLabelCalls.Count).IsEqualTo(2);
-                await Assert.That(contribution.SetLabelCalls[1].Entry).IsEqualTo(entry);
+                await Assert.That(contribution.SetLabelCalls[1].Entry).IsEqualTo(entry.ToLibraryDemo());
                 await Assert.That(contribution.SetLabelCalls[1].Label).IsNull().Because("the reset row clears the pin");
                 await Assert.That(entry.BadgeIsPinned).IsFalse();
             }

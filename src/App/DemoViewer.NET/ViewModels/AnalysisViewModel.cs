@@ -1269,11 +1269,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         {
             VisibilityEngine = visibility
         };
-        // Pack-owned rulesets run at index time; evaluating them here too would only cost time.
+        // Stamped rulesets run at index time; evaluating them here too would only cost time.
         return (DemoAnalysis.Build(demo, CoreRulesets(rules.Rulesets), options), rules);
     }
 
-    // The composition root's merged build knows which rulesets a pack owns. In production there is
+    // The composition root's merged build knows which rulesets are stamped. In production there is
     // always a container here: BuildServices assigns App.Services before the shell exists, and only the
     // shell starts a run. A null or disposed container is the designer or a test, and then the read is
     // used as it is.
@@ -1281,7 +1281,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     {
         try
         {
-            return App.Services?.GetService<MergedRulesBuild>()?.WithoutPackRulesets(rulesets) ?? rulesets;
+            return App.Services?.GetService<MergedRulesBuild>()?.WithoutStampedRulesets(rulesets) ?? rulesets;
         }
         catch (ObjectDisposedException)
         {
