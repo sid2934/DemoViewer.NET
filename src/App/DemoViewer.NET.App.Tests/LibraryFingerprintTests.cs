@@ -126,7 +126,7 @@ public class LibraryFingerprintTests
         }
         finally
         {
-            Directory.Delete(folder, true);
+            Cleanup(folder);
         }
     }
 
