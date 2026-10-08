@@ -108,49 +108,52 @@ public class ReviewPanelsPlaybackContributionTests
         vm.Dispose();
     }
 
+    // On the UI thread with the dispatcher post: a swap's save raises Changed off it, and the palette's
+    // view must only be touched there.
     [Test]
-    public async Task TheSession_IsBuiltFromTheContextsServices_AndTheDemoChangeSignalAttachesIt()
-    {
-        TagStore store = new(null);
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = Tab(
-            configure: c =>
+    public async Task TheSession_IsBuiltFromTheContextsServices_AndTheDemoChangeSignalAttachesIt() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            TagStore store = new(null);
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab(
+                configure: c =>
+                {
+                    c.SetService(store);
+                    c.DemoPath = DemoPath;
+                    c.DemoSha256 = Sha;
+                });
+            TagSession session = review.Session!;
+            await AttachedAsync(session, DemoPath);
+            using (Assert.Multiple())
             {
-                c.SetService(store);
-                c.DemoPath = DemoPath;
-                c.DemoSha256 = Sha;
-            });
-        TagSession session = review.Session!;
-        await AttachedAsync(session, DemoPath);
-        using (Assert.Multiple())
-        {
-            await Assert.That(session.Document!.Demo.Sha256).IsEqualTo(Sha).Because("attached on the activation's demo change");
-            await Assert.That(review.Queue!.DemoPath).IsEqualTo(DemoPath);
-        }
+                await Assert.That(session.Document!.Demo.Sha256).IsEqualTo(Sha).Because("attached on the activation's demo change");
+                await Assert.That(review.Queue!.DemoPath).IsEqualTo(DemoPath);
+            }
 
-        // The same demo again (a re-activation) keeps the document; another one swaps it and the write lands in the store.
-        TagDocument first = session.Document!;
-        vm.OnDeactivated();
-        vm.OnActivated(ctx);
-        await Assert.That(session.Document).IsSameReferenceAs(first);
+            // The same demo again (a re-activation) keeps the document; another one swaps it and the write lands in the store.
+            TagDocument first = session.Document!;
+            vm.OnDeactivated();
+            vm.OnActivated(ctx);
+            await Assert.That(session.Document).IsSameReferenceAs(first);
 
-        session.Apply(new TagDelta.Add(new TagInstance
-        {
-            Id = Guid.NewGuid(), Code = "Default", FromTick = 100, ToTick = 200, CreatedUtc = Created, ModifiedUtc = Created
-        }));
-        ctx.DemoPath = OtherPath;
-        ctx.DemoSha256 = OtherSha;
-        ctx.RaiseDemoReset();
-        await AttachedAsync(session, OtherPath);
-        using (Assert.Multiple())
-        {
-            await Assert.That(session.Document!.Demo.Sha256).IsEqualTo(OtherSha);
-            await Assert.That(session.Document.Instances).IsEmpty();
-            await Assert.That(store.TryLoad(Sha)!.Instances.Select(i => i.Code)).IsEquivalentTo(["Default"])
-                .Because("the swap flushed the old document to the store the contribution resolved");
-        }
+            session.Apply(new TagDelta.Add(new TagInstance
+            {
+                Id = Guid.NewGuid(), Code = "Default", FromTick = 100, ToTick = 200, CreatedUtc = Created, ModifiedUtc = Created
+            }));
+            ctx.DemoPath = OtherPath;
+            ctx.DemoSha256 = OtherSha;
+            ctx.RaiseDemoReset();
+            await AttachedAsync(session, OtherPath);
+            using (Assert.Multiple())
+            {
+                await Assert.That(session.Document!.Demo.Sha256).IsEqualTo(OtherSha);
+                await Assert.That(session.Document.Instances).IsEmpty();
+                await Assert.That(store.TryLoad(Sha)!.Instances.Select(i => i.Code)).IsEquivalentTo(["Default"])
+                    .Because("the swap flushed the old document to the store the contribution resolved");
+            }
 
-        vm.Dispose();
-    }
+            vm.Dispose();
+        });
 
     [Test]
     public async Task TheFirstActivation_AttachesTheDemoOnce_WhileItsIdentityIsStillResolving()
@@ -389,47 +392,50 @@ public class ReviewPanelsPlaybackContributionTests
         vm.Dispose();
     }
 
+    // On the UI thread with the dispatcher post: a swap's save raises Changed off it, and the palette's
+    // view must only be touched there.
     [Test]
-    public async Task ADemoSwap_WritesThePendingTagToTheOldDocument_DropsTheNote_AndTakesTheKeyboardBack()
-    {
-        (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = Tab(
-            configure: c =>
+    public async Task ADemoSwap_WritesThePendingTagToTheOldDocument_DropsTheNote_AndTakesTheKeyboardBack() =>
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (Playback2DTabViewModel vm, Playback2DFakeContext ctx, ReviewPanelsPlaybackContribution review) = ReviewPanelsHarness.Tab(
+                configure: c =>
+                {
+                    c.DemoPath = DemoPath;
+                    c.DemoSha256 = Sha;
+                });
+            TagSession session = review.Session!;
+            await AttachedAsync(session, DemoPath);
+            review.ReviewMode!.IsOn = true;
+            ReviewPanelsHarness.Press(vm, Key.C);
+            ReviewPanelsHarness.Press(vm, Key.D1); // A execute: pending until its labels or a Finish
+            ReviewPanelsHarness.Press(vm, Key.M, KeyModifiers.Control);
+            review.Palette!.NoteDraft = "half a note";
+            TagDocument old = session.Document!;
+            using (Assert.Multiple())
             {
-                c.DemoPath = DemoPath;
-                c.DemoSha256 = Sha;
-            });
-        TagSession session = review.Session!;
-        await AttachedAsync(session, DemoPath);
-        review.ReviewMode!.IsOn = true;
-        ReviewPanelsHarness.Press(vm, Key.C);
-        ReviewPanelsHarness.Press(vm, Key.D1); // A execute: pending until its labels or a Finish
-        ReviewPanelsHarness.Press(vm, Key.M, KeyModifiers.Control);
-        review.Palette!.NoteDraft = "half a note";
-        TagDocument old = session.Document!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(review.Palette.IsEditingNote).IsTrue();
-            await Assert.That(old.Instances).IsEmpty().Because("the tag is still being made");
-        }
+                await Assert.That(review.Palette.IsEditingNote).IsTrue();
+                await Assert.That(old.Instances).IsEmpty().Because("the tag is still being made");
+            }
 
-        // The swap arrives the way the app delivers it: the context moved on and raised DemoReset.
-        ctx.DemoPath = OtherPath;
-        ctx.DemoSha256 = OtherSha;
-        ctx.RaiseDemoReset();
-        await AttachedAsync(session, OtherPath);
-        using (Assert.Multiple())
-        {
-            await Assert.That(old.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"]).Because("written before the swap");
-            await Assert.That(old.Instances[0].Note).IsNull().Because("the note was never kept");
-            await Assert.That(session.Document!.Instances).IsEmpty().Because("the new document starts clean");
-            await Assert.That(review.Palette.IsEditingNote).IsFalse();
-            await Assert.That(review.IsPaletteFocused).IsFalse();
-            await Assert.That(vm.Surface.HasKeyboard).IsFalse();
-            await Assert.That(vm.Surface.TryHandleKey(Key.D1, KeyModifiers.None)).IsFalse().Because("unfocused, 1 is nobody's key");
-        }
+            // The swap arrives the way the app delivers it: the context moved on and raised DemoReset.
+            ctx.DemoPath = OtherPath;
+            ctx.DemoSha256 = OtherSha;
+            ctx.RaiseDemoReset();
+            await AttachedAsync(session, OtherPath);
+            using (Assert.Multiple())
+            {
+                await Assert.That(old.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"]).Because("written before the swap");
+                await Assert.That(old.Instances[0].Note).IsNull().Because("the note was never kept");
+                await Assert.That(session.Document!.Instances).IsEmpty().Because("the new document starts clean");
+                await Assert.That(review.Palette.IsEditingNote).IsFalse();
+                await Assert.That(review.IsPaletteFocused).IsFalse();
+                await Assert.That(vm.Surface.HasKeyboard).IsFalse();
+                await Assert.That(vm.Surface.TryHandleKey(Key.D1, KeyModifiers.None)).IsFalse().Because("unfocused, 1 is nobody's key");
+            }
 
-        vm.Dispose();
-    }
+            vm.Dispose();
+        });
 
     // The attach is fire-and-forget from the demo-change signal, and a swap with a pending save hops to the
     // thread pool for the flush, so wait for the session to land on the path with its document.
