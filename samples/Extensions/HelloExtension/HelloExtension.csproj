@@ -11,7 +11,10 @@
         <ExtensionManifestVersion>1.0.0</ExtensionManifestVersion>
     </PropertyGroup>
 
-    <Import Project="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk\build\DemoViewer.NET.Extensions.Sdk.targets"/>
+    <!-- -p:UseSdkPackages=true -p:SdkPackageVersion=<v> builds against the packed SDK instead, whose own build/
+         targets then stamp the manifest. CI does this to prove the packages are complete. -->
+    <Import Project="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk\build\DemoViewer.NET.Extensions.Sdk.targets"
+            Condition="'$(UseSdkPackages)' != 'true'"/>
 
     <ItemGroup>
         <PackageReference Include="Avalonia"/>
@@ -21,9 +24,19 @@
         <EmbeddedResource Include="kills.rules.yaml" LogicalName="HelloExtension.kills.rules.yaml"/>
     </ItemGroup>
 
-    <ItemGroup>
+    <ItemGroup Condition="'$(UseSdkPackages)' != 'true'">
         <ProjectReference Include="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
         <ProjectReference Include="..\..\..\src\Sdk\DemoViewer.NET.Extensions.Sdk.Ui\DemoViewer.NET.Extensions.Sdk.Ui.csproj"/>
     </ItemGroup>
+
+    <ItemGroup Condition="'$(UseSdkPackages)' == 'true'">
+        <PackageReference Include="DemoViewer.NET.Extensions.Sdk" VersionOverride="[$(SdkPackageVersion)]"/>
+        <PackageReference Include="DemoViewer.NET.Extensions.Sdk.Ui" VersionOverride="[$(SdkPackageVersion)]"/>
+    </ItemGroup>
+
+    <Target Name="RequireSdkPackageVersion" BeforeTargets="_LoadRestoreGraphEntryPoints;CollectPackageReferences"
+            Condition="'$(UseSdkPackages)' == 'true' and '$(SdkPackageVersion)' == ''">
+        <Error Text="UseSdkPackages=true needs SdkPackageVersion, the version of the packed SDK to build against."/>
+    </Target>
 
 </Project>
