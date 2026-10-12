@@ -539,11 +539,11 @@ Rules locked in by the review:
   Presets 720p/1080p/map-native × 30/60/64 fps (64 = native tick rate, 1:1 frame-per-tick clips).
   Progress is frames-done based, cancel kills ffmpeg.
 - **ffmpeg acquisition ladder:** `FfmpegDependency.Locate()` (existing) → download-on-demand pinned
-  BtbN build with license text shown and source link → `ManagedGifSink` (ImageSharp, Apache-2.0 for
-  OSS) as the no-ffmpeg floor. Never Xabe.FFmpeg (CC BY-NC-SA). Settings mirror `HighlightsSettings`.
+  BtbN build with license text shown and source link → `ManagedGifSink` (our own GIF writer, no
+  dependency) as the no-ffmpeg floor. Never Xabe.FFmpeg (CC BY-NC-SA). Settings mirror `HighlightsSettings`.
 - **WASM:** export is feature-gated off in v1. The `IFrameSink` seam is where a
   WebCodecs + webm-muxer backend plugs in later (same WebM/VP9 output on both targets by design);
-  a chunked ImageSharp GIF encode is the browser stretch goal after desktop ships.
+  a chunked managed GIF encode is the browser stretch goal after desktop ships.
 
 ### 5.8 Render surface providers: headless and GPU-accelerated paths
 

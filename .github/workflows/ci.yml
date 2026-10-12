@@ -218,7 +218,7 @@ jobs:
           --report-dir artifacts/bench-reports
 
       # GIF on purpose. The runner has no ffmpeg, so this exercises the bottom rung of the ladder, the
-      # managed ImageSharp floor, which is what a user with no ffmpeg gets. If ffmpeg is ever
+      # managed GIF writer, which is what a user with no ffmpeg gets. If ffmpeg is ever
       # installed on the runner, add a --format webm run beside this one rather than replacing it.
       - name: Export a clip (no ffmpeg, the managed GIF floor)
         run: >

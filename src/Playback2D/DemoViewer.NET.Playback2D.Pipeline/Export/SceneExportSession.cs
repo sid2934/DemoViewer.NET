@@ -36,7 +36,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 /// </summary>
 public sealed class SceneExportSession
 {
-    /// <summary>The frame ceiling for a GIF. Above it, palettegen and ImageSharp both OOM.</summary>
+    /// <summary>The frame ceiling for a GIF. Above it, palettegen OOMs and the managed sink's buffered frames outgrow memory.</summary>
     public const int GifMaxFrames = 1800;
 
     /// <summary>The width ceiling for a GIF. Wider is technically legal and practically unusable.</summary>

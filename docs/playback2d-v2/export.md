@@ -35,7 +35,7 @@ build at all. The [Overlays](#overlays) table below is the authority on where th
 |---|---|---|---|
 | **WebM** (default) | AV1 on a GPU, else VP9 (`libvpx-vp9`) | ffmpeg | VP9 is present in **LGPL** ffmpeg builds, which is why WebM is the default |
 | **MP4** | H.264 (on a GPU, else `libx264`) | a **GPL** ffmpeg for `libx264` | Not in LGPL builds; the dialog says so rather than failing at encode time |
-| **GIF** | palettegen / paletteuse, or ImageSharp | nothing | The only format that works with no ffmpeg at all |
+| **GIF** | palettegen / paletteuse, or the built-in GIF writer | nothing | The only format that works with no ffmpeg at all |
 
 **AV1 in a WebM is still a WebM.** The container has carried AV1 since 2018, so a hardware WebM
 export keeps the same extension, the same saved default and the same players. It is also why the
@@ -145,7 +145,7 @@ The ladder, in order:
    decoder, and taking a compression dependency to unpack something every distribution already
    packages is the wrong trade. `dv2d` does not get it either: it is a CLI, and there is nobody there
    to show a licence to.
-3. **The GIF floor.** With no ffmpeg and no download, GIF still exports, through ImageSharp.
+3. **The GIF floor.** With no ffmpeg and no download, GIF still exports, through the built-in GIF writer.
 
 Because the downloadable build is LGPL it has no H.264 encoder. MP4 needs a GPL ffmpeg you installed
 yourself, and the dialog tells you that instead of failing three minutes into an encode.
