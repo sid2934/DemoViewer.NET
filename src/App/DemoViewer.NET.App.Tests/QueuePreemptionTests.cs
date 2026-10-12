@@ -266,41 +266,56 @@ public class QueuePreemptionTests
     {
         using HeavyJobGate gate = new();
         using DemoProcessingQueue queue = NewQueue(gate);
-        using ManualResetEventSlim started = new();
-        int runs = 0, nextDemo = 0;
-        bool overlapped = false;
-        int inBackground = 0;
-        Task background = QueueWork.Run(queue, QueueJobKind.SectionCompute, "section", "t", _ =>
+        using ManualResetEventSlim inDemoFive = new();
+        using ManualResetEventSlim firstRunEnded = new();
+        int runs = 0, nextDemo = 0, firstRunEndedAt = -1, userInside = 0, rerunBesideUser = 0;
+        Task background = QueueWork.Run(queue, QueueJobKind.SectionCompute, "section", "t", token =>
         {
-            Interlocked.Increment(ref runs);
-            Interlocked.Exchange(ref inBackground, 1);
+            int run = Interlocked.Increment(ref runs);
+            if (run > 1 && Volatile.Read(ref userInside) == 1)
+            {
+                Interlocked.Exchange(ref rerunBesideUser, 1);
+            }
+
             try
             {
-                started.Set();
                 while (nextDemo < 20)
                 {
                     QueueWork.ThrowIfStopped(); // one demo at a time
-                    Thread.Sleep(10);
+                    if (run == 1 && nextDemo == 5)
+                    {
+                        // Demo five is in flight when the user's item arrives, and finishes before the stop.
+                        inDemoFive.Set();
+                        token.WaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+                    }
+
                     nextDemo++;
                 }
             }
             finally
             {
-                Interlocked.Exchange(ref inBackground, 0);
+                if (run == 1)
+                {
+                    firstRunEndedAt = nextDemo;
+                    firstRunEnded.Set();
+                }
             }
         }, key: "section:a", preemptible: true);
-        started.Wait(TimeSpan.FromSeconds(5));
+        inDemoFive.Wait(TimeSpan.FromSeconds(5));
         Task user = QueueWork.Run(queue, QueueJobKind.SectionCompute, "user", "t", _ =>
         {
-            Thread.Sleep(30);
-            overlapped |= Volatile.Read(ref inBackground) == 1;
+            Interlocked.Exchange(ref userInside, 1);
+            firstRunEnded.Wait(TimeSpan.FromSeconds(10), CancellationToken.None);
+            Thread.Sleep(50); // room for a rerun that would wrongly start beside this item
+            Interlocked.Exchange(ref userInside, 0);
         }, DemoJobPriority.UserRequested, "section:b");
         await Task.WhenAll(background, user).WaitAsync(TimeSpan.FromSeconds(10));
         using (Assert.Multiple())
         {
+            await Assert.That(firstRunEndedAt).IsEqualTo(6).Because("it finished the demo in flight and stopped at the next checkpoint");
             await Assert.That(runs).IsEqualTo(2).Because("it stopped and ran again");
             await Assert.That(nextDemo).IsEqualTo(20).Because("it resumed where it stopped");
-            await Assert.That(overlapped).IsFalse().Because("a preempted item yields rather than running beside the user's");
+            await Assert.That(rerunBesideUser).IsEqualTo(0).Because("the stopped item runs again only after the user's item");
         }
     }
 
