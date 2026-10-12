@@ -19,17 +19,26 @@ public class HttpExtensionFeedClientTests
     [Test]
     public async Task Download_ThatKeepsArriving_CompletesPastTheHeaderBudget()
     {
-        // 12 chunks, 50 ms apart: 600 ms of body against a 100 ms header budget and a 400 ms stall budget.
+        // 12 chunks, 50 ms apart: 600 ms of body. The budgets run on a manual clock, so a slow runner cannot trip
+        // them; the clock passes the header budget once the body is being read, and stays inside the stall budget.
+        ManualTimers clock = new();
+        using SemaphoreSlim reading = new(0);
         byte[] chunk = new byte[1024];
-        using PacedHandler handler = new(chunks: 12, chunk, pace: TimeSpan.FromMilliseconds(50), stallAfter: null);
-        using HttpExtensionFeedClient client = new(handler, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(400));
+        using PacedHandler handler = new(chunks: 12, chunk, pace: TimeSpan.FromMilliseconds(50), stallAfter: null, reading: reading);
+        using HttpExtensionFeedClient client = new(handler, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(400), clock);
         using MemoryStream destination = new();
         List<long> progress = [];
 
-        await client.DownloadAsync(Url, destination, 12 * 1024, new InlineProgress(progress), CancellationToken.None);
+        Task download = client.DownloadAsync(Url, destination, 12 * 1024, new InlineProgress(progress), CancellationToken.None);
+        Task firstRead = reading.WaitAsync();
+        await Task.WhenAny(firstRead, download).WaitAsync(TimeSpan.FromSeconds(10));
+        bool bodyStarted = firstRead.IsCompleted;
+        clock.Advance(TimeSpan.FromMilliseconds(150));
+        await download.WaitAsync(TimeSpan.FromSeconds(10));
 
         using (Assert.Multiple())
         {
+            await Assert.That(bodyStarted).IsTrue();
             await Assert.That(destination.Length).IsEqualTo(12 * 1024);
             await Assert.That(progress[^1]).IsEqualTo(12 * 1024);
             await Assert.That(handler.Elapsed).IsGreaterThan(TimeSpan.FromMilliseconds(100)).Because("the body outlived the header budget");
@@ -93,7 +102,8 @@ public class HttpExtensionFeedClientTests
 
     // Serves chunks at a fixed pace from a stream that waits between them, after an optional header delay;
     // with stallAfter set, the read after that many chunks never returns.
-    private sealed class PacedHandler(int chunks, byte[] chunk, TimeSpan pace, int? stallAfter, TimeSpan? headerDelay = null) : HttpMessageHandler
+    private sealed class PacedHandler(int chunks, byte[] chunk, TimeSpan pace, int? stallAfter, TimeSpan? headerDelay = null,
+        SemaphoreSlim? reading = null) : HttpMessageHandler
     {
         private readonly DateTimeOffset _started = DateTimeOffset.UtcNow;
 
@@ -108,12 +118,12 @@ public class HttpExtensionFeedClientTests
 
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StreamContent(new PacedStream(chunks, chunk, pace, stallAfter))
+                Content = new StreamContent(new PacedStream(chunks, chunk, pace, stallAfter, reading))
             };
         }
     }
 
-    private sealed class PacedStream(int chunks, byte[] chunk, TimeSpan pace, int? stallAfter) : Stream
+    private sealed class PacedStream(int chunks, byte[] chunk, TimeSpan pace, int? stallAfter, SemaphoreSlim? reading) : Stream
     {
         private int _served;
 
@@ -129,6 +139,8 @@ public class HttpExtensionFeedClientTests
             {
                 return 0;
             }
+
+            reading?.Release();
 
             if (stallAfter is { } stall && _served >= stall)
             {
@@ -157,6 +169,89 @@ public class HttpExtensionFeedClientTests
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    // Timers fire only when the test advances the clock, on the advancing thread.
+    private sealed class ManualTimers : TimeProvider
+    {
+        private readonly Lock _gate = new();
+        private readonly List<Timer> _timers = [];
+        private DateTimeOffset _now = new(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            lock (_gate)
+            {
+                return _now;
+            }
+        }
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Timer timer = new(this, callback, state);
+            timer.Change(dueTime, period);
+            return timer;
+        }
+
+        public void Advance(TimeSpan by)
+        {
+            List<Timer> due;
+            lock (_gate)
+            {
+                _now += by;
+                due = [.. _timers.Where(t => t.DueAt <= _now)];
+                foreach (Timer t in due)
+                {
+                    _timers.Remove(t);
+                }
+            }
+
+            foreach (Timer t in due)
+            {
+                t.Fire();
+            }
+        }
+
+        private sealed class Timer(ManualTimers owner, TimerCallback callback, object? state) : ITimer
+        {
+            public DateTimeOffset DueAt;
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                if (period != Timeout.InfiniteTimeSpan)
+                {
+                    throw new NotSupportedException("a periodic timer");
+                }
+
+                lock (owner._gate)
+                {
+                    owner._timers.Remove(this);
+                    if (dueTime != Timeout.InfiniteTimeSpan)
+                    {
+                        DueAt = owner._now + dueTime;
+                        owner._timers.Add(this);
+                    }
+                }
+
+                return true;
+            }
+
+            public void Fire() => callback(state);
+
+            public void Dispose()
+            {
+                lock (owner._gate)
+                {
+                    owner._timers.Remove(this);
+                }
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+        }
     }
 
     private sealed class InlineProgress(List<long> sink) : IProgress<long>
