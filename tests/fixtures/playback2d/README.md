@@ -106,8 +106,9 @@ describe the same world state.
 
 **Pre-v2 captures**: `prev2-*`, written by `Playback2DGoldenCaptureTests` from a real demo through
 headless Avalonia. `prev2-mirage-roundstart` is committed (captured from `furia-vs-vitality-m1-mirage.dem`,
-a pro GOTV demo staged under `demos/pro/` on developer machines, so its test skips on CI); the others
-exist only on a machine with the relevant demo staged. None is listed in the manifest, so
+a pro GOTV demo staged under `demos/pro/` on developer machines, so its test skips on CI), and so is
+`prev2-dust2-roundstart` (captured from the matchmaking demo `003801777854962729156_0256036251.dem`, also
+skipped on CI). None is listed in the manifest, so
 `GoldenCorpusTests` exempts the prefix. The prefix exists because two of these
 captures used to be named `duel-mirage-b` and `fitmap-mirage-eco` (the names of two hand-authored
 640x360 fixtures) and overwrote both scene files on any machine that had the demos.
