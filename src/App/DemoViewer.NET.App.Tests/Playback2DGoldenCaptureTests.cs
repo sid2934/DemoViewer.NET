@@ -56,24 +56,13 @@ public class Playback2DGoldenCaptureTests
 
     [Test]
     public async Task Nuke_TwoFloors_MatchesGolden() =>
-        await CaptureAndCompare("nuke-multilevel",
-        [
-            "003816306022075596881_1029495947.dem",
-            "match730_003826256877184877003_0981591541_410.dem",
+        // The golden and nuke-multilevel.scene.json were captured from the tour sample, so it is the
+        // only candidate: a locally staged nuke demo renders a different frame.
+        await CaptureAndCompare("nuke-multilevel", ["assets/tour/sample-de_nuke.dem"]);
 
-            // Repo-relative, and therefore present in EVERY checkout and on CI: the bundled tour
-            // sample is the first 3 rounds of a pro de_nuke GOTV demo (docs/tour-sample-demo.md),
-            // trimmer-verified and app-loadable. DemoTestHelper does not search assets/tour, so
-            // without this entry the one fixture that most needs a two-floor map, and this parity
-            // gate with it, would sit empty because no such demo is staged anywhere.
-            "assets/tour/sample-de_nuke.dem"
-        ]);
-
-    // `prev2-`, not `fitmap-mirage-eco`: that name belongs to a hand-authored 640×360 fixture in the
-    // manifest, and this harness writes a 900×900 capture of the PRE-V2 control. One name, one meaning.
     [Test]
-    public async Task FitMap_Eco_MatchesGolden() =>
-        await CaptureAndCompare("prev2-mirage-eco", ["003801777854962729156_0256036251.dem"]);
+    public async Task Dust2_RoundStart_MatchesGolden() =>
+        await CaptureAndCompare("prev2-dust2-roundstart", ["003801777854962729156_0256036251.dem"]);
 
     /// <summary>
     ///     The corpus root, resolved by walking up to the directory holding
