@@ -9,9 +9,9 @@ using System.Text;
 namespace DemoViewer.NET.Extensions.StratBook;
 
 /// <summary>
-///     How the pack names one demo across its stores. Derived stores key by <see cref="StableKey" />, which
-///     follows the path; user-truth stores key by <see cref="Sha256" />, which follows the content, so a moved
-///     file keeps its tags. A consumer crossing that line needs both in hand.
+///     How the pack names one demo across its stores. User-truth stores key by <see cref="Sha256" />, which
+///     follows the content, so a moved file keeps its tags. <see cref="StableKey" /> follows the path and
+///     stands in for the hash until the library has one.
 /// </summary>
 /// <param name="Path">The demo's path as the library knows it.</param>
 /// <param name="StableKey"><see cref="DemoKeys.StableKey" /> of <paramref name="Path" />.</param>
