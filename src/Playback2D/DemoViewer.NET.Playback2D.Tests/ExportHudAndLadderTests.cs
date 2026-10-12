@@ -15,7 +15,6 @@ using DemoViewer.NET.Playback2D.Pipeline.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using DemoViewer.NET.Playback2D.Pipeline.Hud;
-using SixLabors.ImageSharp;
 using SkiaSharp;
 
 #endregion
@@ -567,7 +566,7 @@ public class ExportSeamHeadlessTests
                 CancellationToken.None);
 
             await Assert.That(File.Exists(path)).IsTrue();
-            using Image decoded = await Image.LoadAsync(path);
+            DecodedGif decoded = GifTestDecoder.Decode(await File.ReadAllBytesAsync(path));
             await Assert.That(decoded.Frames.Count).IsEqualTo(8);
         }
         finally

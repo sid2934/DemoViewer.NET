@@ -39,6 +39,8 @@
     <ItemGroup>
         <None Include="..\..\..\tests\fixtures\playback2d\**\*.json" LinkBase="fixtures"
               CopyToOutputDirectory="PreserveNewest"/>
+        <None Include="..\..\..\tests\fixtures\playback2d\gif\*.gif" LinkBase="fixtures\gif"
+              CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 
 </Project>
