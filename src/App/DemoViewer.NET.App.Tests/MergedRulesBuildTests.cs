@@ -324,6 +324,71 @@ public class MergedRulesBuildTests
         }
     }
 
+    private static IReadOnlyList<string> Recorded(AnalysisRun run) => [.. (run.Build.Outputs ?? []).Select(o => o.Id).Order(StringComparer.Ordinal)];
+
+    // A cached run is served only when it recorded every table the caller's cut names.
+    [Test]
+    public async Task ABareRunCutToFewerTables_IsNotServedToACallerNeedingMore()
+    {
+        string fixture = AnalysisFactsTests.WriteFixture((AnalysisFactsTests.FactsRuleset, AnalysisFactsTests.FactsYaml));
+        try
+        {
+            bool factsStale = false;
+            MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+                () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+            build.OutputsFor = _ => build.StampedOutputs(id => id != AnalysisFactsTests.FactsRuleset || factsStale);
+            ParsedDemo parsed = TwoFrameDemo();
+
+            AnalysisRun narrow = build.BareRun(parsed, "/demos/a.dem");
+            factsStale = true;
+            AnalysisRun wide = build.BareRun(parsed, "/demos/a.dem");
+            AnalysisRun wideAgain = build.BareRun(parsed, "/demos/a.dem");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(Recorded(narrow)).IsEquivalentTo([RoundFacts]).Because("the facts are current, so only round_facts is recorded");
+                await Assert.That(wide).IsNotSameReferenceAs(narrow).Because("the narrow run lacks a table the caller needs");
+                await Assert.That(Recorded(wide)).IsEquivalentTo([AnalysisFactsTests.FactsTable, RoundFacts]);
+                await Assert.That(wideAgain).IsSameReferenceAs(wide);
+            }
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+        }
+    }
+
+    // Pass order shrinks the cut: the first writer's stamps make the next caller's cut a subset.
+    [Test]
+    public async Task ABareRunRecordingASuperset_IsServed()
+    {
+        string fixture = AnalysisFactsTests.WriteFixture((AnalysisFactsTests.FactsRuleset, AnalysisFactsTests.FactsYaml));
+        try
+        {
+            bool factsStale = true;
+            MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+                () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+            build.OutputsFor = _ => build.StampedOutputs(id => id != AnalysisFactsTests.FactsRuleset || factsStale);
+            ParsedDemo parsed = TwoFrameDemo();
+
+            AnalysisRun wide = build.BareRun(parsed, "/demos/a.dem");
+            factsStale = false;
+            AnalysisRun narrow = build.BareRun(parsed, "/demos/a.dem");
+            AnalysisRun everything = build.BareRun(parsed);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(Recorded(wide)).IsEquivalentTo([AnalysisFactsTests.FactsTable, RoundFacts]);
+                await Assert.That(narrow).IsSameReferenceAs(wide).Because("the cached run recorded a superset of the cut");
+                await Assert.That(everything).IsSameReferenceAs(wide).Because("the cached run recorded every stamped output");
+            }
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+        }
+    }
+
     [Test]
     public async Task MoreThanSixtyFourStampedRulesets_AreGatedOneByOne()
     {

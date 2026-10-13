@@ -197,7 +197,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             }
             else
             {
-                run = forced ? _harvester.RunFullAnalysis(parsed) : _harvester.RunBareAnalysis(parsed);
+                run = forced ? _harvester.RunFullAnalysis(parsed) : _harvester.RunBareAnalysis(parsed, path);
                 harvested = run.Highlights;
             }
 

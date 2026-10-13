@@ -64,6 +64,9 @@ public sealed class EngineRoundFactsRowSource : IRoundFactsRowSource
     public RoundFactsTable Rows(ParsedDemo parsed) => FromRun(_rules.Rules.BareRun(parsed), ClipRounds.Derive(parsed));
 
     /// <inheritdoc />
+    public RoundFactsTable Rows(ParsedDemo parsed, string path) => FromRun(_rules.Rules.BareRun(parsed, path), ClipRounds.Derive(parsed));
+
+    /// <inheritdoc />
     public RoundFactsTable Rows(ForwardDemoResult pass) =>
         pass.Run is { } run
             ? FromRun(run, pass.Rounds)

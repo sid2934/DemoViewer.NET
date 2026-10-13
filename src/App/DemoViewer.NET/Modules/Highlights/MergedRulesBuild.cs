@@ -32,6 +32,7 @@ public sealed class MergedRulesBuild
 
     // One bare run per held parse: the highlight scan and round facts read the same run on a retained entry.
     // Keyed by the stamped rulesets that were off when it ran; a run from before a toggle is not the merged set's run.
+    // Recorded is the requested cut, not the build's outputs: an excluded ruleset's table never appears there.
     private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
@@ -252,30 +253,52 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     The bare run over a held parse, evaluated once however many consumers ask until
-    ///     <see cref="Forget" />.
+    ///     The configured outputs a read of the demo at a path records: the tables of the stamped rulesets whose
+    ///     stored outputs are stale for it. The forward read and <see cref="BareRun(ParsedDemo, string)" /> both
+    ///     cut by it. Null records every stamped output.
     /// </summary>
-    public AnalysisRun BareRun(ParsedDemo parsed)
+    public Func<string, IReadOnlySet<string>?>? OutputsFor { get; set; }
+
+    /// <summary>
+    ///     The bare run over a held parse recording every stamped output, evaluated once however many consumers
+    ///     ask until <see cref="Forget" />.
+    /// </summary>
+    public AnalysisRun BareRun(ParsedDemo parsed) => RunCut(parsed, StampedOutputs());
+
+    /// <summary>
+    ///     The bare run over a held parse of the demo at <paramref name="path" />, recording the cut
+    ///     <see cref="OutputsFor" /> names. A cached run is served when it recorded at least that cut.
+    /// </summary>
+    public AnalysisRun BareRun(ParsedDemo parsed, string path) =>
+        RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs());
+
+    private AnalysisRun RunCut(ParsedDemo parsed, IReadOnlySet<string> cut)
     {
         (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
+
+        // round_facts always: its evaluator decides staleness at the demo's tick rate, the cut at 64.
+        HashSet<string> outputs = new(cut, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
         lock (_gate)
         {
             if (_runs.TryGetValue(parsed, out CachedRun? cached) && string.Equals(cached.Off, off, StringComparison.Ordinal))
             {
-                return cached.Run;
+                if (cached.Recorded.IsSupersetOf(outputs))
+                {
+                    return cached.Run;
+                }
+
+                // Widened, not swapped, so two callers with different cuts cannot evict each other.
+                outputs.UnionWith(cached.Recorded);
             }
         }
 
-        // A held parse is rare and shared by every pass on it, so it records every stamped output, and
-        // round_facts whether or not this build stamps it.
-        HashSet<string> outputs = [.. StampedOutputs(), ForwardDemoPass.RoundFactsTable];
         BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs);
         RulesetExclusionReport.Report(Log, build);
         DecodeSites.Enter(2);
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
         lock (_gate)
         {
-            _runs.AddOrUpdate(parsed, new CachedRun(off, run));
+            _runs.AddOrUpdate(parsed, new CachedRun(off, outputs, run));
         }
 
         return run;
@@ -318,7 +341,7 @@ public sealed class MergedRulesBuild
         }
     }
 
-    private sealed record CachedRun(string Off, AnalysisRun Run);
+    private sealed record CachedRun(string Off, IReadOnlySet<string> Recorded, AnalysisRun Run);
 
     // The first registration of an id wins: the composition root lists core's before any extension's.
     private static IReadOnlyList<StampedRuleset> Distinct(IReadOnlyList<StampedRuleset> stamped) =>
