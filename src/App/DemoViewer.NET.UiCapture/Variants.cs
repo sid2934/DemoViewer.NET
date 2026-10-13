@@ -248,6 +248,7 @@ public static partial class Variants
             ["queue-flyout-empty"] = () => QueueFlyout(false),
             ["queue-flyout-recent"] = () => QueueFlyout(true, true),
             ["queue-flyout-row-menu"] = QueueFlyoutRowMenu,
+            ["menu-flyout-states"] = MenuFlyoutStates,
             ["queue-chips"] = QueueChips,
             // First-run Visual Walkthrough overlay. Render at --size 1100x680 so the
             // seeded SpotlightRects line up with the coarse backdrop regions.
@@ -4158,6 +4159,44 @@ public static partial class Variants
                 window.MouseDown(at, MouseButton.Right);
                 window.MouseUp(at, MouseButton.Right);
             }
+        });
+        return host;
+    }
+
+    /// <summary>
+    ///     A MenuFlyout open with every item state a menu draws: plain, with a gesture, disabled, a
+    ///     separator, and a hovered item with its submenu open.
+    /// </summary>
+    private static Border MenuFlyoutStates()
+    {
+        MenuItem hovered = new() { Header = "Tag as", Items = { new MenuItem { Header = "Scrim" }, new MenuItem { Header = "Official" } } };
+        MenuFlyout flyout = new()
+        {
+            Placement = PlacementMode.BottomEdgeAlignedLeft,
+            Items =
+            {
+                new MenuItem { Header = "Open in 2D playback" },
+                new MenuItem { Header = "Copy path", InputGesture = new KeyGesture(Key.C, KeyModifiers.Control) },
+                new MenuItem { Header = "Re-parse (already queued)", IsEnabled = false },
+                new MenuItem { Header = "-" },
+                hovered
+            }
+        };
+        Button anchor = new() { Content = "Actions", Classes = { "primary" }, Flyout = flyout };
+        Border host = new()
+        {
+            Background = Tok("ShellBg"),
+            Padding = new Thickness(20),
+            Child = anchor
+        };
+        host.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            flyout.ShowAt(anchor);
+            Dispatcher.UIThread.Post(() =>
+            {
+                hovered.IsSelected = true;
+                hovered.IsSubMenuOpen = true;
+            }, DispatcherPriority.Background);
         });
         return host;
     }
