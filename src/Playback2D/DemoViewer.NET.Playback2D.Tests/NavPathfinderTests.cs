@@ -181,15 +181,27 @@ public class NavPathfinderTests
         (double X, double Y, int Area) b = Anchor(zones, nav, "BombsiteB");
         IReadOnlyList<NavWaypoint>? first = nav.FindPath(a.X, a.Y, a.Area, b.X, b.Y, b.Area);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        IReadOnlyList<NavWaypoint>? again = nav.FindPath(a.X, a.Y, a.Area, b.X, b.Y, b.Area);
-        long hit = GC.GetAllocatedBytesForCurrentThread() - before;
+        // The least of several samples: the thread's allocation counter rarely jumps by up to about 8 KB with no
+        // GC and nothing jitted on the thread. A real per-call allocation shows in each.
+        const int Samples = 5;
+        long hit = long.MaxValue, missBytes = long.MaxValue;
+        IReadOnlyList<NavWaypoint>? again = null, miss = null;
+        for (int i = 0; i < Samples; i++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            again = nav.FindPath(a.X, a.Y, a.Area, b.X, b.Y, b.Area);
+            hit = Math.Min(hit, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
 
         // A miss on warm scratch allocates its answer and the memo's slot, nothing per area.
         nav.FindPath(a.X + 1, a.Y, a.Area, b.X, b.Y, b.Area);
-        before = GC.GetAllocatedBytesForCurrentThread();
-        IReadOnlyList<NavWaypoint>? miss = nav.FindPath(a.X + 2, a.Y, a.Area, b.X, b.Y, b.Area);
-        long missBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        for (int i = 0; i < Samples; i++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            miss = nav.FindPath(a.X + 2 + i, a.Y, a.Area, b.X, b.Y, b.Area);
+            missBytes = Math.Min(missBytes, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
         Console.WriteLine($"[nav] memo hit {hit} B, warm miss {missBytes} B for {miss!.Count} points");
 
         await Assert.That(ReferenceEquals(first, again)).IsTrue();

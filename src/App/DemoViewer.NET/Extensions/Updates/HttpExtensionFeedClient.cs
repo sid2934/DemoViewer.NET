@@ -19,6 +19,7 @@ public sealed class HttpExtensionFeedClient : IExtensionFeedClient, IDisposable
     private readonly HttpClient _http;
     private readonly TimeSpan _headerTimeout;
     private readonly TimeSpan _stallTimeout;
+    private readonly TimeProvider _time;
 
     /// <summary>The process-wide instance over the shared handler and the default budgets.</summary>
     public static HttpExtensionFeedClient Shared { get; } = new();
@@ -37,7 +38,9 @@ public sealed class HttpExtensionFeedClient : IExtensionFeedClient, IDisposable
     /// <param name="handler">The message handler, or null for the default; a test hands in a fake.</param>
     /// <param name="headerTimeout">Overrides <see cref="HeaderTimeout" />.</param>
     /// <param name="stallTimeout">Overrides <see cref="StallTimeout" />.</param>
-    public HttpExtensionFeedClient(HttpMessageHandler? handler, TimeSpan? headerTimeout = null, TimeSpan? stallTimeout = null)
+    /// <param name="time">The clock both budgets run on; the system clock by default.</param>
+    public HttpExtensionFeedClient(HttpMessageHandler? handler, TimeSpan? headerTimeout = null, TimeSpan? stallTimeout = null,
+        TimeProvider? time = null)
     {
         _http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
         _http.Timeout = Timeout.InfiniteTimeSpan;
@@ -45,6 +48,7 @@ public sealed class HttpExtensionFeedClient : IExtensionFeedClient, IDisposable
         _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("DemoViewer.NET", "1.0"));
         _headerTimeout = headerTimeout ?? HeaderTimeout;
         _stallTimeout = stallTimeout ?? StallTimeout;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <inheritdoc />
@@ -126,8 +130,8 @@ public sealed class HttpExtensionFeedClient : IExtensionFeedClient, IDisposable
     // The header budget applies to this call alone; the body stream it returns is read under the stall budget.
     private async Task<HttpResponseMessage> SendForHeaders(Uri url, CancellationToken ct)
     {
-        using CancellationTokenSource headers = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        headers.CancelAfter(_headerTimeout);
+        using CancellationTokenSource budget = new(_headerTimeout, _time);
+        using CancellationTokenSource headers = CancellationTokenSource.CreateLinkedTokenSource(ct, budget.Token);
         HttpResponseMessage response;
         try
         {
@@ -155,7 +159,7 @@ public sealed class HttpExtensionFeedClient : IExtensionFeedClient, IDisposable
     {
         using CancellationTokenSource delay = CancellationTokenSource.CreateLinkedTokenSource(ct);
         Task<int> pending = read();
-        Task finished = await Task.WhenAny(pending, Task.Delay(_stallTimeout, delay.Token)).ConfigureAwait(false);
+        Task finished = await Task.WhenAny(pending, Task.Delay(_stallTimeout, _time, delay.Token)).ConfigureAwait(false);
         if (finished != pending)
         {
             ct.ThrowIfCancellationRequested();

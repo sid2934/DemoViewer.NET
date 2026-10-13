@@ -259,7 +259,7 @@ internal static class ExportCommand
                 ["demo_seconds"] = RenderCommand.Round(demoSeconds),
                 ["realtime_ratio"] = RenderCommand.Round(realtimeRatio),
                 ["backend"] = backend.Backend.ToString(),
-                ["encoder"] = noEncode ? "none" : ffmpeg.Found ? "ffmpeg" : "imagesharp-gif",
+                ["encoder"] = noEncode ? "none" : ffmpeg.Found ? "ffmpeg" : "managed-gif",
                 ["ffmpeg_origin"] = ffmpeg.Origin.ToString(),
 
                 // Additive: `encoder` above keeps its old meaning (WHICH PROGRAM encodes), and these say
@@ -296,7 +296,7 @@ internal static class ExportCommand
                 $"wrote {outPath}  {size.Width}x{size.Height}  {format}  {last.FramesTotal} frames @ {fps} fps"));
             ConsoleOut.Info(string.Create(CultureInfo.InvariantCulture,
                 $"elapsed {elapsedMs:F0} ms (parse {parseMs:F0} ms)  render {last.FramesPerSecond:F1} fps  " +
-                $"{realtimeRatio:F2}x realtime  encoder={(noEncode ? "none" : ffmpeg.Found ? "ffmpeg" : "imagesharp-gif")}"));
+                $"{realtimeRatio:F2}x realtime  encoder={(noEncode ? "none" : ffmpeg.Found ? "ffmpeg" : "managed-gif")}"));
 
             if (encoder is not null)
             {

@@ -1,11 +1,11 @@
 #region
 
 using System.Buffers;
+using System.Security.Cryptography;
 using DemoViewer.NET.Playback2D.Core.Export;
 using DemoViewer.NET.Playback2D.Pipeline.Export;
 using FFMpegCore;
 using FFMpegCore.Pipes;
-using SixLabors.ImageSharp;
 
 #endregion
 
@@ -251,7 +251,7 @@ public class ManagedGifSinkTests
     ///             Error opening
     ///             output …: No such file or directory
     ///         </c>
-    ///         and ImageSharp throws
+    ///         and opening the file throws
     ///         <see cref="DirectoryNotFoundException" />, and both refusals land only after the whole
     ///         range has been replayed and drawn.
     ///     </para>
@@ -298,17 +298,127 @@ public class ManagedGifSinkTests
                 }
             }
 
-            using Image image = await Image.LoadAsync(path);
-            await Assert.That(image.Frames.Count).IsEqualTo(6);
-            await Assert.That(image.Width).IsEqualTo(8);
+            DecodedGif gif = GifTestDecoder.Decode(await File.ReadAllBytesAsync(path));
+            await Assert.That(gif.Frames.Count).IsEqualTo(6);
+            await Assert.That(gif.Width).IsEqualTo(8);
+            await Assert.That(gif.LoopCount).IsEqualTo(0);
 
             // 20 fps is 5 centiseconds. A GIF delay is an integer number of them, which is exactly why
             // the fps list is the divisors of 100.
-            await Assert.That(image.Frames.RootFrame.Metadata.GetGifMetadata().FrameDelay).IsEqualTo(5);
+            for (int i = 0; i < 6; i++)
+            {
+                await Assert.That(gif.Frames[i].DelayCentiseconds).IsEqualTo(5);
+                await Assert.That(gif.Frames[i].Rgb).IsEquivalentTo(Rgb(Frame(8, 8, (byte)(i * 40))));
+            }
         }
         finally
         {
             File.Delete(path);
+        }
+    }
+
+    /// <summary>
+    ///     Noise large enough to fill the 4096-entry code table several times over, so code width growth
+    ///     and the clear code are exercised, in fewer colours than the palette holds so the round trip
+    ///     must be exact. The later frames check the changed-rectangle and transparency path.
+    /// </summary>
+    [Test]
+    public async Task NoiseThatOverflowsTheCodeTable_RoundTripsExactly()
+    {
+        const int size = 128;
+        byte[] first = Noise(size, size, 1);
+        byte[] second = (byte[])first.Clone();
+        // A colour the noise never uses, so every pixel in the block changes.
+        Paint(second, size, 30, 20, 50, 40, (250, 250, 250));
+        byte[] fourth = Noise(size, size, 2);
+        byte[][] frames = [first, second, second, fourth];
+
+        byte[] file = await Encode(frames, size, size);
+        DecodedGif gif = GifTestDecoder.Decode(file);
+
+        await Assert.That(gif.Frames.Count).IsEqualTo(4);
+        for (int i = 0; i < frames.Length; i++)
+        {
+            await Assert.That(gif.Frames[i].Rgb).IsEquivalentTo(Rgb(frames[i]));
+            await Assert.That(gif.Frames[i].Disposal).IsEqualTo(1);
+        }
+
+        // Only the painted block changed; a repeated frame is one transparent pixel.
+        DecodedFrame changed = gif.Frames[1];
+        await Assert.That((changed.Left, changed.Top, changed.Width, changed.Height)).IsEqualTo((30, 20, 50, 40));
+        await Assert.That(changed.HasTransparency).IsFalse();
+        await Assert.That((gif.Frames[2].Width, gif.Frames[2].Height)).IsEqualTo((1, 1));
+        await Assert.That(gif.Frames[2].HasTransparency).IsTrue();
+        await Assert.That(gif.Frames[0].HasTransparency).IsFalse();
+    }
+
+    [Test]
+    public async Task MoreColoursThanThePaletteHolds_AreQuantizedClosely()
+    {
+        const int width = 256, height = 64;
+        byte[] rgba = new byte[width * height * 4];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int i = ((y * width) + x) * 4;
+                rgba[i] = (byte)x;
+                rgba[i + 1] = (byte)(y * 4);
+                rgba[i + 2] = (byte)(255 - x);
+                rgba[i + 3] = 255;
+            }
+        }
+
+        DecodedGif gif = GifTestDecoder.Decode(await Encode([rgba], width, height));
+        byte[] expected = Rgb(rgba);
+        byte[] actual = gif.Frames[0].Rgb;
+
+        long totalError = 0;
+        for (int i = 0; i < expected.Length; i++)
+        {
+            totalError += Math.Abs(expected[i] - actual[i]);
+        }
+
+        // About 4.7 here, against 5.0 from ImageSharp's Wu and Floyd-Steinberg on the same input.
+        double meanError = totalError / (double)expected.Length;
+        await Assert.That(meanError).IsLessThan(6.0);
+    }
+
+    [Test]
+    public async Task TheSameFrames_EncodeToTheSameBytes()
+    {
+        byte[][] frames = [Noise(64, 48, 3), Noise(64, 48, 4), Noise(64, 48, 4)];
+
+        byte[] once = await Encode(frames, 64, 48);
+        byte[] again = await Encode(frames, 64, 48);
+
+        await Assert.That(again).IsEquivalentTo(once);
+    }
+
+    /// <summary>
+    ///     Keeps <see cref="GifTestDecoder" /> honest: a file from a third-party encoder (ImageSharp 3.1,
+    ///     Wu quantizer, global table, delta frames) must decode to the frames that encoder's own
+    ///     decoder produced, hashed when the fixture was made.
+    /// </summary>
+    [Test]
+    public async Task TheTestDecoder_ReadsAThirdPartyGif()
+    {
+        byte[] file = await File.ReadAllBytesAsync(Path.Combine(FixtureCorpus.Root, "gif", "imagesharp-noise.gif"));
+        DecodedGif gif = GifTestDecoder.Decode(file);
+
+        string[] expected =
+        [
+            "DDB94C9E59D18884CBB98C35C9C854E07A323D800405FEEE714524CA3CCDE917",
+            "D18496F493CBCB3890ADA35DF97878D3C84C8D320F75DCA9D0C7715CB43CF281",
+            "65A049CC6FB58AFC3B156A6882112D2BDC40B86FD216F2DE54F08D9A6753CAFE"
+        ];
+
+        await Assert.That(gif.Frames.Count).IsEqualTo(3);
+        await Assert.That(gif.LoopCount).IsEqualTo(0);
+        for (int i = 0; i < expected.Length; i++)
+        {
+            await Assert.That(Convert.ToHexString(SHA256.HashData(gif.Frames[i].Rgb))).IsEqualTo(expected[i]);
+            await Assert.That(gif.Frames[i].DelayCentiseconds).IsEqualTo(5);
         }
     }
 
@@ -364,6 +474,76 @@ public class ManagedGifSinkTests
         await sink.DisposeAsync();
 
         await Assert.That(File.Exists(path)).IsFalse();
+    }
+
+    private static async Task<byte[]> Encode(byte[][] frames, int width, int height)
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"dv-gif-{Guid.NewGuid():N}.gif");
+        try
+        {
+            await using (ManagedGifSink sink = new(path, 20))
+            {
+                foreach (byte[] frame in frames)
+                {
+                    await sink.WriteAsync(frame, width, height, CancellationToken.None);
+                }
+            }
+
+            return await File.ReadAllBytesAsync(path);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private static byte[] Rgb(byte[] rgba)
+    {
+        byte[] rgb = new byte[rgba.Length / 4 * 3];
+        for (int s = 0, d = 0; d < rgb.Length; s += 4, d += 3)
+        {
+            rgb[d] = rgba[s];
+            rgb[d + 1] = rgba[s + 1];
+            rgb[d + 2] = rgba[s + 2];
+        }
+
+        return rgb;
+    }
+
+    // 200 colours, each in its own 5-bit-per-channel bin, so the quantizer can keep every one exactly.
+    private static (byte R, byte G, byte B) Palette200(int i) =>
+        ((byte)((i % 8 * 32) + 5), (byte)((i / 8 % 5 * 48) + 7), (byte)((i / 40 * 48) + 9));
+
+    private static byte[] Noise(int width, int height, uint seed)
+    {
+        byte[] pixels = new byte[width * height * 4];
+        uint state = seed * 2654435761u;
+        for (int i = 0; i < pixels.Length; i += 4)
+        {
+            state = (state * 1664525u) + 1013904223u;
+            (byte r, byte g, byte b) = Palette200((int)((state >> 8) % 200));
+            pixels[i] = r;
+            pixels[i + 1] = g;
+            pixels[i + 2] = b;
+            pixels[i + 3] = 255;
+        }
+
+        return pixels;
+    }
+
+    private static void Paint(byte[] rgba, int stride, int left, int top, int width, int height,
+        (byte R, byte G, byte B) colour)
+    {
+        for (int y = top; y < top + height; y++)
+        {
+            for (int x = left; x < left + width; x++)
+            {
+                int i = ((y * stride) + x) * 4;
+                rgba[i] = colour.R;
+                rgba[i + 1] = colour.G;
+                rgba[i + 2] = colour.B;
+            }
+        }
     }
 
     private static byte[] Frame(int width, int height, byte value)

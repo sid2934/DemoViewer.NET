@@ -1,0 +1,72 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        Menus.axaml: context menus, menu flyouts, flyouts and their items on the palette tokens.
+
+        Fluent's own menu brushes ignore the app palette, so every menu was the stock gray of the base
+        variant under every theme. These styles only set colours; Fluent's templates, geometry and
+        corner radius stay. The tokens are listed in docs/ui/theme-token-catalog.md (Menus).
+    -->
+
+    <Style Selector="ContextMenu, MenuFlyoutPresenter, FlyoutPresenter">
+        <Setter Property="Background" Value="{DynamicResource CardBg}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+    </Style>
+
+    <!-- A submenu's surface is set in Fluent's MenuItem template, which outranks a plain style. The :open
+         trigger raises this one above it, and the popup only shows while :open anyway. -->
+    <Style Selector="MenuItem:open /template/ Popup#PART_Popup > Border">
+        <Setter Property="Background" Value="{DynamicResource CardBg}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderAccent}" />
+    </Style>
+
+    <Style Selector="MenuItem">
+        <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+    </Style>
+    <Style Selector="MenuItem /template/ TextBlock#PART_InputGestureText">
+        <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+    </Style>
+    <Style Selector="MenuItem /template/ Path#PART_ChevronPath">
+        <Setter Property="Fill" Value="{DynamicResource TextMid}" />
+    </Style>
+    <Style Selector="MenuItem:separator /template/ Separator">
+        <Setter Property="Background" Value="{DynamicResource BorderAccent}" />
+    </Style>
+
+    <!-- Fluent marks the hovered or keyboard-focused item :selected. -->
+    <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource PrimaryButtonHover}" />
+    </Style>
+    <Style Selector="MenuItem:selected /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+    </Style>
+    <Style Selector="MenuItem:selected /template/ TextBlock#PART_InputGestureText">
+        <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+    </Style>
+    <Style Selector="MenuItem:selected /template/ Path#PART_ChevronPath">
+        <Setter Property="Fill" Value="{DynamicResource TextValue}" />
+    </Style>
+
+    <Style Selector="MenuItem:pressed /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource FrameRowSelectedBg}" />
+    </Style>
+    <Style Selector="MenuItem:pressed /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+    </Style>
+
+    <!-- Last, so a disabled item never takes the hover colours. -->
+    <Style Selector="MenuItem:disabled /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="MenuItem:disabled /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+    </Style>
+    <Style Selector="MenuItem:disabled /template/ TextBlock#PART_InputGestureText">
+        <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+    </Style>
+    <Style Selector="MenuItem:disabled /template/ Path#PART_ChevronPath">
+        <Setter Property="Fill" Value="{DynamicResource TextDim}" />
+    </Style>
+
+</Styles>

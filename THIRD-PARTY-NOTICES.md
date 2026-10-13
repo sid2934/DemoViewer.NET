@@ -87,15 +87,11 @@ This project depends on the following NuGet packages, each under its own license
 via NuGet and not reproduced here: Google.Protobuf, Snappier, YamlDotNet,
 Microsoft.Extensions.Logging.Abstractions, CS2OpenDev.Sdk.
 
-Two of them carry terms worth stating outright because the 2D-playback video export depends on
-them:
+One of them carries terms worth stating outright because the 2D-playback video export depends on
+it:
 
 - **FFMpegCore** (MIT): a managed argument builder and process wrapper. It links no ffmpeg code;
   it starts ffmpeg as a **separate program** and pipes raw frames to its standard input. See §g.
-- **SixLabors.ImageSharp** (Six Labors Split License 1.0): used only by `ManagedGifSink`, the
-  no-ffmpeg GIF floor. The split license grants Apache-2.0 terms to open-source projects, which
-  this repository is (MIT; see `LICENSE`). A closed-source redistribution of this code would need
-  a commercial Six Labors license; record that before any such change.
 
 ## d. Inter font (SIL Open Font License 1.1)
 
@@ -221,7 +217,7 @@ ffmpeg is resolved in this order:
    [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds) project, verified against a pinned
    SHA-256 and extracted under `<config>/tools/ffmpeg`. The consent sheet displays the `LICENSE.txt`
    found inside that archive and links the build's source before anything is written to disk;
-3. no ffmpeg at all: export falls back to `ManagedGifSink`, which uses ImageSharp (§c) and
+3. no ffmpeg at all: export falls back to `ManagedGifSink`, this project's own GIF writer, which
    produces GIF only.
 
 Because the downloaded build is LGPL, it contains no H.264 encoder: MP4/H.264 export requires a

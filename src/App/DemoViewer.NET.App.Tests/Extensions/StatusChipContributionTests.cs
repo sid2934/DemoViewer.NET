@@ -181,20 +181,27 @@ public class StatusChipContributionTests
         });
 
     [Test]
-    public async Task AnExportChipWhoseIdAContributedChipHolds_IsLeftOut_AndNoSlotIsOrphaned() =>
+    public async Task AnExportChipWhoseIdAContributedChipHolds_IsLeftOut_AndSaysSoOnce() =>
         await HeadlessSession.RunOnUi(async () =>
         {
             FakeSource source = new() { Shown = true, Label = "Mine" };
             (MainViewModel vm, HostStatusChip chip, _, _) = NewShell(source);
-            using Playback2DExportStatusViewModel status = new(new IdleExportJob());
+            using Playback2DExportStatusViewModel first = new(new IdleExportJob());
+            using Playback2DExportStatusViewModel second = new(new IdleExportJob());
             try
             {
                 int before = vm.Chips.Count;
-                vm.MountExportStatus("test.chip", PackFeature, status);
-                vm.MountExportStatus("test.chip", PackFeature, status);
+                vm.MountExportStatus("test.chip", PackFeature, first);
+                vm.MountExportStatus("test.chip", PackFeature, first);
+                vm.MountExportStatus("test.chip", PackFeature, second);
+                string[] logged = [.. vm.Output.DecodeErrors.Rows
+                    .Where(r => r.Message.Contains("'test.chip'", StringComparison.Ordinal))
+                    .Select(r => r.Message)];
 
+                // Each mount that builds a slot the strip refuses logs again, so one line means no slot was built.
                 using (Assert.Multiple())
                 {
+                    await Assert.That(logged).IsEquivalentTo(["Status chip 'test.chip' is already on the strip; the export chip is left out."]);
                     await Assert.That(vm.Chips.Count).IsEqualTo(before);
                     await Assert.That(vm.Chips).Contains(chip.Chip).Because("the contributed chip keeps its id");
                 }

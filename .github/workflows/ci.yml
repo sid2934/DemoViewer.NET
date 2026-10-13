@@ -74,6 +74,42 @@ jobs:
           dotnet pack src/Playback2D/DemoViewer.NET.Playback2D.Scene -c Release --no-build -o artifacts/sdk-packages
           ls artifacts/sdk-packages
 
+      # The sample against those packages, not the projects: a dependency or build asset the packages lack
+      # fails here. Source mapping keeps DemoViewer.NET.* on the local feed only, and the empty package
+      # folder keeps an older cached copy out. The manifest check proves the package's build/ targets ran.
+      - name: Build HelloExtension against the SDK packages
+        run: |
+          set -euo pipefail
+          FEED="$GITHUB_WORKSPACE/artifacts/sdk-packages"
+          shopt -s nullglob
+          SDK=("$FEED"/DemoViewer.NET.Extensions.Sdk.[0-9]*.nupkg)
+          [ "${#SDK[@]}" -eq 1 ] || { echo "expected one DemoViewer.NET.Extensions.Sdk package, found ${#SDK[@]}"; exit 1; }
+          VERSION=$(basename "${SDK[0]}" .nupkg); VERSION=${VERSION#DemoViewer.NET.Extensions.Sdk.}
+          WORK="$RUNNER_TEMP/sdk-consumer"
+          rm -rf "$WORK"; mkdir -p "$WORK"
+          cat > "$WORK/nuget.config" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear/>
+              <add key="sdk" value="$FEED"/>
+              <add key="nuget" value="https://api.nuget.org/v3/index.json"/>
+            </packageSources>
+            <packageSourceMapping>
+              <packageSource key="sdk"><package pattern="DemoViewer.NET.*"/></packageSource>
+              <packageSource key="nuget"><package pattern="*"/></packageSource>
+            </packageSourceMapping>
+          </configuration>
+          EOF
+          export NUGET_PACKAGES="$WORK/packages"
+          PROPS=(-p:Configuration=Release -p:UseSdkPackages=true -p:SdkPackageVersion="$VERSION" -p:ArtifactsPath="$WORK/artifacts")
+          dotnet restore samples/Extensions/HelloExtension --configfile "$WORK/nuget.config" "${PROPS[@]}"
+          dotnet build samples/Extensions/HelloExtension --no-restore "${PROPS[@]}"
+          ASSETS="$WORK/artifacts/obj/HelloExtension/project.assets.json"
+          if grep -q '"type": "project"' "$ASSETS"; then echo "restore resolved a project reference"; exit 1; fi
+          grep -q "\"DemoViewer.NET.Extensions.Sdk/$VERSION\"" "$ASSETS" || { echo "restore did not take the packed SDK $VERSION"; exit 1; }
+          test -f "$WORK/artifacts/bin/HelloExtension/release/extension.json" || { echo "the SDK package did not stamp extension.json"; exit 1; }
+
   # The WASM regression net. It PUBLISHES rather than builds:
   # `dotnet build` of this head succeeds even when the app cannot boot, and the two ways it has
   # actually broken (a missing native relink, giving a runtime DllNotFoundException for libSkiaSharp,
@@ -182,7 +218,7 @@ jobs:
           --report-dir artifacts/bench-reports
 
       # GIF on purpose. The runner has no ffmpeg, so this exercises the bottom rung of the ladder, the
-      # managed ImageSharp floor, which is what a user with no ffmpeg gets. If ffmpeg is ever
+      # managed GIF writer, which is what a user with no ffmpeg gets. If ffmpeg is ever
       # installed on the runner, add a --format webm run beside this one rather than replacing it.
       - name: Export a clip (no ffmpeg, the managed GIF floor)
         run: >

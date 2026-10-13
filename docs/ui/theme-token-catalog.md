@@ -54,6 +54,17 @@ built-in id is ignored (the built-in is protected).
 - **Cannot** (inherits the base Light/Dark): FluentTheme's own base-control brushes (e.g. `ListBoxItem`
   selection, `ScrollBar`, default `SystemAccentColor`). A custom theme's controls therefore look like its
   base's Fluent controls. Extending the namespace to cover those is a possible future enhancement.
+  Menus and flyouts are the exception: `Styles/Menus.axaml` puts them on the tokens below.
+
+| Element | Token |
+|---|---|
+| `ContextMenu`, `MenuFlyoutPresenter`, `FlyoutPresenter`, submenu surface | `CardBg`, border `BorderAccent` |
+| `MenuItem` text / gesture text and chevron / separator | `TextBright` / `TextMid` / `BorderAccent` |
+| `MenuItem` hovered or keyboard-selected | background `PrimaryButtonHover`, text `TextValue` |
+| `MenuItem` pressed | background `FrameRowSelectedBg`, text `TextValue` |
+| `MenuItem` disabled | text `TextDim`, no background |
+
+Check them with `menu-flyout-states` and `queue-flyout-row-menu` under each `--theme`.
 
 ## Iterating visually
 

@@ -2,11 +2,7 @@
 
 using System.Globalization;
 using DemoViewer.NET.Playback2D.Core.Export;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Metadata;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing.Processors.Quantization;
+using DemoViewer.NET.Playback2D.Pipeline.Export.Gif;
 
 #endregion
 
@@ -20,9 +16,9 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///         shareable file, and the dialog can say so honestly instead of greying everything out.
 ///     </para>
 ///     <para>
-///         <b>It buffers every frame in memory</b>, which is why the caps exist: a GIF is a
-///         palette-per-frame format and a global palette needs the whole animation before it can be
-///         chosen. <see cref="SceneExportSession.Validate" /> enforces the same ceilings on the request,
+///         <b>It buffers every frame in memory</b> (as RGB; alpha is dropped, export frames are
+///         opaque), which is why the caps exist: the one global palette needs the whole animation
+///         before any frame can be mapped to it. <see cref="SceneExportSession.Validate" /> enforces the same ceilings on the request,
 ///         so a user is refused before rendering rather than after.
 ///     </para>
 ///     <para>
@@ -37,7 +33,10 @@ public sealed class ManagedGifSink : IFrameSink
     private readonly string _outputPath;
     private bool _cancelled;
     private bool _disposed;
-    private Image<Rgba32>? _image;
+    private readonly List<byte[]> _frames = [];
+    private WuColorQuantizer? _quantizer;
+    private int _width;
+    private int _height;
 
     /// <summary>Creates the sink.</summary>
     /// <param name="outputPath">Where the GIF goes. Overwritten on success.</param>
@@ -57,8 +56,8 @@ public sealed class ManagedGifSink : IFrameSink
 
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxFrames);
 
-        // Same reason as FfmpegFrameSink: Image.Save(path) does not create the directory, and finding
-        // that out at Dispose would discard every frame accumulated in memory.
+        // Same reason as FfmpegFrameSink: the file is only opened at Dispose, and a missing directory
+        // found then would discard every frame accumulated in memory.
         _outputPath = ExportOutputPath.EnsureDirectory(outputPath);
         _maxFrames = maxFrames;
         FrameDelayCentiseconds = 100 / fps;
@@ -87,30 +86,34 @@ public sealed class ManagedGifSink : IFrameSink
                 $"A GIF is capped at {_maxFrames} frames. Shorten the range or export WebM."));
         }
 
-        Image<Rgba32> frame = Image.LoadPixelData<Rgba32>(rgba.Span, width, height);
-
-        if (_image is null)
+        if (rgba.Length < width * height * 4)
         {
-            _image = frame;
-            GifMetadata metadata = _image.Metadata.GetGifMetadata();
-            metadata.RepeatCount = 0; // loop forever
-            Stamp(_image.Frames.RootFrame.Metadata);
-        }
-        else
-        {
-            if (frame.Width != _image.Width || frame.Height != _image.Height)
-            {
-                frame.Dispose();
-                throw new ExportValidationException(
-                    "Every GIF frame must be the same size; the render changed size mid-export.");
-            }
-
-            using (frame)
-            {
-                Stamp(_image.Frames.AddFrame(frame.Frames.RootFrame).Metadata);
-            }
+            throw new ArgumentException("The frame is smaller than width * height * 4 bytes.", nameof(rgba));
         }
 
+        if (_quantizer is null)
+        {
+            _quantizer = new WuColorQuantizer();
+            _width = width;
+            _height = height;
+        }
+        else if (width != _width || height != _height)
+        {
+            throw new ExportValidationException(
+                "Every GIF frame must be the same size; the render changed size mid-export.");
+        }
+
+        byte[] rgb = new byte[width * height * 3];
+        ReadOnlySpan<byte> source = rgba.Span;
+        for (int s = 0, d = 0; d < rgb.Length; s += 4, d += 3)
+        {
+            rgb[d] = source[s];
+            rgb[d + 1] = source[s + 1];
+            rgb[d + 2] = source[s + 2];
+        }
+
+        _quantizer.Add(rgb);
+        _frames.Add(rgb);
         FramesWritten++;
         return ValueTask.CompletedTask;
     }
@@ -127,25 +130,20 @@ public sealed class ManagedGifSink : IFrameSink
 
         try
         {
-            if (_image is null || _cancelled || FramesWritten == 0)
+            if (_quantizer is null || _cancelled || FramesWritten == 0)
             {
                 return ValueTask.CompletedTask;
             }
 
-            // A global palette: one Wu-quantized table for the whole animation. Per-frame palettes would
-            // be sharper but roughly triple the file, and a shareable size is the point of this rung.
-            GifEncoder encoder = new()
-            {
-                Quantizer = new WuQuantizer(),
-                ColorTableMode = GifColorTableMode.Global
-            };
-
-            _image.Save(_outputPath, encoder);
+            // One global palette for the whole animation, with unchanged pixels left transparent over
+            // the previous frame. Per-frame palettes would be sharper but several times the size, and a
+            // shareable size is the point of this rung.
+            Write(_quantizer.BuildPalette(GifAnimationWriter.MaxPaletteColors));
         }
         finally
         {
-            _image?.Dispose();
-            _image = null;
+            _frames.Clear();
+            _quantizer = null;
         }
 
         return ValueTask.CompletedTask;
@@ -154,6 +152,30 @@ public sealed class ManagedGifSink : IFrameSink
     /// <summary>Marks the export cancelled so <see cref="DisposeAsync" /> writes nothing.</summary>
     public void Cancel() => _cancelled = true;
 
-    private void Stamp(ImageFrameMetadata metadata) =>
-        metadata.GetGifMetadata().FrameDelay = FrameDelayCentiseconds;
+    private void Write(byte[] palette)
+    {
+        try
+        {
+            using FileStream file = new(_outputPath, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16);
+            GifAnimationWriter writer = new(file, _width, _height, palette);
+
+            for (int i = 0; i < _frames.Count; i++)
+            {
+                writer.WriteFrame(_frames[i], i == 0 ? default : _frames[i - 1], FrameDelayCentiseconds);
+
+                // Encoded frames are only needed as the next frame's reference.
+                if (i > 0)
+                {
+                    _frames[i - 1] = [];
+                }
+            }
+
+            writer.Finish();
+        }
+        catch
+        {
+            File.Delete(_outputPath);
+            throw;
+        }
+    }
 }

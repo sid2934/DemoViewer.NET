@@ -211,6 +211,44 @@ public class ForwardQueueTests
     }
 
     [Test]
+    public async Task AnOpen_StopsTheForwardReadOfItsOwnDemo_NotAnotherDemosRunningBesideIt()
+    {
+        using ManualResetEventSlim aStarted = new(false), bStarted = new(false);
+        int aCalls = 0, bCalls = 0, bStopped = 0;
+        using DemoProcessingQueue queue = Queue((path, _, _, token) =>
+        {
+            if (path == "a.dem")
+            {
+                Interlocked.Increment(ref aCalls);
+                return UntilCancelled(aStarted, token);
+            }
+
+            Interlocked.Increment(ref bCalls);
+            using CancellationTokenRegistration _ = token.Register(() => Interlocked.Exchange(ref bStopped, 1));
+            return UntilCancelled(bStarted, token);
+        });
+        queue.MaxConcurrency = 2;
+
+        // a.dem first: the first running background item is what a lane-wide stop would pick.
+        IDemoQueueHandle a = queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.Rules));
+        IDemoQueueHandle b = queue.SubmitBackground(Forward("b.dem", "library", ForwardNeeds.Rules));
+        await WaitForAsync(() => aStarted.IsSet && bStarted.IsSet && queue.RunningCount == 2, "both reads running", 10000);
+
+        using IDemoOpenTicket open = queue.BeginOpen("b.dem", "b.dem");
+        await WaitForAsync(() => queue.Snapshot().Any(s => s.Id == b.Id && s.State == DemoQueueItemState.Queued), "b.dem's read to stop");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Volatile.Read(ref bStopped)).IsEqualTo(1);
+            await Assert.That(queue.Snapshot().Single(s => s.Id == b.Id).Detail).IsEqualTo("Runs on the open of this demo");
+            await Assert.That(queue.Snapshot().Single(s => s.Id == a.Id).State).IsEqualTo(DemoQueueItemState.Running)
+                .Because("another demo's read is not in the open's way");
+            await Assert.That(Volatile.Read(ref aCalls)).IsEqualTo(1);
+            await Assert.That(Volatile.Read(ref bCalls)).IsEqualTo(1).Because("the stopped read waits for the open, it does not read again");
+        }
+    }
+
+    [Test]
     public async Task ARetainedOwner_StopsTheRunningForwardPass_AndEveryOwnerRunsOnOneParseBeforeOtherDemos()
     {
         using ManualResetEventSlim started = new(false);

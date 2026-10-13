@@ -34,7 +34,8 @@ public static class CaptureHost
     // The central theme registry (built-ins + <config>/themes/ drop-ins), so a capture can render under ANY
     // theme id — Dark / Light / System, the built-in customs (High-Contrast, E-Girl), or a drop-in being
     // authored. Installed once (on the UI thread) before the first themed render.
-    private static readonly ThemeRegistry _themeRegistry = new();
+    // Built on the UI thread: its dictionaries are thread-affine, and Install merges them into the app there.
+    private static ThemeRegistry? _themeRegistry;
     private static bool _themesInstalled;
 
     // Same auto-close + compositor double-tick discipline as the test harness: the headless session
@@ -76,8 +77,12 @@ public static class CaptureHost
             return null;
         }
 
-        _themeRegistry.Reload(); // UI-free (filesystem + dictionaries) — safe on the calling thread
-        return _themeRegistry.VariantFor(id);
+        return _session.Value.Dispatch(() =>
+        {
+            _themeRegistry ??= new ThemeRegistry();
+            _themeRegistry.Reload();
+            return _themeRegistry.VariantFor(id);
+        }, CancellationToken.None).GetAwaiter().GetResult();
     }
 
     // Merge the custom-variant override dictionaries into the running app once, on the UI thread, so a custom
@@ -89,7 +94,7 @@ public static class CaptureHost
             return;
         }
 
-        _themeRegistry.Install(Application.Current!);
+        (_themeRegistry ??= new ThemeRegistry()).Install(Application.Current!);
         _themesInstalled = true;
     }
 

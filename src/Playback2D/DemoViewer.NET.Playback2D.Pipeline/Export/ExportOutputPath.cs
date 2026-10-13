@@ -4,8 +4,8 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Export;
 ///     Prepares the directory an export writes into.
 ///     <para>
 ///         Neither rung of the ladder does this for itself: ffmpeg refuses an output path whose parent
-///         is missing (<c>Error opening output …: No such file or directory</c>) and ImageSharp's
-///         <c>Image.Save(path)</c> throws <see cref="DirectoryNotFoundException" />. Both failures
+///         is missing (<c>Error opening output …: No such file or directory</c>) and opening the GIF
+///         file throws <see cref="DirectoryNotFoundException" />. Both failures
 ///         arrive <b>after</b> the whole range has been replayed and rendered, which is minutes of work
 ///         thrown away for a directory that takes a syscall to make, and it is exactly what
 ///         <c>dv2d export --out artifacts/playback2d-export/ci-smoke.gif</c> hits on a clean checkout,

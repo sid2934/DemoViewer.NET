@@ -307,14 +307,21 @@ public class ExportAllocationTests
         // TWO runs of different lengths, differenced. A single run cannot separate the loop's per-frame
         // cost from a run's own fixed setup, one compositor scope, one camera resolver, one renderer,
         // one async state machine, and the budget is about the former.
-        long shortRun = await Measure(session, source, request with
+        // Each is the least of several samples: the thread's allocation counter rarely jumps by a few KB with
+        // no GC and nothing jitted, and a real per-frame allocation shows in every sample.
+        const int Samples = 3;
+        long shortRun = long.MaxValue, longRun = long.MaxValue;
+        for (int i = 0; i < Samples; i++)
         {
-            EndFrame = 511
-        }, surfaces);
-        long longRun = await Measure(session, source, request with
-        {
-            EndFrame = 1023
-        }, surfaces);
+            shortRun = Math.Min(shortRun, await Measure(session, source, request with
+            {
+                EndFrame = 511
+            }, surfaces));
+            longRun = Math.Min(longRun, await Measure(session, source, request with
+            {
+                EndFrame = 1023
+            }, surfaces));
+        }
 
         long extra = longRun - shortRun;
         double perFrame = extra / 512.0;

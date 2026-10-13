@@ -1,0 +1,256 @@
+{
+  "schemaVersion": "playback2d-scene/1",
+  "time": {
+    "tick": 20614,
+    "frameIndex": 21714,
+    "demoSeconds": 344.234375,
+    "deltaSeconds": 0.015625,
+    "isDiscontinuity": false
+  },
+  "camera": {
+    "viewWidth": 900,
+    "viewHeight": 900,
+    "centerX": -359.39306640625,
+    "centerY": 818.77685546875,
+    "baseScale": 0.24913092190300118,
+    "zoom": 1,
+    "panX": 0,
+    "panY": 0
+  },
+  "size": {
+    "width": 900,
+    "height": 900
+  },
+  "mapName": "de_dust2",
+  "frame": {
+    "time": {
+      "tick": 20614,
+      "frameIndex": 21714,
+      "demoSeconds": 344.234375,
+      "deltaSeconds": 0.015625,
+      "isDiscontinuity": false
+    },
+    "markers": [
+      {
+        "slot": 0,
+        "team": 2,
+        "worldX": -493,
+        "worldY": -808,
+        "worldZ": 108.56337,
+        "yawDegrees": -155.41534,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "AI",
+        "isAlive": true,
+        "pitchDegrees": -8.962784,
+        "duckAmount": 0,
+        "steamId": 76561198364368543,
+        "place": "TSpawn"
+      },
+      {
+        "slot": 1,
+        "team": 2,
+        "worldX": -315.9062,
+        "worldY": -747.9376,
+        "worldZ": 75.26272,
+        "yawDegrees": 21.91394,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": ":/",
+        "isAlive": true,
+        "pitchDegrees": 10.273926,
+        "duckAmount": 0,
+        "steamId": 76561198401035878,
+        "place": "TSpawn"
+      },
+      {
+        "slot": 2,
+        "team": 2,
+        "worldX": -997.8118,
+        "worldY": -807.46246,
+        "worldZ": 115.93798,
+        "yawDegrees": 1.7845917,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "HI",
+        "isAlive": true,
+        "pitchDegrees": 14.957199,
+        "duckAmount": 0,
+        "steamId": 76561198134460250,
+        "place": "TSpawn"
+      },
+      {
+        "slot": 3,
+        "team": 2,
+        "worldX": -1084.6975,
+        "worldY": -828.159,
+        "worldZ": 116.50778,
+        "yawDegrees": 120.37787,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "BA",
+        "isAlive": true,
+        "pitchDegrees": 12.306061,
+        "duckAmount": 0,
+        "steamId": 76561198196185741,
+        "place": "TSpawn"
+      },
+      {
+        "slot": 4,
+        "team": 2,
+        "worldX": -428,
+        "worldY": -843,
+        "worldZ": 95.29628,
+        "yawDegrees": 134.59283,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "LI",
+        "isAlive": true,
+        "pitchDegrees": 0.261261,
+        "duckAmount": 0,
+        "steamId": 76561198029679050,
+        "place": "TSpawn"
+      },
+      {
+        "slot": 5,
+        "team": 3,
+        "worldX": 347.3117,
+        "worldY": 2422.3965,
+        "worldZ": -120.14142,
+        "yawDegrees": -41.227234,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "CH",
+        "isAlive": true,
+        "pitchDegrees": -1.6156769,
+        "duckAmount": 0,
+        "steamId": 76561197971301148,
+        "place": "CTSpawn"
+      },
+      {
+        "slot": 6,
+        "team": 3,
+        "worldX": 160.12274,
+        "worldY": 2369.6763,
+        "worldZ": -119.9187,
+        "yawDegrees": -95.805244,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "LY",
+        "isAlive": true,
+        "pitchDegrees": 3.1173706,
+        "duckAmount": 0,
+        "steamId": 76561198348656963,
+        "place": "CTSpawn"
+      },
+      {
+        "slot": 7,
+        "team": 3,
+        "worldX": 365.91138,
+        "worldY": 2343.7222,
+        "worldZ": -120.20807,
+        "yawDegrees": -32.4368,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "DA",
+        "isAlive": true,
+        "pitchDegrees": -3.451416,
+        "duckAmount": 0,
+        "steamId": 76561198177110265,
+        "place": "CTSpawn"
+      },
+      {
+        "slot": 8,
+        "team": 3,
+        "worldX": 258.1594,
+        "worldY": 2480.5537,
+        "worldZ": -121.07666,
+        "yawDegrees": -91.8409,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "OD",
+        "isAlive": true,
+        "pitchDegrees": 58.022583,
+        "duckAmount": 0,
+        "steamId": 76561198354761979,
+        "place": "CTSpawn"
+      },
+      {
+        "slot": 9,
+        "team": 3,
+        "worldX": 192.22421,
+        "worldY": 2425.0142,
+        "worldZ": -120.96875,
+        "yawDegrees": -54.52446,
+        "ring": "Team",
+        "ringAlpha": 1,
+        "label": "JA",
+        "isAlive": true,
+        "pitchDegrees": 9.205505,
+        "duckAmount": 0,
+        "steamId": 76561198082328417,
+        "place": "CTSpawn"
+      }
+    ],
+    "areaEffects": [],
+    "trails": [],
+    "killFeed": [],
+    "gameInfo": {
+      "phase": "Live",
+      "bombState": "\u2014",
+      "roundNumber": 4,
+      "roundsPlayed": 3,
+      "roundSeconds": 114.8125,
+      "roundTime": "1:55",
+      "bombTicking": false,
+      "defuseInProgress": false,
+      "defuseKitNote": "\u2014",
+      "defuseSeconds": "NaN",
+      "defuseTime": "\u2014",
+      "tScore": 1,
+      "ctScore": 2
+    },
+    "map": {
+      "mapName": "de_dust2",
+      "networkedBounds": {
+        "minX": -2573.3486328125,
+        "minY": -1497.82470703125,
+        "maxX": 2043.5615234375,
+        "maxY": 3358.71875
+      },
+      "observedBounds": {
+        "minX": -1084.697509765625,
+        "minY": -843,
+        "maxX": 365.911376953125,
+        "maxY": 2480.5537109375
+      },
+      "sectionHeights": [
+        1.8109129667282104,
+        51.53717041015625,
+        287.0001220703125,
+        376
+      ],
+      "radars": [
+        {
+          "name": "de_dust2.png",
+          "bounds": {
+            "minX": -2476,
+            "minY": -1266.6000000000004,
+            "maxX": 2029.6000000000004,
+            "maxY": 3239
+          },
+          "minZ": -100000,
+          "maxZ": 100000
+        }
+      ]
+    },
+    "vision": {
+      "isAvailable": false,
+      "cones": [],
+      "sightlines": []
+    },
+    "followSlot": -1
+  },
+  "sourceDemoId": "003801777854962729156_0256036251.dem",
+  "notes": "Captured from the pre-v2 Playback2DViewport at frame 21714, CameraMode.Fit. The v2 compositor must re-render this to match the paired golden."
+}

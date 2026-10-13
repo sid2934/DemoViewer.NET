@@ -325,7 +325,7 @@ produce it: the tracker decode, the advance, the raster, the read-back, and how 
 blocked on the encoder's bounded frame channel. Pair it with `--no-encode` to see the renderer alone.
 
 ffmpeg comes from `PATH` only here; the in-app managed download is not offered to a headless tool.
-Without it, `--format gif` still works through the ImageSharp floor and the other two exit **2**.
+Without it, `--format gif` still works through the built-in GIF writer and the other two exit **2**.
 
 Ctrl+C cancels: the token reaches the session, which disposes the sink, which kills ffmpeg and
 deletes the partial output.
@@ -404,7 +404,7 @@ Ctrl+C does, and removes the half-written file. Both kinds of leaving-out are na
 share one frame size, so there is no per-clip override the way there is nothing per-clip in `export`
 either. A `review-queue.json` at a schema newer than this build reads is refused (exit 3), the same
 refusal `ReviewQueue.Load` gives the app rather than risk misreading a newer file. A video format with
-no ffmpeg on `PATH` is exit 6, same as `export`; GIF still works through the ImageSharp floor.
+no ffmpeg on `PATH` is exit 6, same as `export`; GIF still works through the built-in GIF writer.
 
 ---
 

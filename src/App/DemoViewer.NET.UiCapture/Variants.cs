@@ -7,9 +7,13 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Output;
@@ -243,6 +247,8 @@ public static partial class Variants
             ["queue-flyout"] = () => QueueFlyout(true),
             ["queue-flyout-empty"] = () => QueueFlyout(false),
             ["queue-flyout-recent"] = () => QueueFlyout(true, true),
+            ["queue-flyout-row-menu"] = QueueFlyoutRowMenu,
+            ["menu-flyout-states"] = MenuFlyoutStates,
             ["queue-chips"] = QueueChips,
             // First-run Visual Walkthrough overlay. Render at --size 1100x680 so the
             // seeded SpotlightRects line up with the coarse backdrop regions.
@@ -4136,6 +4142,63 @@ public static partial class Variants
                 }
             }
         };
+    }
+
+    /// <summary>The queue flyout with a queued row's context menu open (Move to top, Remove from queue).</summary>
+    private static Border QueueFlyoutRowMenu()
+    {
+        Border host = QueueFlyout(true);
+        host.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            Grid row = host.GetVisualDescendants().OfType<Grid>()
+                .Last(g => g.ContextMenu is not null && g.DataContext is DemoQueueRowViewModel { IsQueued: true });
+            // A real right click, so the menu lands at the pointer as it does in the app.
+            if (TopLevel.GetTopLevel(row) is Window window
+                && row.TranslatePoint(new Point(60, 8), window) is { } at)
+            {
+                window.MouseDown(at, MouseButton.Right);
+                window.MouseUp(at, MouseButton.Right);
+            }
+        });
+        return host;
+    }
+
+    /// <summary>
+    ///     A MenuFlyout open with every item state a menu draws: plain, with a gesture, disabled, a
+    ///     separator, and a hovered item with its submenu open.
+    /// </summary>
+    private static Border MenuFlyoutStates()
+    {
+        MenuItem hovered = new() { Header = "Tag as", Items = { new MenuItem { Header = "Scrim" }, new MenuItem { Header = "Official" } } };
+        MenuFlyout flyout = new()
+        {
+            Placement = PlacementMode.BottomEdgeAlignedLeft,
+            Items =
+            {
+                new MenuItem { Header = "Open in 2D playback" },
+                new MenuItem { Header = "Copy path", InputGesture = new KeyGesture(Key.C, KeyModifiers.Control) },
+                new MenuItem { Header = "Re-parse (already queued)", IsEnabled = false },
+                new MenuItem { Header = "-" },
+                hovered
+            }
+        };
+        Button anchor = new() { Content = "Actions", Classes = { "primary" }, Flyout = flyout };
+        Border host = new()
+        {
+            Background = Tok("ShellBg"),
+            Padding = new Thickness(20),
+            Child = anchor
+        };
+        host.AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            flyout.ShowAt(anchor);
+            Dispatcher.UIThread.Post(() =>
+            {
+                hovered.IsSelected = true;
+                hovered.IsSubMenuOpen = true;
+            }, DispatcherPriority.Background);
+        });
+        return host;
     }
 
     /// <summary>The queue status chip in each state: the strip-level indicator that opens the flyout.</summary>

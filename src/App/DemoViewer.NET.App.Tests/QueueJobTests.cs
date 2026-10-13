@@ -492,37 +492,48 @@ public class QueueJobTests
     public async Task AtHigherConcurrency_DemoParsesOverlap_ButAJobNeverRunsBesideAnything(int concurrency)
     {
         using HeavyJobGate gate = new();
-        int active = 0, jobs = 0, demos = 0, demoPeak = 0, violations = 0;
+        int jobs = 0, demos = 0, demoPeak = 0, violations = 0;
+        using ManualResetEventSlim overlapped = new();
 
+        // Each side bumps its own count before reading the other's, so a job and a parse that start
+        // together always see each other.
         using DemoProcessingQueue queue = NewQueue(gate, _ =>
         {
+            int now = Interlocked.Increment(ref demos);
             if (Volatile.Read(ref jobs) > 0)
             {
                 Interlocked.Increment(ref violations);
             }
 
-            Interlocked.Increment(ref active);
-            int now = Interlocked.Increment(ref demos);
             int seen;
             while (now > (seen = Volatile.Read(ref demoPeak)) && Interlocked.CompareExchange(ref demoPeak, now, seen) != seen)
             {
             }
 
+            // The second worker is a pool work item queued behind this blocking parse. On a starved pool it
+            // gets a thread only after this parse ends, so hold the first parse until a second one joins.
+            if (now > 1)
+            {
+                overlapped.Set();
+            }
+
+            if (!overlapped.Wait(TimeSpan.FromSeconds(5)))
+            {
+                overlapped.Set(); // no overlap came: fail on demoPeak, not on the run timeout
+            }
             Thread.Sleep(60);
             Interlocked.Decrement(ref demos);
-            Interlocked.Decrement(ref active);
             return SyntheticDemo();
         });
         queue.MaxConcurrency = concurrency;
 
         Func<IQueueJobContext, Task> Exclusive(bool handBack) => async ctx =>
         {
-            if (Interlocked.Increment(ref active) > 1)
+            if (Interlocked.Increment(ref jobs) > 1 || Volatile.Read(ref demos) > 0)
             {
                 Interlocked.Increment(ref violations);
             }
 
-            Interlocked.Increment(ref jobs);
             if (handBack)
             {
                 ctx.ReleaseSlot();
@@ -530,7 +541,6 @@ public class QueueJobTests
 
             await Task.Delay(40, ctx.CancellationToken);
             Interlocked.Decrement(ref jobs);
-            Interlocked.Decrement(ref active);
         };
 
         queue.Pause();
