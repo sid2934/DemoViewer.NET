@@ -885,16 +885,21 @@ public class App : Application
             IFeatureGate? gate = sp.GetService<IFeatureGate>();
             Lazy<IReadOnlyList<ContributedRuleset>> contributed =
                 new(() => sp.GetRequiredService<PackContributionSet>().Rulesets, LazyThreadSafetyMode.ExecutionAndPublication);
-            return new MergedRulesBuild(() => MergedRulesBuild.LoadShippedExtensionsUser(contributed.Value), () =>
+            MergedRulesBuild rules = new(() => MergedRulesBuild.LoadShippedExtensionsUser(contributed.Value), () =>
             [
                 StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
                 .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true)),
                 .. FeaturePacks.ClaimedRulesets.Select(id => new StampedRuleset(id, StampedRuleset.ClaimedOwner, static () => false))
             ]);
+            // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo. The
+            // evaluators take this build, so they are resolved per call, never here.
+            rules.OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
+                ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
+                : sp.GetRequiredService<FactsEvaluator>().Records(path, id));
+            return rules;
         });
         services.AddSingleton(sp =>
         {
-            // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo.
             MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
             // A parse of a demo with no confirmed hash hashes the bytes it reads, so the library and the cache
             // never read the file again for it. Resolved at the first read, never while the queue is built.
@@ -907,9 +912,7 @@ public class App : Application
                 : new ForwardPassRunner(rules)
                 {
                     FileRead = fileRead,
-                    OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
-                        ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
-                        : sp.GetRequiredService<FactsEvaluator>().Records(path, id))
+                    OutputsFor = rules.OutputsFor
                 };
             DemoProcessingQueue queue = new(
                 sp.GetRequiredService<HeavyJobGate>(),

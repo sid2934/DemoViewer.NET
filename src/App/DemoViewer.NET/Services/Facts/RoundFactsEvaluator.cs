@@ -160,7 +160,7 @@ public sealed class RoundFactsEvaluator : IDemoEvaluator
     }
 
     private void Refresh(string path, ParsedDemo parsed) =>
-        Refresh(path, parsed.TickRate, () => _rows.Rows(parsed), () => ClipRounds.Derive(parsed),
+        Refresh(path, parsed.TickRate, () => _rows.Rows(parsed, path), () => ClipRounds.Derive(parsed),
             () => FrameClock.IdentityFor(parsed));
 
     private void Refresh(string path, int tickRate, Func<RoundFactsTable> rowsOf,
