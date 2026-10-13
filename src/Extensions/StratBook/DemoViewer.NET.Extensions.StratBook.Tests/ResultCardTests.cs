@@ -184,13 +184,20 @@ public class ResultCardTests
             await Assert.That(ResultCardViewModel.SeekTickFor(4008, 0)).IsEqualTo(3368).Because("an unknown rate is 64");
         }
 
-        // The record's tick rate reaches the card through the worker.
-        using Harness h = new();
+        // The record's tick rate reaches the card through the worker. The fill is held until the
+        // card's first state is read, or a fast pool thread lands the record before the first check.
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using Harness h = new(_ => work => Task.Run(async () =>
+        {
+            await release.Task;
+            work();
+        }));
         DemoCacheRecord record = ParsedRecord(DemoA);
         record.TickRate = 128;
         h.Cache.Upsert(record);
         h.Vm.Load([Hit(DemoA, 1, 1000, 4008)]);
         await Assert.That(h.Vm.Cards[0].SeekTick).IsEqualTo(3368).Because("64 until the record is read");
+        release.SetResult();
         await h.Vm.BatchTask;
         await Assert.That(h.Vm.Cards[0].TickRate).IsEqualTo(128);
         await Assert.That(h.Vm.Cards[0].SeekTick).IsEqualTo(2728);
@@ -446,7 +453,7 @@ public class ResultCardTests
     /// <summary>Cards over an in-memory cache and store, a recording seam, a bundle-less renderer and no bitmap decoder.</summary>
     private sealed class Harness : IDisposable
     {
-        public Harness()
+        public Harness(Func<string, Func<Action, Task>>? run = null)
         {
             Cache = new DemoCacheStore(null);
             Sidecars = new RoundIndexStore(Cache.Data());
@@ -463,7 +470,7 @@ public class ResultCardTests
                         return null;
                     });
                 },
-                action => action(), _ => null, roundFacts: Cache.RoundFacts());
+                action => action(), _ => null, run: run, roundFacts: Cache.RoundFacts());
         }
 
         public DemoCacheStore Cache { get; }
