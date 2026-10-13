@@ -3,6 +3,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using Avalonia.Threading;
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
@@ -20,13 +21,17 @@ namespace DemoViewer.NET.AppTests;
 ///     One benchmark demo's visit on the real composition root, in a fresh config directory, for the
 ///     single-walk oracle and harness. <c>sweep</c> imports the demo with every background pass on, so the
 ///     queue runs one retained visit with every stamp absent. <c>open</c> imports it with every sweep off,
-///     then opens it: the open's own visit runs on a parse in hand, with no round index on disk.
+///     then opens it through the shell: its rules run, the scoreboard write, then the open's visit on the
+///     parse in hand, with no round index on disk.
 ///     Linked into the Strat Book tests.
 /// </summary>
 internal static class SingleWalkSession
 {
     public const string Sweep = "sweep";
     public const string Open = "open";
+
+    /// <summary>The shell's own rules run on an open, numbered after the seven analysis sites.</summary>
+    public const int ShellRulesSite = 8;
 
     /// <summary>What one visit did: the sites that decoded, per-pass wall time and outcome, the visit wall.</summary>
     public sealed class Visit
@@ -164,34 +169,59 @@ internal static class SingleWalkSession
                 scheduler.RecheckAll();
                 await SettleAsync(queue);
 
+                // The real open: the shell's own rules run and scoreboard write, then the open's visit.
                 MainViewModel shell = provider.GetRequiredService<MainViewModel>();
-                FieldInfo loaded = typeof(MainViewModel).GetField("_loadedDemoPath", BindingFlags.Instance | BindingFlags.NonPublic)
-                                   ?? throw new MissingFieldException(nameof(MainViewModel), "_loadedDemoPath");
-                loaded.SetValue(shell, demo);
+                FieldInfo passesField = typeof(MainViewModel).GetField("_openPassesTask", BindingFlags.Instance | BindingFlags.NonPublic)
+                                        ?? throw new MissingFieldException(nameof(MainViewModel), "_openPassesTask");
+                long analysisStart = 0;
+                Action<int> openCount = site =>
+                {
+                    if (site == ShellRulesSite)
+                    {
+                        Volatile.Write(ref analysisStart, Stopwatch.GetTimestamp());
+                    }
+
+                    count(site);
+                };
+                Action<AnalysisRun, ParsedDemo> analysed = (_, _) =>
+                {
+                    long now = Stopwatch.GetTimestamp();
+                    lock (gate)
+                    {
+                        visit.Passes.Add(("shell-rules", PassOutcome.Ran, Stopwatch.GetElapsedTime(Volatile.Read(ref analysisStart), now).TotalMilliseconds));
+                        last = now;
+                    }
+                };
+                AppSites.Entered = openCount;
+                StratBookSites.Entered = openCount;
+                shell.Analysis.EvaluationCompleted += analysed;
                 try
                 {
-                    using IDemoOpenTicket open = queue.BeginOpen(demo, Path.GetFileName(demo));
-                    long p0 = Stopwatch.GetTimestamp();
-                    byte[] bytes = await File.ReadAllBytesAsync(demo);
-                    ParsedDemo parsed = await open.ParseAsync(bytes);
-                    visit.ParseMs = Stopwatch.GetElapsedTime(p0).TotalMilliseconds;
-
                     counting = visit.Sites;
                     timing = true;
+                    using (TimeOpenParses(queue, (s, e) => visit.ParseMs = Stopwatch.GetElapsedTime(s, e).TotalMilliseconds))
                     using (window?.Invoke())
                     {
                         long start = Stopwatch.GetTimestamp();
-                        last = start;
-                        await open.RunPassesAsync(parsed, () => scheduler.PlanOpenDemo(demo));
+                        await shell.LoadDemoFromPathAsync(demo);
+                        if (passesField.GetValue(shell) is Task passes)
+                        {
+                            await passes;
+                        }
+
                         visit.WallMs = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                     }
-
-                    open.Complete();
-                    GC.KeepAlive(bytes);
                 }
                 finally
                 {
-                    loaded.SetValue(shell, null);
+                    shell.Analysis.EvaluationCompleted -= analysed;
+                }
+
+                // The shell swallows a failed load into its status line.
+                if (!shell.HasFile || visit.Sites.GetValueOrDefault(ShellRulesSite) != 1)
+                {
+                    throw new InvalidOperationException(
+                        $"the open did not run: HasFile {shell.HasFile}, shell rules runs {visit.Sites.GetValueOrDefault(ShellRulesSite)}, status '{shell.StatusText}'");
                 }
 
                 await SettleAsync(queue);
@@ -253,6 +283,22 @@ internal static class SingleWalkSession
                 parsed(s, Stopwatch.GetTimestamp());
             }
 
+            return result;
+        }));
+        return new Restore(() => field.SetValue(queue, inner));
+    }
+
+    // The open's parse of the bytes in hand. Test-side, like the file parse above.
+    private static Restore TimeOpenParses(DemoProcessingQueue queue, Action<long, long> parsed)
+    {
+        FieldInfo field = typeof(DemoProcessingQueue).GetField("_parseBytes", BindingFlags.Instance | BindingFlags.NonPublic)
+                          ?? throw new MissingFieldException(nameof(DemoProcessingQueue), "_parseBytes");
+        Func<ReadOnlyMemory<byte>, ParsedDemo> inner = (Func<ReadOnlyMemory<byte>, ParsedDemo>)field.GetValue(queue)!;
+        field.SetValue(queue, (Func<ReadOnlyMemory<byte>, ParsedDemo>)(bytes =>
+        {
+            long s = Stopwatch.GetTimestamp();
+            ParsedDemo result = inner(bytes);
+            parsed(s, Stopwatch.GetTimestamp());
             return result;
         }));
         return new Restore(() => field.SetValue(queue, inner));
