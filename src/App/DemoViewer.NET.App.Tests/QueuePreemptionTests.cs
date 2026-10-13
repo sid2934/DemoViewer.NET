@@ -150,7 +150,9 @@ public class QueuePreemptionTests
         });
         queue.SubmitBackground(new DemoProcessingRequest("/d/a.dem", "library", DemoJobPriority.Background, 1, _ => { }));
         queue.SubmitBackground(new DemoProcessingRequest("/d/b.dem", "library", DemoJobPriority.Background, 0, _ => { }));
-        parsing.Wait(TimeSpan.FromSeconds(5));
+        // Awaited, not blocked on: a blocked test thread on a starved pool can hold off the worker that would
+        // start the parse, and a user item submitted before it starts rightly runs first.
+        await WaitForAsync(() => parsing.IsSet, "the first parse to start", 30000);
         IDemoQueueHandle user = queue.SubmitJob(Job(QueueJobKind.PackExport, "user", _ =>
         {
             lock (order)
@@ -160,6 +162,8 @@ public class QueuePreemptionTests
 
             return Task.CompletedTask;
         }, DemoJobPriority.UserRequested));
+        await WaitForAsync(() => queue.Snapshot().Any(s => s.Id == user.Id && s.State == DemoQueueItemState.Queued),
+            "the user item to queue behind the parse");
         finishParse.Set();
         await user.Completion.WaitAsync(TimeSpan.FromSeconds(10));
         await WaitForAsync(() => queue.ActiveWorkerCount == 0 && order.Count == 3, "drain");
