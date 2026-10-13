@@ -24,6 +24,11 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     action flips it while it is available or on, and the panels bound to it follow; and the demo-change
 ///     signal reaches a handler on activation and on a reset until it is removed.
 /// </summary>
+/// <remarks>
+///     Off the UI thread: the tab posts to the shared dispatcher, which a parallel test's per-dispatch
+///     application setup resets under it.
+/// </remarks>
+[NotInParallel]
 public class Playback2DLaneHostingTests
 {
     private static readonly string[] CoreTracks = ["round", "kill", "bomb", "annotation"];
