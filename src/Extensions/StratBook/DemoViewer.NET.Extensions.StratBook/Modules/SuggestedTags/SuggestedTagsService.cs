@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
@@ -775,6 +776,7 @@ public sealed class SuggestedTagsService : IExtensionPass
 
         // Names a thrower for the 21 to 27 percent of inferno and decoy detonations the wire leaves unresolved
         // (#56, #59); one bounded pass, since Removed samples are yielded on their own frame at any stride.
+        DecodeSites.Enter(4);
         List<ProjectileSample> projectiles = [.. ProjectileSampler.Walk(parsed, frameStride: 8).Where(s => s.Removed)];
         List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed, projectiles));
         return new DetectionInputs(tickRate, rounds, events, source);

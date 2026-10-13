@@ -271,6 +271,7 @@ public sealed class MergedRulesBuild
         HashSet<string> outputs = [.. StampedOutputs(), ForwardDemoPass.RoundFactsTable];
         BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs);
         RulesetExclusionReport.Report(Log, build);
+        DecodeSites.Enter(2);
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
         lock (_gate)
         {

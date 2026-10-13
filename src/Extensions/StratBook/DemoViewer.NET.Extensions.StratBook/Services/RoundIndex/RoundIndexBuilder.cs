@@ -100,7 +100,11 @@ public static class RoundIndexBuilder
         Dictionary<(string A, string B), int> transitions = [];
         PlaceTable table = new(positions.Places);
 
-        samples ??= PositionSampler.Walk(demo, options.FrameStride);
+        if (samples is null)
+        {
+            DecodeSites.Enter(3);
+            samples = PositionSampler.Walk(demo, options.FrameStride);
+        }
 
         int current = 0;
         OpenRow? row = null;

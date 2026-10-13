@@ -3,6 +3,7 @@
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 
 #endregion
@@ -128,7 +129,12 @@ public static class RoundOccupancyBuilder
         DetonationCloud cloud = new();
         RoundIndexDisagreementTally tally = new();
 
-        samples ??= PositionSampler.Walk(demo, FrameStride);
+        if (samples is null)
+        {
+            DecodeSites.Enter(5);
+            samples = PositionSampler.Walk(demo, FrameStride);
+        }
+
         int current = 0;
         foreach (PositionSample sample in samples)
         {

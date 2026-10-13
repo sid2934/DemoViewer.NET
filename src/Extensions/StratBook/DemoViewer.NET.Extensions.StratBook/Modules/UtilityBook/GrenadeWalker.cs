@@ -7,6 +7,7 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.Entities;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Extensions.StratBook.Services;
 
 #endregion
 
@@ -120,8 +121,13 @@ public static class GrenadeWalker
         options ??= new GrenadeWalkOptions();
         int stride = Math.Max(1, options.TrajectoryStride);
 
-        List<ProjectileTrack> tracks = ProjectileTrack.Collect(
-            samples ?? ProjectileSampler.Walk(demo, 1, options.MaxFrames), stride, ct);
+        if (samples is null)
+        {
+            DecodeSites.Enter(6);
+            samples = ProjectileSampler.Walk(demo, 1, options.MaxFrames);
+        }
+
+        List<ProjectileTrack> tracks = ProjectileTrack.Collect(samples, stride, ct);
         GrenadeEventIndex events = GrenadeEventIndex.From(demo.AllGameEvents);
         IReadOnlyList<DemoFrame> frames = demo.Frames;
         List<ThrowPlan> plans = Plan(tracks, events, tick => FrameAtOrBefore(frames, tick));
@@ -447,6 +453,7 @@ public static class GrenadeWalker
             return reads;
         }
 
+        DecodeSites.Enter(7);
         EntityTracker tracker = options.FilterClasses
             ? new EntityTracker { StoreClassFilter = FilteredClasses() }
             : EntityTrackerFactory.CreateCurated();

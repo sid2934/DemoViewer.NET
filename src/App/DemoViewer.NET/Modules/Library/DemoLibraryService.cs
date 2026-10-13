@@ -2581,6 +2581,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
         // Replays every delta from frame 0 but stores only the two classes the read looks at: the same
         // score as a full replay (EntityStoreFilterEquivalenceTests), ~1.2x faster and 30-60% less allocation.
+        DecodeSites.Enter(1);
         EntityTracker tracker = FinalTeamState.NewTracker();
         tracker.ReplayToIndex(frames.Count - 1, frames);
         FinalTeamState state = FinalTeamState.Read(tracker, parsed.Players.Keys);
