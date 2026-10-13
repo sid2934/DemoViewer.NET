@@ -213,9 +213,9 @@ public class QueuePreemptionTests
         Task save = QueueWork.Run(queue, QueueJobKind.StoreSave, "save", "t", _ =>
         {
             saving.Set();
-            finishSave.Wait(TimeSpan.FromSeconds(10), CancellationToken.None); // a write ignores its token
+            finishSave.Wait(TimeSpan.FromSeconds(60), CancellationToken.None); // a write ignores its token
         });
-        saving.Wait(TimeSpan.FromSeconds(5));
+        await WaitForAsync(() => saving.IsSet, "the save to start", 30000);
 
         int concurrent = 0, peak = 0;
         using CountdownEvent started = new(4);
@@ -227,13 +227,15 @@ public class QueuePreemptionTests
                 int now = Interlocked.Increment(ref concurrent);
                 InterlockedMax(ref peak, now);
                 started.Signal();
-                started.Wait(TimeSpan.FromSeconds(5), CancellationToken.None);
+                // Each section holds a pool thread until all four meet, so the fourth needs the pool to grow:
+                // on one CPU under load that takes longer than 5 s, and the first three gave up at peak 3.
+                started.Wait(TimeSpan.FromSeconds(30), CancellationToken.None);
                 Interlocked.Decrement(ref concurrent);
             }, key: "s" + i))];
         }
 
         Task background = QueueWork.Run(queue, QueueJobKind.SectionCompute, "background", "t", _ => { });
-        await Task.WhenAll(sections).WaitAsync(TimeSpan.FromSeconds(10));
+        await Task.WhenAll(sections).WaitAsync(TimeSpan.FromSeconds(40));
         bool saveStillRunning = !save.IsCompleted;
         bool backgroundWaited = !background.IsCompleted;
         finishSave.Set();
