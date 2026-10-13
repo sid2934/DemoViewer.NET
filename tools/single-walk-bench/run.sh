@@ -13,7 +13,8 @@
 # --demos    File of demo paths, one per line. Default: every demos/benchmarks/*.dem of arm A. Demos are
 #            read in place, never copied, moved or linked.
 # --visits   Scenarios, comma separated. sweep: import with every background pass on, every stamp absent.
-#            open: imported with the sweeps off, then opened; the open's visit is measured.
+#            open: imported with the sweeps off, then opened through the shell; the whole open is
+#            measured: read, parse, the shell's rules run and scoreboard write, then the open's visit.
 # --trials   Measured trials per demo, scenario and arm. Default 3, after one discarded trial.
 #
 # One heavy job at a time on a 16 GB machine: run the whole script under the machine's heavy-job lock,
