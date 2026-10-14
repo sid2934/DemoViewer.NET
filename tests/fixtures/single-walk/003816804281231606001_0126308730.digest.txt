@@ -48,7 +48,7 @@ open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/grenades/{key}
 open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/grenades/{key}.json.gz@header#Schema 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/grenades/{key}.json.gz@header#Sha256 911bf2626fd80383e35377f150294fcd79e549b009f54dd158c9292f0147bb43
 open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/grenades/{key}.json.gz@header#WrittenAtTicks fc530e4b226a7e00eec81c5b1602d98ccca8185fa0b3362f54b3524b3e221825
-open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/index.json.gz#Entries 7446b1a78b5f621af072770d282436920d4cc9138392c03ab25a231c5ebdb40c
+open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/index.json.gz#Entries c81cadbc9aec8ab1acddd5f246e0a1cdf1eb5550212c97953754cfc5d668a3c0
 open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/index.json.gz#Version 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/round-index/{key}.json.gz#cadenceTicks a68b412c4282555f15546cf6e1fc42893b7e07f271557ceb021821098dd66c1b
 open/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/round-index/{key}.json.gz#clock a7408fb35067f8841c72da7a6bd47ac4609e1f63b1de50096caf556d5473538d
@@ -169,7 +169,7 @@ sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/grenades/{key
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/grenades/{key}.json.gz@header#Schema 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/grenades/{key}.json.gz@header#Sha256 911bf2626fd80383e35377f150294fcd79e549b009f54dd158c9292f0147bb43
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/grenades/{key}.json.gz@header#WrittenAtTicks fc530e4b226a7e00eec81c5b1602d98ccca8185fa0b3362f54b3524b3e221825
-sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/index.json.gz#Entries 7446b1a78b5f621af072770d282436920d4cc9138392c03ab25a231c5ebdb40c
+sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/index.json.gz#Entries c81cadbc9aec8ab1acddd5f246e0a1cdf1eb5550212c97953754cfc5d668a3c0
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/index.json.gz#Version 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/round-index/{key}.json.gz#cadenceTicks a68b412c4282555f15546cf6e1fc42893b7e07f271557ceb021821098dd66c1b
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/demo-data/round-index/{key}.json.gz#clock a7408fb35067f8841c72da7a6bd47ac4609e1f63b1de50096caf556d5473538d
