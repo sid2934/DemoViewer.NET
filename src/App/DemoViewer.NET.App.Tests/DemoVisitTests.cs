@@ -237,8 +237,8 @@ public class DemoVisitTests
     {
         int reads = 0;
         using SemaphoreSlim firstRead = new(0);
-        DemoProcessingQueue? queue = null;
-        queue = Queue(forward: (path, _, _, _) =>
+        using DemoProcessingQueue queue = Queue();
+        queue.ForwardRead = (_, _, declared, _, _) =>
         {
             if (Interlocked.Increment(ref reads) == 1)
             {
@@ -246,7 +246,7 @@ public class DemoVisitTests
             }
 
             CollectorResults results = new();
-            foreach (RegisteredCollector c in queue!.CollectorsFor(path).All)
+            foreach (RegisteredCollector c in declared.All)
             {
                 results.Put(c.Id, new CollectorKit.Count(7));
             }
@@ -257,8 +257,7 @@ public class DemoVisitTests
                 Demo = plain.Demo, Rounds = plain.Rounds, FrameCount = plain.FrameCount,
                 FirstServerTick = plain.FirstServerTick, LastServerTick = plain.LastServerTick, Collected = results
             };
-        });
-        using DemoProcessingQueue owned = queue;
+        };
         ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
         CollectingPass a = new("ext.a", "c.a");
         CollectingPass b = new("ext.b", "c.b");

@@ -33,16 +33,18 @@ public sealed class ForwardPassRunner
     /// </summary>
     public Func<string, IReadOnlySet<string>?>? OutputsFor { get; init; }
 
-    /// <summary>The collectors the visit of a demo carries, by its path. Null carries none.</summary>
-    internal Func<string, CollectorSet>? CollectorsFor { get; init; }
-
     /// <summary>How a demo is read, and where the content hash taken from that read goes. Null hashes nothing.</summary>
     public DemoFileRead? FileRead { get; init; }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
 
     /// <summary>One forward pass over <paramref name="path" />.</summary>
-    public ForwardDemoResult Run(string path, ForwardNeeds needs, Action<double> progress, CancellationToken cancellationToken)
+    public ForwardDemoResult Run(string path, ForwardNeeds needs, Action<double> progress, CancellationToken cancellationToken) =>
+        Run(path, needs, CollectorSet.Empty, progress, cancellationToken);
+
+    /// <summary>One forward pass over <paramref name="path" /> whose rules run declares <paramref name="collectors" />.</summary>
+    internal ForwardDemoResult Run(string path, ForwardNeeds needs, CollectorSet collectors, Action<double> progress,
+        CancellationToken cancellationToken)
     {
         ParseOptions options = ForwardDemoPass.ReaderOptions(cancellationToken);
 
@@ -52,7 +54,7 @@ public sealed class ForwardPassRunner
         bool rules = (needs & ForwardNeeds.Rules) != 0;
         ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs, rules ? _rules.Docs : null, progress,
             rules ? OutputsFor?.Invoke(path) : null,
-            rules ? CollectorsFor?.Invoke(path) ?? CollectorSet.Empty : CollectorSet.Empty, cancellationToken);
+            rules ? collectors : CollectorSet.Empty, cancellationToken);
         if (pass.Run is { } run)
         {
             RulesetExclusionReport.Report(Log, run.Build);
