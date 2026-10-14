@@ -476,4 +476,190 @@ public class MergedRulesBuildTests
             await Assert.That(persisted).IsEmpty().Because("the persisted scoreboard is projected from the bake-free forced scan");
         }
     }
+
+    private const string OpenPath = "/demos/a.dem";
+
+    // A build over the shipped rules plus the facts fixture, both stamped, with the facts table stale when
+    // the caller says so. round_facts is stale whenever anything is.
+    private static MergedRulesBuild FactsBuild(string fixture, Func<bool> factsStale, Func<bool>? gate = null)
+    {
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), new StampedRuleset(AnalysisFactsTests.FactsRuleset, Extension, gate ?? (() => true))]);
+        build.OutputsFor = _ => build.StampedOutputs(id => id != AnalysisFactsTests.FactsRuleset || factsStale());
+        return build;
+    }
+
+    // What the shell does: plan from its own read, build, evaluate with snapshots.
+    private static (OpenRunPlan Plan, AnalysisRun Run) OpenRun(MergedRulesBuild build, string fixture, ParsedDemo parsed)
+    {
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+        return (plan, DemoAnalysis.Evaluate(parsed, plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs))));
+    }
+
+    private static async Task WithFactsFixture(Func<string, Task> body)
+    {
+        string fixture = AnalysisFactsTests.WriteFixture((AnalysisFactsTests.FactsRuleset, AnalysisFactsTests.FactsYaml));
+        try
+        {
+            await body(fixture);
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+        }
+    }
+
+    [Test]
+    public async Task ASeededRun_IsServedToTheVisit() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+
+        bool seeded = build.Seed(parsed, OpenPath, plan, run);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsNotEmpty();
+            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.Docs))).Because("the open builds the merged set");
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsSameReferenceAs(run).Because("the visit reads the open's run");
+            await Assert.That(build.BareRun(parsed)).IsSameReferenceAs(run).Because("it recorded every stamped output");
+        }
+    });
+
+    [Test]
+    public async Task NothingStale_TheOpenRecordsNoStampedTable() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+        build.OutputsFor = _ => new HashSet<string>();
+        ParsedDemo parsed = TwoFrameDemo();
+
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+        OpenRunPlan noPath = FactsBuild(fixture, () => true).PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsEmpty();
+            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.Docs)));
+            await Assert.That(Recorded(run)).IsEquivalentTo(Recorded(DemoAnalysis.Run(parsed, build.CoreDocs)));
+            await Assert.That(build.Seed(parsed, OpenPath, plan, run)).IsFalse();
+            await Assert.That(noPath.Cut).IsEmpty().Because("a demo with no file has no visit to seed");
+        }
+    });
+
+    // The Analysis tab reads the build and the run whole, so they must not move with the stamps.
+    [Test]
+    public async Task TheOpenGraph_DoesNotDependOnWhichStampsAreStale() => await WithFactsFixture(async fixture =>
+    {
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan stalePlan, AnalysisRun stale) = OpenRun(FactsBuild(fixture, () => true), fixture, parsed);
+        MergedRulesBuild current = FactsBuild(fixture, () => false);
+        current.OutputsFor = _ => new HashSet<string>();
+        (OpenRunPlan currentPlan, AnalysisRun fresh) = OpenRun(current, fixture, parsed);
+
+        static string Graph(AnalysisRun run) => string.Join('\n',
+            run.FinalNodes.Select(n => n.Name)
+                .Concat(run.Build.Edges.Select(e => $"{e.Source.Name}>{e.Destination.Name}:{e.Label}"))
+                .Concat(run.Build.RulesetDiagnostics.Select(d => d.ToString()))
+                .Concat(run.Timeline.Events.Select(e => e.ChainName)));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(stalePlan.Cut).IsNotEmpty();
+            await Assert.That(currentPlan.Cut).IsEmpty();
+            await Assert.That(Graph(fresh)).IsEqualTo(Graph(stale));
+            await Assert.That(Recorded(currentPlan.Shown(fresh))).IsEquivalentTo(Recorded(stalePlan.Shown(stale)));
+        }
+    });
+
+    [Test]
+    public async Task ASeedWithAnotherGateSet_IsDropped() => await WithFactsFixture(async fixture =>
+    {
+        bool on = true;
+        MergedRulesBuild build = FactsBuild(fixture, () => true, () => on);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+
+        on = false;
+        bool seeded = build.Seed(parsed, OpenPath, plan, run);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(seeded).IsFalse();
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run);
+        }
+    });
+
+    [Test]
+    public async Task ASeedWithASmallerCut_IsDropped() => await WithFactsFixture(async fixture =>
+    {
+        bool factsStale = false;
+        MergedRulesBuild build = FactsBuild(fixture, () => factsStale);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+
+        factsStale = true;
+        bool seeded = build.Seed(parsed, OpenPath, plan, run);
+        AnalysisRun visit = build.BareRun(parsed, OpenPath);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut!).IsEquivalentTo([RoundFacts]);
+            await Assert.That(seeded).IsFalse();
+            await Assert.That(visit).IsNotSameReferenceAs(run);
+            await Assert.That(Recorded(visit)).IsEquivalentTo([AnalysisFactsTests.FactsTable, RoundFacts]);
+        }
+    });
+
+    [Test]
+    public async Task ForgetReleasesTheSeed() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+        build.Seed(parsed, OpenPath, plan, run);
+
+        build.Forget(parsed);
+
+        await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run);
+    });
+
+    // The background read is cached for the session; the shell reads the rules on every run.
+    [Test]
+    public async Task ASeedAfterARulesEdit_IsNotPlanned() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        _ = build.Docs;
+        string kast = Path.Combine(fixture, "kast.rules.yaml");
+        File.WriteAllText(kast, File.ReadAllText(Path.Combine(Shipped, "kast.rules.yaml"))
+            .Replace("title: ", "title: Edited ", StringComparison.Ordinal));
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsEmpty();
+            await Assert.That(plan.Docs.Single(d => d.Id == "kast").Title).StartsWith("Edited ")
+                .Because("the shell runs what it read");
+        }
+    });
+
+    // The run carries the stamped tables; the Stats tab does not see them.
+    [Test]
+    public async Task TheOpenRun_ShowsTheCoreOutputsOnly() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+        IReadOnlyList<string> core = Recorded(DemoAnalysis.Run(parsed, build.CoreDocs));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Recorded(run)).IsEquivalentTo([.. core.Append(AnalysisFactsTests.FactsTable).Append(RoundFacts).Order(StringComparer.Ordinal)]);
+            await Assert.That(Recorded(plan.Shown(run))).IsEquivalentTo(core);
+            await Assert.That(core).IsNotEmpty().Because("the shipped core rulesets declare tables");
+        }
+    });
 }
