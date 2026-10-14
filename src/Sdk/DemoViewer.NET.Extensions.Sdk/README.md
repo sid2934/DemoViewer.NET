@@ -360,9 +360,21 @@ The host then holds the pass on a demo until each named ruleset's write on it ha
 when one of those writes moves, not on other changes to the row. A failed or stale write counts as settled, so
 the pass checks `Facts.Status` before it trusts a table. A ruleset writes all its tables at once, so naming one of
 them re-runs the pass on any. While a named ruleset is off, because its extension is off or its doc is
-disabled, the pass waits and is taken again once it is on. Any other key missing from `Facts.Declared`, round
-facts, or a scoreboard key refuses the pass; the refusal is reported against the extension once, and the keys
-are checked again on every run.
+disabled, the pass waits and is taken again once it is on. Any other key missing from `Facts.Declared`, or a
+scoreboard key, refuses the pass; the refusal is reported against the extension once, and the keys are checked
+again on every run.
+
+A pass can also wait on what other passes write per demo, named by `DemoDataKey`: the host's Round Facts rows
+(`DemoDataKey.RoundFacts`), or a facet an extension writes through `context.Data`, under that extension's id:
+
+```csharp
+contributions.RecordPass("dev.example.openings", () => new OpeningsPass(),
+    DemoDataKey.RoundFacts, new DemoDataKey("dev.example", "round-index"));
+```
+
+The same rules apply: the pass runs once every named facet has a stamp on the demo, and again when one of
+those stamps moves. While the owning extension is off the pass waits; a facet of an extension the host has not
+loaded refuses it.
 
 ## Analysis facts
 
