@@ -22,9 +22,9 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The step 9 parity measurement: the round index folded from <see cref="PositionSampler.Walk" /> against
 ///     the same fold over samples an <see cref="IFrameObserver" /> reads off the rules run at the same stride.
-///     Prints per-field mismatch counts and the first differing bytes; asserts only frame alignment.
-///     <c>hostAlive</c> adds a probe-only liveness column (<c>PawnLookup.IsAlive</c> for every bound pawn)
-///     to size what the engine has to ship before the observer can replace the walk.
+///     Prints per-field mismatch counts and the first differing bytes, and asserts frame alignment.
+///     <c>hostAlive</c> adds probe-only liveness and pawn-index columns, which the engine does not ship; with
+///     them the fold in entity-index order must equal the walk's byte for byte. Without them it is printed only.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -104,8 +104,9 @@ public class RoundIndexObserverParityProbe
     public async Task Probe(int which, bool hostAlive)
     {
         _hostAlive = hostAlive;
-        string root = DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("no repo root");
-        string folder = Path.Combine(root, "demos", "benchmarks");
+        string folder = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar) is { } env && Directory.Exists(env)
+            ? env
+            : Path.Combine(DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("no repo root"), "demos", "benchmarks");
         string[] demos = Directory.Exists(folder) ? [.. Directory.EnumerateFiles(folder, "*.dem").Order(StringComparer.Ordinal)] : [];
         string path = which < demos.Length ? demos[which] : throw new SkipTestException($"fewer than {which + 1} benchmark demos");
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
@@ -205,7 +206,8 @@ public class RoundIndexObserverParityProbe
         RoundIndexBuild c = RoundIndexBuilder.BuildWithPositions(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance, reordered);
         RoundIndexBuild d = RoundIndexBuilder.BuildWithPositions(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance,
             [.. observer.Samples.Select((o, n) => (o, n)).OrderBy(p => p.o.FrameIndex).ThenBy(p => observer.Index[p.n]).Select(p => p.o)]);
-        Console.WriteLine($"in entity-index order: index equal {a.Index.Serialize() == d.Index.Serialize()}, positions equal {Encoding.UTF8.GetString(a.Positions.SerializeUtf8()) == Encoding.UTF8.GetString(d.Positions.SerializeUtf8())}");
+        string id = d.Index.Serialize(), pd = Encoding.UTF8.GetString(d.Positions.SerializeUtf8());
+        Console.WriteLine($"in entity-index order: index equal {a.Index.Serialize() == id}, positions equal {Encoding.UTF8.GetString(a.Positions.SerializeUtf8()) == pd}");
         Console.WriteLine($"in sampler order: index equal {a.Index.Serialize() == c.Index.Serialize()}, positions equal {Encoding.UTF8.GetString(a.Positions.SerializeUtf8()) == Encoding.UTF8.GetString(c.Positions.SerializeUtf8())}");
         string ia = a.Index.Serialize(), ib = b.Index.Serialize();
         string pa = Encoding.UTF8.GetString(a.Positions.SerializeUtf8()), pb = Encoding.UTF8.GetString(b.Positions.SerializeUtf8());
@@ -234,7 +236,15 @@ public class RoundIndexObserverParityProbe
             }
         }
 
-        await Assert.That(observer.Misaligned).IsEqualTo(0);
+        using (Assert.Multiple())
+        {
+            await Assert.That(observer.Misaligned).IsEqualTo(0);
+            if (hostAlive)
+            {
+                await Assert.That(id).IsEqualTo(ia).Because("with liveness and pawn order read, the index is the walk's");
+                await Assert.That(pd).IsEqualTo(pa).Because("with liveness and pawn order read, the positions are the walk's");
+            }
+        }
     }
 
     private sealed class Recorder(ParsedDemo parsed, int stride) : IFrameObserver
