@@ -37,6 +37,9 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     private readonly IRoundFacts _roundFacts;
     private readonly Func<bool> _enabled;
 
+    // A downstream pass that reads the index for this demo, so it is never left to walk positions itself.
+    private readonly Func<string, bool> _wantedDownstream;
+
     // Manual per-demo requests (a Retry on the strip): they submit regardless of the opt-in, but only
     // these paths, and at user priority. Cleared when the demo's Evaluate or OnFailed runs.
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -57,6 +60,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted. Defaults to always-on.</param>
+    /// <param name="wantedDownstream">True when a pass that reads the index wants the demo; the sweep opt-in does not apply then.</param>
     public RoundIndexEvaluator(
         IExtensionLibrary library,
         IRoundFacts roundFacts,
@@ -65,7 +69,8 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         Func<bool> backgroundIndex,
         Action<Action>? post = null,
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
-        Func<bool>? enabled = null)
+        Func<bool>? enabled = null,
+        Func<string, bool>? wantedDownstream = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(roundFacts);
@@ -80,6 +85,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         _post = post ?? (action => action());
         _walk = walk;
         _enabled = enabled ?? (() => true);
+        _wantedDownstream = wantedDownstream ?? (_ => false);
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(RoundIndexLog.Category);
@@ -109,8 +115,8 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     From the index row alone: the owning pack's gate on, a parsed demo with Round Facts rows whose
-    ///     index is missing or stale under the fingerprint for its map, and either the background sweep is
-    ///     on or the demo was forced. No sidecar is read; the row carries everything.
+    ///     index is missing or stale under the fingerprint for its map, and the background sweep on, the
+    ///     demo forced, or a downstream reader wanting it. No sidecar is read; the row carries everything.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -119,14 +125,14 @@ public sealed class RoundIndexEvaluator : IExtensionPass
             return false;
         }
 
-        lock (_gate)
-        {
-            return _forcedPaths.Contains(path) || _backgroundIndex();
-        }
+        return IsRequested(path);
     }
 
     /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
-    /// <remarks>A demo without Round Facts rows yet, with the sweep on or the demo forced: the index follows the rows.</remarks>
+    /// <remarks>
+    ///     A demo without Round Facts rows yet, with the sweep on, the demo forced or a downstream reader
+    ///     wanting it: the index follows the rows.
+    /// </remarks>
     public bool WantsAfterUpstream(string path)
     {
         if (!_enabled() || _library.Find(path) is { State: >= LibraryDemoState.Parsed } entry && HasRoundFacts(entry))
@@ -134,10 +140,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
             return false;
         }
 
-        lock (_gate)
-        {
-            return _forcedPaths.Contains(path) || _backgroundIndex();
-        }
+        return IsRequested(path);
     }
 
     /// <inheritdoc />
@@ -192,7 +195,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         return
         [
             .. _library.Demos
-                .Where(e => NeedsIndex(e) && (background || forced.Contains(e.FilePath)))
+                .Where(e => NeedsIndex(e) && (background || forced.Contains(e.FilePath) || _wantedDownstream(e.FilePath)))
                 .OrderByDescending(e => e.Modified.Ticks)
                 .Select(e => e.FilePath)
         ];
@@ -250,6 +253,19 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     {
         _store.InvalidateAll();
         Passes?.RecheckAll();
+    }
+
+    private bool IsRequested(string path)
+    {
+        lock (_gate)
+        {
+            if (_forcedPaths.Contains(path))
+            {
+                return true;
+            }
+        }
+
+        return _backgroundIndex() || _wantedDownstream(path);
     }
 
     private bool NeedsIndex(LibraryDemo? entry) =>

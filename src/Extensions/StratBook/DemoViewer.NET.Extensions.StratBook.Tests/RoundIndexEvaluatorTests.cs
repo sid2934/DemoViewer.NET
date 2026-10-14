@@ -228,6 +228,34 @@ public class RoundIndexEvaluatorTests
     }
 
     [Test]
+    public async Task WantsTheOpenDemo_WhenSuggestedTagsWantsIt()
+    {
+        DemoCacheStore cache = new(null);
+        cache.Upsert(ParsedRecord(Demo, sha: "abc", facts: null));
+        RoundIndexStore store = new(cache.Data());
+        RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
+        bool downstream = false;
+        RoundIndexEvaluator evaluator = new(cache.Library(), cache.RoundFacts(), store, sources, () => false, walk: _ => [],
+            wantedDownstream: path => downstream && path == Demo);
+
+        await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsFalse().Because("the sweep is off and nothing reads the index");
+
+        downstream = true;
+        await Assert.That(evaluator.WantsAfterUpstream(Demo)).IsTrue().Because("the index follows Round Facts for its reader");
+
+        cache.UpdateExisting(Demo, r => r.SetRoundFacts(TwoRounds(), "rf-A"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(evaluator.Wants(Demo)).IsTrue();
+            await Assert.That(evaluator.PendingPaths()).Contains(Demo);
+            await Assert.That(evaluator.PriorityFor(Demo)).IsEqualTo(JobPriority.Background);
+        }
+
+        evaluator.Evaluate(Demo, Parse());
+        await Assert.That(evaluator.Wants(Demo)).IsFalse().Because("a current index is not wanted again, whoever reads it");
+    }
+
+    [Test]
     public async Task RebuildAll_ClearsEveryFingerprint_AndKeepsTheSidecars()
     {
         (DemoCacheStore cache, RoundIndexStore store, RoundIndexEvaluator evaluator) = Wire();
