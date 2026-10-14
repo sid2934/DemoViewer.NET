@@ -153,7 +153,7 @@ public class AnalysisFactsTests
         }
     }
 
-    // round_facts rides every retained run: its evaluator decides at the demo's tick rate, the cut at 64.
+    // round_facts rides every retained run: the row source reads it off that run.
     [Test]
     public async Task TheRetainedCut_MatchesTheForwardCut()
     {

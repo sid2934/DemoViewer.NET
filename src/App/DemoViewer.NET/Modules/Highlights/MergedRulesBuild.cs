@@ -276,7 +276,8 @@ public sealed class MergedRulesBuild
     {
         (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
 
-        // round_facts always: its evaluator decides staleness at the demo's tick rate, the cut at 64.
+        // round_facts always: its row source reads the table off this run, and a run without it reads as a
+        // demo with no rows.
         HashSet<string> outputs = new(cut, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
         lock (_gate)
         {
