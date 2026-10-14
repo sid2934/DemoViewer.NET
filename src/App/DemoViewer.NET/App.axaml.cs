@@ -914,8 +914,7 @@ public class App : Application
                 : new ForwardPassRunner(rules)
                 {
                     FileRead = fileRead,
-                    OutputsFor = rules.OutputsFor,
-                    CollectorsFor = rules.CollectorsFor
+                    OutputsFor = rules.OutputsFor
                 };
             DemoProcessingQueue queue = new(
                 sp.GetRequiredService<HeavyJobGate>(),
@@ -930,6 +929,7 @@ public class App : Application
                 contentHash: path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256,
                 fileRead: fileRead);
             queue.CollectedFor = rules.Collected;
+            queue.ForwardRead = forward is null ? null : forward.Run;
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {
