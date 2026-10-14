@@ -17,8 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Detonation placement on the index path against the walk path it replaces on the open visit, over the
 ///     benchmark demos. The walk path is the map's zones plus the walk's cloud with no library index; the
 ///     index path is the zones plus the centroids of the demo's own index, then the cloud rebuilt from its
-///     positions file. Measured with no cloud on the index path, two detonations lost their place (de_nuke
-///     and de_inferno, one each), so the index path carries the rebuilt cloud.
+///     positions file.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
