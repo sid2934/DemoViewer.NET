@@ -397,7 +397,7 @@ public sealed class RecordPassRunner : IDisposable
         return wanting;
     }
 
-    // Null for a pass that names no inputs, or while one of them is not on the row.
+    // Null for a pass that names no inputs, or while one of them is not on the row. Any stamp counts, failed or stale.
     private static PackStamp[]? InputsOn(IRecordPass pass, DemoCacheIndexEntry entry)
     {
         IReadOnlyList<string> ids = pass.InputStamps;
