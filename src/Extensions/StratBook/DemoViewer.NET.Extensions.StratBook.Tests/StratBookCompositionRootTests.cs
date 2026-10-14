@@ -103,7 +103,7 @@ public class StratBookCompositionRootTests
     // The pass order is a contract: a pass may read what the one before it wrote on the same visit, so the
     // round index, when it lands, goes after round facts and reads them.
     [Test]
-    public async Task PassOrder_IsLibraryThenHighlightsThenRoundFactsThenFactsThenRoundIndexThenSuggestedTagsThenGrenadesThenClips()
+    public async Task PassOrder_IsLibraryThenHighlightsThenRoundFactsThenFactsThenRoundIndexThenGrenadesThenSuggestedTagsThenClips()
     {
         await WithProvider(new DesktopWindowService(() => null), async provider =>
         {
@@ -114,8 +114,8 @@ public class StratBookCompositionRootTests
                 {
                     "library", "highlights", DemoViewer.NET.Services.Facts.RoundFactsEvaluator.EvaluatorId, DemoViewer.NET.Extensions.Sdk.HostIds.FactsPass,
                     DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator.EvaluatorId,
-                    DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId,
+                    DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.LineupClipPass.PassId
                 });
             await Assert.That(coordinator.PassIds[2]).IsEqualTo("roundfacts");
@@ -133,10 +133,11 @@ public class StratBookCompositionRootTests
 
             // The index reads the rows Round Facts wrote in the same pass, so it must come after it.
             await Assert.That(coordinator.PassIds[4]).IsEqualTo("roundindex");
-            // Suggested Tags reads the index written in the same pass, so it comes last.
-            await Assert.That(coordinator.PassIds[5]).IsEqualTo("suggestedtags");
-            // The grenade walk reads nothing the others write; last so it never delays one that does.
-            await Assert.That(coordinator.PassIds[6]).IsEqualTo("grenades");
+            // The grenade walk reads nothing the others write. It runs before Suggested Tags so the shared
+            // projectile walk streams and keeps only the Removed samples for it.
+            await Assert.That(coordinator.PassIds[5]).IsEqualTo("grenades");
+            // Suggested Tags reads the index written in the same pass.
+            await Assert.That(coordinator.PassIds[6]).IsEqualTo("suggestedtags");
             // Clips render from the grenades the walk just put in the index, on the same parse.
             await Assert.That(coordinator.PassIds[7]).IsEqualTo("lineupclips");
 
