@@ -201,7 +201,7 @@ public class RecordPassDependsOnTests
         public IReadOnlyList<LibraryHighlight> Highlights(string demoPath) => [];
     }
 
-        private sealed class DeclaredFacts(IReadOnlyList<FactKey> declared) : IAnalysisFacts
+    private sealed class DeclaredFacts(IReadOnlyList<FactKey> declared) : IAnalysisFacts
     {
         public IReadOnlyList<FactKey> Declared => declared;
 
