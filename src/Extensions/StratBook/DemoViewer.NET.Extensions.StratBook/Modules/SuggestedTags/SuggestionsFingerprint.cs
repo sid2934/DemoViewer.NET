@@ -23,8 +23,7 @@ public static class SuggestionsFingerprint
     public const int DetectorCodeVersion = 1;
 
     /// <summary>
-    ///     Where occupancy and the detonation cloud come from. Proposals written from the walk on an open
-    ///     demo predate this term, so they read stale and are rebuilt from the index.
+    ///     Where occupancy and the detonation cloud come from. Changing it rebuilds every proposals file.
     /// </summary>
     public const string OccupancyStrategy = "occupancy=round-index;cloud=positions";
 
