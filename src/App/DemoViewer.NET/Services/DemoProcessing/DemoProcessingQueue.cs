@@ -177,6 +177,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    private bool CarriesCollectorsLocked(string path, IDemoPass pass) =>
+        pass is not ICollectingPass { Collectors.IsEmpty: false } collecting
+        || (_visitCollectors.GetValueOrDefault(path) ?? CollectorSet.Empty).IsSupersetOf(collecting.Collectors);
+
     private void EndVisitCollectors(string path)
     {
         lock (_sync)
@@ -797,11 +801,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             // A running parse without user commands cannot serve a pass that reads them, and a running
-            // forward read serves only forward passes whose needs it already covers.
+            // forward read serves only forward passes whose needs it already covers. A forward read declared its
+            // collectors when it started, so it serves only a pass whose collectors it carries.
             Entry? existing = _entries.FirstOrDefault(e =>
                 e.Kind == QueueJobKind.DemoProcessing && IsActive(e) && !e.Finalizing && PathEquals(e.Path, path)
                 && (e.State == DemoQueueItemState.Queued
-                    || joining.TrueForAll(j => DemoVisit.CanJoinRunning(j.Needs, e.Forward, e.Needs, e.UserCommands))));
+                    || joining.TrueForAll(j => DemoVisit.CanJoinRunning(j.Needs, e.Forward, e.Needs, e.UserCommands)
+                                               && (!e.Forward || CarriesCollectorsLocked(e.Path, j.Pass)))));
             if (existing is not null)
             {
                 // Coalesce: one read, every pass; bump level, priority and order to the max seen.
