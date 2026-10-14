@@ -54,6 +54,42 @@ public class RoundIndexObserverParityProbe
             PawnLookup.ResolvePawn(layer.Tracker, playerSlot) is { } pawn ? PawnLookup.IsAlive(pawn) ? 1 : 0 : null;
     }
 
+    // Probe only: the pawn's entity index, the order PawnLookup.ForEachLivePawn visits.
+    private sealed class IndexProvider : IPerPlayerEntityValueProvider, IPawnStateReader
+    {
+        public string EntityClass => "CCSPlayerPawn";
+        public string FieldName => "m_iHealth";
+        public string Name => "dvprobe.pawn.index";
+        public Type ValueType => typeof(int);
+
+        public void CaptureAllSlots(EntityStateLayer layer, Action<int, object> emit) =>
+            PawnLookup.ForEachLivePawn(layer.Tracker, (slot, pawn) =>
+            {
+                if (ReadForPawnState(layer.Tracker, pawn) is { } index)
+                {
+                    emit(slot, index);
+                }
+            });
+
+        public object? ReadForPawnState(EntityTracker tracker, EntityState pawn)
+        {
+            if (!PawnLookup.TryReadHandle(pawn, "m_hController", out uint controller)
+                || tracker.CurrentEntities[PawnLookup.IndexOf(controller)] is not { } ctrl
+                || !PawnLookup.TryReadHandle(ctrl, "m_hPlayerPawn", out uint handle))
+            {
+                return null;
+            }
+
+            int index = PawnLookup.IndexOf(handle);
+            return index >= 0 && ReferenceEquals(tracker.CurrentEntities[index], pawn) ? index : null;
+        }
+
+        public object? ReadForPawn(EntityTracker tracker, CS2OpenDev.Sdk.Entities.CSPlayerPawn pawn) => throw new NotSupportedException();
+
+        public object? Read(EntityStateLayer layer, int playerSlot) =>
+            PawnLookup.ResolvePawn(layer.Tracker, playerSlot) is { } pawn ? ReadForPawnState(layer.Tracker, pawn) : null;
+    }
+
     [Test]
     [Arguments(0, false)]
     [Arguments(0, true)]
@@ -78,10 +114,11 @@ public class RoundIndexObserverParityProbe
         Recorder observer = new(parsed, stride);
         PerPlayerEntityValueProviderRegistry registry = PerPlayerEntityValueProviderRegistry.CreateDefault();
         registry.Register(new AliveProvider());
+        registry.Register(new IndexProvider());
         DemoAnalysis.Run(parsed, [], new AnalysisOptions
         {
             CaptureSnapshots = false,
-            ObservedProviders = hostAlive ? [.. Declared, "dvprobe.pawn.alive"] : Declared,
+            ObservedProviders = hostAlive ? [.. Declared, "dvprobe.pawn.alive", "dvprobe.pawn.index"] : Declared,
             PerPlayerEntityProviders = registry,
             FrameObserver = observer
         });
@@ -165,6 +202,9 @@ public class RoundIndexObserverParityProbe
         List<PositionSample> reordered = [.. observer.Samples.OrderBy(o => o.FrameIndex)
             .ThenBy(o => order.TryGetValue((o.FrameIndex, o.PlayerSlot), out int k) ? k : int.MaxValue)];
         RoundIndexBuild c = RoundIndexBuilder.BuildWithPositions(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance, reordered);
+        RoundIndexBuild d = RoundIndexBuilder.BuildWithPositions(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance,
+            [.. observer.Samples.Select((o, n) => (o, n)).OrderBy(p => p.o.FrameIndex).ThenBy(p => observer.Index[p.n]).Select(p => p.o)]);
+        Console.WriteLine($"in entity-index order: index equal {a.Index.Serialize() == d.Index.Serialize()}, positions equal {Encoding.UTF8.GetString(a.Positions.SerializeUtf8()) == Encoding.UTF8.GetString(d.Positions.SerializeUtf8())}");
         Console.WriteLine($"in sampler order: index equal {a.Index.Serialize() == c.Index.Serialize()}, positions equal {Encoding.UTF8.GetString(a.Positions.SerializeUtf8()) == Encoding.UTF8.GetString(c.Positions.SerializeUtf8())}");
         string ia = a.Index.Serialize(), ib = b.Index.Serialize();
         string pa = Encoding.UTF8.GetString(a.Positions.SerializeUtf8()), pb = Encoding.UTF8.GetString(b.Positions.SerializeUtf8());
@@ -199,6 +239,7 @@ public class RoundIndexObserverParityProbe
     private sealed class Recorder(ParsedDemo parsed, int stride) : IFrameObserver
     {
         public List<PositionSample> Samples { get; } = [];
+        public List<int> Index { get; } = [];
         public int Frames { get; private set; }
         public int Misaligned { get; private set; }
 
@@ -230,6 +271,7 @@ public class RoundIndexObserverParityProbe
                     ? view.TryReadInt("dvprobe.pawn.alive", slot, out int a) && a != 0
                     : view.TryReadInt(Declared[4], slot, out _);
                 Samples.Add(new PositionSample(i, tick, slot, new System.Numerics.Vector3(x, y, z), place, view.Team(slot), alive));
+                Index.Add(_hostAlive && view.TryReadInt("dvprobe.pawn.index", slot, out int e) ? e : int.MaxValue);
             }
         }
 
