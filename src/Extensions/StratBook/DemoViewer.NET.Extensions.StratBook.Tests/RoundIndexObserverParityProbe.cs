@@ -104,9 +104,13 @@ public class RoundIndexObserverParityProbe
     public async Task Probe(int which, bool hostAlive)
     {
         _hostAlive = hostAlive;
-        string folder = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar) is { } env && Directory.Exists(env)
-            ? env
-            : Path.Combine(DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("no repo root"), "demos", "benchmarks");
+        // The benchmarks are the oracle set; a folder DEMO_PATH stands in only where they are absent.
+        string? root = DemoTestHelper.FindRepoRoot();
+        string folder = root is not null && Directory.Exists(Path.Combine(root, "demos", "benchmarks"))
+            ? Path.Combine(root, "demos", "benchmarks")
+            : Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar) is { } env && Directory.Exists(env)
+                ? env
+                : throw new SkipTestException("no benchmark demos");
         string[] demos = Directory.Exists(folder) ? [.. Directory.EnumerateFiles(folder, "*.dem").Order(StringComparer.Ordinal)] : [];
         string path = which < demos.Length ? demos[which] : throw new SkipTestException($"fewer than {which + 1} benchmark demos");
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
