@@ -306,11 +306,11 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     What the open demo's run evaluates: <paramref name="read" /> minus the stamped rulesets that are off,
-    ///     whatever is stale, so the open shows the same graph either way. Its <see cref="OpenRunPlan.Cut" /> is
-    ///     the stale stamped outputs when <paramref name="read" /> holds the rulesets this build runs, and then
-    ///     the run can <see cref="Seed" /> the open's visit; otherwise it is empty and the run records no
-    ///     stamped table.
+    ///     What the open demo's run evaluates. When a stamped output is stale for <paramref name="path" /> and
+    ///     <paramref name="read" /> holds the rulesets this build runs, the plan is <paramref name="read" /> minus
+    ///     the stamped rulesets that are off, its <see cref="OpenRunPlan.Cut" /> is the stale outputs, and the run
+    ///     can <see cref="Seed" /> the open's visit. Otherwise it is <paramref name="read" /> without the stamped
+    ///     rulesets and an empty cut: nothing would read their nodes, and their snapshot columns cost peak memory.
     /// </summary>
     /// <param name="read">The rules the shell read for this open.</param>
     /// <param name="path">The open demo's path, or null when it has none on disk.</param>
@@ -331,7 +331,8 @@ public sealed class MergedRulesBuild
             }
         }
 
-        OpenRunPlan plan = new(docs, new HashSet<string>(StringComparer.Ordinal), stampedTables, stampedIds) { Rules = rules, Off = off };
+        OpenRunPlan plan = new(WithoutStampedRulesets(read), new HashSet<string>(StringComparer.Ordinal), stampedTables, stampedIds)
+            { Rules = rules, Off = off };
         if (path is null)
         {
             return plan;
@@ -349,7 +350,7 @@ public sealed class MergedRulesBuild
             return plan;
         }
 
-        return plan with { Cut = new HashSet<string>(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable } };
+        return plan with { Docs = docs, Cut = new HashSet<string>(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable } };
     }
 
     /// <summary>
