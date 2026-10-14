@@ -627,7 +627,7 @@ public sealed class StratBookPack : IExtension
             tabId => Host(sp).Shell.SelectTab(tabId)));
 
         // The Grenade Walk: every throw in a demo as one row, written as two siblings of
-        // the demo's cache record. An evaluator on the same fan-out, last because it reads nothing the others
+        // the demo's cache record. An evaluator on the same fan-out that reads nothing the others
         // write. The library sweep is its own opt-in, off by default; the open demo, resolved at call
         // time, is always walked on the parse its open paid for. Null cache root (the browser) keeps the
         // rows in memory for the session.
@@ -901,12 +901,13 @@ public sealed class StratBookPack : IExtension
         // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing
         // the others write), and Lineup Clips after the grenades it renders. The registry resolves this only while the pack is on, so these factories are
         // never invoked, and these services never constructed, with the pack off.
+        // Grenades runs before Suggested Tags so the shared projectile walk holds only the Removed subset.
         contributions.Pass(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
             HostIds.RoundFactsPass);
-        contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
-            RoundIndexEvaluator.EvaluatorId);
         contributions.Pass(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             HostIds.LibraryPass);
+        contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
+            RoundIndexEvaluator.EvaluatorId);
         contributions.Pass(LineupClipPass.PassId, () => sp.GetRequiredService<LineupClipPass>(),
             GrenadeIndexEvaluator.EvaluatorId);
 

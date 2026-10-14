@@ -36,7 +36,7 @@ public class PassRegistryTests
     public async Task Resolve_SixEntries_MatchesTheLibraryHighlightsPackChain()
     {
         // The exact chain StratBookPack.Contribute declares: roundFacts after library, roundIndex after
-        // roundFacts, suggestedTags after roundIndex, grenades after library.
+        // roundFacts, grenades after library, suggestedTags after roundIndex.
         PassRegistry registry = new();
         registry.AddCore("library", () => new Fake("library"));
         registry.AddCore("highlights", () => new Fake("highlights"));
@@ -44,14 +44,14 @@ public class PassRegistryTests
         {
             registry.AddPackPass("roundfacts", () => new Fake("roundfacts", "library"), ["library"], () => true);
             registry.AddPackPass("roundindex", () => new Fake("roundindex", "roundfacts"), ["roundfacts"], () => true);
-            registry.AddPackPass("suggestedtags", () => new Fake("suggestedtags", "roundindex"), ["roundindex"], () => true);
             registry.AddPackPass("grenades", () => new Fake("grenades", "library"), ["library"], () => true);
+            registry.AddPackPass("suggestedtags", () => new Fake("suggestedtags", "roundindex"), ["roundindex"], () => true);
         });
 
         IReadOnlyList<IDemoPass> resolved = registry.Resolve();
 
         await Assert.That(resolved.Select(e => e.Id))
-            .IsEquivalentTo(["library", "highlights", "roundfacts", "roundindex", "suggestedtags", "grenades"],
+            .IsEquivalentTo(["library", "highlights", "roundfacts", "roundindex", "grenades", "suggestedtags"],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
     }
 
