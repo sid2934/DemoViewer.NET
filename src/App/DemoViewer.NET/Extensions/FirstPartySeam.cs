@@ -33,7 +33,12 @@ public sealed record PassContribution(string Id, Func<IDemoPass> Factory, IReadO
 /// <param name="Id">The pass's id.</param>
 /// <param name="Factory">Builds or returns the pass.</param>
 /// <param name="Guard">The pack's guard, which the host runs the pass under.</param>
-internal sealed record RecordPassContribution(string Id, Func<IExtensionRecordPass> Factory, ExtensionGuard Guard);
+/// <param name="DependsOn">The facts the pass reads; empty for a pass that runs on every row change.</param>
+internal sealed record RecordPassContribution(
+    string Id,
+    Func<IExtensionRecordPass> Factory,
+    ExtensionGuard Guard,
+    IReadOnlyList<FactKey> DependsOn);
 
 /// <summary>An extension's Match Overview action and the feature it shows under.</summary>
 public sealed record GatedDemoAction(DemoAction Action, string FeatureId)

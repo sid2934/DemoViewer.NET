@@ -324,7 +324,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DemoAction(DemoViewer.NET.
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Library(DemoViewer.NET.Extensions.Sdk.ILibraryContribution! contribution) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Pass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionPass!>! factory, params string![]! after) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Playback(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution! contribution) -> void
-DemoViewer.NET.Extensions.Sdk.IExtensionContributions.RecordPass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass!>! factory) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.RecordPass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass!>! factory, params DemoViewer.NET.Extensions.Sdk.FactKey![]! dependsOn) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer.NET.Extensions.Sdk.IReindexEstimate! estimate) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Ruleset(DemoViewer.NET.Extensions.Sdk.RulesetContribution! ruleset) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void

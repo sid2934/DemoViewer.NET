@@ -20,6 +20,18 @@ public interface IRecordPass
     /// <summary>Who the pass belongs to, for fault reports. The pass's own id unless an extension owns it.</summary>
     string Owner => Id;
 
+    /// <summary>
+    ///     Stamp ids on the row the pass reads. A pass naming any is held on a demo until each is on its row, and
+    ///     runs again only when one of them moves; a pass naming none runs again on every new row.
+    /// </summary>
+    IReadOnlyList<string> InputStamps => [];
+
+    /// <summary>Why the runner must not take the pass, or null. Asked on every run; a reason is reported once until it changes.</summary>
+    string? Refusal() => null;
+
+    /// <summary>True while an input the pass reads is switched off: the pass waits, unreported, until it is on again.</summary>
+    bool InputsOff() => false;
+
     /// <summary>Whether the demo behind <paramref name="entry" /> needs the pass. Answer from the row and memory only.</summary>
     bool Wants(DemoCacheIndexEntry entry);
 
@@ -31,7 +43,10 @@ public interface IRecordPass
 ///     Runs the record passes. Fed by the cache's own change events and by <see cref="RecheckAll" />; plans
 ///     and runs in one light queue job at a time, reading each wanted demo's record once, outside the store's
 ///     capacity-1 cache. A pass does not run twice on one row object: the store replaces the row on every
-///     write, so a pass runs again exactly when the demo's row changed. A demo held at several paths is one
+///     write, so a pass runs again exactly when the demo's row changed. A pass that names
+///     <see cref="IRecordPass.InputStamps" /> is keyed on those stamps instead of the row. A pass with a
+///     <see cref="IRecordPass.Refusal" /> or <see cref="IRecordPass.InputsOff" /> is skipped for the run; both are asked
+///     again on the next run, so a pass held while another extension was off is taken once it comes on. A demo held at several paths is one
 ///     demo: it is visited, run and faulted once, through its primary path.
 ///     <para>
 ///         A row written by an index older than version 3 carries no side players. When a pass reads such a
@@ -53,6 +68,8 @@ public sealed class RecordPassRunner : IDisposable
     // path it was visited by: that path's key changes once its file is hashed.
     private readonly HashSet<(string Pass, string Demo)> _faulted = new(PassDemoKeyComparer.Instance);
     private readonly Dictionary<(string Pass, string Demo), DemoCacheIndexEntry> _ranOn = new(PassDemoKeyComparer.Instance);
+    private readonly Dictionary<(string Pass, string Demo), PackStamp[]> _ranOnInputs = new(PassDemoKeyComparer.Instance);
+    private readonly Dictionary<string, string> _refused = new(StringComparer.Ordinal);
     private readonly Func<IReadOnlyList<IRecordPass>> _passes;
     private readonly IDemoProcessingQueue? _queue;
     private readonly DemoCacheStore _store;
@@ -228,7 +245,7 @@ public sealed class RecordPassRunner : IDisposable
                 HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
                 batch = [.. batch.Where(p => seen.Add(_store.DemoKeyOf(p)))];
 
-                IReadOnlyList<IRecordPass> passes = _passes();
+                List<IRecordPass> passes = Taken(_passes());
                 if (passes.Count == 0)
                 {
                     continue;
@@ -299,7 +316,14 @@ public sealed class RecordPassRunner : IDisposable
             token.ThrowIfCancellationRequested();
             lock (_lock)
             {
-                _ranOn[(pass.Id, demo)] = entry;
+                if (InputsOn(pass, entry) is { } inputs)
+                {
+                    _ranOnInputs[(pass.Id, demo)] = inputs;
+                }
+                else
+                {
+                    _ranOn[(pass.Id, demo)] = entry;
+                }
             }
 
             try
@@ -330,10 +354,18 @@ public sealed class RecordPassRunner : IDisposable
         List<IRecordPass> wanting = [];
         foreach (IRecordPass pass in passes)
         {
+            PackStamp[]? inputs = InputsOn(pass, entry);
+            if (pass.InputStamps.Count > 0 && inputs is null)
+            {
+                continue;
+            }
+
             lock (_lock)
             {
                 if (_faulted.Contains((pass.Id, demo)) || _faulted.Contains((pass.Id, entry.Path))
-                    || (_ranOn.TryGetValue((pass.Id, demo), out DemoCacheIndexEntry? ran) && ReferenceEquals(ran, entry)))
+                    || (inputs is null
+                        ? _ranOn.TryGetValue((pass.Id, demo), out DemoCacheIndexEntry? ran) && ReferenceEquals(ran, entry)
+                        : _ranOnInputs.TryGetValue((pass.Id, demo), out PackStamp[]? ranInputs) && ranInputs.SequenceEqual(inputs)))
                 {
                     continue;
                 }
@@ -363,6 +395,75 @@ public sealed class RecordPassRunner : IDisposable
         }
 
         return wanting;
+    }
+
+    // Null for a pass that names no inputs, or while one of them is not on the row. Any stamp counts, failed or stale.
+    private static PackStamp[]? InputsOn(IRecordPass pass, DemoCacheIndexEntry entry)
+    {
+        IReadOnlyList<string> ids = pass.InputStamps;
+        if (ids.Count == 0)
+        {
+            return null;
+        }
+
+        PackStamp[] stamps = new PackStamp[ids.Count];
+        for (int i = 0; i < ids.Count; i++)
+        {
+            if (entry.Stamp(ids[i]) is not { } stamp)
+            {
+                return null;
+            }
+
+            stamps[i] = stamp;
+        }
+
+        return stamps;
+    }
+
+    // The passes this run takes. A refusal is reported when its reason is new, so a pass is not reported on every run.
+    private List<IRecordPass> Taken(IReadOnlyList<IRecordPass> passes)
+    {
+        List<IRecordPass> taken = [];
+        foreach (IRecordPass pass in passes)
+        {
+            Exception? refusal;
+            bool off = false;
+            try
+            {
+                refusal = pass.Refusal() is { } reason ? new InvalidOperationException(reason) : null;
+                off = refusal is null && pass.InputsOff();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                refusal = ex;
+            }
+
+            bool report;
+            lock (_lock)
+            {
+                if (refusal is null)
+                {
+                    _refused.Remove(pass.Id);
+                    report = false;
+                }
+                else
+                {
+                    report = !(_refused.TryGetValue(pass.Id, out string? last) && string.Equals(last, refusal.Message, StringComparison.Ordinal));
+                    _refused[pass.Id] = refusal.Message;
+                }
+            }
+
+            if (report)
+            {
+                Report(pass, null, refusal!);
+            }
+            else if (refusal is null && !off)
+            {
+                taken.Add(pass);
+            }
+        }
+
+        return taken;
     }
 
     private void Report(IRecordPass? pass, string? path, Exception exception)
