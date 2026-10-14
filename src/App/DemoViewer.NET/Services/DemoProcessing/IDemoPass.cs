@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
 
@@ -114,6 +115,19 @@ public sealed class PassInput
 
     /// <summary>Fires when the visit is cancelled.</summary>
     public CancellationToken CancellationToken { get; }
+
+    /// <summary>The bare run's collector results for a retained read, the run made on first ask. Null reads none.</summary>
+    internal Func<CollectorResults>? RetainedCollected { get; init; }
+
+    /// <summary>What the visit's collectors put on this demo's rules run.</summary>
+    internal CollectorResults Collected() =>
+        Forward is { } forward ? forward.Collected : RetainedCollected?.Invoke() ?? CollectorResults.None;
+}
+
+/// <summary>A pass that reads collectors; a visit carrying it declares them on the rules run.</summary>
+internal interface ICollectingPass
+{
+    CollectorSet Collectors { get; }
 }
 
 /// <summary>

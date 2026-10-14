@@ -112,6 +112,8 @@ public class GrenadeIndexEvaluatorTests
         public IReadOnlyList<PassRound> Rounds => [];
 
         public CancellationToken CancellationToken => CancellationToken.None;
+
+        public T? Collected<T>(string collectorId) where T : class => throw new NotSupportedException();
     }
 
     [Test]

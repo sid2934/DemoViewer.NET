@@ -1,3 +1,5 @@
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
+
 namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
@@ -95,6 +97,21 @@ internal sealed class DemoVisit
         }
 
         return (forward, needs, userCommands);
+    }
+
+    /// <summary>The collectors of every pass on the visit, unioned: what its rules run declares.</summary>
+    public CollectorSet Collectors()
+    {
+        CollectorSet union = CollectorSet.Empty;
+        foreach (VisitPass p in _passes)
+        {
+            if (p.Pass is ICollectingPass collecting)
+            {
+                union = union.Union(collecting.Collectors);
+            }
+        }
+
+        return union;
     }
 
     /// <summary>

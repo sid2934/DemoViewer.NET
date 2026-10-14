@@ -7,6 +7,7 @@ using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -365,6 +366,50 @@ public class MergedRulesBuildTests
         finally
         {
             Directory.Delete(fixture, true);
+        }
+    }
+
+    // A collector writes only on the run its options carried, so a run made for a visit without it is not that visit's run.
+    [Test]
+    public async Task ABareRunWithoutACollector_IsNotServedToACallerWhoseVisitNeedsIt()
+    {
+        CollectorSet visit = CollectorSet.Empty;
+        MergedRulesBuild build = new(ShippedRules, () => [StampedRuleset.Core(RoundFacts)]) { CollectorsFor = _ => visit };
+        ParsedDemo parsed = TwoFrameDemo();
+
+        AnalysisRun bare = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a"))]);
+        AnalysisRun collected = build.BareRun(parsed, "/demos/a.dem");
+        AnalysisRun again = build.BareRun(parsed, "/demos/a.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(collected).IsNotSameReferenceAs(bare).Because("the cached run never ran the collector");
+            await Assert.That(again).IsSameReferenceAs(collected);
+            await Assert.That(build.Collected(parsed, "/demos/a.dem").Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+        }
+    }
+
+    [Test]
+    public async Task ABareRunWithASupersetOfCollectors_IsServed()
+    {
+        RegisteredCollector a = CollectorKit.Register(CollectorKit.Counting("count.a"));
+        RegisteredCollector b = CollectorKit.Register(CollectorKit.Counting("count.b"));
+        CollectorSet visit = CollectorSet.Of([a, b]);
+        MergedRulesBuild build = new(ShippedRules, () => [StampedRuleset.Core(RoundFacts)]) { CollectorsFor = _ => visit };
+        ParsedDemo parsed = TwoFrameDemo();
+
+        AnalysisRun both = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Of([a]);
+        AnalysisRun one = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Empty;
+        AnalysisRun none = build.BareRun(parsed, "/demos/a.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(one).IsSameReferenceAs(both).Because("the cached run carried every collector this visit needs");
+            await Assert.That(none).IsSameReferenceAs(both);
+            await Assert.That(build.Collected(parsed, "/demos/a.dem").Get<CollectorKit.Count>("count.b")?.Frames).IsEqualTo(2);
         }
     }
 

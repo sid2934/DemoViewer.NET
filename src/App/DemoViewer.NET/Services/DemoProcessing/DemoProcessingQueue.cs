@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -60,6 +61,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly Func<ReadOnlyMemory<byte>, ParsedDemo> _parseBytes; // foreground: parse in-hand bytes
     private readonly Func<string, DecodePlan, ParsedDemo> _parseFile; // background: read file at path → parse
     private readonly Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? _forwardPass;
+
+    // The collectors of each visit in flight, by path; set before its read, cleared when its passes end.
+    private readonly Dictionary<string, CollectorSet> _visitCollectors = new(StringComparer.OrdinalIgnoreCase);
     private readonly Func<string, string?>? _contentHash;
     private readonly DemoFileRead _fileRead;
     private readonly Dictionary<string, int> _parsesByPath = new(StringComparer.OrdinalIgnoreCase);
@@ -160,6 +164,29 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     private static ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.QueueCategory);
+
+    /// <summary>What a pass's collectors put on the bare run of a held parse, by its path. Null reads none.</summary>
+    internal Func<ParsedDemo, string, CollectorResults>? CollectedFor { get; set; }
+
+    /// <summary>The collectors the visit of <paramref name="path" /> in flight carries; none between visits.</summary>
+    internal CollectorSet CollectorsFor(string path)
+    {
+        lock (_sync)
+        {
+            return _visitCollectors.GetValueOrDefault(path) ?? CollectorSet.Empty;
+        }
+    }
+
+    private void EndVisitCollectors(string path)
+    {
+        lock (_sync)
+        {
+            _visitCollectors.Remove(path);
+        }
+    }
+
+    private Func<CollectorResults>? RetainedCollected(ParsedDemo parsed, string path) =>
+        CollectedFor is { } collected ? () => collected(parsed, path) : null;
 
     /// <summary>
     ///     The background parse. Maps a settled local file instead of reading it into one LOH-sized array; the
@@ -1726,9 +1753,21 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         RaiseChanged();
         if (!cancelled)
         {
-            foreach (VisitPass p in merged.Ordered())
+            lock (_sync)
             {
-                RunPass(p, new PassInput(merged.Demo, PassLevel.OpenDemo, parsed, null, ct));
+                _visitCollectors[open.Path] = merged.Collectors();
+            }
+
+            try
+            {
+                foreach (VisitPass p in merged.Ordered())
+                {
+                    RunPass(p, new PassInput(merged.Demo, PassLevel.OpenDemo, parsed, null, ct) { RetainedCollected = RetainedCollected(parsed, open.Path) });
+                }
+            }
+            finally
+            {
+                EndVisitCollectors(open.Path);
             }
         }
 
@@ -1753,6 +1792,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         {
             entry.Cancel = cancel;
             needs = entry.Needs;
+            _visitCollectors[entry.Path] = entry.Visit!.Collectors();
             if (entry.CancelRequested || entry.Preempted)
             {
                 cancel.Cancel();
@@ -1786,7 +1826,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
 
         // The source stays on the entry through the passes, so a remove during their turn still reaches them.
-        FinishForward(entry, pass, failure, cancelled, cancel.Token);
+        try
+        {
+            FinishForward(entry, pass, failure, cancelled, cancel.Token);
+        }
+        finally
+        {
+            EndVisitCollectors(entry.Path);
+        }
+
         lock (_sync)
         {
             entry.Cancel = null;
@@ -2234,6 +2282,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             level = entry.Visit.Level;
             passes = entry.Visit.Ordered();
             foreground = [.. entry.ForegroundWaiters];
+            _visitCollectors[demo.Path] = entry.Visit.Collectors();
         }
 
         if (failure is not null)
@@ -2255,16 +2304,23 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             w.TrySetResult(parsed!);
         }
 
-        if (cancelled)
+        try
         {
-            EndPasses(passes, PassOutcome.Cancelled);
-        }
-        else
-        {
-            foreach (VisitPass p in passes)
+            if (cancelled)
             {
-                RunPass(p, new PassInput(demo, level, parsed!, null, token));
+                EndPasses(passes, PassOutcome.Cancelled);
             }
+            else
+            {
+                foreach (VisitPass p in passes)
+                {
+                    RunPass(p, new PassInput(demo, level, parsed!, null, token) { RetainedCollected = RetainedCollected(parsed!, demo.Path) });
+                }
+            }
+        }
+        finally
+        {
+            EndVisitCollectors(demo.Path);
         }
 
         if (_parseReleased is { } released)

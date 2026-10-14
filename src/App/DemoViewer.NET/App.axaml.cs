@@ -896,6 +896,8 @@ public class App : Application
             rules.OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
                 ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
                 : sp.GetRequiredService<FactsEvaluator>().Records(path, id));
+            // The visit in flight answers which collectors its rules run carries; resolved per call, like the cut.
+            rules.CollectorsFor = path => sp.GetRequiredService<DemoProcessingQueue>().CollectorsFor(path);
             return rules;
         });
         services.AddSingleton(sp =>
@@ -912,7 +914,8 @@ public class App : Application
                 : new ForwardPassRunner(rules)
                 {
                     FileRead = fileRead,
-                    OutputsFor = rules.OutputsFor
+                    OutputsFor = rules.OutputsFor,
+                    CollectorsFor = rules.CollectorsFor
                 };
             DemoProcessingQueue queue = new(
                 sp.GetRequiredService<HeavyJobGate>(),
@@ -926,6 +929,7 @@ public class App : Application
                 // Resolved at the first read, never while the queue is built.
                 contentHash: path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256,
                 fileRead: fileRead);
+            queue.CollectedFor = rules.Collected;
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {

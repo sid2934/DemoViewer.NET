@@ -42,6 +42,12 @@ public interface IExtensionContributions
     /// <param name="dependsOn">Facts the pass reads; empty runs it on every change to the demo's row.</param>
     void RecordPass(string id, Func<IExtensionRecordPass> factory, params FactKey[] dependsOn);
 
+    /// <summary>
+    ///     A per-frame reader for one of the extension's passes, run inside the host's rules run of a demo instead of a
+    ///     walk of its own. A provider or projectile class the engine does not know refuses the collector.
+    /// </summary>
+    void Collector(CollectorContribution collector);
+
     /// <summary>A ruleset the host runs with the highlights on every demo; its tables become library facts.</summary>
     void Ruleset(RulesetContribution ruleset);
 

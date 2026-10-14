@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.Views.Settings;
 using SdkPlayback = DemoViewer.NET.Extensions.Sdk.Playback;
@@ -42,6 +43,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly List<IWorkspaceModule> _modules = [];
     private readonly List<ContributedHub> _hubTabs = [];
     private readonly List<PassContribution> _passes = [];
+    private readonly List<RegisteredCollector> _collectors = [];
     private readonly List<RecordPassContribution> _recordPasses = [];
     private readonly List<SettingsPageContribution> _settingsPages = [];
     private readonly List<HostStatusChip> _statusChips = [];
@@ -71,6 +73,9 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
     /// <summary>Passes, in contribution order.</summary>
     public IReadOnlyList<PassContribution> Passes => _passes;
+
+    /// <summary>Collectors, in contribution order; a refused one is not here.</summary>
+    public IReadOnlyList<RegisteredCollector> Collectors => _collectors;
 
     /// <summary>Rulesets, in contribution order, each under its qualified id.</summary>
     public IReadOnlyList<ContributedRuleset> Rulesets => _rulesets;
@@ -128,7 +133,24 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
         string[] order = [.. after];
-        _passes.Add(new PassContribution(id, HostCache(factory, order), order));
+        _passes.Add(new PassContribution(id, HostCache(id, factory, order), order));
+    }
+
+    /// <inheritdoc />
+    public void Collector(CollectorContribution collector)
+    {
+        ArgumentNullException.ThrowIfNull(collector);
+        string? refusal = RegisteredCollector.Refusal(collector)
+                          ?? (_collectors.Any(c => string.Equals(c.Id, collector.Id, StringComparison.Ordinal))
+                              ? $"collector {collector.Id} is registered twice"
+                              : null);
+        if (refusal is not null)
+        {
+            _guard.Report("collector " + collector.Id, new ArgumentException(refusal + ", so it is left out."));
+            return;
+        }
+
+        _collectors.Add(new RegisteredCollector(collector, _guard));
     }
 
     /// <inheritdoc />
@@ -147,7 +169,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
     // The registry calls the factory on every resolve. One host per pass instance keeps the identity a visit
     // tells passes apart by, and the quarantine with it; a factory that hands out a new instance gets a new host.
-    private Func<IDemoPass> HostCache(Func<IExtensionPass> factory, IReadOnlyList<string> after)
+    private Func<IDemoPass> HostCache(string id, Func<IExtensionPass> factory, IReadOnlyList<string> after)
     {
         object gate = new();
         ExtensionPassHost? cached = null;
@@ -158,7 +180,8 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             {
                 if (cached is null || !ReferenceEquals(cached.Inner, inner))
                 {
-                    cached = new ExtensionPassHost(inner, after, _guard);
+                    cached = new ExtensionPassHost(inner, after, _guard,
+                        collectors: CollectorSet.Of(_collectors.Where(c => string.Equals(c.Contribution.PassId, id, StringComparison.Ordinal))));
                 }
 
                 return cached;

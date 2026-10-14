@@ -12,6 +12,7 @@ using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -33,6 +34,7 @@ public sealed class MergedRulesBuild
     // One bare run per held parse: the highlight scan and round facts read the same run on a retained entry.
     // Keyed by the stamped rulesets that were off when it ran; a run from before a toggle is not the merged set's run.
     // Recorded is the requested cut, not the build's outputs: an excluded ruleset's table never appears there.
+    // Collectors produce output only on the run whose options carried them, so they key the run too.
     private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
@@ -260,19 +262,33 @@ public sealed class MergedRulesBuild
     public Func<string, IReadOnlySet<string>?>? OutputsFor { get; set; }
 
     /// <summary>
+    ///     The collectors the visit of the demo at a path carries. A bare run declares them, and a cached run
+    ///     is served only when it carried at least these. Null carries none.
+    /// </summary>
+    internal Func<string, CollectorSet>? CollectorsFor { get; set; }
+
+    /// <summary>
     ///     The bare run over a held parse recording every stamped output, evaluated once however many consumers
     ///     ask until <see cref="Forget" />.
     /// </summary>
-    public AnalysisRun BareRun(ParsedDemo parsed) => RunCut(parsed, StampedOutputs());
+    public AnalysisRun BareRun(ParsedDemo parsed) => RunCut(parsed, StampedOutputs(), CollectorSet.Empty).Run;
 
     /// <summary>
     ///     The bare run over a held parse of the demo at <paramref name="path" />, recording the cut
     ///     <see cref="OutputsFor" /> names. A cached run is served when it recorded at least that cut.
     /// </summary>
-    public AnalysisRun BareRun(ParsedDemo parsed, string path) =>
-        RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs());
+    public AnalysisRun BareRun(ParsedDemo parsed, string path) => RunFor(parsed, path).Run;
 
-    private AnalysisRun RunCut(ParsedDemo parsed, IReadOnlySet<string> cut)
+    /// <summary>
+    ///     What the collectors of the visit of <paramref name="path" /> put on its bare run, the run made first
+    ///     when none that carried them is cached.
+    /// </summary>
+    internal CollectorResults Collected(ParsedDemo parsed, string path) => RunFor(parsed, path).Results;
+
+    private CachedRun RunFor(ParsedDemo parsed, string path) =>
+        RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty);
+
+    private CachedRun RunCut(ParsedDemo parsed, IReadOnlySet<string> cut, CollectorSet collectors)
     {
         (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
 
@@ -283,26 +299,29 @@ public sealed class MergedRulesBuild
         {
             if (_runs.TryGetValue(parsed, out CachedRun? cached) && string.Equals(cached.Off, off, StringComparison.Ordinal))
             {
-                if (cached.Recorded.IsSupersetOf(outputs))
+                if (cached.Recorded.IsSupersetOf(outputs) && cached.Collectors.IsSupersetOf(collectors))
                 {
-                    return cached.Run;
+                    return cached;
                 }
 
                 // Widened, not swapped, so two callers with different cuts cannot evict each other.
                 outputs.UnionWith(cached.Recorded);
+                collectors = collectors.Union(cached.Collectors);
             }
         }
 
-        BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs);
+        BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs, collectors);
         RulesetExclusionReport.Report(Log, build);
         DecodeSites.Enter(2);
-        AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
+        (AnalysisOptions options, CollectorObserver? observer) = collectors.Declare(new AnalysisOptions { CaptureSnapshots = false });
+        AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, options);
+        CachedRun fresh = new(off, outputs, collectors, run, observer?.Results ?? CollectorResults.None);
         lock (_gate)
         {
-            _runs.AddOrUpdate(parsed, new CachedRun(off, outputs, run));
+            _runs.AddOrUpdate(parsed, fresh);
         }
 
-        return run;
+        return fresh;
     }
 
     /// <summary>
@@ -382,7 +401,7 @@ public sealed class MergedRulesBuild
 
             if (reason is null)
             {
-                _runs.AddOrUpdate(parsed, new CachedRun(off, plan.Cut, run));
+                _runs.AddOrUpdate(parsed, new CachedRun(off, plan.Cut, CollectorSet.Empty, run, CollectorResults.None));
                 return true;
             }
         }
@@ -456,7 +475,7 @@ public sealed class MergedRulesBuild
         }
     }
 
-    private sealed record CachedRun(string Off, IReadOnlySet<string> Recorded, AnalysisRun Run);
+    private sealed record CachedRun(string Off, IReadOnlySet<string> Recorded, CollectorSet Collectors, AnalysisRun Run, CollectorResults Results);
 
     // The first registration of an id wins: the composition root lists core's before any extension's.
     private static IReadOnlyList<StampedRuleset> Distinct(IReadOnlyList<StampedRuleset> stamped) =>
