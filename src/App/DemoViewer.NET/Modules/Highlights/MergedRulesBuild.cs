@@ -277,13 +277,13 @@ public sealed class MergedRulesBuild
     ///     The bare run over a held parse recording every stamped output, evaluated once however many consumers
     ///     ask until <see cref="Forget" />.
     /// </summary>
-    public AnalysisRun BareRun(ParsedDemo parsed) => RunCut(parsed, StampedOutputs(), CollectorSet.Empty).Run;
+    public AnalysisRun BareRun(ParsedDemo parsed) => RunCut(parsed, StampedOutputs(), CollectorSet.Empty).Run!;
 
     /// <summary>
     ///     The bare run over a held parse of the demo at <paramref name="path" />, recording the cut
     ///     <see cref="OutputsFor" /> names. A cached run is served when it recorded at least that cut.
     /// </summary>
-    public AnalysisRun BareRun(ParsedDemo parsed, string path) => RunFor(parsed, path).Run;
+    public AnalysisRun BareRun(ParsedDemo parsed, string path) => RunFor(parsed, path).Run!;
 
     /// <summary>
     ///     What the collectors of the visit of <paramref name="path" /> put on its bare run, the run made first
@@ -291,6 +291,15 @@ public sealed class MergedRulesBuild
     /// </summary>
     internal CollectorResults Collected(ParsedDemo parsed, string path) =>
         RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty, false).Results;
+
+    /// <summary>True when an evaluated run is held for <paramref name="parsed" />, not just collector results. For tests.</summary>
+    internal bool HoldsRun(ParsedDemo parsed)
+    {
+        lock (_gate)
+        {
+            return _runs.TryGetValue(parsed, out CachedRun? cached) && cached.Run is not null;
+        }
+    }
 
     private CachedRun RunFor(ParsedDemo parsed, string path) =>
         RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty);
@@ -438,7 +447,8 @@ public sealed class MergedRulesBuild
             {
                 _runs.AddOrUpdate(parsed, collected is null
                     ? new CachedRun(off, plan.Cut, CollectorSet.Empty, run, CollectorResults.None)
-                    : new CachedRun(off, plan.Cut, plan.Collectors, run, collected));
+                    // An empty cut is served to collector readers only; the snapshot run is not kept for them.
+                    : new CachedRun(off, plan.Cut, plan.Collectors, plan.Cut.Count == 0 ? null : run, collected));
                 return true;
             }
         }
@@ -512,7 +522,8 @@ public sealed class MergedRulesBuild
         }
     }
 
-    private sealed record CachedRun(string Off, IReadOnlySet<string> Recorded, CollectorSet Collectors, AnalysisRun Run, CollectorResults Results);
+    // Run is null only on an entry that recorded no round_facts, which RunCut serves to collector readers alone.
+    private sealed record CachedRun(string Off, IReadOnlySet<string> Recorded, CollectorSet Collectors, AnalysisRun? Run, CollectorResults Results);
 
     // The first registration of an id wins: the composition root lists core's before any extension's.
     private static IReadOnlyList<StampedRuleset> Distinct(IReadOnlyList<StampedRuleset> stamped) =>

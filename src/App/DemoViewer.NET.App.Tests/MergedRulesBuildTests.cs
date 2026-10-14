@@ -667,6 +667,7 @@ public class MergedRulesBuildTests
             await Assert.That(seeded).IsTrue();
             await Assert.That(collected.Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
             await Assert.That(collected).IsSameReferenceAs(observer!.Results).Because("the visit read the open's collectors");
+            await Assert.That(build.HoldsRun(parsed)).IsFalse().Because("no rules reader can be served the open's run");
             await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run)
                 .Because("the open's run recorded no round_facts for a reader of the rules");
         }
