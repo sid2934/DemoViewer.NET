@@ -126,6 +126,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     private IReadOnlyList<DemoFrame>? _demoFrames;
 
     private string? _demoKey;
+    private OpenSeed? _openSeed;
 
     // Diagnostics-pillar logger (v0.6.0: the failure surfaces show clean text; this carries the
     // real exception). Lazy: the ambient factory is wired after construction.
@@ -727,9 +728,12 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     Evaluates the state graph for <paramref name="demo" /> and renders it. <paramref name="demoKey" />
     ///     (the SHA-256 of the demo's bytes) keys per-demo breakpoint persistence; <c>null</c> (tests, WASM,
     ///     or a caller without the bytes) runs in-memory only: no breakpoints are restored or saved.
+    ///     <paramref name="path" /> is the demo's file, when the open has one: a run that covers its stale
+    ///     stamped outputs can then serve the open's visit (<see cref="SeedOpenVisit" />).
     /// </summary>
-    public async Task RunAsync(ParsedDemo demo, string? demoKey = null)
+    public async Task RunAsync(ParsedDemo demo, string? demoKey = null, string? path = null)
     {
+        _openSeed = null;
         // One live evaluation at a time: a new run (reload, second demo, re-run) cancels the
         // in-flight one. The canceled run unwinds through its own OperationCanceledException
         // handler below; its cleared-at-entry state is exactly the clean "not analyzed" state.
@@ -774,7 +778,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // the builder then simply does not emit enemy_spotted and the visibility-gated aim
             // columns read zero, which is the same degraded shape as an unsupported demo source.
             VisibilityEngine? visibility = await LoadVisibilityEngineAsync(demo, runToken);
-            (BuildResult build, RuleConfigLoadResult loadedRules) = BuildFromConfig(demo, visibility);
+            (BuildResult build, RuleConfigLoadResult loadedRules, OpenRunPlan? plan) = BuildFromConfig(demo, visibility, path);
             RulesetExclusionReport.Report(DiagLog, build);
             // Diagnostics tab retention. The scanner is otherwise a discarded local
             // here; keep it (and the demo) so the Diagnostics profiling/re-run panels can read it for the session.
@@ -975,7 +979,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                 IsDiagnosticsOpen = true;
             }
 
-            EvaluationCompleted?.Invoke(run, demo);
+            if (plan?.Cut is not null && path is not null)
+            {
+                _openSeed = new OpenSeed(demo, path, plan, run);
+            }
+
+            // Stats and the open's highlight harvest read the core rulesets only, as on an unseeded open.
+            EvaluationCompleted?.Invoke(plan?.Shown(run) ?? run, demo);
 
             if (result.Messages.Count > 0)
             {
@@ -1257,8 +1267,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         return counts;
     }
 
-    private static (BuildResult Build, RuleConfigLoadResult Rules) BuildFromConfig(
-        ParsedDemo demo, VisibilityEngine? visibility)
+    private static (BuildResult Build, RuleConfigLoadResult Rules, OpenRunPlan? Plan) BuildFromConfig(
+        ParsedDemo demo, VisibilityEngine? visibility, string? path)
     {
         string shippedDir = RuleSetLocator.ResolveShippedRulesDirectory();
         // The user overlay needs a writable filesystem; the WASM host has none worth provisioning.
@@ -1274,25 +1284,53 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         {
             VisibilityEngine = visibility
         };
-        // Stamped rulesets run at index time; evaluating them here too would only cost time.
-        return (DemoAnalysis.Build(demo, CoreRulesets(rules.Rulesets), options), rules);
+        // Stamped rulesets run at index time. They join this run only when the open's visit would
+        // otherwise evaluate them again on the same parse.
+        if (MergedRules() is not { } merged)
+        {
+            return (DemoAnalysis.Build(demo, rules.Rulesets, options), rules, null);
+        }
+
+        OpenRunPlan plan = merged.PlanOpen(rules.Rulesets, path);
+        return (plan.Cuts(DemoAnalysis.Build(demo, plan.Docs, options)), rules, plan);
     }
 
     // The composition root's merged build knows which rulesets are stamped. In production there is
     // always a container here: BuildServices assigns App.Services before the shell exists, and only the
     // shell starts a run. A null or disposed container is the designer or a test, and then the read is
     // used as it is.
-    private static IReadOnlyList<RulesetDoc> CoreRulesets(IReadOnlyList<RulesetDoc> rulesets)
+    private static MergedRulesBuild? MergedRules()
     {
         try
         {
-            return App.Services?.GetService<MergedRulesBuild>()?.WithoutStampedRulesets(rulesets) ?? rulesets;
+            return App.Services?.GetService<MergedRulesBuild>();
         }
         catch (ObjectDisposedException)
         {
-            return rulesets;
+            return null;
         }
     }
+
+    /// <summary>
+    ///     Hands the last run to the open's visit as its rules run, when that run was planned to cover the
+    ///     demo's stale stamped outputs. Called right before the visit starts; true when the visit will read it.
+    /// </summary>
+    /// <param name="parsed">The open's parse.</param>
+    /// <param name="path">The open demo's file.</param>
+    public bool SeedOpenVisit(ParsedDemo parsed, string path)
+    {
+        OpenSeed? seed = _openSeed;
+        _openSeed = null;
+        if (seed is null || !ReferenceEquals(seed.Demo, parsed)
+                         || !string.Equals(seed.Path, path, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return MergedRules()?.Seed(parsed, path, seed.Plan, seed.Run) ?? false;
+    }
+
+    private sealed record OpenSeed(ParsedDemo Demo, string Path, OpenRunPlan Plan, AnalysisRun Run);
 
     /// <summary>
     ///     Loads the baked collision geometry for this demo's map, off the UI thread.
