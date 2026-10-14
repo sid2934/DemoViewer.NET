@@ -163,7 +163,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     public void Run(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        Evaluate(context.DemoPath, context.Parsed);
+        Evaluate(context.DemoPath, context.Parsed!);
     }
 
     /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>

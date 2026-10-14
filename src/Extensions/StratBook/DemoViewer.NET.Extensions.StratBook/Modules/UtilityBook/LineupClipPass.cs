@@ -58,7 +58,7 @@ public sealed class LineupClipPass : IExtensionPass, IDisposable
             _walked.Remove(context.DemoPath);
         }
 
-        _clips.RenderOn(context.DemoPath, context.Parsed, context.CancellationToken);
+        _clips.RenderOn(context.DemoPath, context.Parsed!, context.CancellationToken);
     }
 
     /// <inheritdoc />

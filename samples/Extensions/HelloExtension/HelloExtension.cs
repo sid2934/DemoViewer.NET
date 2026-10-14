@@ -251,7 +251,7 @@ public static class HelloFacts
 }
 
 /// <summary>
-///     Counts the frames of the demo the shell has open, on the parse its open already read, and keeps the count
+///     Counts the frames of the demo the shell has open, on whatever read its visit takes, and keeps the count
 ///     as the demo's own data: the next session finds it without reading the demo again, and so does a copy of
 ///     the demo at another path, since the data keys on the demo's content.
 /// </summary>
@@ -267,6 +267,8 @@ internal sealed class FrameCountPass(HelloTabViewModel tab, IExtensionDemoData d
 
     public bool ReadsUserCommands => false;
 
+    public PassRead Read => PassRead.Forward;
+
     /// <summary>The demo's frame count from the store's index, or null when it was never counted.</summary>
     public static int? Count(IExtensionDemoData data, string demoPath) =>
         data.Stamp(demoPath, Facet) is { } stamp && stamp.IsCurrent(Schema, Fingerprint) ? stamp.Count : null;
@@ -278,7 +280,7 @@ internal sealed class FrameCountPass(HelloTabViewModel tab, IExtensionDemoData d
 
     public void Run(IPassContext context)
     {
-        int frames = context.Parsed.Frames.Count;
+        int frames = context.FrameCount;
         data.Write(context.DemoPath, new DemoDataWrite(Facet, Schema, Fingerprint,
             System.Text.Encoding.UTF8.GetBytes($"{{\"frames\":{frames}}}")) { Count = frames });
     }

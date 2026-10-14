@@ -1,6 +1,9 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.AppTests.Extensions;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 
@@ -174,6 +177,34 @@ public class DemoVisitTests
                 .Because("a forward pass on a retained visit runs on the retained parse");
             await Assert.That(inputs.Where(i => i.Demo.Path == "/d/mixed.dem").All(i => i.Retained!.Plan.DecodesEverything)).IsTrue()
                 .Because("the retained pass reads player inputs");
+        }
+    }
+
+    [Test]
+    public async Task AVisitOfForwardExtensionPassesOnly_StaysForward()
+    {
+        int forwardReads = 0, parses = 0;
+        List<string> ran = [];
+        using DemoProcessingQueue queue = Queue(_ => Interlocked.Increment(ref parses), (_, _, _, _) =>
+        {
+            Interlocked.Increment(ref forwardReads);
+            return ForwardResult();
+        });
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        ExtensionPassHostTests.FakePass a = new() { PassName = "ext.a", Reads = PassRead.Forward, Ran = ran };
+        ExtensionPassHostTests.FakePass b = new() { PassName = "ext.b", Reads = PassRead.Forward, Ran = ran };
+
+        await queue.SubmitVisit(Visit(PassLevel.Background, null,
+            new ExtensionPassHost(a, [], guard, static () => false),
+            new ExtensionPassHost(b, ["ext.a"], guard, static () => false))).Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(forwardReads).IsEqualTo(1);
+            await Assert.That(parses).IsEqualTo(0).Because("no pass on the visit needs the retained parse");
+            await Assert.That(ran).IsEquivalentTo(["ext.a", "ext.b"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(a.Seen!.Parsed).IsNull();
+            await Assert.That(b.Seen!.FrameCount).IsEqualTo(10);
         }
     }
 

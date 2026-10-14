@@ -373,6 +373,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionPass.Interest(string! demoPath) -> DemoV
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.OnFailed(string! demoPath) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.OrderHint(string! demoPath) -> long
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.PriorityFor(string! demoPath) -> DemoViewer.NET.Extensions.Sdk.JobPriority
+DemoViewer.NET.Extensions.Sdk.IExtensionPass.Read.get -> DemoViewer.NET.Extensions.Sdk.PassRead
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.ReadsUserCommands.get -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.Run(DemoViewer.NET.Extensions.Sdk.IPassContext! context) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses
@@ -424,8 +425,13 @@ DemoViewer.NET.Extensions.Sdk.ILibraryContribution.HasBadge.get -> bool
 DemoViewer.NET.Extensions.Sdk.ILibraryContribution.SetLabel(DemoViewer.NET.Extensions.Sdk.LibraryDemo! demo, string? label) -> void
 DemoViewer.NET.Extensions.Sdk.IPassContext
 DemoViewer.NET.Extensions.Sdk.IPassContext.CancellationToken.get -> System.Threading.CancellationToken
+DemoViewer.NET.Extensions.Sdk.IPassContext.Demo.get -> CS2DemoKit.Parser.DemoDescriptor!
 DemoViewer.NET.Extensions.Sdk.IPassContext.DemoPath.get -> string!
-DemoViewer.NET.Extensions.Sdk.IPassContext.Parsed.get -> CS2DemoKit.Parser.ParsedDemo!
+DemoViewer.NET.Extensions.Sdk.IPassContext.FirstServerTick.get -> int
+DemoViewer.NET.Extensions.Sdk.IPassContext.FrameCount.get -> int
+DemoViewer.NET.Extensions.Sdk.IPassContext.LastServerTick.get -> int
+DemoViewer.NET.Extensions.Sdk.IPassContext.Parsed.get -> CS2DemoKit.Parser.ParsedDemo?
+DemoViewer.NET.Extensions.Sdk.IPassContext.Rounds.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.PassRound!>!
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.CountAsync() -> System.Threading.Tasks.Task<int>!
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.FeatureId.get -> string!
@@ -733,6 +739,18 @@ DemoViewer.NET.Extensions.Sdk.ManCountState
 DemoViewer.NET.Extensions.Sdk.ManCountState.CtUp = 1 -> DemoViewer.NET.Extensions.Sdk.ManCountState
 DemoViewer.NET.Extensions.Sdk.ManCountState.Even = 0 -> DemoViewer.NET.Extensions.Sdk.ManCountState
 DemoViewer.NET.Extensions.Sdk.ManCountState.TUp = 2 -> DemoViewer.NET.Extensions.Sdk.ManCountState
+DemoViewer.NET.Extensions.Sdk.PassRead
+DemoViewer.NET.Extensions.Sdk.PassRead.Forward = 1 -> DemoViewer.NET.Extensions.Sdk.PassRead
+DemoViewer.NET.Extensions.Sdk.PassRead.Retained = 0 -> DemoViewer.NET.Extensions.Sdk.PassRead
+DemoViewer.NET.Extensions.Sdk.PassRound
+DemoViewer.NET.Extensions.Sdk.PassRound.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.PassRound!
+DemoViewer.NET.Extensions.Sdk.PassRound.Deconstruct(out int Number, out int FreezeEndTick) -> void
+DemoViewer.NET.Extensions.Sdk.PassRound.Equals(DemoViewer.NET.Extensions.Sdk.PassRound? other) -> bool
+DemoViewer.NET.Extensions.Sdk.PassRound.FreezeEndTick.get -> int
+DemoViewer.NET.Extensions.Sdk.PassRound.FreezeEndTick.init -> void
+DemoViewer.NET.Extensions.Sdk.PassRound.Number.get -> int
+DemoViewer.NET.Extensions.Sdk.PassRound.Number.init -> void
+DemoViewer.NET.Extensions.Sdk.PassRound.PassRound(int Number, int FreezeEndTick) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.MenuFor(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand! band) -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry!>!
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.OnBandPressed(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand! band) -> void
@@ -1361,6 +1379,9 @@ override DemoViewer.NET.Extensions.Sdk.LibraryRound.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.PassRound.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.PassRound.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.PassRound.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.ToString() -> string!
@@ -1482,6 +1503,8 @@ static DemoViewer.NET.Extensions.Sdk.LibraryRound.operator !=(DemoViewer.NET.Ext
 static DemoViewer.NET.Extensions.Sdk.LibraryRound.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryRound? left, DemoViewer.NET.Extensions.Sdk.LibraryRound? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.operator !=(DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer? left, DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.operator ==(DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer? left, DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.PassRound.operator !=(DemoViewer.NET.Extensions.Sdk.PassRound? left, DemoViewer.NET.Extensions.Sdk.PassRound? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.PassRound.operator ==(DemoViewer.NET.Extensions.Sdk.PassRound? left, DemoViewer.NET.Extensions.Sdk.PassRound? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? left, DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? left, DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? right) -> bool

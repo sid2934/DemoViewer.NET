@@ -234,6 +234,11 @@ contributions.Pass("dev.example.rounds", () => rounds, HostIds.LibraryPass);
 `after` names the passes whose output yours reads: `HostIds.LibraryPass` for the demo's cache record and
 `HostIds.RoundFactsPass` for its per-round, per-side rows.
 
+A pass that needs only the demo's header, frame clock and rounds declares `Read => PassRead.Forward` and reads
+`context.Demo`, `FrameCount`, `FirstServerTick`, `LastServerTick` and `Rounds`; its `Parsed` is null. A visit
+whose passes all read forward streams the demo instead of holding the whole parse, so declare it when you can.
+A forward pass must answer false to `ReadsUserCommands`: the host refuses one that reads them.
+
 A job that names a demo joins that demo's visit: it runs after the passes on the same parse, or on the parse
 the shell already holds when the demo is open, and holds the parse until its task ends.
 
@@ -384,7 +389,7 @@ public DemoInterest Interest(string demoPath) =>
     data.Stamp(demoPath, "rounds") is { } stamp && stamp.IsCurrent(Schema, Fingerprint) ? DemoInterest.No : DemoInterest.Yes;
 
 public void Run(IPassContext context) =>
-    data.Write(context.DemoPath, new DemoDataWrite("rounds", Schema, Fingerprint, Serialize(Compute(context.Parsed))) { Count = rows });
+    data.Write(context.DemoPath, new DemoDataWrite("rounds", Schema, Fingerprint, Serialize(Compute(context.Parsed!))) { Count = rows });
 
 byte[]? payload = data.Read(demoPath, "rounds", Schema, Fingerprint);
 ```
