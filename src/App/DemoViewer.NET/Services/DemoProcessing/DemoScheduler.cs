@@ -288,16 +288,15 @@ public sealed class DemoScheduler : IDisposable
         bool userRequested = level >= PassLevel.UserRequested;
         lock (_lock)
         {
-            // The queue's Completion source is RunContinuationsAsynchronously (it completes under the
-            // queue's own lock), so the ContinueWith below that clears _planQueued can lag well behind
-            // the item's own task reaching IsCompleted. Trust IsCompleted first: it flips synchronously
-            // the moment a removed-before-start item is cancelled, the ContinueWith does not.
+            // IsCompleted flips the moment a removed-before-start item is cancelled; the ContinueWith
+            // below that clears _planQueued runs later, on the pool, so it cannot be trusted alone.
             if (_planQueued && !userRequested && _planTask?.IsCompleted != true)
             {
                 return;
             }
 
             _planQueued = true;
+            _planTask = null; // cleared until the real task is assigned, so no racing caller reads a stale completed one
         }
 
         // A planning item the user removes before it starts never drains; the next mark must still queue one.
@@ -320,7 +319,12 @@ public sealed class DemoScheduler : IDisposable
             {
                 lock (_lock)
                 {
-                    _planQueued = false;
+                    // Only clear the flag for this task: a later Schedule may already have moved
+                    // _planTask on to the item that replaced this removed one.
+                    if (ReferenceEquals(_planTask, task))
+                    {
+                        _planQueued = false;
+                    }
                 }
             }
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
