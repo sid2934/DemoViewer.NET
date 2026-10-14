@@ -303,6 +303,17 @@ asked again when the hash lands, since that changes the row. A record pass runs 
 row changes. One that throws is skipped for that demo for the
 rest of the session and counted against the extension.
 
+A record pass that reads analysis facts names them after the factory:
+
+```csharp
+contributions.RecordPass("dev.example.kast", () => new KastPass(), new FactKey("kast", "kast_game_totals"));
+```
+
+The host then holds the pass on a demo until each named ruleset has written it, and runs it again when one of
+those writes moves, not on other changes to the row. A ruleset writes all its tables at once, so naming one of
+them re-runs the pass on any. A key that is not in `Facts.Declared` when the host first takes the pass, or a
+scoreboard key, refuses the pass for the session and is reported against the extension.
+
 ## Analysis facts
 
 `context.Library.Facts` is every analysis output the library holds: the highlights its scan found

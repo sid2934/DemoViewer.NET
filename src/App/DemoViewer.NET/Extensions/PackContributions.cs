@@ -132,11 +132,17 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     }
 
     /// <inheritdoc />
-    public void RecordPass(string id, Func<IExtensionRecordPass> factory)
+    public void RecordPass(string id, Func<IExtensionRecordPass> factory, params FactKey[] dependsOn)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
-        _recordPasses.Add(new RecordPassContribution(id, factory, _guard));
+        ArgumentNullException.ThrowIfNull(dependsOn);
+        foreach (FactKey key in dependsOn)
+        {
+            ArgumentNullException.ThrowIfNull(key, nameof(dependsOn));
+        }
+
+        _recordPasses.Add(new RecordPassContribution(id, factory, _guard, [.. dependsOn.Distinct()]));
     }
 
     // The registry calls the factory on every resolve. One host per pass instance keeps the identity a visit
