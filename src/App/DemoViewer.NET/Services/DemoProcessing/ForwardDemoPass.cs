@@ -8,6 +8,7 @@ using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
 
@@ -39,6 +40,9 @@ public sealed class ForwardDemoResult
     public required int LastServerTick { get; init; }
     public FinalTeamState? FinalState { get; init; }
     public AnalysisRun? Run { get; init; }
+
+    /// <summary>What the read's collectors put; empty when it carried none.</summary>
+    internal CollectorResults Collected { get; init; } = CollectorResults.None;
 }
 
 /// <summary>The scoreboard state at the last frame, as the library card stores it.</summary>
@@ -146,11 +150,19 @@ public static class ForwardDemoPass
     /// </summary>
     public static BuildResult Build(DemoReader reader, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs = null,
         CancellationToken cancellationToken = default) =>
-        CutOutputs(DemoAnalysis.Build(reader, docs, new AnalysisOptions { CancellationToken = cancellationToken }), outputs);
+        Build(reader, docs, outputs, CollectorSet.Empty, cancellationToken);
 
     /// <inheritdoc cref="Build(DemoReader, IReadOnlyList{RulesetDoc}, IReadOnlySet{string}, CancellationToken)" />
     public static BuildResult Build(ParsedDemo parsed, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs = null) =>
-        CutOutputs(DemoAnalysis.Build(parsed, docs), outputs);
+        Build(parsed, docs, outputs, CollectorSet.Empty);
+
+    // The observed reads must reach the build: it activates their columns, and the run's view refuses any other.
+    internal static BuildResult Build(DemoReader reader, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs,
+        CollectorSet collectors, CancellationToken cancellationToken = default) =>
+        CutOutputs(DemoAnalysis.Build(reader, docs, collectors.DeclareReads(new AnalysisOptions { CancellationToken = cancellationToken })), outputs);
+
+    internal static BuildResult Build(ParsedDemo parsed, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs, CollectorSet collectors) =>
+        CutOutputs(DemoAnalysis.Build(parsed, docs, collectors.DeclareReads(new AnalysisOptions())), outputs);
 
     private static BuildResult CutOutputs(BuildResult build, IReadOnlySet<string>? outputs) => build with
     {
@@ -197,26 +209,48 @@ public static class ForwardDemoPass
         IReadOnlyList<RulesetDoc>? docs,
         Action<double>? progress = null,
         IReadOnlySet<string>? outputs = null,
+        CancellationToken cancellationToken = default) =>
+        Run(reader, needs, docs, progress, outputs, CollectorSet.Empty, cancellationToken);
+
+    /// <summary>
+    ///     <see cref="Run(DemoReader, ForwardNeeds, IReadOnlyList{RulesetDoc}, Action{double}, IReadOnlySet{string}, CancellationToken)" />
+    ///     with <paramref name="collectors" /> on the rules run. Collectors ride only a rules run, so they need
+    ///     <see cref="ForwardNeeds.Rules" />.
+    /// </summary>
+    internal static ForwardDemoResult Run(
+        DemoReader reader,
+        ForwardNeeds needs,
+        IReadOnlyList<RulesetDoc>? docs,
+        Action<double>? progress,
+        IReadOnlySet<string>? outputs,
+        CollectorSet collectors,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reader);
+        if (!collectors.IsEmpty && (needs & ForwardNeeds.Rules) == 0)
+        {
+            throw new ArgumentException("collectors ride the rules run; the read does not make one", nameof(collectors));
+        }
 
         // Build before Configure: the build probes the dialect, which needs the reader unstarted.
         BuildResult? build = (needs & ForwardNeeds.Rules) != 0
-            ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)), outputs, cancellationToken)
+            ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)), outputs, collectors, cancellationToken)
             : null;
         reader.Configure(PlanFor(build, needs));
 
         Tap tap = new(reader, (needs & ForwardNeeds.FinalState) != 0 ? FinalTeamState.NewTracker() : null,
             progress, cancellationToken);
         AnalysisRun? run = null;
+        CollectorObserver? observer = null;
         if (build is not null)
         {
-            run = DemoAnalysis.Evaluate(tap, build, new AnalysisOptions
+            AnalysisOptions options;
+            (options, observer) = collectors.Declare(new AnalysisOptions
             {
                 CaptureSnapshots = false,
                 CancellationToken = cancellationToken
             });
+            run = DemoAnalysis.Evaluate(tap, build, options);
         }
         else
         {
@@ -237,7 +271,8 @@ public static class ForwardDemoPass
             FinalState = tap.Tracker is null ? null
                 : tap.Frames == 0 ? FinalTeamState.Empty()
                 : FinalTeamState.Read(tap.Tracker, demo.Players.Keys),
-            Run = run
+            Run = run,
+            Collected = observer?.Results ?? CollectorResults.None
         };
     }
 

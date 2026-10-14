@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
 
@@ -205,6 +206,29 @@ public class DemoVisitTests
             await Assert.That(ran).IsEquivalentTo(["ext.a", "ext.b"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
             await Assert.That(a.Seen!.Parsed).IsNull();
             await Assert.That(b.Seen!.FrameCount).IsEqualTo(10);
+        }
+    }
+
+    [Test]
+    public async Task TheVisitUnionsCollectorsBeforeTheFirstBareRun()
+    {
+        CollectorSet? seen = null;
+        using DemoProcessingQueue queue = Queue();
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        // A host pass that runs first and reads the rules run, as the highlights scan does.
+        FakePass first = new("host.rules") { OnRun = _ => seen = queue.CollectorsFor(Demo) };
+        ExtensionPassHost a = new(new ExtensionPassHostTests.FakePass { PassName = "ext.a" }, ["host.rules"], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.a", "ext.a"), guard)]));
+        ExtensionPassHost b = new(new ExtensionPassHostTests.FakePass { PassName = "ext.b" }, ["host.rules"], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.b", "ext.b"), guard)]));
+
+        await queue.SubmitVisit(Visit(PassLevel.Background, null, b, first, a)).Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(seen?.All.Select(c => c.Id)).IsEquivalentTo(["c.a", "c.b"])
+                .Because("the run the first pass makes must carry every collector on the visit");
+            await Assert.That(queue.CollectorsFor(Demo).IsEmpty).IsTrue().Because("the visit ended");
         }
     }
 

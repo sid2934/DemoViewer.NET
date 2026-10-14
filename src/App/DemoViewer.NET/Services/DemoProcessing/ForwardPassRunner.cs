@@ -3,6 +3,7 @@
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -32,6 +33,9 @@ public sealed class ForwardPassRunner
     /// </summary>
     public Func<string, IReadOnlySet<string>?>? OutputsFor { get; init; }
 
+    /// <summary>The collectors the visit of a demo carries, by its path. Null carries none.</summary>
+    internal Func<string, CollectorSet>? CollectorsFor { get; init; }
+
     /// <summary>How a demo is read, and where the content hash taken from that read goes. Null hashes nothing.</summary>
     public DemoFileRead? FileRead { get; init; }
 
@@ -45,9 +49,10 @@ public sealed class ForwardPassRunner
         // Same rule as the retained parse: only a settled local file is mapped.
         byte[]? bytes = (FileRead ?? new DemoFileRead(_time, null, null)).Prepare(path, cancellationToken);
         using DemoReader reader = bytes is null ? DemoReader.OpenFile(path, options) : DemoReader.Open(bytes, options);
-        ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs,
-            (needs & ForwardNeeds.Rules) != 0 ? _rules.Docs : null, progress,
-            (needs & ForwardNeeds.Rules) != 0 ? OutputsFor?.Invoke(path) : null, cancellationToken);
+        bool rules = (needs & ForwardNeeds.Rules) != 0;
+        ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs, rules ? _rules.Docs : null, progress,
+            rules ? OutputsFor?.Invoke(path) : null,
+            rules ? CollectorsFor?.Invoke(path) ?? CollectorSet.Empty : CollectorSet.Empty, cancellationToken);
         if (pass.Run is { } run)
         {
             RulesetExclusionReport.Report(Log, run.Build);

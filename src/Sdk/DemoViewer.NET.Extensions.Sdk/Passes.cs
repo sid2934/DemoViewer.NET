@@ -68,6 +68,13 @@ public interface IPassContext
     ///     <see cref="OperationCanceledException" /> to end the turn.
     /// </summary>
     CancellationToken CancellationToken { get; }
+
+    /// <summary>
+    ///     What the collector <paramref name="collectorId" /> put on this demo's rules run, the run made first if the
+    ///     visit has not made one yet. Null when it put nothing. Throws when the collector failed on this demo, or is
+    ///     not one of this pass's.
+    /// </summary>
+    T? Collected<T>(string collectorId) where T : class;
 }
 
 /// <summary>
