@@ -30,8 +30,10 @@ public interface IExtensionContributions
     ///     <para>
     ///         A pass that names facts in <paramref name="dependsOn" /> waits until each named ruleset has written
     ///         the demo, then runs again exactly when one of those writes moves, not on other changes to the row.
-    ///         A ruleset's outputs share one write, so naming one table re-runs on any of its tables. A key the
-    ///         host does not declare (<see cref="IAnalysisFacts.Declared" />), or a scoreboard, refuses the pass.
+    ///         A ruleset's outputs share one write, so naming one table re-runs on any of its tables. While a
+    ///         named ruleset is off (its extension off, or its doc disabled) the pass waits. A key no ruleset on
+    ///         now declares (<see cref="IAnalysisFacts.Declared" />), round facts, or a scoreboard refuses the pass
+    ///         until that changes.
     ///     </para>
     /// </summary>
     /// <param name="id">The pass's <see cref="IExtensionRecordPass.Id" />.</param>

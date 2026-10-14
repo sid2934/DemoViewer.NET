@@ -26,8 +26,11 @@ public interface IRecordPass
     /// </summary>
     IReadOnlyList<string> InputStamps => [];
 
-    /// <summary>Why the runner must not take the pass, or null. Asked once per pass id, the first time the runner meets it.</summary>
+    /// <summary>Why the runner must not take the pass, or null. Asked on every run; a reason is reported once until it changes.</summary>
     string? Refusal() => null;
+
+    /// <summary>True while an input the pass reads is switched off: the pass waits, unreported, until it is on again.</summary>
+    bool InputsOff() => false;
 
     /// <summary>Whether the demo behind <paramref name="entry" /> needs the pass. Answer from the row and memory only.</summary>
     bool Wants(DemoCacheIndexEntry entry);
@@ -42,7 +45,8 @@ public interface IRecordPass
 ///     capacity-1 cache. A pass does not run twice on one row object: the store replaces the row on every
 ///     write, so a pass runs again exactly when the demo's row changed. A pass that names
 ///     <see cref="IRecordPass.InputStamps" /> is keyed on those stamps instead of the row. A pass with a
-///     <see cref="IRecordPass.Refusal" /> is reported once and never run. A demo held at several paths is one
+///     <see cref="IRecordPass.Refusal" /> or <see cref="IRecordPass.InputsOff" /> is skipped for the run; both are asked
+///     again on the next run, so a pass held while another extension was off is taken once it comes on. A demo held at several paths is one
 ///     demo: it is visited, run and faulted once, through its primary path.
 ///     <para>
 ///         A row written by an index older than version 3 carries no side players. When a pass reads such a
@@ -65,7 +69,7 @@ public sealed class RecordPassRunner : IDisposable
     private readonly HashSet<(string Pass, string Demo)> _faulted = new(PassDemoKeyComparer.Instance);
     private readonly Dictionary<(string Pass, string Demo), DemoCacheIndexEntry> _ranOn = new(PassDemoKeyComparer.Instance);
     private readonly Dictionary<(string Pass, string Demo), PackStamp[]> _ranOnInputs = new(PassDemoKeyComparer.Instance);
-    private readonly Dictionary<string, bool> _taken = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> _refused = new(StringComparer.Ordinal);
     private readonly Func<IReadOnlyList<IRecordPass>> _passes;
     private readonly IDemoProcessingQueue? _queue;
     private readonly DemoCacheStore _store;
@@ -241,7 +245,7 @@ public sealed class RecordPassRunner : IDisposable
                 HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
                 batch = [.. batch.Where(p => seen.Add(_store.DemoKeyOf(p)))];
 
-                IReadOnlyList<IRecordPass> passes = _passes();
+                List<IRecordPass> passes = Taken(_passes());
                 if (passes.Count == 0)
                 {
                     continue;
@@ -350,11 +354,6 @@ public sealed class RecordPassRunner : IDisposable
         List<IRecordPass> wanting = [];
         foreach (IRecordPass pass in passes)
         {
-            if (!Taken(pass))
-            {
-                continue;
-            }
-
             PackStamp[]? inputs = InputsOn(pass, entry);
             if (pass.InputStamps.Count > 0 && inputs is null)
             {
@@ -421,40 +420,50 @@ public sealed class RecordPassRunner : IDisposable
         return stamps;
     }
 
-    private bool Taken(IRecordPass pass)
+    // The passes this run takes. A refusal is reported when its reason is new, so a pass is not reported on every run.
+    private List<IRecordPass> Taken(IReadOnlyList<IRecordPass> passes)
     {
-        lock (_lock)
+        List<IRecordPass> taken = [];
+        foreach (IRecordPass pass in passes)
         {
-            if (_taken.TryGetValue(pass.Id, out bool taken))
+            Exception? refusal;
+            bool off = false;
+            try
             {
-                return taken;
+                refusal = pass.Refusal() is { } reason ? new InvalidOperationException(reason) : null;
+                off = refusal is null && pass.InputsOff();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                refusal = ex;
+            }
+
+            bool report;
+            lock (_lock)
+            {
+                if (refusal is null)
+                {
+                    _refused.Remove(pass.Id);
+                    report = false;
+                }
+                else
+                {
+                    report = !(_refused.TryGetValue(pass.Id, out string? last) && string.Equals(last, refusal.Message, StringComparison.Ordinal));
+                    _refused[pass.Id] = refusal.Message;
+                }
+            }
+
+            if (report)
+            {
+                Report(pass, null, refusal!);
+            }
+            else if (refusal is null && !off)
+            {
+                taken.Add(pass);
             }
         }
 
-        Exception? refusal;
-        try
-        {
-            refusal = pass.Refusal() is { } reason ? new InvalidOperationException(reason) : null;
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            refusal = ex;
-        }
-
-        lock (_lock)
-        {
-            if (!_taken.TryAdd(pass.Id, refusal is null))
-            {
-                return _taken[pass.Id];
-            }
-        }
-
-        if (refusal is not null)
-        {
-            Report(pass, null, refusal);
-        }
-
-        return refusal is null;
+        return taken;
     }
 
     private void Report(IRecordPass? pass, string? path, Exception exception)

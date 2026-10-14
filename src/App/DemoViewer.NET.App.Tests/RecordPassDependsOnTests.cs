@@ -13,7 +13,8 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     A record pass registered with <c>dependsOn</c> is held until the named facts are written, runs again when
-///     their stamp moves and not on other row writes, and is refused when it names a key the library does not write.
+///     their stamp moves and not on other row writes, waits unreported while a named ruleset is off, and is refused
+///     when it names a key the library does not write.
 /// </summary>
 [NotInParallel]
 public class RecordPassDependsOnTests
@@ -132,6 +133,40 @@ public class RecordPassDependsOnTests
         await Assert.That(faults.Order()).IsEquivalentTo(Refusals);
     }
 
+    [Test]
+    public async Task APassWaitingOnAnOffRuleset_RunsOnceItComesOn()
+    {
+        using DemoProcessingQueue queue = Queue();
+        DemoCacheStore store = new(null);
+        FactKey detonations = new("util", "detonations");
+        SwitchedFacts facts = new(detonations);
+        PackContributions contributions = new(new HostLibraryTests.LibraryTestExtension(),
+            () => throw new NotSupportedException("record passes read no context"));
+        HostLibrary library = new(store, null, () => false, _ => { }, () => facts);
+        SdkPass reader = new("test.library.reader");
+        SdkPass barrier = new("test.library.barrier");
+        contributions.RecordPass(reader.Id, () => reader, detonations);
+        contributions.RecordPass(barrier.Id, () => barrier);
+        List<IRecordPass> passes = Resolve(contributions, library);
+        ConcurrentQueue<string> faults = new();
+        using RecordPassRunner runner = new(() => passes, store, queue)
+        {
+            Faulted = (pass, _, ex) => faults.Enqueue(pass.Id + ": " + ex.Message)
+        };
+
+        store.Upsert(HostLibraryTests.Parsed(Demo));
+        await WaitFor(() => barrier.Seen.Count == 1, "the row");
+        Stamp(store, "util", 1);
+        await WaitFor(() => barrier.Seen.Count == 2, "the facts write");
+        await Assert.That(reader.Seen.Count).IsEqualTo(0).Because("the ruleset's owner is off");
+        await Assert.That(faults).IsEmpty().Because("an off ruleset holds the pass, it does not refuse it");
+
+        facts.On = true;
+        runner.RecheckAll();
+        await WaitFor(() => reader.Seen.Count == 1, "the ruleset coming on");
+        await Assert.That(faults).IsEmpty();
+    }
+
     private sealed class SdkPass(string id) : IExtensionRecordPass
     {
         public ConcurrentQueue<LibraryDemoDetail> Seen { get; } = new();
@@ -143,7 +178,30 @@ public class RecordPassDependsOnTests
         public void Run(LibraryDemoDetail detail, CancellationToken cancellationToken) => Seen.Enqueue(detail);
     }
 
-    private sealed class DeclaredFacts(IReadOnlyList<FactKey> declared) : IAnalysisFacts
+    private sealed class SwitchedFacts(FactKey key) : IAnalysisFacts, IFactsVisibility
+    {
+        public volatile bool On;
+
+        public IReadOnlyList<FactKey> Declared => On ? [key] : [];
+
+        public IRoundFacts RoundFacts => NoFacts.Instance;
+
+        public string ShownKey => On ? key.RulesetId : "";
+
+        public bool Shows(string stampId) => true;
+
+        public bool IsOff(string rulesetId) => !On && string.Equals(rulesetId, key.RulesetId, StringComparison.Ordinal);
+
+        public FactStatus Status(string demoPath, FactKey k) => FactStatus.Absent;
+
+        public bool IsCurrent(string demoPath, FactKey k) => false;
+
+        public FactTable? TryGet(string demoPath, FactKey k) => null;
+
+        public IReadOnlyList<LibraryHighlight> Highlights(string demoPath) => [];
+    }
+
+        private sealed class DeclaredFacts(IReadOnlyList<FactKey> declared) : IAnalysisFacts
     {
         public IReadOnlyList<FactKey> Declared => declared;
 
