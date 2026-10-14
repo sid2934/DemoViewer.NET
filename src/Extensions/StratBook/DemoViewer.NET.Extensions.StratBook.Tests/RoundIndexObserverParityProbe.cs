@@ -105,7 +105,8 @@ public class RoundIndexObserverParityProbe
     {
         _hostAlive = hostAlive;
         string root = DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("no repo root");
-        string[] demos = [.. Directory.EnumerateFiles(Path.Combine(root, "demos", "benchmarks"), "*.dem").Order(StringComparer.Ordinal)];
+        string folder = Path.Combine(root, "demos", "benchmarks");
+        string[] demos = Directory.Exists(folder) ? [.. Directory.EnumerateFiles(folder, "*.dem").Order(StringComparer.Ordinal)] : [];
         string path = which < demos.Length ? demos[which] : throw new SkipTestException($"fewer than {which + 1} benchmark demos");
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         int stride = RoundIndexOptions.Default.FrameStride;
