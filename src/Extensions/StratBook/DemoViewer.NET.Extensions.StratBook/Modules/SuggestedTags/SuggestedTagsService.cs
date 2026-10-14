@@ -44,7 +44,7 @@ public sealed record TagInstanceEdit(
 ///     the occupancy source and the walk is the exception.
 ///     <para>
 ///         Per demo: occupancy from a current <c>.dvri.json</c>, else the walk over the held parse; the
-///         detonations placed by zones, then the index's place snap, then the walk's sparse cloud;
+///         detonations placed by zones, then the index's place snap, then the sparse cloud;
 ///         the five detectors in the profile's order; the proposals file written; and the
 ///         record stamped with the detector-set fingerprint and the pending count, stamp last so a crash
 ///         leaves "not built". Everything needs Round Facts rows; a demo without them is
@@ -734,8 +734,8 @@ public sealed class SuggestedTagsService : IExtensionPass
 
     /// <summary>
     ///     Builds a demo's occupancy and placed events: the index when it is current for the map, else
-    ///     the walk (both give the same rows); only the walk leaves a cloud behind for
-    ///     detonation placement. Internal so the tuning view's re-run harness can reuse it.
+    ///     the walk (both give the same rows). The detonation cloud comes from the index's positions file or
+    ///     from the walk. Internal so the tuning view's re-run harness can reuse it.
     /// </summary>
     /// <param name="path">The demo's path (the index sidecar and the zone/place lookups key by it).</param>
     /// <param name="map">The map, resolved.</param>
@@ -749,12 +749,17 @@ public sealed class SuggestedTagsService : IExtensionPass
         IReadOnlyList<RoundOccupancy> rounds;
         DetonationCloud? cloud = null;
         string source;
-        if (_index is not null && _indexSources is not null
-                               && _index.IsCurrent(path, _indexSources.FingerprintFor(map))
+        string? indexFingerprint = _indexSources?.FingerprintFor(map);
+        if (_index is not null && indexFingerprint is not null
+                               && _index.IsCurrent(path, indexFingerprint)
                                && _index.TryRead(path) is { } indexDocument)
         {
             rounds = RoundOccupancyBuilder.FromIndex(indexDocument, facts, tickRate);
             source = ProposalDocument.FromRoundIndex;
+            if (_index.TryReadPositions(path, indexFingerprint, record.Sha256) is { } positions)
+            {
+                cloud = DetonationCloud.FromPositions(positions);
+            }
         }
         else
         {
