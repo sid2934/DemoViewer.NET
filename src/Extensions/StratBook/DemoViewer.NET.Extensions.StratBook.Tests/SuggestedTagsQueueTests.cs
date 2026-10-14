@@ -6,7 +6,9 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Review;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
+using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.Sdk.Playback;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
@@ -51,6 +53,45 @@ public class SuggestedTagsQueueTests
         SuggestionQueueViewModel queue = new(h.Service, track, seeks.Add, () => 64, static a => a());
         queue.Attach(DemoPath, Sha);
         return (h, queue, track, seeks);
+    }
+
+    [Test]
+    public async Task AnOpenDemoWithTheSweepOff_ReadsTheIndexNotTheWalk()
+    {
+        using SuggestedTagsReviewHarness h = new();
+        h.Seed();
+        RoundIndexStore index = new(h.Cache.Data());
+        RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Pawn);
+        int walks = 0;
+        SuggestedTagsService service = new(h.Cache.Library(), h.Cache.RoundFacts(), h.Proposals, h.Tags, h.Regions,
+            () => DetectorProfile.Default, () => true, () => false, index, sources, openDemo: () => DemoPath,
+            walk: _ =>
+            {
+                walks++;
+                return [];
+            });
+        // The pack's wiring: the index is wanted wherever Suggested Tags wants the demo.
+        RoundIndexEvaluator roundIndex = new(h.Cache.Library(), h.Cache.RoundFacts(), index, sources, () => false,
+            walk: _ => Walk(), wantedDownstream: path => service.Interest(path) != DemoInterest.No);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(service.Wants(DemoPath)).IsTrue().Because("the open demo is evaluated with the sweep off");
+            await Assert.That(roundIndex.Wants(DemoPath)).IsTrue().Because("Suggested Tags reads the index for it");
+        }
+
+        // The visit's order: the index first, then Suggested Tags on the same parse.
+        CS2DemoKit.Parser.ParsedDemo parsed = Parse();
+        roundIndex.Evaluate(DemoPath, parsed);
+        service.Evaluate(DemoPath, parsed);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(walks).IsEqualTo(0).Because("the index written on the visit is current, so the walk is not reached");
+            await Assert.That(h.Proposals.TryRead(DemoPath)?.OccupancySource).IsEqualTo(ProposalDocument.FromRoundIndex);
+            await Assert.That(service.Wants(DemoPath)).IsFalse();
+            await Assert.That(roundIndex.Wants(DemoPath)).IsFalse();
+        }
     }
 
     [Test]
