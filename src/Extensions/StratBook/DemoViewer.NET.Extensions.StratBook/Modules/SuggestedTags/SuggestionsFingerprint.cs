@@ -9,8 +9,8 @@ using System.Text;
 namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 
 /// <summary>
-///     The detector-set fingerprint: SHA-256 of the profile's JSON, the site
-///     region table in force for the map, and the detector code version. Any of the three moving marks
+///     The detector-set fingerprint: SHA-256 of the profile's JSON, the site region table in force for
+///     the map, the detector code version and the occupancy strategy. Any of them moving marks
 ///     every proposals file on the map stale, so <see cref="SuggestedTagsService.Wants" /> asks for a
 ///     rebuild; verdicts are keyed by proposal identity and are untouched.
 /// </summary>
@@ -21,6 +21,12 @@ public static class SuggestionsFingerprint
     ///     the regions cannot express: every demo's proposals are then rebuilt once.
     /// </summary>
     public const int DetectorCodeVersion = 1;
+
+    /// <summary>
+    ///     Where occupancy and the detonation cloud come from. Proposals written from the walk on an open
+    ///     demo predate this term, so they read stale and are rebuilt from the index.
+    /// </summary>
+    public const string OccupancyStrategy = "occupancy=round-index;cloud=positions";
 
     /// <summary>The fingerprint, lowercase hex.</summary>
     /// <param name="profile">The profile in force.</param>
@@ -33,6 +39,8 @@ public static class SuggestionsFingerprint
             .Append(DetectorCodeVersion.ToString(CultureInfo.InvariantCulture))
             .Append('/')
             .Append(ProposalDocument.CurrentSchemaVersion.ToString(CultureInfo.InvariantCulture))
+            .Append('\n')
+            .Append(OccupancyStrategy)
             .Append('\n')
             .Append(profile.ToJson())
             .Append('\n')
