@@ -25,9 +25,9 @@ public class SingleWalkVisitProbe
         string demo = Require("SW_DEMO");
         string scenario = Require("SW_VISIT");
         string root = Require("SW_CONFIG_ROOT");
-        if (scenario is not (SingleWalkSession.Sweep or SingleWalkSession.Open))
+        if (scenario is not (SingleWalkSession.Sweep or SingleWalkSession.Open or SingleWalkSession.OpenStale))
         {
-            throw new ArgumentException($"SW_VISIT must be {SingleWalkSession.Sweep} or {SingleWalkSession.Open}, not {scenario}");
+            throw new ArgumentException($"SW_VISIT must be {SingleWalkSession.Sweep}, {SingleWalkSession.Open} or {SingleWalkSession.OpenStale}, not {scenario}");
         }
 
         string config = Path.Combine(root, "sw-" + Guid.NewGuid().ToString("N"));

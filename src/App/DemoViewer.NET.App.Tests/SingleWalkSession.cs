@@ -7,7 +7,9 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using AppSites = DemoViewer.NET.Services.DemoProcessing.DecodeSites;
@@ -22,13 +24,15 @@ namespace DemoViewer.NET.AppTests;
 ///     single-walk oracle and harness. <c>sweep</c> imports the demo with every background pass on, so the
 ///     queue runs one retained visit with every stamp absent. <c>open</c> imports it with every sweep off,
 ///     then opens it through the shell: its rules run, the scoreboard write, then the open's visit on the
-///     parse in hand, with no round index on disk.
+///     parse in hand, with no round index on disk. <c>open-stale</c> is <c>open</c> with the round facts and
+///     facts stamps cleared before the open, so the open's visit has a rules consumer to serve.
 ///     Linked into the Strat Book tests.
 /// </summary>
 internal static class SingleWalkSession
 {
     public const string Sweep = "sweep";
     public const string Open = "open";
+    public const string OpenStale = "open-stale";
 
     /// <summary>The shell's own rules run on an open. Not one of the plan's seven sites.</summary>
     public const int ShellRulesSite = 8;
@@ -168,6 +172,10 @@ internal static class SingleWalkSession
                 await SettleAsync(queue);
                 scheduler.RecheckAll();
                 await SettleAsync(queue);
+                if (scenario == OpenStale)
+                {
+                    ClearRulesStamps(provider.GetRequiredService<DemoCacheStore>(), demo);
+                }
 
                 // The real open: the shell's own rules run and scoreboard write, then the open's visit.
                 MainViewModel shell = provider.GetRequiredService<MainViewModel>();
@@ -238,6 +246,19 @@ internal static class SingleWalkSession
         visit.Reads = queue.ParseCount(demo);
         return visit;
     }
+
+    // The stamps whose rows come out of a rules run: round facts and every facts ruleset.
+    private static void ClearRulesStamps(DemoCacheStore cache, string demo) =>
+        cache.UpdateExisting(demo, r =>
+        {
+            foreach (PackStamp stamp in r.PackStamps.ToList())
+            {
+                if (stamp.Id == RoundFactsEvaluator.EvaluatorId || stamp.Id.StartsWith(StampedFacts.StampId(""), StringComparison.Ordinal))
+                {
+                    r.SetStamp(stamp with { Fingerprint = null });
+                }
+            }
+        });
 
     /// <summary>Reads the demo once and drops it, so every trial starts on a warm page cache.</summary>
     public static void WarmPageCache(string demo)

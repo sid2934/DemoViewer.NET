@@ -15,6 +15,8 @@
 # --visits   Scenarios, comma separated. sweep: import with every background pass on, every stamp absent.
 #            open: imported with the sweeps off, then opened through the shell; the whole open is
 #            measured: read, parse, the shell's rules run and scoreboard write, then the open's visit.
+#            open-stale: open with the round facts and facts stamps cleared first, so the open's visit
+#            writes them.
 # --trials   Measured trials per demo, scenario and arm. Default 3, after one discarded trial.
 #
 # One heavy job at a time on a 16 GB machine: run the whole script under the machine's heavy-job lock,
