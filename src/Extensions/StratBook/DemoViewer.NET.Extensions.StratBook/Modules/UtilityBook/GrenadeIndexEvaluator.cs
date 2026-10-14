@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook;
 using Microsoft.Extensions.Logging;
 
@@ -48,6 +49,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
 
     // Test seam: the walk for a parse. Null is the real walker; a synthetic parse has no entities to walk.
     private readonly Func<ParsedDemo, GrenadeWalk>? _walk;
+    private readonly Func<string, ParsedDemo, int, IEnumerable<ProjectileSample>>? _projectiles;
 
     /// <param name="library">The library: which demos are parsed, and their rows.</param>
     /// <param name="store">The grenade rows and their stamps.</param>
@@ -57,6 +59,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
     /// <param name="walk">The walk to run; null walks the parse through <see cref="GrenadeWalker" />.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted, not even the open demo. Defaults to always-on.</param>
+    /// <param name="projectiles">The stride-1 projectile samples (path, parse, max frames); null lets the walker sample the parse.</param>
     public GrenadeIndexEvaluator(
         IExtensionLibrary library,
         GrenadeStore store,
@@ -65,7 +68,8 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         Func<int>? stride = null,
         Action<Action>? post = null,
         Func<ParsedDemo, GrenadeWalk>? walk = null,
-        Func<bool>? enabled = null)
+        Func<bool>? enabled = null,
+        Func<string, ParsedDemo, int, IEnumerable<ProjectileSample>>? projectiles = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(store);
@@ -78,6 +82,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         _post = post ?? (action => action());
         _walk = walk;
         _enabled = enabled ?? (() => true);
+        _projectiles = projectiles;
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
@@ -265,8 +270,9 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
 
         try
         {
+            GrenadeWalkOptions options = new(TrajectoryStride: Math.Max(1, _stride()));
             GrenadeWalk walk = _walk?.Invoke(parsed)
-                               ?? GrenadeWalker.Walk(parsed, new GrenadeWalkOptions(TrajectoryStride: Math.Max(1, _stride())));
+                               ?? GrenadeWalker.Walk(parsed, options, _projectiles?.Invoke(path, parsed, options.MaxFrames));
             (GrenadeDocument rows, _) = GrenadeSidecar.Build(path, _library.Find(path), parsed, walk);
 
             // The store stamps the rows as it writes them: a crash before the stamp leaves the demo "not walked".
