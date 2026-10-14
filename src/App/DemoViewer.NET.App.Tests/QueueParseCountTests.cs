@@ -110,8 +110,6 @@ public class QueueParseCountTests
         await Assert.That(queue.ParseCount(Demo)).IsEqualTo(2).Because("the stopped forward read still read the file");
     }
 
-    // HelloExtension's frame count: before the pass could declare a forward read it put the library's forward
-    // visit on the retained parse.
     [Test]
     public async Task AFrameCountingExtensionPass_RidesTheLibrarysForwardRead()
     {
