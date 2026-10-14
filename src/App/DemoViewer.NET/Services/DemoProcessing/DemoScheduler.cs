@@ -40,6 +40,7 @@ public sealed class DemoScheduler : IDisposable
     private readonly Action? _validatePasses;
     private bool _recheckAll;
     private bool _planQueued;
+    private Task? _planTask;
     private bool _disposed;
 
     /// <param name="passes">
@@ -287,7 +288,11 @@ public sealed class DemoScheduler : IDisposable
         bool userRequested = level >= PassLevel.UserRequested;
         lock (_lock)
         {
-            if (_planQueued && !userRequested)
+            // The queue's Completion source is RunContinuationsAsynchronously (it completes under the
+            // queue's own lock), so the ContinueWith below that clears _planQueued can lag well behind
+            // the item's own task reaching IsCompleted. Trust IsCompleted first: it flips synchronously
+            // the moment a removed-before-start item is cancelled, the ContinueWith does not.
+            if (_planQueued && !userRequested && _planTask?.IsCompleted != true)
             {
                 return;
             }
@@ -297,22 +302,28 @@ public sealed class DemoScheduler : IDisposable
 
         // A planning item the user removes before it starts never drains; the next mark must still queue one.
         StrongBox<bool> started = new(false);
-        _ = QueueWork.Run(_queue, QueueJobKind.Scheduling, PlanTitle, "scheduler", token =>
-                {
-                    started.Value = true;
-                    Drain(token);
-                },
-                userRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background, PlanKey)
-            .ContinueWith(_ =>
+        Task task = QueueWork.Run(_queue, QueueJobKind.Scheduling, PlanTitle, "scheduler", token =>
             {
-                if (!started.Value)
+                started.Value = true;
+                Drain(token);
+            },
+            userRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background, PlanKey);
+
+        lock (_lock)
+        {
+            _planTask = task;
+        }
+
+        _ = task.ContinueWith(_ =>
+        {
+            if (!started.Value)
+            {
+                lock (_lock)
                 {
-                    lock (_lock)
-                    {
-                        _planQueued = false;
-                    }
+                    _planQueued = false;
                 }
-            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     private void OnCapacityAvailable()
