@@ -22,6 +22,7 @@ using DemoViewer.NET.Debugging;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
@@ -795,15 +796,16 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // Created on the UI thread so Progress<T>.Report marshals the per-frame eval progress
             // back here off the background evaluation thread (determinate progress bar).
             Progress<double> evalProgress = new(p => EvaluationProgress = p);
+            (AnalysisOptions evalOptions, CollectorObserver? observer) = (plan?.Collectors ?? CollectorSet.Empty).Declare(
+                new AnalysisOptions
+                {
+                    Progress = evalProgress,
+                    CancellationToken = runToken
+                });
             AnalysisRun run = await Task.Run(() =>
             {
                 DecodeSites.Enter(8);
-                return DemoAnalysis.Evaluate(demo, build,
-                    new AnalysisOptions
-                    {
-                        Progress = evalProgress,
-                        CancellationToken = runToken
-                    });
+                return DemoAnalysis.Evaluate(demo, build, evalOptions);
             }, runToken);
             EvaluationResult result = run.Snapshots!;
             EvaluationProgress = 1;
@@ -981,7 +983,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
             if (plan is { Cut.Count: > 0 } && path is not null)
             {
-                _openSeed = new OpenSeed(demo, path, plan, run);
+                _openSeed = new OpenSeed(demo, path, plan, run, observer?.Results);
             }
 
             // Stats and the open's highlight harvest read the core rulesets only.
@@ -1291,7 +1293,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         }
 
         OpenRunPlan plan = merged.PlanOpen(rules.Rulesets, path);
-        return (plan.Cuts(DemoAnalysis.Build(demo, plan.Docs, options)), rules, plan);
+        return (plan.Cuts(DemoAnalysis.Build(demo, plan.Docs, plan.Collectors.DeclareReads(options))), rules, plan);
     }
 
     // The composition root's merged build knows which rulesets are stamped. In production there is
@@ -1326,10 +1328,10 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             return false;
         }
 
-        return MergedRules()?.Seed(parsed, path, seed.Plan, seed.Run) ?? false;
+        return MergedRules()?.Seed(parsed, path, seed.Plan, seed.Run, seed.Collected) ?? false;
     }
 
-    private sealed record OpenSeed(ParsedDemo Demo, string Path, OpenRunPlan Plan, AnalysisRun Run);
+    private sealed record OpenSeed(ParsedDemo Demo, string Path, OpenRunPlan Plan, AnalysisRun Run, CollectorResults? Collected);
 
     /// <summary>
     ///     Loads the baked collision geometry for this demo's map, off the UI thread.
