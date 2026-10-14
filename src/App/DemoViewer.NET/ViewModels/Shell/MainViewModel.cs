@@ -2997,7 +2997,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Match Overview stage parity with the interactive funnel (see LoadDemoFromBytesAsync).
             MatchOverviewTab.BeginAnalysis(path);
             open.Report(0.6, "Analysing");
-            await Analysis.RunAsync(parsed, demoKey);
+            await Analysis.RunAsync(parsed, demoKey, path);
             ThrowIfSuperseded(open);
             MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
             // Per-team round wins from the same evaluation: each team's total across BOTH halves.
@@ -3012,6 +3012,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Parity with the interactive load path: resume the walkthrough's deferred demo segment if a
             // first-run user's first demo arrives via CLI/debug auto-load. No-op unless the tour is awaiting.
             _tutorial.NotifyDemoLoaded();
+            Analysis.SeedOpenVisit(parsed, path);
             _openPassesTask = RunOpenVisitAsync(open, path, parsed);
         }
         catch (Exception ex) when (open.IsSuperseded || (ex is OperationCanceledException && open.CancellationToken.IsCancellationRequested))
@@ -4327,7 +4328,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // game clock, module fan-out); the run below is its "Analysing" stage.
             MatchOverviewTab.BeginAnalysis(subjectKey);
             open.Report(0.6, "Analysing");
-            await Analysis.RunAsync(parsed, demoKey);
+            await Analysis.RunAsync(parsed, demoKey, localPath);
             ThrowIfSuperseded(open);
             // StatsTab is fed by AnalysisViewModel.EvaluationCompleted, which is raised SYNCHRONOUSLY inside
             // RunAsync (AnalysisViewModel.cs), so its tables are already built by the time this await
@@ -4380,6 +4381,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             if (localPath is { } openPath && HasFile)
             {
                 open.Report(0.9, "Updating the library");
+                Analysis.SeedOpenVisit(parsed, openPath);
                 _openPassesTask = RunOpenVisitAsync(open, openPath, parsed);
             }
             else

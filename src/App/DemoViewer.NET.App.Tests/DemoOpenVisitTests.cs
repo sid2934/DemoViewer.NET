@@ -1,8 +1,12 @@
 #region
 
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Facts;
 
 #endregion
 
@@ -248,6 +252,40 @@ public class DemoOpenVisitTests
             await Assert.That(lease.Holds).IsEqualTo(0).Because("the hold ends with the passes");
             await Assert.That(rig.FileParses).IsEqualTo(1).Because("only the other demo was read");
             await Assert.That(handle.State).IsEqualTo(DemoQueueItemState.Completed);
+        }
+    }
+
+    // The shell's run covered the stale round facts, so the open's visit reads it; the release drops it.
+    [Test]
+    public async Task TheOpenVisitDoesNotRunRulesTwice()
+    {
+        string shipped = RuleSetLocator.ResolveShippedRulesDirectory();
+        MergedRulesBuild rules = new(() => YamlConfigLoader.LoadWithOverlay(shipped, null),
+            () => [StampedRuleset.Core(RoundFactsFingerprint.RulesetId)])
+        {
+            OutputsFor = _ => new HashSet<string>(StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable }
+        };
+        using Rig rig = new(rules.Forget);
+        AnalysisRun? served = null;
+        FakePass roundFacts = new("roundfacts") { OnRun = input => served = rules.BareRun(input.Retained!, Demo) };
+        rig.Queue.Pause();
+        IDemoQueueHandle handle = rig.Queue.SubmitVisit(Visit(null, roundFacts));
+        using IDemoOpenTicket open = rig.Queue.BeginOpen(Demo, "match.dem");
+        rig.Queue.Resume();
+        ParsedDemo parsed = await open.ParseAsync(Bytes);
+
+        OpenRunPlan plan = rules.PlanOpen(YamlConfigLoader.LoadWithOverlay(shipped, null).Rulesets, Demo);
+        AnalysisRun shellRun = DemoAnalysis.Evaluate(parsed, plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs)));
+        bool seeded = rules.Seed(parsed, Demo, plan, shellRun);
+        await open.RunPassesAsync(parsed);
+        open.Complete();
+        await handle.Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(served).IsSameReferenceAs(shellRun).Because("the visit's rules run is the shell's");
+            await Assert.That(rules.BareRun(parsed, Demo)).IsNotSameReferenceAs(shellRun).Because("the open released its parse");
         }
     }
 

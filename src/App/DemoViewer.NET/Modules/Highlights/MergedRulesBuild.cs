@@ -306,6 +306,110 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
+    ///     What the open demo's run evaluates, given the shell's own read of the rules. When a stamped output is
+    ///     stale for <paramref name="path" /> and <paramref name="read" />'s core rulesets are the ones this build
+    ///     holds, the plan is the merged set recording that cut, and its run can <see cref="Seed" /> the open's
+    ///     visit. Otherwise it is <paramref name="read" /> without the stamped rulesets, as before.
+    /// </summary>
+    /// <param name="read">The rules the shell read for this open.</param>
+    /// <param name="path">The open demo's path, or null when it has none on disk.</param>
+    public OpenRunPlan PlanOpen(IReadOnlyList<RulesetDoc> read, string? path)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        IReadOnlyList<RulesetDoc> core = WithoutStampedRulesets(read);
+        OpenRunPlan unseeded = new(core, null, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal));
+        if (path is null)
+        {
+            return unseeded;
+        }
+
+        IReadOnlySet<string> stale = OutputsFor?.Invoke(path) ?? StampedOutputs();
+        if (stale.Count == 0)
+        {
+            return unseeded;
+        }
+
+        RuleConfigLoadResult rules = Rules;
+        (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
+        if (!SameRulesets(core, CoreDocs))
+        {
+            MergedRulesBuildLog.OpenRulesDiffer(Log);
+            return unseeded;
+        }
+
+        HashSet<string> cut = new(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
+        HashSet<string> stampedTables = new(StampedOutputs(), StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
+        HashSet<string> stampedIds = new(StampedRulesets.Select(r => r.RulesetId), StringComparer.Ordinal);
+        return new OpenRunPlan(docs, cut, stampedTables, stampedIds) { Rules = rules, Off = off };
+    }
+
+    /// <summary>
+    ///     Stores the open's run as the bare run of <paramref name="parsed" />, so the open's visit reads it
+    ///     instead of evaluating again. Dropped when the rules, a gate or the cut moved since
+    ///     <see cref="PlanOpen" />. True when stored.
+    /// </summary>
+    public bool Seed(ParsedDemo parsed, string path, OpenRunPlan plan, AnalysisRun run)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(run);
+        if (plan.Cut is null)
+        {
+            return false;
+        }
+
+        (string off, _) = MergedDocs();
+        IReadOnlySet<string> wanted = OutputsFor?.Invoke(path) ?? StampedOutputs();
+        string? reason = !string.Equals(off, plan.Off, StringComparison.Ordinal) ? "a stamped ruleset was turned on or off"
+            : !plan.Cut.IsSupersetOf(wanted) ? "more outputs went stale"
+            : null;
+        lock (_gate)
+        {
+            if (reason is null && !ReferenceEquals(plan.Rules, _rules))
+            {
+                reason = "the rules were re-read";
+            }
+
+            if (reason is null)
+            {
+                _runs.AddOrUpdate(parsed, new CachedRun(off, plan.Cut, run));
+                return true;
+            }
+        }
+
+        MergedRulesBuildLog.SeedDropped(Log, reason);
+        return false;
+    }
+
+    // Two reads hold the same rulesets: the same ids in the same order, each serializing alike. A doc
+    // that cannot be serialized never matches.
+    private static bool SameRulesets(IReadOnlyList<RulesetDoc> a, IReadOnlyList<RulesetDoc> b)
+    {
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+
+        try
+        {
+            for (int i = 0; i < a.Count; i++)
+            {
+                if (!string.Equals(a[i].Id, b[i].Id, StringComparison.Ordinal)
+                    || !string.Equals(JsonSerializer.Serialize(a[i]), JsonSerializer.Serialize(b[i]), StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException or JsonException)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     ///     Drops the cached bare run. The queue calls it when every owner of a parse has run, the coordinator
     ///     after a fan-out, so an open demo does not keep the run for the session.
     /// </summary>
@@ -410,4 +514,48 @@ public sealed class MergedRulesBuild
         string? userDir = OperatingSystem.IsBrowser() ? null : RuleSetLocator.EnsureUserRulesDirectory(shippedDir);
         return YamlConfigLoader.LoadWithOverlay(shippedDir, userDir);
     }
+}
+
+/// <summary>
+///     The open demo's rulesets from <see cref="MergedRulesBuild.PlanOpen" />. <see cref="Cut" /> is the
+///     stamped outputs its run records, or null when the run cannot seed the visit and evaluates the core
+///     rulesets only.
+/// </summary>
+/// <param name="Docs">The rulesets the open's run builds.</param>
+/// <param name="Cut">The stamped tables to record, or null.</param>
+/// <param name="StampedTables">Every stamped table name, recorded or not.</param>
+/// <param name="StampedIds">Every stamped ruleset id.</param>
+public sealed record OpenRunPlan(
+    IReadOnlyList<RulesetDoc> Docs,
+    IReadOnlySet<string>? Cut,
+    IReadOnlySet<string> StampedTables,
+    IReadOnlySet<string> StampedIds)
+{
+    internal RuleConfigLoadResult? Rules { get; init; }
+
+    internal string? Off { get; init; }
+
+    /// <summary>The build's outputs cut to the core tables plus <see cref="Cut" />.</summary>
+    public BuildResult Cuts(BuildResult build) => Cut is null
+        ? build
+        : build with { Outputs = build.Outputs?.Where(o => !StampedTables.Contains(o.Id) || Cut.Contains(o.Id)).ToList() };
+
+    /// <summary>The run as the core rulesets alone would show it: no stamped table and no stamped highlight.</summary>
+    public AnalysisRun Shown(AnalysisRun run) => Cut is null
+        ? run
+        : run with
+        {
+            Build = run.Build with { Outputs = run.Build.Outputs?.Where(o => !StampedTables.Contains(o.Id)).ToList() },
+            Highlights = [.. run.Highlights.Where(h => !StampedIds.Contains(h.RulesetId))]
+        };
+}
+
+/// <summary>The merged build's log seams.</summary>
+internal static partial class MergedRulesBuildLog
+{
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "rules: the open's read differs from the background read, so its visit runs rules on its own")]
+    public static partial void OpenRulesDiffer(ILogger logger);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "rules: the open's run was not handed to its visit: {reason}")]
+    public static partial void SeedDropped(ILogger logger, string reason);
 }
