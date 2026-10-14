@@ -5,6 +5,7 @@ using System.Globalization;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Modules.Library;
@@ -24,6 +25,7 @@ using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
@@ -476,7 +478,8 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 map => sp.GetRequiredService<ISituationIndex>().Places(map),
                 () => Host(sp).Shell.CurrentDemoPath,
-                Host(sp).Post);
+                Host(sp).Post,
+                removedProjectiles: (path, demo) => sp.GetRequiredService<SharedSamplerWalk>().Removed(path, demo));
             sp.GetRequiredService<StratBookPackInstances>().SuggestedTags = built;
             built.Passes = Host(sp).Passes;
             return built;
@@ -629,6 +632,18 @@ public sealed class StratBookPack : IExtension
         // time, is always walked on the parse its open paid for. Null cache root (the browser) keeps the
         // rows in memory for the session.
         services.AddSingleton(sp => new GrenadeStore(Data(sp)));
+        // One projectile decode a visit for Suggested Tags and the grenade walk. Each side asks whether the
+        // other will run, resolved per call: neither service is built while its feature is off.
+        services.AddSingleton(sp =>
+        {
+            IExtensionFeatures features = Host(sp).Features;
+            return new SharedSamplerWalk(
+                (path, demo) => features.IsEnabled(PackFeatureId)
+                                && (demo.Plan.Categories & MessageCategories.UserCmds) != 0
+                                && sp.GetRequiredService<GrenadeIndexEvaluator>().Interest(path) != DemoInterest.No,
+                path => features.IsEnabled(SuggestedTagsService.FeatureId)
+                        && sp.GetRequiredService<SuggestedTagsService>().Interest(path) != DemoInterest.No);
+        });
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
@@ -639,7 +654,8 @@ public sealed class StratBookPack : IExtension
                 () => settings.GrenadesBackgroundIndex,
                 () => Host(sp).Shell.CurrentDemoPath,
                 () => settings.TrajectoryStride,
-                enabled: () => features.IsEnabled(PackFeatureId));
+                enabled: () => features.IsEnabled(PackFeatureId),
+                projectiles: (path, demo, maxFrames) => sp.GetRequiredService<SharedSamplerWalk>().All(path, demo, maxFrames));
             sp.GetRequiredService<StratBookPackInstances>().GrenadeWalk = built;
             built.Passes = Host(sp).Passes;
             return built;

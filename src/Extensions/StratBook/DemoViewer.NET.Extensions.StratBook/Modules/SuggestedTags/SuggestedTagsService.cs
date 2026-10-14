@@ -114,6 +114,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     private readonly TagStore? _tags;
     private readonly Func<DateTime> _utcNow;
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
+    private readonly Func<string, ParsedDemo, List<ProjectileSample>>? _removedProjectiles;
     private readonly IZonePlaceResolverSource _zones;
 
     /// <param name="library">The demo library: which demos are parsed and carry Round Facts.</param>
@@ -132,6 +133,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <param name="post">UI-thread marshal for <see cref="Changed" />; defaults to synchronous.</param>
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="utcNow">The clock verdicts and instances are stamped with.</param>
+    /// <param name="removedProjectiles">The thrower fix-up's Removed samples on a visit; null walks the parse at stride 8.</param>
     public SuggestedTagsService(
         IExtensionLibrary library,
         IRoundFacts roundFacts,
@@ -148,7 +150,8 @@ public sealed class SuggestedTagsService : IExtensionPass
         Func<string?>? openDemo = null,
         Action<Action>? post = null,
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
-        Func<DateTime>? utcNow = null)
+        Func<DateTime>? utcNow = null,
+        Func<string, ParsedDemo, List<ProjectileSample>>? removedProjectiles = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(roundFacts);
@@ -172,6 +175,7 @@ public sealed class SuggestedTagsService : IExtensionPass
         _openDemo = openDemo ?? (() => null);
         _post = post ?? (action => action());
         _walk = walk;
+        _removedProjectiles = removedProjectiles;
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
     }
 
@@ -668,7 +672,7 @@ public sealed class SuggestedTagsService : IExtensionPass
             }
 
             RoundFactsClock clock = RoundFactsClock.For(parsed);
-            DetectionInputs inputs = BuildDetectionInputs(path, map, parsed, facts, record);
+            DetectionInputs inputs = BuildDetectionInputs(path, map, parsed, facts, record, onVisit: true);
             SiteRegions regions = SiteRegions.Compose(map, null, table, profile);
             IReadOnlyList<TagProposal> proposals =
                 ProposalDetection.Detect(map, inputs.TickRate, regions, inputs.Events, inputs.Rounds, profile);
@@ -742,8 +746,9 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <param name="parsed">The held parse.</param>
     /// <param name="facts">The demo's Round Facts rows.</param>
     /// <param name="record">The demo's library row.</param>
+    /// <param name="onVisit">True on the pass's own visit, where the projectile walk may be shared with the grenade walk.</param>
     internal DetectionInputs BuildDetectionInputs(
-        string path, string map, ParsedDemo parsed, RoundFactsRows facts, LibraryDemo record)
+        string path, string map, ParsedDemo parsed, RoundFactsRows facts, LibraryDemo record, bool onVisit = false)
     {
         int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
         IReadOnlyList<RoundOccupancy> rounds;
@@ -781,8 +786,17 @@ public sealed class SuggestedTagsService : IExtensionPass
 
         // Names a thrower for the 21 to 27 percent of inferno and decoy detonations the wire leaves unresolved
         // (#56, #59); one bounded pass, since Removed samples are yielded on their own frame at any stride.
-        DecodeSites.Enter(4);
-        List<ProjectileSample> projectiles = [.. ProjectileSampler.Walk(parsed, frameStride: 8).Where(s => s.Removed)];
+        List<ProjectileSample> projectiles;
+        if (onVisit && _removedProjectiles is not null)
+        {
+            projectiles = _removedProjectiles(path, parsed);
+        }
+        else
+        {
+            DecodeSites.Enter(4);
+            projectiles = [.. ProjectileSampler.Walk(parsed, frameStride: 8).Where(s => s.Removed)];
+        }
+
         List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed, projectiles));
         return new DetectionInputs(tickRate, rounds, events, source);
     }
