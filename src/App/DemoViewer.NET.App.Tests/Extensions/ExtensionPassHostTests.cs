@@ -1,5 +1,7 @@
 #region
 
+using CS2DemoKit.Analysis.Clips;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -13,7 +15,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 ///     An extension's pass on the scheduler and the queue: a throw skips that demo and counts one fault, a pass
 ///     that keeps overrunning its budget is switched off for the session, it is never asked on the UI thread,
 ///     its parse is gone once its turn ends, its priority reaches the visit, and switching its extension off
-///     takes it off queued visits.
+///     takes it off queued visits. A pass that declares a forward read keeps a visit forward and sees no parse.
 /// </summary>
 public class ExtensionPassHostTests
 {
@@ -31,6 +33,18 @@ public class ExtensionPassHostTests
         ExtensionFaults faults = ExtensionFaults.For([pack], static a => a());
         return (faults, faults.GuardFor(pack));
     }
+
+    internal static ExtensionGuard StandaloneGuard() => ExtensionGuard.Standalone(new Pack());
+
+    internal static ForwardDemoResult ForwardResult() => new()
+    {
+        Demo = new DemoDescriptor("de_test", 64, 1f / 64, 1000, 0, "test", "test", 0, DemoProfile.Unknown,
+            new Dictionary<int, PlayerInfo>()),
+        Rounds = [new ClipRound(1, 300), new ClipRound(2, 700)],
+        FrameCount = 10,
+        FirstServerTick = 5,
+        LastServerTick = 1000
+    };
 
     private static DemoScheduler Scheduler(IDemoProcessingQueue queue, ExtensionGuard guard, params IDemoPass[] passes) =>
         new(() => passes, queue, () => [])
@@ -173,9 +187,121 @@ public class ExtensionPassHostTests
         }
     }
 
-    private sealed class FakePass : IExtensionPass
+    [Test]
+    public async Task AForwardPass_DeclaresAForwardNeed()
     {
+        ExtensionPassHost forward = new(new FakePass { Reads = PassRead.Forward }, [], StandaloneGuard(), static () => false);
+        ExtensionPassHost retained = new(new FakePass(), [], StandaloneGuard(), static () => false);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(forward.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward));
+            await Assert.That(retained.Needs(new VisitedDemo(Demo))).IsEqualTo(PassNeeds.RetainedWithoutUserCommands);
+        }
+    }
+
+    [Test]
+    public async Task AForwardPass_RunsOnTheForwardResult_WithANullParse()
+    {
+        FakePass inner = new() { Reads = PassRead.Forward };
+        ExtensionPassHost host = new(inner, [], StandaloneGuard(), static () => false);
+
+        host.Run(new PassInput(new VisitedDemo(Demo), PassLevel.Background, null, ForwardResult(), CancellationToken.None));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.Seen!.Parsed).IsNull();
+            await Assert.That(inner.Seen.FrameCount).IsEqualTo(10);
+            await Assert.That(inner.Seen.FirstServerTick).IsEqualTo(5);
+            await Assert.That(inner.Seen.LastServerTick).IsEqualTo(1000);
+            await Assert.That(inner.Seen.Map).IsEqualTo("de_test");
+            await Assert.That(inner.Seen.Rounds).IsEquivalentTo([new PassRound(1, 300), new PassRound(2, 700)],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        }
+
+        Assert.Throws<ObjectDisposedException>(() => _ = inner.Kept!.FrameCount);
+    }
+
+    [Test]
+    public async Task AForwardPass_OnARetainedVisit_ReadsTheParsesClock_ButNotTheParse()
+    {
+        FakePass inner = new() { Reads = PassRead.Forward };
+        ExtensionPassHost host = new(inner, [], StandaloneGuard(), static () => false);
+
+        host.Run(new PassInput(new VisitedDemo(Demo), PassLevel.Background, SyntheticParsedDemo.Create(), null, CancellationToken.None));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(inner.Seen!.Parsed).IsNull();
+            await Assert.That(inner.Seen.FrameCount).IsEqualTo(0);
+            await Assert.That(inner.Seen.FirstServerTick).IsEqualTo(0);
+            await Assert.That(inner.Seen.Map).IsEqualTo("de_test");
+            await Assert.That(inner.Seen.Rounds).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task ARetainedPass_OnAForwardVisit_IsNotPossible()
+    {
+        FakePass inner = new();
+        ExtensionPassHost host = new(inner, [], StandaloneGuard(), static () => false);
+        int forwardReads = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            parseBytes: _ => SyntheticParsedDemo.Create(),
+            compactHeap: () => Task.CompletedTask,
+            parseFileWithPlan: (_, plan) => SyntheticParsedDemo.Create(plan: plan),
+            forwardPass: (_, _, _, _) =>
+            {
+                Interlocked.Increment(ref forwardReads);
+                return ForwardResult();
+            });
+
+        await queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Backlog,
+            [host, new TestPass("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) }])).Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(forwardReads).IsEqualTo(0).Because("one retained pass puts the visit on the retained parse");
+            await Assert.That(inner.Seen!.Parsed).IsNotNull();
+        }
+
+        Assert.Throws<InvalidOperationException>(() =>
+            host.Run(new PassInput(new VisitedDemo(Demo), PassLevel.Background, null, ForwardResult(), CancellationToken.None)));
+    }
+
+    [Test]
+    public async Task AForwardPassReadingUserCommands_IsRefusedAtRegistration()
+    {
+        ExtensionGuard guard = StandaloneGuard();
+        PassRegistry registry = new();
+        List<string> reported = [];
+        registry.AddPackPass(FakePass.PassId,
+            () => new ExtensionPassHost(new FakePass { Reads = PassRead.Forward, UserCommands = true }, [], guard, static () => false),
+            [], () => true, ex => reported.Add(ex.GetType().Name));
+
+        IReadOnlyList<IDemoPass> resolved = registry.Resolve();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(resolved).IsEmpty();
+            await Assert.That(reported).IsEquivalentTo([nameof(NotSupportedException)]);
+        }
+    }
+
+    /// <summary>What a pass read from its context during its turn.</summary>
+    internal sealed record SeenContext(ParsedDemo? Parsed, int FrameCount, int FirstServerTick, int LastServerTick, string Map,
+        IReadOnlyList<PassRound> Rounds);
+
+    internal sealed class FakePass : IExtensionPass
+    {
+        public const string PassId = "ext.sample.pass";
+
         public bool Throw { get; init; }
+        public PassRead Reads { get; init; } = PassRead.Retained;
+        public bool UserCommands { get; init; }
+        public string PassName { get; init; } = PassId;
+        public List<string>? Ran { get; init; }
+        public SeenContext? Seen;
         public TimeSpan RunFor { get; init; }
         public DemoInterest Answer { get; init; } = DemoInterest.Yes;
         public JobPriority Priority { get; init; } = JobPriority.Background;
@@ -183,9 +309,11 @@ public class ExtensionPassHostTests
         public int Asked;
         public IPassContext? Kept;
 
-        public string Id => "ext.sample.pass";
+        public string Id => PassName;
 
-        public bool ReadsUserCommands => false;
+        public bool ReadsUserCommands => UserCommands;
+
+        public PassRead Read => Reads;
 
         public DemoInterest Interest(string demoPath)
         {
@@ -197,7 +325,15 @@ public class ExtensionPassHostTests
         {
             Interlocked.Increment(ref Runs);
             Kept = context;
-            _ = context.Parsed;
+            Seen = new SeenContext(context.Parsed, context.FrameCount, context.FirstServerTick, context.LastServerTick,
+                context.Demo.MapName, context.Rounds);
+            if (Ran is { } ran)
+            {
+                lock (ran)
+                {
+                    ran.Add(Id);
+                }
+            }
             if (RunFor > TimeSpan.Zero)
             {
                 Thread.Sleep(RunFor);

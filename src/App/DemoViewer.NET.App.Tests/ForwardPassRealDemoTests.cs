@@ -18,6 +18,8 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.AppTests.Extensions;
 
 #endregion
 
@@ -94,7 +96,7 @@ public class ForwardPassRealDemoTests
                 await Assert.That(forward["round facts fingerprint"]).IsNotEqualTo(old["round facts fingerprint"]);
             }
 
-            foreach (string key in requireRows ? new[] { "firings", "round facts", "record", "library" } : ["firings", "record", "library"])
+            foreach (string key in requireRows ? new[] { "firings", "round facts", "record", "library", "extension pass" } : ["firings", "record", "library"])
             {
                 await Assert.That(forward[key].Length).IsGreaterThan(200).Because($"{key}: {forward[key]}");
             }
@@ -137,6 +139,7 @@ public class ForwardPassRealDemoTests
             facts.Evaluate(path, parsed);
         });
         written["firings"] = JsonSerializer.Serialize(merged.BareRun(parsed).Highlights, Json);
+        written["extension pass"] = ExtensionPassSees(path, parsed, null);
 
         IReadOnlyList<RulesetDoc> rules = ShippedRules().Rulesets;
         BuildResult highlightsOnly = DemoAnalysis.Build(parsed, HighlightsOnly(rules));
@@ -163,6 +166,16 @@ public class ForwardPassRealDemoTests
         return (written, old);
     }
 
+    // A forward extension pass stores what it reads here under one fingerprint, whichever read the visit ran.
+    private static string ExtensionPassSees(string path, ParsedDemo? parsed, ForwardDemoResult? read)
+    {
+        ExtensionPassHostTests.FakePass pass = new() { Reads = PassRead.Forward };
+        new ExtensionPassHost(pass, [], ExtensionPassHostTests.StandaloneGuard(), static () => false)
+            .Run(new PassInput(new VisitedDemo(path), PassLevel.Background, parsed, read, CancellationToken.None));
+        ExtensionPassHostTests.SeenContext seen = pass.Seen!;
+        return JsonSerializer.Serialize(new { seen.FrameCount, seen.FirstServerTick, seen.LastServerTick, seen.Map, seen.Rounds }, Json);
+    }
+
     private static Dictionary<string, string> Forward(string path, MergedRulesBuild merged)
     {
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
@@ -174,6 +187,7 @@ public class ForwardPassRealDemoTests
             facts.EvaluateForward(path, pass);
         });
         written["firings"] = JsonSerializer.Serialize(pass.Run!.Highlights, Json);
+        written["extension pass"] = ExtensionPassSees(path, null, pass);
         return written;
     }
 
