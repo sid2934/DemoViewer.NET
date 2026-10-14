@@ -1284,8 +1284,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         {
             VisibilityEngine = visibility
         };
-        // Stamped rulesets join every open run, so the graph does not depend on which stamps are stale.
-        // Their tables are recorded only when the run can serve the open's visit.
+        // Stamped rulesets join the open run only when it can serve the open's visit; nothing else reads them.
         if (MergedRules() is not { } merged)
         {
             return (DemoAnalysis.Build(demo, rules.Rulesets, options), rules, null);
