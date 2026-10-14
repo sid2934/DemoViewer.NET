@@ -101,6 +101,16 @@ public class GrenadeIndexEvaluatorTests
 
         public ParsedDemo Parsed => parsed;
 
+        public DemoDescriptor Demo => DemoDescriptor.From(parsed);
+
+        public int FrameCount => parsed.Frames.Count;
+
+        public int FirstServerTick => 0;
+
+        public int LastServerTick => 0;
+
+        public IReadOnlyList<PassRound> Rounds => [];
+
         public CancellationToken CancellationToken => CancellationToken.None;
     }
 
