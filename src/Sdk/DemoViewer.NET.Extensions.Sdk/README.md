@@ -309,8 +309,9 @@ A record pass that reads analysis facts names them after the factory:
 contributions.RecordPass("dev.example.kast", () => new KastPass(), new FactKey("kast", "kast_game_totals"));
 ```
 
-The host then holds the pass on a demo until each named ruleset has written it, and runs it again when one of
-those writes moves, not on other changes to the row. A ruleset writes all its tables at once, so naming one of
+The host then holds the pass on a demo until each named ruleset's write on it has settled, and runs it again
+when one of those writes moves, not on other changes to the row. A failed or stale write counts as settled, so
+the pass checks `Facts.Status` before it trusts a table. A ruleset writes all its tables at once, so naming one of
 them re-runs the pass on any. While a named ruleset is off, because its extension is off or its doc is
 disabled, the pass waits and is taken again once it is on. Any other key missing from `Facts.Declared`, round
 facts, or a scoreboard key refuses the pass; the refusal is reported against the extension once, and the keys
