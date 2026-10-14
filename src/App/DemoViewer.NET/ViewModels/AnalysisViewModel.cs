@@ -21,6 +21,7 @@ using DemoViewer.NET.Controls;
 using DemoViewer.NET.Debugging;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
@@ -790,12 +791,16 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // Created on the UI thread so Progress<T>.Report marshals the per-frame eval progress
             // back here off the background evaluation thread (determinate progress bar).
             Progress<double> evalProgress = new(p => EvaluationProgress = p);
-            AnalysisRun run = await Task.Run(() => DemoAnalysis.Evaluate(demo, build,
-                new AnalysisOptions
-                {
-                    Progress = evalProgress,
-                    CancellationToken = runToken
-                }), runToken);
+            AnalysisRun run = await Task.Run(() =>
+            {
+                DecodeSites.Enter(8);
+                return DemoAnalysis.Evaluate(demo, build,
+                    new AnalysisOptions
+                    {
+                        Progress = evalProgress,
+                        CancellationToken = runToken
+                    });
+            }, runToken);
             EvaluationResult result = run.Snapshots!;
             EvaluationProgress = 1;
 
