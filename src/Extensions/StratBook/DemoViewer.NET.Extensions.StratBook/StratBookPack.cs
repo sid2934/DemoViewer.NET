@@ -478,7 +478,8 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 map => sp.GetRequiredService<ISituationIndex>().Places(map),
                 () => Host(sp).Shell.CurrentDemoPath,
-                Host(sp).Post);
+                Host(sp).Post,
+                detonations: new DetonationStore(Data(sp)));
             sp.GetRequiredService<StratBookPackInstances>().SuggestedTags = built;
             built.Passes = Host(sp).Passes;
             return built;
@@ -895,6 +896,9 @@ public sealed class StratBookPack : IExtension
         contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
             RoundIndexEvaluator.EvaluatorId);
         contributions.Collector(ThrowerCollector.Contribution);
+        // Proposals follow their inputs without a parse once a visit has stored the demo's detonations.
+        contributions.RecordPass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>().RecordPass,
+            DemoDataKey.RoundFacts, new DemoDataKey(PackId, RoundIndexStore.Facet), new DemoDataKey(PackId, DetonationStore.Facet));
         contributions.Pass(LineupClipPass.PassId, () => sp.GetRequiredService<LineupClipPass>(),
             GrenadeIndexEvaluator.EvaluatorId);
 
