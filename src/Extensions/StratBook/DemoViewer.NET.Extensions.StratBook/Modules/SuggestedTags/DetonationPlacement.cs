@@ -46,10 +46,10 @@ public static class DetonationEvents
     /// </summary>
     /// <param name="demo">The held parse.</param>
     /// <param name="projectiles">
-    ///     The demo's <c>Removed</c> projectile samples, or null to skip the match and leave inferno and decoy
-    ///     unresolved as before.
+    ///     The demo's removed projectiles, or null to skip the match and leave inferno and decoy unresolved as
+    ///     before.
     /// </param>
-    public static List<PlacedEvent> From(ParsedDemo demo, IReadOnlyList<ProjectileSample>? projectiles = null)
+    public static List<PlacedEvent> From(ParsedDemo demo, IReadOnlyList<RemovedProjectile>? projectiles = null)
     {
         ArgumentNullException.ThrowIfNull(demo);
         List<PlacedEvent> events = [];
@@ -87,7 +87,7 @@ public static class DetonationEvents
     }
 
     // -1 with no projectiles offered or no match near the detonation; ProjectileThrowerMatch does the rest.
-    private static int ThrowerSlotNear(IReadOnlyList<ProjectileSample>? projectiles, string className, int tick, Vector3 position) =>
+    private static int ThrowerSlotNear(IReadOnlyList<RemovedProjectile>? projectiles, string className, int tick, Vector3 position) =>
         projectiles is not null && ProjectileThrowerMatch.Nearest(projectiles, className, tick, position) is { ThrowerSlot: >= 0 } sample
             ? sample.ThrowerSlot
             : -1;
