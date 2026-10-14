@@ -268,6 +268,12 @@ public sealed class MergedRulesBuild
     internal Func<string, CollectorSet>? CollectorsFor { get; set; }
 
     /// <summary>
+    ///     Every collector an open's visit could carry. The visit is planned after the open's run, so a run
+    ///     that seeds it declares all of them. Null declares none.
+    /// </summary>
+    internal Func<CollectorSet>? OpenCollectors { get; set; }
+
+    /// <summary>
     ///     The bare run over a held parse recording every stamped output, evaluated once however many consumers
     ///     ask until <see cref="Forget" />.
     /// </summary>
@@ -328,7 +334,7 @@ public sealed class MergedRulesBuild
     ///     What the open demo's run evaluates. When a stamped output is stale for <paramref name="path" /> and
     ///     <paramref name="read" /> holds the rulesets this build runs, the plan is <paramref name="read" /> minus
     ///     the stamped rulesets that are off, its <see cref="OpenRunPlan.Cut" /> is the stale outputs, and the run
-    ///     can <see cref="Seed" /> the open's visit. Otherwise it is <paramref name="read" /> without the stamped
+    ///     can <see cref="Seed(ParsedDemo, string, OpenRunPlan, AnalysisRun)" /> the open's visit. Otherwise it is <paramref name="read" /> without the stamped
     ///     rulesets and an empty cut: nothing would read their nodes, and their snapshot columns cost peak memory.
     /// </summary>
     /// <param name="read">The rules the shell read for this open.</param>
@@ -369,7 +375,26 @@ public sealed class MergedRulesBuild
             return plan;
         }
 
-        return plan with { Docs = docs, Cut = new HashSet<string>(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable } };
+        return plan with
+        {
+            Docs = docs,
+            Cut = new HashSet<string>(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable },
+            Collectors = OpenCollectorSet()
+        };
+    }
+
+    // A fault here leaves the open run without collectors; a visit needing one then makes its own run.
+    private CollectorSet OpenCollectorSet()
+    {
+        try
+        {
+            return OpenCollectors?.Invoke() ?? CollectorSet.Empty;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            MergedRulesBuildLog.OpenCollectorsFailed(Log, ex.Message);
+            return CollectorSet.Empty;
+        }
     }
 
     /// <summary>
@@ -377,7 +402,13 @@ public sealed class MergedRulesBuild
     ///     instead of evaluating again. Dropped when the rules, a gate or the cut moved since
     ///     <see cref="PlanOpen" />. True when stored.
     /// </summary>
-    public bool Seed(ParsedDemo parsed, string path, OpenRunPlan plan, AnalysisRun run)
+    public bool Seed(ParsedDemo parsed, string path, OpenRunPlan plan, AnalysisRun run) => Seed(parsed, path, plan, run, null);
+
+    /// <summary>
+    ///     <see cref="Seed(ParsedDemo, string, OpenRunPlan, AnalysisRun)" /> with what the run's observer
+    ///     collected for <see cref="OpenRunPlan.Collectors" />. Without it the run is stored as carrying none.
+    /// </summary>
+    internal bool Seed(ParsedDemo parsed, string path, OpenRunPlan plan, AnalysisRun run, CollectorResults? collected)
     {
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(plan);
@@ -401,7 +432,9 @@ public sealed class MergedRulesBuild
 
             if (reason is null)
             {
-                _runs.AddOrUpdate(parsed, new CachedRun(off, plan.Cut, CollectorSet.Empty, run, CollectorResults.None));
+                _runs.AddOrUpdate(parsed, collected is null
+                    ? new CachedRun(off, plan.Cut, CollectorSet.Empty, run, CollectorResults.None)
+                    : new CachedRun(off, plan.Cut, plan.Collectors, run, collected));
                 return true;
             }
         }
@@ -563,6 +596,9 @@ public sealed record OpenRunPlan(
 
     internal string? Off { get; init; }
 
+    /// <summary>The collectors the run declares; set only when it can seed the visit.</summary>
+    internal CollectorSet Collectors { get; init; } = CollectorSet.Empty;
+
     /// <summary>The build's outputs cut to the core tables plus <see cref="Cut" />.</summary>
     public BuildResult Cuts(BuildResult build) =>
         build with { Outputs = build.Outputs?.Where(o => !StampedTables.Contains(o.Id) || Cut.Contains(o.Id)).ToList() };
@@ -583,4 +619,7 @@ internal static partial class MergedRulesBuildLog
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "rules: the open's run was not handed to its visit: {reason}")]
     public static partial void SeedDropped(ILogger logger, string reason);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "rules: the open's run declares no collectors, the registered set could not be read: {reason}")]
+    public static partial void OpenCollectorsFailed(ILogger logger, string reason);
 }
