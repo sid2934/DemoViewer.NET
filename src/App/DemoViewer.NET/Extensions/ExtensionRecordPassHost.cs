@@ -37,20 +37,32 @@ internal sealed class ExtensionRecordPassHost(
     public IReadOnlyList<string> InputStamps { get; } =
         [.. (dependsOn ?? []).Select(k => StampedFacts.StampId(k.RulesetId)).Distinct(StringComparer.Ordinal)];
 
-    public string? Refusal() => DependsOn.Count == 0 ? null : RefusalOf(DependsOn, library.Facts.Declared);
+    public string? Refusal() => DependsOn.Count == 0 ? null : RefusalOf(DependsOn, library.Facts.Declared, IsOff());
+
+    public bool InputsOff()
+    {
+        Func<string, bool> isOff = IsOff();
+        return DependsOn.Any(k => isOff(k.RulesetId));
+    }
+
+    private Func<string, bool> IsOff() =>
+        library.Facts is IFactsVisibility visibility ? visibility.IsOff : static _ => false;
 
     /// <summary>Why a pass naming <paramref name="dependsOn" /> cannot be taken, or null when every key is one it can wait on.</summary>
     /// <param name="dependsOn">The keys the pass named.</param>
     /// <param name="declared">The outputs the host runs now.</param>
-    public static string? RefusalOf(IReadOnlyList<FactKey> dependsOn, IReadOnlyList<FactKey> declared)
+    /// <param name="isOff">True for a ruleset that is known but off now; its keys wait instead of refusing.</param>
+    public static string? RefusalOf(IReadOnlyList<FactKey> dependsOn, IReadOnlyList<FactKey> declared, Func<string, bool> isOff)
     {
         ArgumentNullException.ThrowIfNull(dependsOn);
         ArgumentNullException.ThrowIfNull(declared);
+        ArgumentNullException.ThrowIfNull(isOff);
         List<string> refused = [];
         foreach (FactKey key in dependsOn)
         {
             // A scoreboard is declared but never written, so a pass waiting on it would never run.
-            if (string.Equals(key.Output, FactKey.ScoreboardOutput, StringComparison.Ordinal) || !declared.Contains(key))
+            if (string.Equals(key.Output, FactKey.ScoreboardOutput, StringComparison.Ordinal)
+                || (!declared.Contains(key) && !isOff(key.RulesetId)))
             {
                 refused.Add(key.ToString());
             }

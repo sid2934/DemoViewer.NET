@@ -311,8 +311,10 @@ contributions.RecordPass("dev.example.kast", () => new KastPass(), new FactKey("
 
 The host then holds the pass on a demo until each named ruleset has written it, and runs it again when one of
 those writes moves, not on other changes to the row. A ruleset writes all its tables at once, so naming one of
-them re-runs the pass on any. A key that is not in `Facts.Declared` when the host first takes the pass, or a
-scoreboard key, refuses the pass for the session and is reported against the extension.
+them re-runs the pass on any. While a named ruleset is off, because its extension is off or its doc is
+disabled, the pass waits and is taken again once it is on. Any other key missing from `Facts.Declared`, round
+facts, or a scoreboard key refuses the pass; the refusal is reported against the extension once, and the keys
+are checked again on every run.
 
 ## Analysis facts
 
