@@ -28,7 +28,13 @@ public interface IHighlightHarvester
     AnalysisRun RunBareAnalysis(ParsedDemo demo);
 
     /// <summary>
-    ///     Build + evaluate WITH snapshots: everything <see cref="RunBareAnalysis" /> produces, plus the
+    ///     <see cref="RunBareAnalysis(ParsedDemo)" /> for the demo at <paramref name="path" />, recording only the
+    ///     stamped outputs that are stale for it.
+    /// </summary>
+    AnalysisRun RunBareAnalysis(ParsedDemo demo, string path) => RunBareAnalysis(demo);
+
+    /// <summary>
+    ///     Build + evaluate WITH snapshots: everything <see cref="RunBareAnalysis(ParsedDemo)" /> produces, plus the
     ///     per-message state vectors the per-player stat projectors read.
     ///     <para>
     ///         Reserved for demos the user explicitly asked about (<c>Compute full stats</c>), never the
@@ -89,6 +95,9 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
 
     /// <inheritdoc />
     public AnalysisRun RunBareAnalysis(ParsedDemo demo) => _rules.BareRun(demo);
+
+    /// <inheritdoc />
+    public AnalysisRun RunBareAnalysis(ParsedDemo demo, string path) => _rules.BareRun(demo, path);
 
     /// <inheritdoc />
     public AnalysisRun RunFullAnalysis(ParsedDemo demo) => _rules.FullRun(demo);

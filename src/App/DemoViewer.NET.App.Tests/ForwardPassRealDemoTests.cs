@@ -261,12 +261,16 @@ public class ForwardPassRealDemoTests
     }
 
     // Write times differ between the two runs by construction.
+    // A location's LastSeenUtcTicks is the store's write time, like a stamp's ComputedAtTicks.
+    private static bool IsWallClock(string key) =>
+        key.EndsWith("AtTicks", StringComparison.Ordinal) || key == nameof(DemoLocation.LastSeenUtcTicks);
+
     private static void StripStamps(JsonNode? node)
     {
         switch (node)
         {
             case JsonObject obj:
-                foreach (string key in obj.Select(kv => kv.Key).Where(k => k.EndsWith("AtTicks", StringComparison.Ordinal)).ToList())
+                foreach (string key in obj.Select(kv => kv.Key).Where(IsWallClock).ToList())
                 {
                     obj.Remove(key);
                 }

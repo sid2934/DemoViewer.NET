@@ -18,6 +18,9 @@ public interface IRoundFactsRowSource
     /// <summary>The <c>round_facts</c> table for a held parse. Never null; a source with nothing says so in the table.</summary>
     RoundFactsTable Rows(ParsedDemo parsed);
 
+    /// <summary><see cref="Rows(ParsedDemo)" /> for the demo at <paramref name="path" />. Never null.</summary>
+    RoundFactsTable Rows(ParsedDemo parsed, string path) => Rows(parsed);
+
     /// <summary>The table out of a forward read's rules run. Never null.</summary>
     RoundFactsTable Rows(ForwardDemoResult pass) =>
         RoundFactsTable.Unavailable("round_facts: this source reads only a held parse");
