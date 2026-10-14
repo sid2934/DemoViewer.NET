@@ -979,12 +979,12 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                 IsDiagnosticsOpen = true;
             }
 
-            if (plan?.Cut is not null && path is not null)
+            if (plan is { Cut.Count: > 0 } && path is not null)
             {
                 _openSeed = new OpenSeed(demo, path, plan, run);
             }
 
-            // Stats and the open's highlight harvest read the core rulesets only, as on an unseeded open.
+            // Stats and the open's highlight harvest read the core rulesets only.
             EvaluationCompleted?.Invoke(plan?.Shown(run) ?? run, demo);
 
             if (result.Messages.Count > 0)
@@ -1284,8 +1284,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         {
             VisibilityEngine = visibility
         };
-        // Stamped rulesets run at index time. They join this run only when the open's visit would
-        // otherwise evaluate them again on the same parse.
+        // Stamped rulesets join every open run, so the graph does not depend on which stamps are stale.
+        // Their tables are recorded only when the run can serve the open's visit.
         if (MergedRules() is not { } merged)
         {
             return (DemoAnalysis.Build(demo, rules.Rulesets, options), rules, null);

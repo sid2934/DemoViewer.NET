@@ -520,7 +520,7 @@ public class MergedRulesBuildTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(plan.Cut).IsNotNull();
+            await Assert.That(plan.Cut).IsNotEmpty();
             await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.Docs))).Because("the open builds the merged set");
             await Assert.That(seeded).IsTrue();
             await Assert.That(build.BareRun(parsed, OpenPath)).IsSameReferenceAs(run).Because("the visit reads the open's run");
@@ -529,20 +529,48 @@ public class MergedRulesBuildTests
     });
 
     [Test]
-    public async Task NothingStale_TheOpenRunsTheCoreRulesetsAlone() => await WithFactsFixture(async fixture =>
+    public async Task NothingStale_TheOpenRecordsNoStampedTable() => await WithFactsFixture(async fixture =>
     {
         MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
             () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
         build.OutputsFor = _ => new HashSet<string>();
+        ParsedDemo parsed = TwoFrameDemo();
 
-        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
         OpenRunPlan noPath = FactsBuild(fixture, () => true).PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, null);
 
         using (Assert.Multiple())
         {
-            await Assert.That(plan.Cut).IsNull();
-            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.CoreDocs)));
-            await Assert.That(noPath.Cut).IsNull().Because("a demo with no file has no visit to seed");
+            await Assert.That(plan.Cut).IsEmpty();
+            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.Docs)));
+            await Assert.That(Recorded(run)).IsEquivalentTo(Recorded(DemoAnalysis.Run(parsed, build.CoreDocs)));
+            await Assert.That(build.Seed(parsed, OpenPath, plan, run)).IsFalse();
+            await Assert.That(noPath.Cut).IsEmpty().Because("a demo with no file has no visit to seed");
+        }
+    });
+
+    // The Analysis tab reads the build and the run whole, so they must not move with the stamps.
+    [Test]
+    public async Task TheOpenGraph_DoesNotDependOnWhichStampsAreStale() => await WithFactsFixture(async fixture =>
+    {
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan stalePlan, AnalysisRun stale) = OpenRun(FactsBuild(fixture, () => true), fixture, parsed);
+        MergedRulesBuild current = FactsBuild(fixture, () => false);
+        current.OutputsFor = _ => new HashSet<string>();
+        (OpenRunPlan currentPlan, AnalysisRun fresh) = OpenRun(current, fixture, parsed);
+
+        static string Graph(AnalysisRun run) => string.Join('\n',
+            run.FinalNodes.Select(n => n.Name)
+                .Concat(run.Build.Edges.Select(e => $"{e.Source.Name}>{e.Destination.Name}:{e.Label}"))
+                .Concat(run.Build.RulesetDiagnostics.Select(d => d.ToString()))
+                .Concat(run.Timeline.Events.Select(e => e.ChainName)));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(stalePlan.Cut).IsNotEmpty();
+            await Assert.That(currentPlan.Cut).IsEmpty();
+            await Assert.That(Graph(fresh)).IsEqualTo(Graph(stale));
+            await Assert.That(Recorded(currentPlan.Shown(fresh))).IsEquivalentTo(Recorded(stalePlan.Shown(stale)));
         }
     });
 
@@ -612,7 +640,7 @@ public class MergedRulesBuildTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(plan.Cut).IsNull();
+            await Assert.That(plan.Cut).IsEmpty();
             await Assert.That(plan.Docs.Single(d => d.Id == "kast").Title).StartsWith("Edited ")
                 .Because("the shell runs what it read");
         }
