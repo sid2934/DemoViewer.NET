@@ -236,7 +236,11 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 () => settings.SituationsBackgroundIndex,
                 Host(sp).Post,
-                enabled: () => features.IsEnabled(PackFeatureId));
+                enabled: () => features.IsEnabled(PackFeatureId),
+                // Suggested Tags reads occupancy from the index, so the index is built wherever it wants a
+                // demo. Resolved per call: the service is not built while its feature is off.
+                wantedDownstream: path => features.IsEnabled(SuggestedTagsService.FeatureId)
+                                          && sp.GetRequiredService<SuggestedTagsService>().Interest(path) != DemoInterest.No);
             built.Passes = Host(sp).Passes;
             return built;
         });
