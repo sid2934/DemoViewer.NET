@@ -68,8 +68,6 @@ public class StratBookPackTests
         "DemoViewer.NET.Extensions.StratBook.StratBookPackInstances",
         "DemoViewer.NET.Extensions.StratBook.StratBookSettings",
         "DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeStore",
-        // One projectile walk a visit, shared by Suggested Tags and the grenade walk.
-        "DemoViewer.NET.Extensions.StratBook.Services.SharedSamplerWalk",
         "DemoViewer.NET.Theming.ThemeRegistry",
         "DemoViewer.NET.Services.IWindowService",
         "System.Func`1[DemoViewer.NET.ViewModels.Settings.SettingsViewModel]",

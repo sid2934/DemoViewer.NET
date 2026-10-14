@@ -478,8 +478,7 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 map => sp.GetRequiredService<ISituationIndex>().Places(map),
                 () => Host(sp).Shell.CurrentDemoPath,
-                Host(sp).Post,
-                removedProjectiles: (path, demo) => sp.GetRequiredService<SharedSamplerWalk>().Removed(path, demo));
+                Host(sp).Post);
             sp.GetRequiredService<StratBookPackInstances>().SuggestedTags = built;
             built.Passes = Host(sp).Passes;
             return built;
@@ -632,18 +631,6 @@ public sealed class StratBookPack : IExtension
         // time, is always walked on the parse its open paid for. Null cache root (the browser) keeps the
         // rows in memory for the session.
         services.AddSingleton(sp => new GrenadeStore(Data(sp)));
-        // One projectile decode a visit for Suggested Tags and the grenade walk. Each side asks whether the
-        // other will run, resolved per call: neither service is built while its feature is off.
-        services.AddSingleton(sp =>
-        {
-            IExtensionFeatures features = Host(sp).Features;
-            return new SharedSamplerWalk(
-                (path, demo) => features.IsEnabled(PackFeatureId)
-                                && (demo.Plan.Categories & MessageCategories.UserCmds) != 0
-                                && sp.GetRequiredService<GrenadeIndexEvaluator>().Interest(path) != DemoInterest.No,
-                path => features.IsEnabled(SuggestedTagsService.FeatureId)
-                        && sp.GetRequiredService<SuggestedTagsService>().Interest(path) != DemoInterest.No);
-        });
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
@@ -654,8 +641,7 @@ public sealed class StratBookPack : IExtension
                 () => settings.GrenadesBackgroundIndex,
                 () => Host(sp).Shell.CurrentDemoPath,
                 () => settings.TrajectoryStride,
-                enabled: () => features.IsEnabled(PackFeatureId),
-                projectiles: (path, demo, maxFrames) => sp.GetRequiredService<SharedSamplerWalk>().All(path, demo, maxFrames));
+                enabled: () => features.IsEnabled(PackFeatureId));
             sp.GetRequiredService<StratBookPackInstances>().GrenadeWalk = built;
             built.Passes = Host(sp).Passes;
             return built;
@@ -901,7 +887,6 @@ public sealed class StratBookPack : IExtension
         // Suggested Tags after the index it queries, Grenades after the library write (it reads nothing
         // the others write), and Lineup Clips after the grenades it renders. The registry resolves this only while the pack is on, so these factories are
         // never invoked, and these services never constructed, with the pack off.
-        // Grenades runs before Suggested Tags so the shared projectile walk holds only the Removed subset.
         contributions.Pass(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
             HostIds.RoundFactsPass);
         contributions.Collector(RoundIndexCollector.Contribution);
@@ -909,6 +894,7 @@ public sealed class StratBookPack : IExtension
             HostIds.LibraryPass);
         contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
             RoundIndexEvaluator.EvaluatorId);
+        contributions.Collector(ThrowerCollector.Contribution);
         contributions.Pass(LineupClipPass.PassId, () => sp.GetRequiredService<LineupClipPass>(),
             GrenadeIndexEvaluator.EvaluatorId);
 

@@ -114,7 +114,6 @@ public sealed class SuggestedTagsService : IExtensionPass
     private readonly TagStore? _tags;
     private readonly Func<DateTime> _utcNow;
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
-    private readonly Func<string, ParsedDemo, List<ProjectileSample>>? _removedProjectiles;
     private readonly IZonePlaceResolverSource _zones;
 
     /// <param name="library">The demo library: which demos are parsed and carry Round Facts.</param>
@@ -133,7 +132,6 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <param name="post">UI-thread marshal for <see cref="Changed" />; defaults to synchronous.</param>
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="utcNow">The clock verdicts and instances are stamped with.</param>
-    /// <param name="removedProjectiles">The thrower fix-up's Removed samples on a visit; null walks the parse at stride 8.</param>
     public SuggestedTagsService(
         IExtensionLibrary library,
         IRoundFacts roundFacts,
@@ -150,8 +148,7 @@ public sealed class SuggestedTagsService : IExtensionPass
         Func<string?>? openDemo = null,
         Action<Action>? post = null,
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
-        Func<DateTime>? utcNow = null,
-        Func<string, ParsedDemo, List<ProjectileSample>>? removedProjectiles = null)
+        Func<DateTime>? utcNow = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(roundFacts);
@@ -175,7 +172,6 @@ public sealed class SuggestedTagsService : IExtensionPass
         _openDemo = openDemo ?? (() => null);
         _post = post ?? (action => action());
         _walk = walk;
-        _removedProjectiles = removedProjectiles;
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
     }
 
@@ -279,13 +275,14 @@ public sealed class SuggestedTagsService : IExtensionPass
     public void Run(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        Evaluate(context.DemoPath, context.Parsed!);
+        Evaluate(context.DemoPath, context.Parsed!, context.Collected<List<RemovedProjectile>>(ThrowerCollector.CollectorId));
     }
 
     /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
     /// <param name="path">The demo's path.</param>
     /// <param name="parsed">The demo's parse.</param>
-    public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
+    /// <param name="removed">The <see cref="ThrowerCollector" />'s rows from the rules run; null walks the parse for them.</param>
+    public void Evaluate(string path, ParsedDemo parsed, IReadOnlyList<RemovedProjectile>? removed = null) => Refresh(path, parsed, removed);
 
     /// <inheritdoc />
     public void OnFailed(string demoPath) => ClearForced(demoPath);
@@ -645,7 +642,7 @@ public sealed class SuggestedTagsService : IExtensionPass
         return (document, new ProposalSet(path, sha, entries, persistent, false));
     }
 
-    private void Refresh(string path, ParsedDemo parsed)
+    private void Refresh(string path, ParsedDemo parsed, IReadOnlyList<RemovedProjectile>? removed)
     {
         string fileName = Path.GetFileName(path);
         bool forced;
@@ -672,7 +669,7 @@ public sealed class SuggestedTagsService : IExtensionPass
             }
 
             RoundFactsClock clock = RoundFactsClock.For(parsed);
-            DetectionInputs inputs = BuildDetectionInputs(path, map, parsed, facts, record, onVisit: true);
+            DetectionInputs inputs = BuildDetectionInputs(path, map, parsed, facts, record, removed);
             SiteRegions regions = SiteRegions.Compose(map, null, table, profile);
             IReadOnlyList<TagProposal> proposals =
                 ProposalDetection.Detect(map, inputs.TickRate, regions, inputs.Events, inputs.Rounds, profile);
@@ -746,9 +743,10 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <param name="parsed">The held parse.</param>
     /// <param name="facts">The demo's Round Facts rows.</param>
     /// <param name="record">The demo's library row.</param>
-    /// <param name="onVisit">True on the pass's own visit, where the projectile walk may be shared with the grenade walk.</param>
+    /// <param name="removed">The thrower collector's rows from the rules run, or null to walk the parse for them.</param>
     internal DetectionInputs BuildDetectionInputs(
-        string path, string map, ParsedDemo parsed, RoundFactsRows facts, LibraryDemo record, bool onVisit = false)
+        string path, string map, ParsedDemo parsed, RoundFactsRows facts, LibraryDemo record,
+        IReadOnlyList<RemovedProjectile>? removed = null)
     {
         int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
         IReadOnlyList<RoundOccupancy> rounds;
@@ -785,19 +783,14 @@ public sealed class SuggestedTagsService : IExtensionPass
             cloud);
 
         // Names a thrower for the 21 to 27 percent of inferno and decoy detonations the wire leaves unresolved
-        // (#56, #59); one bounded pass, since Removed samples are yielded on their own frame at any stride.
-        List<ProjectileSample> projectiles;
-        if (onVisit && _removedProjectiles is not null)
-        {
-            projectiles = _removedProjectiles(path, parsed);
-        }
-        else
+        // (#56, #59). Removed samples are yielded on their own frame at any stride, so stride 8 loses none.
+        if (removed is null)
         {
             DecodeSites.Enter(4);
-            projectiles = [.. ProjectileSampler.Walk(parsed, frameStride: 8).Where(s => s.Removed)];
+            removed = [.. ProjectileSampler.Walk(parsed, frameStride: 8).Where(s => s.Removed).Select(RemovedProjectile.From)];
         }
 
-        List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed, projectiles));
+        List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed, removed));
         return new DetectionInputs(tickRate, rounds, events, source);
     }
 

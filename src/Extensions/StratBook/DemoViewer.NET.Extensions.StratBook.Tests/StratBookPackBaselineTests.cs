@@ -467,7 +467,7 @@ public class StratBookPackBaselineTests
                 GrenadeIndexEvaluator grenades = provider.GetRequiredService<GrenadeIndexEvaluator>();
                 forward = new ForwardPassRunner(provider.GetRequiredService<MergedRulesBuild>());
                 demoCache = provider.GetRequiredService<DemoCacheStore>();
-                full = [library.Evaluate, highlights.Evaluate, roundFacts.Evaluate, roundIndex.Evaluate, suggestedTags.Evaluate, grenades.Evaluate];
+                full = [library.Evaluate, highlights.Evaluate, roundFacts.Evaluate, roundIndex.Evaluate, (path, parsed) => suggestedTags.Evaluate(path, parsed), grenades.Evaluate];
             });
 
             try
