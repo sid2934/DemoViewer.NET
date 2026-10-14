@@ -306,41 +306,50 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     What the open demo's run evaluates, given the shell's own read of the rules. When a stamped output is
-    ///     stale for <paramref name="path" /> and <paramref name="read" />'s core rulesets are the ones this build
-    ///     holds, the plan is the merged set recording that cut, and its run can <see cref="Seed" /> the open's
-    ///     visit. Otherwise it is <paramref name="read" /> without the stamped rulesets, as before.
+    ///     What the open demo's run evaluates: <paramref name="read" /> minus the stamped rulesets that are off,
+    ///     whatever is stale, so the open shows the same graph either way. Its <see cref="OpenRunPlan.Cut" /> is
+    ///     the stale stamped outputs when <paramref name="read" /> holds the rulesets this build runs, and then
+    ///     the run can <see cref="Seed" /> the open's visit; otherwise it is empty and the run records no
+    ///     stamped table.
     /// </summary>
     /// <param name="read">The rules the shell read for this open.</param>
     /// <param name="path">The open demo's path, or null when it has none on disk.</param>
     public OpenRunPlan PlanOpen(IReadOnlyList<RulesetDoc> read, string? path)
     {
         ArgumentNullException.ThrowIfNull(read);
-        IReadOnlyList<RulesetDoc> core = WithoutStampedRulesets(read);
-        OpenRunPlan unseeded = new(core, null, new HashSet<string>(StringComparer.Ordinal), new HashSet<string>(StringComparer.Ordinal));
+        RuleConfigLoadResult rules = Rules;
+        (string off, IReadOnlyList<RulesetDoc> merged) = MergedDocs();
+        HashSet<string> offIds = new(off.Split('\n', StringSplitOptions.RemoveEmptyEntries), StringComparer.Ordinal);
+        IReadOnlyList<RulesetDoc> docs = offIds.Count == 0 ? read : [.. read.Where(r => !offIds.Contains(r.Id))];
+        HashSet<string> stampedIds = new(StampedRulesets.Select(r => r.RulesetId), StringComparer.Ordinal);
+        HashSet<string> stampedTables = new(StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
+        foreach (RulesetDoc doc in docs)
+        {
+            if (stampedIds.Contains(doc.Id) && doc.Show is { } show)
+            {
+                stampedTables.UnionWith(show.Tables.Select(t => t.Name));
+            }
+        }
+
+        OpenRunPlan plan = new(docs, new HashSet<string>(StringComparer.Ordinal), stampedTables, stampedIds) { Rules = rules, Off = off };
         if (path is null)
         {
-            return unseeded;
+            return plan;
         }
 
         IReadOnlySet<string> stale = OutputsFor?.Invoke(path) ?? StampedOutputs();
         if (stale.Count == 0)
         {
-            return unseeded;
+            return plan;
         }
 
-        RuleConfigLoadResult rules = Rules;
-        (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
-        if (!SameRulesets(core, CoreDocs))
+        if (!SameRulesets(docs, merged))
         {
             MergedRulesBuildLog.OpenRulesDiffer(Log);
-            return unseeded;
+            return plan;
         }
 
-        HashSet<string> cut = new(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
-        HashSet<string> stampedTables = new(StampedOutputs(), StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
-        HashSet<string> stampedIds = new(StampedRulesets.Select(r => r.RulesetId), StringComparer.Ordinal);
-        return new OpenRunPlan(docs, cut, stampedTables, stampedIds) { Rules = rules, Off = off };
+        return plan with { Cut = new HashSet<string>(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable } };
     }
 
     /// <summary>
@@ -353,7 +362,7 @@ public sealed class MergedRulesBuild
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(run);
-        if (plan.Cut is null)
+        if (plan.Cut.Count == 0)
         {
             return false;
         }
@@ -518,16 +527,15 @@ public sealed class MergedRulesBuild
 
 /// <summary>
 ///     The open demo's rulesets from <see cref="MergedRulesBuild.PlanOpen" />. <see cref="Cut" /> is the
-///     stamped outputs its run records, or null when the run cannot seed the visit and evaluates the core
-///     rulesets only.
+///     stamped outputs its run records, empty when the run cannot seed the visit.
 /// </summary>
 /// <param name="Docs">The rulesets the open's run builds.</param>
-/// <param name="Cut">The stamped tables to record, or null.</param>
+/// <param name="Cut">The stamped tables to record.</param>
 /// <param name="StampedTables">Every stamped table name, recorded or not.</param>
 /// <param name="StampedIds">Every stamped ruleset id.</param>
 public sealed record OpenRunPlan(
     IReadOnlyList<RulesetDoc> Docs,
-    IReadOnlySet<string>? Cut,
+    IReadOnlySet<string> Cut,
     IReadOnlySet<string> StampedTables,
     IReadOnlySet<string> StampedIds)
 {
@@ -536,18 +544,15 @@ public sealed record OpenRunPlan(
     internal string? Off { get; init; }
 
     /// <summary>The build's outputs cut to the core tables plus <see cref="Cut" />.</summary>
-    public BuildResult Cuts(BuildResult build) => Cut is null
-        ? build
-        : build with { Outputs = build.Outputs?.Where(o => !StampedTables.Contains(o.Id) || Cut.Contains(o.Id)).ToList() };
+    public BuildResult Cuts(BuildResult build) =>
+        build with { Outputs = build.Outputs?.Where(o => !StampedTables.Contains(o.Id) || Cut.Contains(o.Id)).ToList() };
 
     /// <summary>The run as the core rulesets alone would show it: no stamped table and no stamped highlight.</summary>
-    public AnalysisRun Shown(AnalysisRun run) => Cut is null
-        ? run
-        : run with
-        {
-            Build = run.Build with { Outputs = run.Build.Outputs?.Where(o => !StampedTables.Contains(o.Id)).ToList() },
-            Highlights = [.. run.Highlights.Where(h => !StampedIds.Contains(h.RulesetId))]
-        };
+    public AnalysisRun Shown(AnalysisRun run) => run with
+    {
+        Build = run.Build with { Outputs = run.Build.Outputs?.Where(o => !StampedTables.Contains(o.Id)).ToList() },
+        Highlights = [.. run.Highlights.Where(h => !StampedIds.Contains(h.RulesetId))]
+    };
 }
 
 /// <summary>The merged build's log seams.</summary>
