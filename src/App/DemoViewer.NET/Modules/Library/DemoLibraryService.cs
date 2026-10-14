@@ -1086,16 +1086,22 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
+        // Every row Reconcile hands here was awaiting its index or in the backlog. One that is in neither now
+        // had its tier 2 end since that reconcile; enlisting it again would read the demo a second time.
+        List<DemoEntry> owed = [];
         lock (_tier2Lock)
         {
             foreach (DemoEntry entry in needFull)
             {
-                _pendingFull[entry.FilePath] = entry;
-                _awaitingIndex.Remove(entry.FilePath);
+                if (_awaitingIndex.Remove(entry.FilePath) || _pendingFull.ContainsKey(entry.FilePath))
+                {
+                    _pendingFull[entry.FilePath] = entry;
+                    owed.Add(entry);
+                }
             }
         }
 
-        foreach (DemoEntry entry in needFull)
+        foreach (DemoEntry entry in owed)
         {
             DemoEntry captured = entry;
 

@@ -821,6 +821,81 @@ public class DemoLibraryServiceTests
         }
     }
 
+    /// <summary>
+    ///     A rescan that reconciles after a demo's card shows Indexed, but before its tier 2 has left the
+    ///     backlog, does not read the demo again once that tier 2 has finished.
+    /// </summary>
+    [Test]
+    public async Task ARescanReconcilingAsATier2Finishes_DoesNotReadTheDemoAgain()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvlib_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        await File.WriteAllBytesAsync(Path.Combine(dir, "good.dem"), [1, 2, 3]);
+        try
+        {
+            int parses = 0;
+            DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(), _ =>
+            {
+                Interlocked.Increment(ref parses);
+                return SyntheticDemo();
+            });
+
+            using ManualResetEventSlim reconciled = new(false), visitEnded = new(false);
+            int worker = 0, armed = 0;
+            Task? rescan = null;
+            DemoLibraryService? svc = null;
+            void Post(Action a)
+            {
+                a();
+                // The tier 2's Indexed post: hold the visit here until a rescan has reconciled.
+                if (svc?.Entries is [{ State: DemoIndexState.Indexed }] && Interlocked.CompareExchange(ref armed, 1, 0) == 0)
+                {
+                    worker = Environment.CurrentManagedThreadId;
+                    Volatile.Write(ref rescan, Task.Run(svc.RescanAsync));
+                    reconciled.Wait(TimeSpan.FromSeconds(10));
+                }
+            }
+
+            svc = new DemoLibraryService(Post, Path.Combine(dir, "library.json"));
+            using DemoLibraryService owned = svc;
+            using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
+            svc.Scheduler = coord;
+            coord.PassFinished += (_, _, _) => visitEnded.Set();
+
+            // The rescan's first Changed follows its reconcile; it enlists only once the visit has ended.
+            svc.Changed += () =>
+            {
+                if (Volatile.Read(ref armed) == 1 && !reconciled.IsSet && Environment.CurrentManagedThreadId != worker)
+                {
+                    reconciled.Set();
+                    visitEnded.Wait(TimeSpan.FromSeconds(10));
+                }
+            };
+
+            await svc.AddFoldersAsync([dir]);
+            await WaitForAsync(() => Volatile.Read(ref rescan) is not null, "the tier 2's Indexed post");
+            await Volatile.Read(ref rescan)!;
+            await Task.Delay(300);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(reconciled.IsSet).IsTrue().Because("the rescan reconciled while the visit was held");
+                await Assert.That(parses).IsEqualTo(1);
+            }
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                /* best-effort cleanup */
+            }
+        }
+    }
+
     [Test]
     public async Task PrettifyMap_StripsPrefix_AndTitleCases()
     {
