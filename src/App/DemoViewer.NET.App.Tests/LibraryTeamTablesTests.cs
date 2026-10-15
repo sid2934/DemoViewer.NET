@@ -31,7 +31,7 @@ public class LibraryTeamTablesTests
     [Test]
     public async Task ARunWithoutTheTables_ReadsAsEmpty()
     {
-        LibraryTeamState none = LibraryTeamTables.Read(null, []);
+        LibraryTeamState none = LibraryTeamTables.Read(null, [], default);
 
         using (Assert.Multiple())
         {
@@ -44,21 +44,78 @@ public class LibraryTeamTablesTests
     }
 
     [Test]
-    [Arguments(12, 11, true, 13, 11)]
-    [Arguments(11, 12, true, 11, 13)]
-    [Arguments(12, 5, true, 13, 5)]
-    [Arguments(15, 13, true, 16, 13)]
-    [Arguments(16, 18, true, 16, 19)]
-    [Arguments(13, 11, true, 13, 11)]
-    [Arguments(16, 14, true, 16, 14)]
-    [Arguments(12, 11, false, 12, 11)]
-    [Arguments(12, 12, true, 12, 12)]
-    [Arguments(15, 15, true, 15, 15)]
-    [Arguments(8, 3, true, 8, 3)]
-    [Arguments(15, 11, true, 15, 11)]
-    public async Task AMatchEndedOneRoundShort_GetsTheLeadersPoint(int ct, int t, bool ended, int wantCt, int wantT)
+    [Arguments(12, 11, true, true, 0, 13, 11)]
+    [Arguments(11, 12, true, true, 0, 11, 13)]
+    [Arguments(12, 5, true, false, 0, 13, 5)]
+    [Arguments(12, 10, true, false, 0, 13, 10)]
+    [Arguments(15, 13, true, true, 1, 16, 13)]
+    [Arguments(16, 18, true, true, 0, 16, 19)]
+    [Arguments(15, 14, true, true, 0, 16, 14)]
+    [Arguments(15, 14, true, true, 2, 16, 14)]
+    [Arguments(13, 11, true, true, 0, 13, 11)]
+    [Arguments(16, 14, true, true, 0, 16, 14)]
+    [Arguments(12, 11, false, true, 0, 12, 11)]
+    [Arguments(12, 12, true, true, 0, 12, 12)]
+    [Arguments(15, 15, true, true, 0, 15, 15)]
+    [Arguments(8, 3, true, true, 0, 8, 3)]
+    [Arguments(15, 11, true, true, 0, 15, 11)]
+    public async Task AMatchEndedOneRoundShort_GetsTheLeadersPoint(int ct, int t, bool ended, bool overtime, int limit, int wantCt, int wantT)
     {
-        await Assert.That(LibraryFinalScore.Complete(ct, t, ended)).IsEqualTo((wantCt, wantT));
+        await Assert.That(LibraryFinalScore.Complete(ct, t, ended, new LibraryOvertime(overtime, limit))).IsEqualTo((wantCt, wantT));
+    }
+
+    /// <summary>
+    ///     A one-round lead is a tie short when the trailer took the last round, and the dropped snapshot does
+    ///     not say who did. Where the convars let a tie end the match the score is left as read.
+    /// </summary>
+    [Test]
+    [Arguments(12, 11, false, 0)]
+    [Arguments(11, 12, false, 0)]
+    [Arguments(15, 14, true, 1)]
+    [Arguments(18, 17, true, 2)]
+    public async Task AOneRoundLead_WhereATieCanEnd_IsLeftAlone(int ct, int t, bool overtime, int limit)
+    {
+        await Assert.That(LibraryFinalScore.Complete(ct, t, true, new LibraryOvertime(overtime, limit))).IsEqualTo((ct, t));
+    }
+
+    [Test]
+    public async Task TheMatchEnd_CountsOnlyAfterTheLastRestart()
+    {
+        static bool Ended(params string[] names) => names.Aggregate(false, LibraryFinalScore.FoldMatchEnded);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Ended("begin_new_match", "round_freeze_end", "cs_win_panel_match")).IsTrue();
+            await Assert.That(Ended("cs_win_panel_match", "begin_new_match", "round_freeze_end")).IsFalse();
+            await Assert.That(Ended("cs_win_panel_match", "begin_new_match", "cs_win_panel_match")).IsTrue();
+            await Assert.That(Ended("round_freeze_end")).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task TheOvertimeConvars_AreTheLastSet()
+    {
+        static NetMessage Set(params (string Name, string Value)[] cvars)
+        {
+            CMsg_CVars set = new();
+            set.Cvars.AddRange(cvars.Select(c => new CMsg_CVars.Types.CVar { Name = c.Name, Value = c.Value }));
+            return new NetMessage { MessageTypeName = "CNETMsg_SetConVar", Payload = new CNETMsg_SetConVar { Convars = set } };
+        }
+
+        LibraryOvertime premier = default(LibraryOvertime)
+            .With(Set(("mp_halftime", "true"), ("mp_overtime_enable", "true"), ("mp_overtime_limit", "1")));
+        LibraryOvertime later = default(LibraryOvertime).With(Set(("mp_maxrounds", "24"))).With(Set(("mp_overtime_enable", "1")));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(premier).IsEqualTo(new LibraryOvertime(true, 1));
+            await Assert.That(later).IsEqualTo(new LibraryOvertime(true, 0));
+            await Assert.That(premier.With(Set(("mp_overtime_enable", "false")))).IsEqualTo(new LibraryOvertime(false, 1));
+            await Assert.That(default(LibraryOvertime).TieCanEnd(12)).IsTrue();
+            await Assert.That(premier.TieCanEnd(12)).IsFalse();
+            await Assert.That(premier.TieCanEnd(15)).IsTrue();
+            await Assert.That(later.TieCanEnd(15)).IsFalse();
+        }
     }
 
     [Test]
@@ -66,9 +123,9 @@ public class LibraryTeamTablesTests
     {
         using (Assert.Multiple())
         {
-            await Assert.That(Show(LibraryTeamState.Of(0, 0, "A", "B", [3], false))).IsEqualTo(Show(LibraryTeamState.Empty()));
-            await Assert.That(Show(LibraryTeamState.Of(null, 4, null, null, [3], true))).IsEqualTo(Show(LibraryTeamState.Empty()));
-            await Assert.That(LibraryTeamState.Of(1, 0, null, null, [3], false).CoachSlots).IsEquivalentTo([3]);
+            await Assert.That(Show(LibraryTeamState.Of(0, 0, "A", "B", [3], false, default))).IsEqualTo(Show(LibraryTeamState.Empty()));
+            await Assert.That(Show(LibraryTeamState.Of(null, 4, null, null, [3], true, default))).IsEqualTo(Show(LibraryTeamState.Empty()));
+            await Assert.That(LibraryTeamState.Of(1, 0, null, null, [3], false, default).CoachSlots).IsEquivalentTo([3]);
         }
     }
 
@@ -81,7 +138,7 @@ public class LibraryTeamTablesTests
         await Assert.That((run.Build.Outputs ?? []).Select(o => o.Id).Where(LibraryTeamTables.Tables.Contains).Order(StringComparer.Ordinal))
             .IsEquivalentTo(LibraryTeamTables.Tables.Order(StringComparer.Ordinal));
         // Two frames, no team entity and no closed round: no score and no coach, as the replay read it.
-        await Assert.That(Show(LibraryTeamTables.Read(run, []))).IsEqualTo(Show(LibraryTeamState.Empty()));
+        await Assert.That(Show(LibraryTeamTables.Read(run, [], default))).IsEqualTo(Show(LibraryTeamState.Empty()));
     }
 
     [Test]
@@ -182,7 +239,7 @@ public class LibraryTeamTablesTests
             await Assert.That(alone.Run).IsNull();
             await Assert.That(alone.FinalState).IsNotNull();
             await Assert.That(withRules.FinalState).IsNull().Because("a rules run carries the final state as tables");
-            await Assert.That(Show(LibraryTeamTables.Read(withRules.Run, withRules.Demo.Players.Values))).IsEqualTo(Show(alone.FinalState!));
+            await Assert.That(Show(LibraryTeamTables.Read(withRules.Run, withRules.Demo.Players.Values, withRules.Overtime))).IsEqualTo(Show(alone.FinalState!));
             await Assert.That(alone.FinalState!.Ct).IsNotNull();
         }
     }
@@ -209,7 +266,7 @@ public class LibraryTeamTablesTests
         ParsedDemo parsed = BackgroundPlanRealDemoTests.ParseMapped(path, DemoProcessingQueue.WithoutUserCommands);
         LibraryTeamState replay = Replay(parsed);
         MergedRulesBuild rules = new(ShippedRules);
-        LibraryTeamState merged = LibraryTeamTables.Read(rules.BareRun(parsed, path), parsed.Players.Values);
+        LibraryTeamState merged = LibraryTeamTables.Read(rules.BareRun(parsed, path), parsed.Players.Values, LibraryOvertime.Of(parsed.Frames));
         LibraryTeamState alone = LibraryTeamTables.Evaluate(parsed, ShippedRules().Rulesets);
 
         Console.WriteLine($"{Path.GetFileName(path)}: replay {Show(replay)}, merged {Show(merged)}");
@@ -242,12 +299,17 @@ public class LibraryTeamTablesTests
         string path = DemoTestHelper.FindDemoPath(file) ?? throw new SkipTestException($"{file} not present");
         ParsedDemo parsed = BackgroundPlanRealDemoTests.ParseMapped(path, DemoProcessingQueue.WithoutUserCommands);
         LibraryTeamState replay = LibraryFinalStateReplay.Replay(parsed);
-        LibraryTeamState merged = LibraryTeamTables.Read(new MergedRulesBuild(ShippedRules).BareRun(parsed, path), parsed.Players.Values);
-        LibraryTeamState tap;
+        AnalysisRun run = new MergedRulesBuild(ShippedRules).BareRun(parsed, path);
+        // Read after the run, as the library does: the evaluation must leave the convars on the held frames.
+        LibraryOvertime overtime = LibraryOvertime.Of(parsed.Frames);
+        LibraryTeamState merged = LibraryTeamTables.Read(run, parsed.Players.Values, overtime);
+        ForwardDemoResult pass;
         using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
         {
-            tap = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState, null).FinalState!;
+            pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState, null);
         }
+
+        LibraryTeamState tap = pass.FinalState!;
 
         Console.WriteLine($"{file}: replay {Show(replay)}, merged {Show(merged)}, tap {Show(tap)}");
         using (Assert.Multiple())
@@ -256,6 +318,8 @@ public class LibraryTeamTablesTests
                 .IsTrue().Because($"{Show(replay)} is not a finished MR12 result");
             await Assert.That(Show(merged)).IsEqualTo(Show(replay));
             await Assert.That(Show(tap)).IsEqualTo(Show(replay));
+            await Assert.That(overtime.Enabled).IsTrue().Because("a 12:11 read is completed only where a tie cannot end the match");
+            await Assert.That(pass.Overtime).IsEqualTo(overtime);
             await Assert.That(replay.CtClan).IsNotNull();
             await Assert.That(replay.TClan).IsNotNull();
         }
