@@ -642,6 +642,36 @@ public class MergedRulesBuildTests
         }
     });
 
+    [Test]
+    public async Task NothingStale_TheOpenRunStillCarriesTheVisitsCollectors() => await WithFactsFixture(async fixture =>
+    {
+        CollectorSet registered = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a"))]);
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+        build.OutputsFor = _ => new HashSet<string>();
+        build.OpenCollectors = () => registered;
+        build.CollectorsFor = _ => registered;
+        ParsedDemo parsed = TwoFrameDemo();
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+        BuildResult built = plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs, plan.Collectors.DeclareReads(new AnalysisOptions())));
+        (AnalysisOptions options, CollectorObserver? observer) = plan.Collectors.Declare(new AnalysisOptions());
+        AnalysisRun run = DemoAnalysis.Evaluate(parsed, built, options);
+        bool seeded = build.Seed(parsed, OpenPath, plan, run, observer?.Results);
+        CollectorResults collected = build.Collected(parsed, OpenPath);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsEmpty();
+            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.CoreDocs))).Because("the open still runs the core alone");
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(collected.Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+            await Assert.That(collected).IsSameReferenceAs(observer!.Results).Because("the visit read the open's collectors");
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run)
+                .Because("the open's run recorded no round_facts for a reader of the rules");
+        }
+    });
+
     // An open that cannot seed shows the core graph whether its stamps are current or it has no file.
     [Test]
     public async Task AnOpenThatCannotSeed_ShowsTheCoreGraph() => await WithFactsFixture(async fixture =>
