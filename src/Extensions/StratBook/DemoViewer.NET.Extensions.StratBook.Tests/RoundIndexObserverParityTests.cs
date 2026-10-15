@@ -51,8 +51,9 @@ public class RoundIndexObserverParityTests
         RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no round facts rows");
 
         RoundIndexDemoValues values = RoundIndexDemoValues.For(parsed);
+        List<PositionSample> walked = [.. PositionSampler.Walk(parsed, RoundIndexOptions.Default.FrameStride)];
         RoundIndexBuild walk = RoundIndexBuilder.BuildWithPositions(parsed, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance,
-            PositionSampler.Walk(parsed, RoundIndexOptions.Default.FrameStride));
+            walked);
         RoundIndexBuild observed = RoundIndexBuilder.BuildWithPositions(values with { LastFrameTick = collected.LastFrameTick }, rows,
             RoundIndexOptions.Default, PawnPlaceSource.Instance, collected.Samples);
 
@@ -62,12 +63,18 @@ public class RoundIndexObserverParityTests
         PrintFirstDiff("index", index, observedIndex);
         PrintFirstDiff("positions", positions, observedPositions);
         PrintFirstRound(walk.Index, observed.Index);
+        (List<PositionSample> observerOnly, List<PositionSample> walkOnly) = Unmatched(collected.Samples, walked);
+        Console.WriteLine($"samples: walk {walked.Count}, observer {collected.Samples.Count}, observer only {observerOnly.Count} " +
+                          $"({observerOnly.Select(s => s.PlayerSlot).Distinct().Count()} slots), walk only {walkOnly.Count}");
 
         using (Assert.Multiple())
         {
             await Assert.That(collected.LastFrameTick).IsEqualTo(values.LastFrameTick);
             await Assert.That(observedIndex).IsEqualTo(index);
             await Assert.That(observedPositions).IsEqualTo(positions);
+            await Assert.That(walkOnly).IsEmpty().Because("every pawn the walk yields has a bound slot the observer reads");
+            await Assert.That(observerOnly.Where(s => s.IsAlive)).IsEmpty()
+                .Because("a slot whose pawn left keeps its last cells; the fold drops it only while it reads dead");
             await Assert.That(observed.Positions.Players).IsNotEmpty();
             await Assert.That(observed.Positions.Players.Where(p => p.SteamId64 == 0 && p.Name.Length == 0)).IsEmpty()
                 .Because("every slot a tuple names is on the demo's roster");
@@ -125,6 +132,17 @@ public class RoundIndexObserverParityTests
         public IReadOnlyList<PassRound> Rounds => [];
         public CancellationToken CancellationToken => CancellationToken.None;
         public T? Collected<T>(string collectorId) where T : class => throw new NotSupportedException();
+    }
+
+    // The observer's per-slot reads never clear, so a slot whose pawn was removed or rebound keeps yielding
+    // samples the walk's live sweep does not.
+    private static (List<PositionSample> ObserverOnly, List<PositionSample> WalkOnly) Unmatched(
+        IReadOnlyList<PositionSample> observed, IReadOnlyList<PositionSample> walked)
+    {
+        HashSet<(int, int)> walkKeys = [.. walked.Select(s => (s.FrameIndex, s.PlayerSlot))];
+        HashSet<(int, int)> observedKeys = [.. observed.Select(s => (s.FrameIndex, s.PlayerSlot))];
+        return ([.. observed.Where(s => !walkKeys.Contains((s.FrameIndex, s.PlayerSlot)))],
+            [.. walked.Where(s => !observedKeys.Contains((s.FrameIndex, s.PlayerSlot)))]);
     }
 
     // Slots whose side in the last round disagrees with the roster's final team: a slot numbering mismatch
