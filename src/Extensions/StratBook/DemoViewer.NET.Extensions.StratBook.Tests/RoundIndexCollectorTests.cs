@@ -118,8 +118,8 @@ public class RoundIndexCollectorTests
         {
             await Assert.That(contribution.PassId).IsEqualTo(RoundIndexEvaluator.EvaluatorId);
             await Assert.That(contribution.Providers).IsEquivalentTo([
-                "entity.pawn.pos_x", "entity.pawn.pos_y", "entity.pawn.pos_z", "entity.pawn.place", "entity.pawn.health",
-                "entity.pawn.is_alive", "entity.pawn.entity_index"
+                "entity.pawn.pos_x", "entity.pawn.pos_y", "entity.pawn.pos_z", "entity.pawn.place", "entity.pawn.is_alive",
+                "entity.pawn.entity_index"
             ]);
             await Assert.That(contribution.ProjectileClasses).IsEmpty();
             await Assert.That(RegisteredCollector.Refusal(contribution)).IsNull();
@@ -150,9 +150,8 @@ public class RoundIndexCollectorTests
                 Values[(Declared[3], slot)] = place;
             }
 
-            Values[(Declared[4], slot)] = alive ? 100 : 0;
-            Values[(Declared[5], slot)] = alive ? 1 : 0;
-            Values[(Declared[6], slot)] = entityIndex;
+            Values[(Declared[4], slot)] = alive ? 1 : 0;
+            Values[(Declared[5], slot)] = entityIndex;
             _teams[slot] = team;
             return this;
         }

@@ -29,7 +29,6 @@ public sealed class RoundIndexCollector : IFrameCollector
     private const string PosY = "entity.pawn.pos_y";
     private const string PosZ = "entity.pawn.pos_z";
     private const string Place = "entity.pawn.place";
-    private const string Health = "entity.pawn.health";
     private const string Alive = "entity.pawn.is_alive";
     private const string EntityIndex = "entity.pawn.entity_index";
 
@@ -48,7 +47,7 @@ public sealed class RoundIndexCollector : IFrameCollector
 
     /// <summary>The registration: the pawn reads the walk's samples are made of, at the shipped stride.</summary>
     public static CollectorContribution Contribution { get; } =
-        new(CollectorId, RoundIndexEvaluator.EvaluatorId, Version, [PosX, PosY, PosZ, Place, Health, Alive, EntityIndex], [],
+        new(CollectorId, RoundIndexEvaluator.EvaluatorId, Version, [PosX, PosY, PosZ, Place, Alive, EntityIndex], [],
             () => new RoundIndexCollector(RoundIndexOptions.Default.FrameStride));
 
     /// <inheritdoc />
