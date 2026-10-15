@@ -3,7 +3,6 @@
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Extensions;
 
 #endregion
 
@@ -12,7 +11,7 @@ namespace DemoViewer.NET.Services.DemoProcessing.Collectors;
 /// <summary>An extension's collector as the host holds it: the contribution and the guard its faults go to.</summary>
 /// <param name="Contribution">What the extension registered.</param>
 /// <param name="Guard">The owning extension's guard; null for a host-owned collector.</param>
-internal sealed record RegisteredCollector(CollectorContribution Contribution, ExtensionGuard? Guard)
+internal sealed record RegisteredCollector(CollectorContribution Contribution, ICollectorFaultReporter? Guard)
 {
     public string Id => Contribution.Id;
 
