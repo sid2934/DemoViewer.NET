@@ -7,6 +7,7 @@ using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
@@ -67,6 +68,103 @@ public class LibraryTeamTablesTests
             await Assert.That(new StampedFacts(rules).Facets()).IsEmpty();
         }
     }
+
+    [Test]
+    public async Task TheLibrary_ReplaysWhenItsVisitRunsNoRules_AndReadsTheRunWhenOneDoes()
+    {
+        MergedRulesBuild rules = new(ShippedRules);
+        int thread = Environment.CurrentManagedThreadId;
+        int replays = 0;
+        DecodeSites.Entered = site => replays += site == 1 && Environment.CurrentManagedThreadId == thread ? 1 : 0;
+        string json = Path.Combine(Path.GetTempPath(), $"dv-teams-{Guid.NewGuid():N}.json");
+        try
+        {
+            AnalysisRun? served = null;
+            using DemoLibraryService library = new(a => a(), json) { TeamRun = (_, _) => served };
+            library.IndexTier2Core(Entry(), MergedRulesBuildTests.TwoFrameDemo());
+            int withoutRun = replays;
+            ParsedDemo parsed = MergedRulesBuildTests.TwoFrameDemo();
+            served = rules.BareRun(parsed, "/demos/a.dem");
+            library.IndexTier2Core(Entry(), parsed);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(withoutRun).IsEqualTo(1).Because("no run on the visit: the two-class replay");
+                await Assert.That(replays).IsEqualTo(1).Because("a run on the visit carries the tables");
+            }
+        }
+        finally
+        {
+            DecodeSites.Entered = null;
+            File.Delete(json);
+        }
+    }
+
+    [Test]
+    public async Task ARulesRead_CarriesTheFinalState_ForALibraryJoiningIt()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(DemoVisit.CanJoinRunning(PassNeeds.ForwardRead(ForwardNeeds.FinalState), true, ForwardNeeds.Rules, false)).IsTrue();
+            await Assert.That(DemoVisit.CanJoinRunning(PassNeeds.ForwardRead(ForwardNeeds.Rules), true, ForwardNeeds.FinalState, false)).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task AVisitInFlight_AnswersItsForwardNeeds_UntilItEnds()
+    {
+        ActiveCollectors active = new();
+        IDisposable visit = active.Begin("/demos/a.dem", CollectorSet.Empty, ForwardNeeds.FinalState | ForwardNeeds.Rules);
+        ForwardNeeds during = active.NeedsFor("/DEMOS/A.DEM");
+        visit.Dispose();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(during).IsEqualTo(ForwardNeeds.FinalState | ForwardNeeds.Rules);
+            await Assert.That(active.NeedsFor("/demos/a.dem")).IsEqualTo(ForwardNeeds.None);
+        }
+    }
+
+    /// <summary>
+    ///     A forward read with the final state and no rules replays it in the tap; with rules it reads none, and
+    ///     the run's tables say the same.
+    /// </summary>
+    [Test]
+    [Category("RealDemo")]
+    public async Task AForwardReadWithoutRules_ReplaysTheFinalState_TheTablesAgree()
+    {
+        string path = BenchmarkDemo(0);
+        MergedRulesBuild rules = new(ShippedRules);
+        ForwardDemoResult alone;
+        ForwardDemoResult withRules;
+        using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
+        {
+            alone = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState, null);
+        }
+
+        using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
+        {
+            withRules = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, rules.Docs);
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(alone.Run).IsNull();
+            await Assert.That(alone.FinalState).IsNotNull();
+            await Assert.That(withRules.FinalState).IsNull().Because("a rules run carries the final state as tables");
+            await Assert.That(Show(LibraryTeamTables.Read(withRules.Run, withRules.Demo.Players.Values))).IsEqualTo(Show(alone.FinalState!));
+            await Assert.That(alone.FinalState!.Ct).IsNotNull();
+        }
+    }
+
+    private static DemoEntry Entry() => new()
+    {
+        FilePath = "/demos/a.dem",
+        FileName = "a.dem",
+        Directory = "/demos",
+        FileSizeBytes = 1,
+        Modified = new DateTime(2026, 1, 1)
+    };
 
     [Test]
     [Category("RealDemo")]

@@ -3,10 +3,8 @@
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
 using System.Text.Json;
-using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
-using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -539,8 +537,7 @@ public class DemoLibraryServiceTests
                 MaxQueueSize = 1
             };
 
-            MergedRulesBuild rules = new(() => YamlConfigLoader.LoadWithOverlay(RuleSetLocator.ResolveShippedRulesDirectory(), null));
-            using DemoLibraryService svc = new(_inline, dataPath) { TeamRun = rules.BareRun };
+            using DemoLibraryService svc = new(_inline, dataPath);
             using DemoScheduler coord = new([svc], queue, svc.Tier2Backlog);
             svc.Scheduler = coord;
 
@@ -566,7 +563,7 @@ public class DemoLibraryServiceTests
             await Assert.That(entry.State).IsEqualTo(DemoIndexState.Indexed);
             await Assert.That(entry.Players.Count).IsGreaterThan(0).Because("players decoded from the real parse");
             await Assert.That(entry.DurationSeconds).IsGreaterThan(0);
-            await Assert.That(entry.HasScore).IsTrue().Because("the final score read off the rules run over real frames");
+            await Assert.That(entry.HasScore).IsTrue().Because("the final score replayed over real frames");
             await Assert.That(svc.Wants(canonical)).IsFalse().Because("indexed from the open → no longer wanted");
 
             await Task.Delay(150); // let any (wrong) re-submit run

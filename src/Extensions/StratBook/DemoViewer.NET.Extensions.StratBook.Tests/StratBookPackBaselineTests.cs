@@ -606,7 +606,7 @@ public class StratBookPackBaselineTests
         HighlightScanService highlights)
     {
         long t0 = Stopwatch.GetTimestamp();
-        ForwardDemoResult pass = forward.Run(path, ForwardNeeds.Rules, _ => { },
+        ForwardDemoResult pass = forward.Run(path, ForwardNeeds.FinalState | ForwardNeeds.Rules, _ => { },
             CancellationToken.None);
         library.EvaluateForward(path, pass);
         highlights.EvaluateForward(path, pass);

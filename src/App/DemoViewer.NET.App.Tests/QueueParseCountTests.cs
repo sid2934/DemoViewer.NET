@@ -102,7 +102,7 @@ public class QueueParseCountTests
             throw new InvalidOperationException("not stopped");
         });
         queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Backlog,
-            [new TestPass("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) }]));
+            [new TestPass("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) }]));
         await started.Task;
         IDemoQueueHandle retained = queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Backlog, [new TestPass("grenades")]));
         await retained.Completion;
@@ -127,7 +127,7 @@ public class QueueParseCountTests
 
         await queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Backlog,
         [
-            new TestPass("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) },
+            new TestPass("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) },
             new ExtensionPassHost(frames, ["library"], ExtensionPassHostTests.StandaloneGuard(), static () => false)
         ])).Completion;
 

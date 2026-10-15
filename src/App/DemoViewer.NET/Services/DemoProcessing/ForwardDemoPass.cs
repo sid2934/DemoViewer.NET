@@ -6,6 +6,7 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
@@ -19,6 +20,12 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 public enum ForwardNeeds
 {
     None = 0,
+
+    /// <summary>
+    ///     The library's final scores, clans and coaches. A rules run carries them as tables; a read without one
+    ///     replays the two entity classes in the tap.
+    /// </summary>
+    FinalState = 1,
 
     /// <summary>The merged highlights plus stamped rules run, without snapshots.</summary>
     Rules = 2
@@ -35,6 +42,9 @@ public sealed class ForwardDemoResult
     public required int FrameCount { get; init; }
     public required int FirstServerTick { get; init; }
     public required int LastServerTick { get; init; }
+
+    /// <summary>The tap's replay of the final state; null when the read ran rules, which carry it as tables.</summary>
+    public LibraryTeamState? FinalState { get; init; }
     public AnalysisRun? Run { get; init; }
 
     /// <summary>What the read's collectors put; empty when it carried none.</summary>
@@ -90,7 +100,7 @@ public static class ForwardDemoPass
                                             || (outputs?.Contains(o.Id) ?? string.Equals(o.Id, RoundFactsTable, StringComparison.Ordinal))).ToList()
     };
 
-    /// <summary>The build's own plan, widened to the freeze ends the tap reads.</summary>
+    /// <summary>The build's own plan, widened to what the tap reads.</summary>
     public static DecodePlan PlanFor(BuildResult? build, ForwardNeeds needs)
     {
         const MessageCategories headerAndTables =
@@ -100,6 +110,10 @@ public static class ForwardDemoPass
             : new DecodePlan { Categories = headerAndTables, GameEventNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) };
 
         MessageCategories categories = plan.Categories | headerAndTables;
+        if (TapReplays(needs))
+        {
+            categories |= MessageCategories.Schema | MessageCategories.Entities;
+        }
 
         IReadOnlySet<string>? events = plan.GameEventNames;
         if (events is not null && !events.Contains(FreezeEndEvent))
@@ -155,7 +169,7 @@ public static class ForwardDemoPass
             : null;
         reader.Configure(PlanFor(build, needs));
 
-        Tap tap = new(reader, progress, cancellationToken);
+        Tap tap = new(reader, TapReplays(needs) ? LibraryFinalStateReplay.NewTracker() : null, progress, cancellationToken);
         AnalysisRun? run = null;
         CollectorObserver? observer = null;
         if (build is not null)
@@ -184,6 +198,9 @@ public static class ForwardDemoPass
             FrameCount = tap.Frames,
             FirstServerTick = tap.FirstServerTick,
             LastServerTick = tap.LastServerTick,
+            FinalState = tap.Tracker is null ? null
+                : tap.Frames == 0 ? LibraryTeamState.Empty()
+                : LibraryFinalStateReplay.Read(tap.Tracker, demo.Players.Keys),
             Run = run,
             Collected = observer?.Results ?? CollectorResults.None
         };
@@ -191,12 +208,18 @@ public static class ForwardDemoPass
 
     // Everything happens inside TryReadNext: the evaluator may pull from a producer thread, and the
     // scanner releases a frame's folded data once it has applied it.
+    // A rules run carries the final state as tables; only a read without one replays it.
+    private static bool TapReplays(ForwardNeeds needs) =>
+        (needs & ForwardNeeds.FinalState) != 0 && (needs & ForwardNeeds.Rules) == 0;
+
     private sealed class Tap(
         DemoReader inner,
+        EntityTracker? tracker,
         Action<double>? progress,
         CancellationToken cancellationToken) : IDemoFrameSource
     {
         public List<GameEvent> FreezeEnds { get; } = [];
+        public EntityTracker? Tracker => tracker;
         public int Frames { get; private set; }
         public int FirstServerTick { get; private set; }
         public int LastServerTick { get; private set; }
@@ -239,6 +262,7 @@ public static class ForwardDemoPass
                 }
             }
 
+            tracker?.AdvanceOneFrame(frame);
             return true;
         }
 
