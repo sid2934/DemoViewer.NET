@@ -293,7 +293,10 @@ public sealed class MergedRulesBuild
     internal CollectorResults Collected(ParsedDemo parsed, string path) =>
         RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty, false).Results;
 
-    /// <summary>True when an evaluated run is held for <paramref name="parsed" />, not just collector results. For tests.</summary>
+    /// <summary>
+    ///     True when an evaluated run is held for <paramref name="parsed" />, not just collector results. The
+    ///     library reads its tables off such a run instead of replaying.
+    /// </summary>
     internal bool HoldsRun(ParsedDemo parsed)
     {
         lock (_gate)
