@@ -18,8 +18,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 ///     back to: a demo is not wanted until its index row carries a Round Facts fingerprint, and the
 ///     index simply follows Round Facts by one pass and never races it.
 ///     <para>
-///         Per demo the work is one position walk (1 to 3 s on top of the parse the queue already
-///         paid) and one write of the demo's round index facet, positions included, stamped last so a
+///         Per demo the work is a fold of the samples <see cref="RoundIndexCollector" /> read on the
+///         visit's rules run and one write of the demo's round index facet, positions included, stamped last so a
 ///         crash leaves "not indexed" and never a stamp without both. A throw marks the facet
 ///         <see cref="DemoDataState.Failed" />, which the derived backlog excludes until the user
 ///         retries; the parse itself failing is not this evaluator's to mark.
@@ -48,8 +48,8 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     private readonly RoundIndexPlaceSources _sources;
     private readonly RoundIndexStore _store;
 
-    // Test seam: yields the position walk for a parse instead of PositionSampler.Walk. Null is the
-    // real walk; a synthetic parse carries no entity data for the tracker to replay.
+    // Test seam for Evaluate: yields the position walk for a parse instead of PositionSampler.Walk. Null
+    // is the real walk; a synthetic parse carries no entity data for the tracker to replay.
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
 
     /// <param name="library">The library: which demos are parsed and carry Round Facts.</param>
@@ -160,16 +160,31 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
 
     /// <inheritdoc />
+    public PassRead Read => PassRead.Forward;
+
+    /// <inheritdoc />
+    /// <remarks>The samples are <see cref="RoundIndexCollector" />'s, read on the visit's rules run.</remarks>
     public void Run(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        Evaluate(context.DemoPath, context.Parsed!);
+        Refresh(context.DemoPath, context.Demo.MapName, (facts, source) =>
+        {
+            RoundIndexSamples samples = context.Collected<RoundIndexSamples>(RoundIndexCollector.CollectorId)
+                                        ?? throw new InvalidOperationException("the round index collector put no samples");
+            return RoundIndexBuilder.BuildWithPositions(RoundIndexDemoValues.For(context, samples.LastFrameTick), facts,
+                _sources.Options, source, samples.Samples);
+        });
     }
 
-    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <summary>Does the pass's work on <paramref name="parsed" />, walking its positions.</summary>
     /// <param name="path">The demo's path.</param>
     /// <param name="parsed">The demo's parse.</param>
-    public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
+    public void Evaluate(string path, ParsedDemo parsed)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        Refresh(path, parsed.MapName, (facts, source) =>
+            RoundIndexBuilder.BuildWithPositions(parsed, facts, _sources.Options, source, _walk?.Invoke(parsed)));
+    }
 
     /// <inheritdoc />
     public void OnFailed(string demoPath) => ClearForced(demoPath);
@@ -275,7 +290,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     private static bool HasRoundFacts(LibraryDemo entry) =>
         entry.Fact(RoundFactsRows.FacetId) is { IsWritten: true };
 
-    private void Refresh(string path, ParsedDemo parsed)
+    private void Refresh(string path, string? mapName, Func<RoundFactsRows, IPlaceSource, RoundIndexBuild> build)
     {
         string fileName = Path.GetFileName(path);
         bool forced;
@@ -299,21 +314,20 @@ public sealed class RoundIndexEvaluator : IExtensionPass
                 return; // no round windows to sample within; Round Facts has not written this demo yet
             }
 
-            IPlaceSource source = _sources.SourceFor(parsed.MapName);
+            IPlaceSource source = _sources.SourceFor(mapName);
             string fingerprint = RoundIndexFingerprint.Compose(_sources.Options, source);
             if (!forced && _store.IsCurrent(path, fingerprint))
             {
                 return; // a queued request an earlier visit already satisfied
             }
 
-            RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(parsed, facts, _sources.Options, source,
-                _walk?.Invoke(parsed));
-            foreach (RoundIndexDisagreement d in build.Disagreements)
+            RoundIndexBuild built = build(facts, source);
+            foreach (RoundIndexDisagreement d in built.Disagreements)
             {
                 RoundIndexLog.SampleDisagreedWithFacts(Log, fileName, d.Round, d.SideMismatches, d.AliveMismatches);
             }
 
-            RoundIndexDocument document = build.Index;
+            RoundIndexDocument document = built.Index;
             string stableKey = DemoKeys.StableKey(path);
             document.Demo = new RoundIndexDemo
             {
@@ -322,7 +336,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
                 FileName = fileName,
                 SizeBytes = record.FileSizeBytes
             };
-            build.Positions.Demo = new RoundPositionsDemo
+            built.Positions.Demo = new RoundPositionsDemo
             {
                 Sha256 = record.Sha256,
                 StableKey = stableKey
@@ -330,7 +344,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
 
             // The store writes the positions first, the index second and the stamp last: a crash between any
             // two leaves "not indexed", never an index whose cards have nothing to draw.
-            long computedAt = _store.Write(path, document, build.Positions, fingerprint)?.WrittenAtTicks ?? DateTime.UtcNow.Ticks;
+            long computedAt = _store.Write(path, document, built.Positions, fingerprint)?.WrittenAtTicks ?? DateTime.UtcNow.Ticks;
 
             RoundIndexedEvent indexed = new(path, document.Demo.StableKey, record.Sha256, document.Map, computedAt);
             Written?.Invoke(indexed);

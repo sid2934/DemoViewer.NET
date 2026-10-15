@@ -476,4 +476,21 @@ public sealed record RoundIndexDemoValues(int TickRate, int LastFrameTick, Round
         int last = demo.Frames.Count > 0 ? demo.Frames[^1].GameTick ?? demo.Frames[^1].ServerTick : 0;
         return new RoundIndexDemoValues(demo.TickRate, last, RoundFactsClock.For(demo), demo.MapName);
     }
+
+    /// <summary>The values of a pass's demo, with the last frame's frame clock its collector saw.</summary>
+    /// <param name="context">The pass's context.</param>
+    /// <param name="lastFrameTick">The last frame's <c>GameTick ?? ServerTick</c>.</param>
+    public static RoundIndexDemoValues For(IPassContext context, int lastFrameTick)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        DemoDescriptor demo = context.Demo;
+        RoundFactsClock clock = new()
+        {
+            TickRate = demo.TickRate > 0 ? demo.TickRate : 64,
+            FrameCount = context.FrameCount,
+            FirstTick = context.FirstServerTick,
+            LastTick = context.LastServerTick
+        };
+        return new RoundIndexDemoValues(demo.TickRate, lastFrameTick, clock, demo.MapName);
+    }
 }
