@@ -38,8 +38,9 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 ///     <para>
 ///         It deliberately does NOT compare against the Library card badge. That badge reads
-///         <c>CCSTeam.m_iScore</c>, which loses the winning team's final round on a demo cut at the buzzer.
-///         Both pro demos here report a 12 that cannot be a completed premier result.
+///         <c>CCSTeam.m_iScore</c>, which tournament GOTV can leave a round short when it drops the last
+///         tick's entity snapshot, and completes it through <c>LibraryFinalScore</c>;
+///         <c>LibraryTeamTablesTests</c> covers that read.
 ///     </para>
 ///     <para>
 ///         The gate therefore sweeps EVERY demo it can find, not just the reference one: on the reference demo

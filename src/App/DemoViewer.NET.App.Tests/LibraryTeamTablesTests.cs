@@ -19,7 +19,8 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The library's score, clans and coaches come from the <c>library_teams</c> and <c>library_coaches</c>
 ///     tables of the merged rules run. On the benchmark demos they equal the two-class tracker replay to the
-///     last frame they replaced, kept here as the oracle.
+///     last frame they replaced, kept here as the oracle. On tournament demos both reads complete the score
+///     the dropped last-tick snapshot leaves a round short.
 /// </summary>
 [NotInParallel]
 public class LibraryTeamTablesTests
@@ -40,6 +41,24 @@ public class LibraryTeamTablesTests
             await Assert.That(none.TClan).IsNull();
             await Assert.That(none.CoachSlots).IsEmpty();
         }
+    }
+
+    [Test]
+    [Arguments(12, 11, true, 13, 11)]
+    [Arguments(11, 12, true, 11, 13)]
+    [Arguments(12, 5, true, 13, 5)]
+    [Arguments(15, 13, true, 16, 13)]
+    [Arguments(16, 18, true, 16, 19)]
+    [Arguments(13, 11, true, 13, 11)]
+    [Arguments(16, 14, true, 16, 14)]
+    [Arguments(12, 11, false, 12, 11)]
+    [Arguments(12, 12, true, 12, 12)]
+    [Arguments(15, 15, true, 15, 15)]
+    [Arguments(8, 3, true, 8, 3)]
+    [Arguments(15, 11, true, 15, 11)]
+    public async Task AMatchEndedOneRoundShort_GetsTheLeadersPoint(int ct, int t, bool ended, int wantCt, int wantT)
+    {
+        await Assert.That(LibraryFinalScore.Complete(ct, t, ended)).IsEqualTo((wantCt, wantT));
     }
 
     [Test]
@@ -188,35 +207,44 @@ public class LibraryTeamTablesTests
             await Assert.That(Show(merged)).IsEqualTo(Show(replay));
             await Assert.That(Show(alone)).IsEqualTo(Show(replay));
             await Assert.That(replay.Ct).IsNotNull().Because("a benchmark demo is a whole match");
+            await Assert.That(LibraryFinalScore.IsResult(Math.Max(replay.Ct ?? 0, replay.T ?? 0), Math.Min(replay.Ct ?? 0, replay.T ?? 0)))
+                .IsTrue().Because($"{Show(replay)} is not a finished MR12 result");
         }
     }
 
     /// <summary>
-    ///     A tournament demo, where the clan names are set. The clans agree with the replay. The score may not:
-    ///     on vitality-vs-fut-m2-dust2 the run reads FUT's deciding point (11:13) at the end, while the
-    ///     tracker replay stays on 12 to the last frame, 35k ticks after its last change. Anything else moving
-    ///     fails.
+    ///     Tournament GOTV drops the entity snapshot of the match's last tick, which carries the deciding
+    ///     point, so <c>CCSTeam.m_iScore</c> ends a round short unless a later full packet re-sends it. The
+    ///     held-parse replay, the forward tap's replay and the run's table all reach the finished result.
     /// </summary>
     [Test]
     [Category("RealDemo")]
-    public async Task TheTables_EqualTheLastFrameReplay_OnATournamentDemo_ButForTheDecidingPoint()
+    [Arguments("furia-vs-vitality-m1-mirage.dem")]
+    [Arguments("furia-vs-vitality-m2-inferno.dem")]
+    [Arguments("furia-vs-vitality-m3-nuke.dem")]
+    [Arguments("furia-vs-vitality-m4-overpass.dem")]
+    [Arguments("vitality-vs-fut-m1-mirage.dem")]
+    [Arguments("vitality-vs-fut-m2-dust2.dem")]
+    [Arguments("vitality-vs-fut-m3-nuke.dem")]
+    public async Task EveryRead_ReachesTheFinishedResult_OnATournamentDemo(string file)
     {
-        string path = DemoTestHelper.FindDemoPath("vitality-vs-fut-m2-dust2.dem")
-                      ?? DemoTestHelper.FindDemoPath("vitality-vs-fut-m3-nuke.dem")
-                      ?? throw new SkipTestException("no tournament demo present");
+        string path = DemoTestHelper.FindDemoPath(file) ?? throw new SkipTestException($"{file} not present");
         ParsedDemo parsed = BackgroundPlanRealDemoTests.ParseMapped(path, DemoProcessingQueue.WithoutUserCommands);
-        LibraryTeamState replay = Replay(parsed);
+        LibraryTeamState replay = LibraryFinalStateReplay.Replay(parsed);
         LibraryTeamState merged = LibraryTeamTables.Read(new MergedRulesBuild(ShippedRules).BareRun(parsed, path), parsed.Players.Values);
+        LibraryTeamState tap;
+        using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
+        {
+            tap = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState, null).FinalState!;
+        }
 
-        Console.WriteLine($"{Path.GetFileName(path)}: replay {Show(replay)}, merged {Show(merged)}");
-        bool sameScore = merged.Ct == replay.Ct && merged.T == replay.T;
-        bool decidingPoint = (merged.Ct == replay.Ct && merged.T == replay.T + 1 && merged.T == 13)
-                             || (merged.T == replay.T && merged.Ct == replay.Ct + 1 && merged.Ct == 13);
+        Console.WriteLine($"{file}: replay {Show(replay)}, merged {Show(merged)}, tap {Show(tap)}");
         using (Assert.Multiple())
         {
-            await Assert.That(sameScore || decidingPoint).IsTrue().Because($"replay {Show(replay)}, merged {Show(merged)}");
-            await Assert.That((merged.CtClan, merged.TClan)).IsEqualTo((replay.CtClan, replay.TClan));
-            await Assert.That(merged.CoachSlots.Order().ToList()).IsEquivalentTo(replay.CoachSlots.Order().ToList());
+            await Assert.That(replay.Ct is { } ct && replay.T is { } t && LibraryFinalScore.IsResult(Math.Max(ct, t), Math.Min(ct, t)))
+                .IsTrue().Because($"{Show(replay)} is not a finished MR12 result");
+            await Assert.That(Show(merged)).IsEqualTo(Show(replay));
+            await Assert.That(Show(tap)).IsEqualTo(Show(replay));
             await Assert.That(replay.CtClan).IsNotNull();
             await Assert.That(replay.TClan).IsNotNull();
         }

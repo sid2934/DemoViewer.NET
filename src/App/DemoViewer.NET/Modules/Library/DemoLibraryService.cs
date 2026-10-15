@@ -2309,8 +2309,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 entry.State = DemoIndexState.Indexed;
             });
 
-            // Final score: CCSTeam.m_iScore at match end (no cheap event source exists in CS2, team_score /
-            // round_end are absent). Best-effort: a failure just leaves the score unset.
+            // Final score: CCSTeam.m_iScore at match end, completed by LibraryFinalScore (no cheap event source
+            // exists in CS2, team_score / round_end are absent). Best-effort: a failure leaves the score unset.
             try
             {
                 (ctScore, tScore, ctClan, tClan, coachSlots) = parsed.FinalState();
@@ -2569,8 +2569,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // The final scoreboard: CCSTeam.m_iScore per side (CT = team 3, T = team 2) plus clan names at the last
-    // frame. On a demo truncated at the buzzer the winner's final-round increment can be absent (no event
-    // carries the final score). Nulls for warmup-only / team-less demos so the card omits the score.
+    // frame, completed by LibraryFinalScore when the match ended one round short of a result. Nulls for
+    // warmup-only / team-less demos so the card omits the score.
     internal static (int? Ct, int? T, string? CtClan, string? TClan) ExtractFinalScore(ParsedDemo parsed)
     {
         (int? ct, int? t, string? ctClan, string? tClan, HashSet<int> _) = ExtractFinalState(parsed);

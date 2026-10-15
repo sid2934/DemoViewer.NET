@@ -22,6 +22,55 @@ public sealed record LibraryTeamState(int? Ct, int? T, string? CtClan, string? T
 {
     /// <summary>No score, no clans, no coach.</summary>
     public static LibraryTeamState Empty() => new(null, null, null, null, []);
+
+    /// <summary>
+    ///     The state both library reads return. Scores are both or nothing, and nothing when they sum to zero
+    ///     (warmup only); a score the match-end panel closed is completed (<see cref="LibraryFinalScore" />);
+    ///     coach slots come back either way.
+    /// </summary>
+    public static LibraryTeamState Of(int? ct, int? t, string? ctClan, string? tClan, HashSet<int> coachSlots, bool matchEnded)
+    {
+        ArgumentNullException.ThrowIfNull(coachSlots);
+        if (ct is not { } c || t is not { } tt || c + tt == 0)
+        {
+            return new LibraryTeamState(null, null, null, null, coachSlots);
+        }
+
+        (int fullCt, int fullT) = LibraryFinalScore.Complete(c, tt, matchEnded);
+        return new LibraryTeamState(fullCt, fullT, ctClan, tClan, coachSlots);
+    }
+}
+
+/// <summary>
+///     Completes a final score one round short of a result. Tournament GOTV can drop the entity snapshot of
+///     the match's last tick, where the deciding point lands, so <c>CCSTeam.m_iScore</c> ends on 12:11 for a
+///     13:11; a later full packet carries the point, so a read that primed from one has it already.
+/// </summary>
+public static class LibraryFinalScore
+{
+    /// <summary>
+    ///     True for a finished MR12 result: 13 with the loser at 11 or below, or an MR3 overtime's 16, 19, ...
+    ///     with the loser 2 to 4 behind.
+    /// </summary>
+    public static bool IsResult(int winner, int loser) =>
+        (winner == 13 && loser is >= 0 and <= 11)
+        || (winner >= 16 && (winner - 13) % 3 == 0 && loser >= winner - 4 && loser <= winner - 2);
+
+    /// <summary>
+    ///     The score with the leader's deciding point added when the match ended, the score is not a result
+    ///     and one more round for the leader makes it one. The match winner wins the last round, so the
+    ///     missing point is the leader's. Anything else comes back as it was.
+    /// </summary>
+    public static (int Ct, int T) Complete(int ct, int t, bool matchEnded)
+    {
+        if (!matchEnded || ct == t || IsResult(Math.Max(ct, t), Math.Min(ct, t))
+            || !IsResult(Math.Max(ct, t) + 1, Math.Min(ct, t)))
+        {
+            return (ct, t);
+        }
+
+        return ct > t ? (ct + 1, t) : (ct, t + 1);
+    }
 }
 
 /// <summary>
@@ -49,9 +98,8 @@ public static class LibraryTeamTables
         string.Equals(rulesetId, TeamsRulesetId, StringComparison.Ordinal) || string.Equals(rulesetId, CoachesRulesetId, StringComparison.Ordinal);
 
     /// <summary>
-    ///     The state out of <paramref name="run" />'s two tables. Scores are both or nothing, and nothing when
-    ///     they sum to zero (warmup only); a blank clan is null; coach slots come back either way. A run without
-    ///     the tables reads as <see cref="LibraryTeamState.Empty" />.
+    ///     The state out of <paramref name="run" />'s two tables, through <see cref="LibraryTeamState.Of" />; a
+    ///     blank clan is null. A run without the tables reads as <see cref="LibraryTeamState.Empty" />.
     /// </summary>
     /// <param name="run">A run that recorded the two tables, or null.</param>
     /// <param name="players">The demo's roster, which the coach rows join to.</param>
@@ -75,8 +123,10 @@ public static class LibraryTeamTables
 
         int? ct = null, t = null;
         string? ctClan = null, tClan = null;
+        bool matchEnded = false;
         foreach (MetricRow row in teams?.Rows ?? [])
         {
+            matchEnded |= ToInt(row.Values.GetValueOrDefault("match_ended")) > 0;
             int? score = ToInt(row.Values.GetValueOrDefault("score"));
             string? clan = row.Values.GetValueOrDefault("clan_name") as string is { Length: > 0 } c ? c : null;
             switch (ToInt(row.Dimensions.GetValueOrDefault("side")))
@@ -92,10 +142,7 @@ public static class LibraryTeamTables
             }
         }
 
-        HashSet<int> coachSlots = CoachSlots(coaches, players);
-        return ct is null || t is null || ct + t == 0
-            ? new LibraryTeamState(null, null, null, null, coachSlots)
-            : new LibraryTeamState(ct, t, ctClan, tClan, coachSlots);
+        return LibraryTeamState.Of(ct, t, ctClan, tClan, CoachSlots(coaches, players), matchEnded);
     }
 
     /// <summary>

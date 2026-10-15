@@ -5,8 +5,9 @@
 # rules anyway; a visit with nothing else to do replays two entity classes instead. Like round_facts
 # it is app content and a stamped ruleset: the highlight scan and Stats leave it out by id.
 #
-# A capture with no `on:` reads the last frame. A demo cut off at the buzzer can miss the last
-# round's point; no event carries the final score, so the table inherits that.
+# A capture with no `on:` reads the last frame. Tournament GOTV can drop the entity snapshot of the
+# match's last tick, which holds the deciding point, so the app completes a score that the match-end
+# panel says is final and that is one round short of a result. match_ended carries that panel.
 ruleset: library_teams
 title: Library Teams
 summary: Each side's final score and clan name, for the library card.
@@ -15,6 +16,7 @@ for: each_team
 stats:
   score:     { capture: team.score,     per: match }
   clan_name: { capture: team.clan_name, per: match }
+  match_ended: { count: raw.cs_win_panel_match, per: match }
 
 show:
   tables:
@@ -23,3 +25,4 @@ show:
       columns:
         - { stat: score,     label: score }
         - { stat: clan_name, label: clan_name }
+        - { stat: match_ended, label: match_ended }

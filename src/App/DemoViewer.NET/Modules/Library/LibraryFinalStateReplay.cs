@@ -21,6 +21,9 @@ public static class LibraryFinalStateReplay
 
     public static EntityTracker NewTracker() => new() { StoreClassFilter = Classes };
 
+    /// <summary>The event that says the match is over, which the replay's score completion needs.</summary>
+    public const string MatchEndEvent = "cs_win_panel_match";
+
     /// <summary>Replays a held parse to its last frame and reads it. Decode site 1.</summary>
     public static LibraryTeamState Replay(ParsedDemo parsed)
     {
@@ -34,14 +37,18 @@ public static class LibraryFinalStateReplay
         DecodeSites.Enter(1);
         EntityTracker tracker = NewTracker();
         tracker.ReplayToIndex(frames.Count - 1, frames);
-        return Read(tracker, parsed.Players.Keys);
+        bool matchEnded = parsed.AllGameEvents.Any(e => string.Equals(e.Name, MatchEndEvent, StringComparison.Ordinal));
+        return Read(tracker, parsed.Players.Keys, matchEnded);
     }
 
     /// <summary>
-    ///     Scores and clans from CCSTeam, coaches from the controller at entity index slot + 1. Scores are both
-    ///     or nothing, and nothing when they sum to zero (warmup only); coach slots come back either way.
+    ///     Scores and clans from CCSTeam, coaches from the controller at entity index slot + 1, through
+    ///     <see cref="LibraryTeamState.Of" />.
     /// </summary>
-    public static LibraryTeamState Read(EntityTracker tracker, IEnumerable<int> playerSlots)
+    /// <param name="tracker">A tracker at the demo's last frame.</param>
+    /// <param name="playerSlots">The roster's slots.</param>
+    /// <param name="matchEnded">Whether <see cref="MatchEndEvent" /> fired.</param>
+    public static LibraryTeamState Read(EntityTracker tracker, IEnumerable<int> playerSlots, bool matchEnded)
     {
         ArgumentNullException.ThrowIfNull(tracker);
         ArgumentNullException.ThrowIfNull(playerSlots);
@@ -87,9 +94,7 @@ public static class LibraryFinalStateReplay
             }
         }
 
-        return ct is null || t is null || ct + t == 0
-            ? new LibraryTeamState(null, null, null, null, coachSlots)
-            : new LibraryTeamState(ct, t, ctClan, tClan, coachSlots);
+        return LibraryTeamState.Of(ct, t, ctClan, tClan, coachSlots, matchEnded);
     }
 
     private static int CoerceInt(object? v) => v switch
