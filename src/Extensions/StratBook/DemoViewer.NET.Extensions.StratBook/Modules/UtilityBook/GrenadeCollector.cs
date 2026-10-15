@@ -8,6 +8,7 @@ using CS2DemoKit.Parser.GameEvents;
 using CS2OpenSchema.Events;
 using CS2OpenSchema.Protos;
 using DemoViewer.NET.Extensions.Sdk;
+using Google.Protobuf.Collections;
 
 #endregion
 
@@ -64,6 +65,7 @@ public sealed class GrenadeCollector : IFrameCollector
     private readonly List<(int Frame, PawnRead Read)>?[] _pawns = new List<(int, PawnRead)>?[Slots];
     private readonly List<CommandSeen>?[] _commands = new List<CommandSeen>?[Slots];
     private readonly CSGOUserCmdPB?[] _lastCommand = new CSGOUserCmdPB?[Slots];
+    private readonly int[] _lastClientTick = new int[Slots];
     private readonly ulong[] _lastButtons = new ulong[Slots];
     private readonly List<GameEvent> _events = [];
     private readonly List<ProjectileTrack> _tracks = [];
@@ -183,20 +185,32 @@ public sealed class GrenadeCollector : IFrameCollector
         foreach (int slot in _read)
         {
             CSGOUserCmdPB? command = view.Command(slot);
-            if (command is null || ReferenceEquals(command, _lastCommand[slot]))
+            if (command is null)
+            {
+                continue;
+            }
+
+            // The lane applies a delta to the slot's instance in place, so the same reference with a
+            // new client tick is a new command; a keyframe is a new instance.
+            CBaseUserCmdPB? cmd = command.Base;
+            int clientTick = cmd?.ClientTick ?? 0;
+            if (ReferenceEquals(command, _lastCommand[slot]) && clientTick == _lastClientTick[slot])
             {
                 continue;
             }
 
             _lastCommand[slot] = command;
+            _lastClientTick[slot] = clientTick;
             any = true;
-            CBaseUserCmdPB? cmd = command.Base;
             ulong buttons = cmd?.ButtonsPb?.Buttonstate1 ?? 0;
             bool subtick = false;
             if (cmd is not null)
             {
-                foreach (CSubtickMoveStep step in cmd.SubtickMoves)
+                // Indexed: the repeated field's enumerator is an allocation per command.
+                RepeatedField<CSubtickMoveStep> moves = cmd.SubtickMoves;
+                for (int i = 0; i < moves.Count; i++)
                 {
+                    CSubtickMoveStep step = moves[i];
                     if (step.Button == GrenadeRules.JumpButton && step.Pressed)
                     {
                         subtick = true;
