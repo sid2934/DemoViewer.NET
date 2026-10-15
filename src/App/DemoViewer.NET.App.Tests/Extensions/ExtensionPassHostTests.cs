@@ -257,7 +257,7 @@ public class ExtensionPassHostTests
             });
 
         await queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Backlog,
-            [host, new TestPass("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) }])).Completion;
+            [host, new TestPass("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) }])).Completion;
 
         using (Assert.Multiple())
         {

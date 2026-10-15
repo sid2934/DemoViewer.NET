@@ -6,6 +6,7 @@ using System.Text;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 
 #endregion
@@ -57,7 +58,7 @@ public sealed class StampedFacts
         List<StampedFacet> facets = [];
         foreach (StampedRuleset ruleset in Rules.StampedRulesets)
         {
-            if (string.Equals(ruleset.RulesetId, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal))
+            if (IsHostRead(ruleset.RulesetId))
             {
                 continue;
             }
@@ -75,6 +76,14 @@ public sealed class StampedFacts
     /// <param name="rulesetId">The ruleset's id.</param>
     public StampedFacet? Facet(string rulesetId) =>
         Facets().FirstOrDefault(f => string.Equals(f.RulesetId, rulesetId, StringComparison.Ordinal));
+
+    /// <summary>
+    ///     A core ruleset whose tables the app reads off the run itself, round_facts and the library's two, and
+    ///     never stores as facts.
+    /// </summary>
+    /// <param name="rulesetId">The ruleset's id.</param>
+    public static bool IsHostRead(string rulesetId) =>
+        string.Equals(rulesetId, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal) || LibraryTeamTables.IsLibraryRuleset(rulesetId);
 
     /// <summary>The stamp id a ruleset's facts are written under.</summary>
     /// <param name="rulesetId">The ruleset's id.</param>
