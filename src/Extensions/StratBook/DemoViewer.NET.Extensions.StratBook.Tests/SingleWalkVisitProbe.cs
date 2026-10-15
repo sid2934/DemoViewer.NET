@@ -25,9 +25,10 @@ public class SingleWalkVisitProbe
         string demo = Require("SW_DEMO");
         string scenario = Require("SW_VISIT");
         string root = Require("SW_CONFIG_ROOT");
-        if (scenario is not (SingleWalkSession.Sweep or SingleWalkSession.Open or SingleWalkSession.OpenStale))
+        if (scenario is not (SingleWalkSession.Sweep or SingleWalkSession.Open or SingleWalkSession.OpenStale or SingleWalkSession.Recheck))
         {
-            throw new ArgumentException($"SW_VISIT must be {SingleWalkSession.Sweep}, {SingleWalkSession.Open} or {SingleWalkSession.OpenStale}, not {scenario}");
+            throw new ArgumentException(
+                $"SW_VISIT must be {SingleWalkSession.Sweep}, {SingleWalkSession.Open}, {SingleWalkSession.OpenStale} or {SingleWalkSession.Recheck}, not {scenario}");
         }
 
         string config = Path.Combine(root, "sw-" + Guid.NewGuid().ToString("N"));
@@ -37,7 +38,7 @@ public class SingleWalkVisitProbe
         try
         {
             SingleWalkSession.Visit visit = await SingleWalkSession.WithAppAsync(config,
-                SingleWalkSession.Settings(Path.GetDirectoryName(demo)!, scenario == SingleWalkSession.Sweep),
+                SingleWalkSession.Settings(Path.GetDirectoryName(demo)!, scenario is SingleWalkSession.Sweep or SingleWalkSession.Recheck),
                 provider => SingleWalkSession.RunAsync(provider, scenario, demo, () =>
                 {
                     GC.Collect(2, GCCollectionMode.Forced, true, true);

@@ -26,6 +26,8 @@ namespace DemoViewer.NET.AppTests;
 ///     then opens it through the shell: its rules run, the scoreboard write, then the open's visit on the
 ///     parse in hand, with no round index on disk. <c>open-stale</c> is <c>open</c> with the round facts and
 ///     facts stamps cleared before the open, so the open's visit has a rules consumer to serve.
+///     <c>recheck</c> imports with the sweeps on, then re-enlists the demo for the library's score repair:
+///     the library row is present and every stamp current, so the library is the only pass with work.
 ///     Linked into the Strat Book tests.
 /// </summary>
 internal static class SingleWalkSession
@@ -33,6 +35,7 @@ internal static class SingleWalkSession
     public const string Sweep = "sweep";
     public const string Open = "open";
     public const string OpenStale = "open-stale";
+    public const string Recheck = "recheck";
 
     /// <summary>The shell's own rules run on an open, numbered after the seven analysis sites.</summary>
     public const int ShellRulesSite = 8;
@@ -144,7 +147,32 @@ internal static class SingleWalkSession
         scheduler.PassFinished += finished;
         try
         {
-            if (scenario == Sweep)
+            if (scenario == Recheck)
+            {
+                await library.RescanAsync();
+                await SettleAsync(queue);
+                scheduler.RecheckAll();
+                await SettleAsync(queue);
+
+                DemoEntry entry = library.Entries.First(e => string.Equals(e.FilePath, demo, StringComparison.OrdinalIgnoreCase));
+                counting = visit.Sites;
+                timing = true;
+                long start = Stopwatch.GetTimestamp();
+                last = start;
+                using (window?.Invoke())
+                {
+                    entry.ScoreRepairPending = true;
+                    if (await library.RepairPendingScoresAsync() != 1)
+                    {
+                        throw new InvalidOperationException("the score repair enlisted nothing");
+                    }
+
+                    await SettleAsync(queue);
+                }
+
+                visit.WallMs = Stopwatch.GetElapsedTime(start, last).TotalMilliseconds;
+            }
+            else if (scenario == Sweep)
             {
                 counting = visit.Sites;
                 timing = true;

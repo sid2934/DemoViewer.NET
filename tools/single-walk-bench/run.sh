@@ -17,6 +17,8 @@
 #            measured: read, parse, the shell's rules run and scoreboard write, then the open's visit.
 #            open-stale: open with the round facts and facts stamps cleared first, so the open's visit
 #            writes them.
+#            recheck: import with the sweeps on, then re-enlist the demo for the library's score repair;
+#            only the re-check visit is measured, with the library row present and every stamp current.
 # --trials   Measured trials per demo, scenario and arm. Default 3, after one discarded trial.
 #
 # One heavy job at a time on a 16 GB machine: run the whole script under the machine's heavy-job lock,
