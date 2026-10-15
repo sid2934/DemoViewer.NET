@@ -116,9 +116,12 @@ public static class ForwardDemoPass
         }
 
         IReadOnlySet<string>? events = plan.GameEventNames;
-        if (events is not null && !events.Contains(FreezeEndEvent))
+        string[] tapEvents = TapReplays(needs) ? [FreezeEndEvent, LibraryFinalStateReplay.MatchEndEvent] : [FreezeEndEvent];
+        if (events is not null && !tapEvents.All(events.Contains))
         {
-            events = new HashSet<string>(events, StringComparer.OrdinalIgnoreCase) { FreezeEndEvent };
+            HashSet<string> widened = new(events, StringComparer.OrdinalIgnoreCase);
+            widened.UnionWith(tapEvents);
+            events = widened;
         }
 
         return plan with { Categories = categories, GameEventNames = events };
@@ -200,7 +203,7 @@ public static class ForwardDemoPass
             LastServerTick = tap.LastServerTick,
             FinalState = tap.Tracker is null ? null
                 : tap.Frames == 0 ? LibraryTeamState.Empty()
-                : LibraryFinalStateReplay.Read(tap.Tracker, demo.Players.Keys),
+                : LibraryFinalStateReplay.Read(tap.Tracker, demo.Players.Keys, tap.MatchEnded),
             Run = run,
             Collected = observer?.Results ?? CollectorResults.None
         };
@@ -219,6 +222,7 @@ public static class ForwardDemoPass
         CancellationToken cancellationToken) : IDemoFrameSource
     {
         public List<GameEvent> FreezeEnds { get; } = [];
+        public bool MatchEnded { get; private set; }
         public EntityTracker? Tracker => tracker;
         public int Frames { get; private set; }
         public int FirstServerTick { get; private set; }
@@ -256,9 +260,14 @@ public static class ForwardDemoPass
 
             foreach (NetMessage message in frame.DecodedMessages)
             {
-                if (message is GameEventMessage { DecodedEvent: { Name: FreezeEndEvent } evt })
+                switch (message)
                 {
-                    FreezeEnds.Add(evt);
+                    case GameEventMessage { DecodedEvent: { Name: FreezeEndEvent } evt }:
+                        FreezeEnds.Add(evt);
+                        break;
+                    case GameEventMessage { DecodedEvent.Name: LibraryFinalStateReplay.MatchEndEvent }:
+                        MatchEnded = true;
+                        break;
                 }
             }
 
