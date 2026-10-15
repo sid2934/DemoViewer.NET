@@ -28,7 +28,13 @@ public enum ForwardNeeds
     FinalState = 1,
 
     /// <summary>The merged highlights plus stamped rules run, without snapshots.</summary>
-    Rules = 2
+    Rules = 2,
+
+    /// <summary>
+    ///     The players' commands, decoded for the rules run's command lane. Only a collector on that run reads
+    ///     them, so this rides with <see cref="Rules" />.
+    /// </summary>
+    UserCommands = 4
 }
 
 /// <summary>
@@ -106,7 +112,13 @@ public static class ForwardDemoPass
     };
 
     /// <summary>The build's own plan, widened to what the tap reads.</summary>
-    public static DecodePlan PlanFor(BuildResult? build, ForwardNeeds needs)
+    public static DecodePlan PlanFor(BuildResult? build, ForwardNeeds needs) => PlanFor(build, needs, []);
+
+    /// <summary>
+    ///     <see cref="PlanFor(BuildResult, ForwardNeeds)" /> widened to the game events the run's collectors read
+    ///     off the frames; the build knows only what the rules subscribe to.
+    /// </summary>
+    internal static DecodePlan PlanFor(BuildResult? build, ForwardNeeds needs, IReadOnlyList<string> collectorEvents)
     {
         const MessageCategories headerAndTables =
             MessageCategories.Header | MessageCategories.StringTables | MessageCategories.GameEvents;
@@ -120,14 +132,20 @@ public static class ForwardDemoPass
             categories |= MessageCategories.Schema | MessageCategories.Entities;
         }
 
+        if ((needs & ForwardNeeds.UserCommands) != 0)
+        {
+            categories |= MessageCategories.UserCmds;
+        }
+
         IReadOnlySet<string>? events = plan.GameEventNames;
         string[] tapEvents = TapReplays(needs)
             ? [FreezeEndEvent, LibraryFinalScore.MatchEndEvent, LibraryFinalScore.MatchRestartEvent]
             : [FreezeEndEvent];
-        if (events is not null && !tapEvents.All(events.Contains))
+        if (events is not null && (!tapEvents.All(events.Contains) || !collectorEvents.All(events.Contains)))
         {
             HashSet<string> widened = new(events, StringComparer.OrdinalIgnoreCase);
             widened.UnionWith(tapEvents);
+            widened.UnionWith(collectorEvents);
             events = widened;
         }
 
@@ -181,7 +199,7 @@ public static class ForwardDemoPass
         BuildResult? build = (needs & ForwardNeeds.Rules) != 0
             ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)), outputs, collectors, cancellationToken)
             : null;
-        reader.Configure(PlanFor(build, needs));
+        reader.Configure(PlanFor(build, needs, collectors.GameEvents));
 
         Tap tap = new(reader, TapReplays(needs) ? LibraryFinalStateReplay.NewTracker() : null, progress, cancellationToken);
         AnalysisRun? run = null;

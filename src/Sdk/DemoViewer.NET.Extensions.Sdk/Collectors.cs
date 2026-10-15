@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Text;
 using CS2DemoKit.Parser;
+using CS2OpenSchema.Protos;
 
 namespace DemoViewer.NET.Extensions.Sdk;
 
@@ -27,6 +28,19 @@ public sealed record CollectorContribution(
     Func<IFrameCollector> Create)
 {
     /// <summary>
+    ///     True when the collector reads <see cref="IFrameReadView.Command" />. The run then rebuilds the players'
+    ///     commands, and a read that streams the demo decodes them; a collector that does not declare this gets
+    ///     a throw from the read.
+    /// </summary>
+    public bool ReadsUserCommands { get; init; }
+
+    /// <summary>
+    ///     Game event names the collector reads off <see cref="IFrameReadView.Frame" />. A read that streams the
+    ///     demo decodes only the events the rules subscribe to, plus these; a held parse carries every event.
+    /// </summary>
+    public IReadOnlyList<string> GameEvents { get; init; } = [];
+
+    /// <summary>
     ///     What output written from this collector is current under: its version, its declared reads and the
     ///     engine build. A pass folds it into its own fingerprint, so a changed read set or engine re-runs it.
     /// </summary>
@@ -38,6 +52,16 @@ public sealed record CollectorContribution(
             text.Append(Id).Append(";v=").Append(Version.ToString(CultureInfo.InvariantCulture));
             text.Append(";p=").AppendJoin(',', Providers.Order(StringComparer.Ordinal));
             text.Append(";c=").AppendJoin(',', ProjectileClasses.Order(StringComparer.Ordinal));
+            if (ReadsUserCommands)
+            {
+                text.Append(";u=1");
+            }
+
+            if (GameEvents.Count > 0)
+            {
+                text.Append(";g=").AppendJoin(',', GameEvents.Order(StringComparer.Ordinal));
+            }
+
             text.Append(";e=").Append(typeof(DemoFrame).Assembly.GetName().Version?.ToString() ?? "");
             return text.ToString();
         }
@@ -105,6 +129,14 @@ public interface IFrameReadView
 
     /// <summary>The slot's controller team as last seen (2 T, 3 CT), or -1.</summary>
     int Team(int playerSlot);
+
+    /// <summary>
+    ///     The slot's latest user command as of the end of this frame, or null before its first. One frame's
+    ///     commands collapse to the last one; the instance is the engine's baseline for the next delta, so read
+    ///     it and never change it. Throws unless a collector on the run declared
+    ///     <see cref="CollectorContribution.ReadsUserCommands" />.
+    /// </summary>
+    CSGOUserCmdPB? Command(int playerSlot);
 
     /// <summary>Every live projectile of a declared class, ascending entity index. Empty when none was declared.</summary>
     IReadOnlyList<ObservedProjectile> Projectiles { get; }

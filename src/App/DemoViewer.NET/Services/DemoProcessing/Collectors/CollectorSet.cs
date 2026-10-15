@@ -67,6 +67,8 @@ internal sealed class CollectorSet
         All = [.. _byId.Values.OrderBy(c => c.Id, StringComparer.Ordinal)];
         Providers = [.. All.SelectMany(c => c.Contribution.Providers).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal)];
         ProjectileClasses = [.. All.SelectMany(c => c.Contribution.ProjectileClasses).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
+        GameEvents = [.. All.SelectMany(c => c.Contribution.GameEvents).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal)];
+        ReadsUserCommands = All.Any(c => c.Contribution.ReadsUserCommands);
         Key = string.Join("\n", All.Select(c => c.Contribution.Stamp));
     }
 
@@ -80,6 +82,12 @@ internal sealed class CollectorSet
 
     /// <summary>The union of the declared projectile classes, each once.</summary>
     public IReadOnlyList<string> ProjectileClasses { get; }
+
+    /// <summary>The union of the declared game event names, each once; a streaming read decodes them.</summary>
+    public IReadOnlyList<string> GameEvents { get; }
+
+    /// <summary>True when a member reads user commands: the run rebuilds them, and a streaming read decodes them.</summary>
+    public bool ReadsUserCommands { get; }
 
     /// <summary>The members' stamps; two sets with one key run the same reads.</summary>
     public string Key { get; }
@@ -107,15 +115,20 @@ internal sealed class CollectorSet
         }
 
         CollectorObserver observer = new(this);
-        return (options with
-        {
-            ObservedProviders = Providers,
-            ObservedProjectileClasses = ProjectileClasses,
-            FrameObserver = observer
-        }, observer);
+        return (DeclareReads(options) with { FrameObserver = observer }, observer);
     }
 
-    /// <summary><paramref name="options" /> declaring this set's reads for a build; unchanged when empty.</summary>
+    /// <summary>
+    ///     <paramref name="options" /> declaring this set's reads for a build; unchanged when empty. The build
+    ///     plans the decode, so the command lane is declared here and not only on the evaluation.
+    /// </summary>
     public AnalysisOptions DeclareReads(AnalysisOptions options) =>
-        IsEmpty ? options : options with { ObservedProviders = Providers, ObservedProjectileClasses = ProjectileClasses };
+        IsEmpty
+            ? options
+            : options with
+            {
+                ObservedProviders = Providers,
+                ObservedProjectileClasses = ProjectileClasses,
+                DecodeUserCommands = options.DecodeUserCommands || ReadsUserCommands
+            };
 }

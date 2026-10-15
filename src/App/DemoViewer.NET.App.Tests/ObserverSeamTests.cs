@@ -3,6 +3,8 @@
 using System.Globalization;
 using System.Text;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.AppTests.Extensions;
@@ -126,6 +128,47 @@ public class ObserverSeamTests
     }
 
     [Test]
+    public async Task ACollectorReadingUserCommands_WidensThePlan()
+    {
+        CollectorSet reading = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("cmds") with
+        {
+            ReadsUserCommands = true, GameEvents = ["decoy_started", "round_freeze_end"]
+        })]);
+        CollectorSet silent = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("none"))]);
+        IReadOnlyList<RulesetDoc> docs = YamlConfigLoader.LoadWithOverlay(RuleSetLocator.ResolveShippedRulesDirectory(), null).Rulesets;
+        ParsedDemo parsed = MergedRulesBuildTests.TwoFrameDemo();
+
+        // Forward: the host's own plan, from the pass's needs and the collectors' events.
+        BuildResult plain = ForwardDemoPass.Build(parsed, docs, null, silent);
+        DecodePlan forward = ForwardDemoPass.PlanFor(plain, ForwardNeeds.Rules | ForwardNeeds.UserCommands, reading.GameEvents);
+        DecodePlan without = ForwardDemoPass.PlanFor(plain, ForwardNeeds.Rules, silent.GameEvents);
+        // Retained: the build the run is made from, whose engine plan the visit's parse must cover.
+        BuildResult declared = ForwardDemoPass.Build(parsed, docs, null, reading);
+        (AnalysisOptions evaluate, _) = reading.Declare(new AnalysisOptions { CaptureSnapshots = false });
+        DemoVisit visit = new(new VisitedDemo(Demo), PassLevel.Background);
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        ExtensionPassHost host = new(new ExtensionPassHostTests.FakePass { Reads = PassRead.Forward }, [], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("cmds", ExtensionPassHostTests.FakePass.PassId) with { ReadsUserCommands = true }, guard)]));
+        TestPass other = new("retained") { NeedsValue = PassNeeds.RetainedWithoutUserCommands };
+        visit.Add(host, host.Needs(visit.Demo), null);
+        visit.Add(other, other.Needs(visit.Demo), null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(forward.Categories.HasFlag(MessageCategories.UserCmds)).IsTrue();
+            await Assert.That(without.Categories.HasFlag(MessageCategories.UserCmds)).IsFalse();
+            await Assert.That(forward.GameEventNames!.Contains("decoy_started")).IsTrue().Because("the collector reads it off the frames");
+            await Assert.That(without.GameEventNames!.Contains("decoy_started")).IsFalse();
+            await Assert.That(declared.DecodesUserCommands).IsTrue().Because("the build plans the lane");
+            await Assert.That(DemoAnalysis.PlanDecode(declared).Categories.HasFlag(MessageCategories.UserCmds)).IsTrue();
+            await Assert.That(plain.DecodesUserCommands).IsFalse();
+            await Assert.That(evaluate.DecodeUserCommands).IsTrue();
+            await Assert.That(visit.ChooseMode(true)).IsEqualTo((false, ForwardNeeds.Rules | ForwardNeeds.UserCommands, true))
+                .Because("the retained visit the forward pass joins keeps the commands in its parse");
+        }
+    }
+
+    [Test]
     public async Task AnUnknownProviderName_IsRefusedAtRegistration()
     {
         ExtensionPassHostTestsPack pack = new();
@@ -157,6 +200,10 @@ public class ObserverSeamTests
             await Assert.That((base_ with { Providers = ["entity.pawn.place"] }).Stamp).IsNotEqualTo(base_.Stamp);
             await Assert.That((base_ with { ProjectileClasses = [] }).Stamp).IsNotEqualTo(base_.Stamp);
             await Assert.That((base_ with { Version = 2 }).Stamp).IsNotEqualTo(base_.Stamp);
+            await Assert.That((base_ with { ReadsUserCommands = true }).Stamp).IsNotEqualTo(base_.Stamp);
+            await Assert.That((base_ with { GameEvents = ["weapon_fire"] }).Stamp).IsNotEqualTo(base_.Stamp);
+            await Assert.That((base_ with { GameEvents = ["weapon_fire", "decoy_started"] }).Stamp)
+                .IsEqualTo((base_ with { GameEvents = ["decoy_started", "weapon_fire"] }).Stamp);
             await Assert.That(base_.Stamp).Contains(typeof(DemoFrame).Assembly.GetName().Version!.ToString()).Because("an engine build moves it");
             await Assert.That(CollectorSet.Of([CollectorKit.Register(base_ with { Version = 2 })])
                 .IsSupersetOf(CollectorSet.Of([CollectorKit.Register(base_)]))).IsFalse().Because("a run carried an older collector");

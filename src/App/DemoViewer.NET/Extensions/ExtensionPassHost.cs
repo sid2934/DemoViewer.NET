@@ -60,17 +60,18 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
         _maxOverruns = Math.Max(1, maxOverruns);
         // Read once: a throwing getter makes the factory fail, which the registry reports.
         Id = inner.Id;
-        bool userCommands = guard.Run("pass " + Id + " needs", () => inner.ReadsUserCommands, true);
         _forward = guard.Run("pass " + Id + " read", () => inner.Read, PassRead.Retained) == PassRead.Forward;
-        // The forward plan has no user-command category.
-        if (_forward && userCommands)
-        {
-            throw new NotSupportedException($"Pass {Id} reads forward and reads user commands; a forward read carries none.");
-        }
+        // A forward pass sees no commands itself; only a collector on its rules run can, through the lane.
+        bool userCommands = _forward
+            ? Collectors.ReadsUserCommands
+            : guard.Run("pass " + Id + " needs", () => inner.ReadsUserCommands, true) || Collectors.ReadsUserCommands;
 
         // A collector rides the rules run, so a forward read with one makes that run.
+        ForwardNeeds forward = Collectors.IsEmpty
+            ? ForwardNeeds.None
+            : ForwardNeeds.Rules | (userCommands ? ForwardNeeds.UserCommands : ForwardNeeds.None);
         _needs = _forward
-            ? new PassNeeds(ParseMode.Forward, Collectors.IsEmpty ? ForwardNeeds.None : ForwardNeeds.Rules)
+            ? new PassNeeds(ParseMode.Forward, forward, userCommands)
             : new PassNeeds(ParseMode.Retained, ForwardNeeds.None, userCommands);
     }
 
