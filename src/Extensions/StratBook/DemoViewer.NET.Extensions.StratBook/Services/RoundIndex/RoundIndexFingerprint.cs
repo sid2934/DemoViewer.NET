@@ -20,6 +20,9 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 /// </summary>
 public static class RoundIndexFingerprint
 {
+    // Asked per demo by Wants and the strip's counts; the stamp reads the engine assembly's version.
+    private static readonly string CollectorStamp = RoundIndexCollector.Contribution.Stamp;
+
     /// <summary>The fingerprint the rows a builder writes with <paramref name="source" /> carry.</summary>
     /// <param name="options">The sampling parameters.</param>
     /// <param name="source">The place source of the rows.</param>
@@ -39,7 +42,7 @@ public static class RoundIndexFingerprint
         // The collector's stamp carries the engine build, so an engine bump re-indexes like a ruleset's.
         return $"{fingerprint};pos={RoundPositionsDocument.PositionSchema}"
                + $";sampler=observer;stride={options.FrameStride.ToString(CultureInfo.InvariantCulture)}"
-               + $";collector={RoundIndexCollector.Contribution.Stamp}";
+               + $";collector={CollectorStamp}";
     }
 }
 

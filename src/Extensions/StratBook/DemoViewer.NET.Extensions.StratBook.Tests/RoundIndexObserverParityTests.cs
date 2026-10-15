@@ -71,6 +71,10 @@ public class RoundIndexObserverParityTests
             await Assert.That(observed.Positions.Players).IsNotEmpty();
             await Assert.That(observed.Positions.Players.Where(p => p.SteamId64 == 0 && p.Name.Length == 0)).IsEmpty()
                 .Because("every slot a tuple names is on the demo's roster");
+            await Assert.That(observed.Positions.Players.Where(p => parsed.Players[p.Slot] is { IsHltv: true } or { Team: not (2 or 3) }))
+                .IsEmpty().Because("a tuple's slot is a player's, not the recorder's or a spectator's");
+            await Assert.That(LastRoundSideMisses(observed.Positions, parsed)).IsEmpty()
+                .Because("the roster's final team is the side the last round's tuples were on");
         }
     }
 
@@ -121,6 +125,19 @@ public class RoundIndexObserverParityTests
         public IReadOnlyList<PassRound> Rounds => [];
         public CancellationToken CancellationToken => CancellationToken.None;
         public T? Collected<T>(string collectorId) where T : class => throw new NotSupportedException();
+    }
+
+    // Slots whose side in the last round disagrees with the roster's final team: a slot numbering mismatch
+    // between the walk and the roster would name every player by a neighbour.
+    private static List<int> LastRoundSideMisses(RoundPositionsDocument positions, ParsedDemo parsed)
+    {
+        RoundPositionsRound last = positions.Rounds.Last(r => r.Pos.Any(step => step.Count > 0));
+        HashSet<int> ct = [.. last.Ct];
+        return
+        [
+            .. last.Pos.SelectMany(step => step).Select(t => t.Slot).Distinct()
+                .Where(slot => parsed.Players[slot].Team != (ct.Contains(slot) ? 3 : 2))
+        ];
     }
 
     private static void PrintFirstDiff(string label, string expected, string actual)
