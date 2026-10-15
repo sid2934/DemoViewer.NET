@@ -110,6 +110,45 @@ public class RoundIndexCollectorTests
     }
 
     [Test]
+    public async Task ManyChunksOfSamples_ReadBackAsTheWalkWouldYieldThem()
+    {
+        // Past one chunk of frames and of rows; some sampled frames, the last among them, read no pawn.
+        List<View> frames = [];
+        List<PositionSample> expected = [];
+        for (int i = 0; i <= 16_016; i++)
+        {
+            View frame = new(i, 500 + i / 3, 900 + i / 3);
+            bool empty = i % 28 == 0;
+            for (int slot = 0; slot < (empty ? 0 : 3); slot++)
+            {
+                Vector3 at = new(i * 0.5f + slot, -i, slot * 3.25f);
+                string? place = ((i + slot) % 3) switch { 0 => null, 1 => "", _ => $"Place{(i + slot) % 11}" };
+                int team = slot == 2 ? -1 : 2 + slot;
+                bool alive = (i + slot) % 5 != 0;
+                frame.Pawn(slot, 60 - slot, at, place, team, alive);
+                if (i % 4 == 0)
+                {
+                    expected.Add(new PositionSample(i, 900 + i / 3, slot, at, place, team, alive));
+                }
+            }
+
+            frames.Add(frame);
+        }
+
+        expected = [.. expected.OrderBy(s => s.FrameIndex).ThenByDescending(s => s.PlayerSlot)];
+        RoundIndexSamples collected = Collect(frames);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(collected.Samples.Count).IsEqualTo(expected.Count);
+            await Assert.That(collected.Samples).IsEquivalentTo(expected, CollectionOrdering.Matching);
+            await Assert.That(Enumerable.Range(0, expected.Count).Where(i => collected.Samples[i] != expected[i])).IsEmpty();
+            await Assert.That(expected.Count).IsGreaterThan(2 * 3072);
+            await Assert.That(expected.Select(s => s.FrameIndex).Distinct().Count()).IsGreaterThan(3072);
+        }
+    }
+
+    [Test]
     public async Task TheContribution_IsTheRoundIndexPassesAndTheEngineKnowsItsReads()
     {
         CollectorContribution contribution = RoundIndexCollector.Contribution;
