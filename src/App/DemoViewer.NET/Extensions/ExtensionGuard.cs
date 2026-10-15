@@ -1,6 +1,7 @@
 #region
 
 using System.Runtime.CompilerServices;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
 
@@ -13,7 +14,7 @@ namespace DemoViewer.NET.Extensions;
 /// </summary>
 /// <param name="faults">Where faults are reported.</param>
 /// <param name="scope">The extension the guarded code belongs to.</param>
-public sealed class ExtensionGuard(ExtensionFaults faults, ExtensionScope scope)
+public sealed class ExtensionGuard(ExtensionFaults faults, ExtensionScope scope) : ICollectorFaultReporter
 {
     /// <summary>Where faults are reported.</summary>
     public ExtensionFaults Faults { get; } = faults ?? throw new ArgumentNullException(nameof(faults));
@@ -58,6 +59,8 @@ public sealed class ExtensionGuard(ExtensionFaults faults, ExtensionScope scope)
     /// <summary>Reports a fault the caller caught itself.</summary>
     public void Report(string site, Exception exception, FaultKind kind = FaultKind.Counted) =>
         Faults.Report(Scope, site, exception, kind);
+
+    void ICollectorFaultReporter.Report(string site, Exception exception) => Report(site, exception);
 
     /// <summary>A guarded copy of <paramref name="body" />.</summary>
     public Action Wrap(string site, Action body, FaultKind kind = FaultKind.Counted)
