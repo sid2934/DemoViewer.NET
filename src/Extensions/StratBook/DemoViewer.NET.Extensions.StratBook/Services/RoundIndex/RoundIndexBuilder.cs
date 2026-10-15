@@ -88,7 +88,7 @@ public static class RoundIndexBuilder
     ///     <see cref="BuildWithPositions(ParsedDemo, RoundFactsRows, RoundIndexOptions, IPlaceSource, IEnumerable{PositionSample})" />
     ///     over the values it reads off a parse, for a fold that holds no parse.
     /// </summary>
-    /// <param name="demo">The tick rate, last frame tick, clock and map.</param>
+    /// <param name="demo">The tick rate, last frame tick, clock, map and roster.</param>
     /// <param name="facts">The demo's Round Facts rows.</param>
     /// <param name="options">The sampling parameters.</param>
     /// <param name="source">Which string names a sample's place.</param>
@@ -176,6 +176,7 @@ public static class RoundIndexBuilder
             CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table, tally);
         }
 
+        positions.Players = PlayersOf(positions, demo.Players);
         document.Places = places;
         document.Transitions =
         [
@@ -386,6 +387,18 @@ public static class RoundIndexBuilder
         runs.Add(new RoundIndexRun(open.Step, open.Step, ctToken, tToken));
     }
 
+    // Every slot a tuple names, by the roster's player; a slot the roster lacks is named 0 and "".
+    private static List<RoundPositionsPlayer> PlayersOf(RoundPositionsDocument positions, IReadOnlyDictionary<int, PlayerInfo> roster)
+    {
+        SortedSet<int> slots = [.. positions.Rounds.SelectMany(r => r.Pos).SelectMany(step => step).Select(t => t.Slot)];
+        return
+        [
+            .. slots.Select(slot => roster.TryGetValue(slot, out PlayerInfo? player)
+                ? new RoundPositionsPlayer(slot, player.SteamId64, player.Name)
+                : new RoundPositionsPlayer(slot, 0, ""))
+        ];
+    }
+
     private static void Accumulate(Dictionary<string, PlaceSampleSummary> places, string place, PositionSample sample)
     {
         if (!places.TryGetValue(place, out PlaceSampleSummary? summary))
@@ -468,13 +481,16 @@ public static class RoundIndexBuilder
 /// <param name="MapName">The map.</param>
 public sealed record RoundIndexDemoValues(int TickRate, int LastFrameTick, RoundFactsClock Clock, string MapName)
 {
+    /// <summary>The roster by slot, which names the positions file's slots; empty names none.</summary>
+    public IReadOnlyDictionary<int, PlayerInfo> Players { get; init; } = new Dictionary<int, PlayerInfo>();
+
     /// <summary>The values of a held parse.</summary>
     /// <param name="demo">The parse.</param>
     public static RoundIndexDemoValues For(ParsedDemo demo)
     {
         ArgumentNullException.ThrowIfNull(demo);
         int last = demo.Frames.Count > 0 ? demo.Frames[^1].GameTick ?? demo.Frames[^1].ServerTick : 0;
-        return new RoundIndexDemoValues(demo.TickRate, last, RoundFactsClock.For(demo), demo.MapName);
+        return new RoundIndexDemoValues(demo.TickRate, last, RoundFactsClock.For(demo), demo.MapName) { Players = demo.Players };
     }
 
     /// <summary>The values of a pass's demo, with the last frame's frame clock its collector saw.</summary>
@@ -491,6 +507,6 @@ public sealed record RoundIndexDemoValues(int TickRate, int LastFrameTick, Round
             FirstTick = context.FirstServerTick,
             LastTick = context.LastServerTick
         };
-        return new RoundIndexDemoValues(demo.TickRate, lastFrameTick, clock, demo.MapName);
+        return new RoundIndexDemoValues(demo.TickRate, lastFrameTick, clock, demo.MapName) { Players = demo.Players };
     }
 }

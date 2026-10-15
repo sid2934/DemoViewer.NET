@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook;
+using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
@@ -8,6 +9,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -25,7 +27,7 @@ namespace DemoViewer.NET.AppTests;
 public class RoundPositionsTests
 {
     private const string Demo = "/d/match.dem";
-    private const string SampleName = "schema-v1.sample.dvrp.json";
+    private const string SampleName = "schema-v2.sample.dvrp.json";
 
     private static string TempRoot() =>
         Path.Combine(Path.GetTempPath(), $"dv-roundpositions-{Guid.NewGuid():N}");
@@ -128,8 +130,8 @@ public class RoundPositionsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=2");
-            await Assert.That(current).EndsWith($";pos={RoundPositionsDocument.PositionSchema}");
+            await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=3" + SamplerTerm);
+            await Assert.That(current).Contains($";pos={RoundPositionsDocument.PositionSchema};");
             await Assert.That(store.IsCurrent(Demo, current)).IsFalse();
             await Assert.That(store.Needs(Demo, current)).IsTrue()
                 .Because("indexed before positions existed and never indexed are one state");
@@ -220,12 +222,12 @@ public class RoundPositionsTests
     }
 
     /// <summary>
-    ///     The v1 positions file is a published format: what this build writes for the fixture
+    ///     The v2 positions file is a published format: what this build writes for the fixture
     ///     document must be byte-identical to the committed sample (uncompressed, so the diff is
     ///     readable). Regenerate deliberately with <c>RI_GOLDEN_UPDATE=1</c> and look at the diff.
     /// </summary>
     [Test]
-    public async Task V1Schema_MatchesTheCheckedInSample()
+    public async Task V2Schema_MatchesTheCheckedInSample()
     {
         string? repo = DemoTestHelper.FindRepoRoot();
         if (repo is null)
@@ -257,12 +259,41 @@ public class RoundPositionsTests
             await Assert.That(loaded.Places).IsEquivalentTo(["Outside", "Lobby", "Ramp", "?"]);
             await Assert.That(loaded.Rounds.Single().Ct).IsEquivalentTo([0, 2, 5, 7, 9]);
             await Assert.That(loaded.Rounds[0].At(1)[1]).IsEqualTo(new RoundPosition(2, -129, -1848, -416, 1));
+            await Assert.That(loaded.PlayerOf(2)).IsEqualTo(new RoundPositionsPlayer(2, 76561198000000002, "two"));
+            await Assert.That(loaded.PlayerOf(4)).IsEqualTo(new RoundPositionsPlayer(4, 0, "BOT Kim"));
             await Assert.That(loaded.Serialize() + "\n").IsEqualTo(original.Replace("\r\n", "\n", StringComparison.Ordinal))
-                .Because("the v1 positions file is a published format; a round trip must be field-identical");
+                .Because("the v2 positions file is a published format; a round trip must be field-identical");
             await Assert.That(FixtureDocument().Serialize() + "\n").IsEqualTo(original.Replace("\r\n", "\n", StringComparison.Ordinal))
                 .Because("this build still writes the committed shape");
             await Assert.That(RoundPositionsDocument.TryDeserialize(loaded.SerializeUtf8())!.Serialize())
                 .IsEqualTo(loaded.Serialize()).Because("the UTF-8 round trip is the store's path");
+        }
+    }
+
+    [Test]
+    public async Task EveryTupleSlot_IsNamedBySteamIdAndName_FromTheRoster()
+    {
+        PositionSample[] samples = [.. Placed(1000), .. Placed(1064)];
+        Dictionary<int, PlayerInfo> roster = new()
+        {
+            [1] = new PlayerInfo(1, "alpha", 76561198000000001, 2, 2, false),
+            [6] = new PlayerInfo(6, "BOT Kim", 0, 7, 3, true),
+            [40] = new PlayerInfo(40, "spectator", 76561198000000040, 40, 1, false)
+        };
+        RoundIndexDemoValues values = RoundIndexDemoValues.For(RoundIndexTestData.Demo()) with { Players = roster };
+
+        RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(values, Facts(Round(1, 1000, 1200)),
+            RoundIndexOptions.Default, PawnPlaceSource.Instance, samples);
+        int[] slots = [.. build.Positions.Rounds.SelectMany(r => r.Pos).SelectMany(step => step).Select(t => t.Slot).Distinct().Order()];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(build.Positions.Players.Select(p => p.Slot)).IsEquivalentTo(slots, CollectionOrdering.Matching);
+            await Assert.That(build.Positions.PlayerOf(1)).IsEqualTo(new RoundPositionsPlayer(1, 76561198000000001, "alpha"));
+            await Assert.That(build.Positions.PlayerOf(6)).IsEqualTo(new RoundPositionsPlayer(6, 0, "BOT Kim"));
+            await Assert.That(build.Positions.PlayerOf(2)).IsEqualTo(new RoundPositionsPlayer(2, 0, ""))
+                .Because("a slot the roster lacks is named, not dropped");
+            await Assert.That(build.Positions.PlayerOf(40)).IsNull().Because("only slots a tuple names are in the table");
         }
     }
 
@@ -310,6 +341,13 @@ public class RoundPositionsTests
                     ]
                 ]
             }
+        ],
+        Players =
+        [
+            new RoundPositionsPlayer(0, 76561198000000000, "zero"),
+            new RoundPositionsPlayer(1, 76561198000000001, "one"),
+            new RoundPositionsPlayer(2, 76561198000000002, "two"),
+            new RoundPositionsPlayer(4, 0, "BOT Kim")
         ]
     };
 }

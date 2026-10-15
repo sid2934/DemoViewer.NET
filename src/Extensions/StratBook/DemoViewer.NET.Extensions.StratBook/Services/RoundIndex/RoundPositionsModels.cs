@@ -26,8 +26,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 /// </summary>
 public sealed class RoundPositionsDocument
 {
-    /// <summary>The file shape version.</summary>
-    public const int CurrentSchemaVersion = 1;
+    /// <summary>The file shape version. 2 added <see cref="Players" />.</summary>
+    public const int CurrentSchemaVersion = 2;
 
     /// <summary>
     ///     What a tuple means: integer world units, alive slots only, the last sample per slot at the
@@ -39,8 +39,10 @@ public sealed class RoundPositionsDocument
     ///     in its summaries and transitions and gated its tokens on the Round Facts kill tick. The
     ///     sidecar's own <c>schemaVersion</c> stays 1, because its shape did not change and
     ///     <c>SituationIndex</c> holds it equal to <c>RoundIndexStore.Schema</c>.
+    ///     3: <see cref="Players" /> names every tuple's slot by SteamID64 and name; tuples keep the slot,
+    ///     which is the same-round join to Round Facts.
     /// </summary>
-    public const int PositionSchema = 2;
+    public const int PositionSchema = 3;
 
     /// <summary>The serializer options: camel case and compact like the sidecar, tuples through their converter.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new()
@@ -49,7 +51,8 @@ public sealed class RoundPositionsDocument
         WriteIndented = false,
         Converters =
         {
-            new RoundPositionConverter()
+            new RoundPositionConverter(),
+            new RoundPositionsPlayerConverter()
         }
     };
 
@@ -67,6 +70,24 @@ public sealed class RoundPositionsDocument
     public List<string> Places { get; set; } = [];
 
     public List<RoundPositionsRound> Rounds { get; set; } = [];
+
+    /// <summary>The player on each slot a tuple names, in slot order: who the slot is across demos.</summary>
+    public List<RoundPositionsPlayer> Players { get; set; } = [];
+
+    /// <summary>The player on a tuple's slot, or null when the file names none.</summary>
+    /// <param name="slot">The tuple's slot.</param>
+    public RoundPositionsPlayer? PlayerOf(int slot)
+    {
+        foreach (RoundPositionsPlayer player in Players)
+        {
+            if (player.Slot == slot)
+            {
+                return player;
+            }
+        }
+
+        return null;
+    }
 
     /// <summary>The round with this number, or null.</summary>
     /// <param name="number">The Round Facts round number.</param>
@@ -159,6 +180,42 @@ public sealed class RoundPositionsRound
     /// <param name="step">The step.</param>
     public IReadOnlyList<RoundPosition> At(int step) =>
         step >= 0 && step < Pos.Count ? Pos[step] : [];
+}
+
+/// <summary>
+///     The player on one slot, stored as <c>[slot, "steamId64", name]</c>. The SteamID64 is a string so a
+///     JSON reader with doubles keeps every digit; a bot reads 0 and is told apart by its name.
+/// </summary>
+/// <param name="Slot">The controller slot the tuples name.</param>
+/// <param name="SteamId64">The player's SteamID64, or 0 when the demo carried none.</param>
+/// <param name="Name">The player's name as the demo's roster had it.</param>
+public sealed record RoundPositionsPlayer(int Slot, ulong SteamId64, string Name);
+
+/// <summary><c>[slot, "steamId64", name]</c>.</summary>
+internal sealed class RoundPositionsPlayerConverter : JsonConverter<RoundPositionsPlayer>
+{
+    public override RoundPositionsPlayer Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        RoundIndexRunConverter.Expect(ref reader, JsonTokenType.StartArray);
+        reader.Read();
+        int slot = reader.GetInt32();
+        reader.Read();
+        ulong steamId = ulong.Parse(reader.GetString() ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+        reader.Read();
+        string name = reader.GetString() ?? "";
+        reader.Read();
+        RoundIndexRunConverter.Expect(ref reader, JsonTokenType.EndArray);
+        return new RoundPositionsPlayer(slot, steamId, name);
+    }
+
+    public override void Write(Utf8JsonWriter writer, RoundPositionsPlayer value, JsonSerializerOptions options)
+    {
+        writer.WriteStartArray();
+        writer.WriteNumberValue(value.Slot);
+        writer.WriteStringValue(value.SteamId64.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        writer.WriteStringValue(value.Name);
+        writer.WriteEndArray();
+    }
 }
 
 /// <summary>One alive player at one sampled step, stored as <c>[slot, x, y, z, placeId]</c> in integer world units.</summary>
