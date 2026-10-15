@@ -5,7 +5,8 @@
 # visit's merged rules run, like library_teams.
 #
 # player.coaching_team needs a trigger; it is sampled at every round close and the last one is
-# kept, so a demo with no closed round marks no coach.
+# kept, so a demo with no closed round marks no coach. The app drops coaches on a demo it does not
+# score, so its last-frame replay agrees.
 ruleset: library_coaches
 title: Library Coaches
 summary: The side each player coached, for the library roster.

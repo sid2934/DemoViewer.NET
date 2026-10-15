@@ -25,15 +25,16 @@ public sealed record LibraryTeamState(int? Ct, int? T, string? CtClan, string? T
 
     /// <summary>
     ///     The state both library reads return. Scores are both or nothing, and nothing when they sum to zero
-    ///     (warmup only); a score the match-end panel closed is completed (<see cref="LibraryFinalScore" />);
-    ///     coach slots come back either way.
+    ///     (warmup only); a score the match-end panel closed is completed (<see cref="LibraryFinalScore" />).
+    ///     A demo with no score marks no coach: the table samples coaches at round close, which a warmup-only
+    ///     demo never reaches, and the replay must read the same.
     /// </summary>
     public static LibraryTeamState Of(int? ct, int? t, string? ctClan, string? tClan, HashSet<int> coachSlots, bool matchEnded)
     {
         ArgumentNullException.ThrowIfNull(coachSlots);
         if (ct is not { } c || t is not { } tt || c + tt == 0)
         {
-            return new LibraryTeamState(null, null, null, null, coachSlots);
+            return Empty();
         }
 
         (int fullCt, int fullT) = LibraryFinalScore.Complete(c, tt, matchEnded);

@@ -62,6 +62,17 @@ public class LibraryTeamTablesTests
     }
 
     [Test]
+    public async Task ADemoWithNoScore_MarksNoCoach()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(Show(LibraryTeamState.Of(0, 0, "A", "B", [3], false))).IsEqualTo(Show(LibraryTeamState.Empty()));
+            await Assert.That(Show(LibraryTeamState.Of(null, 4, null, null, [3], true))).IsEqualTo(Show(LibraryTeamState.Empty()));
+            await Assert.That(LibraryTeamState.Of(1, 0, null, null, [3], false).CoachSlots).IsEquivalentTo([3]);
+        }
+    }
+
+    [Test]
     public async Task EveryMergedRun_RecordsTheLibraryTables_WhateverTheCut()
     {
         MergedRulesBuild rules = new(ShippedRules) { OutputsFor = _ => new HashSet<string>(StringComparer.Ordinal) };
