@@ -14,9 +14,11 @@ using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Services.Zones;
 using Microsoft.Extensions.DependencyInjection;
@@ -465,9 +467,20 @@ public class StratBookPackBaselineTests
                 RoundIndexEvaluator roundIndex = provider.GetRequiredService<RoundIndexEvaluator>();
                 SuggestedTagsService suggestedTags = provider.GetRequiredService<SuggestedTagsService>();
                 GrenadeIndexEvaluator grenades = provider.GetRequiredService<GrenadeIndexEvaluator>();
-                forward = new ForwardPassRunner(provider.GetRequiredService<MergedRulesBuild>());
+                MergedRulesBuild rules = provider.GetRequiredService<MergedRulesBuild>();
+                forward = new ForwardPassRunner(rules);
                 demoCache = provider.GetRequiredService<DemoCacheStore>();
-                full = [library.Evaluate, highlights.Evaluate, roundFacts.Evaluate, roundIndex.Evaluate, (path, parsed) => suggestedTags.Evaluate(path, parsed), grenades.Evaluate];
+                // Outside a queue visit no collector is declared. Without the thrower rows Suggested Tags
+                // falls back to its own stride-8 walk, which the real visit does not pay.
+                CollectorSet thrower = CollectorSet.Of([new RegisteredCollector(ThrowerCollector.Contribution, null)]);
+                rules.CollectorsFor = _ => thrower;
+                full =
+                [
+                    library.Evaluate, highlights.Evaluate, roundFacts.Evaluate, roundIndex.Evaluate,
+                    (path, parsed) => suggestedTags.Evaluate(path, parsed,
+                        rules.Collected(parsed, path).Get<List<RemovedProjectile>>(ThrowerCollector.CollectorId)),
+                    grenades.Evaluate
+                ];
             });
 
             try
