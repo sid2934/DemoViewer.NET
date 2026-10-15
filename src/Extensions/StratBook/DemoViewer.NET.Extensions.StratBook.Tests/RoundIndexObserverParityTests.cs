@@ -2,11 +2,15 @@
 
 using System.Text;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
@@ -68,6 +72,55 @@ public class RoundIndexObserverParityTests
             await Assert.That(observed.Positions.Players.Where(p => p.SteamId64 == 0 && p.Name.Length == 0)).IsEmpty()
                 .Because("every slot a tuple names is on the demo's roster");
         }
+    }
+
+    [Test]
+    [Arguments(0)]
+    [Arguments(4)]
+    public async Task AForwardRead_FoldsTheRetainedReadsIndex(int which)
+    {
+        string path = BenchmarkDemo(which);
+        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
+        CollectorSet set = CollectorSet.Of([new RegisteredCollector(RoundIndexCollector.Contribution, null)]);
+        MergedRulesBuild rules = new(() => YamlConfigLoader.LoadWithOverlay(RuleSetLocator.ResolveShippedRulesDirectory(), null))
+        {
+            CollectorsFor = _ => set
+        };
+
+        RoundIndexSamples retained = rules.Collected(parsed, path).Get<RoundIndexSamples>(RoundIndexCollector.CollectorId)!;
+        rules.Forget(parsed);
+        using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
+        ForwardDemoResult forward = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, rules.Docs, null, null, set);
+        RoundIndexSamples read = forward.Collected.Get<RoundIndexSamples>(RoundIndexCollector.CollectorId)!;
+
+        DemoCacheStore store = new(null);
+        new RoundFactsEvaluator(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity()).Evaluate(path, parsed);
+        RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no round facts rows");
+        RoundIndexBuild fromRetained = RoundIndexBuilder.BuildWithPositions(RoundIndexDemoValues.For(parsed), rows,
+            RoundIndexOptions.Default, PawnPlaceSource.Instance, retained.Samples);
+        RoundIndexBuild fromForward = RoundIndexBuilder.BuildWithPositions(RoundIndexDemoValues.For(new ForwardContext(path, forward), read.LastFrameTick),
+            rows, RoundIndexOptions.Default, PawnPlaceSource.Instance, read.Samples);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(read.Samples.Count).IsEqualTo(retained.Samples.Count);
+            await Assert.That(fromForward.Index.Serialize()).IsEqualTo(fromRetained.Index.Serialize());
+            await Assert.That(fromForward.Positions.Serialize()).IsEqualTo(fromRetained.Positions.Serialize());
+        }
+    }
+
+    // What a forward pass's context answers, from the forward read alone.
+    private sealed class ForwardContext(string path, ForwardDemoResult read) : IPassContext
+    {
+        public string DemoPath => path;
+        public ParsedDemo? Parsed => null;
+        public DemoDescriptor Demo => read.Demo;
+        public int FrameCount => read.FrameCount;
+        public int FirstServerTick => read.FirstServerTick;
+        public int LastServerTick => read.LastServerTick;
+        public IReadOnlyList<PassRound> Rounds => [];
+        public CancellationToken CancellationToken => CancellationToken.None;
+        public T? Collected<T>(string collectorId) where T : class => throw new NotSupportedException();
     }
 
     private static void PrintFirstDiff(string label, string expected, string actual)
