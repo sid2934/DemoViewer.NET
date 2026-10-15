@@ -981,7 +981,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
                 IsDiagnosticsOpen = true;
             }
 
-            if (plan is { Cut.Count: > 0 } && path is not null)
+            if (plan is not null && (plan.Cut.Count > 0 || !plan.Collectors.IsEmpty) && path is not null)
             {
                 _openSeed = new OpenSeed(demo, path, plan, run, observer?.Results);
             }

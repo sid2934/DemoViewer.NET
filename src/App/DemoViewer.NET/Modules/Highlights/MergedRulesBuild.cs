@@ -289,12 +289,14 @@ public sealed class MergedRulesBuild
     ///     What the collectors of the visit of <paramref name="path" /> put on its bare run, the run made first
     ///     when none that carried them is cached.
     /// </summary>
-    internal CollectorResults Collected(ParsedDemo parsed, string path) => RunFor(parsed, path).Results;
+    internal CollectorResults Collected(ParsedDemo parsed, string path) =>
+        RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty, false).Results;
 
     private CachedRun RunFor(ParsedDemo parsed, string path) =>
         RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty);
 
-    private CachedRun RunCut(ParsedDemo parsed, IReadOnlySet<string> cut, CollectorSet collectors)
+    // A caller reading only collector results does not need round_facts recorded on the run it is served.
+    private CachedRun RunCut(ParsedDemo parsed, IReadOnlySet<string> cut, CollectorSet collectors, bool readsRoundFacts = true)
     {
         (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
 
@@ -305,7 +307,7 @@ public sealed class MergedRulesBuild
         {
             if (_runs.TryGetValue(parsed, out CachedRun? cached) && string.Equals(cached.Off, off, StringComparison.Ordinal))
             {
-                if (cached.Recorded.IsSupersetOf(outputs) && cached.Collectors.IsSupersetOf(collectors))
+                if (cached.Recorded.IsSupersetOf(readsRoundFacts ? outputs : cut) && cached.Collectors.IsSupersetOf(collectors))
                 {
                     return cached;
                 }
@@ -336,6 +338,7 @@ public sealed class MergedRulesBuild
     ///     the stamped rulesets that are off, its <see cref="OpenRunPlan.Cut" /> is the stale outputs, and the run
     ///     can <see cref="Seed(ParsedDemo, string, OpenRunPlan, AnalysisRun)" /> the open's visit. Otherwise it is <paramref name="read" /> without the stamped
     ///     rulesets and an empty cut: nothing would read their nodes, and their snapshot columns cost peak memory.
+    ///     With nothing stale it still declares the registered collectors, so their results can seed the visit.
     /// </summary>
     /// <param name="read">The rules the shell read for this open.</param>
     /// <param name="path">The open demo's path, or null when it has none on disk.</param>
@@ -366,7 +369,8 @@ public sealed class MergedRulesBuild
         IReadOnlySet<string> stale = OutputsFor?.Invoke(path) ?? StampedOutputs();
         if (stale.Count == 0)
         {
-            return plan;
+            // Core rulesets only, but the visit's collectors still ride this run instead of a second one.
+            return plan with { Collectors = OpenCollectorSet() };
         }
 
         if (!SameRulesets(docs, merged))
@@ -413,7 +417,7 @@ public sealed class MergedRulesBuild
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(run);
-        if (plan.Cut.Count == 0)
+        if (plan.Cut.Count == 0 && (collected is null || plan.Collectors.IsEmpty))
         {
             return false;
         }
@@ -596,7 +600,7 @@ public sealed record OpenRunPlan(
 
     internal string? Off { get; init; }
 
-    /// <summary>The collectors the run declares; set only when it can seed the visit.</summary>
+    /// <summary>The collectors the run declares; set whenever a visit of the demo can read their results off it.</summary>
     internal CollectorSet Collectors { get; init; } = CollectorSet.Empty;
 
     /// <summary>The build's outputs cut to the core tables plus <see cref="Cut" />.</summary>
