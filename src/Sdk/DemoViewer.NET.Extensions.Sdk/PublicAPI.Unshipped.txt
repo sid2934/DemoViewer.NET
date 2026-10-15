@@ -614,6 +614,8 @@ DemoViewer.NET.Extensions.Sdk.LibraryFactState.Schema.get -> int
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.Schema.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.State.get -> DemoViewer.NET.Extensions.Sdk.DemoDataState
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.State.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFactState.WrittenAtTicks.get -> long
+DemoViewer.NET.Extensions.Sdk.LibraryFactState.WrittenAtTicks.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryFilter
 DemoViewer.NET.Extensions.Sdk.LibraryFilter.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryFilter!
 DemoViewer.NET.Extensions.Sdk.LibraryFilter.Deconstruct(out string! Label, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryFilterItem!>! Items, out System.Func<DemoViewer.NET.Extensions.Sdk.LibraryDemo!, string!, bool>! Matches, out string? Tooltip) -> void

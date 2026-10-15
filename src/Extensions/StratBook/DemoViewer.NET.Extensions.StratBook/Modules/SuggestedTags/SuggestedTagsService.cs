@@ -853,10 +853,9 @@ public sealed class SuggestedTagsService : IExtensionPass
             if (!_builtOn.TryGetValue(demo.FilePath, out string? seen))
             {
                 // First sight this session: proposals written after every input were built from them.
-                seen = built.WrittenAtTicks >= Math.Max(_detonations.Stamp(demo.FilePath)!.WrittenAtTicks,
-                    _index!.Stamp(demo.FilePath)!.WrittenAtTicks)
-                    ? key
-                    : "";
+                long inputs = Math.Max(Math.Max(_detonations.Stamp(demo.FilePath)!.WrittenAtTicks, _index!.Stamp(demo.FilePath)!.WrittenAtTicks),
+                    demo.Fact(RoundFactsRows.FacetId)!.WrittenAtTicks);
+                seen = built.WrittenAtTicks >= inputs ? key : "";
                 _builtOn[demo.FilePath] = seen;
             }
 
