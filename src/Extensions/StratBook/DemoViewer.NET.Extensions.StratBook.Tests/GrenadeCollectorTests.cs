@@ -43,9 +43,9 @@ public class GrenadeCollectorTests
 
     // Slot 3 throws an HE at tick 100 (release 93) running east, crouched at the release, jumping at 94. Slot 5
     // throws a smoke at tick 307 (release 300) whose thrower chain never resolves, standing still and walking.
-    private static Script Demo()
+    private static Script Demo(bool inPlace = false)
     {
-        Script s = new();
+        Script s = new(inPlace);
         for (int t = 0; t < Frames; t++)
         {
             s.Pawn(t, Thrower, new Vector3(-40 + (t - 85) * 5, 0, 0), -12.5f, 90f,
@@ -143,10 +143,13 @@ public class GrenadeCollectorTests
 
     // ── the rows ─────────────────────────────────────────────────────────────────────────────────────
 
+    // In place: one instance per slot, changed under the collector between frames, as the lane applies deltas.
     [Test]
-    public async Task TheCollectedRows_EqualTheWalkersRows_OverTheSameFramesReadsAndCommands()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task TheCollectedRows_EqualTheWalkersRows_OverTheSameFramesReadsAndCommands(bool inPlace)
     {
-        Script script = Demo();
+        Script script = Demo(inPlace);
         GrenadeCollected collected = Collect(script);
         GrenadeWalk walk = GrenadeWalker.Assemble(collected, Players, 64, 0);
         GrenadeWalk oracle = Oracle(script);
@@ -289,8 +292,9 @@ public class GrenadeCollectorTests
         public void Put<T>(T result) where T : class => Result = result;
     }
 
-    // One frame per tick. Frame events go into the frame's message list, as the parser puts them.
-    private sealed class Script
+    // One frame per tick. Frame events go into the frame's message list, as the parser puts them. With inPlace
+    // each slot has one command instance that View(tick) rewrites to that tick's inputs, the client tick moving on.
+    private sealed class Script(bool inPlace = false)
     {
         private static readonly PropertyInfo MessageList = typeof(DemoFrame).GetProperty("MessageList", BindingFlags.Instance | BindingFlags.NonPublic)
                                                            ?? throw new MissingMemberException(nameof(DemoFrame), "MessageList");
@@ -301,6 +305,8 @@ public class GrenadeCollectorTests
 
         private readonly Dictionary<int, Dictionary<(string Provider, int Slot), object>> _values = [];
         private readonly Dictionary<int, Dictionary<int, CSGOUserCmdPB>> _commands = [];
+        private readonly Dictionary<int, Dictionary<int, (ulong Buttons, bool Subtick)>> _inputs = [];
+        private readonly Dictionary<int, CSGOUserCmdPB> _shared = [];
         private readonly Dictionary<int, List<GameEvent>> _events = [];
         private readonly Dictionary<int, List<ObservedProjectile>> _created = [];
         private readonly Dictionary<int, List<ObservedProjectile>> _live = [];
@@ -335,6 +341,13 @@ public class GrenadeCollectorTests
 
         public void Command(int tick, int slot, ulong buttons, bool subtickJump)
         {
+            Commands.Add((tick, slot, buttons, subtickJump));
+            if (inPlace)
+            {
+                (_inputs.TryGetValue(tick, out Dictionary<int, (ulong, bool)>? i) ? i : _inputs[tick] = [])[slot] = (buttons, subtickJump);
+                return;
+            }
+
             CSGOUserCmdPB command = new() { Base = new CBaseUserCmdPB { ButtonsPb = new CInButtonStatePB { Buttonstate1 = buttons } } };
             if (subtickJump)
             {
@@ -342,7 +355,35 @@ public class GrenadeCollectorTests
             }
 
             (_commands.TryGetValue(tick, out Dictionary<int, CSGOUserCmdPB>? c) ? c : _commands[tick] = [])[slot] = command;
-            Commands.Add((tick, slot, buttons, subtickJump));
+        }
+
+        private Dictionary<int, CSGOUserCmdPB> CommandsAt(int tick)
+        {
+            if (!inPlace)
+            {
+                return _commands.GetValueOrDefault(tick) ?? [];
+            }
+
+            Dictionary<int, CSGOUserCmdPB> at = [];
+            foreach ((int slot, (ulong buttons, bool subtick)) in _inputs.GetValueOrDefault(tick) ?? [])
+            {
+                if (!_shared.TryGetValue(slot, out CSGOUserCmdPB? command))
+                {
+                    _shared[slot] = command = new CSGOUserCmdPB { Base = new CBaseUserCmdPB { ButtonsPb = new CInButtonStatePB() } };
+                }
+
+                command.Base.ClientTick = tick;
+                command.Base.ButtonsPb.Buttonstate1 = buttons;
+                command.Base.SubtickMoves.Clear();
+                if (subtick)
+                {
+                    command.Base.SubtickMoves.Add(new CSubtickMoveStep { Button = GrenadeRules.JumpButton, Pressed = true });
+                }
+
+                at[slot] = command;
+            }
+
+            return at;
         }
 
         public void Event(int tick, GameEvent e)
@@ -388,14 +429,15 @@ public class GrenadeCollectorTests
                 messages.AddRange(events.Select(GameEventMessage.ForSynthesizedEvent));
             }
 
-            if (_commands.ContainsKey(tick))
+            Dictionary<int, CSGOUserCmdPB> commands = CommandsAt(tick);
+            if (commands.Count > 0)
             {
                 UserCmdsCount.SetValue(frame, 1);
             }
 
             return new View(frame, tick,
                 _values.GetValueOrDefault(tick) ?? [],
-                _commands.GetValueOrDefault(tick) ?? [],
+                commands,
                 _created.GetValueOrDefault(tick) ?? [],
                 _live.GetValueOrDefault(tick) ?? [],
                 _removed.GetValueOrDefault(tick) ?? []);
