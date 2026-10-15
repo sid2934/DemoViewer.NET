@@ -10,7 +10,6 @@ using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
-using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
@@ -180,7 +179,7 @@ internal static class BackgroundRunCommand
         if (read == "app-forward")
         {
             using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
-            ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, rules!.Rulesets, outputs: outputs);
+            ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, rules!.Rulesets, outputs: outputs);
             // The recorded tables are projected as the facts and Round Facts passes do, so their cost lands in the job.
             _lastTableRows = pass.Run!.ProjectConfiguredOutputs().Sum(table => table.Rows.Count);
             return (Stopwatch.GetElapsedTime(t).TotalMilliseconds, pass.Run!.Highlights.Count);
@@ -220,9 +219,6 @@ internal static class BackgroundRunCommand
         ParsedDemo demo = BackgroundPlans.Parse(path, "mmap", "no-usercmds");
         double parseMs = Stopwatch.GetElapsedTime(t).TotalMilliseconds;
 
-        EntityTracker tracker = FinalTeamState.NewTracker();
-        tracker.ReplayToIndex(demo.Frames.Count - 1, demo.Frames);
-        _ = FinalTeamState.Read(tracker, demo.Players.Keys);
         _ = ClipRounds.Derive(demo);
 
         List<RulesetDoc> highlights = [.. rules.Rulesets.Where(r => r.Id != ForwardDemoPass.RoundFactsTable)];

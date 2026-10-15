@@ -889,14 +889,16 @@ public class App : Application
             MergedRulesBuild rules = new(() => MergedRulesBuild.LoadShippedExtensionsUser(contributed.Value), () =>
             [
                 StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
+                .. LibraryTeamTables.RulesetIds.Select(StampedRuleset.Core),
                 .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true)),
                 .. FeaturePacks.ClaimedRulesets.Select(id => new StampedRuleset(id, StampedRuleset.ClaimedOwner, static () => false))
             ]);
             // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo. The
             // evaluators take this build, so they are resolved per call, never here.
+            // The library tables are recorded on every run whatever this says.
             rules.OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
                 ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
-                : sp.GetRequiredService<FactsEvaluator>().Records(path, id));
+                : !LibraryTeamTables.IsLibraryRuleset(id) && sp.GetRequiredService<FactsEvaluator>().Records(path, id));
             // The visit in flight answers which collectors its rules run carries; resolved per call, like the cut.
             rules.CollectorsFor = path => sp.GetRequiredService<DemoProcessingQueue>().CollectorsFor(path);
             // Every enabled pack's collectors: the open's run declares them before its visit is planned.
@@ -981,9 +983,14 @@ public class App : Application
             return store;
         });
 
+        // The score, clans and coaches come off the visit's merged run, resolved per call like the cut.
         services.AddSingleton(sp => new DemoLibraryService(
             settings: sp.GetRequiredService<SettingsService>(),
-            demoCache: sp.GetRequiredService<DemoCacheStore>()) { ParseHashesContent = !OperatingSystem.IsBrowser() });
+            demoCache: sp.GetRequiredService<DemoCacheStore>())
+        {
+            ParseHashesContent = !OperatingSystem.IsBrowser(),
+            TeamRun = (parsed, path) => sp.GetRequiredService<MergedRulesBuild>().BareRun(parsed, path)
+        });
 
         // Highlights pipeline: the library-wide cache store and the
         // scanner over it. The scanner's library universe is the indexer's current entries; the

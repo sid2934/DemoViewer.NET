@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+#
+# Library Teams: each side's final score and clan name, which the library card and the demo cache
+# store. The app reads the library_teams table off the visit's merged rules run, so a library
+# re-index costs no read of its own. Like round_facts it is app content and a stamped ruleset: the
+# highlight scan and Stats leave it out by id.
+#
+# A capture with no `on:` reads the last frame. A demo cut off at the buzzer can miss the last
+# round's point; no event carries the final score, so the table inherits that.
+ruleset: library_teams
+title: Library Teams
+summary: Each side's final score and clan name, for the library card.
+for: each_team
+
+stats:
+  score:     { capture: team.score,     per: match }
+  clan_name: { capture: team.clan_name, per: match }
+
+show:
+  tables:
+    library_teams:
+      per: team_match
+      columns:
+        - { stat: score,     label: score }
+        - { stat: clan_name, label: clan_name }

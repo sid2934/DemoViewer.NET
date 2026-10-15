@@ -116,7 +116,7 @@ public class ForwardQueueTests
             seen = needs;
             return Pass();
         });
-        Evaluator library = new("library", ForwardNeeds.FinalState | ForwardNeeds.Rules) { Wanted = { "a.dem" } };
+        Evaluator library = new("library", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         Evaluator highlights = new("highlights", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         Evaluator facts = new("roundfacts", ForwardNeeds.Rules) { Wanted = { "a.dem" } };
         using DemoScheduler coordinator = new([library, highlights, facts], queue, () => []);
@@ -131,7 +131,7 @@ public class ForwardQueueTests
         using (Assert.Multiple())
         {
             await Assert.That(passes).IsEqualTo(1);
-            await Assert.That(seen).IsEqualTo(ForwardNeeds.FinalState | ForwardNeeds.Rules);
+            await Assert.That(seen).IsEqualTo(ForwardNeeds.Rules);
             await Assert.That(library.Retained + highlights.Retained + facts.Retained).IsEqualTo(0);
             await Assert.That(queue.Snapshot().Single().State).IsEqualTo(DemoQueueItemState.Completed);
         }
@@ -184,7 +184,7 @@ public class ForwardQueueTests
             return SyntheticParsedDemo.Create();
         });
 
-        IDemoQueueHandle running = queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.FinalState | ForwardNeeds.Rules));
+        IDemoQueueHandle running = queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.Rules));
         await WaitForAsync(() => queue.RunningCount == 1, "forward running");
 
         IDemoQueueHandle covered = queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules));
@@ -281,7 +281,7 @@ public class ForwardQueueTests
                 }
             }, _ => failed++, "a.dem", false, needs is null ? null : _ => forwarded++, needs ?? ForwardNeeds.None);
 
-        IDemoQueueHandle library = queue.SubmitBackground(Owner("library", ForwardNeeds.FinalState | ForwardNeeds.Rules));
+        IDemoQueueHandle library = queue.SubmitBackground(Owner("library", ForwardNeeds.Rules));
         queue.SubmitBackground(Owner("roundfacts", ForwardNeeds.Rules));
         started.Wait(TimeSpan.FromSeconds(5));
         // Queued behind, newer: before the fold it would have waited for a.dem's parse to finish.
@@ -315,18 +315,18 @@ public class ForwardQueueTests
                 passes.Add(needs);
             }
 
-            return needs == ForwardNeeds.Rules ? UntilCancelled(started, token) : Pass();
+            return needs == ForwardNeeds.None ? UntilCancelled(started, token) : Pass();
         });
         int facts = 0, library = 0;
 
-        queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules, _ => facts++));
+        queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.None, _ => facts++));
         started.Wait(TimeSpan.FromSeconds(5));
-        queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.FinalState | ForwardNeeds.Rules, _ => library++));
+        queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.Rules, _ => library++));
         await WaitForAsync(() => facts + library == 2 && queue.ActiveWorkerCount == 0, "both owners");
 
         using (Assert.Multiple())
         {
-            await Assert.That(passes).IsEquivalentTo([ForwardNeeds.Rules, ForwardNeeds.FinalState | ForwardNeeds.Rules]);
+            await Assert.That(passes).IsEquivalentTo([ForwardNeeds.None, ForwardNeeds.Rules]);
             await Assert.That(facts).IsEqualTo(1);
             await Assert.That(library).IsEqualTo(1);
         }

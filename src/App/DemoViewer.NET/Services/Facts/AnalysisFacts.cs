@@ -112,7 +112,7 @@ public sealed class AnalysisFacts : IAnalysisFacts, IFactsVisibility
 
     bool IFactsVisibility.IsOff(string rulesetId) =>
         _facts is not null
-        && !string.Equals(rulesetId, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
+        && !StampedFacts.IsHostRead(rulesetId)
         && _facts.Rules.IsStamped(rulesetId)
         && _facts.Facet(rulesetId) is null;
 
