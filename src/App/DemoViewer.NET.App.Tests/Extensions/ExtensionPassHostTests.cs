@@ -5,6 +5,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using Microsoft.Extensions.DependencyInjection;
 
 #endregion
@@ -270,21 +271,29 @@ public class ExtensionPassHostTests
     }
 
     [Test]
-    public async Task AForwardPassReadingUserCommands_IsRefusedAtRegistration()
+    public async Task AForwardPass_ReadsUserCommandsOnlyThroughACollectorThatDeclaresThem()
     {
         ExtensionGuard guard = StandaloneGuard();
-        PassRegistry registry = new();
-        List<string> reported = [];
-        registry.AddPackPass(FakePass.PassId,
-            () => new ExtensionPassHost(new FakePass { Reads = PassRead.Forward, UserCommands = true }, [], guard, static () => false),
-            [], () => true, ex => reported.Add(ex.GetType().Name));
-
-        IReadOnlyList<IDemoPass> resolved = registry.Resolve();
+        CollectorContribution reading = CollectorKit.Counting("reads.cmds", FakePass.PassId) with { ReadsUserCommands = true };
+        CollectorContribution silent = CollectorKit.Counting("no.cmds", FakePass.PassId);
+        ExtensionPassHost alone = new(new FakePass { Reads = PassRead.Forward, UserCommands = true }, [], guard, static () => false);
+        ExtensionPassHost withSilent = new(new FakePass { Reads = PassRead.Forward, UserCommands = true }, [], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(silent, guard)]));
+        ExtensionPassHost withReading = new(new FakePass { Reads = PassRead.Forward }, [], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(reading, guard)]));
+        ExtensionPassHost retained = new(new FakePass(), [], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(reading, guard)]));
 
         using (Assert.Multiple())
         {
-            await Assert.That(resolved).IsEmpty();
-            await Assert.That(reported).IsEquivalentTo([nameof(NotSupportedException)]);
+            await Assert.That(alone.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward))
+                .Because("a forward pass sees no commands itself, so its own answer declares nothing");
+            await Assert.That(withSilent.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward, ForwardNeeds.Rules));
+            await Assert.That(withReading.Needs(new VisitedDemo(Demo)))
+                .IsEqualTo(new PassNeeds(ParseMode.Forward, ForwardNeeds.Rules | ForwardNeeds.UserCommands, true))
+                .Because("the collector reads them on the rules run, so the forward read decodes them");
+            await Assert.That(retained.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Retained, ForwardNeeds.None, true))
+                .Because("a retained visit's parse keeps them for the run's lane");
         }
     }
 

@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Analysis.Observation;
 using CS2DemoKit.Parser;
+using CS2OpenSchema.Protos;
 
 #endregion
 
@@ -21,7 +22,7 @@ internal sealed class CollectorObserver : IFrameObserver
     public CollectorObserver(CollectorSet set)
     {
         _slots = [.. set.All.Select(c => new Slot(c))];
-        _view = new ReadView(set.Providers);
+        _view = new ReadView(set.Providers, set.ReadsUserCommands);
     }
 
     /// <summary>What each collector put, or why it failed. Complete after <see cref="Finish" />.</summary>
@@ -102,7 +103,7 @@ internal sealed class CollectorObserver : IFrameObserver
 
     // One per run. Provider handles resolve against the engine view on first use, and again when the engine
     // hands a different view, so a handle never reads another run's columns.
-    private sealed class ReadView(IReadOnlyList<string> declared) : IFrameReadView
+    private sealed class ReadView(IReadOnlyList<string> declared, bool commands) : IFrameReadView
     {
         private readonly string[] _declared = [.. declared];
         private readonly Dictionary<string, int> _indexOf = Index(declared);
@@ -151,6 +152,13 @@ internal sealed class CollectorObserver : IFrameObserver
         public bool TryReadString(ObservedRead provider, int playerSlot, out string? value) => View.TryReadString(Handle(provider), playerSlot, out value);
 
         public int Team(int playerSlot) => View.Team(playerSlot);
+
+        // Declared, not merely available: a rule reading player.cmd.* would build the lane for a run the
+        // collector did not ask for, and its stamp would not say so.
+        public CSGOUserCmdPB? Command(int playerSlot) =>
+            commands
+                ? View.Command(playerSlot)
+                : throw new InvalidOperationException("no collector on this run declared ReadsUserCommands");
 
         private ObservedProvider Handle(ObservedRead provider)
         {
