@@ -288,7 +288,7 @@ internal sealed class HostLibrary : IExtensionLibrary
                 DemoAnalysisState.Indexed => DemoDataState.Written,
                 DemoAnalysisState.Failed => DemoDataState.Failed,
                 _ => DemoDataState.Pending
-            }, s.Count))]
+            }, s.Count) { WrittenAtTicks = s.ComputedAtTicks })]
         };
 
     // The row's own path first, then its other confirmed paths. A view with no hash vouches for no other path.

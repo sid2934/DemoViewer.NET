@@ -112,6 +112,31 @@ public class SuggestedTagsRecordPassTests
     }
 
     [Test]
+    public async Task AFreshSession_RebuildsProposalsOlderThanTheirRoundFacts()
+    {
+        Wired w = Wire();
+        w.Visit(w.Session());
+        long built = w.Harness.Proposals.Stamp(DemoPath)!.WrittenAtTicks;
+        while (DateTime.UtcNow.Ticks <= built)
+        {
+            await Task.Delay(1);
+        }
+
+        // Round Facts alone move, under a new fingerprint, before any session has seen the demo again.
+        w.Harness.Cache.UpdateExisting(DemoPath, r => r.SetRoundFacts(Rows(), "rf-B"));
+        SuggestedTagsService fresh = w.Session();
+        await Assert.That(fresh.RecordPass.Wants(w.Row)).IsTrue().Because("the proposals were built from the old rows");
+
+        fresh.RecordPass.Run(new LibraryDemoDetail(w.Row, 64, 20000, 0, [], []), CancellationToken.None);
+        using (Assert.Multiple())
+        {
+            await Assert.That(w.Harness.Proposals.Stamp(DemoPath)!.WrittenAtTicks).IsGreaterThan(built);
+            await Assert.That(fresh.RecordPass.Wants(w.Row)).IsFalse();
+            await Assert.That(w.Session().RecordPass.Wants(w.Row)).IsFalse().Because("the rebuilt proposals are newer than every input");
+        }
+    }
+
+    [Test]
     public async Task AStaleIndex_LeavesTheBuildToTheVisit()
     {
         Wired w = Wire();
