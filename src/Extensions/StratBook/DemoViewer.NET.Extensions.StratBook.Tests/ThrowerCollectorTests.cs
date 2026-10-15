@@ -3,6 +3,7 @@
 using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using CS2OpenSchema.Protos;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
@@ -113,5 +114,7 @@ public class ThrowerCollectorTests
         public bool TryReadString(ObservedRead provider, int playerSlot, out string? value) => throw new NotSupportedException();
 
         public int Team(int playerSlot) => throw new NotSupportedException();
+
+        public CSGOUserCmdPB? Command(int playerSlot) => throw new NotSupportedException();
     }
 }

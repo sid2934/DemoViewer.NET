@@ -83,22 +83,22 @@ public sealed class GrenadeReads
 ///     slots, resolves the thrower chain and rejects zero-cell positions, and this is the thin app-side layer
 ///     the sampler's own contract leaves to the consumer, the release, detonation and jump-throw joins.
 ///     <para>
-///         <b>Two passes over one held parse.</b> The sampler walks the projectiles; its tracks and the
-///         events decide which frames need the thrower's pawn; one tracker pass then reads only those frames
-///         (release, eight ticks before it, spawn) and the last frame of each projectile, and rebuilds the
-///         commands inside each jump window through <see cref="UserCmdReconstructor" />. A single
-///         walk with a pawn ring is not possible over the sampler, which exposes no tracker; the second
-///         decode is the price, about the same as the sampler's own.
+///         The pass reads a demo through <see cref="GrenadeCollector" /> on the rules run, which keeps the
+///         pawn and command reads the plan can reach in bounded rings and runs <see cref="Plan" /> at the
+///         end. <see cref="Walk" /> is the same rows off a held parse in two passes of its own, the
+///         projectile walk and a tracker pass over the frames the plans name; it is the oracle the collector
+///         is checked against.
 ///     </para>
 ///     <para>
-///         Every step between the passes is pure (<see cref="Plan" />, <see cref="Assemble" />), so the
-///         joins are tested on synthetic samples and events without a demo.
+///         Every step after the reads is pure (<see cref="Plan" />,
+///         <see cref="Assemble(IReadOnlyList{ThrowPlan}, GrenadeReads, GrenadeEventIndex, IThrowerInputSource, IReadOnlyList{ClipRound}, IEnumerable{PlayerInfo}, int, int)" />), so the joins
+///         are tested on synthetic samples and events without a demo.
 ///     </para>
 /// </summary>
 public static class GrenadeWalker
 {
     /// <summary>Bumped when a row's meaning changes; a demo walked under another version re-indexes.</summary>
-    public const string Version = "2";
+    public const string Version = "3";
 
     private const string ControllerClass = "CCSPlayerController";
     private const string PawnClass = "CCSPlayerPawn";
@@ -143,6 +143,19 @@ public static class GrenadeWalker
         List<GrenadeRow> rows = Assemble(plans, reads, events, inputs, options.Rounds ?? ClipRounds.Derive(demo),
             demo.Players.Values, demo.TickRate > 0 ? demo.TickRate : 64, demo.ServerStartTick);
         return new GrenadeWalk(rows, inputs.Coverage, inputs.Decoder, stride);
+    }
+
+    /// <summary>The rows of a collection the grenade collector put, with the demo's roster and clock values.</summary>
+    /// <param name="collected">What the collector put on the rules run.</param>
+    /// <param name="players">The demo's players, for the thrower's SteamID and name.</param>
+    /// <param name="tickRate">Ticks per second.</param>
+    /// <param name="serverStartTick">Subtracted from the server-clock effect ticks.</param>
+    public static GrenadeWalk Assemble(GrenadeCollected collected, IEnumerable<PlayerInfo> players, int tickRate, int serverStartTick)
+    {
+        ArgumentNullException.ThrowIfNull(collected);
+        List<GrenadeRow> rows = Assemble(collected.Plans, collected.Reads, collected.Events, collected.Inputs, collected.Rounds,
+            players, tickRate, serverStartTick);
+        return new GrenadeWalk(rows, collected.Inputs.Coverage, collected.Inputs.Decoder, collected.TrajectoryStride);
     }
 
     /// <summary>
