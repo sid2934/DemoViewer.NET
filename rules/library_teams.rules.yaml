@@ -7,7 +7,8 @@
 #
 # A capture with no `on:` reads the last frame. Tournament GOTV can drop the entity snapshot of the
 # match's last tick, which holds the deciding point, so the app completes a score that the match-end
-# panel says is final and that is one round short of a result. match_ended carries that panel.
+# panel says is final and that is one round short of a result, unless the overtime convars let a tie
+# end the match there. match_ended carries that panel.
 ruleset: library_teams
 title: Library Teams
 summary: Each side's final score and clan name, for the library card.

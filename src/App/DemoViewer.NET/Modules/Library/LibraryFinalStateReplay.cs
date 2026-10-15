@@ -21,9 +21,6 @@ public static class LibraryFinalStateReplay
 
     public static EntityTracker NewTracker() => new() { StoreClassFilter = Classes };
 
-    /// <summary>The event that says the match is over, which the replay's score completion needs.</summary>
-    public const string MatchEndEvent = "cs_win_panel_match";
-
     /// <summary>Replays a held parse to its last frame and reads it. Decode site 1.</summary>
     public static LibraryTeamState Replay(ParsedDemo parsed)
     {
@@ -37,8 +34,8 @@ public static class LibraryFinalStateReplay
         DecodeSites.Enter(1);
         EntityTracker tracker = NewTracker();
         tracker.ReplayToIndex(frames.Count - 1, frames);
-        bool matchEnded = parsed.AllGameEvents.Any(e => string.Equals(e.Name, MatchEndEvent, StringComparison.Ordinal));
-        return Read(tracker, parsed.Players.Keys, matchEnded);
+        bool matchEnded = parsed.AllGameEvents.Aggregate(false, (ended, e) => LibraryFinalScore.FoldMatchEnded(ended, e.Name));
+        return Read(tracker, parsed.Players.Keys, matchEnded, LibraryOvertime.Of(parsed.Frames));
     }
 
     /// <summary>
@@ -47,8 +44,9 @@ public static class LibraryFinalStateReplay
     /// </summary>
     /// <param name="tracker">A tracker at the demo's last frame.</param>
     /// <param name="playerSlots">The roster's slots.</param>
-    /// <param name="matchEnded">Whether <see cref="MatchEndEvent" /> fired.</param>
-    public static LibraryTeamState Read(EntityTracker tracker, IEnumerable<int> playerSlots, bool matchEnded)
+    /// <param name="matchEnded">Whether the current match ended (<see cref="LibraryFinalScore.FoldMatchEnded" />).</param>
+    /// <param name="overtime">The demo's overtime convars.</param>
+    public static LibraryTeamState Read(EntityTracker tracker, IEnumerable<int> playerSlots, bool matchEnded, LibraryOvertime overtime)
     {
         ArgumentNullException.ThrowIfNull(tracker);
         ArgumentNullException.ThrowIfNull(playerSlots);
@@ -94,7 +92,7 @@ public static class LibraryFinalStateReplay
             }
         }
 
-        return LibraryTeamState.Of(ct, t, ctClan, tClan, coachSlots, matchEnded);
+        return LibraryTeamState.Of(ct, t, ctClan, tClan, coachSlots, matchEnded, overtime);
     }
 
     private static int CoerceInt(object? v) => v switch

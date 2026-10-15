@@ -45,6 +45,10 @@ public sealed class ForwardDemoResult
 
     /// <summary>The tap's replay of the final state; null when the read ran rules, which carry it as tables.</summary>
     public LibraryTeamState? FinalState { get; init; }
+
+    /// <summary>The overtime convars, which a read of the run's library tables needs.</summary>
+    public LibraryOvertime Overtime { get; init; }
+
     public AnalysisRun? Run { get; init; }
 
     /// <summary>What the read's collectors put; empty when it carried none.</summary>
@@ -62,6 +66,7 @@ public static class ForwardDemoPass
     public const string RoundFactsTable = "round_facts";
 
     private const string FreezeEndEvent = "round_freeze_end";
+    private static readonly IReadOnlySet<int> ConVarsOnly = new HashSet<int> { (int)NET_Messages.NetSetConVar };
     private const int CheckEveryFrames = 1024;
 
     /// <summary>The reader options <c>DemoAnalysis.Run(path)</c> uses: a 1024-frame parallel decode window.</summary>
@@ -116,7 +121,9 @@ public static class ForwardDemoPass
         }
 
         IReadOnlySet<string>? events = plan.GameEventNames;
-        string[] tapEvents = TapReplays(needs) ? [FreezeEndEvent, LibraryFinalStateReplay.MatchEndEvent] : [FreezeEndEvent];
+        string[] tapEvents = TapReplays(needs)
+            ? [FreezeEndEvent, LibraryFinalScore.MatchEndEvent, LibraryFinalScore.MatchRestartEvent]
+            : [FreezeEndEvent];
         if (events is not null && !tapEvents.All(events.Contains))
         {
             HashSet<string> widened = new(events, StringComparer.OrdinalIgnoreCase);
@@ -124,7 +131,11 @@ public static class ForwardDemoPass
             events = widened;
         }
 
-        return plan with { Categories = categories, GameEventNames = events };
+        // A handful of messages per demo; the library's score completion reads overtime off them.
+        IReadOnlySet<int> include = plan.IncludeMessageTypes is { } types
+            ? new HashSet<int>(types) { (int)NET_Messages.NetSetConVar }
+            : ConVarsOnly;
+        return plan with { Categories = categories, GameEventNames = events, IncludeMessageTypes = include };
     }
 
     /// <summary>
@@ -203,7 +214,8 @@ public static class ForwardDemoPass
             LastServerTick = tap.LastServerTick,
             FinalState = tap.Tracker is null ? null
                 : tap.Frames == 0 ? LibraryTeamState.Empty()
-                : LibraryFinalStateReplay.Read(tap.Tracker, demo.Players.Keys, tap.MatchEnded),
+                : LibraryFinalStateReplay.Read(tap.Tracker, demo.Players.Keys, tap.MatchEnded, tap.Overtime),
+            Overtime = tap.Overtime,
             Run = run,
             Collected = observer?.Results ?? CollectorResults.None
         };
@@ -223,6 +235,7 @@ public static class ForwardDemoPass
     {
         public List<GameEvent> FreezeEnds { get; } = [];
         public bool MatchEnded { get; private set; }
+        public LibraryOvertime Overtime { get; private set; }
         public EntityTracker? Tracker => tracker;
         public int Frames { get; private set; }
         public int FirstServerTick { get; private set; }
@@ -265,8 +278,11 @@ public static class ForwardDemoPass
                     case GameEventMessage { DecodedEvent: { Name: FreezeEndEvent } evt }:
                         FreezeEnds.Add(evt);
                         break;
-                    case GameEventMessage { DecodedEvent.Name: LibraryFinalStateReplay.MatchEndEvent }:
-                        MatchEnded = true;
+                    case GameEventMessage { DecodedEvent.Name: LibraryFinalScore.MatchEndEvent or LibraryFinalScore.MatchRestartEvent } evt:
+                        MatchEnded = LibraryFinalScore.FoldMatchEnded(MatchEnded, evt.DecodedEvent.Name);
+                        break;
+                    default:
+                        Overtime = Overtime.With(message);
                         break;
                 }
             }

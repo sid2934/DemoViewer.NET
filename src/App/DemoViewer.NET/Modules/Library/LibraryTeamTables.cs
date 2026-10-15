@@ -29,7 +29,8 @@ public sealed record LibraryTeamState(int? Ct, int? T, string? CtClan, string? T
     ///     A demo with no score marks no coach: the table samples coaches at round close, which a warmup-only
     ///     demo never reaches, and the replay must read the same.
     /// </summary>
-    public static LibraryTeamState Of(int? ct, int? t, string? ctClan, string? tClan, HashSet<int> coachSlots, bool matchEnded)
+    public static LibraryTeamState Of(int? ct, int? t, string? ctClan, string? tClan, HashSet<int> coachSlots, bool matchEnded,
+        LibraryOvertime overtime)
     {
         ArgumentNullException.ThrowIfNull(coachSlots);
         if (ct is not { } c || t is not { } tt || c + tt == 0)
@@ -37,7 +38,7 @@ public sealed record LibraryTeamState(int? Ct, int? T, string? CtClan, string? T
             return Empty();
         }
 
-        (int fullCt, int fullT) = LibraryFinalScore.Complete(c, tt, matchEnded);
+        (int fullCt, int fullT) = LibraryFinalScore.Complete(c, tt, matchEnded, overtime);
         return new LibraryTeamState(fullCt, fullT, ctClan, tClan, coachSlots);
     }
 }
@@ -59,18 +60,91 @@ public static class LibraryFinalScore
 
     /// <summary>
     ///     The score with the leader's deciding point added when the match ended, the score is not a result
-    ///     and one more round for the leader makes it one. The match winner wins the last round, so the
-    ///     missing point is the leader's. Anything else comes back as it was.
+    ///     and one more round for the leader makes it one. Anything else comes back as it was.
     /// </summary>
-    public static (int Ct, int T) Complete(int ct, int t, bool matchEnded)
+    /// <remarks>
+    ///     The dropped snapshot also holds the round's win status, so nothing says who won the last round.
+    ///     On a one-round lead the trailer's point would have tied it, so the leader's point is taken only
+    ///     when <paramref name="overtime" /> rules out a tie ending the match there.
+    /// </remarks>
+    public static (int Ct, int T) Complete(int ct, int t, bool matchEnded, LibraryOvertime overtime)
     {
-        if (!matchEnded || ct == t || IsResult(Math.Max(ct, t), Math.Min(ct, t))
-            || !IsResult(Math.Max(ct, t) + 1, Math.Min(ct, t)))
+        int hi = Math.Max(ct, t), lo = Math.Min(ct, t);
+        if (!matchEnded || ct == t || IsResult(hi, lo) || !IsResult(hi + 1, lo) || (hi - lo == 1 && overtime.TieCanEnd(hi)))
         {
             return (ct, t);
         }
 
         return ct > t ? (ct + 1, t) : (ct, t + 1);
+    }
+
+    /// <summary>
+    ///     Folds one game event into whether the current match has ended: <see cref="MatchEndEvent" /> ends
+    ///     it and <see cref="MatchRestartEvent" /> starts another, as the rules engine resets per-match stats.
+    /// </summary>
+    public static bool FoldMatchEnded(bool ended, string eventName) => eventName switch
+    {
+        MatchEndEvent => true,
+        MatchRestartEvent => false,
+        _ => ended
+    };
+
+    /// <summary>The event that says the match is over.</summary>
+    public const string MatchEndEvent = "cs_win_panel_match";
+
+    /// <summary>The event that starts a match over; what ended before it is another match.</summary>
+    public const string MatchRestartEvent = "begin_new_match";
+}
+
+/// <summary>
+///     The server's overtime convars, <c>mp_overtime_enable</c> and <c>mp_overtime_limit</c>, as the demo's
+///     <c>CNETMsg_SetConVar</c> messages last set them. Unset reads as overtime off.
+/// </summary>
+public readonly record struct LibraryOvertime(bool Enabled, int Limit)
+{
+    /// <summary>True when a match can end tied at <paramref name="tied" /> all: 12, then 15, 18, ... per overtime.</summary>
+    public bool TieCanEnd(int tied) => !Enabled || (Limit > 0 && (tied - 12) / 3 >= Limit);
+
+    /// <summary>This value with <paramref name="message" />'s overtime convars applied.</summary>
+    public LibraryOvertime With(NetMessage message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        if (message.Payload is not CNETMsg_SetConVar { Convars: { } convars })
+        {
+            return this;
+        }
+
+        LibraryOvertime next = this;
+        foreach (CMsg_CVars.Types.CVar cvar in convars.Cvars)
+        {
+            switch (cvar.Name)
+            {
+                case "mp_overtime_enable":
+                    next = next with { Enabled = cvar.Value is "true" or "1" };
+                    break;
+                case "mp_overtime_limit" when int.TryParse(cvar.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int limit):
+                    next = next with { Limit = limit };
+                    break;
+            }
+        }
+
+        return next;
+    }
+
+    /// <summary>The convars as <paramref name="frames" /> leave them.</summary>
+    public static LibraryOvertime Of(IEnumerable<DemoFrame> frames)
+    {
+        ArgumentNullException.ThrowIfNull(frames);
+        LibraryOvertime overtime = default;
+        foreach (DemoFrame frame in frames)
+        {
+            foreach (NetMessage message in frame.DecodedMessages)
+            {
+                overtime = overtime.With(message);
+            }
+        }
+
+        return overtime;
     }
 }
 
@@ -104,7 +178,8 @@ public static class LibraryTeamTables
     /// </summary>
     /// <param name="run">A run that recorded the two tables, or null.</param>
     /// <param name="players">The demo's roster, which the coach rows join to.</param>
-    public static LibraryTeamState Read(AnalysisRun? run, IEnumerable<PlayerInfo> players)
+    /// <param name="overtime">The demo's overtime convars.</param>
+    public static LibraryTeamState Read(AnalysisRun? run, IEnumerable<PlayerInfo> players, LibraryOvertime overtime)
     {
         ArgumentNullException.ThrowIfNull(players);
         if (run?.Build.Outputs is not { } outputs)
@@ -143,7 +218,7 @@ public static class LibraryTeamTables
             }
         }
 
-        return LibraryTeamState.Of(ct, t, ctClan, tClan, CoachSlots(coaches, players), matchEnded);
+        return LibraryTeamState.Of(ct, t, ctClan, tClan, CoachSlots(coaches, players), matchEnded, overtime);
     }
 
     /// <summary>
@@ -161,7 +236,8 @@ public static class LibraryTeamTables
         }
 
         BuildResult build = DemoAnalysis.Build(parsed, mine);
-        return Read(DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false }), parsed.Players.Values);
+        return Read(DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false }), parsed.Players.Values,
+            LibraryOvertime.Of(parsed.Frames));
     }
 
     // A coach row joins its player by SteamID64 and name; a row with no SteamID64 joins by slot.
