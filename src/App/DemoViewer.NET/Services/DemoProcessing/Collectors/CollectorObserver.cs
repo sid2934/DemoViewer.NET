@@ -193,7 +193,10 @@ internal sealed class CollectorObserver : IFrameObserver
             {
                 ProjectileRow r = rows[i];
                 copy[i] = new ObservedProjectile(r.EntityIndex, r.Serial, r.ClassName, r.ThrowerSlot, r.Team, r.Position,
-                    r.InitialPosition, r.InitialVelocity, r.Bounces, r.SmokeEffectTickBegin, r.SmokeDetonationPosition, r.IsIncendiary);
+                    r.InitialPosition, r.InitialVelocity, r.Bounces, r.SmokeEffectTickBegin, r.SmokeDetonationPosition, r.IsIncendiary)
+                {
+                    ExplodeEffectTickBegin = r.ExplodeEffectTickBegin
+                };
             }
 
             return copy;

@@ -1794,6 +1794,8 @@ DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Deconstruct(out int EntityIndex
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.EntityIndex.get -> int
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.EntityIndex.init -> void
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Equals(DemoViewer.NET.Extensions.Sdk.ObservedProjectile other) -> bool
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ExplodeEffectTickBegin.get -> int?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ExplodeEffectTickBegin.init -> void
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialPosition.get -> System.Numerics.Vector3?
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialPosition.init -> void
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialVelocity.get -> System.Numerics.Vector3?

@@ -173,4 +173,11 @@ public readonly record struct ObservedProjectile(
     int Bounces,
     int SmokeEffectTickBegin,
     Vector3? SmokeDetonationPosition,
-    bool? IsIncendiary);
+    bool? IsIncendiary)
+{
+    /// <summary>
+    ///     <c>m_nExplodeEffectTickBegin</c> on the server-boot clock: 0 while the grenade flies, the tick its
+    ///     explosion began once an HE detonates. Null when unseen.
+    /// </summary>
+    public int? ExplodeEffectTickBegin { get; init; }
+}

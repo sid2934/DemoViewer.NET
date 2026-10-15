@@ -893,6 +893,7 @@ public sealed class StratBookPack : IExtension
         contributions.Collector(RoundIndexCollector.Contribution);
         contributions.Pass(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             HostIds.LibraryPass);
+        contributions.Collector(GrenadeCollector.Contribution(() => sp.GetRequiredService<StratBookSettings>().TrajectoryStride));
         contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
             RoundIndexEvaluator.EvaluatorId);
         contributions.Collector(ThrowerCollector.Contribution);
