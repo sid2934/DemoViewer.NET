@@ -983,13 +983,20 @@ public class App : Application
             return store;
         });
 
-        // The score, clans and coaches come off the visit's merged run, resolved per call like the cut.
+        // The score, clans and coaches come off the merged run when the visit makes one anyway (another pass
+        // needs rules, or the open's run is held); otherwise the library replays two entity classes.
         services.AddSingleton(sp => new DemoLibraryService(
             settings: sp.GetRequiredService<SettingsService>(),
             demoCache: sp.GetRequiredService<DemoCacheStore>())
         {
             ParseHashesContent = !OperatingSystem.IsBrowser(),
-            TeamRun = (parsed, path) => sp.GetRequiredService<MergedRulesBuild>().BareRun(parsed, path)
+            TeamRun = (parsed, path) =>
+            {
+                MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
+                return sp.GetRequiredService<DemoProcessingQueue>().RunsRules(path) || rules.HoldsRun(parsed)
+                    ? rules.BareRun(parsed, path)
+                    : null;
+            }
         });
 
         // Highlights pipeline: the library-wide cache store and the

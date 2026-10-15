@@ -150,7 +150,7 @@ public class DemoVisitTests
             return ForwardResult();
         });
         FakePass rules = new("rules") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules), OnRun = Record };
-        FakePass header = new("header") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.None), OnRun = Record };
+        FakePass finalState = new("final") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState), OnRun = Record };
         FakePass walk = new("walk") { NeedsValue = PassNeeds.RetainedParse, OnRun = Record };
 
         void Record(PassInput input)
@@ -162,7 +162,7 @@ public class DemoVisitTests
         }
 
         queue.Pause();
-        queue.SubmitVisit(new DemoVisitRequest("/d/forward.dem", PassLevel.Background, [rules, header]));
+        queue.SubmitVisit(new DemoVisitRequest("/d/forward.dem", PassLevel.Background, [rules, finalState]));
         queue.SubmitVisit(new DemoVisitRequest("/d/mixed.dem", PassLevel.Background, [rules]));
         IDemoQueueHandle mixed = queue.SubmitVisit(new DemoVisitRequest("/d/mixed.dem", PassLevel.Background, [walk]));
         queue.Resume();

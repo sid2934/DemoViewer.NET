@@ -7,7 +7,6 @@ using Avalonia.Threading;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
-using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Playback2D.Pipeline;
@@ -185,10 +184,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     internal TimeProvider Time { get; set; } = TimeProvider.System;
 
     /// <summary>
-    ///     The visit's rules run over a held parse of the demo at a path, which the score, clans and coaches are
-    ///     read from. Null leaves a retained index scoreless.
+    ///     The rules run over a held parse of the demo at a path when its visit makes one anyway, which the score,
+    ///     clans and coaches are read from. Null, or a null answer, replays the two entity classes instead.
     /// </summary>
-    internal Func<ParsedDemo, string, AnalysisRun>? TeamRun { get; set; }
+    internal Func<ParsedDemo, string, AnalysisRun?>? TeamRun { get; set; }
 
     private IDemoProcessingQueue? Queue => QueueOverride ?? QueueWork.Ambient;
 
@@ -255,10 +254,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     The score, clans and coaches are tables of the rules run, and a new demo's highlights and round
-    ///     facts ride the same read.
+    ///     The final state only: a visit whose other passes run rules carries it as tables, and a visit with
+    ///     nothing else to do replays two entity classes rather than evaluate every ruleset for them.
     /// </remarks>
-    public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.Rules;
+    public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.FinalState;
 
     /// <inheritdoc />
     public void EvaluateForward(string path, ForwardDemoResult pass) =>
@@ -2250,17 +2249,18 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             parsed.Players.Values, parsed.Duration.TotalSeconds, parsed.MapName, parsed.ServerName,
             parsed.Profile.SourceKind.ToString(), parsed.TickRate, parsed.TickCount, parsed.ServerStartTick,
             () => ClipRounds.Derive(parsed),
-            () => LibraryTeamTables.Read(TeamRun?.Invoke(parsed, entry.FilePath), parsed.Players.Values)));
+            () => TeamRun?.Invoke(parsed, entry.FilePath) is { } run
+                ? LibraryTeamTables.Read(run, parsed.Players.Values)
+                : LibraryFinalStateReplay.Replay(parsed)));
 
-    // The same extraction off a forward pass: its rules run carries the library tables and it derived the rounds.
+    // The same extraction off a forward pass: its rules run carries the library tables, or its tap replayed them.
     internal void IndexTier2Core(DemoEntry entry, ForwardDemoResult pass) =>
         IndexTier2Core(entry, new Tier2Input(
             pass.Demo.Players.Values, pass.Demo.Duration.TotalSeconds, pass.Demo.MapName, pass.Demo.ServerName,
             pass.Demo.Profile.SourceKind.ToString(), pass.Demo.TickRate, pass.Demo.TickCount, pass.Demo.ServerStartTick,
             () => pass.Rounds,
-            () => pass.Run is { } run
-                ? LibraryTeamTables.Read(run, pass.Demo.Players.Values)
-                : throw new InvalidOperationException("the forward pass ran no rules")));
+            () => pass.Run is { } run ? LibraryTeamTables.Read(run, pass.Demo.Players.Values)
+                : pass.FinalState ?? throw new InvalidOperationException("the forward pass read no final state")));
 
     private sealed record Tier2Input(
         IEnumerable<PlayerInfo> Players,
@@ -2310,7 +2310,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             });
 
             // Final score: CCSTeam.m_iScore at match end (no cheap event source exists in CS2, team_score /
-            // round_end are absent), read off the rules run. Best-effort: a failure just leaves the score unset.
+            // round_end are absent). Best-effort: a failure just leaves the score unset.
             try
             {
                 (ctScore, tScore, ctClan, tClan, coachSlots) = parsed.FinalState();
@@ -2577,11 +2577,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         return (ct, t, ctClan, tClan);
     }
 
-    // The score plus the coach slots, from the shipped library rulesets evaluated alone over the parse.
-    // For tests and tools: the library reads the same tables off the visit's merged run.
-    internal static LibraryTeamState ExtractFinalState(ParsedDemo parsed) =>
-        LibraryTeamTables.Evaluate(parsed,
-            YamlConfigLoader.LoadWithOverlay(RuleSetLocator.ResolveShippedRulesDirectory(), null).Rulesets);
+    // The score plus the coach slots, from one replay: the coach flag is CCSPlayerController.m_iCoachingTeam
+    // at the last frame, read off the controller seated at entity index slot + 1.
+    internal static LibraryTeamState ExtractFinalState(ParsedDemo parsed) => LibraryFinalStateReplay.Replay(parsed);
 
     /// <summary>
     ///     Is this score/clan tuple one <see cref="ExtractFinalScore" /> could actually have produced?

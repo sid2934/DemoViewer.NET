@@ -11,11 +11,17 @@ internal sealed class ActiveCollectors
     private readonly object _gate = new();
 
     /// <summary>Adds <paramref name="collectors" /> to <paramref name="path" /> until the result is disposed.</summary>
-    public IDisposable Begin(string path, CollectorSet collectors)
+    public IDisposable Begin(string path, CollectorSet collectors) => Begin(path, collectors, ForwardNeeds.None);
+
+    /// <summary>
+    ///     Adds <paramref name="collectors" /> and the forward needs of the visit's passes to <paramref name="path" />
+    ///     until the result is disposed.
+    /// </summary>
+    public IDisposable Begin(string path, CollectorSet collectors, ForwardNeeds needs)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(collectors);
-        Registration registration = new(this, path, collectors);
+        Registration registration = new(this, path, collectors, needs);
         lock (_gate)
         {
             if (!_byPath.TryGetValue(path, out List<Registration>? live))
@@ -49,6 +55,24 @@ internal sealed class ActiveCollectors
         }
     }
 
+    /// <summary>The union of the forward needs of every visit of <paramref name="path" /> in flight.</summary>
+    public ForwardNeeds NeedsFor(string path)
+    {
+        lock (_gate)
+        {
+            ForwardNeeds union = ForwardNeeds.None;
+            if (_byPath.TryGetValue(path, out List<Registration>? live))
+            {
+                foreach (Registration r in live)
+                {
+                    union |= r.Needs;
+                }
+            }
+
+            return union;
+        }
+    }
+
     private void End(Registration registration)
     {
         lock (_gate)
@@ -61,13 +85,15 @@ internal sealed class ActiveCollectors
         }
     }
 
-    private sealed class Registration(ActiveCollectors owner, string path, CollectorSet collectors) : IDisposable
+    private sealed class Registration(ActiveCollectors owner, string path, CollectorSet collectors, ForwardNeeds needs) : IDisposable
     {
         private int _ended;
 
         public string Path => path;
 
         public CollectorSet Collectors => collectors;
+
+        public ForwardNeeds Needs => needs;
 
         public void Dispose()
         {

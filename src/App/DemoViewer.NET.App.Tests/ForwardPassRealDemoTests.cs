@@ -39,7 +39,7 @@ public class ForwardPassRealDemoTests
     private static RuleConfigLoadResult ShippedRules() =>
         YamlConfigLoader.LoadWithOverlay(RuleSetLocator.ResolveShippedRulesDirectory(), null);
 
-    // The separate builds before the merge: highlights alone, round_facts alone. The library read its own replay.
+    // The two separate builds before the merge: highlights alone, round_facts alone.
     private static IReadOnlyList<RulesetDoc> HighlightsOnly(IReadOnlyList<RulesetDoc> rules) =>
         [.. rules.Where(r => r.Id != RoundFactsFingerprint.RulesetId && !LibraryTeamTables.IsLibraryRuleset(r.Id))];
 
@@ -115,7 +115,7 @@ public class ForwardPassRealDemoTests
         double seen = 0;
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(cancel.Token));
 
-        Assert.Throws<OperationCanceledException>(() => ForwardDemoPass.Run(reader, ForwardNeeds.Rules, merged.Docs,
+        Assert.Throws<OperationCanceledException>(() => ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, merged.Docs,
             p =>
             {
                 seen = p;
@@ -179,7 +179,7 @@ public class ForwardPassRealDemoTests
     private static Dictionary<string, string> Forward(string path, MergedRulesBuild merged)
     {
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
-        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, merged.Docs);
+        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, merged.Docs);
         Dictionary<string, string> written = Write(path, merged, (library, entry, highlights, facts) =>
         {
             library.IndexTier2Core(entry, pass);
@@ -195,7 +195,7 @@ public class ForwardPassRealDemoTests
     private static string RulesOnlyRoundFacts(string path, MergedRulesBuild merged)
     {
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
-        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, merged.Docs);
+        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, merged.Docs);
         DemoCacheStore cache = new(null);
         cache.Upsert(new DemoCacheRecord
         {
