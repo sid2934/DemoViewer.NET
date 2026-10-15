@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=./cs2demokit-rules.schema.json
 #
 # Library Teams: each side's final score and clan name, which the library card and the demo cache
-# store. The app reads the library_teams table off the visit's merged rules run, so a library
-# re-index costs no read of its own. Like round_facts it is app content and a stamped ruleset: the
-# highlight scan and Stats leave it out by id.
+# store. The app reads the library_teams table off the visit's merged rules run when the visit runs
+# rules anyway; a visit with nothing else to do replays two entity classes instead. Like round_facts
+# it is app content and a stamped ruleset: the highlight scan and Stats leave it out by id.
 #
 # A capture with no `on:` reads the last frame. A demo cut off at the buzzer can miss the last
 # round's point; no event carries the final score, so the table inherits that.

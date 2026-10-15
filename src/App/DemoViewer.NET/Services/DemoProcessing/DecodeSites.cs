@@ -1,9 +1,9 @@
 namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
-///     Entity decode sites in the host, numbered apart from Strat Book's 3 to 7: 2 the merged bare
-///     run, 8 the shell's own rules run on an open. The library reads the run's tables, so it has no site 1.
-///     Null outside the decode-count harness.
+///     Entity decode sites in the host, numbered apart from Strat Book's 3 to 7: 1 the library's final-state
+///     replay, only on a visit that runs no rules, 2 the merged bare run, 8 the shell's own rules run on an
+///     open. Null outside the decode-count harness.
 /// </summary>
 internal static class DecodeSites
 {
