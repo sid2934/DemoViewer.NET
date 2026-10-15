@@ -37,9 +37,11 @@ the stamp leaves "not indexed" rather than a stamp with no file.
 ```
 
 * **`fingerprint`**: what the rows mean. `ri<schema>;cadence=<seconds>;token=<token grammar
-  version>;rf=<round facts schema>;src=<pawn|zones>[;zv=<zone set version>]`. A reader whose own
-  fingerprint differs must rebuild, never reinterpret: the same file under a different cadence would
-  mean a different second.
+  version>;rf=<round facts schema>;src=<pawn|zones>[;zv=<zone set version>];pos=<n>;sampler=observer;stride=<frames>;collector=<stamp>`.
+  The sampler term names how positions were read: on the rules run's frame observer, every
+  `stride`th frame, by the collector whose stamp (id, version, declared reads, engine build) follows,
+  so an engine bump rebuilds the index. A reader whose own fingerprint differs must rebuild, never
+  reinterpret: the same file under a different cadence would mean a different second.
 * **`demo.sha256`**: lowercase hex SHA-256 of the `.dem` bytes, or `null` until the cache has hashed
   the demo. When both sides have a hash it is the only field that takes part in matching; **a reader
   that finds a different hash must ignore the file.** `stableKey` is the join key until the hash
@@ -133,7 +135,7 @@ The root object accepts unknown fields and a reader should ignore fields it does
 `schemaVersion` is advisory on read: a higher number is read for whatever this build understands.
 The fingerprint, not the schema number, is what decides a rebuild.
 
-## The positions part (schema v1)
+## The positions part (schema v2)
 
 Beside every index sits its positions part, `<key>.positions.json.gz` under the same stamp, the same rows seen the other way round: per live
 round, per sampled step, the alive players' positions the tokens were encoded from. A Result Card
@@ -142,13 +144,13 @@ every step, so neither ever opens a demo (measured, a seek from the demo is 0.6 
 gigabyte of heap per hit; ten tuples render in half a millisecond). Written gzipped because the
 compact JSON is 170 to 210 KB per demo and 56 to 60 KB zipped, about the size of the sidecar. A
 committed uncompressed sample lives at
-[`tests/fixtures/round-index/schema-v1.sample.dvrp.json`](../tests/fixtures/round-index/schema-v1.sample.dvrp.json)
+[`tests/fixtures/round-index/schema-v2.sample.dvrp.json`](../tests/fixtures/round-index/schema-v2.sample.dvrp.json)
 and is round-trip-pinned by `RoundPositionsTests`.
 
 ```jsonc
 {
-  "schemaVersion": 1,
-  "fingerprint": "ri1;cadence=1;token=1;rf=1;src=pawn;pos=1",   // identical to the .dvri.json it belongs to
+  "schemaVersion": 2,
+  "fingerprint": "ri1;cadence=1;token=1;rf=1;src=pawn;pos=3;…",   // identical to the .dvri.json it belongs to
   "demo": { "stableKey": "3f9c…", "sha256": null },
   "cadenceTicks": 64,
   "places": ["Outside", "Lobby", "Ramp", "?"],                   // the place table a tuple indexes; "?" is the null place
@@ -158,7 +160,9 @@ and is round-trip-pinned by `RoundPositionsTests`.
         [[0, -448, 1180, -416, 0], [1, 1320, -900, -700, 2], [2, -129, -1848, -416, 1]],
         [[0, -401, 1130, -416, 0], [2, -129, -1848, -416, 1], [4, 2600, 900, -416, 3]]
       ] }
-  ]
+  ],
+  "players": [[0, "76561198000000000", "zero"], [1, "76561198000000001", "one"],   // every slot a tuple names
+              [2, "76561198000000002", "two"], [4, "0", "BOT Kim"]]
 }
 ```
 
@@ -166,7 +170,11 @@ and is round-trip-pinned by `RoundPositionsTests`.
   picture always agrees with its token), world units rounded to integers (a marker at card size is
   about thirty units wide), Z kept for the level pick, slots ascending. A step the walk did not
   sample is an empty list, so a tuple's tick is always its index times the cadence.
-* `pos=<n>` in the fingerprint is what a tuple means (`pos=1`: the above). It is part of the
+* `players` names each slot a tuple uses as `[slot, "steamId64", name]`, slots ascending, from the
+  demo's roster: who the slot is across demos. The SteamID64 is a string so a JSON reader with
+  doubles keeps every digit; a bot reads `"0"` and is told apart by its name, and a slot the roster
+  lacks reads `"0"` and `""`. Tuples and `ct` keep the slot, the same-round join to Round Facts.
+* `pos=<n>` in the fingerprint is what a tuple means (`pos=3`: the above). It is part of the
   index fingerprint, so a change re-indexes rather than reinterprets, and a sidecar written before
   the positions file existed carries no `pos=` and is stale. "Never indexed" and "indexed before
   positions existed" are therefore one state, which is what the cards' placeholder relies on.

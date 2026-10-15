@@ -64,6 +64,9 @@ public class RoundIndexObserverParityTests
             await Assert.That(collected.LastFrameTick).IsEqualTo(values.LastFrameTick);
             await Assert.That(observedIndex).IsEqualTo(index);
             await Assert.That(observedPositions).IsEqualTo(positions);
+            await Assert.That(observed.Positions.Players).IsNotEmpty();
+            await Assert.That(observed.Positions.Players.Where(p => p.SteamId64 == 0 && p.Name.Length == 0)).IsEmpty()
+                .Because("every slot a tuple names is on the demo's roster");
         }
     }
 
