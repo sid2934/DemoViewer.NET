@@ -1,6 +1,7 @@
 #region
 
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Reflection;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis;
@@ -40,18 +41,31 @@ internal static class SingleWalkSession
     /// <summary>The shell's own rules run on an open. Not one of the plan's seven sites.</summary>
     public const int ShellRulesSite = 8;
 
-    /// <summary>What one visit did: the sites that decoded, per-pass wall time and outcome, the visit wall.</summary>
+    /// <summary>The engine's decode meter: one rules run's entity scan, and every caller-owned tracker that folds.</summary>
+    public static readonly (string Meter, string Instrument)[] DecodeInstruments =
+    [
+        ("CS2DemoKit.Analysis.Evaluator", "analysis.entity_scan.started"),
+        ("CS2DemoKit.Parser.Entities", "parser.entity_decode.started")
+    ];
+
+    /// <summary>
+    ///     What one visit did: the decode meter's counts and the host hooks' sites that decoded, per-pass wall
+    ///     time and outcome, the visit wall.
+    /// </summary>
     public sealed class Visit
     {
         public required string Scenario { get; init; }
         public required string Demo { get; init; }
         public Dictionary<int, int> Sites { get; } = [];
         public Dictionary<int, int> SetupSites { get; } = [];
+        public Dictionary<string, int> Meter { get; } = [];
+        public Dictionary<string, int> SetupMeter { get; } = [];
         public List<(string Pass, PassOutcome Outcome, double Ms)> Passes { get; } = [];
         public double ParseMs { get; set; }
         public double WallMs { get; set; }
         public int Reads { get; set; }
-        public int Decodes => Sites.Values.Sum();
+        public int Decodes => Meter.Values.Sum();
+        public int HookDecodes => Sites.Values.Sum();
     }
 
     /// <summary>Settings for a scenario's config. The library folder is the demo's own folder.</summary>
@@ -118,6 +132,7 @@ internal static class SingleWalkSession
 
         object gate = new();
         Dictionary<int, int> counting = visit.SetupSites;
+        Dictionary<string, int> metering = visit.SetupMeter;
         Action<int> count = site =>
         {
             lock (gate)
@@ -142,6 +157,23 @@ internal static class SingleWalkSession
             }
         };
 
+        using MeterListener meter = new();
+        meter.InstrumentPublished = (instrument, listener) =>
+        {
+            if (DecodeInstruments.Contains((instrument.Meter.Name, instrument.Name)))
+            {
+                listener.EnableMeasurementEvents(instrument);
+            }
+        };
+        meter.SetMeasurementEventCallback<long>((instrument, value, _, _) =>
+        {
+            lock (gate)
+            {
+                metering[instrument.Name] = metering.GetValueOrDefault(instrument.Name) + (int)value;
+            }
+        });
+        meter.Start();
+
         AppSites.Entered = count;
         StratBookSites.Entered = count;
         scheduler.PassFinished += finished;
@@ -156,6 +188,7 @@ internal static class SingleWalkSession
 
                 DemoEntry entry = library.Entries.First(e => string.Equals(e.FilePath, demo, StringComparison.OrdinalIgnoreCase));
                 counting = visit.Sites;
+                metering = visit.Meter;
                 timing = true;
                 long start = Stopwatch.GetTimestamp();
                 last = start;
@@ -175,6 +208,7 @@ internal static class SingleWalkSession
             else if (scenario == Sweep)
             {
                 counting = visit.Sites;
+                metering = visit.Meter;
                 timing = true;
                 long start = 0;
                 using (TimeParses(queue, demo, (s, e) =>
@@ -234,6 +268,7 @@ internal static class SingleWalkSession
                 try
                 {
                     counting = visit.Sites;
+                    metering = visit.Meter;
                     timing = true;
                     using (TimeOpenParses(queue, (s, e) => visit.ParseMs = Stopwatch.GetElapsedTime(s, e).TotalMilliseconds))
                     using (window?.Invoke())
