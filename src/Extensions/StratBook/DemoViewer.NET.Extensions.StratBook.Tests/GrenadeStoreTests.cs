@@ -167,7 +167,7 @@ public class GrenadeStoreTests
         DemoCacheStore cache = new(null);
         int n = 0;
         GrenadeIndexEvaluator evaluator = new(cache.Library(), cache.Grenades(), () => true, () => null,
-            walk: _ => new GrenadeWalk([Smoke("g1-1", 1300 + 5 * n++, 3, "76561198000000003")], 1, ReconstructedInputSource.DecoderName, 4));
+            walk: _ => new GrenadeWalk([Smoke("g1-1", 1300 + 5 * n++, 3, "76561198000000003")], 1, GrenadeWalker.InputDecoderName, 4));
         using GrenadeIndex index = new(cache.Library(), evaluator: evaluator);
         index.Load();
         foreach (string path in new[] { "/d/a.dem", "/d/b.dem" })

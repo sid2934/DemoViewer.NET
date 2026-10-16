@@ -505,7 +505,7 @@ public class GrenadeIndexTests
         DemoCacheStore cache = new(null);
         cache.Upsert(RoundIndexTestData.ParsedRecord("/d/new.dem", Mirage, "shaN"));
         GrenadeIndexEvaluator evaluator = new(cache.Library(), cache.Grenades(), () => true,
-            walk: _ => new GrenadeWalk(MirageRows(1), 1, ReconstructedInputSource.DecoderName, 4));
+            walk: _ => new GrenadeWalk(MirageRows(1), 1, GrenadeWalker.InputDecoderName, 4));
         using GrenadeIndex index = new(cache.Library(), new RoundIndexEvaluatorTests.MapZones((Mirage, MirageZones)), evaluator);
         index.Load();
         int changes = 0;

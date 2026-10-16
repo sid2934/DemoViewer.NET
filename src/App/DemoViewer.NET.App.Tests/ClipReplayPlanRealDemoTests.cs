@@ -1,6 +1,7 @@
 #region
 
 using System.Security.Cryptography;
+using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
@@ -42,7 +43,9 @@ public class ClipReplayPlanRealDemoTests
         try
         {
             ParsedDemo full = BackgroundPlanRealDemoTests.ParseMapped(path, DecodePlan.Everything);
-            List<GrenadeRow> rows = [.. GrenadeWalker.Walk(full).Rows.Where(r => r.ThrowerSteamId is not null)];
+            GrenadeWalk walk = GrenadeWalker.Assemble(GrenadeIndexEvaluator.Run(full, 4), ClipRounds.Derive(full), full.Players.Values,
+                full.TickRate > 0 ? full.TickRate : 64, full.ServerStartTick);
+            List<GrenadeRow> rows = [.. walk.Rows.Where(r => r.ThrowerSteamId is not null)];
             if (rows.Count < 3)
             {
                 throw new SkipTestException($"{Path.GetFileName(path)} has fewer than three attributed throws");
