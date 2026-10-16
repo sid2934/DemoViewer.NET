@@ -86,7 +86,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `StatusChip` | A chip on the status strip. You supply its state through `IStatusChipSource`; the host draws it. |
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `RecordPass` | An `IExtensionRecordPass` that runs over what the library already holds for a demo, without a parse. |
-| `Collector` | A per-frame reader that rides one of your passes' own rules run instead of walking the demo itself. |
+| `Collector` | A per-frame reader for one of your passes, run inside the host's rules run of a demo instead of a walk of its own. |
 | `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts. |
 | `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
 | `SettingsPage` | A page under Settings, Extensions with controls of your own. |
@@ -268,7 +268,7 @@ contributions.Collector(new CollectorContribution("dev.example.positions", "dev.
 `Id` is unique across the app and is how the owning pass reads the result back. `PassId` names the
 `IExtensionPass` that owns it: the collector runs only on a visit that pass is on. `Version` is bumped
 when what the collector puts changes; it folds into `Stamp` along with the declared reads and the engine
-build, so a pass that keys its own fingerprint on `Stamp` runs again when either one moves. `Providers`
+build, so a pass that keys its own fingerprint on `Stamp` runs again when any of them moves. `Providers`
 and `ProjectileClasses` name what the collector reads off each frame, from the engine's catalog
 (`entity.pawn.pos_x`, `CSmokeGrenadeProjectile`); a name the engine does not know refuses the collector.
 `Create` builds a fresh `IFrameCollector` for one run.
@@ -283,17 +283,18 @@ collector on it carry on.
 
 `IFrameReadView` is the state at the end of one frame, as the rules run folded it: a read here always
 sees that frame's own update applied, not the frame-before state a rule's `player.*` read sees at a
-game event. `Frame` is the frame just
-read, `FrameIndex` its position in read order from zero, and `Tick` the frame clock
-(`Frame.GameTick ?? Frame.ServerTick`), the same clock `PassRound.FreezeEndTick` is on. `Provider`
-resolves a declared name once into an `ObservedRead`, so `TryReadInt`, `TryReadFloat` and
-`TryReadString` can read a slot by it without a further name lookup; `Read` takes the name directly and
-boxes. `Team` is the slot's controller team as last seen (2 T, 3 CT), or -1. `Projectiles`, `Created`
-and `Removed` list live, newly-appeared and newly-gone instances of a declared projectile class for the
-frame, by ascending entity index, each an `ObservedProjectile` carrying its position, velocity, bounce
-count and thrower slot. Nothing is ever cleared: a slot or a projectile that left the frame still reads
-its last value, and a present value does not mean the slot has a pawn, or the projectile is still live,
-on this frame.
+game event. `Frame` is the frame just read, `FrameIndex` its position in read order from zero, and
+`Tick` the frame clock (`Frame.GameTick ?? Frame.ServerTick`), the same clock `PassRound.FreezeEndTick`
+is on. `Provider` resolves a declared name once into an `ObservedRead`, so `TryReadInt`, `TryReadFloat`
+and `TryReadString` can read a slot by it without a further name lookup; `Read` takes the name directly
+and boxes. `Team` is the slot's controller team as last seen (2 T, 3 CT), or -1.
+
+`Projectiles` is every live projectile of a declared class, in ascending entity index; `Created` holds
+the ones that appeared on this frame, and `Removed` the ones that were live last frame and are gone on
+this one, with their last-seen state. Each is an `ObservedProjectile` carrying its position, velocity,
+bounce count and thrower slot. Slot reads are never cleared: a player who died, left or has no pawn on
+this frame still reads the values from before, so a present value does not mean the slot has a pawn,
+and a health or position read cannot tell a dead player from a live one.
 
 ## Reading the library
 
