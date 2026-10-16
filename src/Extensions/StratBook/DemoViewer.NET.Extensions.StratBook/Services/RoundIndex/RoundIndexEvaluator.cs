@@ -18,8 +18,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 ///     back to: a demo is not wanted until its index row carries a Round Facts fingerprint, and the
 ///     index simply follows Round Facts by one pass and never races it.
 ///     <para>
-///         Per demo the work is a fold of the samples <see cref="RoundIndexCollector" /> read on the
-///         visit's rules run and one write of the demo's round index facet, positions included, stamped last so a
+///         Per demo the work is a fold of the <see cref="RoundIndexTable" /> rows the visit's rules run
+///         recorded and one write of the demo's round index facet, positions included, stamped last so a
 ///         crash leaves "not indexed" and never a stamp without both. A throw marks the facet
 ///         <see cref="DemoDataState.Failed" />, which the derived backlog excludes until the user
 ///         retries; the parse itself failing is not this evaluator's to mark.
@@ -48,8 +48,8 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     private readonly RoundIndexPlaceSources _sources;
     private readonly RoundIndexStore _store;
 
-    // Test seam for Evaluate: yields the position walk for a parse instead of PositionSampler.Walk. Null
-    // is the real walk; a synthetic parse carries no entity data for the tracker to replay.
+    // Test seam for Evaluate: yields the samples for a parse instead of running the ruleset over it. A
+    // synthetic parse carries no entity data to sample.
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
 
     /// <param name="library">The library: which demos are parsed and carry Round Facts.</param>
@@ -58,7 +58,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <param name="sources">The place source and fingerprint in force per map.</param>
     /// <param name="backgroundIndex">The live <see cref="Extensions.StratBook.StratBookSettings.SituationsBackgroundIndex" />; forced paths ignore it.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
-    /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
+    /// <param name="walk">The samples to fold for a parse; null runs the round index ruleset over it.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted. Defaults to always-on.</param>
     /// <param name="wantedDownstream">True when a pass that reads the index wants the demo; the sweep opt-in does not apply then.</param>
     public RoundIndexEvaluator(
@@ -163,20 +163,16 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     public PassRead Read => PassRead.Forward;
 
     /// <inheritdoc />
-    /// <remarks>The samples are <see cref="RoundIndexCollector" />'s, read on the visit's rules run.</remarks>
+    /// <remarks>The samples are the <see cref="RoundIndexTable" /> rows of the visit's rules run.</remarks>
     public void Run(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         Refresh(context.DemoPath, context.Demo.MapName, (facts, source) =>
-        {
-            RoundIndexSamples samples = context.Collected<RoundIndexSamples>(RoundIndexCollector.CollectorId)
-                                        ?? throw new InvalidOperationException("the round index collector put no samples");
-            return RoundIndexBuilder.BuildWithPositions(RoundIndexDemoValues.For(context, samples.LastFrameTick), facts,
-                _sources.Options, source, samples.Samples);
-        });
+            RoundIndexBuilder.BuildWithPositions(RoundIndexDemoValues.For(context), facts, _sources.Options, source,
+                RoundIndexTable.Samples(context.Table(RoundIndexTable.TableName))));
     }
 
-    /// <summary>Does the pass's work on <paramref name="parsed" />, walking its positions.</summary>
+    /// <summary>Does the pass's work on <paramref name="parsed" />, running the round index ruleset over it.</summary>
     /// <param name="path">The demo's path.</param>
     /// <param name="parsed">The demo's parse.</param>
     public void Evaluate(string path, ParsedDemo parsed)

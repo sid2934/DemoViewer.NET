@@ -890,7 +890,8 @@ public sealed class StratBookPack : IExtension
         // never invoked, and these services never constructed, with the pack off.
         contributions.Pass(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
             HostIds.RoundFactsPass);
-        contributions.Collector(RoundIndexCollector.Contribution);
+        contributions.Ruleset(new RulesetContribution(RoundIndexTable.RulesetName, RoundIndexTable.OpenYaml)
+            { ReadBy = RoundIndexEvaluator.EvaluatorId });
         contributions.Pass(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             HostIds.LibraryPass);
         contributions.Collector(GrenadeCollector.Contribution(() => sp.GetRequiredService<StratBookSettings>().TrajectoryStride));
