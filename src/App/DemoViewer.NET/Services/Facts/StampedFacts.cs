@@ -52,13 +52,16 @@ public sealed class StampedFacts
     /// <summary>The merged rules.</summary>
     public MergedRulesBuild Rules { get; }
 
-    /// <summary>The facets on now: every stamped ruleset but <c>round_facts</c> whose owner is on and whose doc is enabled.</summary>
+    /// <summary>
+    ///     The facets on now: every stamped ruleset whose owner is on and whose doc is enabled, but <c>round_facts</c>,
+    ///     the library's tables and a ruleset a pass reads off the run.
+    /// </summary>
     public IReadOnlyList<StampedFacet> Facets()
     {
         List<StampedFacet> facets = [];
         foreach (StampedRuleset ruleset in Rules.StampedRulesets)
         {
-            if (IsHostRead(ruleset.RulesetId))
+            if (IsHostRead(ruleset.RulesetId) || ruleset.ReadBy is not null)
             {
                 continue;
             }

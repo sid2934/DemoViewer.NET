@@ -60,6 +60,9 @@ public interface IPassContext
     /// <summary>The server tick of the last frame, 0 when the demo has none.</summary>
     int LastServerTick { get; }
 
+    /// <summary>The frame clock (<c>GameTick</c>, else the server tick) of the last frame, 0 when the demo has none.</summary>
+    int LastFrameTick { get; }
+
     /// <summary>The demo's rounds in order.</summary>
     IReadOnlyList<PassRound> Rounds { get; }
 
@@ -75,6 +78,14 @@ public interface IPassContext
     ///     not one of this pass's.
     /// </summary>
     T? Collected<T>(string collectorId) where T : class;
+
+    /// <summary>
+    ///     The rows the table <paramref name="table" /> recorded on this demo's rules run, the run made first if the
+    ///     visit has not made one yet. The table must be declared by a ruleset the extension contributed with
+    ///     <see cref="RulesetContribution.ReadBy" /> naming this pass. Throws when it is not, or when the run did not
+    ///     record it because its ruleset was left out of the build.
+    /// </summary>
+    IReadOnlyList<FactRow> Table(string table);
 }
 
 /// <summary>

@@ -3,9 +3,11 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Threading;
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
@@ -167,6 +169,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     /// <summary>What a pass's collectors put on the bare run of a held parse, by its path. Null reads none.</summary>
     internal Func<ParsedDemo, string, CollectorResults>? CollectedFor { get; set; }
 
+    /// <summary>The bare run of a held parse, by its path. Null offers none.</summary>
+    internal Func<ParsedDemo, string, AnalysisRun>? RunFor { get; set; }
+
+    /// <summary>Projects one table of a run for a pass that reads it, given the rulesets it may read. Null serves none.</summary>
+    internal Func<AnalysisRun, string, IReadOnlyList<string>, IReadOnlyList<FactRow>>? TableOf { get; set; }
+
     /// <summary>
     ///     The forward read with the collectors its rules run declares; wins over the constructor's
     ///     <c>forwardPass</c>, which declares none.
@@ -191,6 +199,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     private Func<CollectorResults>? RetainedCollected(ParsedDemo parsed, string path) =>
         CollectedFor is { } collected ? () => collected(parsed, path) : null;
+
+    private Func<AnalysisRun>? RetainedRun(ParsedDemo parsed, string path) =>
+        RunFor is { } run ? () => run(parsed, path) : null;
 
     /// <summary>
     ///     The background parse. Maps a settled local file instead of reading it into one LOH-sized array; the
@@ -1762,7 +1773,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             using IDisposable collecting = _visitCollectors.Begin(open.Path, merged.Collectors(), merged.ChooseMode(false).Needs);
             foreach (VisitPass p in merged.Ordered())
             {
-                RunPass(p, new PassInput(merged.Demo, PassLevel.OpenDemo, parsed, null, ct) { RetainedCollected = RetainedCollected(parsed, open.Path) });
+                RunPass(p, new PassInput(merged.Demo, PassLevel.OpenDemo, parsed, null, ct)
+                {
+                    RetainedCollected = RetainedCollected(parsed, open.Path),
+                    RetainedRun = RetainedRun(parsed, open.Path),
+                    TableOf = TableOf
+                });
             }
         }
 
@@ -1892,7 +1908,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         foreach (VisitPass p in passes)
         {
-            RunPass(p, new PassInput(demo, level, null, pass!, token));
+            RunPass(p, new PassInput(demo, level, null, pass!, token) { TableOf = TableOf });
         }
 
         SetTerminal(entry, DemoQueueItemState.Completed, null);
@@ -2311,7 +2327,12 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             using IDisposable collecting = _visitCollectors.Begin(demo.Path, collectors, needs);
             foreach (VisitPass p in passes)
             {
-                RunPass(p, new PassInput(demo, level, parsed!, null, token) { RetainedCollected = RetainedCollected(parsed!, demo.Path) });
+                RunPass(p, new PassInput(demo, level, parsed!, null, token)
+                {
+                    RetainedCollected = RetainedCollected(parsed!, demo.Path),
+                    RetainedRun = RetainedRun(parsed!, demo.Path),
+                    TableOf = TableOf
+                });
             }
         }
 

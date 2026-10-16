@@ -129,9 +129,11 @@ public class RoundIndexObserverParityTests
         public int FrameCount => read.FrameCount;
         public int FirstServerTick => read.FirstServerTick;
         public int LastServerTick => read.LastServerTick;
+        public int LastFrameTick => read.LastFrameTick;
         public IReadOnlyList<PassRound> Rounds => [];
         public CancellationToken CancellationToken => CancellationToken.None;
         public T? Collected<T>(string collectorId) where T : class => throw new NotSupportedException();
+        public IReadOnlyList<FactRow> Table(string table) => throw new NotSupportedException();
     }
 
     // The observer's per-slot reads never clear, so a slot whose pawn was removed or rebound keeps yielding

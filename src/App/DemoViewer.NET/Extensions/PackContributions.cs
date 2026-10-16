@@ -181,7 +181,8 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
                 if (cached is null || !ReferenceEquals(cached.Inner, inner))
                 {
                     cached = new ExtensionPassHost(inner, after, _guard,
-                        collectors: CollectorSet.Of(_collectors.Where(c => string.Equals(c.Contribution.PassId, id, StringComparison.Ordinal))));
+                        collectors: CollectorSet.Of(_collectors.Where(c => string.Equals(c.Contribution.PassId, id, StringComparison.Ordinal))),
+                        tableRulesets: [.. _rulesets.Where(r => string.Equals(r.ReadBy, id, StringComparison.Ordinal)).Select(r => r.RulesetId)]);
                 }
 
                 return cached;
@@ -210,6 +211,12 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             return;
         }
 
+        if (ruleset.ReadBy is { } passId && string.IsNullOrWhiteSpace(passId))
+        {
+            _guard.Report("ruleset", new ArgumentException($"'{ruleset.Id}' names a blank pass in ReadBy.", nameof(ruleset)));
+            return;
+        }
+
         string id = RulesetContribution.QualifiedId(Pack.Id, ruleset.Id);
         Func<Stream> open = ruleset.Yaml;
         _rulesets.Add(new ContributedRuleset(id, Pack.Id, _guard.OwnFeature("ruleset", ruleset.FeatureId), () => _guard.Run<string?>("ruleset " + id, () =>
@@ -217,7 +224,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             using Stream stream = open();
             using StreamReader reader = new(stream);
             return reader.ReadToEnd();
-        }, null)));
+        }, null)) { ReadBy = ruleset.ReadBy });
     }
 
     // Ids that are global across extensions carry the owner's id, so two extensions never lose one to the other.

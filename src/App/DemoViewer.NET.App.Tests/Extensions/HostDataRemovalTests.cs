@@ -94,6 +94,30 @@ public class HostDataRemovalTests
     }
 
     [Test]
+    public async Task ARulesetAPassReads_HasNoFactsToDelete_AndReachesThatPass()
+    {
+        string id = "dev.example.reader." + Guid.NewGuid().ToString("N")[..8];
+        Pack pack = new(id);
+        ServiceCollection services = new();
+        services.AddSingleton<ExtensionShellHub>();
+        services.AddSingleton(new DemoCacheStore(null));
+        await using ServiceProvider sp = services.BuildServiceProvider();
+        PackContributions contributions = new(pack, () => new ExtensionContext(pack, sp));
+        contributions.Pass(id + ".reader", () => new ExtensionPassHostTests.FakePass { PassName = id + ".reader" });
+        contributions.Ruleset(new RulesetContribution("kills", () => new MemoryStream()) { ReadBy = id + ".reader" });
+
+        IReadOnlyList<StoreDescriptor> stores = new HostDataRemoval(contributions, sp).Stores;
+        ExtensionPassHost host = (ExtensionPassHost)contributions.Passes.Single().Factory();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(stores.Any(s => s.Id.StartsWith("facts:", StringComparison.Ordinal))).IsFalse();
+            await Assert.That(contributions.Rulesets.Single().ReadBy).IsEqualTo(id + ".reader");
+            await Assert.That(host.TableRulesets).IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")]);
+        }
+    }
+
+    [Test]
     public async Task ARulesetTheManifestDoesNotList_IsDroppedAndReported()
     {
         string id = "dev.example.unlisted." + Guid.NewGuid().ToString("N")[..8];

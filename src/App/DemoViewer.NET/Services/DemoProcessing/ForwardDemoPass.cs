@@ -49,6 +49,9 @@ public sealed class ForwardDemoResult
     public required int FirstServerTick { get; init; }
     public required int LastServerTick { get; init; }
 
+    /// <summary>The last frame's frame clock (<c>GameTick ?? ServerTick</c>); 0 when the demo has no frames.</summary>
+    public int LastFrameTick { get; init; }
+
     /// <summary>The tap's replay of the final state; null when the read ran rules, which carry it as tables.</summary>
     public LibraryTeamState? FinalState { get; init; }
 
@@ -230,6 +233,7 @@ public static class ForwardDemoPass
             FrameCount = tap.Frames,
             FirstServerTick = tap.FirstServerTick,
             LastServerTick = tap.LastServerTick,
+            LastFrameTick = tap.LastFrameTick,
             FinalState = tap.Tracker is null ? null
                 : tap.Frames == 0 ? LibraryTeamState.Empty()
                 : LibraryFinalStateReplay.Read(tap.Tracker, demo.Players.Keys, tap.MatchEnded, tap.Overtime),
@@ -258,6 +262,7 @@ public static class ForwardDemoPass
         public int Frames { get; private set; }
         public int FirstServerTick { get; private set; }
         public int LastServerTick { get; private set; }
+        public int LastFrameTick { get; private set; }
 
         public IDemoEnrichmentView Enrichment => inner.Enrichment;
         public int? FrameCount => inner.FrameCount;
@@ -280,6 +285,7 @@ public static class ForwardDemoPass
             }
 
             LastServerTick = frame.ServerTick;
+            LastFrameTick = frame.GameTick ?? frame.ServerTick;
             if (++Frames % CheckEveryFrames == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();

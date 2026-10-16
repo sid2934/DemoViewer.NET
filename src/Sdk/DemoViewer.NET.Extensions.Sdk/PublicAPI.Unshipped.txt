@@ -428,9 +428,11 @@ DemoViewer.NET.Extensions.Sdk.IPassContext.Demo.get -> CS2DemoKit.Parser.DemoDes
 DemoViewer.NET.Extensions.Sdk.IPassContext.DemoPath.get -> string!
 DemoViewer.NET.Extensions.Sdk.IPassContext.FirstServerTick.get -> int
 DemoViewer.NET.Extensions.Sdk.IPassContext.FrameCount.get -> int
+DemoViewer.NET.Extensions.Sdk.IPassContext.LastFrameTick.get -> int
 DemoViewer.NET.Extensions.Sdk.IPassContext.LastServerTick.get -> int
 DemoViewer.NET.Extensions.Sdk.IPassContext.Parsed.get -> CS2DemoKit.Parser.ParsedDemo?
 DemoViewer.NET.Extensions.Sdk.IPassContext.Rounds.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.PassRound!>!
+DemoViewer.NET.Extensions.Sdk.IPassContext.Table(string! table) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactRow!>!
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.CountAsync() -> System.Threading.Tasks.Task<int>!
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.FeatureId.get -> string!
@@ -1089,6 +1091,8 @@ DemoViewer.NET.Extensions.Sdk.RulesetContribution.FeatureId.get -> string?
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.FeatureId.init -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Id.get -> string!
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadBy.get -> string?
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadBy.init -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.RulesetContribution(string! Id, System.Func<System.IO.Stream!>! Yaml, string? FeatureId = null) -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Yaml.get -> System.Func<System.IO.Stream!>!
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Yaml.init -> void

@@ -47,11 +47,13 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
     /// <param name="budget">How long a run may take; <see cref="DefaultBudget" /> when null.</param>
     /// <param name="maxOverruns">Overruns that switch the pass off for the session.</param>
     /// <param name="collectors">The collectors the extension registered for this pass.</param>
+    /// <param name="tableRulesets">The qualified ids of the extension's rulesets whose tables this pass reads.</param>
     public ExtensionPassHost(IExtensionPass inner, IReadOnlyList<string> after, ExtensionGuard guard,
         Func<bool>? onUiThread = null, TimeSpan? budget = null, int maxOverruns = DefaultMaxOverruns,
-        CollectorSet? collectors = null)
+        CollectorSet? collectors = null, IReadOnlyList<string>? tableRulesets = null)
     {
         Collectors = collectors ?? CollectorSet.Empty;
+        TableRulesets = tableRulesets ?? [];
         Inner = inner ?? throw new ArgumentNullException(nameof(inner));
         After = after ?? throw new ArgumentNullException(nameof(after));
         _guard = guard ?? throw new ArgumentNullException(nameof(guard));
@@ -66,8 +68,8 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
             ? Collectors.ReadsUserCommands
             : guard.Run("pass " + Id + " needs", () => inner.ReadsUserCommands, true) || Collectors.ReadsUserCommands;
 
-        // A collector rides the rules run, so a forward read with one makes that run.
-        ForwardNeeds forward = Collectors.IsEmpty
+        // A collector or a table rides the rules run, so a forward read with one makes that run.
+        ForwardNeeds forward = Collectors.IsEmpty && TableRulesets.Count == 0
             ? ForwardNeeds.None
             : ForwardNeeds.Rules | (userCommands ? ForwardNeeds.UserCommands : ForwardNeeds.None);
         _needs = _forward
@@ -86,6 +88,9 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
     public string Id { get; }
 
     public CollectorSet Collectors { get; }
+
+    /// <summary>The rulesets whose tables the pass reads through <see cref="IPassContext.Table" />.</summary>
+    public IReadOnlyList<string> TableRulesets { get; }
 
     public IReadOnlyList<string> After { get; }
 
@@ -120,11 +125,11 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
         Context context;
         if (input.Retained is { } parsed)
         {
-            context = new Context(input.Demo.Path, parsed, _forward, input, Collectors);
+            context = new Context(input.Demo.Path, parsed, _forward, input, Collectors, TableRulesets);
         }
         else if (_forward && input.Forward is { } read)
         {
-            context = new Context(input.Demo.Path, read, input, Collectors);
+            context = new Context(input.Demo.Path, read, input, Collectors, TableRulesets);
         }
         else
         {
@@ -174,6 +179,7 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
     {
         private readonly CancellationToken _cancellationToken;
         private readonly CollectorSet _collectors;
+        private readonly IReadOnlyList<string> _tableRulesets;
         private readonly PassInput _input;
         private readonly string _path;
         private ParsedDemo? _parsed;
@@ -183,20 +189,24 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
         private DemoDescriptor? _demo;
         private IReadOnlyList<PassRound>? _rounds;
 
-        public Context(string path, ParsedDemo parsed, bool hideParse, PassInput input, CollectorSet collectors)
+        public Context(string path, ParsedDemo parsed, bool hideParse, PassInput input, CollectorSet collectors,
+            IReadOnlyList<string> tableRulesets)
         {
             _input = input;
             _collectors = collectors;
+            _tableRulesets = tableRulesets;
             _path = path;
             _parsed = parsed;
             _hideParse = hideParse;
             _cancellationToken = input.CancellationToken;
         }
 
-        public Context(string path, ForwardDemoResult read, PassInput input, CollectorSet collectors)
+        public Context(string path, ForwardDemoResult read, PassInput input, CollectorSet collectors,
+            IReadOnlyList<string> tableRulesets)
         {
             _input = input;
             _collectors = collectors;
+            _tableRulesets = tableRulesets;
             _path = path;
             _read = read;
             _hideParse = true;
@@ -251,6 +261,15 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
             }
         }
 
+        public int LastFrameTick
+        {
+            get
+            {
+                ThrowIfEnded();
+                return _read?.LastFrameTick ?? (_parsed!.Frames.Count > 0 ? _parsed.Frames[^1].GameTick ?? _parsed.Frames[^1].ServerTick : 0);
+            }
+        }
+
         public IReadOnlyList<PassRound> Rounds
         {
             get
@@ -269,6 +288,15 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
             return _collectors.Contains(collectorId)
                 ? _input.Collected().Get<T>(collectorId)
                 : throw new InvalidOperationException($"collector {collectorId} is not one this pass registered");
+        }
+
+        public IReadOnlyList<FactRow> Table(string table)
+        {
+            ThrowIfEnded();
+            ArgumentNullException.ThrowIfNull(table);
+            return _tableRulesets.Count > 0
+                ? _input.Table(table, _tableRulesets)
+                : throw new InvalidOperationException($"no ruleset names this pass in ReadBy, so table {table} is not one it reads");
         }
 
         public void End()
