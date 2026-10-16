@@ -50,12 +50,12 @@ public readonly record struct ThrowerAtSpawn(Vector3? Position, bool? OnGround, 
 /// <param name="CreatedTick">The tick its instance started on: the spawn unless <c>projectile_created</c> waited for the thrower.</param>
 /// <param name="EndTick">The removal frame's tick, or the run's last tick when it was still live.</param>
 /// <param name="Removed">False for a grenade still in the world when the run ended.</param>
-/// <param name="InitialPosition"><c>m_vInitialPosition</c>; null on a landing row.</param>
-/// <param name="InitialVelocity"><c>m_vInitialVelocity</c>; null on a landing row.</param>
+/// <param name="InitialPosition"><c>m_vInitialPosition</c>; on a landing row, from the observer's flight (<see cref="GrenadeWalker.WithFlights" />).</param>
+/// <param name="InitialVelocity"><c>m_vInitialVelocity</c>; as <paramref name="InitialPosition" />.</param>
 /// <param name="LastPosition">The last position read, or null when none decoded.</param>
-/// <param name="LastMovedTick">The tick it came to rest on; the removal tick on a landing row, where the engine did not say.</param>
+/// <param name="LastMovedTick">The tick it came to rest on; on a landing row, the removal tick until the flight says.</param>
 /// <param name="Bounces"><c>m_nBounces</c> as last seen.</param>
-/// <param name="IsIncendiary"><c>m_bIsIncGrenade</c>; null on a landing row.</param>
+/// <param name="IsIncendiary"><c>m_bIsIncGrenade</c>; as <paramref name="InitialPosition" />.</param>
 /// <param name="ExplodeTickBegin"><c>m_nExplodeEffectTickBegin</c> (server clock), or null while unset.</param>
 /// <param name="SmokeTickBegin"><c>m_nSmokeEffectTickBegin</c> (server clock), or null while unset.</param>
 /// <param name="SmokeDetonationPosition"><c>m_vSmokeDetonationPos</c>, or null until the smoke pops.</param>

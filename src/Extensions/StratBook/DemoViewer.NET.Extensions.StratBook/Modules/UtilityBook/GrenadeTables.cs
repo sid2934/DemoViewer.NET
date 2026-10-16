@@ -179,7 +179,7 @@ public static class GrenadeTables
             Vector(v, "smoke_detonation_x", "smoke_detonation_y", "smoke_detonation_z"), atSpawn, offset, offsetBefore);
     }
 
-    // A grenade_landings row of a projectile whose thrower never resolved: the landing is all the run has of it.
+    // A grenade_landings row of a projectile whose thrower never resolved. The walk adds its spawn fields from the flight.
     private static ProjectileFacts? Landing(GrenadeTableRow row)
     {
         IReadOnlyDictionary<string, object?> d = row.Dimensions, v = row.Values;

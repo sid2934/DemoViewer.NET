@@ -15,8 +15,8 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     <see cref="GrenadeTrajectoryCollector" /> over synthetic frames: each projectile's rows, frame by frame,
 ///     fold to the polyline <see cref="TrajectoryBuilder" /> builds from the same positions, the spawn frame's
-///     live row is not offered twice, a projectile with no release point starts at its first read, and the
-///     contribution declares the classes and nothing else.
+///     live row is not offered twice, a projectile with no release point starts at its first read, each flight
+///     keeps its spawn fields, rest tick and end, and the contribution declares the classes and nothing else.
 /// </summary>
 public class GrenadeTrajectoryCollectorTests
 {
@@ -95,6 +95,10 @@ public class GrenadeTrajectoryCollectorTests
             await Assert.That(flights.Of(SmokeIndex, 9)).IsEquivalentTo(smoke.Finish());
             await Assert.That(flights.Of(SmokeIndex, 9)[0].Tick).IsEqualTo(151);
             await Assert.That(flights.Of(1, 1)).IsEmpty();
+            await Assert.That(flights.Facts[(HeIndex, 7)]).IsEqualTo(new FlightFacts(GrenadeProjectileClasses.HEGrenade, 100, new Vector3(0, 0, 64),
+                new Vector3(500, 0, 100), null, 204, true, new Vector3(460, 0, 64), 190, 2));
+            await Assert.That(flights.Facts[(SmokeIndex, 9)]).IsEqualTo(new FlightFacts(GrenadeProjectileClasses.Smoke, 150, null, null, null, 210,
+                false, new Vector3(500, 580, 8), 191, 0)).Because("still live when the run ended");
         }
     }
 

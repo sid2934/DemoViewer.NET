@@ -9,11 +9,40 @@ using DemoViewer.NET.Extensions.Sdk;
 
 namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
+/// <summary>
+///     A projectile's own fields as the frame observer saw them, whatever its thrower. The only source for a grenade
+///     whose thrower never resolved, which has no <c>grenade_projectiles</c> row.
+/// </summary>
+/// <param name="ClassName">The server class.</param>
+/// <param name="SpawnTick">The frame-clock tick it first appeared on.</param>
+/// <param name="InitialPosition"><c>m_vInitialPosition</c> on that frame.</param>
+/// <param name="InitialVelocity"><c>m_vInitialVelocity</c> on that frame.</param>
+/// <param name="IsIncendiary"><c>m_bIsIncGrenade</c> on that frame.</param>
+/// <param name="EndTick">The removal frame's tick, or the last tick it was seen on while live.</param>
+/// <param name="Removed">False for a grenade still in the world when the run ended.</param>
+/// <param name="LastPosition">The last position read.</param>
+/// <param name="LastMovedTick">The tick it came to rest on.</param>
+/// <param name="Bounces">The most bounces seen.</param>
+public sealed record FlightFacts(
+    string ClassName,
+    int SpawnTick,
+    Vector3? InitialPosition,
+    Vector3? InitialVelocity,
+    bool? IsIncendiary,
+    int EndTick,
+    bool Removed,
+    Vector3? LastPosition,
+    int LastMovedTick,
+    int Bounces);
+
 /// <summary>Every grenade's flight at the configured stride, by projectile, as the frame observer kept it.</summary>
 /// <param name="Flights">The polylines, keyed by entity index and serial.</param>
 /// <param name="Stride">The stride the flights were thinned at.</param>
 public sealed record GrenadeTrajectories(IReadOnlyDictionary<(int Index, int Serial), List<TrajectoryPoint>> Flights, int Stride)
 {
+    /// <summary>Each flight's projectile fields, by the same key.</summary>
+    public IReadOnlyDictionary<(int Index, int Serial), FlightFacts> Facts { get; init; } = new Dictionary<(int Index, int Serial), FlightFacts>();
+
     /// <summary>A projectile's flight, or an empty line when the observer never saw it.</summary>
     /// <param name="index">The entity index.</param>
     /// <param name="serial">The entity serial.</param>
@@ -37,8 +66,9 @@ public sealed class GrenadeTrajectoryFold
         _stride = stride;
     }
 
-    /// <summary>A projectile's first frame: the release point, then its first position.</summary>
-    public void Created(int index, int serial, int tick, Vector3? initialPosition, Vector3? position, int bounces)
+    /// <summary>A projectile's first frame: the release point, then its first position, and the fields <see cref="FlightFacts" /> keeps.</summary>
+    public void Created(int index, int serial, string className, int tick, Vector3? initialPosition, Vector3? initialVelocity,
+        bool? isIncendiary, Vector3? position, int bounces)
     {
         (int, int) key = (index, serial);
         if (_flights.ContainsKey(key))
@@ -46,7 +76,11 @@ public sealed class GrenadeTrajectoryFold
             return;
         }
 
-        Flight flight = new(new TrajectoryBuilder(_stride), tick);
+        Flight flight = new(new TrajectoryBuilder(_stride), tick)
+        {
+            ClassName = className, InitialPosition = initialPosition, InitialVelocity = initialVelocity, IsIncendiary = isIncendiary,
+            EndTick = tick, LastPosition = position, LastMovedTick = tick, Bounces = bounces
+        };
         if (initialPosition is { } start)
         {
             flight.Builder.Start(tick, start);
@@ -63,17 +97,56 @@ public sealed class GrenadeTrajectoryFold
     /// <summary>A later frame of a live projectile. The spawn frame's own row is skipped: <see cref="Created" /> offered it.</summary>
     public void Seen(int index, int serial, int tick, Vector3? position, int bounces)
     {
-        if (position is { } at && _flights.TryGetValue((index, serial), out Flight? flight) && flight.SpawnTick != tick)
+        if (!_flights.TryGetValue((index, serial), out Flight? flight) || flight.SpawnTick == tick)
         {
-            flight.Builder.Offer(tick, at, bounces);
+            return;
+        }
+
+        flight.EndTick = tick;
+        flight.Bounces = Math.Max(flight.Bounces, bounces);
+        if (position is { } at)
+        {
+            flight.LastPosition = at;
+            if (flight.Builder.Offer(tick, at, bounces))
+            {
+                flight.LastMovedTick = tick;
+            }
+        }
+    }
+
+    /// <summary>A projectile gone on this frame, with its last-seen position.</summary>
+    public void Removed(int index, int serial, int tick, Vector3? position)
+    {
+        if (_flights.TryGetValue((index, serial), out Flight? flight))
+        {
+            flight.Removed = true;
+            flight.EndTick = tick;
+            flight.LastPosition = position ?? flight.LastPosition;
         }
     }
 
     /// <summary>The flights so far, each line finished.</summary>
     public GrenadeTrajectories Finish() =>
-        new(_flights.ToDictionary(f => f.Key, f => f.Value.Builder.Finish()), _stride);
+        new(_flights.ToDictionary(f => f.Key, f => f.Value.Builder.Finish()), _stride)
+        {
+            Facts = _flights.ToDictionary(f => f.Key, f => f.Value.Facts())
+        };
 
-    private sealed record Flight(TrajectoryBuilder Builder, int SpawnTick);
+    private sealed record Flight(TrajectoryBuilder Builder, int SpawnTick)
+    {
+        public string ClassName { get; init; } = "";
+        public Vector3? InitialPosition { get; init; }
+        public Vector3? InitialVelocity { get; init; }
+        public bool? IsIncendiary { get; init; }
+        public int EndTick { get; set; }
+        public bool Removed { get; set; }
+        public Vector3? LastPosition { get; set; }
+        public int LastMovedTick { get; set; }
+        public int Bounces { get; set; }
+
+        public FlightFacts Facts() =>
+            new(ClassName, SpawnTick, InitialPosition, InitialVelocity, IsIncendiary, EndTick, Removed, LastPosition, LastMovedTick, Bounces);
+    }
 }
 
 /// <summary>The trajectory fold on a visit's rules run, as the grenade pass's collector.</summary>
@@ -83,7 +156,7 @@ public sealed class GrenadeTrajectoryCollector : IFrameCollector
     public const string CollectorId = "stratbook.grenades.trajectories";
 
     /// <summary>Bumped when what it puts changes.</summary>
-    public const int Version = 1;
+    public const int Version = 2;
 
     private readonly GrenadeTrajectoryFold _fold;
 
@@ -110,12 +183,18 @@ public sealed class GrenadeTrajectoryCollector : IFrameCollector
         IReadOnlyList<ObservedProjectile> created = view.Created;
         foreach (ObservedProjectile row in created.Count > 1 ? [.. created.OrderBy(r => r.EntityIndex)] : created)
         {
-            _fold.Created(row.EntityIndex, row.Serial, tick, row.InitialPosition, row.Position, row.Bounces);
+            _fold.Created(row.EntityIndex, row.Serial, row.ClassName, tick, row.InitialPosition, row.InitialVelocity, row.IsIncendiary,
+                row.Position, row.Bounces);
         }
 
         foreach (ObservedProjectile row in view.Projectiles)
         {
             _fold.Seen(row.EntityIndex, row.Serial, tick, row.Position, row.Bounces);
+        }
+
+        foreach (ObservedProjectile row in view.Removed)
+        {
+            _fold.Removed(row.EntityIndex, row.Serial, tick, row.Position);
         }
     }
 
@@ -145,12 +224,18 @@ public sealed class GrenadeTrajectoryObserver : IFrameObserver
         int tick = frame.Tick;
         foreach (ProjectileRow row in frame.Created)
         {
-            _fold.Created(row.EntityIndex, row.Serial, tick, row.InitialPosition, row.Position, row.Bounces);
+            _fold.Created(row.EntityIndex, row.Serial, row.ClassName, tick, row.InitialPosition, row.InitialVelocity, row.IsIncendiary,
+                row.Position, row.Bounces);
         }
 
         foreach (ProjectileRow row in frame.Projectiles)
         {
             _fold.Seen(row.EntityIndex, row.Serial, tick, row.Position, row.Bounces);
+        }
+
+        foreach (ProjectileRow row in frame.Removed)
+        {
+            _fold.Removed(row.EntityIndex, row.Serial, tick, row.Position);
         }
     }
 

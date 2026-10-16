@@ -426,9 +426,79 @@ public class GrenadeWalkerTests
             await Assert.That(decoy.ThrowerSlot).IsEqualTo(-1);
             await Assert.That(decoy.ThrowerSource).IsEqualTo(ThrowerSource.None);
             await Assert.That(decoy.ThrowerSteamId64).IsNull();
-            await Assert.That(decoy.SpawnPosition).IsNull().Because("a landing row carries no release point");
+            await Assert.That(decoy.SpawnPosition).IsNull().Because("a landing row carries no release point, and no flight gave one");
             await Assert.That(decoy.EndKind).IsEqualTo(GrenadeEndKind.Removed);
             await Assert.That(decoy.AirTimeTicks).IsEqualTo(400).Because("the landing says nothing about when it came to rest");
+        }
+    }
+
+    [Test]
+    public async Task Assemble_AJoinedThrowerWithoutAProjectileRow_TakesItsSpawnFieldsFromTheFlight()
+    {
+        // A smoke whose chain never resolved: the table has only its landing, the observer saw its flight.
+        ProjectileFacts landing = Facts(Index, GrenadeProjectileClasses.Smoke, -1, 200, 1400, new Vector3(800, 0, 0));
+        ReleaseFacts fire = Release(6, 193, "weapon_smokegrenade", Read(193, new Vector3(10, 0, 0), -5f, 0f, true, false, 3, 1f, true),
+            new Vector3(10, 0, 0));
+        GrenadeTrajectories flights = new(new Dictionary<(int, int), List<TrajectoryPoint>>
+        {
+            [(Index, Serial)] = [new TrajectoryPoint(200, 12, 0, 64, 0), new TrajectoryPoint(260, 800, 0, 0, 1)]
+        }, 4)
+        {
+            Facts = new Dictionary<(int, int), FlightFacts>
+            {
+                [(Index, Serial)] = new(GrenadeProjectileClasses.Smoke, 200, new Vector3(12, 0, 64), new Vector3(700, 0, 200), null, 1400, true,
+                    new Vector3(800, 0, 0), 260, 1)
+            }
+        };
+
+        GrenadeWalk walk = GrenadeWalker.Assemble(new GrenadeWalkInputs(new GrenadeTableRows([landing], [fire], GrenadeEventIndex.FromDetonations([])), flights),
+            [], [new PlayerInfo(6, "joined", 76561198000000006UL, 12, 3, false)], 64, 0);
+        GrenadeRow row = walk.Rows.Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(row.ThrowerSource).IsEqualTo(ThrowerSource.WeaponFire);
+            await Assert.That(row.ThrowerSteamId64).IsEqualTo("76561198000000006");
+            await Assert.That(row.ThrowerName).IsEqualTo("joined");
+            await Assert.That(row.ReleasePosition).IsEqualTo(new WorldPoint(10, 0, 0));
+            await Assert.That(row.SpawnPosition).IsEqualTo(new WorldPoint(12, 0, 64));
+            await Assert.That(row.SpawnVelocity).IsEqualTo(new WorldPoint(700, 0, 200));
+            await Assert.That(row.AirTimeTicks).IsEqualTo(60).Because("the flight says when it came to rest");
+            await Assert.That(row.ThrowerPositionAtSpawn).IsNull().Because("nothing read the joined thrower at the spawn");
+            await Assert.That(row.JumpThrowSource).IsEqualTo(JumpThrowSource.None);
+            await Assert.That(walk.InputCoverage).IsEqualTo(0).Because("no throw was read at the spawn");
+        }
+    }
+
+    [Test]
+    public async Task Assemble_AFlightWithNoTableRow_IsAGrenadeStillLiveWhenTheRunEnded()
+    {
+        GrenadeTrajectories flights = new(new Dictionary<(int, int), List<TrajectoryPoint>>
+        {
+            [(Index, Serial)] = [new TrajectoryPoint(100, 0, 0, 64, 0)],
+            [(140, 2)] = [new TrajectoryPoint(950, 5, 5, 64, 0), new TrajectoryPoint(990, 50, 5, 64, 0)]
+        }, 4)
+        {
+            Facts = new Dictionary<(int, int), FlightFacts>
+            {
+                [(Index, Serial)] = new(GrenadeProjectileClasses.HEGrenade, 100, new Vector3(0, 0, 64), null, null, 204, true, new Vector3(460, 0, 64), 190, 2),
+                [(140, 2)] = new(GrenadeProjectileClasses.Flashbang, 950, new Vector3(5, 5, 64), new Vector3(600, 0, 0), null, 1000, false,
+                    new Vector3(50, 5, 64), 990, 0)
+            }
+        };
+
+        List<ProjectileFacts> all = GrenadeWalker.WithFlights([He()], flights);
+        List<GrenadeRow> rows = GrenadeWalker.Assemble(GrenadeWalker.Plan(all, []), GrenadeEventIndex.FromDetonations([]), flights, [], [], 64, 0);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rows.Select(r => r.Id)).IsEquivalentTo(["g120-7", "g140-2"]);
+            await Assert.That(all[0]).IsEqualTo(He()).Because("a resolved row keeps its own fields");
+            await Assert.That(rows[1].EndKind).IsEqualTo(GrenadeEndKind.DemoEnded);
+            await Assert.That(rows[1].EndTick).IsEqualTo(1000);
+            await Assert.That(rows[1].SpawnPosition).IsEqualTo(new WorldPoint(5, 5, 64));
+            await Assert.That(rows[1].ThrowerSource).IsEqualTo(ThrowerSource.None);
+            await Assert.That(rows[1].Trajectory.Count).IsEqualTo(2);
         }
     }
 }
