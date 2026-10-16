@@ -4,11 +4,10 @@
 # index folds into its rows and positions file. No until: a round with no end runs to the next
 # freeze end, and the fold clips each round to its own window.
 #
-# No side column yet: player.team does not lower in a capture (build.lowering-failed), and the
-# row's team dimension is the roster's final team, not the side at the sample.
+# A cadence step reads the frame it fires on, after that frame's entity fold.
 ruleset: net_demoviewer_pack_stratbook__roundindex_positions
 title: Round Index Positions
-summary: Each player's position, place, liveness and pawn index once a second, for the round index.
+summary: Each player's position, place, side, liveness and pawn index once a second, for the round index.
 for: each_player
 
 cadences:
@@ -19,6 +18,7 @@ stats:
   pos_y: { capture: player.pos_y, on: cadence.second, keep: last, per: match }
   pos_z: { capture: player.pos_z, on: cadence.second, keep: last, per: match }
   place: { capture: player.place, on: cadence.second, keep: last, per: match }
+  side: { capture: player.team, on: cadence.second, keep: last, per: match }
   is_alive: { capture: player.is_alive, on: cadence.second, keep: last, per: match }
   entity_index: { capture: player.entity_index, on: cadence.second, keep: last, per: match }
 
@@ -32,5 +32,6 @@ show:
         - { stat: pos_y }
         - { stat: pos_z }
         - { stat: place }
+        - { stat: side }
         - { stat: is_alive }
         - { stat: entity_index }
