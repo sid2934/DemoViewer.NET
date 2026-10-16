@@ -19,6 +19,7 @@ using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Controls;
 using DemoViewer.NET.Debugging;
+using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -496,6 +497,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     /// </summary>
     public Action<int>? OnFrameSeeked { get; set; }
 
+    /// <summary>True while a finished run lands on its first message, the seek no user asked for.</summary>
+    internal bool IsSeekingFirstMessage { get; private set; }
+
     /// <summary>Player tables.</summary>
 
     public IReadOnlyList<PlayerTableViewModel> PlayerTables
@@ -732,7 +736,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     ///     <paramref name="path" /> is the demo's file, when the open has one: a run that covers its stale
     ///     stamped outputs can then serve the open's visit (<see cref="SeedOpenVisit" />).
     /// </summary>
-    public async Task RunAsync(ParsedDemo demo, string? demoKey = null, string? path = null)
+    public Task RunAsync(ParsedDemo demo, string? demoKey = null, string? path = null) =>
+        RunOpenAsync(demo, demoKey, path, null);
+
+    /// <summary><see cref="RunAsync" /> for an open, whose game clock <paramref name="clock" /> the run's scan settles.</summary>
+    internal async Task RunOpenAsync(ParsedDemo demo, string? demoKey, string? path, GameClockSource? clock)
     {
         _openSeed = null;
         // One live evaluation at a time: a new run (reload, second demo, re-run) cancels the
@@ -779,7 +787,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // the builder then simply does not emit enemy_spotted and the visibility-gated aim
             // columns read zero, which is the same degraded shape as an unsupported demo source.
             VisibilityEngine? visibility = await LoadVisibilityEngineAsync(demo, runToken);
-            (BuildResult build, RuleConfigLoadResult loadedRules, OpenRunPlan? plan) = BuildFromConfig(demo, visibility, path);
+            (BuildResult build, RuleConfigLoadResult loadedRules, OpenRunPlan? plan) = BuildFromConfig(demo, visibility, path, clock);
             if (MergedRules() is { } merged)
             {
                 merged.ReportExclusions(build);
@@ -999,7 +1007,15 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
             if (result.Messages.Count > 0)
             {
-                SeekToMessage(0);
+                IsSeekingFirstMessage = true;
+                try
+                {
+                    SeekToMessage(0);
+                }
+                finally
+                {
+                    IsSeekingFirstMessage = false;
+                }
             }
 
             // Pre-warm: the next entity-cache build widens to every breakpointable fire frame, so the
@@ -1278,7 +1294,7 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     private static (BuildResult Build, RuleConfigLoadResult Rules, OpenRunPlan? Plan) BuildFromConfig(
-        ParsedDemo demo, VisibilityEngine? visibility, string? path)
+        ParsedDemo demo, VisibilityEngine? visibility, string? path, GameClockSource? clock)
     {
         string shippedDir = RuleSetLocator.ResolveShippedRulesDirectory();
         // The user overlay needs a writable filesystem; the WASM host has none worth provisioning.
@@ -1292,7 +1308,8 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // costs nothing for the rulesets that never ask.
         AnalysisOptions options = new()
         {
-            VisibilityEngine = visibility
+            VisibilityEngine = visibility,
+            EntityProviders = clock?.Providers()
         };
         // Stamped rulesets join the open run only when it can serve the open's visit; nothing else reads them.
         if (MergedRules() is not { } merged)
