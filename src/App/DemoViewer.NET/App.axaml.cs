@@ -658,10 +658,16 @@ public class App : Application
     }
 
     // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
-    // Asks the owner's pass the way a visit plans it, so on the UI thread it answers no. A throw is the visit's to
+    // Asks the owner's pass the way a visit plans it. A pass is never asked on the UI thread, where the open's seed
+    // check runs; there the table counts as unwanted, which only narrows that check. A throw is the visit's to
     // report; here it only leaves the table out.
     private static bool PassWants(PackContributionSet packs, string owner, string passId, string path)
     {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            return false;
+        }
+
         try
         {
             return packs.Packs.FirstOrDefault(c => string.Equals(c.Pack.Id, owner, StringComparison.Ordinal))?.Passes
