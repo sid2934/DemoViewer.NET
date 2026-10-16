@@ -899,6 +899,8 @@ public class App : Application
             rules.OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
                 ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
                 : !LibraryTeamTables.IsLibraryRuleset(id) && sp.GetRequiredService<FactsEvaluator>().Records(path, id));
+            rules.GuardOf = owner => sp.GetRequiredService<PackContributionSet>().Packs
+                .FirstOrDefault(c => string.Equals(c.Pack.Id, owner, StringComparison.Ordinal))?.Guard;
             // The visit in flight answers which collectors its rules run carries; resolved per call, like the cut.
             rules.CollectorsFor = path => sp.GetRequiredService<DemoProcessingQueue>().CollectorsFor(path);
             // Every enabled pack's collectors: the open's run declares them before its visit is planned.
