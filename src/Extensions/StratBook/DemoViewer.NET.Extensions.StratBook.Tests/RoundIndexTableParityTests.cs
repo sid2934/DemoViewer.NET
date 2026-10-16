@@ -7,6 +7,7 @@ using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
@@ -46,6 +47,9 @@ public class RoundIndexTableParityTests
                                 $"no table; tables [{string.Join(", ", tables.Select(t => t.Name))}], excluded " +
                                 $"[{string.Join("; ", run.Build.ExcludedRulesets.SelectMany(e => e.Diagnostics))}], diagnostics [{string.Join("; ", run.Build.RulesetDiagnostics)}]");
         List<PositionSample> c = RoundIndexTable.Samples(table.Rows.Select(r => (r.Dimensions, r.Values)));
+        // What the pass reads: the rows as IPassContext.Table hands them over.
+        List<PositionSample> passRows = RoundIndexTable.Samples(FactsCodec.FromMetric(table,
+            new FactKey(RoundIndexTable.RulesetId, RoundIndexTable.TableName), "", 0, "player_event").Rows);
 
         DemoCacheStore store = new(null);
         new RoundFactsEvaluator(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity()).Evaluate(path, parsed);
@@ -56,6 +60,7 @@ public class RoundIndexTableParityTests
         RoundIndexBuild foldA = Fold(values, rows, PositionSampler.Walk(parsed, 4));
         RoundIndexBuild foldB = Fold(values, rows, b);
         RoundIndexBuild foldC = Fold(values, rows, c);
+        RoundIndexBuild foldPass = Fold(values, rows, passRows);
 
         // The walk visits pawns through a live-pawn scan and the table every player, so only B's keys compare.
         Dictionary<(int, int), int> sideAt = c.GroupBy(s => (s.Tick, s.PlayerSlot)).ToDictionary(g => g.Key, g => g.Last().Team);
@@ -75,6 +80,8 @@ public class RoundIndexTableParityTests
             await Assert.That(sideDiffers).IsEqualTo(0).Because("player.team is the pawn's side at the step");
             await Assert.That(foldC.Index.Serialize()).IsEqualTo(foldB.Index.Serialize());
             await Assert.That(Positions(foldC)).IsEqualTo(Positions(foldB));
+            await Assert.That(foldPass.Index.Serialize()).IsEqualTo(foldB.Index.Serialize()).Because("the pass's rows fold like the table's");
+            await Assert.That(Positions(foldPass)).IsEqualTo(Positions(foldB));
         }
     }
 
