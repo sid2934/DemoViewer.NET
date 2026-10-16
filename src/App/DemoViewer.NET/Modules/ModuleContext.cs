@@ -65,8 +65,8 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     // e.g. weapon_fire, are never built). Reset on unload.
     private IReadOnlyList<GameEvent> _allGameEvents = Array.Empty<GameEvent>();
 
-    // Shared game-clock calibration (set once per demo at load by the shell, mirroring SetRoster). When
-    // not calibrated CurtimeSeconds returns the naive reading (clockBase 0 → tick/tickRate).
+    // Shared game-clock calibration, handed over per load by the shell (mirroring SetRoster) and settled by
+    // the open's rules run. When not calibrated CurtimeSeconds returns the naive reading (clockBase 0).
     private double _clockBase;
     private GameClockSource? _clock;
 
@@ -136,7 +136,7 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public double Speed => _controller.Speed;
 
     // CurtimeSeconds(tick) = tick/tickRate − clockBase (m_flGameStartTime cancels out of the consume
-    // path; see GameClock). One subtraction per call; no entity reads. clockBase 0 = naive fallback.
+    // path; see GameClock). clockBase 0 = naive fallback.
     public double CurtimeSeconds(int tick)
     {
         int rate = TickRate > 0 ? TickRate : 64;

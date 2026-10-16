@@ -3,6 +3,7 @@
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Plugins;
 using CS2DemoKit.Parser;
+using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 
@@ -108,22 +109,61 @@ internal sealed class GameClockSource
         }
     }
 
-    private void Observe(EntityStateLayer layer)
+    // A scan folds every frame of a tick before it reads, so its tracker can stand past the freeze end frame.
+    // The state is the replay's only when the frames between carry no messages for the tracker to apply.
+    private void Observe(EntityTracker tracker, int at)
     {
-        // The tracker's own frame, not the digest's: right after it folded the freeze end frame either way.
-        if (layer.Tracker.CurrentFrameIndex != _frame || Settled is not null)
+        IReadOnlyList<DemoFrame>? frames;
+        lock (_gate)
+        {
+            frames = _frames;
+        }
+
+        if (frames is null || at >= frames.Count)
         {
             return;
         }
 
-        (double clockBase, bool _) = GameClock.Read(layer.Tracker, _serverTick, _tickRate);
+        for (int i = _frame + 1; i <= at; i++)
+        {
+            if (!Inert(frames[i]))
+            {
+                return;
+            }
+        }
+
+        (double clockBase, bool _) = GameClock.Read(tracker, _serverTick, _tickRate);
         Settle(clockBase);
     }
 
-    // Reads exactly what it wraps; settling the clock is its only addition.
+    // EntityTracker applies only these payloads, and resyncs from a full packet.
+    private static bool Inert(DemoFrame frame)
+    {
+        if (frame.CommandKind == EDemoCommands.DemFullPacket)
+        {
+            return false;
+        }
+
+        foreach (NetMessage message in frame.DecodedMessages)
+        {
+            if (message.Payload is CDemoSendTables or CDemoClassInfo or CSVCMsg_ClassInfo or CSVCMsg_ServerInfo
+                or CSVCMsg_FlattenedSerializer or CSVCMsg_CreateStringTable or CSVCMsg_UpdateStringTable
+                or CSVCMsg_PacketEntities)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Reads exactly what it wraps; settling the clock is its only addition. One per scan worker, each judging
+    // the first frame it reads at or past the freeze end.
     private sealed class SettlingProvider(IEntityValueProvider inner, GameClockSource clock)
         : IEntityValueProvider, IWorkerCloneable<IEntityValueProvider>
     {
+        private bool _passed;
+
         public string ContextName => inner.ContextName;
         public object? DefaultValue => inner.DefaultValue;
         public ChangeDirection EmitOn => inner.EmitOn;
@@ -135,7 +175,12 @@ internal sealed class GameClockSource
         public object? Read(EntityStateLayer layer)
         {
             object? value = inner.Read(layer);
-            clock.Observe(layer);
+            if (!_passed && layer.Tracker.CurrentFrameIndex >= clock._frame)
+            {
+                _passed = true;
+                clock.Observe(layer.Tracker, layer.Tracker.CurrentFrameIndex);
+            }
+
             return value;
         }
 

@@ -2554,6 +2554,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // The hosts: the Library (its own descriptor is a built-in above) and one strip tab per contributed
         // host, its VM built now so the sections and the session have somewhere to land before activation.
         _hosts.Clear();
+        LibraryTab.Sections.PropertyChanged -= OnLibrarySectionChanged;
+        LibraryTab.Sections.PropertyChanged += OnLibrarySectionChanged;
         _hosts.Add(new SectionHostEntry(LibraryTabViewModel.HostId, descriptors.First(d => d.TabId == LibraryTabViewModel.HostId),
             LibraryTab.Sections, null, null));
         foreach (ContributedHub hub in _hubTabs)
@@ -2887,10 +2889,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ExtensionTabs.Activate(newValue, _moduleContext);
         }
 
-        if (_owedEntitySeek >= 0 && ReadsEntityState(newValue))
-        {
-            PayOwedEntitySeek();
-        }
+        PayOwedEntitySeek();
     }
 
     /// <summary>
@@ -3319,7 +3318,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         // The analysis run's landing seek replays the demo for the entity state alone; a tab that reads
         // none owes it until a tab that does is selected.
-        if (Analysis.IsSeekingFirstMessage && !ReadsEntityState(SelectedTab))
+        if (Analysis.IsSeekingFirstMessage && !ShownTabReadsEntityState())
         {
             _owedEntitySeek = idx;
             return;
@@ -3328,18 +3327,36 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _ = EntityTab.SeekEntitiesAsync(idx);
     }
 
-    // Tabs that never read the authoritative tracker. Every other tab, a module's or an extension's
-    // included, may read it through the module context.
-    private static bool ReadsEntityState(WorkspaceTabDescriptor? tab) =>
-        tab?.TabId is not ("builtin.library" or "builtin.matchoverview" or "builtin.stats");
+    // Tabs that never read the authoritative tracker. Every other tab or hosted section, a module's or an
+    // extension's included, may read it through the module context.
+    private bool ShownTabReadsEntityState()
+    {
+        WorkspaceTabDescriptor? shown = SelectedTab is { } tab && HostFor(tab)?.Sections.SelectedSection is { } section
+            ? section
+            : SelectedTab;
+        return shown?.TabId is not ("builtin.library" or "builtin.matchoverview" or "builtin.stats");
+    }
 
     private void PayOwedEntitySeek()
     {
         int owed = _owedEntitySeek;
+        if (owed < 0 || !ShownTabReadsEntityState())
+        {
+            return;
+        }
+
         _owedEntitySeek = -1;
-        if (owed >= 0 && owed == Playback.CurrentFrameIndex)
+        if (owed == Playback.CurrentFrameIndex)
         {
             _ = EntityTab.SeekEntitiesAsync(owed);
+        }
+    }
+
+    private void OnLibrarySectionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TabSectionHost.SelectedSection))
+        {
+            PayOwedEntitySeek();
         }
     }
 
