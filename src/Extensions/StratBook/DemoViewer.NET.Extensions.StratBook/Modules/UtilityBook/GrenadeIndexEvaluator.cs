@@ -1,5 +1,7 @@
 #region
 
+using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -13,9 +15,10 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 /// <summary>
 ///     The evaluator that walks a demo's grenades: an <see cref="IExtensionPass" />
 ///     on the same one-parse fan-out as the others, registered last because it reads nothing they write.
-///     Per demo the work is what <see cref="GrenadeCollector" /> put on the visit's rules run, assembled into
-///     rows with the roster, and one write of the demo's grenade facet, stamped last so a crash leaves "not
-///     walked" and never a stamp without its rows. It reads forward: a visit of its own streams the demo.
+///     Per demo the work is the fold of the <see cref="GrenadeTables" /> rows the visit's rules run recorded and the
+///     flights <see cref="GrenadeTrajectoryCollector" /> kept, assembled into rows with the roster, and one write of
+///     the demo's grenade facet, stamped last so a crash leaves "not walked" and never a stamp without its rows. It
+///     reads forward: a visit of its own streams the demo.
 ///     <para>
 ///         <b>Background indexing is off by default</b> (the <c>HighlightsSettings.BackgroundScan</c>
 ///         precedent: two to three seconds per demo is half an hour over a large library). Off, the demo
@@ -47,9 +50,8 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     private readonly GrenadeStore _store;
     private readonly Func<int> _stride;
 
-    // Test seam: the walk for a parse. Null is the real walker; a synthetic parse has no entities to walk.
+    // Test seam: the walk for a parse. Null is the real fold; a synthetic parse has no entities to walk.
     private readonly Func<ParsedDemo, GrenadeWalk>? _walk;
-    private readonly Func<string, ParsedDemo, int, IEnumerable<ProjectileSample>>? _projectiles;
 
     /// <param name="library">The library: which demos are parsed, and their rows.</param>
     /// <param name="store">The grenade rows and their stamps.</param>
@@ -57,9 +59,8 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     /// <param name="openDemo">The open demo's path, resolved at call time; null when none.</param>
     /// <param name="stride">The live <see cref="Extensions.StratBook.StratBookSettings.TrajectoryStride" />; null defaults to 4.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
-    /// <param name="walk">The walk to run; null walks the parse through <see cref="GrenadeWalker" />.</param>
+    /// <param name="walk">The walk to run; null runs the grenade rulesets over the parse and folds their tables.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted, not even the open demo. Defaults to always-on.</param>
-    /// <param name="projectiles">The stride-1 projectile samples (path, parse, max frames); null lets the walker sample the parse.</param>
     public GrenadeIndexEvaluator(
         IExtensionLibrary library,
         GrenadeStore store,
@@ -68,8 +69,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         Func<int>? stride = null,
         Action<Action>? post = null,
         Func<ParsedDemo, GrenadeWalk>? walk = null,
-        Func<bool>? enabled = null,
-        Func<string, ParsedDemo, int, IEnumerable<ProjectileSample>>? projectiles = null)
+        Func<bool>? enabled = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(store);
@@ -82,7 +82,6 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         _post = post ?? (action => action());
         _walk = walk;
         _enabled = enabled ?? (() => true);
-        _projectiles = projectiles;
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
@@ -171,7 +170,7 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     public PassRead Read => PassRead.Forward;
 
     /// <inheritdoc />
-    /// <remarks>The rows are <see cref="GrenadeCollector" />'s collection off the visit's rules run, plus the roster.</remarks>
+    /// <remarks>The rows are the grenade tables and the trajectory collection off the visit's rules run, plus the roster.</remarks>
     public void Run(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -184,22 +183,19 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
             FirstTick = context.FirstServerTick,
             LastTick = context.LastServerTick
         };
-        Refresh(context.DemoPath, () =>
-        {
-            GrenadeCollected collected = context.Collected<GrenadeCollected>(GrenadeCollector.CollectorId)
-                                          ?? throw new InvalidOperationException("the grenade collector put no collection");
-            return GrenadeWalker.Assemble(collected, demo.Players.Values, tickRate, demo.ServerStartTick);
-        }, clock, demo.BuildNumber);
+        Refresh(context.DemoPath, () => GrenadeWalker.Assemble(GrenadeWalkInputs.Read(context), GrenadeWalkInputs.Rounds(context),
+            demo.Players.Values, tickRate, demo.ServerStartTick), clock, demo.BuildNumber);
     }
 
     /// <summary>
-    ///     Does the pass's work on <paramref name="parsed" />: the rows of <paramref name="collected" /> with the
-    ///     parse's roster, or without one a <see cref="GrenadeWalker.Walk" /> of the parse.
+    ///     Does the pass's work on <paramref name="parsed" />: the rows of <paramref name="inputs" /> with the parse's
+    ///     roster, or without them the grenade rulesets run over the parse with the trajectory observer, one more
+    ///     evaluation of the demo.
     /// </summary>
     /// <param name="path">The demo's path.</param>
     /// <param name="parsed">The demo's parse.</param>
-    /// <param name="collected">What <see cref="GrenadeCollector" /> put on the parse's rules run; null walks the parse.</param>
-    public void Evaluate(string path, ParsedDemo parsed, GrenadeCollected? collected = null)
+    /// <param name="inputs">The tables and flights off the parse's rules run; null runs the rulesets over the parse.</param>
+    public void Evaluate(string path, ParsedDemo parsed, GrenadeWalkInputs? inputs = null)
     {
         ArgumentNullException.ThrowIfNull(parsed);
         // A parse without user commands would stamp rows current with no inputs. The demo stays wanted,
@@ -214,14 +210,30 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
         Refresh(path, () =>
         {
-            if (collected is not null)
+            if (inputs is null && _walk is not null)
             {
-                return GrenadeWalker.Assemble(collected, parsed.Players.Values, tickRate, parsed.ServerStartTick);
+                return _walk(parsed);
             }
 
-            GrenadeWalkOptions options = new(TrajectoryStride: Math.Max(1, _stride()));
-            return _walk?.Invoke(parsed) ?? GrenadeWalker.Walk(parsed, options, _projectiles?.Invoke(path, parsed, options.MaxFrames));
+            GrenadeWalkInputs read = inputs ?? Run(parsed, Math.Max(1, _stride()));
+            return GrenadeWalker.Assemble(read, ClipRounds.Derive(parsed), parsed.Players.Values, tickRate, parsed.ServerStartTick);
         }, RoundFactsClock.For(parsed), parsed.BuildNumber);
+    }
+
+    /// <summary>The grenade rulesets run over a held parse with the trajectory observer, for a caller with no visit.</summary>
+    /// <param name="parsed">The parse.</param>
+    /// <param name="trajectoryStride">Keep every n-th moved sample of each flight.</param>
+    public static GrenadeWalkInputs Run(ParsedDemo parsed, int trajectoryStride)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        GrenadeTrajectoryObserver observer = new(trajectoryStride);
+        AnalysisRun run = DemoAnalysis.Run(parsed, GrenadeTables.LoadRulesets(), new AnalysisOptions
+        {
+            CaptureSnapshots = false,
+            FrameObserver = observer,
+            ObservedProjectileClasses = GrenadeProjectileClasses.All
+        });
+        return new GrenadeWalkInputs(GrenadeTables.Read(run, parsed.ServerStartTick), observer.Flights());
     }
 
     /// <inheritdoc />

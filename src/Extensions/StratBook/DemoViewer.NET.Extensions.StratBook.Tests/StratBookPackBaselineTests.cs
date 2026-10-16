@@ -471,11 +471,11 @@ public class StratBookPackBaselineTests
                 forward = new ForwardPassRunner(rules);
                 demoCache = provider.GetRequiredService<DemoCacheStore>();
                 // Outside a queue visit no collector is declared. Without the thrower rows Suggested Tags
-                // falls back to its own stride-8 walk, and Grenades to its own two passes, which the real
+                // falls back to its own stride-8 walk, and Grenades to a rules run of its own, which the real
                 // visit does not pay.
                 CollectorSet collectors = CollectorSet.Of([
                     new RegisteredCollector(ThrowerCollector.Contribution, null),
-                    new RegisteredCollector(GrenadeCollector.Contribution(() => 4), null)
+                    new RegisteredCollector(GrenadeTrajectoryCollector.Contribution(() => 4), null)
                 ]);
                 rules.CollectorsFor = _ => collectors;
                 full =
@@ -483,8 +483,9 @@ public class StratBookPackBaselineTests
                     library.Evaluate, highlights.Evaluate, roundFacts.Evaluate, roundIndex.Evaluate,
                     (path, parsed) => suggestedTags.Evaluate(path, parsed,
                         rules.Collected(parsed, path).Get<List<RemovedProjectile>>(ThrowerCollector.CollectorId)),
-                    (path, parsed) => grenades.Evaluate(path, parsed,
-                        rules.Collected(parsed, path).Get<GrenadeCollected>(GrenadeCollector.CollectorId))
+                    (path, parsed) => grenades.Evaluate(path, parsed, new GrenadeWalkInputs(
+                        GrenadeTables.Read(table => rules.Table(rules.BareRun(parsed, path), table, GrenadeTables.RulesetIds), parsed.ServerStartTick),
+                        rules.Collected(parsed, path).Get<GrenadeTrajectories>(GrenadeTrajectoryCollector.CollectorId)!))
                 ];
             });
 

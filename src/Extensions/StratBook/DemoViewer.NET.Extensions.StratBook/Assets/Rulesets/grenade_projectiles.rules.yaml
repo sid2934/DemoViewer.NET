@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../../../../../rules/cs2demokit-rules.schema.json
+#
+# Grenade projectiles: one row per grenade whose thrower resolved, with the projectile's own fields as
+# the engine carried them and the thrower's state, commands and look-backs on the frame it appeared.
+# The grenade walk folds this table with grenade_releases and grenade_events into its rows.
+#
+# A bare keep: first read samples the frame the instance materializes; keep: last reads the row as it
+# was removed. The thrower reads on raw.projectile_created see the created frame after its entity
+# fold; the @-7 and @-15 look-backs stand in for a release the thrower's weapon_fire did not mark,
+# at the measured release-to-spawn gap and the speed window before it; a look-back from before the
+# thrower had a pawn reads 0, which offset_pawn tells from a value. The thrower's side is the
+# row's team dimension, the grenade's own m_iTeamNum.
+ruleset: net_demoviewer_pack_stratbook__grenade_projectiles
+title: Grenade Projectiles
+summary: Every resolved grenade's flight fields, thrower state at the spawn, jump inputs and release look-backs.
+for: each_projectile
+
+stats:
+  class_name: { capture: projectile.class_name, keep: first }
+  initial_x: { capture: projectile.initial_x, keep: first }
+  initial_y: { capture: projectile.initial_y, keep: first }
+  initial_z: { capture: projectile.initial_z, keep: first }
+  velocity_x: { capture: projectile.velocity_x, keep: first }
+  velocity_y: { capture: projectile.velocity_y, keep: first }
+  velocity_z: { capture: projectile.velocity_z, keep: first }
+  is_incendiary: { capture: projectile.is_incendiary, keep: first }
+  end_x: { capture: projectile.pos_x, keep: last }
+  end_y: { capture: projectile.pos_y, keep: last }
+  end_z: { capture: projectile.pos_z, keep: last }
+  bounces: { capture: projectile.bounces, keep: last }
+  last_moved_tick: { capture: projectile.last_moved_tick, keep: last }
+  explode_effect_tick: { capture: projectile.explode_effect_tick, keep: last }
+  smoke_effect_tick: { capture: projectile.smoke_effect_tick, keep: last }
+  smoke_detonation_x: { capture: projectile.smoke_detonation_x, keep: last }
+  smoke_detonation_y: { capture: projectile.smoke_detonation_y, keep: last }
+  smoke_detonation_z: { capture: projectile.smoke_detonation_z, keep: last }
+  spawn_x: { capture: thrower.pos_x, on: raw.projectile_created }
+  spawn_y: { capture: thrower.pos_y, on: raw.projectile_created }
+  spawn_z: { capture: thrower.pos_z, on: raw.projectile_created }
+  spawn_on_ground: { capture: thrower.on_ground, on: raw.projectile_created }
+  last_jump_tick: { capture: thrower.cmd.last_jump_tick, on: raw.projectile_created }
+  coverage: { capture: thrower.cmd.coverage, on: raw.projectile_created }
+  offset_pawn: { capture: thrower.entity_index@-7, on: raw.projectile_created }
+  offset_x: { capture: thrower.pos_x@-7, on: raw.projectile_created }
+  offset_y: { capture: thrower.pos_y@-7, on: raw.projectile_created }
+  offset_z: { capture: thrower.pos_z@-7, on: raw.projectile_created }
+  offset_pitch: { capture: thrower.eye_pitch@-7, on: raw.projectile_created }
+  offset_yaw: { capture: thrower.eye_yaw@-7, on: raw.projectile_created }
+  offset_on_ground: { capture: thrower.on_ground@-7, on: raw.projectile_created }
+  offset_ducking: { capture: thrower.ducking@-7, on: raw.projectile_created }
+  offset_strength: { capture: thrower.weapon_throw_strength@-7, on: raw.projectile_created }
+  offset_weapon: { capture: thrower.active_weapon_class@-7, on: raw.projectile_created }
+  offset_before_x: { capture: thrower.pos_x@-15, on: raw.projectile_created }
+  offset_before_y: { capture: thrower.pos_y@-15, on: raw.projectile_created }
+
+show:
+  tables:
+    grenade_projectiles:
+      per: projectile
+      columns:
+        - { stat: class_name }
+        - { stat: initial_x }
+        - { stat: initial_y }
+        - { stat: initial_z }
+        - { stat: velocity_x }
+        - { stat: velocity_y }
+        - { stat: velocity_z }
+        - { stat: is_incendiary }
+        - { stat: end_x }
+        - { stat: end_y }
+        - { stat: end_z }
+        - { stat: bounces }
+        - { stat: last_moved_tick }
+        - { stat: explode_effect_tick }
+        - { stat: smoke_effect_tick }
+        - { stat: smoke_detonation_x }
+        - { stat: smoke_detonation_y }
+        - { stat: smoke_detonation_z }
+        - { stat: spawn_x }
+        - { stat: spawn_y }
+        - { stat: spawn_z }
+        - { stat: spawn_on_ground }
+        - { stat: last_jump_tick }
+        - { stat: coverage }
+        - { stat: offset_pawn }
+        - { stat: offset_x }
+        - { stat: offset_y }
+        - { stat: offset_z }
+        - { stat: offset_pitch }
+        - { stat: offset_yaw }
+        - { stat: offset_on_ground }
+        - { stat: offset_ducking }
+        - { stat: offset_strength }
+        - { stat: offset_weapon }
+        - { stat: offset_before_x }
+        - { stat: offset_before_y }

@@ -1,0 +1,49 @@
+# yaml-language-server: $schema=../../../../../../rules/cs2demokit-rules.schema.json
+#
+# Grenade releases: one row per grenade weapon_fire, with the thrower's pawn as the event arrived in
+# it, the state the wire had delivered before that frame's entity update, and the position eight
+# ticks earlier for the release speed. The grenade walk joins a row to a projectile by slot, class
+# and tick. The row's tick dimension is its frame's clock; release_tick is the event's own server
+# tick, usually one earlier, which the walk's release-to-spawn windows were measured on. A pawn of
+# 0 says the slot had no pawn yet, and every other read of the row is a default rather than a value.
+ruleset: net_demoviewer_pack_stratbook__grenade_releases
+title: Grenade Releases
+summary: Each player's position, eye angles, stance, held grenade and throw strength at every grenade release.
+for: each_player
+
+stats:
+  weapon: { capture: event.Weapon, on: grenade_released, per: match }
+  release_tick: { capture: event.tick, on: grenade_released, per: match }
+  pawn: { capture: player.entity_index, on: grenade_released, per: match }
+  pos_x: { capture: player.pos_x, on: grenade_released, per: match }
+  pos_y: { capture: player.pos_y, on: grenade_released, per: match }
+  pos_z: { capture: player.pos_z, on: grenade_released, per: match }
+  eye_pitch: { capture: player.eye_pitch, on: grenade_released, per: match }
+  eye_yaw: { capture: player.eye_yaw, on: grenade_released, per: match }
+  on_ground: { capture: player.on_ground, on: grenade_released, per: match }
+  ducking: { capture: player.ducking, on: grenade_released, per: match }
+  throw_strength: { capture: player.weapon_throw_strength, on: grenade_released, per: match }
+  weapon_class: { capture: player.active_weapon_class, on: grenade_released, per: match }
+  before_x: { capture: player.pos_x@-8, on: grenade_released, per: match }
+  before_y: { capture: player.pos_y@-8, on: grenade_released, per: match }
+
+show:
+  tables:
+    grenade_releases:
+      per: player_event
+      on: grenade_released
+      columns:
+        - { stat: weapon }
+        - { stat: release_tick }
+        - { stat: pawn }
+        - { stat: pos_x }
+        - { stat: pos_y }
+        - { stat: pos_z }
+        - { stat: eye_pitch }
+        - { stat: eye_yaw }
+        - { stat: on_ground }
+        - { stat: ducking }
+        - { stat: throw_strength }
+        - { stat: weapon_class }
+        - { stat: before_x }
+        - { stat: before_y }

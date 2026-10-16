@@ -84,13 +84,13 @@ public sealed class GrenadeReads
 ///     the sampler's own contract leaves to the consumer, the release, detonation and jump-throw joins.
 ///     <para>
 ///         The pass reads a demo through <see cref="GrenadeCollector" /> on the rules run, which keeps the
-///         pawn and command reads the plan can reach in bounded rings and runs <see cref="Plan" /> at the
+///         pawn and command reads the plan can reach in bounded rings and runs <see cref="Plan(IReadOnlyList{ProjectileTrack}, GrenadeEventIndex, Func{int, int})" /> at the
 ///         end. <see cref="Walk" /> is the same rows off a held parse in two passes of its own, the
 ///         projectile walk and a tracker pass over the frames the plans name; it is the oracle the collector
 ///         is checked against.
 ///     </para>
 ///     <para>
-///         Every step after the reads is pure (<see cref="Plan" />,
+///         Every step after the reads is pure (<see cref="Plan(IReadOnlyList{ProjectileTrack}, GrenadeEventIndex, Func{int, int})" />,
 ///         <see cref="Assemble(IReadOnlyList{ThrowPlan}, GrenadeReads, GrenadeEventIndex, IThrowerInputSource, IReadOnlyList{ClipRound}, IEnumerable{PlayerInfo}, int, int)" />), so the joins
 ///         are tested on synthetic samples and events without a demo.
 ///     </para>
@@ -98,7 +98,7 @@ public sealed class GrenadeReads
 public static class GrenadeWalker
 {
     /// <summary>Bumped when a row's meaning changes; a demo walked under another version re-indexes.</summary>
-    public const string Version = "3";
+    public const string Version = "4";
 
     private const string ControllerClass = "CCSPlayerController";
     private const string PawnClass = "CCSPlayerPawn";
@@ -143,6 +143,313 @@ public static class GrenadeWalker
         List<GrenadeRow> rows = Assemble(plans, reads, events, inputs, options.Rounds ?? ClipRounds.Derive(demo),
             demo.Players.Values, demo.TickRate > 0 ? demo.TickRate : 64, demo.ServerStartTick);
         return new GrenadeWalk(rows, inputs.Coverage, inputs.Decoder, stride);
+    }
+
+    /// <summary>The sidecar's input decoder name for rows whose jump inputs came off the rules run's command lane.</summary>
+    public const string InputDecoderName = "rules-command-lane";
+
+    /// <summary>
+    ///     The rows off a visit's rules run: the three grenade tables joined, with the flights the observer kept and
+    ///     the demo's roster and clock values. The input coverage is the share of attributed throws whose thrower
+    ///     had commands on the lane at the spawn, which is how often the jump-throw flag came from inputs.
+    /// </summary>
+    /// <param name="inputs">The tables and the flights.</param>
+    /// <param name="rounds">Round starts, frame clock.</param>
+    /// <param name="players">The demo's players, for the thrower's SteamID and name.</param>
+    /// <param name="tickRate">Ticks per second.</param>
+    /// <param name="serverStartTick">Subtracted from the server-clock effect ticks.</param>
+    public static GrenadeWalk Assemble(GrenadeWalkInputs inputs, IReadOnlyList<ClipRound> rounds, IEnumerable<PlayerInfo> players,
+        int tickRate, int serverStartTick)
+    {
+        ArgumentNullException.ThrowIfNull(inputs);
+        List<GrenadeThrow> throws = Plan(inputs.Tables.Projectiles, inputs.Tables.Releases);
+        List<GrenadeRow> rows = Assemble(throws, inputs.Tables.Events, inputs.Flights, rounds, players, tickRate, serverStartTick);
+        int attributed = 0, covered = 0;
+        foreach (GrenadeThrow t in throws)
+        {
+            if (t.ThrowerSlot < 0)
+            {
+                continue;
+            }
+
+            attributed++;
+            if (t.Projectile.AtSpawn is { Coverage: > 0 })
+            {
+                covered++;
+            }
+        }
+
+        return new GrenadeWalk(rows, attributed == 0 ? 0 : (double)covered / attributed, InputDecoderName, inputs.Flights.Stride);
+    }
+
+    /// <summary>
+    ///     Decides each projectile's thrower and release from the tables: the row's resolved slot, else the thrower
+    ///     join; then the latest matching release within <see cref="GrenadeRules.ReleaseLookbackTicks" /> before the
+    ///     spawn, else the spawn minus the measured gap, read through the row's look-backs. Resolved throwers claim
+    ///     their releases first, so a join never takes a release that belongs to a known thrower.
+    /// </summary>
+    /// <param name="projectiles">The grenades, in spawn order.</param>
+    /// <param name="releases">The grenade releases, in tick order.</param>
+    public static List<GrenadeThrow> Plan(IReadOnlyList<ProjectileFacts> projectiles, IReadOnlyList<ReleaseFacts> releases)
+    {
+        ArgumentNullException.ThrowIfNull(projectiles);
+        ArgumentNullException.ThrowIfNull(releases);
+
+        HashSet<ReleaseFacts> claimed = [];
+        GrenadeThrow?[] throws = new GrenadeThrow?[projectiles.Count];
+        for (int round = 0; round < 2; round++)
+        {
+            for (int i = 0; i < projectiles.Count; i++)
+            {
+                ProjectileFacts p = projectiles[i];
+                bool resolved = p.ThrowerSlot >= 0;
+                if (resolved != (round == 0))
+                {
+                    continue;
+                }
+
+                int slot = p.ThrowerSlot;
+                ThrowerSource throwerSource = resolved ? ThrowerSource.Entity : ThrowerSource.None;
+                ReleaseFacts? fire = null;
+                if (resolved)
+                {
+                    fire = LatestRelease(releases, slot, p.ClassName, p.SpawnTick - GrenadeRules.ReleaseLookbackTicks, p.SpawnTick, claimed);
+                }
+                else if (JoinThrower(releases, p.ClassName, p.SpawnTick, claimed) is { } joined)
+                {
+                    fire = joined;
+                    slot = joined.Slot;
+                    throwerSource = ThrowerSource.WeaponFire;
+                }
+
+                if (fire is not null)
+                {
+                    claimed.Add(fire);
+                    throws[i] = new GrenadeThrow(p, slot, throwerSource, fire.Tick, ReleaseSource.WeaponFire, fire.Weapon, fire.Pawn, fire.Before);
+                }
+                else
+                {
+                    throws[i] = new GrenadeThrow(p, slot, throwerSource, p.SpawnTick - GrenadeRules.ReleaseToSpawnTicks, ReleaseSource.SpawnOffset,
+                        null, resolved ? p.OffsetRelease : null, resolved ? p.OffsetBefore : null);
+                }
+            }
+        }
+
+        return [.. throws.Select(t => t!)];
+    }
+
+    /// <summary>
+    ///     The latest unclaimed release of <paramref name="projectileClass" /> by <paramref name="slot" /> in
+    ///     <c>[fromTick, toTick]</c>.
+    /// </summary>
+    public static ReleaseFacts? LatestRelease(IReadOnlyList<ReleaseFacts> releases, int slot, string projectileClass,
+        int fromTick, int toTick, IReadOnlySet<ReleaseFacts> claimed)
+    {
+        ArgumentNullException.ThrowIfNull(releases);
+        ArgumentNullException.ThrowIfNull(claimed);
+        ReleaseFacts? best = null;
+        foreach (ReleaseFacts r in releases)
+        {
+            if (r.Tick > toTick)
+            {
+                break;
+            }
+
+            if (r.Tick >= fromTick && r.Slot == slot && string.Equals(r.ProjectileClass, projectileClass, StringComparison.Ordinal)
+                && !claimed.Contains(r))
+            {
+                best = r;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    ///     The thrower join for a projectile whose thrower never resolved: the unclaimed release of the same family
+    ///     in <c>[spawn - 15, spawn - 6]</c>, the one nearest the measured seven-tick gap when several fit.
+    /// </summary>
+    public static ReleaseFacts? JoinThrower(IReadOnlyList<ReleaseFacts> releases, string projectileClass, int spawnTick,
+        IReadOnlySet<ReleaseFacts> claimed)
+    {
+        ArgumentNullException.ThrowIfNull(releases);
+        ArgumentNullException.ThrowIfNull(claimed);
+        ReleaseFacts? best = null;
+        int bestGap = int.MaxValue;
+        foreach (ReleaseFacts r in releases)
+        {
+            if (r.Tick > spawnTick - GrenadeRules.ReleaseToSpawnMinTicks)
+            {
+                break;
+            }
+
+            if (r.Tick < spawnTick - GrenadeRules.ReleaseToSpawnMaxTicks
+                || !string.Equals(r.ProjectileClass, projectileClass, StringComparison.Ordinal) || claimed.Contains(r))
+            {
+                continue;
+            }
+
+            int gap = Math.Abs(spawnTick - r.Tick - GrenadeRules.ReleaseToSpawnTicks);
+            if (gap < bestGap)
+            {
+                bestGap = gap;
+                best = r;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>Builds the rows from the throws, the detonations and the flights. Pure.</summary>
+    /// <param name="throws">From <see cref="Plan(IReadOnlyList{ProjectileFacts}, IReadOnlyList{ReleaseFacts})" />.</param>
+    /// <param name="events">The detonation events.</param>
+    /// <param name="flights">The trajectories.</param>
+    /// <param name="rounds">Round starts, frame clock.</param>
+    /// <param name="players">The demo's players, for the thrower's SteamID.</param>
+    /// <param name="tickRate">Ticks per second.</param>
+    /// <param name="serverStartTick">Subtracted from the server-clock effect ticks.</param>
+    public static List<GrenadeRow> Assemble(IReadOnlyList<GrenadeThrow> throws, GrenadeEventIndex events, GrenadeTrajectories flights,
+        IReadOnlyList<ClipRound> rounds, IEnumerable<PlayerInfo> players, int tickRate, int serverStartTick)
+    {
+        ArgumentNullException.ThrowIfNull(throws);
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(flights);
+        ArgumentNullException.ThrowIfNull(rounds);
+        ArgumentNullException.ThrowIfNull(players);
+
+        Dictionary<int, ulong> steamBySlot = [];
+        Dictionary<int, string> nameBySlot = [];
+        foreach (PlayerInfo player in players)
+        {
+            if (player.SteamId64 != 0)
+            {
+                steamBySlot.TryAdd(player.Slot, player.SteamId64);
+            }
+
+            if (!string.IsNullOrEmpty(player.Name))
+            {
+                nameBySlot.TryAdd(player.Slot, player.Name);
+            }
+        }
+
+        HashSet<GrenadeDetonation> claimedFires = [];
+        List<GrenadeRow> rows = new(throws.Count);
+        foreach (GrenadeThrow t in throws)
+        {
+            ProjectileFacts p = t.Projectile;
+            int slot = t.ThrowerSlot;
+            ThrowerRead? release = t.Release;
+            ThrowerAtSpawn? atSpawn = slot >= 0 ? p.AtSpawn : null;
+
+            GrenadeKind kind = GrenadeRules.KindOf(p.ClassName, t.Weapon, p.IsIncendiary) ?? GrenadeKind.Smoke;
+            // The look-back is a fixed eight ticks behind the release read.
+            float? speed = GrenadeRules.HorizontalSpeed(t.Before, t.ReleaseTick - GrenadeRules.SpeedWindowTicks, release?.Position,
+                t.ReleaseTick, tickRate);
+
+            bool covered = atSpawn is { Coverage: > 0 };
+            int? press = covered && atSpawn!.Value.LastJumpTick >= p.SpawnTick - GrenadeRules.JumpWindowTicks
+                                 && atSpawn.Value.LastJumpTick <= p.SpawnTick
+                ? atSpawn.Value.LastJumpTick
+                : null;
+            (bool jumpThrow, JumpThrowSource jumpSource, int? pressTick) = GrenadeRules.ClassifyJumpThrow(covered, press, atSpawn?.OnGround);
+
+            (int? detTick, Vector3? detPosition, DetonationSource detSource, int? inferno) =
+                ResolveDetonation(p, events, serverStartTick, claimedFires);
+
+            int restTick = p.LastMovedTick;
+            int airEnd = detTick is { } d && d < restTick ? d : restTick;
+            GrenadeEndKind endKind = detTick is not null ? GrenadeEndKind.Detonated
+                : p.Removed ? GrenadeEndKind.Removed
+                : GrenadeEndKind.DemoEnded;
+
+            rows.Add(new GrenadeRow
+            {
+                Id = p.Id,
+                Kind = kind,
+                ThrowerSlot = slot,
+                ThrowerSteamId64 = slot >= 0 && steamBySlot.TryGetValue(slot, out ulong steam)
+                    ? steam.ToString(CultureInfo.InvariantCulture)
+                    : null,
+                ThrowerName = slot >= 0 ? nameBySlot.GetValueOrDefault(slot) : null,
+                ThrowerTeam = atSpawn is { Team: > 0 } spawned ? spawned.Team : release?.Team ?? 0,
+                ThrowerSource = slot >= 0 ? t.ThrowerSource : ThrowerSource.None,
+                RoundNumber = GrenadeRules.RoundAt(rounds, p.SpawnTick),
+                ReleaseTick = t.ReleaseTick,
+                ReleaseSource = t.ReleaseSource,
+                ReleasePosition = Point(release?.Position),
+                ReleaseEyePitch = release?.Pitch,
+                ReleaseEyeYaw = release?.Yaw,
+                ReleaseOnGround = release?.OnGround,
+                ReleaseCrouched = release?.Ducked,
+                ThrowStrength = release?.ThrowStrength,
+                ThrowStrengthClass = GrenadeRules.ClassifyStrength(release?.ThrowStrength, release?.HeldGrenade ?? false),
+                Movement = GrenadeRules.ClassifyMovement(speed),
+                SpeedAtRelease = speed,
+                SpawnTick = p.SpawnTick,
+                SpawnPosition = Point(p.InitialPosition),
+                SpawnVelocity = Point(p.InitialVelocity),
+                ThrowerPositionAtSpawn = Point(atSpawn?.Position),
+                ThrowerOnGroundAtSpawn = atSpawn?.OnGround,
+                JumpThrow = jumpThrow,
+                JumpThrowSource = jumpSource,
+                JumpPressTick = pressTick,
+                Trajectory = flights.Of(p.EntityIndex, p.Serial),
+                BounceCount = p.Bounces,
+                AirTimeTicks = Math.Max(0, airEnd - p.SpawnTick),
+                DetonationTick = detTick,
+                DetonationPosition = Point(detPosition),
+                DetonationSource = detSource,
+                EndTick = p.EndTick,
+                EndKind = endKind,
+                InfernoEntityIndex = inferno
+            });
+        }
+
+        return rows;
+    }
+
+    /// <summary>
+    ///     A projectile's detonation: the kind's event by entity index (a fire by tick, since
+    ///     <c>inferno_startburn</c> names the inferno), else the row's effect-tick field, else for an HE or a flash the
+    ///     last position seen. Pure.
+    /// </summary>
+    public static (int? Tick, Vector3? Position, DetonationSource Source, int? InfernoIndex) ResolveDetonation(
+        ProjectileFacts projectile, GrenadeEventIndex events, int serverStartTick, HashSet<GrenadeDetonation> claimedFires)
+    {
+        ArgumentNullException.ThrowIfNull(projectile);
+        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(claimedFires);
+
+        if (projectile.ClassName == GrenadeProjectileClasses.Molotov)
+        {
+            if (events.NearestInferno(projectile.LastTick, projectile.EndTick, projectile.LastPosition, claimedFires) is { } fire)
+            {
+                claimedFires.Add(fire);
+                return (fire.Tick, fire.Position, DetonationSource.Event, fire.EntityIndex);
+            }
+
+            return (null, null, DetonationSource.None, null);
+        }
+
+        // The event names the projectile's index, which is reused once it is gone: only its own life counts.
+        if (GrenadeEventIndex.DetonationEventOf(projectile.ClassName) is { } name
+            && events.ByEntity(name, projectile.EntityIndex, projectile.SpawnTick, projectile.EndTick + 1) is { } hit)
+        {
+            return (hit.Tick, hit.Position, DetonationSource.Event, null);
+        }
+
+        switch (projectile.ClassName)
+        {
+            case GrenadeProjectileClasses.HEGrenade when projectile.ExplodeTickBegin is > 0 and var explode:
+                return (explode - serverStartTick, projectile.LastPosition, DetonationSource.Entity, null);
+            case GrenadeProjectileClasses.Smoke when projectile.SmokeTickBegin is > 0 and var pop:
+                return (pop - serverStartTick, projectile.SmokeDetonationPosition ?? projectile.LastPosition, DetonationSource.Entity, null);
+            case GrenadeProjectileClasses.HEGrenade or GrenadeProjectileClasses.Flashbang
+                when projectile.Removed && projectile.LastPosition is not null:
+                return (projectile.LastTick, projectile.LastPosition, DetonationSource.LastSample, null);
+            default:
+                return (null, null, DetonationSource.None, null);
+        }
     }
 
     /// <summary>The rows of a collection the grenade collector put, with the demo's roster and clock values.</summary>
@@ -240,7 +547,7 @@ public static class GrenadeWalker
     /// <summary>
     ///     Builds the rows from the plans and what the read pass found. Pure.
     /// </summary>
-    /// <param name="plans">From <see cref="Plan" />.</param>
+    /// <param name="plans">From <see cref="Plan(IReadOnlyList{ProjectileTrack}, GrenadeEventIndex, Func{int, int})" />.</param>
     /// <param name="reads">The pawn and projectile reads.</param>
     /// <param name="events">The demo's event index.</param>
     /// <param name="inputs">The thrower inputs.</param>
