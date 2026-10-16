@@ -48,8 +48,10 @@ internal static class SingleWalkSession
         ("CS2DemoKit.Parser.Entities", "parser.entity_decode.started")
     ];
 
+    private const string ScanInstrument = "analysis.entity_scan.started";
+
     /// <summary>
-    ///     What one visit did: the decode meter's counts and the host hooks' sites that decoded, per-pass wall
+    ///     What one visit did: the decode meter's counts, split into analysis and shell decodes and the host hooks' sites that decoded, per-pass wall
     ///     time and outcome, the visit wall.
     /// </summary>
     public sealed class Visit
@@ -64,6 +66,9 @@ internal static class SingleWalkSession
         public double ParseMs { get; set; }
         public double WallMs { get; set; }
         public int Reads { get; set; }
+        public Dictionary<string, int> ShellSites { get; } = [];
+        public int AnalysisDecodes { get; set; }
+        public int ShellDecodes { get; set; }
         public int Decodes => Meter.Values.Sum();
         public int HookDecodes => Sites.Values.Sum();
     }
@@ -167,9 +172,25 @@ internal static class SingleWalkSession
         };
         meter.SetMeasurementEventCallback<long>((instrument, value, _, _) =>
         {
+            // The callback runs on the decoding thread, so the stack says who decoded.
+            string? shellSite = instrument.Name == ScanInstrument ? null : ShellSite(new StackTrace(false));
             lock (gate)
             {
                 metering[instrument.Name] = metering.GetValueOrDefault(instrument.Name) + (int)value;
+                if (!ReferenceEquals(metering, visit.Meter))
+                {
+                    return;
+                }
+
+                if (shellSite is null)
+                {
+                    visit.AnalysisDecodes += (int)value;
+                }
+                else
+                {
+                    visit.ShellDecodes += (int)value;
+                    visit.ShellSites[shellSite] = visit.ShellSites.GetValueOrDefault(shellSite) + (int)value;
+                }
             }
         });
         meter.Start();
@@ -308,6 +329,38 @@ internal static class SingleWalkSession
 
         visit.Reads = queue.ParseCount(demo);
         return visit;
+    }
+
+    /// <summary>
+    ///     Null when a tracker's decode is an analysis decode: a pass the scheduler runs. Otherwise the shell's
+    ///     innermost host frame, which names the decode.
+    /// </summary>
+    private static string? ShellSite(StackTrace stack)
+    {
+        string? site = null;
+        foreach (StackFrame frame in stack.GetFrames())
+        {
+            Type? type = frame.GetMethod()?.DeclaringType;
+            string ns = type?.Namespace ?? "";
+            if (ns.StartsWith("DemoViewer.NET.Services.DemoProcessing", StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            if (site is null && ns.StartsWith("DemoViewer.NET", StringComparison.Ordinal) && !ns.StartsWith("DemoViewer.NET.AppTests", StringComparison.Ordinal))
+            {
+                Type outer = type!;
+                while (outer.DeclaringType is { } parent)
+                {
+                    outer = parent;
+                }
+
+                string method = frame.GetMethod()!.Name;
+                site = outer.Name + "." + (method == "MoveNext" ? type!.Name : method);
+            }
+        }
+
+        return site ?? "unattributed";
     }
 
     // The stamps whose rows come out of a rules run: round facts and every facts ruleset.

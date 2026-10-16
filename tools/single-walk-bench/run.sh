@@ -74,18 +74,23 @@ fi
 
 run_one() {
   # $1 arm label, $2 repo, $3 demo, $4 scenario, $5 trial
-  local out line
+  local out line status=0
   out="$(SW_DEMO="$3" SW_VISIT="$4" SW_CONFIG_ROOT="$TMP" \
     dotnet run --project "$2/$PROJ_REL" -c "$CONFIG" --no-build -- \
-    --treenode-filter "/*/*/SingleWalkVisitProbe/Visit/*" 2>&1)" || { echo "$out" | tail -n 40; return 1; }
+    --treenode-filter "/*/*/SingleWalkVisitProbe/Visit/*" 2>&1)" || status=$?
   line="$(echo "$out" | grep -F '@SW_VISIT ' | tail -n1 | sed 's/^.*@SW_VISIT //')"
   if [ -z "$line" ]; then
     echo "$out" | tail -n 40
     return 1
   fi
+  # The probe prints its line, then fails when the visit misses its decode targets; keep the row.
+  if [ "$status" != 0 ]; then
+    echo "[single-walk] warning: $1 $4 $(basename "$3") missed its decode targets"
+  fi
   python3 -c 'import json,sys; d=json.loads(sys.argv[1]); d["arm"]=sys.argv[2]; d["trial"]=int(sys.argv[3]); print(json.dumps(d))' \
     "$line" "$1" "$5" >> "$OUT"
   echo "[single-walk] $1 trial $5 $4 $(basename "$3"): $line"
+  python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print("  analysis decodes", d.get("analysisDecodes")); print("  shell decodes   ", d.get("shellDecodes"), d.get("shellSites") or "")' "$line"
 }
 
 IFS=',' read -r -a SCENARIOS <<< "$VISITS"
@@ -104,7 +109,7 @@ python3 - "$OUT" <<'PY'
 import json, statistics, sys
 rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 rows = [r for r in rows if r["trial"] > 0]
-metrics = ["wallMs", "peakWsMb", "peakWsLessFileMb", "peakHeapMb", "decodes"]
+metrics = ["wallMs", "peakWsMb", "peakWsLessFileMb", "peakHeapMb", "decodes", "analysisDecodes", "shellDecodes"]
 keys = sorted({(r["visit"], r["demo"]) for r in rows})
 sources = sorted({r.get("counterSource", "hooks") for r in rows})
 if len(sources) > 1:
@@ -120,7 +125,11 @@ for visit, demo in keys:
             continue
         cells = []
         for m in metrics:
-            med, lo, hi = stat([r[m] for r in sel])
+            vals = [r[m] for r in sel if m in r]
+            if not vals:
+                cells.append("-")
+                continue
+            med, lo, hi = stat(vals)
             meds[(arm, m)] = med
             cells.append(f"{med:g} [{lo:g}..{hi:g}]")
         print(f"{visit}  {demo}  {arm}  " + "  ".join(cells))
