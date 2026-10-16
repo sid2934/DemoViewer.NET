@@ -87,7 +87,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `RecordPass` | An `IExtensionRecordPass` that runs over what the library already holds for a demo, without a parse. |
 | `Collector` | A per-frame reader for one of your passes, run inside the host's rules run of a demo instead of a walk of its own. |
-| `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts. |
+| `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts, or one pass's input. |
 | `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
 | `SettingsPage` | A page under Settings, Extensions with controls of your own. |
 | `Playback` | Lanes, panes, panels, toolbar items, mode toggles, map layers, map tools and key or action handlers in 2D Playback. |
@@ -236,13 +236,14 @@ contributions.Pass("dev.example.rounds", () => rounds, HostIds.LibraryPass);
 `HostIds.RoundFactsPass` for its per-round, per-side rows.
 
 A pass that needs only the demo's header, frame clock and rounds declares `Read => PassRead.Forward` and reads
-`context.Demo`, `FrameCount`, `FirstServerTick`, `LastServerTick` and `Rounds`; its `Parsed` is null. A visit
+`context.Demo`, `FrameCount`, `FirstServerTick`, `LastServerTick`, `LastFrameTick` and `Rounds`; its `Parsed` is null. A visit
 whose passes all read forward streams the demo instead of holding the whole parse, so declare it when you can.
 A forward pass must answer false to `ReadsUserCommands`: the host refuses one that reads them.
 
 Each entry in `Rounds` is a `PassRound`, one round opened by its `round_freeze_end`: `Number`, sequential
 from 1 in demo order with warmup and restarts included, and `FreezeEndTick`, the round's freeze end in
 the frame clock (`GameEvent.GameTick`), not the server tick `FirstServerTick` and `LastServerTick` report.
+`LastFrameTick` is the last frame on that frame clock.
 
 A job that names a demo joins that demo's visit: it runs after the passes on the same parse, or on the parse
 the shell already holds when the demo is open, and holds the parse until its task ends.
@@ -438,6 +439,23 @@ does not load. A ruleset the manifest does not list is left out and logged again
 ```
 
 "Delete extension data" removes the facts of your rulesets with the rest of your data.
+
+### A ruleset one pass reads
+
+A table can be a pass's input instead of a fact. Name the pass in `ReadBy` and read the rows with
+`IPassContext.Table` during its turn:
+
+```csharp
+contributions.Ruleset(new RulesetContribution("positions", OpenPositionsYaml) { ReadBy = "dev.example.rounds" });
+
+// in the pass's Run
+IReadOnlyList<FactRow> rows = context.Table("positions");
+```
+
+The host records the tables only on the rules run of a demo the pass wants, on a streamed read and a held parse
+alike, and never writes them as facts: they are not in `Declared` and have no status. The pass keeps what it
+derives from them under its own fingerprint, which should cover the YAML and the engine build. `Table` throws for a
+table no ruleset of the pass declares, and when the run did not record it because the ruleset was left out.
 
 ## Settings
 

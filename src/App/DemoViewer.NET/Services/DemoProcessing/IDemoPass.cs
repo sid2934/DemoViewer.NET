@@ -1,6 +1,8 @@
 #region
 
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
@@ -122,6 +124,24 @@ public sealed class PassInput
     /// <summary>What the visit's collectors put on this demo's rules run.</summary>
     internal CollectorResults Collected() =>
         Forward is { } forward ? forward.Collected : RetainedCollected?.Invoke() ?? CollectorResults.None;
+
+    /// <summary>The bare run of a retained read, made on first ask. Null when the visit offers none.</summary>
+    internal Func<AnalysisRun>? RetainedRun { get; init; }
+
+    /// <summary>Projects one table of a run, given the rulesets it must belong to. Null reads none.</summary>
+    internal Func<AnalysisRun, string, IReadOnlyList<string>, IReadOnlyList<FactRow>>? TableOf { get; init; }
+
+    /// <summary>The rows <paramref name="table" /> recorded on this demo's rules run.</summary>
+    /// <param name="table">The table's name.</param>
+    /// <param name="rulesets">The rulesets the reader may read; the table must be one of theirs.</param>
+    internal IReadOnlyList<FactRow> Table(string table, IReadOnlyList<string> rulesets)
+    {
+        AnalysisRun run = (Forward is { } forward ? forward.Run : RetainedRun?.Invoke())
+                          ?? throw new InvalidOperationException($"the visit made no rules run, so table {table} was not recorded");
+        return TableOf is { } read
+            ? read(run, table, rulesets)
+            : throw new InvalidOperationException($"the visit reads no tables, so table {table} is not served");
+    }
 }
 
 /// <summary>A pass that reads collectors; a visit carrying it declares them on the rules run.</summary>

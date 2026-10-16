@@ -17,6 +17,12 @@ public sealed record StampedRuleset(string RulesetId, string Owner, Func<bool> E
     /// <summary>The owner of a ruleset an extension's manifest claims that this launch did not contribute.</summary>
     public const string ClaimedOwner = "claimed";
 
+    /// <summary>
+    ///     The pass that reads its tables off the run (<see cref="ContributedRuleset.ReadBy" />); null when they are
+    ///     library facts.
+    /// </summary>
+    public string? ReadBy { get; init; }
+
     /// <summary>A core ruleset, always on.</summary>
     /// <param name="rulesetId">The ruleset's id.</param>
     public static StampedRuleset Core(string rulesetId) => new(rulesetId, CoreOwner, static () => true);

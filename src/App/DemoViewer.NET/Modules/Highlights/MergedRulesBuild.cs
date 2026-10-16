@@ -5,17 +5,21 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Config;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Graphs;
+using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.RulesetsV2.Resolve;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -83,6 +87,12 @@ public sealed class MergedRulesBuild
             }
         }
     }
+
+    /// <summary>
+    ///     A fresh read of the layers this build loads, the extensions' rulesets among them. An open reads this, so
+    ///     its run holds the same rulesets as the merged set and can seed its visit.
+    /// </summary>
+    public RuleConfigLoadResult ReadRules() => _load();
 
     /// <summary>The stamped rulesets this build knows, with their owners and gates. One entry per id, the first registered.</summary>
     public IReadOnlyList<StampedRuleset> StampedRulesets => _stamped.Value;
@@ -170,6 +180,43 @@ public sealed class MergedRulesBuild
     /// <param name="rulesetId">The ruleset's id.</param>
     public bool IsStamped(string rulesetId) =>
         StampedRulesets.Any(r => string.Equals(r.RulesetId, rulesetId, StringComparison.Ordinal));
+
+    /// <summary>The pass that reads a stamped ruleset's tables off the run, or null when they are library facts.</summary>
+    /// <param name="rulesetId">The ruleset's id.</param>
+    public string? ReaderOf(string rulesetId) =>
+        StampedRulesets.FirstOrDefault(r => string.Equals(r.RulesetId, rulesetId, StringComparison.Ordinal))?.ReadBy;
+
+    /// <summary>
+    ///     The rows <paramref name="table" /> recorded on <paramref name="run" />, for a pass that reads the tables of
+    ///     <paramref name="rulesets" />. Throws when no enabled one of them declares it, or the run did not record it.
+    /// </summary>
+    /// <param name="run">The visit's rules run.</param>
+    /// <param name="table">The table's name.</param>
+    /// <param name="rulesets">The rulesets the reader may read.</param>
+    public IReadOnlyList<FactRow> Table(AnalysisRun run, string table, IReadOnlyList<string> rulesets)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(table);
+        ArgumentNullException.ThrowIfNull(rulesets);
+        if (!rulesets.Any(id => EnabledDoc(id)?.Show?.Tables.Any(t => string.Equals(t.Name, table, StringComparison.Ordinal)) == true))
+        {
+            throw new InvalidOperationException($"table {table} is not declared by an enabled ruleset of the pass ({string.Join(", ", rulesets)})");
+        }
+
+        List<OutputDef> output = [.. run.Build.Outputs?.Where(o => string.Equals(o.Id, table, StringComparison.Ordinal)) ?? []];
+        if (output.Count == 0)
+        {
+            throw new InvalidOperationException($"the run did not record table {table}");
+        }
+
+        MetricTable projected = (run with { Build = run.Build with { Outputs = output } }).ProjectConfiguredOutputs().Single();
+        return
+        [
+            .. projected.Rows.Select(r => new FactRow(
+                r.Dimensions.ToDictionary(kv => kv.Key, kv => FactsCodec.FromEngine(kv.Value), StringComparer.Ordinal),
+                r.Values.ToDictionary(kv => kv.Key, kv => FactsCodec.FromEngine(kv.Value), StringComparer.Ordinal)))
+        ];
+    }
 
     /// <summary>
     ///     The configured outputs the stamped rulesets that are on declare (their <c>show: tables:</c>), limited to
@@ -365,7 +412,19 @@ public sealed class MergedRulesBuild
     /// </summary>
     /// <param name="read">The rules the shell read for this open.</param>
     /// <param name="path">The open demo's path, or null when it has none on disk.</param>
-    public OpenRunPlan PlanOpen(IReadOnlyList<RulesetDoc> read, string? path)
+    public OpenRunPlan PlanOpen(IReadOnlyList<RulesetDoc> read, string? path) =>
+        PlanOpen(read, path, path is null ? null : StaleOutputs(path));
+
+    /// <summary>The configured outputs a read of the demo at <paramref name="path" /> records: <see cref="OutputsFor" />, else every stamped one.</summary>
+    /// <remarks>Asks the passes that read their own tables, which answer no on the UI thread: take it off that thread.</remarks>
+    /// <param name="path">The demo's path.</param>
+    public IReadOnlySet<string> StaleOutputs(string path) => OutputsFor?.Invoke(path) ?? StampedOutputs();
+
+    /// <summary><see cref="PlanOpen(IReadOnlyList{RulesetDoc}, string)" /> with <see cref="StaleOutputs" /> already taken.</summary>
+    /// <param name="read">The rules the shell read for this open.</param>
+    /// <param name="path">The open demo's path, or null when it has none on disk.</param>
+    /// <param name="staleOutputs">What <see cref="StaleOutputs" /> answered for <paramref name="path" />.</param>
+    public OpenRunPlan PlanOpen(IReadOnlyList<RulesetDoc> read, string? path, IReadOnlySet<string>? staleOutputs)
     {
         ArgumentNullException.ThrowIfNull(read);
         RuleConfigLoadResult rules = Rules;
@@ -389,7 +448,7 @@ public sealed class MergedRulesBuild
             return plan;
         }
 
-        IReadOnlySet<string> stale = OutputsFor?.Invoke(path) ?? StampedOutputs();
+        IReadOnlySet<string> stale = staleOutputs ?? StaleOutputs(path);
         if (stale.Count == 0)
         {
             // Core rulesets only, but the visit's collectors still ride this run instead of a second one.
@@ -429,7 +488,7 @@ public sealed class MergedRulesBuild
     /// <summary>
     ///     Stores the open's run as the bare run of <paramref name="parsed" />, so the open's visit reads it
     ///     instead of evaluating again. Dropped when the rules, a gate or the cut moved since
-    ///     <see cref="PlanOpen" />. True when stored.
+    ///     <see cref="PlanOpen(IReadOnlyList{RulesetDoc}, string)" />. True when stored.
     /// </summary>
     public bool Seed(ParsedDemo parsed, string path, OpenRunPlan plan, AnalysisRun run) => Seed(parsed, path, plan, run, null);
 
@@ -646,7 +705,7 @@ public sealed class MergedRulesBuild
 }
 
 /// <summary>
-///     The open demo's rulesets from <see cref="MergedRulesBuild.PlanOpen" />. <see cref="Cut" /> is the
+///     The open demo's rulesets from <see cref="MergedRulesBuild.PlanOpen(IReadOnlyList{RulesetDoc}, string)" />. <see cref="Cut" /> is the
 ///     stamped outputs its run records, empty when the run cannot seed the visit.
 /// </summary>
 /// <param name="Docs">The rulesets the open's run builds.</param>

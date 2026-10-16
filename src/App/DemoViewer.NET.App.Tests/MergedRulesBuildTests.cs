@@ -7,9 +7,11 @@ using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -558,6 +560,48 @@ public class MergedRulesBuildTests
             Directory.Delete(fixture, true);
         }
     }
+
+    // A pass's own table rides the run while the pass wants the demo, reads back by name, and is never a facet.
+    [Test]
+    public async Task APassReadTable_IsRecordedWhileItsPassWantsTheDemo_AndOnlyItsReaderReadsIt() => await WithFactsFixture(async fixture =>
+    {
+        bool wanted = false;
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), new StampedRuleset(AnalysisFactsTests.FactsRuleset, Extension, () => true) { ReadBy = "ext.reader" }]);
+        build.OutputsFor = _ => build.StampedOutputs(id => id != AnalysisFactsTests.FactsRuleset || wanted);
+        ParsedDemo parsed = TwoFrameDemo();
+
+        AnalysisRun without = build.BareRun(parsed, OpenPath);
+        wanted = true;
+        AnalysisRun with = build.BareRun(parsed, OpenPath);
+        IReadOnlyList<FactRow> rows = build.Table(with, AnalysisFactsTests.FactsTable, [AnalysisFactsTests.FactsRuleset]);
+        int projected = with.ProjectConfiguredOutputs().Single(t => t.Name == AnalysisFactsTests.FactsTable).Rows.Count;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Recorded(without)).IsEquivalentTo(WithLibrary(RoundFacts));
+            await Assert.That(Recorded(with)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+            await Assert.That(rows.Count).IsEqualTo(projected);
+            await Assert.That(build.ReaderOf(AnalysisFactsTests.FactsRuleset)).IsEqualTo("ext.reader");
+            await Assert.That(new StampedFacts(build).Facets()).IsEmpty().Because("a pass's table is its input, not a fact");
+        }
+
+        Assert.Throws<InvalidOperationException>(() => build.Table(with, AnalysisFactsTests.FactsTable, ["another_ruleset"]));
+        Assert.Throws<InvalidOperationException>(() => build.Table(without, AnalysisFactsTests.FactsTable, [AnalysisFactsTests.FactsRuleset]));
+        Assert.Throws<InvalidOperationException>(() => build.Table(with, RoundFacts, [AnalysisFactsTests.FactsRuleset]));
+    });
+
+    // The open plans its cut from what it was handed, so the passes it asks are asked off the UI thread.
+    [Test]
+    public async Task AnOpenPlannedFromATakenCut_UsesThatCut() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => false);
+        HashSet<string> taken = new(StringComparer.Ordinal) { AnalysisFactsTests.FactsTable };
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath, taken);
+
+        await Assert.That(plan.Cut).Contains(AnalysisFactsTests.FactsTable);
+    });
 
     [Test]
     public async Task ASeededRun_IsServedToTheVisit() => await WithFactsFixture(async fixture =>
