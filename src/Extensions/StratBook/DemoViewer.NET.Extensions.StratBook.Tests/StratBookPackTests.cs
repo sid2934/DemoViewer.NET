@@ -238,13 +238,13 @@ public class StratBookPackTests
     }
 
     // round_facts is core and always on, and the rows it reads are written with the pack on or off. The pack's
-    // one ruleset is the round index's samples: read by its pass off the run, never a fact, and in the merged
-    // set only while the pack is on. Its Round Index still orders after the core Round Facts pass, which writes
-    // those rows on the same visit.
+    // rulesets are the round index's samples and the grenade walk's three tables: each read by its pass off the
+    // run, never a fact, and in the merged set only while the pack is on. Its Round Index still orders after the
+    // core Round Facts pass, which writes those rows on the same visit.
     [Test]
     [Arguments(true)]
     [Arguments(false)]
-    public async Task ThePacksOnlyRuleset_IsTheRoundIndexs_AndRoundFactsRunsWithThePackOnOrOff(bool packOn)
+    public async Task ThePacksRulesets_AreItsPassesInputs_AndRoundFactsRunsWithThePackOnOrOff(bool packOn)
     {
         string? settings = packOn ? null : """{ "Features": { "Overrides": { "pack.stratbook": false } } }""";
         await WithProvider(settings, async provider =>
@@ -253,24 +253,33 @@ public class StratBookPackTests
             Modules.Highlights.MergedRulesBuild build = provider.GetRequiredService<Modules.Highlights.MergedRulesBuild>();
             string[] read = [.. build.ReadRules().Rulesets.Select(r => r.Id)];
             string roundIndex = DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexTable.RulesetId;
+            (string, string?)[] expected =
+            [
+                (roundIndex, "roundindex"),
+                .. DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeTables.RulesetIds.Select(id => (id, (string?)"grenades"))
+            ];
+            HashSet<string> packIds = [.. expected.Select(e => e.Item1)];
 
             using (Assert.Multiple())
             {
                 await Assert.That(pack.Pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
-                await Assert.That(pack.Rulesets.Select(r => (r.RulesetId, r.ReadBy))).IsEquivalentTo([(roundIndex, (string?)"roundindex")]);
+                await Assert.That(pack.Rulesets.Select(r => (r.RulesetId, r.ReadBy))).IsEquivalentTo(expected);
+                await Assert.That(pack.Rulesets.Where(r => r.ReadsUserCommands).Select(r => r.RulesetId))
+                    .IsEquivalentTo([DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeTables.RulesetId("grenade_projectiles")])
+                    .Because("only the projectile ruleset reads the thrower's commands");
                 await Assert.That(build.StampedRulesets.Where(r => r.Owner != Modules.Highlights.StampedRuleset.CoreOwner)
-                    .Select(r => (r.RulesetId, r.Owner, r.ReadBy))).IsEquivalentTo([(roundIndex, pack.Pack.Id, (string?)"roundindex")]);
+                    .Select(r => (r.RulesetId, r.Owner, r.ReadBy))).IsEquivalentTo(expected.Select(e => (e.Item1, pack.Pack.Id, e.Item2)));
                 await Assert.That(build.StampedRulesets.Select(r => r.RulesetId)).Contains("round_facts");
                 await Assert.That(read).Contains("round_facts");
                 await Assert.That(read).Contains(roundIndex);
                 await Assert.That(string.Join(",", build.Docs.Select(d => d.Id)))
-                    .IsEqualTo(string.Join(",", read.Where(id => packOn || id != roundIndex)))
-                    .Because("the merged set is the whole read, in read order, less the pack's ruleset while it is off");
+                    .IsEqualTo(string.Join(",", read.Where(id => packOn || !packIds.Contains(id))))
+                    .Because("the merged set is the whole read, in read order, less the pack's rulesets while it is off");
                 await Assert.That(build.CoreDocs.Select(d => d.Id)).DoesNotContain("round_facts");
                 await Assert.That(build.CoreDocs.Select(d => d.Id)).DoesNotContain(roundIndex);
                 await Assert.That(build.EnabledDoc("round_facts")).IsNotNull();
-                await Assert.That(new DemoViewer.NET.Services.Facts.StampedFacts(build).Facets().Select(f => f.RulesetId)).DoesNotContain(roundIndex)
-                    .Because("the round index's samples are its pass's input, not library facts");
+                await Assert.That(new DemoViewer.NET.Services.Facts.StampedFacts(build).Facets().Select(f => f.RulesetId).Intersect(packIds)).IsEmpty()
+                    .Because("the pack's tables are its passes' inputs, not library facts");
                 await Assert.That(pack.Passes.Single(p => p.Id == "roundindex").After).IsEquivalentTo([DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass]);
                 await Assert.That(pack.Passes.Select(p => p.Id)).DoesNotContain(DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass)
                     .Because("Delete extension data strips the pack's own pass stamps, never the core Round Facts one");

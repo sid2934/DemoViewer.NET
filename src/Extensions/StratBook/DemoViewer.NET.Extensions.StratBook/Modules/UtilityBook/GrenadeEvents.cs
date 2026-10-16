@@ -91,6 +91,25 @@ public sealed class GrenadeEventIndex
         return index;
     }
 
+    /// <summary>Indexes detonation rows a rules run recorded; the release lists stay empty.</summary>
+    /// <param name="detonations">The five detonation events' rows, in any order.</param>
+    public static GrenadeEventIndex FromDetonations(IEnumerable<GrenadeDetonation> detonations)
+    {
+        ArgumentNullException.ThrowIfNull(detonations);
+        GrenadeEventIndex index = new();
+        foreach (GrenadeDetonation d in detonations)
+        {
+            index.Add(d.Name, d.Tick, d.EntityIndex, d.Position);
+        }
+
+        foreach (List<GrenadeDetonation> list in index._detonations.Values)
+        {
+            list.Sort((a, b) => a.Tick.CompareTo(b.Tick));
+        }
+
+        return index;
+    }
+
     /// <summary>The detonation event a projectile class answers to, or null for a molotov (joined by tick instead).</summary>
     public static string? DetonationEventOf(string className) => className switch
     {
