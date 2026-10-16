@@ -239,6 +239,10 @@ A pass that needs only the demo's header, frame clock and rounds declares `Read 
 whose passes all read forward streams the demo instead of holding the whole parse, so declare it when you can.
 A forward pass must answer false to `ReadsUserCommands`: the host refuses one that reads them.
 
+Each entry in `Rounds` is a `PassRound`, one round opened by its `round_freeze_end`: `Number`, sequential
+from 1 in demo order with warmup and restarts included, and `FreezeEndTick`, the round's freeze end in
+the frame clock (`GameEvent.GameTick`), not the server tick `FirstServerTick` and `LastServerTick` report.
+
 A job that names a demo joins that demo's visit: it runs after the passes on the same parse, or on the parse
 the shell already holds when the demo is open, and holds the parse until its task ends.
 
