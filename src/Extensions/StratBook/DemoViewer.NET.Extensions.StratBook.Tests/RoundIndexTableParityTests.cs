@@ -7,10 +7,8 @@ using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
-using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Services.DemoCache;
-using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
@@ -20,11 +18,10 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The step 11 oracle for the roundindex swap, on the benchmark demos. Folds: A, <see cref="RoundIndexCollector" />
-///     at its shipped stride (the oracle); B, the collector at stride 1 kept to the first frame at or after each due
-///     tick, the frame a cadence fires on; C, the <see cref="RoundIndexTable" /> rows; D, B's frames one earlier.
-///     A against B is the stride's shift and A against C what the swap would move; both are printed, not asserted.
-///     C equals D: a cadence capture reads the cells of the frame before the one it fires on.
+///     The step 11 oracle for the roundindex swap, on the benchmark demos. Folds: A, <see cref="PositionSampler.Walk" />
+///     at the shipped stride of 4 frames, what the step 9 collector read; B, the walk at stride 1 kept to the first
+///     frame at or after each due tick, the frame a cadence fires on; C, the <see cref="RoundIndexTable" /> rows.
+///     A against B is the stride's shift, printed, not asserted. C equals B: a cadence step reads the frame it fires on.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -36,16 +33,13 @@ public class RoundIndexTableParityTests
     [Arguments(2)]
     [Arguments(3)]
     [Arguments(4)]
-    public async Task TheTableIndex_IsTheCollectorIndexOfTheFrameBefore(int which)
+    public async Task TheTableIndex_IsTheWalkIndexOfTheCadenceFrames(int which)
     {
         string path = BenchmarkDemo(which);
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         RulesetDoc doc = LoadRuleset();
 
-        CollectorSet strided = CollectorSet.Of([new RegisteredCollector(RoundIndexCollector.Contribution, null)]);
-        (AnalysisOptions options, CollectorObserver? observer) = strided.Declare(new AnalysisOptions { CaptureSnapshots = false });
-        AnalysisRun run = DemoAnalysis.Run(parsed, [doc], options);
-        RoundIndexSamples a = observer!.Results.Get<RoundIndexSamples>(RoundIndexCollector.CollectorId)!;
+        AnalysisRun run = DemoAnalysis.Run(parsed, [doc], new AnalysisOptions { CaptureSnapshots = false });
         IReadOnlyList<MetricTable> tables = run.ProjectConfiguredOutputs();
         MetricTable table = tables.SingleOrDefault(t => t.Name == RoundIndexTable.TableName)
                             ?? throw new InvalidOperationException(
@@ -53,44 +47,34 @@ public class RoundIndexTableParityTests
                                 $"[{string.Join("; ", run.Build.ExcludedRulesets.SelectMany(e => e.Diagnostics))}], diagnostics [{string.Join("; ", run.Build.RulesetDiagnostics)}]");
         List<PositionSample> c = RoundIndexTable.Samples(table.Rows.Select(r => (r.Dimensions, r.Values)));
 
-        CollectorSet every = CollectorSet.Of([new RegisteredCollector(
-            RoundIndexCollector.Contribution with { Create = () => new RoundIndexCollector(1) }, null)]);
-        (AnalysisOptions everyOptions, CollectorObserver? everyObserver) = every.Declare(new AnalysisOptions { CaptureSnapshots = false });
-        DemoAnalysis.Run(parsed, [], everyOptions);
-        IReadOnlyList<PositionSample> all = everyObserver!.Results.Get<RoundIndexSamples>(RoundIndexCollector.CollectorId)!.Samples;
-
         DemoCacheStore store = new(null);
         new RoundFactsEvaluator(store, new EngineRoundFactsRowSource(), new RulesRoundFactsRulesetIdentity()).Evaluate(path, parsed);
         RoundFactsRows rows = store.TryLoadRecord(path)?.RoundFacts ?? throw new InvalidOperationException("no round facts rows");
-        RoundIndexDemoValues values = RoundIndexDemoValues.For(parsed) with { LastFrameTick = a.LastFrameTick };
-        List<PositionSample> b = CadenceFrames(parsed, rows, values, all);
+        RoundIndexDemoValues values = RoundIndexDemoValues.For(parsed);
+        List<PositionSample> b = CadenceFrames(parsed, rows, values);
 
-        // Stand-in until the engine has a capturable controller team: the side B read at the same tick and slot.
-        Dictionary<(int, int), int> sideAt = b.GroupBy(s => (s.Tick, s.PlayerSlot)).ToDictionary(g => g.Key, g => g.Last().Team);
-        int noSide = c.Count(s => !sideAt.ContainsKey((s.Tick, s.PlayerSlot)));
-        c = [.. c.Select(s => s with { Team = sideAt.GetValueOrDefault((s.Tick, s.PlayerSlot)) })];
-        Console.WriteLine($"table samples with no B side to borrow: {noSide}");
-
-        RoundIndexBuild foldA = Fold(values, rows, a.Samples);
+        RoundIndexBuild foldA = Fold(values, rows, PositionSampler.Walk(parsed, 4));
         RoundIndexBuild foldB = Fold(values, rows, b);
         RoundIndexBuild foldC = Fold(values, rows, c);
-        RoundIndexBuild foldD = Fold(values, rows, CadenceFrames(parsed, rows, values, all, lag: 1));
+
+        // The walk visits pawns through a live-pawn scan and the table every player, so only B's keys compare.
+        Dictionary<(int, int), int> sideAt = c.GroupBy(s => (s.Tick, s.PlayerSlot)).ToDictionary(g => g.Key, g => g.Last().Team);
+        int missing = b.Count(s => !sideAt.ContainsKey((s.Tick, s.PlayerSlot)));
+        int sideDiffers = b.Count(s => sideAt.TryGetValue((s.Tick, s.PlayerSlot), out int side) && side != s.Team);
+        Console.WriteLine($"B samples with no table row {missing}, whose side differs {sideDiffers}");
 
         int serverVsFrame = parsed.Frames.Count(f => f.GameTick is { } g && g != f.ServerTick);
         Console.WriteLine($"demo {Path.GetFileName(path)}: frames {parsed.Frames.Count}, frames whose GameTick != ServerTick {serverVsFrame}");
-        Console.WriteLine($"rows: table {table.Rows.Count}, table samples {c.Count}, null-position rows {table.Rows.Count - c.Count}, " +
-                          $"B samples {b.Count}, A samples {a.Samples.Count}");
+        Console.WriteLine($"rows: table {table.Rows.Count}, table samples {c.Count}, null-position rows {table.Rows.Count - c.Count}, B samples {b.Count}");
         Report("A vs B (stride shift)", foldA, foldB);
-        Report("A vs C (oracle vs table)", foldA, foldC);
         Report("B vs C (table path)", foldB, foldC);
-        Report("D vs C (cadence frame's predecessor vs table)", foldD, foldC);
 
         using (Assert.Multiple())
         {
-            await Assert.That(noSide).IsEqualTo(0);
-            await Assert.That(c.Count).IsEqualTo(b.Count).Because("one row per player per step, where B has one sample");
-            await Assert.That(foldC.Index.Serialize()).IsEqualTo(foldD.Index.Serialize());
-            await Assert.That(Positions(foldC)).IsEqualTo(Positions(foldD));
+            await Assert.That(missing).IsEqualTo(0).Because("every pawn the walk samples has a row at that step");
+            await Assert.That(sideDiffers).IsEqualTo(0).Because("player.team is the pawn's side at the step");
+            await Assert.That(foldC.Index.Serialize()).IsEqualTo(foldB.Index.Serialize());
+            await Assert.That(Positions(foldC)).IsEqualTo(Positions(foldB));
         }
     }
 
@@ -112,8 +96,7 @@ public class RoundIndexTableParityTests
 
     // The cadence's frames: from each live round's freeze end, the first frame whose frame clock reaches each
     // due tick, stamped with that clock. The fold clips to the round windows, so stepping past an end is harmless.
-    private static List<PositionSample> CadenceFrames(ParsedDemo parsed, RoundFactsRows rows, RoundIndexDemoValues values,
-        IReadOnlyList<PositionSample> every, int lag = 0)
+    private static List<PositionSample> CadenceFrames(ParsedDemo parsed, RoundFactsRows rows, RoundIndexDemoValues values)
     {
         int period = RoundIndexOptions.Default.CadenceTicks(values.TickRate);
         List<int> anchors = [.. rows.Rounds.Where(r => r.IsLive).Select(r => r.FreezeEndTick).Order()];
@@ -134,14 +117,14 @@ public class RoundIndexTableParityTests
                 continue;
             }
 
-            picked[i - lag] = clock;
+            picked[i] = clock;
             while (clock >= due)
             {
                 due += period;
             }
         }
 
-        return [.. every.Where(s => picked.ContainsKey(s.FrameIndex)).Select(s => s with { Tick = picked[s.FrameIndex] })];
+        return [.. PositionSampler.Walk(parsed).Where(s => picked.ContainsKey(s.FrameIndex)).Select(s => s with { Tick = picked[s.FrameIndex] })];
     }
 
     private static void Report(string label, RoundIndexBuild expected, RoundIndexBuild actual)
@@ -158,8 +141,6 @@ public class RoundIndexTableParityTests
         PrintFirstDiff(label + " index", ei, ai);
         PrintFirstDiff(label + " positions", ep, ap);
     }
-
-
 
     private static void PrintFirstDiff(string label, string expected, string actual)
     {
