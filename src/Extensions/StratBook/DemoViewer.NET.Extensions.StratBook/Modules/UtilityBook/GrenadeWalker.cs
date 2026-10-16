@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
 /// <summary>A walk's output: the rows, and what the header records about how they were made.</summary>
 /// <param name="Rows">One per grenade, in spawn order.</param>
-/// <param name="InputCoverage">Share of the attributed throws whose thrower had commands on the lane at the spawn.</param>
+/// <param name="InputCoverage">Share of the throws with a thrower read at the spawn whose thrower had commands on the lane there.</param>
 /// <param name="InputDecoder">The input source's name.</param>
 /// <param name="TrajectoryStride">The stride the trajectories were thinned at.</param>
 public sealed record GrenadeWalk(IReadOnlyList<GrenadeRow> Rows, double InputCoverage, string InputDecoder, int TrajectoryStride);
@@ -32,7 +32,7 @@ public sealed record GrenadeWalk(IReadOnlyList<GrenadeRow> Rows, double InputCov
 public static class GrenadeWalker
 {
     /// <summary>Bumped when a row's meaning changes; a demo walked under another version re-indexes.</summary>
-    public const string Version = "4";
+    public const string Version = "5";
 
     /// <summary>The engine the rows were read with, for the sidecar header.</summary>
     public static string EngineVersion { get; } = DescribeEngine();
@@ -42,8 +42,9 @@ public static class GrenadeWalker
 
     /// <summary>
     ///     The rows off a visit's rules run: the three grenade tables joined, with the flights the observer kept and
-    ///     the demo's roster and clock values. The input coverage is the share of attributed throws whose thrower
-    ///     had commands on the lane at the spawn, which is how often the jump-throw flag came from inputs.
+    ///     the demo's roster and clock values. A grenade whose thrower never resolved takes its own fields from the
+    ///     observer's flight. The input coverage is the share of throws read at the spawn whose thrower had
+    ///     commands on the lane there, which is how often the jump-throw flag came from inputs.
     /// </summary>
     /// <param name="inputs">The tables and the flights.</param>
     /// <param name="rounds">Round starts, frame clock.</param>
@@ -54,24 +55,70 @@ public static class GrenadeWalker
         int tickRate, int serverStartTick)
     {
         ArgumentNullException.ThrowIfNull(inputs);
-        List<GrenadeThrow> throws = Plan(inputs.Tables.Projectiles, inputs.Tables.Releases);
+        List<GrenadeThrow> throws = Plan(WithFlights(inputs.Tables.Projectiles, inputs.Flights), inputs.Tables.Releases);
         List<GrenadeRow> rows = Assemble(throws, inputs.Tables.Events, inputs.Flights, rounds, players, tickRate, serverStartTick);
-        int attributed = 0, covered = 0;
+        int read = 0, covered = 0;
         foreach (GrenadeThrow t in throws)
         {
-            if (t.ThrowerSlot < 0)
+            if (t.ThrowerSlot < 0 || t.Projectile.AtSpawn is not { } atSpawn)
             {
                 continue;
             }
 
-            attributed++;
-            if (t.Projectile.AtSpawn is { Coverage: > 0 })
+            read++;
+            if (atSpawn.Coverage > 0)
             {
                 covered++;
             }
         }
 
-        return new GrenadeWalk(rows, attributed == 0 ? 0 : (double)covered / attributed, InputDecoderName, inputs.Flights.Stride);
+        return new GrenadeWalk(rows, read == 0 ? 0 : (double)covered / read, InputDecoderName, inputs.Flights.Stride);
+    }
+
+    /// <summary>
+    ///     The table grenades completed from the observer's flights: a landing row takes the projectile's own spawn
+    ///     fields and rest tick, and a flight with no row at all, a grenade whose thrower never resolved and that
+    ///     was still live when the run ended, becomes one. Spawn order. Pure.
+    /// </summary>
+    /// <param name="projectiles">The folded table grenades.</param>
+    /// <param name="flights">The observer's flights.</param>
+    public static List<ProjectileFacts> WithFlights(IReadOnlyList<ProjectileFacts> projectiles, GrenadeTrajectories flights)
+    {
+        ArgumentNullException.ThrowIfNull(projectiles);
+        ArgumentNullException.ThrowIfNull(flights);
+        List<ProjectileFacts> all = new(projectiles.Count);
+        HashSet<(int, int)> known = [];
+        foreach (ProjectileFacts p in projectiles)
+        {
+            known.Add((p.EntityIndex, p.Serial));
+            all.Add(p.ThrowerSlot < 0 && p.AtSpawn is null && flights.Facts.TryGetValue((p.EntityIndex, p.Serial), out FlightFacts? f)
+                ? p with
+                {
+                    InitialPosition = p.InitialPosition ?? f.InitialPosition, InitialVelocity = p.InitialVelocity ?? f.InitialVelocity,
+                    IsIncendiary = p.IsIncendiary ?? f.IsIncendiary, LastMovedTick = f.LastMovedTick
+                }
+                : p);
+        }
+
+        int added = 0;
+        foreach (((int index, int serial), FlightFacts f) in flights.Facts)
+        {
+            if (known.Contains((index, serial)) || f.ClassName.Length == 0)
+            {
+                continue;
+            }
+
+            added++;
+            all.Add(new ProjectileFacts(index, serial, f.ClassName, -1, f.SpawnTick, f.SpawnTick, f.EndTick, f.Removed, f.InitialPosition,
+                f.InitialVelocity, f.LastPosition, f.LastMovedTick, f.Bounces, f.IsIncendiary, null, null, null, null, null, null));
+        }
+
+        if (added > 0)
+        {
+            all.Sort((a, b) => a.SpawnTick != b.SpawnTick ? a.SpawnTick.CompareTo(b.SpawnTick) : a.EntityIndex.CompareTo(b.EntityIndex));
+        }
+
+        return all;
     }
 
     /// <summary>
