@@ -12,7 +12,8 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The pack-on visit harness: one demo, one scenario, one process, driven by
 ///     <c>tools/single-walk-bench/run.sh</c>. Prints one <c>@SW_VISIT</c> JSON line with the visit's wall
-///     time, peak working set and managed heap over the visit, the decode count by site, and per-pass time.
+///     time, peak working set and managed heap over the visit, the decode count from the engine's meter with
+///     the host hooks' count by site beside it, and per-pass time.
 ///     Skipped unless <c>SW_DEMO</c>, <c>SW_VISIT</c> and <c>SW_CONFIG_ROOT</c> are set.
 /// </summary>
 [NotInParallel]
@@ -60,7 +61,10 @@ public class SingleWalkVisitProbe
                 peakWsLessFileMb = Math.Round(peakWsMb - fileMb, 1),
                 peakHeapMb = Math.Round((sampler?.PeakManagedHeapBytes ?? 0) / 1024.0 / 1024.0, 1),
                 decodes = visit.Decodes,
-                counterSource = "hooks",
+                counterSource = "meter",
+                meter = visit.Meter.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
+                setupMeter = visit.SetupMeter.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
+                hookDecodes = visit.HookDecodes,
                 sites = visit.Sites.OrderBy(kv => kv.Key).ToDictionary(kv => kv.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), kv => kv.Value),
                 setupSites = visit.SetupSites.OrderBy(kv => kv.Key).ToDictionary(kv => kv.Key.ToString(System.Globalization.CultureInfo.InvariantCulture), kv => kv.Value),
                 reads = visit.Reads,

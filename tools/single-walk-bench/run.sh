@@ -106,6 +106,9 @@ rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 rows = [r for r in rows if r["trial"] > 0]
 metrics = ["wallMs", "peakWsMb", "peakWsLessFileMb", "peakHeapMb", "decodes"]
 keys = sorted({(r["visit"], r["demo"]) for r in rows})
+sources = sorted({r.get("counterSource", "hooks") for r in rows})
+if len(sources) > 1:
+    print("warning: decodes come from different counters across rows (" + ", ".join(sources) + "); do not compare them")
 def stat(vals):
     return statistics.median(vals), min(vals), max(vals)
 print("visit  demo  arm  " + "  ".join(f"{m}(med [min..max])" for m in metrics))
