@@ -214,7 +214,10 @@ public static class GrenadeTables
         bool held = GrenadeRules.IsGrenadeWeaponClass(Str(v, "weapon_class"));
         ThrowerRead pawn = new(tick, Vector(v, "pos_x", "pos_y", "pos_z"), Float(v, "eye_pitch"), Float(v, "eye_yaw"), Bool(v, "on_ground"),
             Bool(v, "ducking"), team, held ? Float(v, "throw_strength") : null, held);
-        Vector3? before = Float(v, "before_x") is { } bx && Float(v, "before_y") is { } by ? new Vector3(bx, by, 0) : null;
+        // The look-back reads 0 from before the slot had a pawn, as offset_pawn does on a projectile row.
+        Vector3? before = Int(v, "before_pawn") is > 0 && Float(v, "before_x") is { } bx && Float(v, "before_y") is { } by
+            ? new Vector3(bx, by, 0)
+            : null;
         return new ReleaseFacts(slot, tick, projectileClass, weapon, pawn, before);
     }
 

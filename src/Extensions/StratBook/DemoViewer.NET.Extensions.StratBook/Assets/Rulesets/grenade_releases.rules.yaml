@@ -6,6 +6,7 @@
 # and tick. The row's tick dimension is its frame's clock; release_tick is the event's own server
 # tick, usually one earlier, which the walk's release-to-spawn windows were measured on. A pawn of
 # 0 says the slot had no pawn yet, and every other read of the row is a default rather than a value.
+# A look-back from before the slot had a pawn reads 0 too; before_pawn tells.
 ruleset: net_demoviewer_pack_stratbook__grenade_releases
 title: Grenade Releases
 summary: Each player's position, eye angles, stance, held grenade and throw strength at every grenade release.
@@ -26,6 +27,7 @@ stats:
   weapon_class: { capture: player.active_weapon_class, on: grenade_released, per: match }
   before_x: { capture: player.pos_x@-8, on: grenade_released, per: match }
   before_y: { capture: player.pos_y@-8, on: grenade_released, per: match }
+  before_pawn: { capture: player.entity_index@-8, on: grenade_released, per: match }
 
 show:
   tables:
@@ -47,3 +49,4 @@ show:
         - { stat: weapon_class }
         - { stat: before_x }
         - { stat: before_y }
+        - { stat: before_pawn }

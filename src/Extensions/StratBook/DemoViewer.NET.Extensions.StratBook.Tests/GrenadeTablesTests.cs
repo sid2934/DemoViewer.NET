@@ -75,7 +75,8 @@ public class GrenadeTablesTests
             new()
             {
                 ["weapon"] = "weapon_smokegrenade", ["release_tick"] = 1293L, ["pawn"] = 14L, ["pos_x"] = 100.0, ["pos_y"] = 200.0, ["pos_z"] = 0.0, ["eye_pitch"] = -2.5, ["eye_yaw"] = 45.0,
-                ["on_ground"] = true, ["ducking"] = true, ["throw_strength"] = 1.0, ["weapon_class"] = "CSmokeGrenade", ["before_x"] = 92.0, ["before_y"] = 200.0
+                ["on_ground"] = true, ["ducking"] = true, ["throw_strength"] = 1.0, ["weapon_class"] = "CSmokeGrenade", ["before_x"] = 92.0, ["before_y"] = 200.0,
+                ["before_pawn"] = 14L
             }));
         tables[GrenadeTables.ReleasesTable].Add(Row(
             new() { ["tick"] = 93L, ["player_slot"] = 3L, ["team"] = 2L },
@@ -138,6 +139,29 @@ public class GrenadeTablesTests
 
             await Assert.That(rows.Events.ByEntity(GrenadeEventIndex.HeDetonate, 120, 100, 205)!.Tick).IsEqualTo(204);
             await Assert.That(rows.Events.NearestInferno(698, 699, null, new HashSet<GrenadeDetonation>())!.EntityIndex).IsEqualTo(300);
+        }
+    }
+
+    [Test]
+    public async Task AReleaseLookBack_FromBeforeTheSlotHadAPawn_IsNoRead()
+    {
+        Dictionary<string, List<GrenadeTableRow>> tables = GrenadeTables.Tables.ToDictionary(t => t, _ => new List<GrenadeTableRow>(), StringComparer.Ordinal);
+        tables[GrenadeTables.ReleasesTable].Add(Row(
+            new() { ["tick"] = 6L, ["player_slot"] = 2L, ["team"] = 3L },
+            new()
+            {
+                ["weapon"] = "weapon_flashbang", ["release_tick"] = 1005L, ["pawn"] = 11L, ["pos_x"] = 300.0, ["pos_y"] = 40.0, ["pos_z"] = 0.0,
+                ["weapon_class"] = "CFlashbang", ["throw_strength"] = 1.0, ["before_x"] = 0.0, ["before_y"] = 0.0, ["before_pawn"] = 0L
+            }));
+
+        ReleaseFacts release = GrenadeTables.Read(name => tables[name], 1000).Releases.Single();
+        float? speed = GrenadeRules.HorizontalSpeed(release.Before, release.Tick - GrenadeRules.SpeedWindowTicks, release.Pawn.Position, release.Tick, 64);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(release.Pawn.Position).IsEqualTo(new Vector3(300, 40, 0));
+            await Assert.That(release.Before).IsNull().Because("the look-back's zeros are a default, not the origin");
+            await Assert.That(speed).IsNull();
         }
     }
 
