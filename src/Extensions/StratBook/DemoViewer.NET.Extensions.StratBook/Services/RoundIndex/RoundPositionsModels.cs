@@ -41,8 +41,10 @@ public sealed class RoundPositionsDocument
     ///     <c>SituationIndex</c> holds it equal to <c>RoundIndexStore.Schema</c>.
     ///     3: <see cref="Players" /> names every tuple's slot by SteamID64 and name; tuples keep the slot,
     ///     which is the same-round join to Round Facts.
+    ///     4: a step is the first frame at or past its due tick, the cadence's frame, instead of the first
+    ///     fourth frame at or past it.
     /// </summary>
-    public const int PositionSchema = 3;
+    public const int PositionSchema = 4;
 
     /// <summary>The serializer options: camel case and compact like the sidecar, tuples through their converter.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new()

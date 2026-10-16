@@ -24,13 +24,6 @@ public sealed record RoundIndexOptions
     /// </summary>
     public double CadenceSeconds { get; init; } = 1;
 
-    /// <summary>
-    ///     Every how many frames <see cref="RoundIndexCollector" /> samples, the stride the walk it replaced
-    ///     used. Four keeps every one-second row on the measured demos; eight dropped rows. In the
-    ///     fingerprint: dropping it moves which frame opens a row.
-    /// </summary>
-    public int FrameStride { get; init; } = 4;
-
     /// <summary>The cadence in ticks at a demo's rate.</summary>
     /// <param name="tickRate">The demo's tick rate; 64 when unknown.</param>
     public int CadenceTicks(int tickRate) =>

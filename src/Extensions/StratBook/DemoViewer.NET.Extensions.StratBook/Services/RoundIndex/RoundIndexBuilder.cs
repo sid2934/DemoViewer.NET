@@ -43,9 +43,9 @@ public static class RoundIndexBuilder
     /// <param name="options">The sampling parameters.</param>
     /// <param name="source">Which string names a sample's place.</param>
     /// <param name="samples">
-    ///     The position walk to fold; null walks <paramref name="demo" /> through
-    ///     <see cref="PositionSampler.Walk" /> at <see cref="RoundIndexOptions.FrameStride" />. Tests
-    ///     hand in synthetic samples here; a synthetic parse carries no entity data to walk.
+    ///     The samples to fold; null runs the <see cref="RoundIndexTable" /> ruleset over
+    ///     <paramref name="demo" />. Tests hand in synthetic samples here; a synthetic parse carries no
+    ///     entity data to sample.
     /// </param>
     public static RoundIndexDocument Build(
         ParsedDemo demo,
@@ -63,7 +63,7 @@ public static class RoundIndexBuilder
     /// <param name="facts">The demo's Round Facts rows.</param>
     /// <param name="options">The sampling parameters.</param>
     /// <param name="source">Which string names a sample's place.</param>
-    /// <param name="samples">The position walk to fold; null walks the parse.</param>
+    /// <param name="samples">The samples to fold; null runs the round index ruleset over the parse.</param>
     public static RoundIndexBuild BuildWithPositions(
         ParsedDemo demo,
         RoundFactsRows facts,
@@ -78,7 +78,7 @@ public static class RoundIndexBuilder
         if (samples is null)
         {
             DecodeSites.Enter(3);
-            samples = PositionSampler.Walk(demo, options.FrameStride);
+            samples = RoundIndexTable.Samples(demo);
         }
 
         return BuildWithPositions(RoundIndexDemoValues.For(demo), facts, options, source, samples);
@@ -493,10 +493,9 @@ public sealed record RoundIndexDemoValues(int TickRate, int LastFrameTick, Round
         return new RoundIndexDemoValues(demo.TickRate, last, RoundFactsClock.For(demo), demo.MapName) { Players = demo.Players };
     }
 
-    /// <summary>The values of a pass's demo, with the last frame's frame clock its collector saw.</summary>
+    /// <summary>The values of a pass's demo.</summary>
     /// <param name="context">The pass's context.</param>
-    /// <param name="lastFrameTick">The last frame's <c>GameTick ?? ServerTick</c>.</param>
-    public static RoundIndexDemoValues For(IPassContext context, int lastFrameTick)
+    public static RoundIndexDemoValues For(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         DemoDescriptor demo = context.Demo;
@@ -507,6 +506,6 @@ public sealed record RoundIndexDemoValues(int TickRate, int LastFrameTick, Round
             FirstTick = context.FirstServerTick,
             LastTick = context.LastServerTick
         };
-        return new RoundIndexDemoValues(demo.TickRate, lastFrameTick, clock, demo.MapName) { Players = demo.Players };
+        return new RoundIndexDemoValues(demo.TickRate, context.LastFrameTick, clock, demo.MapName) { Players = demo.Players };
     }
 }

@@ -78,16 +78,7 @@ public class RoundIndexTableParityTests
         }
     }
 
-    internal static RulesetDoc LoadRuleset()
-    {
-        RuleConfigLoadResult read = YamlConfigLoader.LoadDocuments([("roundindex_positions.rules.yaml", RoundIndexTable.ReadYaml())]);
-        if (!read.Success || read.Rulesets.Count != 1)
-        {
-            throw new InvalidOperationException("the ruleset does not load: " + string.Join("; ", read.Errors));
-        }
-
-        return read.Rulesets[0];
-    }
+    internal static RulesetDoc LoadRuleset() => RoundIndexTable.LoadRuleset();
 
     private static RoundIndexBuild Fold(RoundIndexDemoValues values, RoundFactsRows rows, IEnumerable<PositionSample> samples) =>
         RoundIndexBuilder.BuildWithPositions(values, rows, RoundIndexOptions.Default, PawnPlaceSource.Instance, samples);
