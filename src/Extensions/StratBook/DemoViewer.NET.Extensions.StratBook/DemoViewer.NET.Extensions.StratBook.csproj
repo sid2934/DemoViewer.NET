@@ -25,7 +25,13 @@
                           LogicalName="DemoViewer.NET.Services.Strats.Callouts.%(Filename)%(Extension)"/>
     </ItemGroup>
 
-    <!-- The manifest: ..\extension.json is a template whose version is stamped from
+    <!-- Contributed rulesets; RoundIndexTable opens them by this name. -->
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\Rulesets\*.rules.yaml"
+                          LogicalName="DemoViewer.NET.Extensions.StratBook.Rulesets.%(Filename)%(Extension)"/>
+    </ItemGroup>
+
+    <!-- The manifest:..\extension.json is a template whose version is stamped from
          ..\version.json at build. The stamped copy is embedded (StratBookPack.Manifest) and copied beside the
          DLL for the loader. The targets are the SDK package's, imported from source here. -->
     <PropertyGroup>
