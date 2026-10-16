@@ -1,11 +1,8 @@
 #region
 
-using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
-using DemoViewer.NET.ViewModels.Diagnostics;
-using Microsoft.Extensions.Logging;
 
 #endregion
 
@@ -14,8 +11,6 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 /// <summary>The queue's forward read: opens the file the way the retained parse would, and runs the merged rules.</summary>
 public sealed class ForwardPassRunner
 {
-    private static ILogger? _diagLog;
-
     private readonly MergedRulesBuild _rules;
     private readonly TimeProvider _time;
 
@@ -36,8 +31,6 @@ public sealed class ForwardPassRunner
     /// <summary>How a demo is read, and where the content hash taken from that read goes. Null hashes nothing.</summary>
     public DemoFileRead? FileRead { get; init; }
 
-    private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
-
     /// <summary>One forward pass over <paramref name="path" />.</summary>
     public ForwardDemoResult Run(string path, ForwardNeeds needs, Action<double> progress, CancellationToken cancellationToken) =>
         Run(path, needs, CollectorSet.Empty, progress, cancellationToken);
@@ -57,7 +50,7 @@ public sealed class ForwardPassRunner
             rules ? collectors : CollectorSet.Empty, cancellationToken);
         if (pass.Run is { } run)
         {
-            RulesetExclusionReport.Report(Log, run.Build);
+            _rules.ReportExclusions(run.Build);
         }
 
         return pass;

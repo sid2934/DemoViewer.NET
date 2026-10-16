@@ -44,13 +44,17 @@ internal static class RulesetExclusionReport
 
         foreach (ExcludedRuleset ruleset in excluded)
         {
-            AppLog.RulesetExcluded(logger, Describe(ruleset), Summarize(ruleset.Diagnostics));
+            AppLog.RulesetExcluded(logger, Name(ruleset), Summarize(ruleset.Diagnostics));
         }
     }
 
+    /// <summary>The ruleset, its source file when it has one, and its diagnostics, on one line.</summary>
+    public static string Describe(ExcludedRuleset ruleset) =>
+        $"ruleset '{Name(ruleset)}' was excluded: {Summarize(ruleset.Diagnostics)}";
+
     // The id alone is not enough to act on: a user overlay can define a ruleset with the same id as
     // a shipped one, so "highlights_clutch was excluded" does not say WHICH file to open.
-    private static string Describe(ExcludedRuleset ruleset) =>
+    private static string Name(ExcludedRuleset ruleset) =>
         string.IsNullOrWhiteSpace(ruleset.SourceFile)
             ? ruleset.Id
             : $"{ruleset.Id}' ('{ruleset.SourceFile}";

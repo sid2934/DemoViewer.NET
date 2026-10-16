@@ -9,8 +9,10 @@ using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
+using CS2DemoKit.Analysis.RulesetsV2.Resolve;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
@@ -39,6 +41,7 @@ public sealed class MergedRulesBuild
     private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _reportedExclusions = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private readonly Func<RuleConfigLoadResult> _load;
     private readonly Lazy<IReadOnlyList<StampedRuleset>> _stamped;
@@ -275,6 +278,12 @@ public sealed class MergedRulesBuild
     internal Func<CollectorSet>? OpenCollectors { get; set; }
 
     /// <summary>
+    ///     The guard of the extension with this id, or null. A contributed ruleset a build excludes is reported
+    ///     through its owner's guard, once per ruleset content per session. Null reports nothing.
+    /// </summary>
+    internal Func<string, ExtensionGuard?>? GuardOf { get; set; }
+
+    /// <summary>
     ///     The bare run over a held parse recording every stamped output, evaluated once however many consumers
     ///     ask until <see cref="Forget" />.
     /// </summary>
@@ -333,7 +342,7 @@ public sealed class MergedRulesBuild
         }
 
         BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs, collectors);
-        RulesetExclusionReport.Report(Log, build);
+        ReportExclusions(build);
         DecodeSites.Enter(2);
         (AnalysisOptions options, CollectorObserver? observer) = collectors.Declare(new AnalysisOptions { CaptureSnapshots = false });
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, options);
@@ -511,8 +520,44 @@ public sealed class MergedRulesBuild
     public AnalysisRun FullRun(ParsedDemo parsed)
     {
         BuildResult build = DemoAnalysis.Build(parsed, CoreDocs);
-        RulesetExclusionReport.Report(Log, build);
+        ReportExclusions(build);
         return DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = true });
+    }
+
+    /// <summary>
+    ///     Logs every ruleset <paramref name="build" /> excluded, and reports each one an extension contributed
+    ///     through its <see cref="GuardOf" />. A user's same-id override is the user's file, never the extension's.
+    /// </summary>
+    internal void ReportExclusions(BuildResult build)
+    {
+        RulesetExclusionReport.Report(Log, build);
+        if (GuardOf is not { } guardOf || build.ExcludedRulesets.Count == 0)
+        {
+            return;
+        }
+
+        RuleConfigLoadResult rules = Rules;
+        foreach (ExcludedRuleset excluded in build.ExcludedRulesets)
+        {
+            StampedRuleset? stamped = StampedRulesets.FirstOrDefault(r => string.Equals(r.RulesetId, excluded.Id, StringComparison.Ordinal));
+            RulesetDoc? doc = rules.Rulesets.FirstOrDefault(r => string.Equals(r.Id, excluded.Id, StringComparison.Ordinal));
+            if (stamped is null || doc is null || RuleLayers.SourceOf(doc) is not { } source)
+            {
+                continue;
+            }
+
+            // Every visit builds, so a report per build would trip the fault window on the third demo.
+            lock (_gate)
+            {
+                if (!_reportedExclusions.Add(excluded.Id + "\n" + source))
+                {
+                    continue;
+                }
+            }
+
+            guardOf(stamped.Owner)?.Report("ruleset " + excluded.Id,
+                new InvalidOperationException(RulesetExclusionReport.Describe(excluded)));
+        }
     }
 
     /// <summary>Drops the cached read so the next call re-reads the rules directories.</summary>
