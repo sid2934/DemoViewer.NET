@@ -48,9 +48,10 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
     /// <param name="maxOverruns">Overruns that switch the pass off for the session.</param>
     /// <param name="collectors">The collectors the extension registered for this pass.</param>
     /// <param name="tableRulesets">The qualified ids of the extension's rulesets whose tables this pass reads.</param>
+    /// <param name="tablesReadUserCommands">True when one of <paramref name="tableRulesets" /> reads player commands.</param>
     public ExtensionPassHost(IExtensionPass inner, IReadOnlyList<string> after, ExtensionGuard guard,
         Func<bool>? onUiThread = null, TimeSpan? budget = null, int maxOverruns = DefaultMaxOverruns,
-        CollectorSet? collectors = null, IReadOnlyList<string>? tableRulesets = null)
+        CollectorSet? collectors = null, IReadOnlyList<string>? tableRulesets = null, bool tablesReadUserCommands = false)
     {
         Collectors = collectors ?? CollectorSet.Empty;
         TableRulesets = tableRulesets ?? [];
@@ -63,10 +64,11 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectin
         // Read once: a throwing getter makes the factory fail, which the registry reports.
         Id = inner.Id;
         _forward = guard.Run("pass " + Id + " read", () => inner.Read, PassRead.Retained) == PassRead.Forward;
-        // A forward pass sees no commands itself; only a collector on its rules run can, through the lane.
+        // A forward pass sees no commands itself; only a collector or a ruleset on its rules run can, through the lane.
+        bool onRun = Collectors.ReadsUserCommands || (TableRulesets.Count > 0 && tablesReadUserCommands);
         bool userCommands = _forward
-            ? Collectors.ReadsUserCommands
-            : guard.Run("pass " + Id + " needs", () => inner.ReadsUserCommands, true) || Collectors.ReadsUserCommands;
+            ? onRun
+            : guard.Run("pass " + Id + " needs", () => inner.ReadsUserCommands, true) || onRun;
 
         // A collector or a table rides the rules run, so a forward read with one makes that run.
         ForwardNeeds forward = Collectors.IsEmpty && TableRulesets.Count == 0

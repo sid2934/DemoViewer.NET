@@ -20,6 +20,9 @@ public sealed record ContributedRuleset(string RulesetId, string Owner, string F
 {
     /// <summary>The pass of the owner that reads its tables off the run; null when they are library facts.</summary>
     public string? ReadBy { get; init; }
+
+    /// <summary>True when the YAML reads player commands, so the reader's visit keeps them in a held parse.</summary>
+    public bool ReadsUserCommands { get; init; }
 }
 
 /// <summary>

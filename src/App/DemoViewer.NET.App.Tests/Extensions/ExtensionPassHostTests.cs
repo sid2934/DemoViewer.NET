@@ -367,6 +367,31 @@ public class ExtensionPassHostTests
         }
     }
 
+    [Test]
+    public async Task APassWhoseTableRulesetReadsUserCommands_KeepsThemOnBothReads()
+    {
+        ExtensionGuard guard = StandaloneGuard();
+        ExtensionPassHost forward = new(new FakePass { Reads = PassRead.Forward }, [], guard, static () => false,
+            tableRulesets: ["ext_sample__throws"], tablesReadUserCommands: true);
+        ExtensionPassHost retained = new(new FakePass(), [], guard, static () => false,
+            tableRulesets: ["ext_sample__throws"], tablesReadUserCommands: true);
+        ExtensionPassHost silent = new(new FakePass { Reads = PassRead.Forward }, [], guard, static () => false,
+            tableRulesets: ["ext_sample__throws"]);
+        ExtensionPassHost noTables = new(new FakePass { Reads = PassRead.Forward }, [], guard, static () => false,
+            tablesReadUserCommands: true);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(forward.Needs(new VisitedDemo(Demo)))
+                .IsEqualTo(new PassNeeds(ParseMode.Forward, ForwardNeeds.Rules | ForwardNeeds.UserCommands, true))
+                .Because("the ruleset reads them on the rules run, so a retained visit's parse must keep them");
+            await Assert.That(retained.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Retained, ForwardNeeds.None, true));
+            await Assert.That(silent.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward, ForwardNeeds.Rules));
+            await Assert.That(noTables.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward))
+                .Because("the flag declares nothing without a ruleset to read");
+        }
+    }
+
     /// <summary>What a pass read from its context during its turn.</summary>
     internal sealed record SeenContext(ParsedDemo? Parsed, int FrameCount, int FirstServerTick, int LastServerTick, string Map,
         IReadOnlyList<PassRound> Rounds);

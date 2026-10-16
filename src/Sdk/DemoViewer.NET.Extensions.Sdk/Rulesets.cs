@@ -30,6 +30,13 @@ public sealed record RulesetContribution(string Id, Func<Stream> Yaml, string? F
     public string? ReadBy { get; init; }
 
     /// <summary>
+    ///     True when the YAML reads <c>player.cmd.*</c> or <c>thrower.cmd.*</c>. The visit of a demo the
+    ///     <see cref="ReadBy" /> pass wants then keeps the player inputs in its parse, where it would otherwise leave
+    ///     them out; a streamed read decodes them from the build alone. Meaningless without <see cref="ReadBy" />.
+    /// </summary>
+    public bool ReadsUserCommands { get; init; }
+
+    /// <summary>
     ///     The ruleset's id as the host and the YAML spell it: the extension id with every character that is not a
     ///     lowercase letter or a digit made an underscore, two underscores, then <paramref name="id" />.
     ///     <c>("dev.example.hello", "kills")</c> is <c>dev_example_hello__kills</c>.
