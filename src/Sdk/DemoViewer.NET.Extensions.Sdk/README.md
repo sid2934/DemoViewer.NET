@@ -262,7 +262,10 @@ the pass that owns its result:
 
 ```csharp
 contributions.Collector(new CollectorContribution("dev.example.positions", "dev.example.rounds", 1,
-    ["entity.pawn.pos_x", "entity.pawn.pos_y"], [], () => new PositionCollector()));
+    ["entity.pawn.pos_x", "entity.pawn.pos_y"], [], () => new PositionCollector())
+{
+    GameEvents = ["round_start"]
+});
 ```
 
 `Id` is unique across the app and is how the owning pass reads the result back. `PassId` names the
@@ -272,6 +275,13 @@ build, so a pass that keys its own fingerprint on `Stamp` runs again when any of
 and `ProjectileClasses` name what the collector reads off each frame, from the engine's catalog
 (`entity.pawn.pos_x`, `CSmokeGrenadeProjectile`); a name the engine does not know refuses the collector.
 `Create` builds a fresh `IFrameCollector` for one run.
+
+`ReadsUserCommands` opts into `IFrameReadView.Command`: the pass's visit then decodes user commands for
+the collector to read, where it would otherwise leave them out, whether or not the pass itself answers
+true to its own `ReadsUserCommands`. A forward pass must still answer false to that, so a collector
+that answers true is how a forward pass reaches commands anyway. `GameEvents` names game events the
+collector reads off `Frame`: a streamed read decodes only the events the rules themselves subscribe
+to, plus these, where a held parse already carries every event.
 
 `IFrameCollector.OnFrame` is called once per frame, in read order, with an `IFrameReadView` valid only
 during that call: copy what you keep. `Finish` runs once, after the last frame, and puts the result
@@ -287,14 +297,19 @@ game event. `Frame` is the frame just read, `FrameIndex` its position in read or
 `Tick` the frame clock (`Frame.GameTick ?? Frame.ServerTick`), the same clock `PassRound.FreezeEndTick`
 is on. `Provider` resolves a declared name once into an `ObservedRead`, so `TryReadInt`, `TryReadFloat`
 and `TryReadString` can read a slot by it without a further name lookup; `Read` takes the name directly
-and boxes. `Team` is the slot's controller team as last seen (2 T, 3 CT), or -1.
+and boxes. `Team` is the slot's controller team as last seen (2 T, 3 CT), or -1. `Command` is the
+slot's latest user command as of the end of this frame, or null before its first; one frame's commands
+collapse to the last one, and the instance is the engine's baseline for the next delta, so read it and
+never change it. It throws unless a collector on the run declared `ReadsUserCommands`.
 
 `Projectiles` is every live projectile of a declared class, in ascending entity index; `Created` holds
 the ones that appeared on this frame, and `Removed` the ones that were live last frame and are gone on
 this one, with their last-seen state. Each is an `ObservedProjectile` carrying its position, velocity,
-bounce count and thrower slot. Slot reads are never cleared: a player who died, left or has no pawn on
-this frame still reads the values from before, so a present value does not mean the slot has a pawn,
-and a health or position read cannot tell a dead player from a live one.
+bounce count, thrower slot and, for an HE, `ExplodeEffectTickBegin` on the server-boot clock (0 while
+it flies, the tick its explosion began once it detonates, null when unseen). Slot reads are never
+cleared: a player who died, left or has no pawn on this frame still reads the values from before, so a
+present value does not mean the slot has a pawn, and a health or position read cannot tell a dead
+player from a live one.
 
 ## Reading the library
 
