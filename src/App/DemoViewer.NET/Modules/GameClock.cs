@@ -47,7 +47,15 @@ public static class GameClock
 
         EntityTracker tracker = new();
         tracker.ReplayToIndex(firstFreezeEndFrame, frames);
+        return Read(tracker, frames[firstFreezeEndFrame].ServerTick, tickRate);
+    }
 
+    /// <summary>
+    ///     Derives <c>clockBase</c> from <paramref name="tracker" /> as it stands after the first
+    ///     <c>round_freeze_end</c> frame, whose server tick is <paramref name="serverTick" />.
+    /// </summary>
+    internal static (double ClockBase, bool Valid) Read(EntityTracker tracker, int serverTick, int tickRate)
+    {
         EntityState? rules = null;
         foreach ((int _, EntityState e) in tracker.CurrentEntities.AllIndexed())
         {
@@ -75,7 +83,6 @@ public static class GameClock
             return (0, false);
         }
 
-        int serverTick = frames[firstFreezeEndFrame].ServerTick;
         double clockBase = serverTick / (double)tickRate - roundStart;
         return (clockBase, true);
     }
