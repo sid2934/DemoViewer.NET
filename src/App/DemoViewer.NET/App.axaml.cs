@@ -1244,17 +1244,7 @@ public class App : Application
                 {
                     if (OwnerOf(owner) is { } data)
                     {
-                        data.Data.Changed += path =>
-                        {
-                            if (path is null)
-                            {
-                                runner?.RecheckAll();
-                            }
-                            else
-                            {
-                                runner?.DemoChanged(path);
-                            }
-                        };
+                        data.Data.Changed += path => runner?.InputChanged(path);
                     }
                 }
 
