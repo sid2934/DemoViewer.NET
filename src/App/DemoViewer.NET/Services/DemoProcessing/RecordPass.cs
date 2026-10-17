@@ -88,7 +88,7 @@ public sealed class RecordPassRunner : IDisposable
         _passes = passes ?? throw new ArgumentNullException(nameof(passes));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _queue = queue;
-        _store.Changed += OnStoreChanged;
+        _store.Changed += InputChanged;
     }
 
     /// <summary>Told when a pass throws, with its owner and the demo when there is one.</summary>
@@ -152,12 +152,15 @@ public sealed class RecordPassRunner : IDisposable
             _dirty.Clear();
         }
 
-        _store.Changed -= OnStoreChanged;
+        _store.Changed -= InputChanged;
     }
 
-    // No job for a change while no record pass is on: a pass that comes on is handed the library by the
-    // re-check that follows.
-    private void OnStoreChanged(string? path)
+    /// <summary>
+    ///     Something a pass reads changed for the demo at <paramref name="path" />, or for every demo when null.
+    ///     No job while no record pass is on: a pass that comes on is handed the library by the re-check that follows.
+    /// </summary>
+    /// <param name="path">The demo, or null for all of them.</param>
+    public void InputChanged(string? path)
     {
         if (!AnyPass())
         {
