@@ -15,9 +15,15 @@ summary: Each side's final score and clan name, for the library card.
 for: each_team
 
 stats:
-  score:     { capture: team.score,     per: match }
-  clan_name: { capture: team.clan_name, per: match }
-  match_ended: { count: raw.cs_win_panel_match, per: match }
+  score:
+    capture: team.score
+    per: match
+  clan_name:
+    capture: team.clan_name
+    per: match
+  match_ended:
+    count: raw.cs_win_panel_match
+    per: match
 
 show:
   tables:
