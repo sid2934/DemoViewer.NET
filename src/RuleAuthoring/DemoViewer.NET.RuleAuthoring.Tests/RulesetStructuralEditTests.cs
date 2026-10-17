@@ -224,6 +224,60 @@ public class RulesetStructuralEditTests
         await Assert.That(after).Contains("exports: [ kast_pct, adr ]     # the one stat");
     }
 
+    /// <summary>A stat written as a flow mapping takes a new field inside its braces, and still loads.</summary>
+    [Test]
+    public async Task SettingAFieldOnAFlowStat_StaysInline()
+    {
+        const string Yaml = """
+                            ruleset: probe
+                            for: match
+                            stats:
+                              kills: { count: kill, per: match }     # every kill
+                            """;
+
+        RulesetDocumentEditor edited = RulesetDocumentEditor.Open(Yaml).SetStatField("kills", "label", "Kills, all");
+
+        await Assert.That(edited.Text).Contains("kills: { count: kill, per: match, label: \"Kills, all\" }     # every kill");
+        await Assert.That(LoadedStatCount(edited.Text, "probe")).IsEqualTo(1);
+    }
+
+    /// <summary>An empty flow mapping takes the entry just inside its braces.</summary>
+    [Test]
+    public async Task SettingAKeyOnAnEmptyFlowMapping_GoesInsideTheBraces()
+    {
+        const string Yaml = "params: {}\n";
+
+        YamlDocumentText doc = YamlDocumentText.Parse(Yaml);
+        string after = TextEditor.Apply(Yaml, [YamlEdits.SetKey(doc, YamlPath.Root.Key("params"), "window", "3")]);
+
+        await Assert.That(after).IsEqualTo("params: {window: \"3\"}\n");
+    }
+
+    /// <summary>Removing from a flow mapping is refused with a message that says how to make it editable.</summary>
+    [Test]
+    public async Task RemovingAKeyFromAFlowStat_SaysToUseBlockStyle()
+    {
+        const string Yaml = """
+                            ruleset: probe
+                            for: match
+                            stats:
+                              kills: { count: kill, per: match }
+                            """;
+
+        NotSupportedException? refused = null;
+        try
+        {
+            RulesetDocumentEditor.Open(Yaml).RemoveStatField("kills", "per");
+        }
+        catch (NotSupportedException ex)
+        {
+            refused = ex;
+        }
+
+        await Assert.That(refused).IsNotNull();
+        await Assert.That(refused!.Message).Contains("block style");
+    }
+
     private static int LoadedStatCount(string yaml, string name)
     {
         RulesetDocumentLoader.Outcome outcome = RulesetDocumentLoader.Load(yaml, name);
