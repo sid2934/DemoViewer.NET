@@ -79,6 +79,9 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     private HashSet<Guid> _referenced = [];
     private Task _work = Task.CompletedTask;
 
+    // The full sync queued and not yet started, so a burst of batch changes queues one.
+    private object? _fullSyncWaiting;
+
     // teams.json and team-index.json, read once; every mutator and every scheduled replay waits for it, so
     // nothing is written over files that were never read. Replaced by Release so the next Attach reads again.
     private LoadOnce _load;
@@ -633,7 +636,18 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     {
         if (change.Path is not { } path)
         {
-            _ = Schedule(SyncWithIndex);
+            // A full sync not yet started reads the library as it is when it runs, so a burst needs only one.
+            // The ticket is also let go when the task ends: a release drops the work without running it.
+            object ticket = new();
+            if (Interlocked.CompareExchange(ref _fullSyncWaiting, ticket, null) is null)
+            {
+                _ = Schedule(() =>
+                {
+                    Interlocked.CompareExchange(ref _fullSyncWaiting, null, ticket);
+                    SyncWithIndex();
+                }).ContinueWith(_ => Interlocked.CompareExchange(ref _fullSyncWaiting, null, ticket), TaskScheduler.Default);
+            }
+
             return;
         }
 
