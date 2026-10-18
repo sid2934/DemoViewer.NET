@@ -252,7 +252,7 @@ public class HighlightAddClipsPickerTests
 
         await Assert.That(picker.CanRescan).IsTrue();
         await Assert.That(picker.ShowScanPendingNote).IsTrue();
-        await Assert.That(picker.ScanPendingNote).Contains("4 demos still queued");
+        await Assert.That(picker.ScanPendingNote).Contains("4 demos without current highlights");
 
         picker.RescanAllCommand.Execute(null);
         await Assert.That(rescans).IsEqualTo(1);

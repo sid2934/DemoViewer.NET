@@ -228,7 +228,7 @@ public class HighlightScanServiceTests
         }
 
         using HighlightScanService scanner = NewScanner(store, new FakeHarvester(), () => [], () => false, (_, _) => null);
-        HighlightScanStatusViewModel status = new(scanner, store);
+        using HighlightBacklogViewModel status = new(scanner, store);
 
         await Assert.That(status.FailedCount).IsEqualTo(1);
     }

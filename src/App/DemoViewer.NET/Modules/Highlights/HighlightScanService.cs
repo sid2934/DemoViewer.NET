@@ -100,6 +100,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     /// <summary>Queued-demo count: the tab toolbar's "⟳ scan: N queued". DERIVED, never stored.</summary>
     public int QueueLength => BacklogNewestFirst().Count;
 
+    /// <summary>Whether a stale demo gets a read of its own, not only a ride on another pass's rules run.</summary>
+    public bool BackgroundScanEnabled => _backgroundScanEnabled();
+
     /// <summary>True while any highlights demo is outstanding in the shared queue (via the scheduler).</summary>
     public bool IsScanning => Scheduler?.HasOutstanding(Id) ?? false;
 
