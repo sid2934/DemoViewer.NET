@@ -1,5 +1,6 @@
 #region
 
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
@@ -198,6 +199,75 @@ public class ExtensionPassHostTests
         {
             await Assert.That(forward.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward));
             await Assert.That(retained.Needs(new VisitedDemo(Demo))).IsEqualTo(PassNeeds.RetainedWithoutUserCommands);
+        }
+    }
+
+    // A table rides the rules run, so a forward pass that reads one makes that run; Table reads it off the visit's run.
+    [Test]
+    public async Task APassThatReadsATable_MakesTheRulesRun_AndReadsItOffTheVisitsRun()
+    {
+        TableReader inner = new();
+        ExtensionPassHost reader = new(inner, [], StandaloneGuard(), static () => false, tableRulesets: ["ext_sample__rows"]);
+        ExtensionPassHost plain = new(new TableReader(), [], StandaloneGuard(), static () => false);
+        AnalysisRun run = DemoAnalysis.Run(SyntheticParsedDemo.Create(), []);
+        List<(AnalysisRun Run, string Table, IReadOnlyList<string> Rulesets)> asked = [];
+        FactRow row = new(new Dictionary<string, FactValue>(), new Dictionary<string, FactValue> { ["x"] = FactValue.Of(1L) });
+
+        reader.Run(new PassInput(new VisitedDemo(Demo), PassLevel.Background, SyntheticParsedDemo.Create(), null, CancellationToken.None)
+        {
+            RetainedRun = () => run,
+            TableOf = (r, table, rulesets) =>
+            {
+                asked.Add((r, table, rulesets));
+                return [row];
+            }
+        });
+        plain.Run(new PassInput(new VisitedDemo(Demo), PassLevel.Background, SyntheticParsedDemo.Create(), null, CancellationToken.None));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(reader.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward, ForwardNeeds.Rules, false));
+            await Assert.That(plain.Needs(new VisitedDemo(Demo))).IsEqualTo(new PassNeeds(ParseMode.Forward));
+            await Assert.That(inner.Rows).IsEquivalentTo([row]);
+            await Assert.That(asked.Count).IsEqualTo(1);
+            await Assert.That(asked[0].Run).IsSameReferenceAs(run);
+            await Assert.That(asked[0].Table).IsEqualTo("rows");
+            await Assert.That(asked[0].Rulesets).IsEquivalentTo(["ext_sample__rows"]);
+        }
+    }
+
+    [Test]
+    public async Task APassWithNoTableRulesets_CannotReadATable()
+    {
+        TableReader inner = new();
+        ExtensionPassHost host = new(inner, [], StandaloneGuard(), static () => false);
+
+        host.Run(new PassInput(new VisitedDemo(Demo), PassLevel.Background, SyntheticParsedDemo.Create(), null, CancellationToken.None));
+
+        await Assert.That(inner.Failure).IsTypeOf<InvalidOperationException>();
+    }
+
+    private sealed class TableReader : IExtensionPass
+    {
+        public IReadOnlyList<FactRow>? Rows;
+        public Exception? Failure;
+
+        public string Id => "ext.sample.reader";
+
+        public PassRead Read => PassRead.Forward;
+
+        public DemoInterest Interest(string demoPath) => DemoInterest.Yes;
+
+        public void Run(IPassContext context)
+        {
+            try
+            {
+                Rows = context.Table("rows");
+            }
+            catch (Exception ex)
+            {
+                Failure = ex;
+            }
         }
     }
 

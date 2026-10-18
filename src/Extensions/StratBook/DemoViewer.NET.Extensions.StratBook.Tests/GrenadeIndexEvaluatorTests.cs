@@ -109,11 +109,15 @@ public class GrenadeIndexEvaluatorTests
 
         public int LastServerTick => 0;
 
+        public int LastFrameTick => 0;
+
         public IReadOnlyList<PassRound> Rounds => [];
 
         public CancellationToken CancellationToken => CancellationToken.None;
 
         public T? Collected<T>(string collectorId) where T : class => throw new NotSupportedException();
+
+        public IReadOnlyList<FactRow> Table(string table) => throw new NotSupportedException();
     }
 
     [Test]

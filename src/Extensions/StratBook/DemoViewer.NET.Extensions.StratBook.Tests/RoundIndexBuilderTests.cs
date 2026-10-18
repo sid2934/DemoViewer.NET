@@ -50,7 +50,7 @@ public class RoundIndexBuilderTests
             await Assert.That(document.Rounds[0].Runs[0]).IsEqualTo(new RoundIndexRun(0, 0, "CTSpawn:5", "TSpawn:5"));
             await Assert.That(document.Rounds[0].Runs[1]).IsEqualTo(new RoundIndexRun(1, 2, "Outside:5", "Ramp:5"));
             await Assert.That(document.Map).IsEqualTo("de_nuke");
-            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=3" + SamplerTerm);
+            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=4" + SamplerTerm);
         }
     }
 
@@ -383,7 +383,7 @@ public class RoundIndexBuilderTests
         {
             await Assert.That(row.Ct).IsEqualTo("E-box:5").Because("the resolver's name, not the pawn's");
             await Assert.That(row.T).IsEqualTo("?:5").Because("a point the resolver does not place keeps the man-count");
-            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=zones;zv=zv-1;pos=3" + SamplerTerm);
+            await Assert.That(document.Fingerprint).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=zones;zv=zv-1;pos=4" + SamplerTerm);
         }
     }
 

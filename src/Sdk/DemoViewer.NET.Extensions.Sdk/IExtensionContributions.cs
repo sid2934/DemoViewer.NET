@@ -51,7 +51,10 @@ public interface IExtensionContributions
     /// </summary>
     void Collector(CollectorContribution collector);
 
-    /// <summary>A ruleset the host runs with the highlights on every demo; its tables become library facts.</summary>
+    /// <summary>
+    ///     A ruleset the host runs with the highlights on every demo; its tables become library facts, or the input of
+    ///     the pass <see cref="RulesetContribution.ReadBy" /> names.
+    /// </summary>
     void Ruleset(RulesetContribution ruleset);
 
     /// <summary>A page in Settings with controls of the extension's own.</summary>

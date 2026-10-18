@@ -11,8 +11,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 ///     What decides whether a demo's index rows are current. Anything that changes what a row means is
 ///     in it: the sidecar schema, the cadence, the token grammar, the Round Facts schema the round
 ///     windows and the alive/side cross-check read, the token source with the per-map zone version in
-///     the zones mode, the positions file's tuple meaning, and the sampler: the observer, its frame
-///     stride and <see cref="RoundIndexCollector" />'s stamp. Anything joined at query time (buy
+///     the zones mode, the positions file's tuple meaning, and the sampler: the
+///     <see cref="RoundIndexTable" /> ruleset and the engine build it ran on. Anything joined at query time (buy
 ///     thresholds, team identity) is not, so a Round Facts <c>params:</c> edit never re-indexes the
 ///     library. A sidecar written before
 ///     the positions file existed carries no <c>pos=</c> and is stale, which is what lets a Result Card
@@ -20,9 +20,6 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 /// </summary>
 public static class RoundIndexFingerprint
 {
-    // Asked per demo by Wants and the strip's counts; the stamp reads the engine assembly's version.
-    private static readonly string CollectorStamp = RoundIndexCollector.Contribution.Stamp;
-
     /// <summary>The fingerprint the rows a builder writes with <paramref name="source" /> carry.</summary>
     /// <param name="options">The sampling parameters.</param>
     /// <param name="source">The place source of the rows.</param>
@@ -39,10 +36,8 @@ public static class RoundIndexFingerprint
             fingerprint = $"{fingerprint};zv={version}";
         }
 
-        // The collector's stamp carries the engine build, so an engine bump re-indexes like a ruleset's.
-        return $"{fingerprint};pos={RoundPositionsDocument.PositionSchema}"
-               + $";sampler=observer;stride={options.FrameStride.ToString(CultureInfo.InvariantCulture)}"
-               + $";collector={CollectorStamp}";
+        // The table's identity carries the engine build, so an engine bump re-indexes like a ruleset's.
+        return $"{fingerprint};pos={RoundPositionsDocument.PositionSchema};sampler=table;ruleset={RoundIndexTable.Identity}";
     }
 }
 

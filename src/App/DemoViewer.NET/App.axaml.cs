@@ -658,6 +658,28 @@ public class App : Application
     }
 
     // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
+    // Asks the owner's pass the way a visit plans it. A pass is never asked on the UI thread, where the open's seed
+    // check runs; there the table counts as unwanted, which only narrows that check. A throw is the visit's to
+    // report; here it only leaves the table out.
+    private static bool PassWants(PackContributionSet packs, string owner, string passId, string path)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            return false;
+        }
+
+        try
+        {
+            return packs.Packs.FirstOrDefault(c => string.Equals(c.Pack.Id, owner, StringComparison.Ordinal))?.Passes
+                       .FirstOrDefault(p => string.Equals(p.Id, passId, StringComparison.Ordinal)) is { } pass
+                   && pass.Factory().Interest(new VisitedDemo(path), PassLevel.Background) != PassInterest.No;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return false;
+        }
+    }
+
     private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
         load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
             DemoJobPriority.UserRequested);
@@ -890,15 +912,18 @@ public class App : Application
             [
                 StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
                 .. LibraryTeamTables.RulesetIds.Select(StampedRuleset.Core),
-                .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true)),
+                .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true) { ReadBy = c.ReadBy }),
                 .. FeaturePacks.ClaimedRulesets.Select(id => new StampedRuleset(id, StampedRuleset.ClaimedOwner, static () => false))
             ]);
             // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo. The
             // evaluators take this build, so they are resolved per call, never here.
-            // The library tables are recorded on every run whatever this says.
+            // The library tables are recorded on every run whatever this says. A pass's own tables are recorded
+            // while that pass wants the demo.
             rules.OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
                 ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
-                : !LibraryTeamTables.IsLibraryRuleset(id) && sp.GetRequiredService<FactsEvaluator>().Records(path, id));
+                : rules.StampedRulesets.FirstOrDefault(r => string.Equals(r.RulesetId, id, StringComparison.Ordinal)) is { ReadBy: { } reader } read
+                    ? PassWants(sp.GetRequiredService<PackContributionSet>(), read.Owner, reader, path)
+                    : !LibraryTeamTables.IsLibraryRuleset(id) && sp.GetRequiredService<FactsEvaluator>().Records(path, id));
             rules.GuardOf = owner => sp.GetRequiredService<PackContributionSet>().Packs
                 .FirstOrDefault(c => string.Equals(c.Pack.Id, owner, StringComparison.Ordinal))?.Guard;
             // The visit in flight answers which collectors its rules run carries; resolved per call, like the cut.
@@ -942,6 +967,8 @@ public class App : Application
                 contentHash: path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256,
                 fileRead: fileRead);
             queue.CollectedFor = rules.Collected;
+            queue.RunFor = rules.BareRun;
+            queue.TableOf = rules.Table;
             queue.ForwardRead = forward is null ? null : forward.Run;
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)

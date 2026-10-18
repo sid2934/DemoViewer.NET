@@ -11,6 +11,10 @@ namespace DemoViewer.NET.Extensions.Sdk;
 ///         List the id under <c>rulesets</c> in <c>extension.json</c> so the host keeps it apart when the
 ///         extension does not load.
 ///     </para>
+///     <para>
+///         With <see cref="ReadBy" /> set, the tables are one pass's working input instead: recorded only on the rules
+///         run of a demo that pass wants, read back through <see cref="IPassContext.Table" />, and never kept as facts.
+///     </para>
 /// </summary>
 /// <param name="Id">The extension's own name for the ruleset: lowercase letters, digits and underscores.</param>
 /// <param name="Yaml">Opens the YAML, for example an embedded resource. Called once per rules read.</param>
@@ -18,6 +22,12 @@ namespace DemoViewer.NET.Extensions.Sdk;
 public sealed record RulesetContribution(string Id, Func<Stream> Yaml, string? FeatureId = null)
 {
     private const string Separator = "__";
+
+    /// <summary>
+    ///     The <see cref="IExtensionPass.Id" /> of the extension's pass that reads the tables off the visit's rules run.
+    ///     Null keeps them as library facts.
+    /// </summary>
+    public string? ReadBy { get; init; }
 
     /// <summary>
     ///     The ruleset's id as the host and the YAML spell it: the extension id with every character that is not a

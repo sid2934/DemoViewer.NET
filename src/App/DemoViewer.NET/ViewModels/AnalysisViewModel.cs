@@ -787,7 +787,11 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // the builder then simply does not emit enemy_spotted and the visibility-gated aim
             // columns read zero, which is the same degraded shape as an unsupported demo source.
             VisibilityEngine? visibility = await LoadVisibilityEngineAsync(demo, runToken);
-            (BuildResult build, RuleConfigLoadResult loadedRules, OpenRunPlan? plan) = BuildFromConfig(demo, visibility, path, clock);
+            // Asks passes, which answer no on the UI thread.
+            IReadOnlySet<string>? stale = path is not null && MergedRules() is { } planning
+                ? await Task.Run(() => planning.StaleOutputs(path), runToken)
+                : null;
+            (BuildResult build, RuleConfigLoadResult loadedRules, OpenRunPlan? plan) = BuildFromConfig(demo, visibility, path, clock, stale);
             if (MergedRules() is { } merged)
             {
                 merged.ReportExclusions(build);
@@ -1294,14 +1298,15 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
     }
 
     private static (BuildResult Build, RuleConfigLoadResult Rules, OpenRunPlan? Plan) BuildFromConfig(
-        ParsedDemo demo, VisibilityEngine? visibility, string? path, GameClockSource? clock)
+        ParsedDemo demo, VisibilityEngine? visibility, string? path, GameClockSource? clock, IReadOnlySet<string>? stale)
     {
         string shippedDir = RuleSetLocator.ResolveShippedRulesDirectory();
         // The user overlay needs a writable filesystem; the WASM host has none worth provisioning.
         string? userDir = OperatingSystem.IsBrowser()
             ? null
             : RuleSetLocator.EnsureUserRulesDirectory(shippedDir);
-        RuleConfigLoadResult rules = YamlConfigLoader.LoadWithOverlay(shippedDir, userDir);
+        MergedRulesBuild? merged = MergedRules();
+        RuleConfigLoadResult rules = merged?.ReadRules() ?? YamlConfigLoader.LoadWithOverlay(shippedDir, userDir);
 
         // The builder double-gates on this: the enemy_spotted event is synthesized only when an
         // engine is present AND some ruleset subscribes to it, so handing it over unconditionally
@@ -1312,12 +1317,12 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             EntityProviders = clock?.Providers()
         };
         // Stamped rulesets join the open run only when it can serve the open's visit; nothing else reads them.
-        if (MergedRules() is not { } merged)
+        if (merged is null)
         {
             return (DemoAnalysis.Build(demo, rules.Rulesets, options), rules, null);
         }
 
-        OpenRunPlan plan = merged.PlanOpen(rules.Rulesets, path);
+        OpenRunPlan plan = merged.PlanOpen(rules.Rulesets, path, stale);
         return (plan.Cuts(DemoAnalysis.Build(demo, plan.Docs, plan.Collectors.DeclareReads(options))), rules, plan);
     }
 
