@@ -45,6 +45,9 @@ public sealed class MergedRulesBuild
     private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
+
+    // Keyed by the doc instance it was composed from: a reload or a gate change hands out a new one.
+    private readonly Dictionary<(string Id, int TickRate), (RulesetDoc Doc, string Identity)> _identities = [];
     private readonly HashSet<string> _reportedExclusions = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private readonly Func<RuleConfigLoadResult> _load;
@@ -288,6 +291,14 @@ public sealed class MergedRulesBuild
     public string RulesetIdentity(string rulesetId, int tickRate)
     {
         RulesetDoc doc = EnabledDoc(rulesetId) ?? throw new InvalidOperationException($"no enabled {rulesetId} ruleset");
+        lock (_gate)
+        {
+            if (_identities.TryGetValue((rulesetId, tickRate), out (RulesetDoc Doc, string Identity) hit) && ReferenceEquals(hit.Doc, doc))
+            {
+                return hit.Identity;
+            }
+        }
+
         string composed = HighlightConfigFingerprint.Compute([doc], tickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint;
         string source;
         lock (_gate)
@@ -302,7 +313,13 @@ public sealed class MergedRulesBuild
         }
 
         string engine = typeof(DemoAnalysis).Assembly.GetName().Version?.ToString() ?? "";
-        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{composed}\n{source}\n{engine}")));
+        string identity = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{composed}\n{source}\n{engine}")));
+        lock (_gate)
+        {
+            _identities[(rulesetId, tickRate)] = (doc, identity);
+        }
+
+        return identity;
     }
 
     /// <summary>
@@ -628,6 +645,7 @@ public sealed class MergedRulesBuild
             _coreDocs = null;
             _merged = null;
             _sources.Clear();
+            _identities.Clear();
             _fingerprints.Clear();
             _runs.Clear();
         }

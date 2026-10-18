@@ -312,6 +312,31 @@ public class MergedRulesBuildTests
         }
     }
 
+    // The identity is cached per doc: every scheduler plan asks for it, and composing it costs about a
+    // millisecond. A reload that edits the ruleset must not be answered from the cache.
+    [Test]
+    public async Task TheRulesetIdentity_IsCached_UntilTheRulesReload()
+    {
+        DirectoryInfo user = Directory.CreateTempSubdirectory("dv-mrb-identity-");
+        try
+        {
+            string yaml = await File.ReadAllTextAsync(Path.Combine(Shipped, "round_facts.rules.yaml"));
+            MergedRulesBuild build = new(() => YamlConfigLoader.LoadWithOverlay(Shipped, user.FullName),
+                () => [StampedRuleset.Core(RoundFacts)]);
+            string first = build.RulesetIdentity(RoundFacts, 64);
+            await Assert.That(build.RulesetIdentity(RoundFacts, 64)).IsEqualTo(first);
+
+            await File.WriteAllTextAsync(Path.Combine(user.FullName, "round_facts.rules.yaml"), yaml + "\n# edited\n");
+            await Assert.That(build.RulesetIdentity(RoundFacts, 64)).IsEqualTo(first).Because("no reload yet");
+            build.Invalidate();
+            await Assert.That(build.RulesetIdentity(RoundFacts, 64)).IsNotEqualTo(first).Because("the source moved");
+        }
+        finally
+        {
+            user.Delete(true);
+        }
+    }
+
     // The bare run is cached per held parse. A run from before a toggle is not the merged set's run: kept,
     // a stamped ruleset's reader would find nothing of its own in it and pin the demo as "no rows".
     [Test]
