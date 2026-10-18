@@ -6,7 +6,7 @@
              x:DataType="vm:StatsGalleryViewModel">
 
     <!--
-      Component gallery for the stats library (docs/ui/stats-components.md), hosted in the Diagnostics
+      Component gallery for the stats library (docs/ui/design-system.md), hosted in the Diagnostics
       tab and therefore already behind the tab.diagnostics gate. Dev-only: it is not on any user path
       and reads no demo, so it is reachable from a cold start with nothing loaded.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Strat Book pack resident-memory and per-demo indexing-time baseline (docs/architecture/strat-book-plugin.md),
+# Strat Book pack resident-memory and per-demo indexing-time baseline,
 # on a COPY of a real config dir, never the live one. Runs the
 # StratBookPackBaselineTests probes in DemoViewer.NET.App.Tests (each [Category("Environmental")], so the
 # standard tier never runs them) and prints medians. --state selects which probes run: the pack-on probes

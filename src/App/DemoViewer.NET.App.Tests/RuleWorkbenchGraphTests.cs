@@ -53,7 +53,7 @@ public class RuleWorkbenchGraphTests
         // assertion restated its own loop. What it was reaching for is that the conversion is
         // LOSSLESS, and the half that can actually lose something is the edges: Build drops an edge
         // whose source or destination misses the node map on a bare `if`, with nothing counting it
-        // (RuleGraphSkeleton.cs:76-83, one of the sites docs/rule-graph/design.md 1.1 tabulates).
+        // (RuleGraphSkeleton.cs:76-83).
         // Equality here is that property, and unlike the node count it can fail.
         //
         // Since 0.13, build.Edges also carries rows drawn to ExternalStateNode stand-ins

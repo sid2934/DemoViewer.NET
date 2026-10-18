@@ -62,7 +62,7 @@ public static class WorkbenchCompletionSource
     /// <summary>Block sentinel: the caret is at column 0, a TOP-LEVEL section key position.</summary>
     public const string TopLevelBlock = "<top>";
 
-    // The closed function set (docs/rules-v2/rules-v2-spec.md) and the stat kinds: stable, not catalog-derived.
+    // The closed function set and the stat kinds: stable, not catalog-derived.
     private static readonly string[] _functions = ["min", "max", "abs", "floor", "contains", "startswith"];
 
     private static readonly string[] _kinds =

@@ -77,7 +77,7 @@ public enum StatDomain
 ///     <para>
 ///         <b>Bar and colour are separate on purpose.</b> Leaving <see cref="ColourMin" />/
 ///         <see cref="ColourMax" /> null gives a peer-relative tint; setting them pins the tint to a fixed
-///         benchmark while the bar still compares the players on screen. See docs/ui/stats-components.md.
+///         benchmark while the bar still compares the players on screen.
 ///     </para>
 /// </summary>
 /// <param name="Domain">Where the bar's extent comes from.</param>
@@ -227,8 +227,7 @@ public static class ColumnCatalogue
     // silently gets no scale, and the board renders exactly as if the feature were never wired up.
     // ── Scale shapes ──────────────────────────────────────────────────────────
     //
-    // Which columns get a scale, and on what evidence, is recorded in docs/ui/stats-components.md.
-    // The short version: a metric whose population mean is PINNED by the structure of the game (every
+    // A metric whose population mean is PINNED by the structure of the game (every
     // kill is one death, every opening duel has one winner) can carry an absolute band, because the
     // anchor never drifts with lobby skill. A per-opportunity efficiency metric cannot, because it
     // conflates the player's skill with the lobby's.

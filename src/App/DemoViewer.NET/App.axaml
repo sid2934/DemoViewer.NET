@@ -37,7 +37,7 @@
         <StyleInclude Source="avares://DemoViewer.NET/Styles/Menus.axaml" />
         <!-- Stats component library (v0.8.1). Loaded last of the design-system files: its ControlThemes
              for StatTile/TeamBadge and its default Styles for the four drawn controls reference tokens and
-             classes the four files above establish. See docs/ui/stats-components.md. -->
+             classes the four files above establish. -->
         <StyleInclude Source="avares://DemoViewer.NET/Styles/Stats.axaml" />
     </Application.Styles>
 </Application>

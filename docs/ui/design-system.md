@@ -1671,9 +1671,7 @@ the catalog rather than a hardcoded Strat Book reference.
 ### Stats component library (`Controls/Stats/`, v0.8.1)
 
 Nine controls plus a scale model and the abstract presenter they share, built for the Stats team and
-player views. Full rationale, the
-dependency survey that ruled out every charting library, and the open questions are in
-[`stats-components.md`](./stats-components.md); this is the contract.
+player views.
 
 | Type | What it is | Key API |
 |---|---|---|
@@ -2329,7 +2327,7 @@ of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
   dot showing against an off toggle. This is *faithful* (the override is stored and takes effect once the
   parent is enabled), not thrash, toggle-disabling is scoped to `IsRequired` only, per the P2a-ii spec.
 
-### Settings Extensions section (strat-book-plugin.md item 5, 2026-10-02)
+### Settings Extensions section
 
 New top-level group between FEATURES and LIVE CS2, `Expander IsVisible="{Binding ShowGroupExtensions}"`,
 starting **expanded** (unlike FEATURES, which starts collapsed): the section is one master switch plus
@@ -2398,7 +2396,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   overflow at every indent level, verified at 560 and visually at 1280×800 (`settings-extensions-on/-off`
   UiCapture variants, Light + Dark; custom themes crash UiCapture per the open item on the editor-room
   decisions above).
-- **Delete extension data (strat-book-plugin.md item 24, 2026-10-03):** one row per `IExtensionDataRemoval`
+- **Delete extension data:** one row per `IExtensionDataRemoval`
   below `ContributedSettingsPages`, `ItemsControl ItemsSource="{Binding ExtensionDataActions}"`. Unlike a
   contributed page it is NOT gated by the pack's `FeatureId`: it shows whether the pack is on or off,
   since deleting while off is the main use. No modal dialog exists anywhere in this app to reuse, so the

@@ -36,7 +36,7 @@ public class ThemeRegistryTests
     ///     drawing three retinted slots beside three inherited ones reads as a rendering fault rather
     ///     than as a key. Guarded separately rather than folded into the ramp, because a theme is
     ///     entitled to retint one family and inherit the other; what it may not do is half-retint
-    ///     either. See section 15 of docs/ui/stats-components.md.
+    ///     either.
     /// </summary>
     private static readonly string[] _statSlots =
     [

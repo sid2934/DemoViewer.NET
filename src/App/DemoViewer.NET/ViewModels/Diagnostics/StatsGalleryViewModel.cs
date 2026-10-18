@@ -19,7 +19,7 @@ public sealed record GalleryCell(double Value, StatScale Scale, bool IsLeader,
 
 /// <summary>
 ///     Drives the Diagnostics tab's component gallery: a dev-only surface for the
-///     <see cref="Controls.Stats" /> library (docs/ui/stats-components.md). Not a product feature and not
+///     <see cref="Controls.Stats" /> library (docs/ui/design-system.md). Not a product feature and not
 ///     on any user path; it rides the existing <c>tab.diagnostics</c> gate.
 ///     <para>
 ///         It exists because four of the six controls had no call site in the app, so the only way to

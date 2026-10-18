@@ -292,7 +292,7 @@
                         </StackPanel>
                     </Expander>
 
-                    <!-- Stats component gallery (docs/ui/stats-components.md). A DESIGN surface, not a
+                    <!-- Stats component gallery (docs/ui/design-system.md). A DESIGN surface, not a
                          diagnostic: it lives here because the Diagnostics tab is the app's existing
                          dev-only home and is already gated by tab.diagnostics, so the gallery needs no
                          gate of its own. Collapsed by default; it is the only panel here that reports

@@ -43,8 +43,8 @@ runs 84 fewer tests. CI has never had the corpus, which is why CI is green regar
 | `furia-vs-vitality-m3-nuke.dem` | de_nuke | 318 MB |
 | `furia-vs-vitality-m4-overpass.dem` | de_overpass | 576 MB |
 
-`furia-vs-vitality-m1-mirage.dem` is the reference demo for the rule-graph measurements in
-`docs/rule-graph/design.md` (§0.3's 434 nodes / 474 edges, and the `ShippedScale` capture).
+`furia-vs-vitality-m1-mirage.dem` is the reference demo for the rule-graph measurements (434 nodes /
+474 edges, and the `ShippedScale` capture).
 
 ## Do not stage `match730_..._410.dem` here without reading this
 

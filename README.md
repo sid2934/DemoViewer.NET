@@ -73,8 +73,8 @@ ruleset off without redefining it.
 
 Four of the shipped rulesets (`kast`, `player_stats`, `weapon_stats`, `post_plant_double`) come
 from `CS2DemoKit.Analysis` and are kept byte-identical to the package's copies; the ten
-`highlights_*` rulesets are this app's own content. The rules language is documented in
-[`docs/rules-v2/rules-v2-spec.md`](docs/rules-v2/rules-v2-spec.md).
+`highlights_*` rulesets are this app's own content. The rules language is documented in CS2DemoKit's
+[rules authoring guide](https://github.com/CS2OpenDev/CS2DemoKit/blob/main/docs/RULES_AUTHORING.md).
 
 ## Contributing
 

@@ -237,7 +237,7 @@ jobs:
             gh release create "$TAG" \
               --repo "$REPO" \
               --title "$EXT_ID $VERSION" \
-              --notes "Extension release. See docs/architecture/strat-book-plugin.md." \
+              --notes "Extension release. See docs/architecture/extension-system.md." \
               --latest=false \
               --target "${{ github.sha }}" \
               "$OUT/$ZIP" "$OUT/$ZIP.sha256"
@@ -264,7 +264,7 @@ jobs:
             gh release create "$ROLLING" \
               --repo "$REPO" \
               --title "$EXT_ID updates" \
-              --notes "Rolling update feed for $EXT_ID. See docs/architecture/strat-book-plugin.md." \
+              --notes "Rolling update feed for $EXT_ID. See docs/architecture/extension-system.md." \
               --latest=false \
               --target "${{ github.sha }}"
           fi
