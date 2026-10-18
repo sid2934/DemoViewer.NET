@@ -262,18 +262,23 @@ public sealed class RecordPassRunner : IDisposable
                 {
                     for (int i = 0; i < batch.Count; i++)
                     {
-                        if (token.IsCancellationRequested)
+                        try
                         {
+                            token.ThrowIfCancellationRequested();
+                            refreshed |= Visit(batch[i], passes, token);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // The demo it stopped on and the rest stay dirty. Rethrown so a preempted run is
+                            // requeued; returning would end it Completed with the work left for an unrelated change.
                             lock (_lock)
                             {
                                 _dirty.UnionWith(batch.Skip(i));
                                 _runQueued = false;
                             }
 
-                            return;
+                            throw;
                         }
-
-                        refreshed |= Visit(batch[i], passes, token);
                     }
                 }
 
@@ -283,7 +288,7 @@ public sealed class RecordPassRunner : IDisposable
                 }
             }
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
         {
             lock (_lock)
             {
@@ -338,6 +343,13 @@ public sealed class RecordPassRunner : IDisposable
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
+                // Stopped part-way: the pass has not run on this row, so the requeued run must ask it again.
+                lock (_lock)
+                {
+                    _ranOnInputs.Remove((pass.Id, demo));
+                    _ranOn.Remove((pass.Id, demo));
+                }
+
                 throw;
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)

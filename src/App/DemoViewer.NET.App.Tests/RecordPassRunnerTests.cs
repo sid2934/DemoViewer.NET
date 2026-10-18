@@ -155,6 +155,60 @@ public class RecordPassRunnerTests
         await Assert.That(pass.Runs.Order()).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
     }
 
+    // A user's light item preempts a background record run. The run must be requeued with the row it stopped
+    // on and the rest of its batch, not end Completed with that work waiting for an unrelated change.
+    [Test]
+    public async Task APreemptedRun_IsRequeued_AndFinishesEveryRow()
+    {
+        using DemoProcessingQueue queue = CountingQueue(() => { });
+        DemoCacheStore store = new(null);
+        Interrupted pass = new();
+        using RecordPassRunner runner = new(() => [pass], store, queue);
+
+        queue.Pause();
+        store.Upsert(HostLibraryTests.Parsed("/d/one.dem"));
+        store.Upsert(HostLibraryTests.Parsed("/d/two.dem", sha: "bb"));
+        queue.Resume();
+        await WaitFor(() => pass.Started.IsSet, "the run inside its first row");
+
+        await QueueWork.Run(queue, QueueJobKind.StoreSave, "user save", "test", _ => { }, DemoJobPriority.UserRequested);
+        await WaitFor(() => pass.Finished.Count == 2, "every row finished after the requeue");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(pass.Finished.Order()).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
+            await Assert.That(pass.Interruptions).IsEqualTo(1);
+        }
+    }
+
+    // Stops inside its first row until the run is preempted, then runs normally.
+    private sealed class Interrupted : IRecordPass
+    {
+        public ManualResetEventSlim Started { get; } = new(false);
+        public ConcurrentQueue<string> Finished { get; } = new();
+        public int Interruptions { get; private set; }
+
+        public string Id => "interrupted";
+
+        public bool Wants(DemoCacheIndexEntry entry) => true;
+
+        public void Run(DemoCacheRecord record, CancellationToken cancellationToken)
+        {
+            if (Interruptions == 0)
+            {
+                Started.Set();
+                cancellationToken.WaitHandle.WaitOne(5000);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    Interruptions++;
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+            }
+
+            Finished.Enqueue(record.Path);
+        }
+    }
+
     private sealed class Recording(string id, Func<DemoCacheIndexEntry, bool> wants) : IRecordPass
     {
         public ConcurrentQueue<string> Runs { get; } = new();
