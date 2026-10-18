@@ -1767,6 +1767,11 @@ DemoViewer.NET.Extensions.Sdk.IFrameCollector
 DemoViewer.NET.Extensions.Sdk.IFrameCollector.Finish(DemoViewer.NET.Extensions.Sdk.ICollectorSink! sink) -> void
 DemoViewer.NET.Extensions.Sdk.IFrameCollector.OnFrame(DemoViewer.NET.Extensions.Sdk.IFrameReadView! view) -> void
 DemoViewer.NET.Extensions.Sdk.IFrameReadView
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.GameEvents.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.GameEvents.init -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.ReadsUserCommands.get -> bool
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.ReadsUserCommands.init -> void
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Command(int playerSlot) -> CS2OpenSchema.Protos.CSGOUserCmdPB?
 DemoViewer.NET.Extensions.Sdk.IFrameReadView.Created.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.ObservedProjectile>!
 DemoViewer.NET.Extensions.Sdk.IFrameReadView.Frame.get -> CS2DemoKit.Parser.DemoFrame!
 DemoViewer.NET.Extensions.Sdk.IFrameReadView.FrameIndex.get -> int
@@ -1789,6 +1794,8 @@ DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Deconstruct(out int EntityIndex
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.EntityIndex.get -> int
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.EntityIndex.init -> void
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Equals(DemoViewer.NET.Extensions.Sdk.ObservedProjectile other) -> bool
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ExplodeEffectTickBegin.get -> int?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ExplodeEffectTickBegin.init -> void
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialPosition.get -> System.Numerics.Vector3?
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialPosition.init -> void
 DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialVelocity.get -> System.Numerics.Vector3?

@@ -117,6 +117,19 @@ public static class GrenadeSidecar
         ParsedDemo parsed, GrenadeWalk walk)
     {
         ArgumentNullException.ThrowIfNull(parsed);
+        return Build(path, record, RoundFactsClock.For(parsed), parsed.BuildNumber, walk);
+    }
+
+    /// <summary>Builds both documents for a walk, from the clock and build the pass read off its demo.</summary>
+    /// <param name="path">The demo's path.</param>
+    /// <param name="record">The demo's library row, for its hash, size and source; null when there is none yet.</param>
+    /// <param name="clock">The demo's frame clock header.</param>
+    /// <param name="buildNumber">The demo's game build.</param>
+    /// <param name="walk">The walk's output.</param>
+    public static (GrenadeDocument Rows, GrenadePathsDocument Paths) Build(string path, LibraryDemo? record,
+        RoundFactsClock clock, int buildNumber, GrenadeWalk walk)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
         ArgumentNullException.ThrowIfNull(walk);
 
         GrenadeWalkerHeader walker = new()
@@ -125,11 +138,10 @@ public static class GrenadeSidecar
             Engine = GrenadeWalker.EngineVersion,
             InputDecoder = walk.InputDecoder
         };
-        RoundFactsClock clock = RoundFactsClock.For(parsed);
         GrenadeSourceHeader source = new()
         {
             Kind = record?.SourceKind,
-            Build = parsed.BuildNumber,
+            Build = buildNumber,
             InputCoverage = Math.Round(walk.InputCoverage, 4),
             TrajectoryStride = walk.TrajectoryStride
         };

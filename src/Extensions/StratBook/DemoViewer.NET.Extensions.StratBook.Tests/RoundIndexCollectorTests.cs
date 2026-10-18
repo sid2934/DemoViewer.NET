@@ -3,6 +3,7 @@
 using System.Numerics;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using CS2OpenSchema.Protos;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
@@ -215,6 +216,8 @@ public class RoundIndexCollectorTests
             Array.IndexOf(Declared, providerName) is var i and >= 0 ? new ObservedRead(providerName, i) : throw new ArgumentException(providerName);
 
         public object? Read(string providerName, int playerSlot) => Values.GetValueOrDefault((providerName, playerSlot));
+
+        public CSGOUserCmdPB? Command(int playerSlot) => throw new NotSupportedException();
 
         public bool TryReadInt(ObservedRead provider, int playerSlot, out int value)
         {

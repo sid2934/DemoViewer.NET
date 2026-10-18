@@ -13,9 +13,9 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 /// <summary>
 ///     The evaluator that walks a demo's grenades: an <see cref="IExtensionPass" />
 ///     on the same one-parse fan-out as the others, registered last because it reads nothing they write.
-///     Per demo the work is one <see cref="GrenadeWalker.Walk" /> on the parse the queue already paid for and
-///     one write of the demo's grenade facet, stamped last so a crash leaves "not walked" and never a stamp
-///     without its rows.
+///     Per demo the work is what <see cref="GrenadeCollector" /> put on the visit's rules run, assembled into
+///     rows with the roster, and one write of the demo's grenade facet, stamped last so a crash leaves "not
+///     walked" and never a stamp without its rows. It reads forward: a visit of its own streams the demo.
 ///     <para>
 ///         <b>Background indexing is off by default</b> (the <c>HighlightsSettings.BackgroundScan</c>
 ///         precedent: two to three seconds per demo is half an hour over a large library). Off, the demo
@@ -168,16 +168,61 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
         Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
 
     /// <inheritdoc />
+    public PassRead Read => PassRead.Forward;
+
+    /// <inheritdoc />
+    /// <remarks>The rows are <see cref="GrenadeCollector" />'s collection off the visit's rules run, plus the roster.</remarks>
     public void Run(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        Evaluate(context.DemoPath, context.Parsed!);
+        DemoDescriptor demo = context.Demo;
+        int tickRate = demo.TickRate > 0 ? demo.TickRate : 64;
+        RoundFactsClock clock = new()
+        {
+            TickRate = tickRate,
+            FrameCount = context.FrameCount,
+            FirstTick = context.FirstServerTick,
+            LastTick = context.LastServerTick
+        };
+        Refresh(context.DemoPath, () =>
+        {
+            GrenadeCollected collected = context.Collected<GrenadeCollected>(GrenadeCollector.CollectorId)
+                                          ?? throw new InvalidOperationException("the grenade collector put no collection");
+            return GrenadeWalker.Assemble(collected, demo.Players.Values, tickRate, demo.ServerStartTick);
+        }, clock, demo.BuildNumber);
     }
 
-    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <summary>
+    ///     Does the pass's work on <paramref name="parsed" />: the rows of <paramref name="collected" /> with the
+    ///     parse's roster, or without one a <see cref="GrenadeWalker.Walk" /> of the parse.
+    /// </summary>
     /// <param name="path">The demo's path.</param>
     /// <param name="parsed">The demo's parse.</param>
-    public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
+    /// <param name="collected">What <see cref="GrenadeCollector" /> put on the parse's rules run; null walks the parse.</param>
+    public void Evaluate(string path, ParsedDemo parsed, GrenadeCollected? collected = null)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        // A parse without user commands would stamp rows current with no inputs. The demo stays wanted,
+        // so the next pass submits it on a full parse.
+        if ((parsed.Plan.Categories & MessageCategories.UserCmds) == 0)
+        {
+            string fileName = Path.GetFileName(path);
+            GrenadeIndexLog.NoUserCommands(Log, fileName);
+            return;
+        }
+
+        int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
+        Refresh(path, () =>
+        {
+            if (collected is not null)
+            {
+                return GrenadeWalker.Assemble(collected, parsed.Players.Values, tickRate, parsed.ServerStartTick);
+            }
+
+            GrenadeWalkOptions options = new(TrajectoryStride: Math.Max(1, _stride()));
+            return _walk?.Invoke(parsed) ?? GrenadeWalker.Walk(parsed, options, _projectiles?.Invoke(path, parsed, options.MaxFrames));
+        }, RoundFactsClock.For(parsed), parsed.BuildNumber);
+    }
 
     /// <inheritdoc />
     public void OnFailed(string demoPath) => ClearForced(demoPath);
@@ -257,23 +302,13 @@ public sealed class GrenadeIndexEvaluator : IExtensionPass
     private bool IsOpen(string path) =>
         _openDemo() is { } open && string.Equals(open, path, StringComparison.OrdinalIgnoreCase);
 
-    private void Refresh(string path, ParsedDemo parsed)
+    private void Refresh(string path, Func<GrenadeWalk> walkDemo, RoundFactsClock clock, int buildNumber)
     {
         string fileName = Path.GetFileName(path);
-        // A parse without user commands would stamp rows current with no inputs. The demo stays wanted,
-        // so the next pass submits it on a full parse.
-        if ((parsed.Plan.Categories & MessageCategories.UserCmds) == 0)
-        {
-            GrenadeIndexLog.NoUserCommands(Log, fileName);
-            return;
-        }
-
         try
         {
-            GrenadeWalkOptions options = new(TrajectoryStride: Math.Max(1, _stride()));
-            GrenadeWalk walk = _walk?.Invoke(parsed)
-                               ?? GrenadeWalker.Walk(parsed, options, _projectiles?.Invoke(path, parsed, options.MaxFrames));
-            (GrenadeDocument rows, _) = GrenadeSidecar.Build(path, _library.Find(path), parsed, walk);
+            GrenadeWalk walk = walkDemo();
+            (GrenadeDocument rows, _) = GrenadeSidecar.Build(path, _library.Find(path), clock, buildNumber, walk);
 
             // The store stamps the rows as it writes them: a crash before the stamp leaves the demo "not walked".
             _store.Write(path, rows);

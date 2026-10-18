@@ -96,8 +96,9 @@ public interface IExtensionPass
     bool ReadsUserCommands => true;
 
     /// <summary>
-    ///     How the pass reads the demo. A forward pass does not hold the visit on the retained parse, and must
-    ///     answer false to <see cref="ReadsUserCommands" />: the host refuses a forward pass that reads them.
+    ///     How the pass reads the demo. A forward pass does not hold the visit on the retained parse and sees no
+    ///     player inputs itself: <see cref="ReadsUserCommands" /> is not consulted for it, and a collector of its
+    ///     that declares <see cref="CollectorContribution.ReadsUserCommands" /> reads them on the rules run.
     /// </summary>
     PassRead Read => PassRead.Retained;
 
