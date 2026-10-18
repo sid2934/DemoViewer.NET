@@ -53,7 +53,13 @@ public enum PassInterest
     ///     reads. The visit includes the pass when one of its <see cref="IDemoPass.After" /> ancestors is on
     ///     it, and asks again right before its turn.
     /// </summary>
-    IfUpstreamRuns
+    IfUpstreamRuns,
+
+    /// <summary>
+    ///     Stale, but not worth a read of its own. The visit includes the pass when another pass on it needs a
+    ///     rules run, and never submits it alone.
+    /// </summary>
+    IfRulesRun
 }
 
 /// <summary>Why a demo is being visited. Higher runs sooner.</summary>
@@ -240,10 +246,14 @@ public enum PassOutcome
 ///     Told once per submitted pass how its turn ended, in the slot. The error is set for
 ///     <see cref="PassOutcome.Failed" /> and <see cref="PassOutcome.ParseFailed" />.
 /// </param>
+/// <param name="Riders">
+///     The ids of passes that only ride another pass's rules run. A visit left with nothing but riders is cancelled.
+/// </param>
 public sealed record DemoVisitRequest(
     string Path,
     PassLevel Level,
     IReadOnlyList<IDemoPass> Passes,
     long OrderHint = 0,
     string? DisplayName = null,
-    Action<IDemoPass, PassOutcome, Exception?>? PassEnded = null);
+    Action<IDemoPass, PassOutcome, Exception?>? PassEnded = null,
+    IReadOnlySet<string>? Riders = null);

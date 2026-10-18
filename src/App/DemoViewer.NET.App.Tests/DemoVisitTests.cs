@@ -430,6 +430,92 @@ public class DemoVisitTests
         }
     }
 
+    [Test]
+    public async Task Planner_AddsARider_OnlyWhenAnotherPlannedPassNeedsARulesRun()
+    {
+        FakePass library = new("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) };
+        FakePass grenades = new("grenades") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        FakePass highlights = new("highlights")
+        {
+            Answer = PassInterest.IfRulesRun, NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules)
+        };
+        VisitedDemo demo = new(Demo);
+
+        List<IDemoPass> withRules = VisitPlanner.Plan([library, highlights, grenades], demo, PassLevel.Backlog, null,
+            out HashSet<string> riders);
+        List<IDemoPass> withoutRules = VisitPlanner.Plan([library, highlights], demo, PassLevel.Backlog);
+        List<IDemoPass> alone = VisitPlanner.Plan([highlights], demo, PassLevel.Backlog);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(withRules.Select(p => p.Id)).IsEquivalentTo(["library", "highlights", "grenades"],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(riders).IsEquivalentTo(["highlights"]);
+            await Assert.That(withoutRules.Select(p => p.Id)).IsEquivalentTo(["library"])
+                .Because("a read without rules would have to be upgraded for the rider");
+            await Assert.That(alone).IsEmpty().Because("a rider never pays for a read");
+        }
+    }
+
+    [Test]
+    public async Task CancellingTheRulesPass_CancelsAVisitLeftWithOnlyItsRider()
+    {
+        List<(string, PassOutcome)> ended = [];
+        using DemoProcessingQueue queue = Queue();
+        queue.Pause();
+        FakePass grenades = new("grenades") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        FakePass highlights = new("highlights") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        IDemoQueueHandle handle = queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Background, [grenades, highlights], 0,
+            "match.dem", (p, outcome, _) => ended.Add((p.Id, outcome)), new HashSet<string> { "highlights" }));
+
+        queue.CancelOwned("grenades");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(handle.State).IsEqualTo(DemoQueueItemState.Cancelled);
+            await Assert.That(ended).IsEquivalentTo([("grenades", PassOutcome.Cancelled), ("highlights", PassOutcome.Cancelled)]);
+            await Assert.That(highlights.Ran).IsEmpty();
+        }
+
+        queue.Resume();
+    }
+
+    [Test]
+    public async Task CancellingTheRulesPass_DropsTheRider_AndKeepsAPassThatNeedsNoRules()
+    {
+        List<string> ran = [];
+        using DemoProcessingQueue queue = Queue(forward: (_, _, _, _) => ForwardResult());
+        queue.Pause();
+        FakePass library = new("library") { Ran = ran, NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) };
+        FakePass grenades = new("grenades") { Ran = ran, NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        FakePass highlights = new("highlights") { Ran = ran, NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        IDemoQueueHandle handle = queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Background, [library, grenades, highlights], 0,
+            "match.dem", null, new HashSet<string> { "highlights" }));
+
+        queue.CancelOwned("grenades");
+        await Assert.That(queue.Snapshot().Single(s => s.Id == handle.Id).Owners).IsEquivalentTo(["library"])
+            .Because("the rider would turn the library's read into a rules run");
+        queue.Resume();
+        await handle.Completion;
+
+        await Assert.That(ran).IsEquivalentTo(["library"]);
+    }
+
+    [Test]
+    public async Task ARiderOnAVisit_RunsInTheSlot()
+    {
+        using DemoProcessingQueue queue = Queue();
+        List<string> ran = [];
+        FakePass grenades = new("grenades") { Ran = ran };
+        FakePass highlights = new("highlights") { Ran = ran, Answer = PassInterest.IfRulesRun };
+
+        IDemoQueueHandle handle = queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Background, [grenades, highlights], 0,
+            "match.dem", null, new HashSet<string> { "highlights" }));
+        await handle.Completion;
+
+        await Assert.That(ran).IsEquivalentTo(["grenades", "highlights"]);
+    }
+
     private sealed class FakePass(string id, params string[] after) : IDemoPass
     {
         public List<string> Ran { get; init; } = [];

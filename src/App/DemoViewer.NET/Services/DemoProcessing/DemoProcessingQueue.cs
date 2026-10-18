@@ -776,7 +776,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
         return Submit(request.Path, LevelOf(request.Priority), request.Priority, request.OrderHint, request.DisplayName,
-            [new CallbackPass(request)], null);
+            [new CallbackPass(request)], null, null);
     }
 
     public IDemoQueueHandle SubmitVisit(DemoVisitRequest request)
@@ -784,7 +784,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         return Submit(request.Path, request.Level, PriorityOf(request.Level), request.OrderHint, request.DisplayName,
-            request.Passes, request.PassEnded);
+            request.Passes, request.PassEnded, request.Riders);
     }
 
     // An open demo's passes and a user's request outrank the backlog; the finer levels order later.
@@ -795,7 +795,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         priority >= DemoJobPriority.UserRequested ? PassLevel.UserRequested : PassLevel.Background;
 
     private Handle Submit(string path, PassLevel level, DemoJobPriority priority, long orderHint, string? displayName,
-        IReadOnlyList<IDemoPass> passes, Action<IDemoPass, PassOutcome, Exception?>? ended)
+        IReadOnlyList<IDemoPass> passes, Action<IDemoPass, PassOutcome, Exception?>? ended, IReadOnlySet<string>? riders)
     {
         VisitedDemo demo = new(path);
         // Asked once, outside the lock: the answer fixes how this pass may join and what the visit reads.
@@ -824,7 +824,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 // Coalesce: one read, every pass; bump level, priority and order to the max seen.
                 foreach ((IDemoPass pass, PassNeeds needs) in joining)
                 {
-                    existing.Visit!.Add(pass, needs, ended);
+                    existing.Visit!.Add(pass, needs, ended, riders?.Contains(pass.Id) == true);
                 }
 
                 existing.Visit!.Raise(level);
@@ -868,7 +868,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 entry.Visit.TakeFrom(forward.Visit!);
                 foreach ((IDemoPass pass, PassNeeds needs) in joining)
                 {
-                    entry.Visit.Add(pass, needs, ended);
+                    entry.Visit.Add(pass, needs, ended, riders?.Contains(pass.Id) == true);
                 }
 
                 forward.CancelRequested = true;
@@ -897,7 +897,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 };
                 foreach ((IDemoPass pass, PassNeeds needs) in joining)
                 {
-                    entry.Visit.Add(pass, needs, ended);
+                    entry.Visit.Add(pass, needs, ended, riders?.Contains(pass.Id) == true);
                 }
 
                 _entries.Add(entry);
@@ -1180,8 +1180,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     // Under _sync. Takes the owner's passes off the visit and collects them for the callbacks outside the lock.
-    private static int RemovePassesLocked(Entry e, string ownerTag, List<VisitPass> removed) =>
-        e.Visit!.RemoveWhere(p =>
+    private static int RemovePassesLocked(Entry e, string ownerTag, List<VisitPass> removed)
+    {
+        int count = e.Visit!.RemoveWhere(p =>
         {
             if (!string.Equals(p.Pass.Id, ownerTag, StringComparison.Ordinal)
                 && !string.Equals(p.Pass.Owner, ownerTag, StringComparison.Ordinal))
@@ -1192,6 +1193,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             removed.Add(p);
             return true;
         });
+        if (count > 0)
+        {
+            e.Visit.DropStrandedRiders(removed);
+        }
+
+        return count;
+    }
 
     public void CancelPass(string path, IDemoPass pass)
     {
@@ -1220,6 +1228,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 removed.Add(p);
                 return true;
             });
+            e.Visit.DropStrandedRiders(removed);
             if (e.Visit.Count > 0 || e.ForegroundWaiters.Count > 0)
             {
                 // Another pass still wants the read.
@@ -1916,6 +1925,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // Asks the pass again right before its turn: an upstream pass on the same visit may have done its work,
     // or written what it was waiting for. A pass still waiting on upstream after upstream ran sits out.
+    // A rider runs: the visit was only planned with it when another pass needed the rules run.
     private static void RunPass(VisitPass p, PassInput input)
     {
         PassInterest interest;
