@@ -11,6 +11,7 @@ using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
@@ -292,7 +293,10 @@ public sealed class MergedRulesBuild
     internal CollectorResults Collected(ParsedDemo parsed, string path) =>
         RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty, false).Results;
 
-    /// <summary>True when an evaluated run is held for <paramref name="parsed" />, not just collector results. For tests.</summary>
+    /// <summary>
+    ///     True when an evaluated run is held for <paramref name="parsed" />, not just collector results. The
+    ///     library reads its tables off such a run instead of replaying.
+    /// </summary>
     internal bool HoldsRun(ParsedDemo parsed)
     {
         lock (_gate)
@@ -309,9 +313,10 @@ public sealed class MergedRulesBuild
     {
         (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
 
-        // round_facts always: its row source reads the table off this run, and a run without it reads as a
-        // demo with no rows.
+        // round_facts and the library tables always: their readers take them off this run, and a run without
+        // them reads as a demo with no rows.
         HashSet<string> outputs = new(cut, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
+        outputs.UnionWith(LibraryTeamTables.Tables);
         lock (_gate)
         {
             if (_runs.TryGetValue(parsed, out CachedRun? cached) && string.Equals(cached.Off, off, StringComparison.Ordinal))
@@ -388,10 +393,12 @@ public sealed class MergedRulesBuild
             return plan;
         }
 
+        HashSet<string> cut = new(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable };
+        cut.UnionWith(LibraryTeamTables.Tables);
         return plan with
         {
             Docs = docs,
-            Cut = new HashSet<string>(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable },
+            Cut = cut,
             Collectors = OpenCollectorSet()
         };
     }

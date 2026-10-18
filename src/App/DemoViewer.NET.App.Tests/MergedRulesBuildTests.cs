@@ -8,6 +8,7 @@ using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.TestSupport;
 
@@ -331,12 +332,15 @@ public class MergedRulesBuildTests
             await Assert.That(onAgain).IsSameReferenceAs(on);
             await Assert.That(off.Build.Outputs?.Select(o => o.Id) ?? []).Contains(RoundFacts)
                 .Because("round_facts is core and rides every run");
-            await Assert.That(on.Build.Outputs?.Select(o => o.Id) ?? []).IsEquivalentTo([RoundFacts])
-                .Because("the bare build keeps the round_facts output, and only that one");
+            await Assert.That(Recorded(on)).IsEquivalentTo(WithLibrary(RoundFacts))
+                .Because("the bare build keeps round_facts and the library tables, and only those");
         }
     }
 
     private static IReadOnlyList<string> Recorded(AnalysisRun run) => [.. (run.Build.Outputs ?? []).Select(o => o.Id).Order(StringComparer.Ordinal)];
+
+    // Every merged run records the library tables beside whatever its cut names.
+    private static string[] WithLibrary(params string[] tables) => [.. tables.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal)];
 
     // A cached run is served only when it recorded every table the caller's cut names.
     [Test]
@@ -358,9 +362,9 @@ public class MergedRulesBuildTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(Recorded(narrow)).IsEquivalentTo([RoundFacts]).Because("the facts are current, so only round_facts is recorded");
+                await Assert.That(Recorded(narrow)).IsEquivalentTo(WithLibrary(RoundFacts)).Because("the facts are current, so only round_facts and the library tables are recorded");
                 await Assert.That(wide).IsNotSameReferenceAs(narrow).Because("the narrow run lacks a table the caller needs");
-                await Assert.That(Recorded(wide)).IsEquivalentTo([AnalysisFactsTests.FactsTable, RoundFacts]);
+                await Assert.That(Recorded(wide)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
                 await Assert.That(wideAgain).IsSameReferenceAs(wide);
             }
         }
@@ -434,7 +438,7 @@ public class MergedRulesBuildTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(Recorded(wide)).IsEquivalentTo([AnalysisFactsTests.FactsTable, RoundFacts]);
+                await Assert.That(Recorded(wide)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
                 await Assert.That(narrow).IsSameReferenceAs(wide).Because("the cached run recorded a superset of the cut");
                 await Assert.That(everything).IsSameReferenceAs(wide).Because("the cached run recorded every stamped output");
             }
@@ -734,10 +738,10 @@ public class MergedRulesBuildTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(plan.Cut!).IsEquivalentTo([RoundFacts]);
+            await Assert.That(plan.Cut!.Order(StringComparer.Ordinal)).IsEquivalentTo(WithLibrary(RoundFacts));
             await Assert.That(seeded).IsFalse();
             await Assert.That(visit).IsNotSameReferenceAs(run);
-            await Assert.That(Recorded(visit)).IsEquivalentTo([AnalysisFactsTests.FactsTable, RoundFacts]);
+            await Assert.That(Recorded(visit)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
         }
     });
 

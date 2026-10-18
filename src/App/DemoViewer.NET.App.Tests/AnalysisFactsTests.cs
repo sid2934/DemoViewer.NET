@@ -12,6 +12,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
@@ -185,11 +186,11 @@ public class AnalysisFactsTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(staleRetained).IsEquivalentTo(new[] { FactsTable, RoundFactsFingerprint.RulesetId });
+                await Assert.That(staleRetained).IsEquivalentTo(new[] { FactsTable, RoundFactsFingerprint.RulesetId }.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal));
                 await Assert.That(staleRetained).IsEquivalentTo(staleForward);
-                await Assert.That(currentRetained).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId })
-                    .Because("every stamp is current, so the retained run records round_facts alone");
-                await Assert.That(currentForward).IsEmpty();
+                await Assert.That(currentRetained).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId }.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal))
+                    .Because("every stamp is current, so the retained run records round_facts and the library tables alone");
+                await Assert.That(currentForward).IsEquivalentTo(LibraryTeamTables.Tables.Order(StringComparer.Ordinal));
             }
         }
         finally

@@ -78,8 +78,12 @@ internal sealed class DemoVisit
     /// <summary>True when a pass needing <paramref name="needs" /> can join a visit already reading this way.</summary>
     public static bool CanJoinRunning(PassNeeds needs, bool forward, ForwardNeeds produced, bool userCommands) =>
         forward
-            ? needs.Mode == ParseMode.Forward && (needs.Forward & ~produced) == 0
+            ? needs.Mode == ParseMode.Forward && (needs.Forward & ~Covered(produced)) == 0
             : userCommands || !needs.UserCommands;
+
+    // A rules run carries the final state as tables.
+    private static ForwardNeeds Covered(ForwardNeeds produced) =>
+        (produced & ForwardNeeds.Rules) != 0 ? produced | ForwardNeeds.FinalState : produced;
 
     /// <summary>
     ///     The read the passes need together: forward only when every pass takes one and the host can read

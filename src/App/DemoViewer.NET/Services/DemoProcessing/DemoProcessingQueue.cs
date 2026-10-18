@@ -176,6 +176,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     /// <summary>The collectors of the retained visits of <paramref name="path" /> in flight; none between visits.</summary>
     internal CollectorSet CollectorsFor(string path) => _visitCollectors.For(path);
 
+    /// <summary>
+    ///     True while a retained visit of <paramref name="path" /> in flight makes a rules run anyway: a pass on it
+    ///     needs rules, or it carries collectors, which ride the run.
+    /// </summary>
+    internal bool RunsRules(string path) =>
+        (_visitCollectors.NeedsFor(path) & ForwardNeeds.Rules) != 0 || !_visitCollectors.For(path).IsEmpty;
+
     // A read not yet started declares the visit's collectors when it starts, the joining pass's among them.
     private static bool CarriesCollectorsLocked(Entry entry, IDemoPass pass) =>
         pass is not ICollectingPass { Collectors.IsEmpty: false } collecting
@@ -1752,7 +1759,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         RaiseChanged();
         if (!cancelled)
         {
-            using IDisposable collecting = _visitCollectors.Begin(open.Path, merged.Collectors());
+            using IDisposable collecting = _visitCollectors.Begin(open.Path, merged.Collectors(), merged.ChooseMode(false).Needs);
             foreach (VisitPass p in merged.Ordered())
             {
                 RunPass(p, new PassInput(merged.Demo, PassLevel.OpenDemo, parsed, null, ct) { RetainedCollected = RetainedCollected(parsed, open.Path) });
@@ -2260,6 +2267,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         PassLevel level;
         List<TaskCompletionSource<ParsedDemo>> foreground;
         CollectorSet collectors;
+        ForwardNeeds needs;
         lock (_sync)
         {
             // Close the entry to further coalescing ATOMICALLY with capturing the pass snapshot: any
@@ -2272,6 +2280,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             passes = entry.Visit.Ordered();
             foreground = [.. entry.ForegroundWaiters];
             collectors = entry.Visit.Collectors();
+            needs = entry.Visit.ChooseMode(false).Needs;
         }
 
         if (failure is not null)
@@ -2299,7 +2308,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
         else
         {
-            using IDisposable collecting = _visitCollectors.Begin(demo.Path, collectors);
+            using IDisposable collecting = _visitCollectors.Begin(demo.Path, collectors, needs);
             foreach (VisitPass p in passes)
             {
                 RunPass(p, new PassInput(demo, level, parsed!, null, token) { RetainedCollected = RetainedCollected(parsed!, demo.Path) });

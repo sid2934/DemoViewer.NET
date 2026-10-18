@@ -8,6 +8,7 @@ using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
@@ -20,7 +21,10 @@ public enum ForwardNeeds
 {
     None = 0,
 
-    /// <summary>The final CCSTeam scores, clans and coach slots (library tier 2).</summary>
+    /// <summary>
+    ///     The library's final scores, clans and coaches. A rules run carries them as tables; a read without one
+    ///     replays the two entity classes in the tap.
+    /// </summary>
     FinalState = 1,
 
     /// <summary>The merged highlights plus stamped rules run, without snapshots.</summary>
@@ -38,89 +42,17 @@ public sealed class ForwardDemoResult
     public required int FrameCount { get; init; }
     public required int FirstServerTick { get; init; }
     public required int LastServerTick { get; init; }
-    public FinalTeamState? FinalState { get; init; }
+
+    /// <summary>The tap's replay of the final state; null when the read ran rules, which carry it as tables.</summary>
+    public LibraryTeamState? FinalState { get; init; }
+
+    /// <summary>The overtime convars, which a read of the run's library tables needs.</summary>
+    public LibraryOvertime Overtime { get; init; }
+
     public AnalysisRun? Run { get; init; }
 
     /// <summary>What the read's collectors put; empty when it carried none.</summary>
     internal CollectorResults Collected { get; init; } = CollectorResults.None;
-}
-
-/// <summary>The scoreboard state at the last frame, as the library card stores it.</summary>
-public sealed record FinalTeamState(int? Ct, int? T, string? CtClan, string? TClan, HashSet<int> CoachSlots)
-{
-    /// <summary>The only classes the read looks at; the tracker stores nothing else.</summary>
-    public static IReadOnlySet<string> Classes { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { "CCSTeam", "CCSPlayerController" };
-
-    public static EntityTracker NewTracker() => new() { StoreClassFilter = Classes };
-
-    /// <summary>
-    ///     Scores and clans from CCSTeam, coaches from the controller at entity index slot + 1. Scores are
-    ///     both or nothing, and nothing when they sum to zero (warmup only); coach slots come back either way.
-    /// </summary>
-    public static FinalTeamState Read(EntityTracker tracker, IEnumerable<int> playerSlots)
-    {
-        int? ct = null, t = null;
-        string? ctClan = null, tClan = null;
-        foreach ((int _, EntityState ent) in tracker.CurrentEntities.AllIndexed())
-        {
-            if (ent.ClassName != "CCSTeam")
-            {
-                continue;
-            }
-
-            int teamNum = CoerceInt(ent["m_iTeamNum"]);
-            int score = CoerceInt(ent["m_iScore"]);
-            string clan = ent["m_szClanTeamname"] as string ?? "";
-            if (teamNum == 2)
-            {
-                t = score;
-                if (clan.Length > 0)
-                {
-                    tClan = clan;
-                }
-            }
-            else if (teamNum == 3)
-            {
-                ct = score;
-                if (clan.Length > 0)
-                {
-                    ctClan = clan;
-                }
-            }
-        }
-
-        HashSet<int> coachSlots = [];
-        foreach (int slot in playerSlots)
-        {
-            EntityState? controller = tracker.CurrentEntities[slot + 1];
-            if (controller is not null
-                && controller.ClassName.Contains("PlayerController", StringComparison.OrdinalIgnoreCase)
-                && CoerceInt(controller["m_iCoachingTeam"]) != 0)
-            {
-                coachSlots.Add(slot);
-            }
-        }
-
-        return ct is null || t is null || ct + t == 0
-            ? new FinalTeamState(null, null, null, null, coachSlots)
-            : new FinalTeamState(ct, t, ctClan, tClan, coachSlots);
-    }
-
-    public static FinalTeamState Empty() => new(null, null, null, null, []);
-
-    private static int CoerceInt(object? v) => v switch
-    {
-        int i => i,
-        uint u => (int)u,
-        short s => s,
-        ushort u => u,
-        long l => (int)l,
-        ulong u => (int)u,
-        byte b => b,
-        sbyte s => s,
-        _ => 0
-    };
 }
 
 /// <summary>
@@ -134,6 +66,7 @@ public static class ForwardDemoPass
     public const string RoundFactsTable = "round_facts";
 
     private const string FreezeEndEvent = "round_freeze_end";
+    private static readonly IReadOnlySet<int> ConVarsOnly = new HashSet<int> { (int)NET_Messages.NetSetConVar };
     private const int CheckEveryFrames = 1024;
 
     /// <summary>The reader options <c>DemoAnalysis.Run(path)</c> uses: a 1024-frame parallel decode window.</summary>
@@ -164,9 +97,12 @@ public static class ForwardDemoPass
     internal static BuildResult Build(ParsedDemo parsed, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs, CollectorSet collectors) =>
         CutOutputs(DemoAnalysis.Build(parsed, docs, collectors.DeclareReads(new AnalysisOptions())), outputs);
 
+    // The library tables are recorded on every read: they are two small tables, and the library pass
+    // must find them on whichever run its visit made.
     private static BuildResult CutOutputs(BuildResult build, IReadOnlySet<string>? outputs) => build with
     {
-        Outputs = build.Outputs?.Where(o => outputs?.Contains(o.Id) ?? string.Equals(o.Id, RoundFactsTable, StringComparison.Ordinal)).ToList()
+        Outputs = build.Outputs?.Where(o => LibraryTeamTables.Tables.Contains(o.Id)
+                                            || (outputs?.Contains(o.Id) ?? string.Equals(o.Id, RoundFactsTable, StringComparison.Ordinal))).ToList()
     };
 
     /// <summary>The build's own plan, widened to what the tap reads.</summary>
@@ -179,18 +115,27 @@ public static class ForwardDemoPass
             : new DecodePlan { Categories = headerAndTables, GameEventNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) };
 
         MessageCategories categories = plan.Categories | headerAndTables;
-        if ((needs & ForwardNeeds.FinalState) != 0)
+        if (TapReplays(needs))
         {
             categories |= MessageCategories.Schema | MessageCategories.Entities;
         }
 
         IReadOnlySet<string>? events = plan.GameEventNames;
-        if (events is not null && !events.Contains(FreezeEndEvent))
+        string[] tapEvents = TapReplays(needs)
+            ? [FreezeEndEvent, LibraryFinalScore.MatchEndEvent, LibraryFinalScore.MatchRestartEvent]
+            : [FreezeEndEvent];
+        if (events is not null && !tapEvents.All(events.Contains))
         {
-            events = new HashSet<string>(events, StringComparer.OrdinalIgnoreCase) { FreezeEndEvent };
+            HashSet<string> widened = new(events, StringComparer.OrdinalIgnoreCase);
+            widened.UnionWith(tapEvents);
+            events = widened;
         }
 
-        return plan with { Categories = categories, GameEventNames = events };
+        // A handful of messages per demo; the library's score completion reads overtime off them.
+        IReadOnlySet<int> include = plan.IncludeMessageTypes is { } types
+            ? new HashSet<int>(types) { (int)NET_Messages.NetSetConVar }
+            : ConVarsOnly;
+        return plan with { Categories = categories, GameEventNames = events, IncludeMessageTypes = include };
     }
 
     /// <summary>
@@ -238,8 +183,7 @@ public static class ForwardDemoPass
             : null;
         reader.Configure(PlanFor(build, needs));
 
-        Tap tap = new(reader, (needs & ForwardNeeds.FinalState) != 0 ? FinalTeamState.NewTracker() : null,
-            progress, cancellationToken);
+        Tap tap = new(reader, TapReplays(needs) ? LibraryFinalStateReplay.NewTracker() : null, progress, cancellationToken);
         AnalysisRun? run = null;
         CollectorObserver? observer = null;
         if (build is not null)
@@ -269,8 +213,9 @@ public static class ForwardDemoPass
             FirstServerTick = tap.FirstServerTick,
             LastServerTick = tap.LastServerTick,
             FinalState = tap.Tracker is null ? null
-                : tap.Frames == 0 ? FinalTeamState.Empty()
-                : FinalTeamState.Read(tap.Tracker, demo.Players.Keys),
+                : tap.Frames == 0 ? LibraryTeamState.Empty()
+                : LibraryFinalStateReplay.Read(tap.Tracker, demo.Players.Keys, tap.MatchEnded, tap.Overtime),
+            Overtime = tap.Overtime,
             Run = run,
             Collected = observer?.Results ?? CollectorResults.None
         };
@@ -278,6 +223,10 @@ public static class ForwardDemoPass
 
     // Everything happens inside TryReadNext: the evaluator may pull from a producer thread, and the
     // scanner releases a frame's folded data once it has applied it.
+    // A rules run carries the final state as tables; only a read without one replays it.
+    private static bool TapReplays(ForwardNeeds needs) =>
+        (needs & ForwardNeeds.FinalState) != 0 && (needs & ForwardNeeds.Rules) == 0;
+
     private sealed class Tap(
         DemoReader inner,
         EntityTracker? tracker,
@@ -285,6 +234,8 @@ public static class ForwardDemoPass
         CancellationToken cancellationToken) : IDemoFrameSource
     {
         public List<GameEvent> FreezeEnds { get; } = [];
+        public bool MatchEnded { get; private set; }
+        public LibraryOvertime Overtime { get; private set; }
         public EntityTracker? Tracker => tracker;
         public int Frames { get; private set; }
         public int FirstServerTick { get; private set; }
@@ -322,9 +273,17 @@ public static class ForwardDemoPass
 
             foreach (NetMessage message in frame.DecodedMessages)
             {
-                if (message is GameEventMessage { DecodedEvent: { Name: FreezeEndEvent } evt })
+                switch (message)
                 {
-                    FreezeEnds.Add(evt);
+                    case GameEventMessage { DecodedEvent: { Name: FreezeEndEvent } evt }:
+                        FreezeEnds.Add(evt);
+                        break;
+                    case GameEventMessage { DecodedEvent.Name: LibraryFinalScore.MatchEndEvent or LibraryFinalScore.MatchRestartEvent } evt:
+                        MatchEnded = LibraryFinalScore.FoldMatchEnded(MatchEnded, evt.DecodedEvent.Name);
+                        break;
+                    default:
+                        Overtime = Overtime.With(message);
+                        break;
                 }
             }
 

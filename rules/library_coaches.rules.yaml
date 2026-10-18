@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+#
+# Library Coaches: the side each player coached, 0 for everyone else. The library marks a coach on
+# the cached roster so Team Identity keeps a registered coach out of a side's five. Read off the
+# visit's merged rules run, like library_teams.
+#
+# player.coaching_team needs a trigger; it is sampled at every round close and the last one is
+# kept, so a demo with no closed round marks no coach. The app drops coaches on a demo it does not
+# score, so its last-frame replay agrees.
+ruleset: library_coaches
+title: Library Coaches
+summary: The side each player coached, for the library roster.
+for: each_player
+
+stats:
+  coaching_team:
+    capture: player.coaching_team
+    on: round_ended
+    keep: last
+    per: match
+
+show:
+  tables:
+    library_coaches:
+      per: player_match
+      columns:
+        - { stat: coaching_team, label: coaching_team }

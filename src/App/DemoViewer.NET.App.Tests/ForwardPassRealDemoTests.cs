@@ -41,7 +41,7 @@ public class ForwardPassRealDemoTests
 
     // The two separate builds before the merge: highlights alone, round_facts alone.
     private static IReadOnlyList<RulesetDoc> HighlightsOnly(IReadOnlyList<RulesetDoc> rules) =>
-        [.. rules.Where(r => r.Id != RoundFactsFingerprint.RulesetId)];
+        [.. rules.Where(r => r.Id != RoundFactsFingerprint.RulesetId && !LibraryTeamTables.IsLibraryRuleset(r.Id))];
 
     [Test]
     [Arguments(0)]
@@ -195,7 +195,7 @@ public class ForwardPassRealDemoTests
     private static string RulesOnlyRoundFacts(string path, MergedRulesBuild merged)
     {
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
-        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, merged.Docs);
+        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, merged.Docs);
         DemoCacheStore cache = new(null);
         cache.Upsert(new DemoCacheRecord
         {
@@ -225,7 +225,7 @@ public class ForwardPassRealDemoTests
         RulesRoundFactsRulesetIdentity identity = new(merged);
         try
         {
-            using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache);
+            using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache) { TeamRun = merged.BareRun };
             using HighlightScanService highlights = new(cache, new RulesHighlightHarvester(merged), () => [path], () => true);
             RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(identity), identity);
             run(library, entry, highlights, facts);
