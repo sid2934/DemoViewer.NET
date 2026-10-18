@@ -170,7 +170,8 @@ public partial class SingleWalkOracleTests
     /// <summary>
     ///     Every file the session wrote under <paramref name="configDir" />, one entry per file, or per
     ///     top-level property of a JSON object. Gzip is inflated, JSON keys are sorted, wall-clock fields
-    ///     and machine paths are masked, and a content key in a file name reads <c>{key}</c>.
+    ///     and machine paths are masked, a content key in a file name reads <c>{key}</c>, and the demo's
+    ///     path key (<see cref="DemoCacheStore.StableKey" />, a hash of its absolute path) reads <c>{demokey}</c>.
     /// </summary>
     internal static SortedDictionary<string, string> Canonical(string configDir, string demo)
     {
@@ -185,6 +186,7 @@ public partial class SingleWalkOracleTests
 
             string key = ContentKey().Replace(rel, "{key}");
             byte[] bytes = File.ReadAllBytes(file);
+            byte[] stored = bytes;
             if (bytes is [0x1f, 0x8b, ..])
             {
                 bytes = Inflate(bytes);
@@ -196,6 +198,7 @@ public partial class SingleWalkOracleTests
             {
                 Add(result, key + "@header", header, demo, configDir);
                 bytes = bytes[(newline + 1)..];
+                stored = bytes;
                 if (bytes is [0x1f, 0x8b, ..])
                 {
                     bytes = Inflate(bytes);
@@ -203,8 +206,9 @@ public partial class SingleWalkOracleTests
             }
 
             // The grenade sidecar is binary; its decoded rows and header are compared, Engine masked.
+            // TryDecode reads the gzip stream as written, not the inflated bytes.
             JsonNode? json = bytes is [(byte)'D', (byte)'V', (byte)'G', (byte)'L', ..]
-                             && GrenadeThrowLog.TryDecode(bytes) is { } grenades
+                             && GrenadeThrowLog.TryDecode(stored) is { } grenades
                 ? JsonSerializer.SerializeToNode(grenades, Fields)
                 : TryParse(bytes);
             Add(result, key, json, demo, configDir, bytes);
@@ -242,7 +246,9 @@ public partial class SingleWalkOracleTests
     {
         if (json is null)
         {
-            result[key] = raw is null ? "null" : Convert.ToHexStringLower(SHA256.HashData(raw));
+            result[key] = raw is null
+                ? "null"
+                : Convert.ToHexStringLower(SHA256.HashData(Encoding.Latin1.GetBytes(Mask(Encoding.Latin1.GetString(raw), demo, configDir))));
             return;
         }
 
@@ -273,9 +279,10 @@ public partial class SingleWalkOracleTests
         {
             case JsonObject obj:
                 JsonObject sorted = [];
-                foreach ((string k, JsonNode? v) in obj.OrderBy(kv => kv.Key, StringComparer.Ordinal))
+                foreach ((string name, string k, JsonNode? v) in obj.Select(kv => (Mask(kv.Key, demo, configDir), kv.Key, kv.Value))
+                             .OrderBy(e => e.Item1, StringComparer.Ordinal))
                 {
-                    sorted[k] = Masked(k) ? JsonValue.Create("<masked>") : Normalize(v, demo, configDir, k);
+                    sorted[name] = Masked(k) ? JsonValue.Create("<masked>") : Normalize(v, demo, configDir, k);
                 }
 
                 return sorted;
@@ -288,14 +295,17 @@ public partial class SingleWalkOracleTests
 
                 return copy;
             case JsonValue value when value.TryGetValue(out string? s):
-                return JsonValue.Create(s
-                    .Replace(demo, "{demo}", StringComparison.OrdinalIgnoreCase)
-                    .Replace(Path.GetDirectoryName(demo)!, "{demos}", StringComparison.OrdinalIgnoreCase)
-                    .Replace(configDir, "{config}", StringComparison.OrdinalIgnoreCase));
+                return JsonValue.Create(Mask(s, demo, configDir));
             default:
                 return node?.DeepClone();
         }
     }
+
+    private static string Mask(string text, string demo, string configDir) => text
+        .Replace(demo, "{demo}", StringComparison.OrdinalIgnoreCase)
+        .Replace(Path.GetDirectoryName(demo)!, "{demos}", StringComparison.OrdinalIgnoreCase)
+        .Replace(configDir, "{config}", StringComparison.OrdinalIgnoreCase)
+        .Replace(DemoCacheStore.StableKey(demo), "{demokey}", StringComparison.Ordinal);
 
     [GeneratedRegex("[0-9a-f]{16,}")]
     private static partial Regex ContentKey();

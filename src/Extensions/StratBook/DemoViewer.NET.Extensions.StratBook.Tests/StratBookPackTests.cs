@@ -80,7 +80,7 @@ public class StratBookPackTests
         "DemoViewer.NET.Modules.Library.DemoLibraryService",
         "DemoViewer.NET.Modules.Highlights.IHighlightHarvester",
         "DemoViewer.NET.ViewModels.Highlights.HighlightsTabViewModel",
-        "DemoViewer.NET.ViewModels.Highlights.HighlightScanStatusViewModel",
+        "DemoViewer.NET.ViewModels.Highlights.HighlightBacklogViewModel",
         "DemoViewer.NET.Modules.Highlights.HighlightScanService",
         "DemoViewer.NET.Services.Facts.RulesRoundFactsRulesetIdentity",
         "DemoViewer.NET.Services.Facts.IRoundFactsRulesetIdentity",

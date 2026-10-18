@@ -46,7 +46,12 @@ public sealed class EvaluatorPassAdapter : IDemoPass, IPassScheduling
             return PassInterest.Yes;
         }
 
-        return Evaluator.WantsAfterUpstream(demo.Path) ? PassInterest.IfUpstreamRuns : PassInterest.No;
+        if (Evaluator.WantsAfterUpstream(demo.Path))
+        {
+            return PassInterest.IfUpstreamRuns;
+        }
+
+        return Evaluator.WantsIfRulesRun(demo.Path) ? PassInterest.IfRulesRun : PassInterest.No;
     }
 
     /// <inheritdoc />

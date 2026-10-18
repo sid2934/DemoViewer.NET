@@ -30,15 +30,38 @@ internal sealed class DemoVisit
         _passes.Select(p => p.Pass.Id).Distinct(StringComparer.Ordinal).ToList();
 
     /// <summary>Adds a pass with the needs it declared for this demo; the same instance is not added twice.</summary>
-    public bool Add(IDemoPass pass, PassNeeds needs, Action<IDemoPass, PassOutcome, Exception?>? ended)
+    public bool Add(IDemoPass pass, PassNeeds needs, Action<IDemoPass, PassOutcome, Exception?>? ended, bool rider = false)
     {
         if (_passes.Any(p => ReferenceEquals(p.Pass, pass)))
         {
             return false;
         }
 
-        _passes.Add(new VisitPass(pass, needs, ended, _arrival++));
+        _passes.Add(new VisitPass(pass, needs, ended, _arrival++, rider));
         return true;
+    }
+
+    /// <summary>
+    ///     Moves the riders to <paramref name="removed" /> once no other pass on the visit needs a rules run: a rider
+    ///     left on would make the read run rules for it alone.
+    /// </summary>
+    public void DropStrandedRiders(List<VisitPass> removed)
+    {
+        if (_passes.Exists(p => !p.Rider && (p.Needs.Forward & ForwardNeeds.Rules) != 0))
+        {
+            return;
+        }
+
+        _passes.RemoveAll(p =>
+        {
+            if (!p.Rider)
+            {
+                return false;
+            }
+
+            removed.Add(p);
+            return true;
+        });
     }
 
     /// <summary>Moves every pass of <paramref name="other" /> onto this visit, preserving their order.</summary>
@@ -53,7 +76,7 @@ internal sealed class DemoVisit
     {
         foreach (VisitPass p in other._passes.OrderBy(p => p.Arrival))
         {
-            Add(p.Pass, p.Needs, p.Ended);
+            Add(p.Pass, p.Needs, p.Ended, p.Rider);
         }
 
         Raise(other.Level);
@@ -151,13 +174,18 @@ internal sealed class DemoVisit
     }
 }
 
-/// <summary>A pass on a visit, with the needs it declared when it joined and the submitter's completion callback.</summary>
-internal sealed record VisitPass(IDemoPass Pass, PassNeeds Needs, Action<IDemoPass, PassOutcome, Exception?>? Ended, long Arrival);
+/// <summary>
+///     A pass on a visit, with the needs it declared when it joined, the submitter's completion callback, and
+///     whether it only rides another pass's rules run.
+/// </summary>
+internal sealed record VisitPass(IDemoPass Pass, PassNeeds Needs, Action<IDemoPass, PassOutcome, Exception?>? Ended, long Arrival,
+    bool Rider = false);
 
 /// <summary>
 ///     Plans which passes a demo's visit should carry: every pass that says yes, plus every pass that
 ///     answers <see cref="PassInterest.IfUpstreamRuns" /> and has an <see cref="IDemoPass.After" /> ancestor
-///     already in the set, to a fixpoint.
+///     already in the set, plus every <see cref="PassInterest.IfRulesRun" /> pass once a pass in the set that
+///     is not one needs a rules run, to a fixpoint.
 /// </summary>
 internal static class VisitPlanner
 {
@@ -167,7 +195,17 @@ internal static class VisitPlanner
     /// <param name="faulted">Told when a pass throws from <see cref="IDemoPass.Interest" />; that pass is left out.</param>
     /// <returns>The passes to submit, in the input order.</returns>
     public static List<IDemoPass> Plan(IReadOnlyList<IDemoPass> passes, VisitedDemo demo, PassLevel level,
-        Action<IDemoPass, Exception>? faulted = null)
+        Action<IDemoPass, Exception>? faulted = null) =>
+        Plan(passes, demo, level, faulted, out _);
+
+    /// <param name="passes">The candidate passes, in registry order.</param>
+    /// <param name="demo">The demo.</param>
+    /// <param name="level">The level the visit is planned at.</param>
+    /// <param name="faulted">Told when a pass throws from <see cref="IDemoPass.Interest" />; that pass is left out.</param>
+    /// <param name="riders">The planned passes that only ride a rules run another planned pass needs.</param>
+    /// <returns>The passes to submit, in the input order.</returns>
+    public static List<IDemoPass> Plan(IReadOnlyList<IDemoPass> passes, VisitedDemo demo, PassLevel level,
+        Action<IDemoPass, Exception>? faulted, out HashSet<string> riders)
     {
         Dictionary<IDemoPass, PassInterest> answers = new(ReferenceEqualityComparer.Instance);
         foreach (IDemoPass pass in passes)
@@ -198,10 +236,17 @@ internal static class VisitPlanner
         while (added)
         {
             added = false;
+            bool rulesRun = passes.Any(p => chosen.Contains(p.Id) && answers[p] != PassInterest.IfRulesRun
+                                            && NeedsRules(p, demo, faulted));
             foreach (IDemoPass pass in passes)
             {
-                if (answers[pass] == PassInterest.IfUpstreamRuns && !chosen.Contains(pass.Id)
-                    && Ancestors(pass, byId).Any(chosen.Contains))
+                if (chosen.Contains(pass.Id))
+                {
+                    continue;
+                }
+
+                if ((answers[pass] == PassInterest.IfUpstreamRuns && Ancestors(pass, byId).Any(chosen.Contains))
+                    || (answers[pass] == PassInterest.IfRulesRun && rulesRun))
                 {
                     chosen.Add(pass.Id);
                     added = true;
@@ -209,7 +254,22 @@ internal static class VisitPlanner
             }
         }
 
+        riders = new HashSet<string>(passes.Where(p => chosen.Contains(p.Id) && answers[p] == PassInterest.IfRulesRun)
+            .Select(p => p.Id), StringComparer.Ordinal);
         return passes.Where(p => chosen.Contains(p.Id)).ToList();
+    }
+
+    private static bool NeedsRules(IDemoPass pass, VisitedDemo demo, Action<IDemoPass, Exception>? faulted)
+    {
+        try
+        {
+            return (pass.Needs(demo).Forward & ForwardNeeds.Rules) != 0;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            faulted?.Invoke(pass, ex);
+            return false;
+        }
     }
 
     // Every id reachable through After among the candidates. A pass that reads what its grandparent wrote

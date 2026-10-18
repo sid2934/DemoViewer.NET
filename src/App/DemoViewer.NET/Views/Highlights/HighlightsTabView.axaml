@@ -245,6 +245,21 @@
                     </Grid>
                 </Border>
 
+                <!-- Demos without current highlights. Progress is the processing queue's; this only says what
+                 is out of date. Rescan all is in the header. -->
+                <Border Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1" CornerRadius="6"
+                        Padding="10 6" IsVisible="{Binding ShowBacklogNotice}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <TextBlock Grid.Column="0" Text="{Binding Backlog.Notice}"
+                                   Foreground="{DynamicResource TextValue}" FontSize="12"
+                                   VerticalAlignment="Center" TextWrapping="Wrap" />
+                        <Button Grid.Column="1" Classes="ghost" Content="Retry failed" FontSize="11" Padding="10 3"
+                                VerticalAlignment="Center" IsVisible="{Binding Backlog.HasFailed, FallbackValue=False}"
+                                Command="{Binding Backlog.RetryAllFailedCommand}" />
+                    </Grid>
+                </Border>
+
                 <!-- Restore / staging notes (e.g. "2 staged clips could not be restored"). -->
                 <TextBlock Text="{Binding StatusMessage}" IsVisible="{Binding HasStatusMessage}"
                            Foreground="{DynamicResource TextMid}" FontSize="11" TextWrapping="Wrap" />

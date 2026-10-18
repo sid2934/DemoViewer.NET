@@ -237,9 +237,8 @@ public static partial class Variants
             // that a flat row list virtualizes trivially. So this seeds ~240 rows over 8 demos: the
             // VirtualizingStackPanel, the scrollbar (which must not shift the columns) and the pinned footer.
             ["addclips-dense"] = () => Highlights(false, false, picker: PickerMock.Open, denseLibrary: true),
-            // The highlight-scan StatusChip (the fourth consumer): the chip itself in the strip, and its flyout body.
-            ["scanchip-flyout"] = ScanChipFlyout,
-            ["scanchip-chips"] = ScanChips,
+            // The notice for demos without current highlights: one outdated, one failed.
+            ["highlights-backlog"] = () => Highlights(true, false, withBacklog: true),
             ["reel-dialog"] = () => ReelDialog(false, false),
             ["reel-dialog-invalid"] = () => ReelDialog(false, true),
             ["reel-dialog-macos"] = () => ReelDialog(true, false),
@@ -365,7 +364,7 @@ public static partial class Variants
 
     private static HighlightsTabView Highlights(bool populated, bool narrow, bool demosExist = true,
         bool withJob = false, bool libraryIndexed = true, PickerMock? picker = null,
-        bool denseLibrary = false)
+        bool denseLibrary = false, bool withBacklog = false)
     {
         DemoCacheStore store = new(null);
         if (denseLibrary)
@@ -398,6 +397,18 @@ public static partial class Variants
                 ]));
         }
 
+        if (withBacklog)
+        {
+            // A harvest whose fingerprint has since moved, and a demo whose scan failed.
+            DemoCacheRecord outdated = HlRow("/demos/esl_2025-06-02_nuke.dem", "de_nuke", 250,
+                [("ZywOo", "76561198000000002", 3, 0)], [(4, 28000)],
+                [("ZywOo", "76561198000000002", 1, 3, 4, 30110, "ZywOo — 3k retake (round 4)", "clutch.retake_3k")]);
+            outdated.ConfigFingerprint = "stale@64";
+            store.Upsert(outdated);
+            store.Upsert(HlRow("/demos/corrupt_half_download.dem", "de_mirage", 100, [], [], [],
+                DemoAnalysisState.Failed));
+        }
+
         HighlightScanService scanner = new(
             store,
             new CaptureHarvester(),
@@ -428,6 +439,11 @@ public static partial class Variants
                     vm.Stage(row, h);
                 }
             }
+        }
+
+        if (withBacklog)
+        {
+            vm.Backlog = new HighlightBacklogViewModel(scanner, store);
         }
 
         if (withJob)
@@ -512,92 +528,6 @@ public static partial class Variants
                 maps[d % maps.Length], 900 - d, roster,
                 [.. Enumerable.Range(1, 30).Select(r => (r, 4000 + r * 3700))], events));
         }
-    }
-
-    /// <summary>
-    ///     The highlight-scan chip's flyout body: the fourth <c>StatusChip</c> consumer, rendered
-    ///     standalone in a <c>card-flyout</c> exactly as the strip hosts it (the <c>queue-flyout</c> pattern).
-    /// </summary>
-    private static Border ScanChipFlyout()
-    {
-        DemoCacheStore store = new(null);
-        store.Upsert(HlRow("/demos/faceit_2025-06-14_dust2.dem", "de_dust2", 300,
-            [("s1mple", "76561198000000001", 2, 0)], [(7, 50000)],
-            [("s1mple", "76561198000000001", 0, 2, 7, 54321, "s1mple — ace (round 7)", "clutch.ace")]));
-        // A demo carrying a harvest whose fingerprint has since moved = the "outdated" case: still queued,
-        // still showing its previous results. Its record's fingerprint is deliberately not the current one.
-        DemoCacheRecord outdated = HlRow("/demos/esl_2025-06-02_nuke.dem", "de_nuke", 200,
-            [("ZywOo", "76561198000000002", 3, 0)], [(4, 28000)],
-            [("ZywOo", "76561198000000002", 1, 3, 4, 30110, "ZywOo — 3k retake (round 4)", "clutch.retake_3k")]);
-        outdated.ConfigFingerprint = "stale@64";
-        store.Upsert(outdated);
-        store.Upsert(HlRow("/demos/corrupt_half_download.dem", "de_mirage", 100, [], [], [],
-            DemoAnalysisState.Failed));
-
-        HighlightScanService scanner = new(store, new CaptureHarvester(), () => [], () => false);
-        HighlightScanStatusViewModel vm = new(scanner, store);
-
-        return new Border
-        {
-            Background = Tok("ShellBg"),
-            Padding = new Thickness(20),
-            Child = new Border
-            {
-                Classes =
-                {
-                    "card-flyout"
-                },
-                MaxWidth = 340,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-                Child = new HighlightScanStatusView
-                {
-                    DataContext = vm
-                }
-            }
-        };
-    }
-
-    /// <summary>The scan chip in each state it reaches in the status strip (label carries the state, not the dot).</summary>
-    private static Border ScanChips()
-    {
-        (string State, StatusChipDotState Dot, bool Pulse, string Label)[] rows =
-        [
-            ("Scanning — pulsing", StatusChipDotState.Working, true, "Highlights · scanning (11 left)"),
-            ("Queued, drain not started", StatusChipDotState.Working, false, "Highlights · 12 queued"),
-            ("Failures only", StatusChipDotState.Error, false, "Highlights · 3 failed"),
-            ("Idle", StatusChipDotState.Off, false, "Highlights · idle")
-        ];
-
-        StackPanel col = new()
-        {
-            Spacing = 5,
-            Margin = new Thickness(0, 6, 0, 6)
-        };
-        foreach ((string state, StatusChipDotState dot, bool pulse, string label) in rows)
-        {
-            col.Children.Add(new StatusStrip
-            {
-                StatusText = state,
-                StatusBrush = Tok("TextMid"),
-                Chips = new[]
-                {
-                    new StatusChipViewModel
-                    {
-                        DotState = dot,
-                        IsPulsing = pulse,
-                        Label = label
-                    }
-                }
-            });
-        }
-
-        return new Border
-        {
-            Width = 520,
-            Background = Tok("ShellBg"),
-            Child = col
-        };
     }
 
     private static DemoCacheRecord HlRow(

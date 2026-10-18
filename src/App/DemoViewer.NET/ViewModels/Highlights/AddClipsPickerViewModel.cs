@@ -75,7 +75,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <param name="leadOutSeconds">Lead-out used for the per-row estimate.</param>
     /// <param name="dontCrossRoundStart">Whether the estimate floors the lead-in at the round start.</param>
     /// <param name="rescanAll">Mirrored <c>⟳ Rescan all</c>; null hides it (browser host / tests).</param>
-    /// <param name="scanQueueDepth">Demos still queued for a scan, drives the "more are coming" note.</param>
+    /// <param name="scanQueueDepth">Demos without current highlights, drives the "not every demo is here" note.</param>
     public AddClipsPickerViewModel(
         IReadOnlyList<DemoCacheRecord> records,
         int libraryRowCount,
@@ -166,7 +166,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <summary>How many rows the cache knows about at all (analysed or not): the library-size context.</summary>
     public int LibraryRowCount { get; }
 
-    /// <summary>Demos still queued for a scan when the picker opened.</summary>
+    /// <summary>Demos without current highlights when the picker opened.</summary>
     public int ScanQueueDepth { get; }
 
     /// <summary>Filter-button caption, e.g. "Players (2)".</summary>
@@ -246,13 +246,13 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
         }
     }
 
-    /// <summary>True while a scan is still queued: the list will grow, and saying so prevents "it's broken".</summary>
+    /// <summary>True while some demos have no current highlights: the list is not the whole library.</summary>
     public bool ShowScanPendingNote => ScanQueueDepth > 0;
 
     /// <summary>Copy for <see cref="ShowScanPendingNote" />.</summary>
     public string ScanPendingNote =>
-        $"{ScanQueueDepth} demo{S(ScanQueueDepth)} still queued for scanning — more highlights will appear " +
-        "once they finish.";
+        $"{ScanQueueDepth} demo{S(ScanQueueDepth)} without current highlights. They refresh as demos are " +
+        "processed; re-open the picker to see them.";
 
     /// <summary>True while <see cref="StatusNote" /> carries anything.</summary>
     public bool HasStatusNote => !string.IsNullOrEmpty(StatusNote);

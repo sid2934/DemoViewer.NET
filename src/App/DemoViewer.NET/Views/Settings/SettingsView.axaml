@@ -1030,7 +1030,7 @@
                                             <TextBlock Text="Scan library for highlights in the background"
                                                        Foreground="{DynamicResource TextValue}" FontSize="12" />
                                             <TextBlock
-                                                Text="A large library can take ~30 min to index. Off = the open demo's highlights only."
+                                                Text="Reads every demo whose highlights are out of date; a large library can take ~30 min. Off = highlights still refresh whenever a demo is opened or read for another feature."
                                                 Foreground="{DynamicResource TextDim}" FontSize="10"
                                                 TextWrapping="Wrap" />
                                         </StackPanel>

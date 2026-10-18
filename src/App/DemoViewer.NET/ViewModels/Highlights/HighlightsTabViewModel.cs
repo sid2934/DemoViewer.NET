@@ -30,9 +30,8 @@ namespace DemoViewer.NET.ViewModels.Highlights;
 ///         <b>What went away and where it went.</b> The library-wide demo card grid is gone. Per-game
 ///         exploration moved to Match Overview (its highlight section owns Verify-live, the per-row
 ///         <c>[ + ]</c>, staleness and failed-retry); cross-demo assembly moved to the <c>Add clips…</c>
-///         picker (<see cref="AddClipsPickerViewModel" />, rendered as an overlay over this tab). The card
-///         grid's library-wide scan progress moved to <see cref="HighlightScanStatusViewModel" />, the fourth
-///         <c>StatusChip</c> consumer. The card grid's chunked <c>CardRow</c> machinery existed only because
+///         picker (<see cref="AddClipsPickerViewModel" />, rendered as an overlay over this tab). Demos without current
+///         highlights show in the tab's <see cref="HighlightBacklogViewModel" /> notice. The card grid's chunked <c>CardRow</c> machinery existed only because
 ///         <c>WrapPanel</c> has no virtualizing counterpart, a constraint that disappears with the grid.
 ///     </para>
 ///     <para>
@@ -115,7 +114,7 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     // the index entry precisely so this stays cheap; the fat sidecars are read one demo at a time.
     private IReadOnlyList<DemoCacheIndexEntry> _rows = [];
 
-    private HighlightScanStatusViewModel? _scanStatus;
+    private HighlightBacklogViewModel? _backlog;
 
     /// <summary>The destructive-action guard rail for <c>Clear tray</c> (an inline confirm, never a modal).</summary>
     [ObservableProperty]
@@ -260,30 +259,42 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     }
 
     /// <summary>
-    ///     The library-wide scan chip's view-model (the FOURTH <c>StatusChip</c> consumer),
-    ///     assigned by the shell exactly as <see cref="JobStatus" /> is: constructed and owned there, added
-    ///     to <c>MainViewModel.Chips</c> there, never disposed here.
-    ///     <para>
-    ///         It differs from <see cref="JobStatus" /> in one way worth stating, because the "never a
-    ///         second job model" rule does NOT apply: <see cref="HighlightScanStatusViewModel" /> is a pure
-    ///         projection of the scanner + cache and holds no job state, so a shell that builds its own
-    ///         instance (so the chip exists before this tab is first activated) cannot drift from this one.
-    ///     </para>
+    ///     The notice for demos whose highlights are not current. Container-owned, never disposed here.
     /// </summary>
-    public HighlightScanStatusViewModel? ScanStatus
+    public HighlightBacklogViewModel? Backlog
     {
-        get => _scanStatus;
+        get => _backlog;
         set
         {
-            if (ReferenceEquals(_scanStatus, value))
+            if (ReferenceEquals(_backlog, value))
             {
                 return;
             }
 
-            // No PropertyChanged subscription: with the transitional badge gone the tab renders nothing
-            // derived from this mapper. The status-strip chip does, and the shell drives that.
-            _scanStatus = value;
+            if (_backlog is not null)
+            {
+                _backlog.PropertyChanged -= OnBacklogChanged;
+            }
+
+            _backlog = value;
+            if (_backlog is not null)
+            {
+                _backlog.PropertyChanged += OnBacklogChanged;
+            }
+
             OnPropertyChanged();
+            OnPropertyChanged(nameof(ShowBacklogNotice));
+        }
+    }
+
+    /// <summary>The backlog notice: desktop only, since the browser host cannot scan.</summary>
+    public bool ShowBacklogNotice => CanScan && _backlog?.IsRelevant == true;
+
+    private void OnBacklogChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(HighlightBacklogViewModel.IsRelevant))
+        {
+            OnPropertyChanged(nameof(ShowBacklogNotice));
         }
     }
 
@@ -312,11 +323,6 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
 
     /// <summary>WASM: the tab is registered-but-degraded. An explanatory body replaces the dashboard.</summary>
     public bool IsBrowser { get; } = OperatingSystem.IsBrowser();
-
-    // Library-wide scan progress lives in the status-strip chip now (HighlightScanStatusViewModel),
-    // visible from every tab, which is the point: a background sweep is not a thing you should have to open
-    // the Reels tab to notice. The tab's own transitional badge and its ScanQueueSummary / ShowScanChip /
-    // ShowScanBadge / HasScanStatus backing went with it once the shell registered that chip.
 
     /// <summary>The dashboard is the authoring surface: hidden only on the browser host.</summary>
     public bool ShowBrowseSurface => !IsBrowser;

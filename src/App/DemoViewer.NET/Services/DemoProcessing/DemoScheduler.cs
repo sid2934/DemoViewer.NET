@@ -418,6 +418,18 @@ public sealed class DemoScheduler : IDisposable
         }
     }
 
+    private static bool NeedsRules(IDemoPass pass, VisitedDemo demo)
+    {
+        try
+        {
+            return (pass.Needs(demo).Forward & ForwardNeeds.Rules) != 0;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return false;
+        }
+    }
+
     private List<string> SafeAllDemos()
     {
         try
@@ -444,7 +456,8 @@ public sealed class DemoScheduler : IDisposable
             candidates = [.. passes.Where(p => !keys.Any(k => _faulted.Contains((p.Id, k))))];
         }
 
-        List<IDemoPass> planned = VisitPlanner.Plan(candidates, demo, level, (pass, ex) => ReportFault(pass.Id, path, ex));
+        List<IDemoPass> planned = VisitPlanner.Plan(candidates, demo, level, (pass, ex) => ReportFault(pass.Id, path, ex),
+            out HashSet<string> riders);
 
         long orderHint = 0;
         foreach (IDemoPass pass in planned)
@@ -461,6 +474,7 @@ public sealed class DemoScheduler : IDisposable
             }
         }
 
+        HashSet<string> rulesPasses = [.. planned.Where(p => !riders.Contains(p.Id) && NeedsRules(p, demo)).Select(p => p.Id)];
         List<IDemoPass> submitting = [];
         lock (_lock)
         {
@@ -469,17 +483,22 @@ public sealed class DemoScheduler : IDisposable
                 return;
             }
 
-            foreach (IDemoPass pass in planned)
-            {
-                if (!keys.Any(k => _outstanding.Contains((pass.Id, k))))
-                {
-                    foreach (string key in keys)
-                    {
-                        _outstanding.Add((pass.Id, key));
-                    }
+            List<IDemoPass> fresh = [.. planned.Where(pass => !keys.Any(k => _outstanding.Contains((pass.Id, k))))];
 
-                    submitting.Add(pass);
+            // A rider whose rules-run pass is already on another visit would make this read run rules for it alone.
+            if (!fresh.Exists(pass => rulesPasses.Contains(pass.Id)))
+            {
+                fresh.RemoveAll(pass => riders.Contains(pass.Id));
+            }
+
+            foreach (IDemoPass pass in fresh)
+            {
+                foreach (string key in keys)
+                {
+                    _outstanding.Add((pass.Id, key));
                 }
+
+                submitting.Add(pass);
             }
         }
 
@@ -494,7 +513,7 @@ public sealed class DemoScheduler : IDisposable
         }
 
         IDemoQueueHandle handle = _queue.SubmitVisit(new DemoVisitRequest(path, level, submitting, orderHint,
-            Path.GetFileName(path), (pass, outcome, error) => PassEnded(keys, path, pass, outcome, error)));
+            Path.GetFileName(path), (pass, outcome, error) => PassEnded(keys, path, pass, outcome, error), riders));
 
         if (handle.State == DemoQueueItemState.Rejected)
         {

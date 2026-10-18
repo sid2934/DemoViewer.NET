@@ -88,9 +88,10 @@ public static class YamlEdits
     /// <summary>
     ///     Sets <paramref name="key" /> under the mapping at <paramref name="mapping" />, replacing
     ///     the value when the key is there and inserting a new entry after the last one when it is
-    ///     not. An inserted entry copies the indentation of its siblings.
+    ///     not. An inserted entry copies the indentation of its siblings, or stays inside the braces
+    ///     of a flow mapping.
     /// </summary>
-    /// <exception cref="InvalidOperationException"><paramref name="mapping" /> is not a block mapping.</exception>
+    /// <exception cref="InvalidOperationException"><paramref name="mapping" /> is not a mapping.</exception>
     public static TextEdit SetKey(YamlDocumentText doc, YamlPath mapping, string key, string value)
     {
         ArgumentNullException.ThrowIfNull(doc);
@@ -109,6 +110,21 @@ public static class YamlEdits
             throw new InvalidOperationException(
                 $"{mapping.Key(key)} already holds a {existing.GetType().Name}; "
                 + "replacing a collection with a scalar is not supported");
+        }
+
+        if (doc.Find(mapping) is YamlMappingNode { Style: MappingStyle.Flow } flow)
+        {
+            // An aliased value resolves to its anchor earlier in the file, so the append would land there.
+            foreach (KeyValuePair<YamlNode, YamlNode> entry in flow.Children)
+            {
+                Refuse(entry.Value, mapping);
+            }
+
+            // `{ a: 1 }` -> `{ a: 1, b: 2 }`; an empty `{}` takes the entry just inside the brace.
+            string added = $"{key}: {Quote(value, ScalarStyle.Any, inFlow: true)}";
+            return flow.Children.Count > 0
+                ? new TextEdit(doc.EndOf(flow.Children.Last().Value), 0, $", {added}", $"add {mapping.Key(key)}")
+                : new TextEdit((int)flow.Start.Index + 1, 0, added, $"add {mapping.Key(key)}");
         }
 
         (int at, string lead, string indent) = AppendPointUnder(doc, mapping);
@@ -132,14 +148,20 @@ public static class YamlEdits
     ///     </para>
     /// </summary>
     /// <exception cref="InvalidOperationException">The key is not there, or the parent is not a block mapping.</exception>
+    /// <exception cref="NotSupportedException">The parent is a flow mapping.</exception>
     public static TextEdit RemoveKey(YamlDocumentText doc, YamlPath mapping, string key)
     {
         ArgumentNullException.ThrowIfNull(doc);
         ArgumentNullException.ThrowIfNull(mapping);
 
-        if (doc.Find(mapping) is not YamlMappingNode map || map.Style == MappingStyle.Flow)
+        if (doc.Find(mapping) is not YamlMappingNode map)
         {
             throw new InvalidOperationException($"{mapping} is not a block mapping");
+        }
+
+        if (map.Style == MappingStyle.Flow)
+        {
+            throw new NotSupportedException(FlowRefusal(mapping, "removing a key from"));
         }
 
         if (doc.FindKey(mapping.Key(key)) is not { } keyNode
@@ -169,6 +191,7 @@ public static class YamlEdits
     ///     caller composes it at zero indentation and does not have to know where it will land.
     /// </summary>
     /// <exception cref="InvalidOperationException"><paramref name="mapping" /> is not a block mapping.</exception>
+    /// <exception cref="NotSupportedException"><paramref name="mapping" /> is a flow mapping.</exception>
     public static TextEdit AddEntry(YamlDocumentText doc, YamlPath mapping, string block)
     {
         ArgumentNullException.ThrowIfNull(doc);
@@ -367,8 +390,17 @@ public static class YamlEdits
             return (at, startsALine ? "" : doc.NewLine, doc.IndentOf(keyStart) + "  ");
         }
 
+        if (node is YamlMappingNode { Style: MappingStyle.Flow })
+        {
+            throw new NotSupportedException(FlowRefusal(mapping, "adding an entry to"));
+        }
+
         throw new InvalidOperationException($"{mapping} is not a block mapping");
     }
+
+    private static string FlowRefusal(YamlPath mapping, string what) =>
+        $"{mapping} is written in flow style ({{ key: value, ... }}); {what} a flow mapping is not supported. "
+        + "Rewrite it in block style, one key per line, to edit it here";
 
     // Where a new entry goes, and what has to precede it.
     //
