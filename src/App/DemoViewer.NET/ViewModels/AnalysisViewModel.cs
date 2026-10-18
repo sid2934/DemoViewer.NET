@@ -780,7 +780,15 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // columns read zero, which is the same degraded shape as an unsupported demo source.
             VisibilityEngine? visibility = await LoadVisibilityEngineAsync(demo, runToken);
             (BuildResult build, RuleConfigLoadResult loadedRules, OpenRunPlan? plan) = BuildFromConfig(demo, visibility, path);
-            RulesetExclusionReport.Report(DiagLog, build);
+            if (MergedRules() is { } merged)
+            {
+                merged.ReportExclusions(build);
+            }
+            else
+            {
+                RulesetExclusionReport.Report(DiagLog, build);
+            }
+
             // Diagnostics tab retention. The scanner is otherwise a discarded local
             // here; keep it (and the demo) so the Diagnostics profiling/re-run panels can read it for the session.
             EntityScanner = build.EntityScanner;
