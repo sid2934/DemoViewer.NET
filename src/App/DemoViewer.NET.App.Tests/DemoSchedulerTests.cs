@@ -392,6 +392,85 @@ public class DemoSchedulerTests
         await Assert.That(parsed.Order()).IsEquivalentTo(["/x/first.dem", "/x/second.dem"]);
     }
 
+    // A full background tier refuses visits. The planner must stop and wait for the capacity event, not re-plan
+    // the refused demos until a visit ends: that held the planning item Running and starved the light lane.
+    [Test]
+    public async Task AFullQueue_StopsThePlanner_UntilAVisitEnds()
+    {
+        using ManualResetEventSlim release = new(false);
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, _ =>
+        {
+            release.Wait(5000);
+            return Synthetic();
+        })
+        {
+            MaxQueueSize = 1
+        };
+        int asks = 0;
+        HashSet<string> done = new(StringComparer.Ordinal);
+        Fake a = new("a", p =>
+        {
+            Interlocked.Increment(ref asks);
+            lock (done)
+            {
+                return !done.Contains(p);
+            }
+        }, p =>
+        {
+            lock (done)
+            {
+                done.Add(p);
+            }
+        });
+        using DemoScheduler scheduler = new([a], queue, () => Array.Empty<string>());
+
+        scheduler.DemoChanged("/x/first.dem");
+        await WaitFor(() => queue.RunningCount == 1 && queue.ActiveCount(QueueJobKind.Scheduling) == 0, "the first demo running");
+        scheduler.DemoChanged("/x/second.dem");
+        scheduler.DemoChanged("/x/third.dem");
+        await WaitFor(() => queue.ActiveCount(QueueJobKind.Scheduling) == 0, "the planner to give up on a full tier");
+        int before = Volatile.Read(ref asks);
+        await Task.Delay(300);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Volatile.Read(ref asks) - before).IsEqualTo(0).Because("nothing re-plans while the tier stays full");
+            await Assert.That(queue.ActiveCount(QueueJobKind.Scheduling)).IsEqualTo(0);
+        }
+
+        release.Set();
+        await WaitFor(() => a.Count == 3, "every demo planned as visits end");
+    }
+
+    // A user's request bypasses the background cap, so it must not wait behind a backlog demo the tier refused.
+    [Test]
+    public async Task AUserRequest_IsPlanned_WhileTheBackgroundTierIsFull()
+    {
+        using ManualResetEventSlim release = new(false);
+        ConcurrentBag<string> parsed = [];
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, path =>
+        {
+            parsed.Add(path);
+            release.Wait(5000);
+            return Synthetic();
+        })
+        {
+            MaxQueueSize = 1
+        };
+        Fake a = new("a");
+        using DemoScheduler scheduler = new([a], queue, () => Array.Empty<string>());
+
+        scheduler.DemoChanged("/x/first.dem");
+        await WaitFor(() => queue.RunningCount == 1, "the first demo running");
+        scheduler.DemoChanged("/x/backlog.dem");
+        scheduler.Request("/x/asked.dem");
+
+        await WaitFor(() => queue.Snapshot().Any(s => s.Path == "/x/asked.dem"), "the user's demo queued behind the running one");
+        await Assert.That(queue.Snapshot().Any(s => s.Path == "/x/backlog.dem")).IsFalse()
+            .Because("the backlog demo waits for room; the request did not");
+        release.Set();
+    }
+
     [Test]
     public async Task DemoChanged_APassWaitingOnUpstream_JoinsTheUpstreamsVisit_AndRunsAfterItOnTheSameParse()
     {

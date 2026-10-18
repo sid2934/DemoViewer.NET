@@ -381,29 +381,25 @@ public sealed class DemoScheduler : IDisposable
                     }
                 }
 
+                // Highest level first: a user's demo bypasses the background cap and must not wait behind one
+                // the queue refuses.
+                batch = [.. batch.OrderByDescending(b => b.Level)];
                 IReadOnlyList<IDemoPass> passes = _passes();
                 for (int i = 0; i < batch.Count; i++)
                 {
-                    if (token.IsCancellationRequested)
+                    // Stopped by the user, or refused by a full background tier: what is left stays dirty, and the
+                    // queue's next capacity event plans it. Re-planning a refused demo here would spin until a
+                    // visit ends.
+                    if (token.IsCancellationRequested || !Plan(batch[i].Demo, batch[i].Path, batch[i].Level, passes))
                     {
-                        // Stopped by the user: what is left stays dirty for the next event.
                         lock (_lock)
                         {
-                            foreach ((string demo, string path, PassLevel level) in batch.Skip(i))
-                            {
-                                if (!_dirty.TryGetValue(demo, out (string Path, PassLevel Level) current) || level > current.Level)
-                                {
-                                    _dirty[demo] = (path, level);
-                                }
-                            }
-
+                            RedirtyLocked(batch.Skip(i));
                             _planQueued = false;
                         }
 
                         return;
                     }
-
-                    Plan(batch[i].Demo, batch[i].Path, batch[i].Level, passes);
                 }
             }
         }
@@ -443,10 +439,22 @@ public sealed class DemoScheduler : IDisposable
         }
     }
 
+    // Under _lock. Keeps the higher level when a demo is already dirty.
+    private void RedirtyLocked(IEnumerable<(string Demo, string Path, PassLevel Level)> demos)
+    {
+        foreach ((string demo, string path, PassLevel level) in demos)
+        {
+            if (!_dirty.TryGetValue(demo, out (string Path, PassLevel Level) current) || level > current.Level)
+            {
+                _dirty[demo] = (path, level);
+            }
+        }
+    }
+
     // Plans one demo: the closure of interested passes, the level the highest of them or the caller asks for,
-    // one visit. A demo the queue refuses goes back on the dirty set for the next capacity event.
+    // one visit. False when the queue refused the visit; the caller puts the demo back on the dirty set.
     // The keys are taken once, here: a visit that hashes the file changes the path's key before it ends.
-    private void Plan(string demoKey, string path, PassLevel level, IReadOnlyList<IDemoPass> passes)
+    private bool Plan(string demoKey, string path, PassLevel level, IReadOnlyList<IDemoPass> passes)
     {
         VisitedDemo demo = new(path);
         string[] keys = [.. KeysOf(path).Append(demoKey).Distinct(StringComparer.OrdinalIgnoreCase)];
@@ -480,7 +488,7 @@ public sealed class DemoScheduler : IDisposable
         {
             if (_disposed)
             {
-                return;
+                return true;
             }
 
             List<IDemoPass> fresh = [.. planned.Where(pass => !keys.Any(k => _outstanding.Contains((pass.Id, k))))];
@@ -504,12 +512,7 @@ public sealed class DemoScheduler : IDisposable
 
         if (submitting.Count == 0)
         {
-            return;
-        }
-
-        foreach (IDemoPass pass in submitting)
-        {
-            RaiseOutstanding(pass.Id);
+            return true;
         }
 
         IDemoQueueHandle handle = _queue.SubmitVisit(new DemoVisitRequest(path, level, submitting, orderHint,
@@ -517,6 +520,7 @@ public sealed class DemoScheduler : IDisposable
 
         if (handle.State == DemoQueueItemState.Rejected)
         {
+            // Nothing was raised for these passes, so a refusal changes nothing a listener can see.
             lock (_lock)
             {
                 foreach (IDemoPass pass in submitting)
@@ -527,17 +531,18 @@ public sealed class DemoScheduler : IDisposable
                     }
                 }
 
-                if (!_dirty.TryGetValue(demoKey, out (string Path, PassLevel Level) current) || level > current.Level)
-                {
-                    _dirty[demoKey] = (path, level);
-                }
+                RedirtyLocked([(demoKey, path, level)]);
             }
 
-            foreach (IDemoPass pass in submitting)
-            {
-                RaiseOutstanding(pass.Id);
-            }
+            return false;
         }
+
+        foreach (IDemoPass pass in submitting)
+        {
+            RaiseOutstanding(pass.Id);
+        }
+
+        return true;
     }
 
     // Runs in the queue's slot. Clears the outstanding entry either way so a demo that becomes interesting
