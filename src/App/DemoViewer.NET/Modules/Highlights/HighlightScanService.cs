@@ -68,6 +68,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     private bool _disposed;
     private int _refreshQueued;
 
+    // What the last staleness pass rechecked against. Guarded by _refreshGate.
+    private (int Count, int Paths, string? Fingerprint, bool OptIn)? _lastRecheck;
+
 
     /// <param name="harvester">Rules/analysis access (fake in tests).</param>
     /// <param name="libraryDemoPaths">Current library demo paths (reconciliation + backfill universe).</param>
@@ -448,9 +451,31 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         // them, and a configured folder on a detached volume enumerates zero files, so it would fire exactly
         // when the demos are still perfectly fine. Pruning the unified cache belongs to the Library, which
         // already does it, with the reached-roots guard that makes it safe.
+        //
+        // The library raises Changed on every scan phase and every few tier-2 indexes. A full recheck only
+        // has something new to find when the demo set, the rules or the opt-in moved; the library plans the
+        // demos it indexes itself.
+        IReadOnlyList<string> paths = _libraryDemoPaths();
+        int pathHash = 0;
+        foreach (string path in paths)
+        {
+            pathHash ^= StringComparer.OrdinalIgnoreCase.GetHashCode(path);
+        }
+
+        (int, int, string?, bool) seen = (paths.Count, pathHash, TryFingerprint(), _backgroundScanEnabled());
         RaiseProgress();
+        if (_lastRecheck == seen)
+        {
+            return;
+        }
+
+        _lastRecheck = seen;
+        Rechecks++;
         EnsureBackfillRunning();
     }
+
+    /// <summary>How many staleness passes asked for a full recheck. Test seam.</summary>
+    internal int Rechecks { get; private set; }
 
     /// <summary>
     ///     Manual per-demo rescan (staleness badge / failed-retry click). Runs regardless of the opt-in,

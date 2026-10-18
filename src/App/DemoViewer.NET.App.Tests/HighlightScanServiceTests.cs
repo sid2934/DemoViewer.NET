@@ -150,6 +150,34 @@ public class HighlightScanServiceTests
             .IsEqualTo(RulesHighlightHarvester.GotvProfileId);
     }
 
+    // The library raises Changed on every scan phase and every few tier-2 indexes; a recheck on each would walk
+    // the whole library. Only a moved demo set, rules fingerprint or opt-in has anything new for a recheck to find.
+    [Test]
+    public async Task RefreshStaleness_RechecksOnlyWhenTheDemoSetRulesOrOptInMoved()
+    {
+        DemoCacheStore store = new(null);
+        List<string> library = ["/demos/a.dem"];
+        bool optIn = false;
+        using HighlightScanService scanner = NewScanner(store, new FakeHarvester(), () => [.. library], () => optIn,
+            (_, _) => null);
+
+        async Task Refresh(int expected, string because)
+        {
+            scanner.RefreshStaleness();
+            await WaitForAsync(() => scanner.Rechecks == expected, because);
+            await Task.Delay(50);
+            await Assert.That(scanner.Rechecks).IsEqualTo(expected).Because(because);
+        }
+
+        await Refresh(1, "the first pass always rechecks");
+        await Refresh(1, "nothing moved");
+        library.Add("/demos/b.dem");
+        await Refresh(2, "a demo joined the library");
+        await Refresh(2, "nothing moved again");
+        optIn = true;
+        await Refresh(3, "the opt-in came on");
+    }
+
     [Test]
     public async Task Backlog_IsDerived_SkipsSidecars_AndNeverPrunesTheSharedCache()
     {
