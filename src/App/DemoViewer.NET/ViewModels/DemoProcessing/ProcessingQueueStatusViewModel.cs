@@ -2,6 +2,7 @@
 
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Extensions;
@@ -29,6 +30,12 @@ namespace DemoViewer.NET.ViewModels.DemoProcessing;
 ///         <see cref="RecentRows" />, newest first, which outlives the queue's own history for the session.
 ///     </para>
 ///     <para>
+///         Light items (saves, record passes, library slices, the scheduler's planning) take no slot the
+///         user's concurrency setting governs, so they are not rows and not counted: the planning shows as
+///         <see cref="CheckLine" />, the rest as <see cref="AlsoLine" />. A failed one still lands in Recent.
+///         A visit riding another item's read is a row but not counted as running.
+///     </para>
+///     <para>
 ///         <b>Theme mandate.</b> Holds no brushes: the chip dot re-themes via the shared state→token classes,
 ///         the label is the neutral <c>TextMid</c> token the shared <c>StatusChip</c> already renders.
 ///     </para>
@@ -48,7 +55,17 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     private readonly JobKindRegistry _jobKinds;
     private readonly Action? _openSettings;
     private readonly IDemoProcessingQueue _queue;
+    private readonly IWorkCheckStatus? _checks;
+    private readonly Action<Action> _post;
     private bool _disposed;
+
+    /// <summary>The scheduler's check of the library for work, or empty when there is no scheduler.</summary>
+    [ObservableProperty]
+    private string _checkLine = "";
+
+    /// <summary>Light work running now that is not a row ("Also: saving the library"), or empty.</summary>
+    [ObservableProperty]
+    private string _alsoLine = "";
 
     /// <summary>True when the persisted master switch is off (background fully disabled in Settings).</summary>
     [ObservableProperty]
@@ -98,13 +115,21 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     ///     the flyout's settings link (e.g. the designer / capture path).
     /// </param>
     /// <param name="jobKinds">Resolves each row's kind chip. Defaults to <see cref="JobKindRegistry.Default" />.</param>
+    /// <param name="checks">The scheduler's check status for <see cref="CheckLine" />; null leaves it empty.</param>
+    /// <param name="post">Marshals a check change to the UI thread. Defaults to the Avalonia dispatcher.</param>
     public ProcessingQueueStatusViewModel(IDemoProcessingQueue queue, Action? openSettings = null,
-        JobKindRegistry? jobKinds = null)
+        JobKindRegistry? jobKinds = null, IWorkCheckStatus? checks = null, Action<Action>? post = null)
     {
         ArgumentNullException.ThrowIfNull(queue);
         _queue = queue;
         _openSettings = openSettings;
         _jobKinds = jobKinds ?? JobKindRegistry.Default;
+        _checks = checks;
+        _post = post ?? (a => Dispatcher.UIThread.Post(a));
+        if (_checks is not null)
+        {
+            _checks.CheckChanged += OnCheckChanged;
+        }
 
         Chip = new StatusChipViewModel
         {
@@ -143,6 +168,19 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
     /// <summary>Pause / Resume button caption, reflecting <see cref="IsPaused" />.</summary>
     public string PauseResumeLabel => IsPaused ? "Resume background work" : "Pause background work";
 
+    /// <summary>True when there is a check line to show.</summary>
+    public bool HasCheckLine => !string.IsNullOrEmpty(CheckLine);
+
+    /// <summary>True when there is an "also running" line to show.</summary>
+    public bool HasAlsoLine => !string.IsNullOrEmpty(AlsoLine);
+
+    /// <summary>Whether the strip shows the chip: a counted item is active, or background work is paused.</summary>
+    public bool IsActive => RunningCount > 0 || QueuedCount > 0 || IsPaused;
+
+    partial void OnCheckLineChanged(string value) => OnPropertyChanged(nameof(HasCheckLine));
+
+    partial void OnAlsoLineChanged(string value) => OnPropertyChanged(nameof(HasAlsoLine));
+
     /// <summary>Whether the flyout's "Background processing settings" link is shown (an opener was supplied).</summary>
     public bool CanOpenSettings => _openSettings is not null;
 
@@ -156,6 +194,11 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
 
         _disposed = true;
         _queue.Changed -= OnQueueChanged;
+        if (_checks is not null)
+        {
+            _checks.CheckChanged -= OnCheckChanged;
+        }
+
         foreach (DemoQueueRowViewModel row in _rowsById.Values)
         {
             row.Dispose();
@@ -205,6 +248,37 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
 
     private void OnQueueChanged() => Refresh();
 
+    private void OnCheckChanged() => _post(() =>
+    {
+        if (!_disposed)
+        {
+            CheckLine = BuildCheckLine();
+        }
+    });
+
+    private string BuildCheckLine()
+    {
+        if (_checks?.Check is not { } check)
+        {
+            return "";
+        }
+
+        if (check.IsChecking)
+        {
+            return "Checking the library for work…";
+        }
+
+        if (check.Waiting > 0)
+        {
+            return string.Format(CultureInfo.CurrentCulture, "{0} {1} waiting for room in the queue", check.Waiting,
+                check.Waiting == 1 ? "demo" : "demos");
+        }
+
+        return check.LastChecked is { } at
+            ? "Library last checked for work at " + at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)
+            : "";
+    }
+
     /// <summary>
     ///     Re-reads the queue's counts / pause / background state and maps them onto the chip + header.
     ///     Called at construction, on every posted <c>Changed</c>, and eagerly after a Pause/Resume click.
@@ -217,12 +291,29 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         }
 
         SyncRows();
-        RunningCount = _queue.RunningCount;
-        QueuedCount = _queue.QueuedCount;
+        RunningCount = Rows.Count(r => r.IsRunning && !r.Item.RidesRead);
+        QueuedCount = Rows.Count(r => r.IsQueued);
         IsPaused = _queue.IsPaused;
         IsBackgroundDisabled = !_queue.BackgroundEnabled;
         StatusLine = BuildStatusLine();
+        CheckLine = BuildCheckLine();
+        AlsoLine = BuildAlsoLine();
+        OnPropertyChanged(nameof(IsActive));
         MapChip();
+    }
+
+    // The scheduler's planning has its own line; any other light work running names the first of it.
+    private string BuildAlsoLine()
+    {
+        List<string> running = [.. _queue.Items
+            .Where(i => i.Light && i.State == DemoQueueItemState.Running && i.Kind != QueueJobKind.Scheduling)
+            .Select(i => !string.IsNullOrEmpty(i.DisplayName) ? i.DisplayName! : i.Kind.ToString())];
+        return running.Count switch
+        {
+            0 => "",
+            1 => "Also: " + running[0],
+            _ => string.Format(CultureInfo.CurrentCulture, "Also: {0} and {1} more", running[0], running.Count - 1)
+        };
     }
 
     private string BuildStatusLine()
@@ -290,8 +381,13 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
         foreach (DemoQueueItem item in _queue.Items)
         {
             present.Add(item.Id);
-            if (_evicted.Contains(item.Id))
+            if (_evicted.Contains(item.Id) || !Shown(item))
             {
+                if (_rowsById.ContainsKey(item.Id))
+                {
+                    DropRow(item.Id);
+                }
+
                 index++;
                 continue;
             }
@@ -350,6 +446,11 @@ public sealed partial class ProcessingQueueStatusViewModel : ViewModelBase, IDis
             ? "Recent"
             : string.Format(CultureInfo.InvariantCulture, "Recent ({0})", RecentRows.Count);
     }
+
+    // Light work is not a row unless it failed. A read the queue stopped and handed on is not history: its
+    // passes are on the row that replaced it.
+    private static bool Shown(DemoQueueItem item) =>
+        !item.Superseded && (!item.Light || item.State == DemoQueueItemState.Failed);
 
     private DemoQueueRowViewModel RowFor(DemoQueueItem item)
     {

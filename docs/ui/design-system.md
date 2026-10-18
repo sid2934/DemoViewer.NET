@@ -1463,14 +1463,21 @@ hidden for consumers).
   presence reconciled by `ReconcileQueueChip`, subscribed to `IDemoProcessingQueue.Changed` + re-run from
   `ApplyGateChange`). Gate shim `MainViewModel.IsProcessingQueueEnabled`.
 - **Presence rule:** chip added to `MainViewModel.Chips` only while `chrome.processingQueue` is on (fail-CLOSED,
-  ANDs `!IsBrowser()`) **AND** the queue has activity (`RunningCount>0 || QueuedCount>0`) or `IsPaused`, so an
-  idle+enabled queue adds no strip clutter, and a paused queue always offers Resume (mirrors the Reel chip's
+  ANDs `!IsBrowser()`) **AND** the status VM's `IsActive` (a counted item running or queued, or `IsPaused`), so an
+  idle+enabled queue adds no strip clutter and light bookkeeping never makes the chip blink, and a paused queue always offers Resume (mirrors the Reel chip's
   conditional presence).
 - **Chip mapping (no brushes; the shared `Ellipse.dot.*` state→token dots + neutral `TextMid` label):**
   paused → `Off` "Queue paused"; running>0 → `Working` **pulsing** "Processing N"; queued-only → `Working`
   steady "N queued"; idle → `Off` (hidden anyway). Tooltip = the full status line.
+- **Counted work:** only what the concurrency setting governs. Light items (saves, record passes, library
+  slices, the scheduler's planning) are not rows and not counts unless one failed, which stays in Recent. A visit
+  riding another item's read (`RidesRead`: on the open's parse, or an open joined to a background parse) is a row
+  but not a second running item. A read the queue superseded is not shown in Recent.
 - **Flyout:** header + live status line ("N running · M queued", + " · paused" / " · background disabled",
-  wraps), a transient **Pause/Resume** `ghost` button + a **Settings** link (`OpenSettings`), then a
+  wraps), then two `TextDim` lines: `CheckLine` from the scheduler's `IWorkCheckStatus` ("Checking the library
+  for work…", "N demos waiting for room in the queue", or "Library last checked for work at {local time}") and
+  `AlsoLine` naming other light work running ("Also: Library: save the scan"). Capture: `queue-flyout-bookkeeping`.
+  Then a transient **Pause/Resume** `ghost` button + a **Settings** link (`OpenSettings`), then a
   **Queue (N) / Recent (N)** `ToggleButton.chip` pair (the Library's Demos / Teams idiom) over two `ListBox`es
   (`data-list`). The flyout body is a fixed 340 px so switching views does not resize it.
   - **Queue** (`Rows`): running items first, then queued items in the order the queue reports it will start

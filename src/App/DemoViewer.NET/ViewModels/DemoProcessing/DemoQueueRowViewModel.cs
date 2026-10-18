@@ -114,9 +114,10 @@ public sealed partial class DemoQueueRowViewModel : ViewModelBase, IDisposable
     /// <summary>The running job's latest detail ("48 of 366 demos").</summary>
     public string Detail => _item.Detail ?? "";
 
-    /// <summary>Shown while running, and while an open waits (it says what for).</summary>
+    /// <summary>Shown while running, and while an open or a visit parked on one waits (it says what for).</summary>
     public bool HasDetail => (_item.State == DemoQueueItemState.Running
-                              || (_item.State == DemoQueueItemState.Queued && _item.Kind == QueueJobKind.DemoOpen))
+                              || (_item.State == DemoQueueItemState.Queued
+                                  && (_item.Kind == QueueJobKind.DemoOpen || _item.Hold == DemoQueueHold.OnOpen)))
                              && !string.IsNullOrEmpty(_item.Detail);
 
     /// <summary>Short priority label, shown only when the item is elevated above routine background work.</summary>

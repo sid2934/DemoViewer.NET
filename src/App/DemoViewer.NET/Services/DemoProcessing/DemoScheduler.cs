@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///         outstanding pass and one fault. The path planned is the one marked last at the highest level.
 ///     </para>
 /// </summary>
-public sealed class DemoScheduler : IDisposable
+public sealed class DemoScheduler : IDisposable, IWorkCheckStatus
 {
     private const string PlanTitle = "Checking demos for work";
     private const string PlanKey = "scheduler.plan";
@@ -40,6 +40,7 @@ public sealed class DemoScheduler : IDisposable
     private readonly Action? _validatePasses;
     private bool _recheckAll;
     private bool _planQueued;
+    private DateTimeOffset? _lastChecked;
     private Task? _planTask;
     private bool _disposed;
 
@@ -115,6 +116,21 @@ public sealed class DemoScheduler : IDisposable
 
     /// <summary>Validates the pass graph without constructing any pass: a cycle or an unknown After id throws here.</summary>
     public void ValidatePasses() => _validatePasses?.Invoke();
+
+    /// <inheritdoc />
+    public event Action? CheckChanged;
+
+    /// <inheritdoc />
+    public WorkCheck Check
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return new WorkCheck(_planQueued, _planQueued ? 0 : _dirty.Count, _lastChecked);
+            }
+        }
+    }
 
     /// <summary>The library added this demo or found it changed: plan its visit.</summary>
     public void DemoChanged(string path) => MarkDirty(path, PassLevel.Backlog);
@@ -299,6 +315,8 @@ public sealed class DemoScheduler : IDisposable
             _planTask = null; // cleared until the real task is assigned, so no racing caller reads a stale completed one
         }
 
+        RaiseCheckChanged();
+
         // A planning item the user removes before it starts never drains; the next mark must still queue one.
         StrongBox<bool> started = new(false);
         Task task = QueueWork.Run(_queue, QueueJobKind.Scheduling, PlanTitle, "scheduler", token =>
@@ -326,6 +344,8 @@ public sealed class DemoScheduler : IDisposable
                         _planQueued = false;
                     }
                 }
+
+                RaiseCheckChanged();
             }
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
@@ -352,8 +372,9 @@ public sealed class DemoScheduler : IDisposable
         {
             while (true)
             {
-                List<(string Demo, string Path, PassLevel Level)> batch;
+                List<(string Demo, string Path, PassLevel Level)> batch = [];
                 bool recheck;
+                bool done = false;
                 lock (_lock)
                 {
                     recheck = _recheckAll;
@@ -361,11 +382,20 @@ public sealed class DemoScheduler : IDisposable
                     if (!recheck && (_dirty.Count == 0 || _disposed))
                     {
                         _planQueued = false;
-                        return;
+                        _lastChecked = DateTimeOffset.Now;
+                        done = true;
                     }
+                    else
+                    {
+                        batch = [.. _dirty.Select(d => (d.Key, d.Value.Path, d.Value.Level))];
+                        _dirty.Clear();
+                    }
+                }
 
-                    batch = [.. _dirty.Select(d => (d.Key, d.Value.Path, d.Value.Level))];
-                    _dirty.Clear();
+                if (done)
+                {
+                    RaiseCheckChanged();
+                    return;
                 }
 
                 if (recheck)
@@ -398,6 +428,7 @@ public sealed class DemoScheduler : IDisposable
                             _planQueued = false;
                         }
 
+                        RaiseCheckChanged();
                         return;
                     }
                 }
@@ -410,6 +441,19 @@ public sealed class DemoScheduler : IDisposable
                 _planQueued = false;
             }
 
+            RaiseCheckChanged();
+            ReportFault("scheduler", null, ex);
+        }
+    }
+
+    private void RaiseCheckChanged()
+    {
+        try
+        {
+            CheckChanged?.Invoke();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
             ReportFault("scheduler", null, ex);
         }
     }

@@ -246,6 +246,8 @@ public static partial class Variants
             ["queue-flyout"] = () => QueueFlyout(true),
             ["queue-flyout-empty"] = () => QueueFlyout(false),
             ["queue-flyout-recent"] = () => QueueFlyout(true, true),
+            // Light work beside the parse: a check line and an "also" line, no extra rows.
+            ["queue-flyout-bookkeeping"] = () => QueueFlyout(true, bookkeeping: true),
             ["queue-flyout-row-menu"] = QueueFlyoutRowMenu,
             ["menu-flyout-states"] = MenuFlyoutStates,
             ["queue-chips"] = QueueChips,
@@ -4027,7 +4029,7 @@ public static partial class Variants
     ///     The queue flyout body over a fake queue: the live queue-management surface (item list with
     ///     state dot + owner/priority chips + per-item ✕, status line, Pause/Resume).
     /// </summary>
-    private static Border QueueFlyout(bool populated, bool recent = false)
+    private static Border QueueFlyout(bool populated, bool recent = false, bool bookkeeping = false)
     {
         FakeProcessingQueue queue = new();
         if (populated)
@@ -4052,7 +4054,22 @@ public static partial class Variants
             queue.QueuedCount = 3;
         }
 
-        ProcessingQueueStatusViewModel vm = new(queue, () => { }) { IsRecentView = recent };
+        StaticChecks? checks = null;
+        if (bookkeeping)
+        {
+            // Light work beside the one parse: the planner and a save. Neither is a row or a count.
+            queue.Seed(("Checking demos for work", "scheduler", DemoJobPriority.Background, DemoQueueItemState.Running, null),
+                ("Library: save the scan", "library", DemoJobPriority.Background, DemoQueueItemState.Running, null));
+            foreach (DemoQueueItem item in queue.Items.Where(i => i.DisplayName is "Checking demos for work" or "Library: save the scan"))
+            {
+                item.Light = true;
+                item.Kind = item.Owners == "scheduler" ? QueueJobKind.Scheduling : QueueJobKind.StoreSave;
+            }
+
+            checks = new StaticChecks(new WorkCheck(false, 0, new DateTimeOffset(2026, 10, 17, 21, 5, 0, TimeSpan.Zero)));
+        }
+
+        ProcessingQueueStatusViewModel vm = new(queue, () => { }, checks: checks, post: a => a()) { IsRecentView = recent };
         return new Border
         {
             Background = Tok("ShellBg"),
@@ -4523,6 +4540,17 @@ public static partial class Variants
 
     // Minimal IDemoProcessingQueue double for the queue-flyout capture. Only the members the flyout reads are
     // meaningful (Items + counts + pause/background + RemoveByUser); the pump/foreground paths throw.
+    private sealed class StaticChecks(WorkCheck check) : IWorkCheckStatus
+    {
+        public WorkCheck Check => check;
+
+        public event Action? CheckChanged
+        {
+            add { }
+            remove { }
+        }
+    }
+
     private sealed class FakeProcessingQueue : IDemoProcessingQueue
     {
         private readonly ObservableCollection<DemoQueueItem> _items = [];

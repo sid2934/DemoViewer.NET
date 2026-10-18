@@ -436,10 +436,13 @@ public class DemoSchedulerTests
         {
             await Assert.That(Volatile.Read(ref asks) - before).IsEqualTo(0).Because("nothing re-plans while the tier stays full");
             await Assert.That(queue.ActiveCount(QueueJobKind.Scheduling)).IsEqualTo(0);
+            await Assert.That(scheduler.Check.IsChecking).IsFalse();
+            await Assert.That(scheduler.Check.Waiting).IsGreaterThan(0).Because("the flyout says demos wait for room");
         }
 
         release.Set();
         await WaitFor(() => a.Count == 3, "every demo planned as visits end");
+        await WaitFor(() => scheduler.Check is { IsChecking: false, Waiting: 0, LastChecked: not null }, "a clean check stamped");
     }
 
     // A user's request bypasses the background cap, so it must not wait behind a backlog demo the tier refused.

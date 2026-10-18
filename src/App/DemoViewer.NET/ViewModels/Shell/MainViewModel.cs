@@ -965,7 +965,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // thread, so the reconcile handler runs there; a gate flip reconciles via ApplyGateChange.
         if (_processingQueue is not null)
         {
-            _processingQueueStatus = new ProcessingQueueStatusViewModel(_processingQueue, OpenSettings);
+            _processingQueueStatus = new ProcessingQueueStatusViewModel(_processingQueue, OpenSettings, checks: _scheduler);
             _processingQueue.Changed += OnProcessingQueueChanged;
             ReconcileQueueChip();
         }
@@ -2220,10 +2220,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        bool active = _processingQueue.RunningCount > 0
-                      || _processingQueue.QueuedCount > 0
-                      || _processingQueue.IsPaused;
-        bool shouldShow = IsProcessingQueueEnabled && active;
+        // The status VM's counts, not the queue's: light bookkeeping must not make the chip blink on and off.
+        bool shouldShow = IsProcessingQueueEnabled && _processingQueueStatus.IsActive;
         bool present = Chips.Contains(_processingQueueStatus.Chip);
         if (shouldShow && !present)
         {

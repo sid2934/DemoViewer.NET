@@ -576,6 +576,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 running.ForegroundWaiters.Add(waiter);
                 joined = waiter.Task;
                 entry.State = DemoQueueItemState.Running;
+                entry.RidesRead = true;
                 entry.Detail = "Parsing with the background parse of this demo";
             }
             else
@@ -1768,6 +1769,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 visit.State = DemoQueueItemState.Running;
                 visit.Finalizing = true;
+                visit.RidesRead = true;
                 visit.Detail = "On the open demo's parse";
                 merged.AddAll(visit.Visit!);
             }
@@ -2502,6 +2504,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     item.Promoted = s.Promoted;
                     item.Hold = s.Hold;
                     item.EndedSeq = s.EndedSeq;
+                    item.RidesRead = s.RidesRead;
+                    item.Superseded = s.Superseded;
                 }
                 else
                 {
@@ -2522,7 +2526,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                         Light = s.Light,
                         Promoted = s.Promoted,
                         Hold = s.Hold,
-                        EndedSeq = s.EndedSeq
+                        EndedSeq = s.EndedSeq,
+                        RidesRead = s.RidesRead,
+                        Superseded = s.Superseded
                     });
                 }
             }
@@ -2683,7 +2689,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         e.Id, e.Path, e.DisplayName,
         e.JobOwner is { } owner ? [owner] : e.Visit?.OwnerIds ?? [],
         e.Priority, e.State, e.Error, e.Kind, e.Progress, e.Detail, e.ExtensionKind,
-        Promoted: e.PromotedSeq > 0, EndedSeq: e.EndedSeq);
+        Promoted: e.PromotedSeq > 0, EndedSeq: e.EndedSeq, RidesRead: e.RidesRead, Superseded: e.Superseded);
 
     private static void SafeInvoke(Action action)
     {
@@ -2892,6 +2898,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         // Stopped because an owner it could not serve arrived; its owners moved to the Front entry.
         public bool Superseded { get; set; }
+
+        // Running on another entry's read: a visit on the open's parse, or an open joined to a background parse.
+        public bool RidesRead { get; set; }
 
         // Replaces a superseded forward pass and runs before any other demo.
         public bool Front { get; init; }

@@ -269,7 +269,9 @@ public sealed record DemoQueueItemSnapshot(
     bool Light = false,
     bool Promoted = false,
     DemoQueueHold Hold = DemoQueueHold.None,
-    long EndedSeq = 0);
+    long EndedSeq = 0,
+    bool RidesRead = false,
+    bool Superseded = false);
 
 /// <summary>A handle to a submitted background item: read its state, await completion, or cancel it.</summary>
 public interface IDemoQueueHandle
@@ -547,4 +549,20 @@ public sealed class PassThroughDemoOpen(Func<ReadOnlyMemory<byte>, CancellationT
     public void Dispose()
     {
     }
+}
+
+/// <summary>Where the scheduler's check of the library for work stands.</summary>
+/// <param name="IsChecking">A planning pass is queued or running.</param>
+/// <param name="Waiting">Demos with work the queue had no room for, while no pass is planning.</param>
+/// <param name="LastChecked">When a planning pass last ended with nothing left to plan; null before the first.</param>
+public sealed record WorkCheck(bool IsChecking, int Waiting, DateTimeOffset? LastChecked);
+
+/// <summary>The scheduler's check of the library for work, for the Background Work flyout.</summary>
+public interface IWorkCheckStatus
+{
+    /// <summary>The current state.</summary>
+    WorkCheck Check { get; }
+
+    /// <summary>Raised on any thread when <see cref="Check" /> may have changed.</summary>
+    event Action? CheckChanged;
 }

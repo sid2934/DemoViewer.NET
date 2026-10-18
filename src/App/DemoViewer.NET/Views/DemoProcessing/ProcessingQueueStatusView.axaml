@@ -18,8 +18,17 @@
         <!-- Header: title + live status line -->
         <TextBlock Text="BACKGROUND WORK" Classes="col-label"
                    Foreground="{DynamicResource TextCardHeader}" FontSize="11" />
-        <TextBlock Text="{Binding StatusLine}" Classes="mono" FontSize="11" TextWrapping="Wrap"
-                   Foreground="{DynamicResource TextMid}" />
+        <!-- Counts, then work that takes no slot: the scheduler's check of the library and other light work. -->
+        <StackPanel Spacing="3">
+            <TextBlock Text="{Binding StatusLine}" Classes="mono" FontSize="11" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" />
+            <TextBlock Text="{Binding CheckLine}" IsVisible="{Binding HasCheckLine}" FontSize="11"
+                       TextWrapping="Wrap" Foreground="{DynamicResource TextDim}"
+                       ToolTip.Tip="Planning which demos need work. It takes no slot of its own." />
+            <TextBlock Text="{Binding AlsoLine}" IsVisible="{Binding HasAlsoLine}" FontSize="11"
+                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextDim}"
+                       ToolTip.Tip="Short bookkeeping work. It runs beside the queue and takes no slot of its own." />
+        </StackPanel>
 
         <!-- Background-disabled note: the persisted master switch is off; only foreground opens run. -->
         <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding IsBackgroundDisabled}">
