@@ -1395,12 +1395,11 @@ spectating has no readback. Gated by `playback2d.follow`.
   **Third consumer (demo-processing-queue.md §12): the demo-processing queue** via
   `ViewModels/DemoProcessing/ProcessingQueueStatusViewModel` + `Views/DemoProcessing/ProcessingQueueStatusView`
   (see [Processing-queue chip + flyout](#processing-queue-surface)), the queue's live management surface.
-  **Fourth consumer (v0.5.3 step 9, `highlights-matchoverview-redesign.md` §5 row 2): the
-  library-wide highlight scan** via `ViewModels/Highlights/HighlightScanStatusViewModel` +
-  `Views/Highlights/HighlightScanStatusView`: the home the retired card grid's `ScanQueueSummary` badge and
-  its per-card scanning animation were re-assigned to. It **extended, did not fork**: zero changes to
-  `StatusChip`/`StatusChipViewModel`, zero new tokens, flyout body resolved by the `ViewLocator` like the
-  other three. Four consumers now share the control. **The 2D export chip and the Strat Book export chip
+  **The library-wide highlight scan chip was the fourth consumer and is retired.** Highlights became an
+  ordinary pass on the shared queue, so its progress is the processing-queue chip's, and a second count
+  of "queued" demos only disagreed with it. What it alone offered moved into the Reels tab as
+  `HighlightBacklogViewModel`: a notice for demos without current highlights, with `[Retry failed]`
+  (`⟳ Rescan all` is already in the tab header). Capture variant: `highlights-backlog`. **The 2D export chip and the Strat Book export chip
   are the fifth and sixth** (`Playback2DExportStatusViewModel`, mounted via `MainViewModel.AttachPlayback2DExportStatus`
   for the 2D chip, a core, dedicated slot). The Strat Book chip is a host-owned export slot too:
   `MainViewModel.MountExportStatus(chipId, featureId, status)`, reached by the pack through the first-party
@@ -1409,23 +1408,6 @@ spectating has no readback. Gated by `playback2d.follow`.
   extension supplies `IStatusChipSource` state and the host copies it into a `StatusChipViewModel` it owns,
   reading the source under the extension's guard and on the UI thread. Both kinds are `IShellChip`s keyed by
   id in a `_shownContributedChips` map.
-  - **Flyout contents:** queue depth · outdated count (`Pending && Events.Count > 0`) · failed count ·
-    `◐ scanning <name>` · `[Retry all failed]` · `[⟳ Rescan all]`. Counts are neutral `TextMid` labels with
-    `TextValue` values, never tinted, per the contrast rule above.
-  - **`Retry all failed` gave `HighlightScanService.RequestScan(path)` back a UI entry point**, which the
-    Reels-dashboard entry below recorded as lost when the card grid's per-demo badges went away. It re-queues
-    only `Failed` rows: a user retrying three broken demos has not asked to re-harvest the seven hundred
-    that worked, which is the whole difference from `Rescan all`.
-  - **⚠ Duplication is safe for THIS consumer only.** It is a *pure projection* of
-    `HighlightScanService` + `DemoCacheStore` and holds no job state, so two instances cannot disagree
-    (the shell may build its own before the lazily-created Reels tab exists). That is the opposite of
-    `ReelJobStatusViewModel`, where §4.3 requires exactly one instance because it models a running *job*.
-  - **Presence rule:** `IsRelevant` (`QueueDepth > 0 || IsScanning || FailedCount > 0`), AND
-    `!OperatingSystem.IsBrowser()`. Ungated: it appears only while work is happening, and
-    `chrome.processingQueue` already sets the precedent that background work on the user's behalf is visible
-    to every category. Shell registration shipped (`App.axaml.cs` DI singleton →
-    `MainViewModel.AttachHighlightScanStatus`, which re-evaluates the strip on `IsRelevant`).
-  - **Capture variants:** `scanchip-flyout`, `scanchip-chips`.
 - **Purpose:** the app's idiom for a **persistent, stateful, background-activity indicator** in the bottom
   status strip: a **dot + label** (not a filled pill) that opens a `Border.card-flyout` for detail +
   actions. Empty `Chips` ⇒ nothing rendered, so the strip reads exactly as before.

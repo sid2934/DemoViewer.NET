@@ -310,9 +310,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [NotifyCanExecuteChangedFor(nameof(CloseDemoCommand))]
     private bool _hasFile;
 
-    // The highlight-scan chip mapper. Shell-owned; the Reels tab shares the instance.
-    private HighlightScanStatusViewModel? _highlightScanStatus;
-
     // The transient session state captured when the app entered idle (which demo was closed + where it
     // resumes + the active tab), consumed once by ResumeFromIdle. Null when not idle, or when nothing was open.
     private IdleResumeState? _idleResume;
@@ -2235,55 +2232,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         else if (!shouldShow && present)
         {
             Chips.Remove(_processingQueueStatus.Chip);
-        }
-    }
-
-    /// <summary>
-    ///     The library-wide highlight-scan chip: the FOURTH <c>StatusChip</c> consumer.
-    ///     Carries what the retired demo card grid used to show through its per-card animation and header
-    ///     badge: queue depth, which demo is scanning, and how many rows are stale or failed.
-    ///     <para>
-    ///         Attached once by the composition root, which owns the scanner. The shell owns the mapper's
-    ///         lifetime (it subscribes to the scanner AND the cache store); the Reels tab is handed the same
-    ///         instance and never disposes it.
-    ///     </para>
-    /// </summary>
-    internal void AttachHighlightScanStatus(HighlightScanStatusViewModel scanStatus)
-    {
-        _highlightScanStatus = scanStatus;
-        scanStatus.PropertyChanged += (_, e) =>
-        {
-            // IsRelevant is the only thing chip PRESENCE depends on; the chip re-renders itself from the
-            // rest. Subscribing beats polling: the scanner already raises on every queue/store change.
-            if (e.PropertyName is nameof(HighlightScanStatusViewModel.IsRelevant))
-            {
-                ReconcileHighlightScanChip();
-            }
-        };
-
-        ReconcileHighlightScanChip();
-    }
-
-    // Deliberately UNGATED: the chip appears only while work is actually happening, and
-    // chrome.processingQueue already established that background work done on the user's behalf is visible
-    // to every category. Browser-excluded because scanning needs a filesystem, the same shim the
-    // processing-queue chip uses.
-    private void ReconcileHighlightScanChip()
-    {
-        if (_highlightScanStatus is null)
-        {
-            return;
-        }
-
-        bool shouldShow = _highlightScanStatus.IsRelevant && !OperatingSystem.IsBrowser();
-        bool present = Chips.Contains(_highlightScanStatus.Chip);
-        if (shouldShow && !present)
-        {
-            Chips.Add(_highlightScanStatus.Chip);
-        }
-        else if (!shouldShow && present)
-        {
-            Chips.Remove(_highlightScanStatus.Chip);
         }
     }
 

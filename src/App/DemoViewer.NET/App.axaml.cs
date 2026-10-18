@@ -188,10 +188,6 @@ public class App : Application
                     viewModel.OpenOutputFolder));
             }
 
-            // The highlight-scan chip. Attached from the container's instance so the strip shows a
-            // running library scan even when the Reels tab has never been opened (module tab VMs are lazy).
-            viewModel.AttachHighlightScanStatus(services.GetRequiredService<HighlightScanStatusViewModel>());
-
             // Match Overview's [ + ] stages into the Reels tray. A locator, not a reference: the
             // Reels tab is lazy, and staging must work before it has ever been opened.
             viewModel.ReelTrayLocator = services.GetRequiredService<HighlightsTabViewModel>;
@@ -1068,13 +1064,13 @@ public class App : Application
                 // The tray is a client of the Review Queue: what it stages is queued there.
                 sp.GetRequiredService<ReviewQueue>())
             {
-                // The SAME instances the status-strip chips are bound to.
+                // The same reel job instance the status-strip chip is bound to.
                 JobStatus = Shell().ReelJobStatus,
-                ScanStatus = sp.GetRequiredService<HighlightScanStatusViewModel>()
+                Backlog = sp.GetRequiredService<HighlightBacklogViewModel>()
             };
         });
 
-        services.AddSingleton(sp => new HighlightScanStatusViewModel(
+        services.AddSingleton(sp => new HighlightBacklogViewModel(
             sp.GetRequiredService<HighlightScanService>(),
             sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(sp =>
@@ -1520,10 +1516,6 @@ public class App : Application
         HighlightScanService hlScanner =
             sp.GetRequiredService<HighlightScanService>();
         SettingsService hlSettingsService = sp.GetRequiredService<SettingsService>();
-        // The FOURTH StatusChip consumer. Resolved (not new'd) so the tab and the status strip
-        // share one mapper; the chip can therefore appear while a background scan runs even if the user has
-        // never opened the Reels tab, since module tab VMs are lazy. The shell owns its lifetime.
-        HighlightScanStatusViewModel scanStatus = sp.GetRequiredService<HighlightScanStatusViewModel>();
 
         // The tab VM is a container singleton (see BuildServices) so Match Overview's [ + ] and the tab
         // itself share ONE tray. Still resolved lazily. The module only invokes this on first activation.
