@@ -26,6 +26,9 @@ public interface IRecordPass
     /// </summary>
     IReadOnlyList<string> InputStamps => [];
 
+    /// <summary>The stamp behind one of <see cref="InputStamps" /> for the demo, or null while it is not written. The row's own by default.</summary>
+    PackStamp? InputStamp(DemoCacheIndexEntry entry, string id) => entry.Stamp(id);
+
     /// <summary>Why the runner must not take the pass, or null. Asked on every run; a reason is reported once until it changes.</summary>
     string? Refusal() => null;
 
@@ -409,7 +412,7 @@ public sealed class RecordPassRunner : IDisposable
         PackStamp[] stamps = new PackStamp[ids.Count];
         for (int i = 0; i < ids.Count; i++)
         {
-            if (entry.Stamp(ids[i]) is not { } stamp)
+            if (pass.InputStamp(entry, ids[i]) is not { } stamp)
             {
                 return null;
             }

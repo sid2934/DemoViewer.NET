@@ -154,12 +154,12 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     }
 
     /// <inheritdoc />
-    public void RecordPass(string id, Func<IExtensionRecordPass> factory, params FactKey[] dependsOn)
+    public void RecordPass(string id, Func<IExtensionRecordPass> factory, params RecordInput[] dependsOn)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(dependsOn);
-        foreach (FactKey key in dependsOn)
+        foreach (RecordInput key in dependsOn)
         {
             ArgumentNullException.ThrowIfNull(key, nameof(dependsOn));
         }

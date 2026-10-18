@@ -1187,12 +1187,40 @@ public class App : Application
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
             IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
-            Lazy<IReadOnlyList<(IExtension Pack, Func<IRecordPass> Factory)>> contributed = new(() =>
-            [
-                .. sp.GetRequiredService<PackContributionSet>().Packs.SelectMany(c => c.RecordPasses.Select(r =>
-                    (c.Pack, ExtensionRecordPassHost.Cached(r, () => HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>)))))
-            ]);
             IFeatureGate? features = sp.GetService<IFeatureGate>();
+            RecordPassRunner? runner = null;
+            Lazy<IReadOnlyList<(IExtension Pack, Func<IRecordPass> Factory)>> contributed = new(() =>
+            {
+                IReadOnlyList<PackContributions> packs = sp.GetRequiredService<PackContributionSet>().Packs;
+                DemoDataOwner? OwnerOf(string id) => packs.FirstOrDefault(c => string.Equals(c.Pack.Id, id, StringComparison.Ordinal)) is { } c
+                    ? new DemoDataOwner(c.Context.Data, () => features?.IsEnabled(c.Pack.FeatureId) ?? true)
+                    : null;
+                // A named facet's write lands in its extension's own store, which the cache never hears of.
+                foreach (string owner in packs.SelectMany(c => c.RecordPasses)
+                             .SelectMany(r => ExtensionRecordPassHost.DataOwnersOf(r.DependsOn)).Distinct(StringComparer.Ordinal))
+                {
+                    if (OwnerOf(owner) is { } data)
+                    {
+                        data.Data.Changed += path =>
+                        {
+                            if (path is null)
+                            {
+                                runner?.RecheckAll();
+                            }
+                            else
+                            {
+                                runner?.DemoChanged(path);
+                            }
+                        };
+                    }
+                }
+
+                return
+                [
+                    .. packs.SelectMany(c => c.RecordPasses.Select(r =>
+                        (c.Pack, ExtensionRecordPassHost.Cached(r, () => HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>), OwnerOf))))
+                ];
+            });
             // An extension switched off takes its rulesets' facts off every library row; readers hear it as one change.
             if (features is not null)
             {
@@ -1200,7 +1228,7 @@ public class App : Application
                     HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>).RecheckFacts());
             }
 
-            return new RecordPassRunner(() =>
+            runner = new RecordPassRunner(() =>
             {
                 List<IRecordPass> passes = [];
                 foreach ((IExtension pack, Func<IRecordPass> factory) in contributed.Value)
@@ -1231,6 +1259,7 @@ public class App : Application
                     }
                 }
             };
+            return runner;
         });
 
         // Recently-opened-demos store. SINGLETON: it holds the live in-memory recents list

@@ -173,6 +173,7 @@ public sealed class StoredEvidence
     WriteIndented = true,
     NewLine = "\n")]
 [JsonSerializable(typeof(ProposalDocument))]
+[JsonSerializable(typeof(DetonationDocument))]
 public sealed partial class SuggestedTagsJsonContext : JsonSerializerContext;
 
 /// <summary>

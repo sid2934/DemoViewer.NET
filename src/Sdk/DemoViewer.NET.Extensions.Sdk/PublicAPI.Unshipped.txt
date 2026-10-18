@@ -202,7 +202,6 @@ DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.EnabledInSession = 1 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.Startup = 0 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.FactKey
-DemoViewer.NET.Extensions.Sdk.FactKey.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactKey!
 DemoViewer.NET.Extensions.Sdk.FactKey.Deconstruct(out string! RulesetId, out string! Output) -> void
 DemoViewer.NET.Extensions.Sdk.FactKey.Equals(DemoViewer.NET.Extensions.Sdk.FactKey? other) -> bool
 DemoViewer.NET.Extensions.Sdk.FactKey.FactKey(string! RulesetId, string! Output) -> void
@@ -324,7 +323,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DemoAction(DemoViewer.NET.
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Library(DemoViewer.NET.Extensions.Sdk.ILibraryContribution! contribution) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Pass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionPass!>! factory, params string![]! after) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Playback(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution! contribution) -> void
-DemoViewer.NET.Extensions.Sdk.IExtensionContributions.RecordPass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass!>! factory, params DemoViewer.NET.Extensions.Sdk.FactKey![]! dependsOn) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.RecordPass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass!>! factory, params DemoViewer.NET.Extensions.Sdk.RecordInput![]! dependsOn) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer.NET.Extensions.Sdk.IReindexEstimate! estimate) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Ruleset(DemoViewer.NET.Extensions.Sdk.RulesetContribution! ruleset) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void
@@ -615,6 +614,8 @@ DemoViewer.NET.Extensions.Sdk.LibraryFactState.Schema.get -> int
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.Schema.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.State.get -> DemoViewer.NET.Extensions.Sdk.DemoDataState
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.State.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFactState.WrittenAtTicks.get -> long
+DemoViewer.NET.Extensions.Sdk.LibraryFactState.WrittenAtTicks.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryFilter
 DemoViewer.NET.Extensions.Sdk.LibraryFilter.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryFilter!
 DemoViewer.NET.Extensions.Sdk.LibraryFilter.Deconstruct(out string! Label, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryFilterItem!>! Items, out System.Func<DemoViewer.NET.Extensions.Sdk.LibraryDemo!, string!, bool>! Matches, out string? Tooltip) -> void
@@ -1832,3 +1833,32 @@ static DemoViewer.NET.Extensions.Sdk.ObservedRead.operator ==(DemoViewer.NET.Ext
 ~override DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ToString() -> string
 ~override DemoViewer.NET.Extensions.Sdk.ObservedRead.Equals(object obj) -> bool
 ~override DemoViewer.NET.Extensions.Sdk.ObservedRead.ToString() -> string
+DemoViewer.NET.Extensions.Sdk.RecordInput
+virtual DemoViewer.NET.Extensions.Sdk.RecordInput.Equals(DemoViewer.NET.Extensions.Sdk.RecordInput? other) -> bool
+DemoViewer.NET.Extensions.Sdk.RecordInput.RecordInput(DemoViewer.NET.Extensions.Sdk.RecordInput! original) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataKey
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.DemoDataKey(string! Owner, string! Facet) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Deconstruct(out string! Owner, out string! Facet) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Equals(DemoViewer.NET.Extensions.Sdk.DemoDataKey? other) -> bool
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Facet.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Facet.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Owner.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Owner.init -> void
+override sealed DemoViewer.NET.Extensions.Sdk.FactKey.Equals(DemoViewer.NET.Extensions.Sdk.RecordInput? other) -> bool
+override DemoViewer.NET.Extensions.Sdk.DemoDataKey.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.DemoDataKey.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.DemoDataKey.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.DemoDataKey.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.DemoDataKey!
+override DemoViewer.NET.Extensions.Sdk.FactKey.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactKey!
+override DemoViewer.NET.Extensions.Sdk.RecordInput.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.RecordInput.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.RecordInput.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.DemoDataKey.RoundFacts.get -> DemoViewer.NET.Extensions.Sdk.DemoDataKey!
+static DemoViewer.NET.Extensions.Sdk.DemoDataKey.operator !=(DemoViewer.NET.Extensions.Sdk.DemoDataKey? left, DemoViewer.NET.Extensions.Sdk.DemoDataKey? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.DemoDataKey.operator ==(DemoViewer.NET.Extensions.Sdk.DemoDataKey? left, DemoViewer.NET.Extensions.Sdk.DemoDataKey? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.RecordInput.operator !=(DemoViewer.NET.Extensions.Sdk.RecordInput? left, DemoViewer.NET.Extensions.Sdk.RecordInput? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.RecordInput.operator ==(DemoViewer.NET.Extensions.Sdk.RecordInput? left, DemoViewer.NET.Extensions.Sdk.RecordInput? right) -> bool
+virtual DemoViewer.NET.Extensions.Sdk.RecordInput.EqualityContract.get -> System.Type!
+virtual DemoViewer.NET.Extensions.Sdk.RecordInput.PrintMembers(System.Text.StringBuilder! builder) -> bool
+abstract DemoViewer.NET.Extensions.Sdk.RecordInput.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.RecordInput!
+override sealed DemoViewer.NET.Extensions.Sdk.DemoDataKey.Equals(DemoViewer.NET.Extensions.Sdk.RecordInput? other) -> bool

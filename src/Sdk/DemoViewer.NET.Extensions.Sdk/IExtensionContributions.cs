@@ -28,19 +28,22 @@ public interface IExtensionContributions
     ///     A pass over what the library already holds for each demo, run without reading the demo file. The
     ///     factory is called only while the extension is on.
     ///     <para>
-    ///         A pass that names facts in <paramref name="dependsOn" /> waits until each named ruleset's write on
-    ///         the demo has settled, then runs again exactly when one of those writes moves, not on other changes to
-    ///         the row. A failed or stale write counts as settled: check <see cref="IAnalysisFacts.Status" />.
-    ///         A ruleset's outputs share one write, so naming one table re-runs on any of its tables. While a
-    ///         named ruleset is off (its extension off, or its doc disabled) the pass waits. A key no ruleset on
-    ///         now declares (<see cref="IAnalysisFacts.Declared" />), round facts, or a scoreboard refuses the pass
-    ///         until that changes.
+    ///         A pass that names inputs in <paramref name="dependsOn" /> waits until each one's write on the demo
+    ///         has settled, then runs again exactly when one of those writes moves, not on other changes to the
+    ///         row. A failed or stale write counts as settled: check <see cref="IAnalysisFacts.Status" />, or the
+    ///         facet's stamp. A ruleset's outputs share one write, so naming one table re-runs on any of its
+    ///         tables. While a named ruleset, or the extension owning a named facet, is off the pass waits. A fact
+    ///         key no ruleset on now declares (<see cref="IAnalysisFacts.Declared" />), a scoreboard, or a facet of
+    ///         an extension the host does not know refuses the pass; the keys are checked again on every run.
     ///     </para>
     /// </summary>
     /// <param name="id">The pass's <see cref="IExtensionRecordPass.Id" />.</param>
     /// <param name="factory">Builds or returns the pass.</param>
-    /// <param name="dependsOn">Facts the pass reads; empty runs it on every change to the demo's row.</param>
-    void RecordPass(string id, Func<IExtensionRecordPass> factory, params FactKey[] dependsOn);
+    /// <param name="dependsOn">
+    ///     Ruleset outputs (<see cref="FactKey" />) and per-demo facets (<see cref="DemoDataKey" />, such as
+    ///     <see cref="DemoDataKey.RoundFacts" />) the pass reads; empty runs it on every change to the demo's row.
+    /// </param>
+    void RecordPass(string id, Func<IExtensionRecordPass> factory, params RecordInput[] dependsOn);
 
     /// <summary>
     ///     A per-frame reader for one of the extension's passes, run inside the host's rules run of a demo instead of a

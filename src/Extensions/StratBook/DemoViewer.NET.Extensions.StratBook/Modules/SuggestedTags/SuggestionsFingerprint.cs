@@ -27,6 +27,12 @@ public static class SuggestionsFingerprint
     /// </summary>
     public const string OccupancyStrategy = "occupancy=round-index;cloud=positions";
 
+    /// <summary>
+    ///     Where the thrower fix-up's removed projectiles come from: the collector's stamp, which moves with its
+    ///     version, its declared reads and the engine build.
+    /// </summary>
+    public static string ThrowerSource { get; } = "thrower=" + ThrowerCollector.Contribution.Stamp;
+
     /// <summary>The fingerprint, lowercase hex.</summary>
     /// <param name="profile">The profile in force.</param>
     /// <param name="table">The shipped or learned table the map's regions compose from, or null for site-only.</param>
@@ -40,6 +46,8 @@ public static class SuggestionsFingerprint
             .Append(ProposalDocument.CurrentSchemaVersion.ToString(CultureInfo.InvariantCulture))
             .Append('\n')
             .Append(OccupancyStrategy)
+            .Append('\n')
+            .Append(ThrowerSource)
             .Append('\n')
             .Append(profile.ToJson())
             .Append('\n')

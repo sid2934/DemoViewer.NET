@@ -17,9 +17,14 @@ internal sealed class ExtensionRecordPassHost(
     IExtensionRecordPass inner,
     ExtensionGuard guard,
     HostLibrary library,
-    IReadOnlyList<FactKey>? dependsOn = null)
+    IReadOnlyList<RecordInput>? dependsOn = null,
+    Func<string, DemoDataOwner?>? owners = null)
     : IRecordPass
 {
+    private const string DataStampPrefix = "data:";
+
+    private readonly Dictionary<string, DemoDataKey> _dataInputs = DataInputs(dependsOn ?? []);
+
     /// <summary>The extension's pass.</summary>
     public IExtensionRecordPass Inner { get; } = inner ?? throw new ArgumentNullException(nameof(inner));
 
@@ -30,29 +35,65 @@ internal sealed class ExtensionRecordPassHost(
 
     public string Owner => Guard.Scope.Id;
 
-    /// <summary>The facts the pass named when it registered.</summary>
-    public IReadOnlyList<FactKey> DependsOn { get; } = dependsOn ?? [];
+    /// <summary>The inputs the pass named when it registered.</summary>
+    public IReadOnlyList<RecordInput> DependsOn { get; } = dependsOn ?? [];
 
     // Facts stamps are per ruleset: every output of one ruleset is written under one stamp.
     public IReadOnlyList<string> InputStamps { get; } =
-        [.. (dependsOn ?? []).Select(k => StampedFacts.StampId(k.RulesetId)).Distinct(StringComparer.Ordinal)];
+        [.. (dependsOn ?? []).Select(StampIdOf).Distinct(StringComparer.Ordinal)];
 
-    public string? Refusal() => DependsOn.Count == 0 ? null : RefusalOf(DependsOn, library.Facts.Declared, IsOff());
+    /// <summary>The extension ids whose per-demo data the inputs name; their writes must reach the runner.</summary>
+    public static IEnumerable<string> DataOwnersOf(IReadOnlyList<RecordInput> dependsOn) =>
+        DataInputs(dependsOn).Values.Select(k => k.Owner).Distinct(StringComparer.Ordinal);
+
+    public PackStamp? InputStamp(DemoCacheIndexEntry entry, string id)
+    {
+        if (!_dataInputs.TryGetValue(id, out DemoDataKey? key))
+        {
+            return entry.Stamp(id);
+        }
+
+        // A pending stamp has no write behind it yet. The count is left out: it moves without a write.
+        if (owners?.Invoke(key.Owner)?.Data.Stamp(entry.Path, key.Facet) is not { } stamp || stamp.State == DemoDataState.Pending)
+        {
+            return null;
+        }
+
+        return new PackStamp(id, stamp.Schema, stamp.Fingerprint)
+        {
+            State = stamp.State == DemoDataState.Failed ? DemoAnalysisState.Failed : DemoAnalysisState.Indexed,
+            ComputedAtTicks = stamp.WrittenAtTicks
+        };
+    }
+
+    public string? Refusal()
+    {
+        if (DependsOn.Count == 0)
+        {
+            return null;
+        }
+
+        List<string> unknown = [.. _dataInputs.Values.Where(k => owners?.Invoke(k.Owner) is null).Select(k => k.ToString())];
+        return RefusalOf([.. DependsOn.OfType<FactKey>()], library.Facts.Declared, IsOff(), unknown);
+    }
 
     public bool InputsOff()
     {
         Func<string, bool> isOff = IsOff();
-        return DependsOn.Any(k => isOff(k.RulesetId));
+        return DependsOn.OfType<FactKey>().Any(k => isOff(k.RulesetId))
+               || _dataInputs.Values.Any(k => owners?.Invoke(k.Owner) is { } owner && !owner.IsOn());
     }
 
     private Func<string, bool> IsOff() =>
         library.Facts is IFactsVisibility visibility ? visibility.IsOff : static _ => false;
 
     /// <summary>Why a pass naming <paramref name="dependsOn" /> cannot be taken, or null when every key is one it can wait on.</summary>
-    /// <param name="dependsOn">The keys the pass named.</param>
+    /// <param name="dependsOn">The fact keys the pass named.</param>
     /// <param name="declared">The outputs the host runs now.</param>
     /// <param name="isOff">True for a ruleset that is known but off now; its keys wait instead of refusing.</param>
-    public static string? RefusalOf(IReadOnlyList<FactKey> dependsOn, IReadOnlyList<FactKey> declared, Func<string, bool> isOff)
+    /// <param name="unknownData">Facets the pass named whose owner the host does not know.</param>
+    public static string? RefusalOf(IReadOnlyList<FactKey> dependsOn, IReadOnlyList<FactKey> declared, Func<string, bool> isOff,
+        IReadOnlyList<string>? unknownData = null)
     {
         ArgumentNullException.ThrowIfNull(dependsOn);
         ArgumentNullException.ThrowIfNull(declared);
@@ -68,9 +109,29 @@ internal sealed class ExtensionRecordPassHost(
             }
         }
 
+        refused.AddRange(unknownData ?? []);
         return refused.Count == 0
             ? null
             : $"depends on {string.Join(", ", refused)}, which the library does not write.";
+    }
+
+    private static string StampIdOf(RecordInput input) => input switch
+    {
+        FactKey fact => StampedFacts.StampId(fact.RulesetId),
+        DemoDataKey data when data == DemoDataKey.RoundFacts => RoundFactsRecords.FacetId,
+        DemoDataKey data => DataStampPrefix + data.Owner + "/" + data.Facet,
+        _ => throw new ArgumentException($"'{input}' is not an input the host knows.", nameof(input))
+    };
+
+    private static Dictionary<string, DemoDataKey> DataInputs(IReadOnlyList<RecordInput> dependsOn)
+    {
+        Dictionary<string, DemoDataKey> inputs = new(StringComparer.Ordinal);
+        foreach (DemoDataKey key in dependsOn.OfType<DemoDataKey>().Where(k => k != DemoDataKey.RoundFacts))
+        {
+            inputs.TryAdd(StampIdOf(key), key);
+        }
+
+        return inputs;
     }
 
     public bool Wants(DemoCacheIndexEntry entry) => Inner.Wants(library.Project(entry));
@@ -82,7 +143,11 @@ internal sealed class ExtensionRecordPassHost(
     ///     A factory handing out one host per pass instance, so the runner's per-row memory follows the pass;
     ///     a factory that builds a new pass gets a new host.
     /// </summary>
-    public static Func<IRecordPass> Cached(RecordPassContribution contribution, Func<HostLibrary> library)
+    /// <param name="contribution">The registered pass.</param>
+    /// <param name="library">The host library the pass reads.</param>
+    /// <param name="owners">An extension's per-demo data by extension id, or null for one the host does not know.</param>
+    public static Func<IRecordPass> Cached(RecordPassContribution contribution, Func<HostLibrary> library,
+        Func<string, DemoDataOwner?>? owners = null)
     {
         ArgumentNullException.ThrowIfNull(contribution);
         ArgumentNullException.ThrowIfNull(library);
@@ -101,7 +166,7 @@ internal sealed class ExtensionRecordPassHost(
             {
                 if (cached is null || !ReferenceEquals(cached.Inner, pass))
                 {
-                    cached = new ExtensionRecordPassHost(pass, contribution.Guard, library(), contribution.DependsOn);
+                    cached = new ExtensionRecordPassHost(pass, contribution.Guard, library(), contribution.DependsOn, owners);
                 }
 
                 return cached;
@@ -109,3 +174,8 @@ internal sealed class ExtensionRecordPassHost(
         };
     }
 }
+
+/// <summary>An extension's per-demo data as a record pass input, and whether the extension is on now.</summary>
+/// <param name="Data">The extension's data store.</param>
+/// <param name="IsOn">True while the extension is on; a pass naming its facets waits while it is off.</param>
+internal sealed record DemoDataOwner(IExtensionDemoData Data, Func<bool> IsOn);
