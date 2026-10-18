@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
 
@@ -206,6 +207,101 @@ public class DemoVisitTests
             await Assert.That(a.Seen!.Parsed).IsNull();
             await Assert.That(b.Seen!.FrameCount).IsEqualTo(10);
         }
+    }
+
+    [Test]
+    public async Task TheVisitUnionsCollectorsBeforeTheFirstBareRun()
+    {
+        CollectorSet? seen = null;
+        using DemoProcessingQueue queue = Queue();
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        // A host pass that runs first and reads the rules run, as the highlights scan does.
+        FakePass first = new("host.rules") { OnRun = _ => seen = queue.CollectorsFor(Demo) };
+        ExtensionPassHost a = new(new ExtensionPassHostTests.FakePass { PassName = "ext.a" }, ["host.rules"], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.a", "ext.a"), guard)]));
+        ExtensionPassHost b = new(new ExtensionPassHostTests.FakePass { PassName = "ext.b" }, ["host.rules"], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.b", "ext.b"), guard)]));
+
+        await queue.SubmitVisit(Visit(PassLevel.Background, null, b, first, a)).Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(seen?.All.Select(c => c.Id)).IsEquivalentTo(["c.a", "c.b"])
+                .Because("the run the first pass makes must carry every collector on the visit");
+            await Assert.That(queue.CollectorsFor(Demo).IsEmpty).IsTrue().Because("the visit ended");
+        }
+    }
+
+    [Test]
+    public async Task ACollectingPass_DoesNotJoinAForwardReadThatStartedWithoutItsCollector()
+    {
+        int reads = 0;
+        using SemaphoreSlim firstRead = new(0);
+        using DemoProcessingQueue queue = Queue();
+        queue.ForwardRead = (_, _, declared, _, _) =>
+        {
+            if (Interlocked.Increment(ref reads) == 1)
+            {
+                firstRead.Wait(TimeSpan.FromSeconds(10), CancellationToken.None);
+            }
+
+            CollectorResults results = new();
+            foreach (RegisteredCollector c in declared.All)
+            {
+                results.Put(c.Id, new CollectorKit.Count(7));
+            }
+
+            ForwardDemoResult plain = ForwardResult();
+            return new ForwardDemoResult
+            {
+                Demo = plain.Demo, Rounds = plain.Rounds, FrameCount = plain.FrameCount,
+                FirstServerTick = plain.FirstServerTick, LastServerTick = plain.LastServerTick, Collected = results
+            };
+        };
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        CollectingPass a = new("ext.a", "c.a");
+        CollectingPass b = new("ext.b", "c.b");
+        Dictionary<string, PassOutcome> outcomes = [];
+        Action<IDemoPass, PassOutcome, Exception?> ended = (pass, outcome, _) =>
+        {
+            lock (outcomes)
+            {
+                outcomes[pass.Id] = outcome;
+            }
+        };
+
+        IDemoQueueHandle first = queue.SubmitVisit(Visit(PassLevel.Background, ended, new ExtensionPassHost(a, [], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.a", "ext.a"), guard)]))));
+        await WaitForAsync(() => Volatile.Read(ref reads) == 1, "the first forward read");
+        IDemoQueueHandle second = queue.SubmitVisit(Visit(PassLevel.Background, ended, new ExtensionPassHost(b, [], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.b", "ext.b"), guard)]))));
+        firstRead.Release();
+        await first.Completion;
+        await second.Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(reads).IsEqualTo(2).Because("the running read never declared c.b, so ext.b needs a read of its own");
+            await Assert.That(outcomes["ext.a"]).IsEqualTo(PassOutcome.Ran);
+            await Assert.That(outcomes["ext.b"]).IsEqualTo(PassOutcome.Ran);
+            await Assert.That(b.Frames).IsEqualTo(7);
+        }
+    }
+
+    // A forward extension pass that reads its one collector's result.
+    private sealed class CollectingPass(string id, string collectorId) : IExtensionPass
+    {
+        public int Frames { get; private set; }
+
+        public string Id => id;
+
+        public bool ReadsUserCommands => false;
+
+        public PassRead Read => PassRead.Forward;
+
+        public DemoInterest Interest(string demoPath) => DemoInterest.Yes;
+
+        public void Run(IPassContext context) => Frames = context.Collected<CollectorKit.Count>(collectorId)?.Frames ?? -1;
     }
 
     [Test]

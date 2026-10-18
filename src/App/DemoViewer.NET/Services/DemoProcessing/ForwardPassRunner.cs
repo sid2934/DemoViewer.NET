@@ -3,6 +3,7 @@
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -38,16 +39,22 @@ public sealed class ForwardPassRunner
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger("App.Highlights");
 
     /// <summary>One forward pass over <paramref name="path" />.</summary>
-    public ForwardDemoResult Run(string path, ForwardNeeds needs, Action<double> progress, CancellationToken cancellationToken)
+    public ForwardDemoResult Run(string path, ForwardNeeds needs, Action<double> progress, CancellationToken cancellationToken) =>
+        Run(path, needs, CollectorSet.Empty, progress, cancellationToken);
+
+    /// <summary>One forward pass over <paramref name="path" /> whose rules run declares <paramref name="collectors" />.</summary>
+    internal ForwardDemoResult Run(string path, ForwardNeeds needs, CollectorSet collectors, Action<double> progress,
+        CancellationToken cancellationToken)
     {
         ParseOptions options = ForwardDemoPass.ReaderOptions(cancellationToken);
 
         // Same rule as the retained parse: only a settled local file is mapped.
         byte[]? bytes = (FileRead ?? new DemoFileRead(_time, null, null)).Prepare(path, cancellationToken);
         using DemoReader reader = bytes is null ? DemoReader.OpenFile(path, options) : DemoReader.Open(bytes, options);
-        ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs,
-            (needs & ForwardNeeds.Rules) != 0 ? _rules.Docs : null, progress,
-            (needs & ForwardNeeds.Rules) != 0 ? OutputsFor?.Invoke(path) : null, cancellationToken);
+        bool rules = (needs & ForwardNeeds.Rules) != 0;
+        ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs, rules ? _rules.Docs : null, progress,
+            rules ? OutputsFor?.Invoke(path) : null,
+            rules ? collectors : CollectorSet.Empty, cancellationToken);
         if (pass.Run is { } run)
         {
             RulesetExclusionReport.Report(Log, run.Build);

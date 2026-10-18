@@ -86,6 +86,7 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `StatusChip` | A chip on the status strip. You supply its state through `IStatusChipSource`; the host draws it. |
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `RecordPass` | An `IExtensionRecordPass` that runs over what the library already holds for a demo, without a parse. |
+| `Collector` | A per-frame reader for one of your passes, run inside the host's rules run of a demo instead of a walk of its own. |
 | `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts. |
 | `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
 | `SettingsPage` | A page under Settings, Extensions with controls of your own. |
@@ -252,6 +253,48 @@ IJobHandle handle = context.Jobs.Enqueue(JobRequest.OnDemo("Count frames", path,
     new JobOptions(Priority: JobPriority.UserRequested)));
 handle.Completed += result => Status = result.Status.ToString();
 ```
+
+## Collectors
+
+A collector is a per-frame reader that rides the rules run the host already makes of a demo for one of
+your passes, instead of reading the demo on its own. Register one with `contributions.Collector`, naming
+the pass that owns its result:
+
+```csharp
+contributions.Collector(new CollectorContribution("dev.example.positions", "dev.example.rounds", 1,
+    ["entity.pawn.pos_x", "entity.pawn.pos_y"], [], () => new PositionCollector()));
+```
+
+`Id` is unique across the app and is how the owning pass reads the result back. `PassId` names the
+`IExtensionPass` that owns it: the collector runs only on a visit that pass is on. `Version` is bumped
+when what the collector puts changes; it folds into `Stamp` along with the declared reads and the engine
+build, so a pass that keys its own fingerprint on `Stamp` runs again when any of them moves. `Providers`
+and `ProjectileClasses` name what the collector reads off each frame, from the engine's catalog
+(`entity.pawn.pos_x`, `CSmokeGrenadeProjectile`); a name the engine does not know refuses the collector.
+`Create` builds a fresh `IFrameCollector` for one run.
+
+`IFrameCollector.OnFrame` is called once per frame, in read order, with an `IFrameReadView` valid only
+during that call: copy what you keep. `Finish` runs once, after the last frame, and puts the result
+through `ICollectorSink.Put`; the owning pass reads it back with `IPassContext.Collected<T>(collectorId)`,
+which is null when nothing was put and throws when the collector failed on this demo or names a
+collector that is not one of the pass's own. A collector that throws from `OnFrame` ends that collector
+for the run and fails its pass's read, `Finish` is not called for it, and the run and every other
+collector on it carry on.
+
+`IFrameReadView` is the state at the end of one frame, as the rules run folded it: a read here always
+sees that frame's own update applied, not the frame-before state a rule's `player.*` read sees at a
+game event. `Frame` is the frame just read, `FrameIndex` its position in read order from zero, and
+`Tick` the frame clock (`Frame.GameTick ?? Frame.ServerTick`), the same clock `PassRound.FreezeEndTick`
+is on. `Provider` resolves a declared name once into an `ObservedRead`, so `TryReadInt`, `TryReadFloat`
+and `TryReadString` can read a slot by it without a further name lookup; `Read` takes the name directly
+and boxes. `Team` is the slot's controller team as last seen (2 T, 3 CT), or -1.
+
+`Projectiles` is every live projectile of a declared class, in ascending entity index; `Created` holds
+the ones that appeared on this frame, and `Removed` the ones that were live last frame and are gone on
+this one, with their last-seen state. Each is an `ObservedProjectile` carrying its position, velocity,
+bounce count and thrower slot. Slot reads are never cleared: a player who died, left or has no pawn on
+this frame still reads the values from before, so a present value does not mean the slot has a pawn,
+and a health or position read cannot tell a dead player from a live one.
 
 ## Reading the library
 

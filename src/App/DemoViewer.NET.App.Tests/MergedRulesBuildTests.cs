@@ -1,12 +1,14 @@
 #region
 
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -368,6 +370,50 @@ public class MergedRulesBuildTests
         }
     }
 
+    // A collector writes only on the run its options carried, so a run made for a visit without it is not that visit's run.
+    [Test]
+    public async Task ABareRunWithoutACollector_IsNotServedToACallerWhoseVisitNeedsIt()
+    {
+        CollectorSet visit = CollectorSet.Empty;
+        MergedRulesBuild build = new(ShippedRules, () => [StampedRuleset.Core(RoundFacts)]) { CollectorsFor = _ => visit };
+        ParsedDemo parsed = TwoFrameDemo();
+
+        AnalysisRun bare = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a"))]);
+        AnalysisRun collected = build.BareRun(parsed, "/demos/a.dem");
+        AnalysisRun again = build.BareRun(parsed, "/demos/a.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(collected).IsNotSameReferenceAs(bare).Because("the cached run never ran the collector");
+            await Assert.That(again).IsSameReferenceAs(collected);
+            await Assert.That(build.Collected(parsed, "/demos/a.dem").Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+        }
+    }
+
+    [Test]
+    public async Task ABareRunWithASupersetOfCollectors_IsServed()
+    {
+        RegisteredCollector a = CollectorKit.Register(CollectorKit.Counting("count.a"));
+        RegisteredCollector b = CollectorKit.Register(CollectorKit.Counting("count.b"));
+        CollectorSet visit = CollectorSet.Of([a, b]);
+        MergedRulesBuild build = new(ShippedRules, () => [StampedRuleset.Core(RoundFacts)]) { CollectorsFor = _ => visit };
+        ParsedDemo parsed = TwoFrameDemo();
+
+        AnalysisRun both = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Of([a]);
+        AnalysisRun one = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Empty;
+        AnalysisRun none = build.BareRun(parsed, "/demos/a.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(one).IsSameReferenceAs(both).Because("the cached run carried every collector this visit needs");
+            await Assert.That(none).IsSameReferenceAs(both);
+            await Assert.That(build.Collected(parsed, "/demos/a.dem").Get<CollectorKit.Count>("count.b")?.Frames).IsEqualTo(2);
+        }
+    }
+
     // Pass order shrinks the cut: the first writer's stamps make the next caller's cut a subset.
     [Test]
     public async Task ABareRunRecordingASuperset_IsServed()
@@ -528,6 +574,53 @@ public class MergedRulesBuildTests
         }
     });
 
+    // The open's run is made before its visit is planned, so it declares every registered collector.
+    [Test]
+    public async Task ASeededRunCarryingTheOpenCollectors_IsServedToAVisitThatNeedsOne() => await WithFactsFixture(async fixture =>
+    {
+        CollectorSet registered = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a")),
+            CollectorKit.Register(CollectorKit.Counting("count.b"))]);
+        CollectorSet visit = CollectorSet.Of([registered.All[0]]);
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        build.OpenCollectors = () => registered;
+        build.CollectorsFor = _ => visit;
+        ParsedDemo parsed = TwoFrameDemo();
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+        BuildResult built = plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs, plan.Collectors.DeclareReads(new AnalysisOptions())));
+        (AnalysisOptions options, CollectorObserver? observer) = plan.Collectors.Declare(new AnalysisOptions());
+        AnalysisRun run = DemoAnalysis.Evaluate(parsed, built, options);
+        bool seeded = build.Seed(parsed, OpenPath, plan, run, observer?.Results);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Collectors.Key).IsEqualTo(registered.Key);
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsSameReferenceAs(run).Because("the open's run carried the visit's collector");
+            await Assert.That(build.Collected(parsed, OpenPath).Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+        }
+    });
+
+    [Test]
+    public async Task ASeedWithoutCollectorResults_IsNotServedToAVisitThatNeedsACollector() => await WithFactsFixture(async fixture =>
+    {
+        CollectorSet visit = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a"))]);
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        build.CollectorsFor = _ => visit;
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+
+        bool seeded = build.Seed(parsed, OpenPath, plan, run);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Collectors.IsEmpty).IsTrue().Because("nothing registered a collector");
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run).Because("the open's run never ran count.a");
+            await Assert.That(build.Collected(parsed, OpenPath).Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+        }
+    });
+
     [Test]
     public async Task NothingStale_TheOpenRunsTheCoreRulesetsAlone() => await WithFactsFixture(async fixture =>
     {
@@ -546,6 +639,37 @@ public class MergedRulesBuildTests
             await Assert.That(Recorded(run)).IsEquivalentTo(Recorded(DemoAnalysis.Run(parsed, build.CoreDocs)));
             await Assert.That(build.Seed(parsed, OpenPath, plan, run)).IsFalse();
             await Assert.That(noPath.Cut).IsEmpty().Because("a demo with no file has no visit to seed");
+        }
+    });
+
+    [Test]
+    public async Task NothingStale_TheOpenRunStillCarriesTheVisitsCollectors() => await WithFactsFixture(async fixture =>
+    {
+        CollectorSet registered = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a"))]);
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+        build.OutputsFor = _ => new HashSet<string>();
+        build.OpenCollectors = () => registered;
+        build.CollectorsFor = _ => registered;
+        ParsedDemo parsed = TwoFrameDemo();
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+        BuildResult built = plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs, plan.Collectors.DeclareReads(new AnalysisOptions())));
+        (AnalysisOptions options, CollectorObserver? observer) = plan.Collectors.Declare(new AnalysisOptions());
+        AnalysisRun run = DemoAnalysis.Evaluate(parsed, built, options);
+        bool seeded = build.Seed(parsed, OpenPath, plan, run, observer?.Results);
+        CollectorResults collected = build.Collected(parsed, OpenPath);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsEmpty();
+            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.CoreDocs))).Because("the open still runs the core alone");
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(collected.Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+            await Assert.That(collected).IsSameReferenceAs(observer!.Results).Because("the visit read the open's collectors");
+            await Assert.That(build.HoldsRun(parsed)).IsFalse().Because("no rules reader can be served the open's run");
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run)
+                .Because("the open's run recorded no round_facts for a reader of the rules");
         }
     });
 

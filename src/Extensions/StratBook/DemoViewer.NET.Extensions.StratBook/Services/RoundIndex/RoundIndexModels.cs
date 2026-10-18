@@ -25,9 +25,9 @@ public sealed record RoundIndexOptions
     public double CadenceSeconds { get; init; } = 1;
 
     /// <summary>
-    ///     The <c>PositionSampler.Walk</c> frame stride. Four keeps every one-second row on the measured
-    ///     demos and costs the decode floor; eight dropped rows. Not in the fingerprint: it changes
-    ///     which frame a row is read from, never what the row means.
+    ///     Every how many frames <see cref="RoundIndexCollector" /> samples, the stride the walk it replaced
+    ///     used. Four keeps every one-second row on the measured demos; eight dropped rows. In the
+    ///     fingerprint: dropping it moves which frame opens a row.
     /// </summary>
     public int FrameStride { get; init; } = 4;
 

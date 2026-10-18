@@ -904,6 +904,7 @@ public sealed class StratBookPack : IExtension
         // Grenades runs before Suggested Tags so the shared projectile walk holds only the Removed subset.
         contributions.Pass(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
             HostIds.RoundFactsPass);
+        contributions.Collector(RoundIndexCollector.Contribution);
         contributions.Pass(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             HostIds.LibraryPass);
         contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),

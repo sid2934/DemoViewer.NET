@@ -27,6 +27,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
@@ -896,6 +897,16 @@ public class App : Application
             rules.OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
                 ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
                 : sp.GetRequiredService<FactsEvaluator>().Records(path, id));
+            // The visit in flight answers which collectors its rules run carries; resolved per call, like the cut.
+            rules.CollectorsFor = path => sp.GetRequiredService<DemoProcessingQueue>().CollectorsFor(path);
+            // Every enabled pack's collectors: the open's run declares them before its visit is planned.
+            rules.OpenCollectors = () =>
+            {
+                IFeatureGate? features = sp.GetService<IFeatureGate>();
+                return CollectorSet.Of(sp.GetRequiredService<PackContributionSet>().Packs
+                    .Where(c => features?.IsEnabled(c.Pack.FeatureId) ?? true)
+                    .SelectMany(c => c.Collectors));
+            };
             return rules;
         });
         services.AddSingleton(sp =>
@@ -926,6 +937,8 @@ public class App : Application
                 // Resolved at the first read, never while the queue is built.
                 contentHash: path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256,
                 fileRead: fileRead);
+            queue.CollectedFor = rules.Collected;
+            queue.ForwardRead = forward is null ? null : forward.Run;
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {

@@ -12,6 +12,7 @@ using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -33,6 +34,7 @@ public sealed class MergedRulesBuild
     // One bare run per held parse: the highlight scan and round facts read the same run on a retained entry.
     // Keyed by the stamped rulesets that were off when it ran; a run from before a toggle is not the merged set's run.
     // Recorded is the requested cut, not the build's outputs: an excluded ruleset's table never appears there.
+    // Collectors produce output only on the run whose options carried them, so they key the run too.
     private readonly ConditionalWeakTable<ParsedDemo, CachedRun> _runs = new();
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
@@ -260,19 +262,50 @@ public sealed class MergedRulesBuild
     public Func<string, IReadOnlySet<string>?>? OutputsFor { get; set; }
 
     /// <summary>
+    ///     The collectors the visit of the demo at a path carries. A bare run declares them, and a cached run
+    ///     is served only when it carried at least these. Null carries none.
+    /// </summary>
+    internal Func<string, CollectorSet>? CollectorsFor { get; set; }
+
+    /// <summary>
+    ///     Every collector an open's visit could carry. The visit is planned after the open's run, so a run
+    ///     that seeds it declares all of them. Null declares none.
+    /// </summary>
+    internal Func<CollectorSet>? OpenCollectors { get; set; }
+
+    /// <summary>
     ///     The bare run over a held parse recording every stamped output, evaluated once however many consumers
     ///     ask until <see cref="Forget" />.
     /// </summary>
-    public AnalysisRun BareRun(ParsedDemo parsed) => RunCut(parsed, StampedOutputs());
+    public AnalysisRun BareRun(ParsedDemo parsed) => RunCut(parsed, StampedOutputs(), CollectorSet.Empty).Run!;
 
     /// <summary>
     ///     The bare run over a held parse of the demo at <paramref name="path" />, recording the cut
     ///     <see cref="OutputsFor" /> names. A cached run is served when it recorded at least that cut.
     /// </summary>
-    public AnalysisRun BareRun(ParsedDemo parsed, string path) =>
-        RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs());
+    public AnalysisRun BareRun(ParsedDemo parsed, string path) => RunFor(parsed, path).Run!;
 
-    private AnalysisRun RunCut(ParsedDemo parsed, IReadOnlySet<string> cut)
+    /// <summary>
+    ///     What the collectors of the visit of <paramref name="path" /> put on its bare run, the run made first
+    ///     when none that carried them is cached.
+    /// </summary>
+    internal CollectorResults Collected(ParsedDemo parsed, string path) =>
+        RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty, false).Results;
+
+    /// <summary>True when an evaluated run is held for <paramref name="parsed" />, not just collector results. For tests.</summary>
+    internal bool HoldsRun(ParsedDemo parsed)
+    {
+        lock (_gate)
+        {
+            return _runs.TryGetValue(parsed, out CachedRun? cached) && cached.Run is not null;
+        }
+    }
+
+    private CachedRun RunFor(ParsedDemo parsed, string path) =>
+        RunCut(parsed, OutputsFor?.Invoke(path) ?? StampedOutputs(), CollectorsFor?.Invoke(path) ?? CollectorSet.Empty);
+
+    // A caller reading only collector results does not need round_facts recorded on the run it is served.
+    private CachedRun RunCut(ParsedDemo parsed, IReadOnlySet<string> cut, CollectorSet collectors, bool readsRoundFacts = true)
     {
         (string off, IReadOnlyList<RulesetDoc> docs) = MergedDocs();
 
@@ -283,34 +316,38 @@ public sealed class MergedRulesBuild
         {
             if (_runs.TryGetValue(parsed, out CachedRun? cached) && string.Equals(cached.Off, off, StringComparison.Ordinal))
             {
-                if (cached.Recorded.IsSupersetOf(outputs))
+                if (cached.Recorded.IsSupersetOf(readsRoundFacts ? outputs : cut) && cached.Collectors.IsSupersetOf(collectors))
                 {
-                    return cached.Run;
+                    return cached;
                 }
 
                 // Widened, not swapped, so two callers with different cuts cannot evict each other.
                 outputs.UnionWith(cached.Recorded);
+                collectors = collectors.Union(cached.Collectors);
             }
         }
 
-        BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs);
+        BuildResult build = ForwardDemoPass.Build(parsed, docs, outputs, collectors);
         RulesetExclusionReport.Report(Log, build);
         DecodeSites.Enter(2);
-        AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
+        (AnalysisOptions options, CollectorObserver? observer) = collectors.Declare(new AnalysisOptions { CaptureSnapshots = false });
+        AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, options);
+        CachedRun fresh = new(off, outputs, collectors, run, observer?.Results ?? CollectorResults.None);
         lock (_gate)
         {
-            _runs.AddOrUpdate(parsed, new CachedRun(off, outputs, run));
+            _runs.AddOrUpdate(parsed, fresh);
         }
 
-        return run;
+        return fresh;
     }
 
     /// <summary>
     ///     What the open demo's run evaluates. When a stamped output is stale for <paramref name="path" /> and
     ///     <paramref name="read" /> holds the rulesets this build runs, the plan is <paramref name="read" /> minus
     ///     the stamped rulesets that are off, its <see cref="OpenRunPlan.Cut" /> is the stale outputs, and the run
-    ///     can <see cref="Seed" /> the open's visit. Otherwise it is <paramref name="read" /> without the stamped
+    ///     can <see cref="Seed(ParsedDemo, string, OpenRunPlan, AnalysisRun)" /> the open's visit. Otherwise it is <paramref name="read" /> without the stamped
     ///     rulesets and an empty cut: nothing would read their nodes, and their snapshot columns cost peak memory.
+    ///     With nothing stale it still declares the registered collectors, so their results can seed the visit.
     /// </summary>
     /// <param name="read">The rules the shell read for this open.</param>
     /// <param name="path">The open demo's path, or null when it has none on disk.</param>
@@ -341,7 +378,8 @@ public sealed class MergedRulesBuild
         IReadOnlySet<string> stale = OutputsFor?.Invoke(path) ?? StampedOutputs();
         if (stale.Count == 0)
         {
-            return plan;
+            // Core rulesets only, but the visit's collectors still ride this run instead of a second one.
+            return plan with { Collectors = OpenCollectorSet() };
         }
 
         if (!SameRulesets(docs, merged))
@@ -350,7 +388,26 @@ public sealed class MergedRulesBuild
             return plan;
         }
 
-        return plan with { Docs = docs, Cut = new HashSet<string>(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable } };
+        return plan with
+        {
+            Docs = docs,
+            Cut = new HashSet<string>(stale, StringComparer.Ordinal) { ForwardDemoPass.RoundFactsTable },
+            Collectors = OpenCollectorSet()
+        };
+    }
+
+    // A fault here leaves the open run without collectors; a visit needing one then makes its own run.
+    private CollectorSet OpenCollectorSet()
+    {
+        try
+        {
+            return OpenCollectors?.Invoke() ?? CollectorSet.Empty;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            MergedRulesBuildLog.OpenCollectorsFailed(Log, ex.Message);
+            return CollectorSet.Empty;
+        }
     }
 
     /// <summary>
@@ -358,12 +415,18 @@ public sealed class MergedRulesBuild
     ///     instead of evaluating again. Dropped when the rules, a gate or the cut moved since
     ///     <see cref="PlanOpen" />. True when stored.
     /// </summary>
-    public bool Seed(ParsedDemo parsed, string path, OpenRunPlan plan, AnalysisRun run)
+    public bool Seed(ParsedDemo parsed, string path, OpenRunPlan plan, AnalysisRun run) => Seed(parsed, path, plan, run, null);
+
+    /// <summary>
+    ///     <see cref="Seed(ParsedDemo, string, OpenRunPlan, AnalysisRun)" /> with what the run's observer
+    ///     collected for <see cref="OpenRunPlan.Collectors" />. Without it the run is stored as carrying none.
+    /// </summary>
+    internal bool Seed(ParsedDemo parsed, string path, OpenRunPlan plan, AnalysisRun run, CollectorResults? collected)
     {
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(run);
-        if (plan.Cut.Count == 0)
+        if (plan.Cut.Count == 0 && (collected is null || plan.Collectors.IsEmpty))
         {
             return false;
         }
@@ -382,7 +445,10 @@ public sealed class MergedRulesBuild
 
             if (reason is null)
             {
-                _runs.AddOrUpdate(parsed, new CachedRun(off, plan.Cut, run));
+                _runs.AddOrUpdate(parsed, collected is null
+                    ? new CachedRun(off, plan.Cut, CollectorSet.Empty, run, CollectorResults.None)
+                    // An empty cut is served to collector readers only; the snapshot run is not kept for them.
+                    : new CachedRun(off, plan.Cut, plan.Collectors, plan.Cut.Count == 0 ? null : run, collected));
                 return true;
             }
         }
@@ -456,7 +522,8 @@ public sealed class MergedRulesBuild
         }
     }
 
-    private sealed record CachedRun(string Off, IReadOnlySet<string> Recorded, AnalysisRun Run);
+    // Run is null only on an entry that recorded no round_facts, which RunCut serves to collector readers alone.
+    private sealed record CachedRun(string Off, IReadOnlySet<string> Recorded, CollectorSet Collectors, AnalysisRun? Run, CollectorResults Results);
 
     // The first registration of an id wins: the composition root lists core's before any extension's.
     private static IReadOnlyList<StampedRuleset> Distinct(IReadOnlyList<StampedRuleset> stamped) =>
@@ -544,6 +611,9 @@ public sealed record OpenRunPlan(
 
     internal string? Off { get; init; }
 
+    /// <summary>The collectors the run declares; set whenever a visit of the demo can read their results off it.</summary>
+    internal CollectorSet Collectors { get; init; } = CollectorSet.Empty;
+
     /// <summary>The build's outputs cut to the core tables plus <see cref="Cut" />.</summary>
     public BuildResult Cuts(BuildResult build) =>
         build with { Outputs = build.Outputs?.Where(o => !StampedTables.Contains(o.Id) || Cut.Contains(o.Id)).ToList() };
@@ -564,4 +634,7 @@ internal static partial class MergedRulesBuildLog
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "rules: the open's run was not handed to its visit: {reason}")]
     public static partial void SeedDropped(ILogger logger, string reason);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "rules: the open's run declares no collectors, the registered set could not be read: {reason}")]
+    public static partial void OpenCollectorsFailed(ILogger logger, string reason);
 }

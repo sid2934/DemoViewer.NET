@@ -6,6 +6,7 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -20,7 +21,7 @@ namespace DemoViewer.NET.Extensions;
 ///     thread, hands it the parse only for its turn, and switches it off for the session when its runs keep
 ///     overrunning their budget: a run on the held parse cannot be abandoned, so a hang is the UI watchdog's.
 /// </summary>
-internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
+internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling, ICollectingPass
 {
     /// <summary>How long a run may take before it counts as an overrun.</summary>
     public static readonly TimeSpan DefaultBudget = TimeSpan.FromMinutes(5);
@@ -45,9 +46,12 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
     /// <param name="onUiThread">True on the UI thread; the dispatcher's check when null.</param>
     /// <param name="budget">How long a run may take; <see cref="DefaultBudget" /> when null.</param>
     /// <param name="maxOverruns">Overruns that switch the pass off for the session.</param>
+    /// <param name="collectors">The collectors the extension registered for this pass.</param>
     public ExtensionPassHost(IExtensionPass inner, IReadOnlyList<string> after, ExtensionGuard guard,
-        Func<bool>? onUiThread = null, TimeSpan? budget = null, int maxOverruns = DefaultMaxOverruns)
+        Func<bool>? onUiThread = null, TimeSpan? budget = null, int maxOverruns = DefaultMaxOverruns,
+        CollectorSet? collectors = null)
     {
+        Collectors = collectors ?? CollectorSet.Empty;
         Inner = inner ?? throw new ArgumentNullException(nameof(inner));
         After = after ?? throw new ArgumentNullException(nameof(after));
         _guard = guard ?? throw new ArgumentNullException(nameof(guard));
@@ -64,8 +68,9 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
             throw new NotSupportedException($"Pass {Id} reads forward and reads user commands; a forward read carries none.");
         }
 
+        // A collector rides the rules run, so a forward read with one makes that run.
         _needs = _forward
-            ? new PassNeeds(ParseMode.Forward, ForwardNeeds.None)
+            ? new PassNeeds(ParseMode.Forward, Collectors.IsEmpty ? ForwardNeeds.None : ForwardNeeds.Rules)
             : new PassNeeds(ParseMode.Retained, ForwardNeeds.None, userCommands);
     }
 
@@ -78,6 +83,8 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
     public bool IsQuarantined => _quarantined;
 
     public string Id { get; }
+
+    public CollectorSet Collectors { get; }
 
     public IReadOnlyList<string> After { get; }
 
@@ -112,11 +119,11 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
         Context context;
         if (input.Retained is { } parsed)
         {
-            context = new Context(input.Demo.Path, parsed, _forward, input.CancellationToken);
+            context = new Context(input.Demo.Path, parsed, _forward, input, Collectors);
         }
         else if (_forward && input.Forward is { } read)
         {
-            context = new Context(input.Demo.Path, read, input.CancellationToken);
+            context = new Context(input.Demo.Path, read, input, Collectors);
         }
         else
         {
@@ -165,6 +172,8 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
     private sealed class Context : IPassContext
     {
         private readonly CancellationToken _cancellationToken;
+        private readonly CollectorSet _collectors;
+        private readonly PassInput _input;
         private readonly string _path;
         private ParsedDemo? _parsed;
         private ForwardDemoResult? _read;
@@ -173,20 +182,24 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
         private DemoDescriptor? _demo;
         private IReadOnlyList<PassRound>? _rounds;
 
-        public Context(string path, ParsedDemo parsed, bool hideParse, CancellationToken cancellationToken)
+        public Context(string path, ParsedDemo parsed, bool hideParse, PassInput input, CollectorSet collectors)
         {
+            _input = input;
+            _collectors = collectors;
             _path = path;
             _parsed = parsed;
             _hideParse = hideParse;
-            _cancellationToken = cancellationToken;
+            _cancellationToken = input.CancellationToken;
         }
 
-        public Context(string path, ForwardDemoResult read, CancellationToken cancellationToken)
+        public Context(string path, ForwardDemoResult read, PassInput input, CollectorSet collectors)
         {
+            _input = input;
+            _collectors = collectors;
             _path = path;
             _read = read;
             _hideParse = true;
-            _cancellationToken = cancellationToken;
+            _cancellationToken = input.CancellationToken;
         }
 
         public string DemoPath => _path;
@@ -247,6 +260,15 @@ internal sealed class ExtensionPassHost : IDemoPass, IPassScheduling
         }
 
         public CancellationToken CancellationToken => _cancellationToken;
+
+        public T? Collected<T>(string collectorId) where T : class
+        {
+            ThrowIfEnded();
+            ArgumentNullException.ThrowIfNull(collectorId);
+            return _collectors.Contains(collectorId)
+                ? _input.Collected().Get<T>(collectorId)
+                : throw new InvalidOperationException($"collector {collectorId} is not one this pass registered");
+        }
 
         public void End()
         {
