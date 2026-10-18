@@ -231,6 +231,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // Stateless checkpoint-replay seek core, shared by EntityTab's three seek pipelines.
     private readonly EntitySeekService? _seekService;
 
+    // The frame whose entity seek was deferred off the open, or -1.
+    private int _owedEntitySeek = -1;
+
     /// <summary>
     ///     Best-effort UI session persistence, the <c>Session</c> section of the single
     ///     consolidated config file. Constructed in the ctor from the injected
@@ -2551,6 +2554,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // The hosts: the Library (its own descriptor is a built-in above) and one strip tab per contributed
         // host, its VM built now so the sections and the session have somewhere to land before activation.
         _hosts.Clear();
+        LibraryTab.Sections.PropertyChanged -= OnLibrarySectionChanged;
+        LibraryTab.Sections.PropertyChanged += OnLibrarySectionChanged;
         _hosts.Add(new SectionHostEntry(LibraryTabViewModel.HostId, descriptors.First(d => d.TabId == LibraryTabViewModel.HostId),
             LibraryTab.Sections, null, null));
         foreach (ContributedHub hub in _hubTabs)
@@ -2883,6 +2888,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             ExtensionTabs.Activate(newValue, _moduleContext);
         }
+
+        PayOwedEntitySeek();
     }
 
     /// <summary>
@@ -2981,9 +2988,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
             // strip binary-search these instead of re-scanning the frame list on every press.
             Navigator.Build(_allFrames);
-            // Calibrate the shared game-clock once (first round_freeze_end) for the 2D round
-            // timer + bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds.
-            ApplyGameClock(_allFrames, parsed.TickRate);
+            // Calibrate the shared game-clock (first round_freeze_end) for the 2D round timer +
+            // bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds. The rules run below settles it.
+            GameClockSource? clock = ApplyGameClock(_allFrames, parsed.TickRate);
             // Mirror the production load path: signal active modules to resync to the new demo (see the
             // detailed rationale on the RaiseDemoReset call in LoadDemoFromBytesAsync).
             _moduleContext?.RaiseDemoReset();
@@ -2997,7 +3004,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // Match Overview stage parity with the interactive funnel (see LoadDemoFromBytesAsync).
             MatchOverviewTab.BeginAnalysis(path);
             open.Report(0.6, "Analysing");
-            await Analysis.RunAsync(parsed, demoKey, path);
+            await Analysis.RunOpenAsync(parsed, demoKey, path, clock);
             ThrowIfSuperseded(open);
             MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
             // Per-team round wins from the same evaluation: each team's total across BOTH halves.
@@ -3302,10 +3309,54 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // DISCRETE fan-out = the light-sync work + the heavy ASYNC checkpoint-replay entity seek.
         // The controller wires this to ApplySeek (used by SeekToFrame / scrub / palette / StepBack).
         ApplyLightSeekFanOut(idx);
+        _owedEntitySeek = -1;
 
-        if (idx >= 0)
+        if (idx < 0)
         {
-            _ = EntityTab.SeekEntitiesAsync(idx);
+            return;
+        }
+
+        // The analysis run's landing seek replays the demo for the entity state alone; a tab that reads
+        // none owes it until a tab that does is selected.
+        if (Analysis.IsSeekingFirstMessage && !ShownTabReadsEntityState())
+        {
+            _owedEntitySeek = idx;
+            return;
+        }
+
+        _ = EntityTab.SeekEntitiesAsync(idx);
+    }
+
+    // Tabs that never read the authoritative tracker. Every other tab or hosted section, a module's or an
+    // extension's included, may read it through the module context.
+    private bool ShownTabReadsEntityState()
+    {
+        WorkspaceTabDescriptor? shown = SelectedTab is { } tab && HostFor(tab)?.Sections.SelectedSection is { } section
+            ? section
+            : SelectedTab;
+        return shown?.TabId is not ("builtin.library" or "builtin.matchoverview" or "builtin.stats");
+    }
+
+    private void PayOwedEntitySeek()
+    {
+        int owed = _owedEntitySeek;
+        if (owed < 0 || !ShownTabReadsEntityState())
+        {
+            return;
+        }
+
+        _owedEntitySeek = -1;
+        if (owed == Playback.CurrentFrameIndex)
+        {
+            _ = EntityTab.SeekEntitiesAsync(owed);
+        }
+    }
+
+    private void OnLibrarySectionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(TabSectionHost.SelectedSection))
+        {
+            PayOwedEntitySeek();
         }
     }
 
@@ -4305,9 +4356,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // drained alongside the unknown-message census. The six *Frame* nav methods + the nav
             // strip binary-search these instead of re-scanning the frame list on every press.
             Navigator.Build(_allFrames);
-            // Calibrate the shared game-clock once (first round_freeze_end) for the 2D round
-            // timer + bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds.
-            ApplyGameClock(_allFrames, parsed.TickRate);
+            // Calibrate the shared game-clock (first round_freeze_end) for the 2D round timer +
+            // bomb/defuse timers; consumed via IModuleContext.CurtimeSeconds. The rules run below settles it.
+            GameClockSource? clock = ApplyGameClock(_allFrames, parsed.TickRate);
             // The context now holds the NEW demo's roster / events / map / clock. Signal any ACTIVE module to
             // fully resync: LoadDemo above reset the clock WITHOUT an Advanced push, so a tab left open across
             // a reload (Open-file button OR the library browser) would otherwise keep the previous demo's map
@@ -4328,7 +4379,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // game clock, module fan-out); the run below is its "Analysing" stage.
             MatchOverviewTab.BeginAnalysis(subjectKey);
             open.Report(0.6, "Analysing");
-            await Analysis.RunAsync(parsed, demoKey, localPath);
+            await Analysis.RunOpenAsync(parsed, demoKey, localPath, clock);
             ThrowIfSuperseded(open);
             // StatsTab is fed by AnalysisViewModel.EvaluationCompleted, which is raised SYNCHRONOUSLY inside
             // RunAsync (AnalysisViewModel.cs), so its tables are already built by the time this await
@@ -4695,16 +4746,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             tracker?.LastEntityError);
     }
 
-    // Computes the shared game-clock calibration once per demo load and hands it to the module context
-    // (mirrors SetRoster). Both demo-load paths call this AFTER _navigator.Build, so the precomputed
-    // round_freeze_end frames are available: the first one calibrates the curtime offset that the 2D
-    // round timer and bomb/defuse timers consume via IModuleContext.CurtimeSeconds. Reads
-    // game-rules entity state by advancing a fresh tracker to that early frame (cheap, run-once).
-    private void ApplyGameClock(IReadOnlyList<DemoFrame> frames, int tickRate)
+    // Hands the module context this load's game-clock calibration (mirrors SetRoster). Both load paths call
+    // this AFTER _navigator.Build, so the first round_freeze_end frame is known. The open's rules run settles
+    // the clock from its own scan (GameClockSource); the context replays only if nothing settled it.
+    private GameClockSource? ApplyGameClock(IReadOnlyList<DemoFrame> frames, int tickRate)
     {
         if (_moduleContext is null)
         {
-            return;
+            return null;
         }
 
         int firstFreezeEnd = -1;
@@ -4714,8 +4763,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             firstFreezeEnd = freezeEnds[0];
         }
 
-        (double clockBase, bool _) = GameClock.ComputeClockBase(frames, firstFreezeEnd, tickRate);
-        _moduleContext.SetGameClock(clockBase);
+        GameClockSource clock = new(frames, firstFreezeEnd, tickRate);
+        _moduleContext.SetGameClock(clock);
+        return clock;
     }
 
     /// <summary>

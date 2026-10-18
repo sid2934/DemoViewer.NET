@@ -12,8 +12,9 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The pack-on visit harness: one demo, one scenario, one process, driven by
 ///     <c>tools/single-walk-bench/run.sh</c>. Prints one <c>@SW_VISIT</c> JSON line with the visit's wall
-///     time, peak working set and managed heap over the visit, the decode count from the engine's meter with
-///     the host hooks' count by site beside it, and per-pass time.
+///     time, peak working set and managed heap over the visit, the decode count from the engine's meter split
+///     into analysis and shell decodes with the host hooks' count by site beside it, and per-pass time. Fails
+///     after printing when a visit decodes more than its target.
 ///     Skipped unless <c>SW_DEMO</c>, <c>SW_VISIT</c> and <c>SW_CONFIG_ROOT</c> are set.
 /// </summary>
 [NotInParallel]
@@ -61,6 +62,9 @@ public class SingleWalkVisitProbe
                 peakWsLessFileMb = Math.Round(peakWsMb - fileMb, 1),
                 peakHeapMb = Math.Round((sampler?.PeakManagedHeapBytes ?? 0) / 1024.0 / 1024.0, 1),
                 decodes = visit.Decodes,
+                analysisDecodes = visit.AnalysisDecodes,
+                shellDecodes = visit.ShellDecodes,
+                shellSites = visit.ShellSites.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
                 counterSource = "meter",
                 meter = visit.Meter.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
                 setupMeter = visit.SetupMeter.OrderBy(kv => kv.Key, StringComparer.Ordinal).ToDictionary(kv => kv.Key, kv => kv.Value),
@@ -72,6 +76,8 @@ public class SingleWalkVisitProbe
                     .GroupBy(p => p.Pass).ToDictionary(g => g.Key, g => Math.Round(g.Sum(p => p.Ms), 1)),
                 passes = visit.Passes.Select(p => $"{p.Pass}:{p.Outcome}").ToArray()
             }));
+
+            await AssertTargets(scenario, visit);
         }
         finally
         {
@@ -83,6 +89,25 @@ public class SingleWalkVisitProbe
             {
                 // best-effort cleanup
             }
+        }
+    }
+
+    // Open: the shell's rules run and nothing else. Sweep: one walk. Recheck: the library replay the visit keeps.
+    private static async Task AssertTargets(string scenario, SingleWalkSession.Visit visit)
+    {
+        string shellSites = string.Join(", ", visit.ShellSites.Select(kv => $"{kv.Key} x{kv.Value}"));
+        if (scenario == SingleWalkSession.Open)
+        {
+            await Assert.That(visit.AnalysisDecodes).IsEqualTo(1);
+            await Assert.That(visit.ShellDecodes).IsEqualTo(0).Because("shell decodes on the open: " + shellSites);
+        }
+        else if (scenario == SingleWalkSession.Sweep)
+        {
+            await Assert.That(visit.AnalysisDecodes).IsEqualTo(1);
+        }
+        else if (scenario == SingleWalkSession.Recheck)
+        {
+            await Assert.That(visit.AnalysisDecodes).IsEqualTo(1).Because("the library's replay is the recheck's one decode");
         }
     }
 
