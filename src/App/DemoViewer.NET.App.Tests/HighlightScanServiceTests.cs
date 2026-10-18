@@ -385,6 +385,25 @@ public class HighlightScanServiceTests
     }
 
     [Test]
+    public async Task OptInOff_AStaleRowRidesARulesRun_AndAFreshRowDoesNot()
+    {
+        DemoCacheStore store = new(null);
+        FakeHarvester harvester = new();
+        using HighlightScanService scanner = NewScanner(store, harvester, () => [], () => false);
+        store.Upsert(IndexedRow("/d/fresh.dem", 0));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scanner.Wants("/d/a.dem")).IsFalse().Because("the opt-in alone decides a read of its own");
+            await Assert.That(scanner.WantsIfRulesRun("/d/a.dem")).IsTrue();
+            await Assert.That(scanner.WantsIfRulesRun("/d/fresh.dem")).IsFalse();
+        }
+
+        scanner.Evaluate("/d/a.dem", SyntheticDemo());
+        await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(1).Because("a rider's turn writes the run's highlights");
+    }
+
+    [Test]
     public async Task RequestScan_OptInOff_DrainsOnlyTheRequestedPath()
     {
         DemoCacheStore store = new(null);

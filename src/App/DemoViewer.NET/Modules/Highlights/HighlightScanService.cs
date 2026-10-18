@@ -24,12 +24,11 @@ namespace DemoViewer.NET.Modules.Highlights;
 ///     tier-2/backfill double-parse). Three feeders:
 ///     <list type="bullet">
 ///         <item>
-///             <b>Piggyback:</b> the Library tier-2 hook hands over its already-parsed demo: a
-///             stale/missing row refreshes on the already-serialized job; only when the background-scan opt-in is on.
+///             <b>Piggyback:</b> a stale row joins any visit whose other passes need a rules run, whatever the
+///             opt-in says: the run evaluates the highlight rulesets anyway.
 ///         </item>
 ///         <item>
-///             <b>Backfill:</b> demos wanting a scan are submitted to the queue: auto rows only while the
-///             the opt-in holds; forced (manual) rows always, at <see cref="DemoJobPriority.UserRequested" />.
+///             <b>Backfill:</b> stale demos get a read of their own only while the opt-in holds; forced (manual) rows always, at <see cref="DemoJobPriority.UserRequested" />.
 ///         </item>
 ///         <item>
 ///             <b>Open-demo harvest:</b> the Analysis tab's own evaluation refreshes the open demo's
@@ -139,6 +138,25 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         }
 
         return forced || _backgroundScanEnabled();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     A stale demo with the opt-in off: the highlights are written off a rules run another pass on the visit
+    ///     needs, which evaluates the highlight rulesets anyway. The opt-in only decides whether a stale demo is
+    ///     worth a read of its own.
+    /// </remarks>
+    public bool WantsIfRulesRun(string path)
+    {
+        if (!NeedsScan(path))
+        {
+            return false;
+        }
+
+        lock (_lifecycle)
+        {
+            return !_openHarvestPending.Contains(path);
+        }
     }
 
     /// <inheritdoc />

@@ -627,6 +627,75 @@ public class DemoSchedulerTests
     // A queue that records what the scheduler submits and runs its planning item inline, or holds it when
     // Defer is set, as the extension test doubles do. Token is the planning item's cancellation token;
     // EndPasses reports every submitted pass as run at once, so a demo can be planned again.
+    [Test]
+    public async Task ARider_JoinsAVisitThatRunsRules_AndIsNeverSubmittedAlone()
+    {
+        RecordingQueue queue = new();
+        RulesFake grenades = new("grenades", path => path == "/x/demo.dem");
+        bool riderWants = false;
+        RulesFake highlights = new("highlights", _ => false, _ => riderWants);
+        using DemoScheduler scheduler = new([highlights, grenades], queue, () => _oneDemo);
+
+        // Grenades is out on the first visit; the rider turns stale only after.
+        scheduler.DemoChanged("/x/demo.dem");
+        riderWants = true;
+        scheduler.DemoChanged("/x/demo.dem");
+        scheduler.DemoChanged("/x/other.dem");
+        scheduler.DemoChanged("/x/third.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.Visits).HasCount().EqualTo(1)
+                .Because("the rider whose rules pass is out, and the rider on a demo nothing else wants, pay for no read");
+            await Assert.That(queue.Visits[0].Passes.Select(p => p.Id)).IsEquivalentTo(["grenades"]);
+        }
+
+        // A rider never upgrades a read that needs no rules.
+        RecordingQueue noRules = new();
+        using DemoScheduler finalStateOnly = new([highlights, new FinalStateFake("library")], noRules, () => _oneDemo);
+        finalStateOnly.DemoChanged("/x/demo.dem");
+        await Assert.That(noRules.Visits.Single().Passes.Select(p => p.Id)).IsEquivalentTo(["library"]);
+
+        RecordingQueue second = new();
+        using DemoScheduler fresh = new([highlights, grenades], second, () => _oneDemo);
+        fresh.DemoChanged("/x/demo.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(second.Visits[0].Passes.Select(p => p.Id)).IsEquivalentTo(["highlights", "grenades"],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(second.Visits[0].Riders).IsEquivalentTo(["highlights"]);
+        }
+    }
+
+    private sealed class FinalStateFake(string id) : IDemoEvaluator
+    {
+        public string Id => id;
+
+        public bool Wants(string path) => true;
+
+        public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.FinalState;
+
+        public void Evaluate(string path, ParsedDemo parsed)
+        {
+        }
+    }
+
+    private sealed class RulesFake(string id, Func<string, bool> wants, Func<string, bool>? ifRulesRun = null) : IDemoEvaluator
+    {
+        public string Id => id;
+
+        public bool Wants(string path) => wants(path);
+
+        public bool WantsIfRulesRun(string path) => ifRulesRun?.Invoke(path) ?? false;
+
+        public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.Rules;
+
+        public void Evaluate(string path, ParsedDemo parsed)
+        {
+        }
+    }
+
     private sealed class RecordingQueue : IDemoProcessingQueue
     {
         private readonly List<QueueJobRequest> _deferred = [];
