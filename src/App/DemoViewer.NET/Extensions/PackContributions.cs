@@ -182,7 +182,8 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
                 {
                     cached = new ExtensionPassHost(inner, after, _guard,
                         collectors: CollectorSet.Of(_collectors.Where(c => string.Equals(c.Contribution.PassId, id, StringComparison.Ordinal))),
-                        tableRulesets: [.. _rulesets.Where(r => string.Equals(r.ReadBy, id, StringComparison.Ordinal)).Select(r => r.RulesetId)]);
+                        tableRulesets: [.. _rulesets.Where(r => string.Equals(r.ReadBy, id, StringComparison.Ordinal)).Select(r => r.RulesetId)],
+                        tablesReadUserCommands: _rulesets.Any(r => string.Equals(r.ReadBy, id, StringComparison.Ordinal) && r.ReadsUserCommands));
                 }
 
                 return cached;
@@ -224,7 +225,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             using Stream stream = open();
             using StreamReader reader = new(stream);
             return reader.ReadToEnd();
-        }, null)) { ReadBy = ruleset.ReadBy });
+        }, null)) { ReadBy = ruleset.ReadBy, ReadsUserCommands = ruleset.ReadsUserCommands });
     }
 
     // Ids that are global across extensions carry the owner's id, so two extensions never lose one to the other.

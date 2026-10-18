@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Manifest;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 using Microsoft.Extensions.DependencyInjection;
 
 #endregion
@@ -104,7 +105,7 @@ public class HostDataRemovalTests
         await using ServiceProvider sp = services.BuildServiceProvider();
         PackContributions contributions = new(pack, () => new ExtensionContext(pack, sp));
         contributions.Pass(id + ".reader", () => new ExtensionPassHostTests.FakePass { PassName = id + ".reader" });
-        contributions.Ruleset(new RulesetContribution("kills", () => new MemoryStream()) { ReadBy = id + ".reader" });
+        contributions.Ruleset(new RulesetContribution("kills", () => new MemoryStream()) { ReadBy = id + ".reader", ReadsUserCommands = true });
 
         IReadOnlyList<StoreDescriptor> stores = new HostDataRemoval(contributions, sp).Stores;
         ExtensionPassHost host = (ExtensionPassHost)contributions.Passes.Single().Factory();
@@ -113,7 +114,10 @@ public class HostDataRemovalTests
         {
             await Assert.That(stores.Any(s => s.Id.StartsWith("facts:", StringComparison.Ordinal))).IsFalse();
             await Assert.That(contributions.Rulesets.Single().ReadBy).IsEqualTo(id + ".reader");
+            await Assert.That(contributions.Rulesets.Single().ReadsUserCommands).IsTrue();
             await Assert.That(host.TableRulesets).IsEquivalentTo([RulesetContribution.QualifiedId(id, "kills")]);
+            await Assert.That(host.Needs(new VisitedDemo("/d/match.dem")).UserCommands).IsTrue()
+                .Because("the ruleset's declaration reaches the pass's needs");
         }
     }
 

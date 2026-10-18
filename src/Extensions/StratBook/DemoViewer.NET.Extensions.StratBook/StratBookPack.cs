@@ -894,7 +894,17 @@ public sealed class StratBookPack : IExtension
             { ReadBy = RoundIndexEvaluator.EvaluatorId });
         contributions.Pass(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             HostIds.LibraryPass);
-        contributions.Collector(GrenadeCollector.Contribution(() => sp.GetRequiredService<StratBookSettings>().TrajectoryStride));
+        // The grenade rows fold three tables off the run; the projectile ruleset reads the thrower's commands.
+        foreach (string ruleset in GrenadeTables.Rulesets)
+        {
+            contributions.Ruleset(new RulesetContribution(ruleset, () => GrenadeTables.OpenYaml(ruleset))
+            {
+                ReadBy = GrenadeIndexEvaluator.EvaluatorId,
+                ReadsUserCommands = ruleset == GrenadeTables.ProjectilesRuleset
+            });
+        }
+
+        contributions.Collector(GrenadeTrajectoryCollector.Contribution(() => sp.GetRequiredService<StratBookSettings>().TrajectoryStride));
         contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
             RoundIndexEvaluator.EvaluatorId);
         contributions.Collector(ThrowerCollector.Contribution);

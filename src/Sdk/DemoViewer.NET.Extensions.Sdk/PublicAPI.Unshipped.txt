@@ -1093,6 +1093,8 @@ DemoViewer.NET.Extensions.Sdk.RulesetContribution.Id.get -> string!
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Id.init -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadBy.get -> string?
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadBy.init -> void
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadsUserCommands.get -> bool
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadsUserCommands.init -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.RulesetContribution(string! Id, System.Func<System.IO.Stream!>! Yaml, string? FeatureId = null) -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Yaml.get -> System.Func<System.IO.Stream!>!
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Yaml.init -> void

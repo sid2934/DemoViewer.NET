@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=../../../../../../rules/cs2demokit-rules.schema.json
+#
+# Grenade events: the detonations the grenade walk joins to its projectiles (by entity index, a fire
+# by tick and distance since inferno_startburn names the inferno), and every projectile's landing.
+# A landing whose thrower never resolved has no grenade_projectiles row, so the walk builds that
+# grenade from its landing alone. The views stand in for the wire events because only a view
+# exposes its event's fields; the thrower-bound ones fire here for every thrower.
+ruleset: net_demoviewer_pack_stratbook__grenade_events
+title: Grenade Events
+summary: The five detonation events by entity and position, and every projectile's removal.
+for: match
+
+stats:
+  he_entity: { capture: event.EntityId, on: he_grenade, per: match }
+  he_x: { capture: event.X, on: he_grenade, per: match }
+  he_y: { capture: event.Y, on: he_grenade, per: match }
+  he_z: { capture: event.Z, on: he_grenade, per: match }
+  flash_entity: { capture: event.EntityId, on: flash_grenade, per: match }
+  flash_x: { capture: event.X, on: flash_grenade, per: match }
+  flash_y: { capture: event.Y, on: flash_grenade, per: match }
+  flash_z: { capture: event.Z, on: flash_grenade, per: match }
+  smoke_entity: { capture: event.EntityId, on: smoke_grenade, per: match }
+  smoke_x: { capture: event.X, on: smoke_grenade, per: match }
+  smoke_y: { capture: event.Y, on: smoke_grenade, per: match }
+  smoke_z: { capture: event.Z, on: smoke_grenade, per: match }
+  decoy_entity: { capture: event.EntityId, on: decoy_started, per: match }
+  decoy_x: { capture: event.X, on: decoy_started, per: match }
+  decoy_y: { capture: event.Y, on: decoy_started, per: match }
+  decoy_z: { capture: event.Z, on: decoy_started, per: match }
+  inferno_entity: { capture: event.EntityId, on: inferno_started, per: match }
+  inferno_x: { capture: event.X, on: inferno_started, per: match }
+  inferno_y: { capture: event.Y, on: inferno_started, per: match }
+  inferno_z: { capture: event.Z, on: inferno_started, per: match }
+  landed_entity: { capture: event.EntityIndex, on: projectile_landed, per: match }
+  landed_serial: { capture: event.Serial, on: projectile_landed, per: match }
+  landed_class_name: { capture: event.ClassName, on: projectile_landed, per: match }
+  landed_slot: { capture: event.PlayerSlot, on: projectile_landed, per: match }
+  landed_x: { capture: event.X, on: projectile_landed, per: match }
+  landed_y: { capture: event.Y, on: projectile_landed, per: match }
+  landed_z: { capture: event.Z, on: projectile_landed, per: match }
+  landed_bounces: { capture: event.Bounces, on: projectile_landed, per: match }
+  landed_first_seen_tick: { capture: event.FirstSeenTick, on: projectile_landed, per: match }
+
+show:
+  tables:
+    grenade_he_detonations:
+      per: match_event
+      on: he_grenade
+      columns:
+        - { stat: he_entity, label: entity }
+        - { stat: he_x, label: x }
+        - { stat: he_y, label: y }
+        - { stat: he_z, label: z }
+    grenade_flash_detonations:
+      per: match_event
+      on: flash_grenade
+      columns:
+        - { stat: flash_entity, label: entity }
+        - { stat: flash_x, label: x }
+        - { stat: flash_y, label: y }
+        - { stat: flash_z, label: z }
+    grenade_smoke_detonations:
+      per: match_event
+      on: smoke_grenade
+      columns:
+        - { stat: smoke_entity, label: entity }
+        - { stat: smoke_x, label: x }
+        - { stat: smoke_y, label: y }
+        - { stat: smoke_z, label: z }
+    grenade_decoy_starts:
+      per: match_event
+      on: decoy_started
+      columns:
+        - { stat: decoy_entity, label: entity }
+        - { stat: decoy_x, label: x }
+        - { stat: decoy_y, label: y }
+        - { stat: decoy_z, label: z }
+    grenade_inferno_starts:
+      per: match_event
+      on: inferno_started
+      columns:
+        - { stat: inferno_entity, label: entity }
+        - { stat: inferno_x, label: x }
+        - { stat: inferno_y, label: y }
+        - { stat: inferno_z, label: z }
+    grenade_landings:
+      per: match_event
+      on: projectile_landed
+      columns:
+        - { stat: landed_entity, label: entity }
+        - { stat: landed_serial, label: serial }
+        - { stat: landed_class_name, label: class_name }
+        - { stat: landed_slot, label: slot }
+        - { stat: landed_x, label: x }
+        - { stat: landed_y, label: y }
+        - { stat: landed_z, label: z }
+        - { stat: landed_bounces, label: bounces }
+        - { stat: landed_first_seen_tick, label: first_seen_tick }

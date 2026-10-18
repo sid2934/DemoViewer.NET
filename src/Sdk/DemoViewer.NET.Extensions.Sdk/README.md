@@ -457,6 +457,10 @@ alike, and never writes them as facts: they are not in `Declared` and have no st
 derives from them under its own fingerprint, which should cover the YAML and the engine build. `Table` throws for a
 table no ruleset of the pass declares, and when the run did not record it because the ruleset was left out.
 
+A ruleset that reads `player.cmd.*` (or `thrower.cmd.*`) sets `ReadsUserCommands` on its contribution. A streamed read
+decodes the inputs from the build alone, but a visit that holds the parse leaves them out unless a pass on it asks, and
+a forward pass is never asked; the flag asks on the ruleset's behalf, so the table reads the same on both.
+
 ## Settings
 
 Describe your settings and the host draws the page and stores the values in `context.Settings`:
