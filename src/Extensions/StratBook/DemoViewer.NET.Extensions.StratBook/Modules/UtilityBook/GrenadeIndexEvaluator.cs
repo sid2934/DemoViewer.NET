@@ -20,10 +20,9 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 ///     the demo's grenade facet, stamped last so a crash leaves "not walked" and never a stamp without its rows. It
 ///     reads forward: a visit of its own streams the demo.
 ///     <para>
-///         <b>Background indexing is off by default</b> (the <c>HighlightsSettings.BackgroundScan</c>
-///         precedent: two to three seconds per demo is half an hour over a large library). Off, the demo
-///         the user has open is still walked on the parse its open paid for, and any demo can be forced
-///         from Match Overview at user priority. A Library tier-2 pass does not walk a demo on its own
+///         <b>Background indexing is on by default</b> and can be turned off: two to three seconds per demo
+///         is half an hour over a large library. Off, the demo the user has open is still walked on the
+///         parse its open paid for, and any demo can be forced from Match Overview at user priority. A Library tier-2 pass does not walk a demo on its own
 ///         parse while the opt-in is off: that would turn the sweep the user left off back on, the
 ///         Suggested Tags rule.
 ///     </para>
