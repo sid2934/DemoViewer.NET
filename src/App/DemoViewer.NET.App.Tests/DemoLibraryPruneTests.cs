@@ -128,6 +128,50 @@ public sealed class DemoLibraryPruneTests : IDisposable
         }
     }
 
+    // A scan returns before its copies are placed. When that placement lands after a newer scan has listed,
+    // it must not put the newer scan's deleted demos back.
+    [Test]
+    public async Task AnOlderScansCopyPlacement_LandingAfterANewerScan_DoesNotRestoreDeletedDemos()
+    {
+        string dir = TempDir();
+        string demos = Path.Combine(dir, "demos");
+        Directory.CreateDirectory(demos);
+        TaskCompletionSource firstPlacement = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            string[] files = [.. Enumerable.Range(1, 5).Select(i => Path.Combine(demos, $"d{i}.dem"))];
+            for (int i = 0; i < files.Length; i++)
+            {
+                File.WriteAllBytes(files[i], Enumerable.Repeat((byte)(i + 1), 16).ToArray());
+            }
+
+            using DemoLibraryService svc = Library(SeedCache(dir, [demos]));
+            int placements = 0;
+            svc.BeforeCopiesPlaced = () => Interlocked.Increment(ref placements) == 1 ? firstPlacement.Task : Task.CompletedTask;
+            await svc.RescanAsync();
+            Task olderCopies = svc.CopiesResolved;
+            File.Delete(files[1]);
+            File.Delete(files[2]);
+            File.Delete(files[4]);
+            await svc.RescanAsync();
+            await svc.CopiesResolved;
+
+            firstPlacement.SetResult();
+            await olderCopies;
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(placements).IsEqualTo(2);
+                await Assert.That(svc.Entries.Select(e => Path.GetFileName(e.FilePath)).Order()).IsEquivalentTo(["d1.dem", "d4.dem"]);
+            }
+        }
+        finally
+        {
+            firstPlacement.TrySetResult();
+            Cleanup(dir);
+        }
+    }
+
     [Test]
     public async Task Prunes_ARowWhoseFileWasDeletedFromAScannedFolder()
     {
