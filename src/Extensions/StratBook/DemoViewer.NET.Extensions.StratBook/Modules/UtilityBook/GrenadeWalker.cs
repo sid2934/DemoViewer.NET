@@ -3,6 +3,8 @@
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -31,11 +33,17 @@ public sealed record GrenadeWalk(IReadOnlyList<GrenadeRow> Rows, double InputCov
 /// </summary>
 public static class GrenadeWalker
 {
-    /// <summary>Bumped when a row's meaning changes; a demo walked under another version re-indexes.</summary>
-    public const string Version = "5";
+    /// <summary>Bumped when a row's meaning changes in the fold itself.</summary>
+    private const string WalkVersion = "5";
 
     /// <summary>The engine the rows were read with, for the sidecar header.</summary>
     public static string EngineVersion { get; } = DescribeEngine();
+
+    /// <summary>
+    ///     What stored rows are current under: <see cref="WalkVersion" />, the three grenade rulesets' YAML, the
+    ///     trajectory collector's version and the engine, so a change to any of them re-indexes the demo.
+    /// </summary>
+    public static string Version { get; } = ComputeVersion();
 
     /// <summary>The sidecar's input decoder name: the jump inputs come off the rules run's command lane.</summary>
     public const string InputDecoderName = "rules-command-lane";
@@ -392,6 +400,13 @@ public static class GrenadeWalker
     }
 
     private static WorldPoint? Point(Vector3? v) => v is { } p ? WorldPoint.From(p) : null;
+
+    private static string ComputeVersion()
+    {
+        string inputs = string.Join("\n", GrenadeTables.Rulesets.Select(GrenadeTables.ReadYaml))
+                        + "\n" + GrenadeTrajectoryCollector.Version.ToString(CultureInfo.InvariantCulture) + "\n" + EngineVersion;
+        return WalkVersion + ";" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(inputs)), 0, 8);
+    }
 
     private static string DescribeEngine()
     {
