@@ -114,13 +114,15 @@ jobs:
         env:
           # Seed the output dir with the currently-published release so vpk emits a delta alongside
           # the full package. Opt-in so local `pack-velopack.sh` runs stay offline and deterministic.
-          # A missing/failed download is non-fatal — full-only is a correct release. The repo is
-          # public, so no token is needed to read the feed. Before the first release exists this
-          # 404s, the seeding step swallows it, and the release ships full-only — correct.
+          # A missing/failed download is non-fatal: full-only is a correct release. Before the first
+          # release exists this 404s, the seeding step swallows it, and the release ships full-only.
           # Tag builds only. A manual run's branch version sorts below the published release, and vpk
           # refuses to pack below a release already in the output dir.
           DV_DELTA_SEED: ${{ startsWith(github.ref, 'refs/tags/') && '1' || '0' }}
           DV_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          # The feed is public, but unauthenticated API calls from shared runners hit GitHub's rate
+          # limit (403), which silently turned releases full-only.
+          DV_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Tag builds detect beta from the stamped version; this only forces it for a manual run.
           DV_BETA: ${{ inputs.beta && '1' || '0' }}
         run: ./scripts/pack-velopack.sh ${{ matrix.rid }}
