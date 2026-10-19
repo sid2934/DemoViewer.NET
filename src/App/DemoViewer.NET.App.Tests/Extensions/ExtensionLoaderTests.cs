@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 public class ExtensionLoaderTests
 {
     private const string FakeId = "net.demoviewer.pack.fake";
-    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.1.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.1.0"), null, SemVersion.Parse("0.14.0-beta0001"));
     private static readonly ITrustPolicy TrustAll = new AllTrust();
 
     // ── Discover ─────────────────────────────────────────────────────────────────────────────────

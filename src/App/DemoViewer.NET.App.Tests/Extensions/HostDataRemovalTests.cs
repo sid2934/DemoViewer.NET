@@ -148,7 +148,7 @@ public class HostDataRemovalTests
         public ExtensionManifest Manifest { get; } = ExtensionManifest.Parse($$"""
             {
               "id": "{{id}}", "name": "Remove", "version": "1.0.0", "assembly": "Remove.dll", "entryType": "Remove.Pack",
-              "requiresHost": "^1.0", "requiresCs2DemoKit": "0.13.0-beta0001", "rulesets": ["kills"]
+              "requiresHost": "^1.0", "requiresCs2DemoKit": "0.14.0-beta0001", "rulesets": ["kills"]
             }
             """);
 

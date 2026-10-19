@@ -1064,7 +1064,7 @@ public class SettingsViewModelTests
                 "/extensions/net.demoviewer.pack.stratbook/1.1.0",
                 FakeManifests.For(StratBookPack.PackId, "Strat Book", "1.1.0", "^1.0", "0.14.0"),
                 LoadFailure.Incompatible,
-                "Strat Book 1.1.0 needs CS2DemoKit 0.14.0; this app ships 0.13.0-beta0001");
+                "Strat Book 1.1.0 needs CS2DemoKit 0.14.0; this app ships 0.14.0-beta0001");
             LoadOutcome broken = new("/extensions/net.demoviewer.pack.stratbook/1.0.9", null, LoadFailure.ManifestInvalid, "'version' is required.");
             PackStatus staged = real with
             {
@@ -1081,7 +1081,7 @@ public class SettingsViewModelTests
                     await Assert.That(master.SourceLabel).IsEqualTo("(installed update)");
                     await Assert.That(master.HasLoadNote).IsTrue();
                     await Assert.That(master.LoadNote).IsEqualTo(
-                        "Update 1.1.0 was not loaded: Strat Book 1.1.0 needs CS2DemoKit 0.14.0; this app ships 0.13.0-beta0001"
+                        "Update 1.1.0 was not loaded: Strat Book 1.1.0 needs CS2DemoKit 0.14.0; this app ships 0.14.0-beta0001"
                         + Environment.NewLine
                         + "An update in '1.0.9' was not loaded: 'version' is required.");
                     await Assert.That(master.IsIncompatible).IsFalse();
@@ -1141,7 +1141,7 @@ public class SettingsViewModelTests
         string dir = NewTempDir();
         try
         {
-            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0-beta0001"));
             PackCompatibilityTests.ManifestPack pack = new("net.demoviewer.pack.future",
                 FakeManifests.For("net.demoviewer.pack.future", "Future Book", "1.2.0", "^2.0", "*"));
             PackStatus status = PackStatus.Evaluate(pack, host);

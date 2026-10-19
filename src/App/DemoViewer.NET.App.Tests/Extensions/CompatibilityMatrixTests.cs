@@ -260,7 +260,7 @@ public class CompatibilityMatrixTests
 
     // ── 4: the matrix, over PackCompatibility.Check ────────────────────────────────────────────────
     // One fixed host per row-family, the manifest varied: the updater's situation (one installed app,
-    // many feed entries). hostKit 0.13.0-beta0001 is the real pin; two extra rows hold the manifest's
+    // many feed entries). hostKit 0.13.0-beta0001 stands for a prerelease pin; two extra rows hold the manifest's
     // pin fixed and vary the host instead, covering the mismatch from the other side.
 
     [Test]
