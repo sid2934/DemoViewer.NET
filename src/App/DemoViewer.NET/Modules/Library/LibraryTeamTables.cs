@@ -173,6 +173,13 @@ public static class LibraryTeamTables
     /// <summary>The two table names.</summary>
     public static IReadOnlySet<string> Tables { get; } = new HashSet<string>(StringComparer.Ordinal) { TeamsTable, CoachesTable };
 
+    /// <summary>True when <paramref name="build" /> outputs the teams table, so a run of it carries the score.</summary>
+    public static bool Carries(BuildResult build) =>
+        build.Outputs?.Any(o => string.Equals(o.Id, TeamsTable, StringComparison.Ordinal)) ?? false;
+
+    /// <summary>True when <paramref name="run" /> recorded the teams table.</summary>
+    public static bool Carries(AnalysisRun run) => Carries(run.Build);
+
     /// <summary>True for either library ruleset.</summary>
     public static bool IsLibraryRuleset(string rulesetId) =>
         string.Equals(rulesetId, TeamsRulesetId, StringComparison.Ordinal) || string.Equals(rulesetId, CoachesRulesetId, StringComparison.Ordinal);

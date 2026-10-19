@@ -130,7 +130,7 @@ public static class ForwardDemoPass
             : new DecodePlan { Categories = headerAndTables, GameEventNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) };
 
         MessageCategories categories = plan.Categories | headerAndTables;
-        if (TapReplays(needs))
+        if (TapReplays(needs, build))
         {
             categories |= MessageCategories.Schema | MessageCategories.Entities;
         }
@@ -141,7 +141,7 @@ public static class ForwardDemoPass
         }
 
         IReadOnlySet<string>? events = plan.GameEventNames;
-        string[] tapEvents = TapReplays(needs)
+        string[] tapEvents = TapReplays(needs, build)
             ? [FreezeEndEvent, LibraryFinalScore.MatchEndEvent, LibraryFinalScore.MatchRestartEvent]
             : [FreezeEndEvent];
         if (events is not null && (!tapEvents.All(events.Contains) || !collectorEvents.All(events.Contains)))
@@ -204,7 +204,7 @@ public static class ForwardDemoPass
             : null;
         reader.Configure(PlanFor(build, needs, collectors.GameEvents));
 
-        Tap tap = new(reader, TapReplays(needs) ? LibraryFinalStateReplay.NewTracker() : null, progress, cancellationToken);
+        Tap tap = new(reader, TapReplays(needs, build) ? LibraryFinalStateReplay.NewTracker() : null, progress, cancellationToken);
         AnalysisRun? run = null;
         CollectorObserver? observer = null;
         if (build is not null)
@@ -245,9 +245,11 @@ public static class ForwardDemoPass
 
     // Everything happens inside TryReadNext: the evaluator may pull from a producer thread, and the
     // scanner releases a frame's folded data once it has applied it.
-    // A rules run carries the final state as tables; only a read without one replays it.
-    private static bool TapReplays(ForwardNeeds needs) =>
-        (needs & ForwardNeeds.FinalState) != 0 && (needs & ForwardNeeds.Rules) == 0;
+    // A rules run carries the final state as tables; a read without one replays it, as does a run whose build
+    // has no library_teams table (a user overlay turned it off, or the build left it out).
+    private static bool TapReplays(ForwardNeeds needs, BuildResult? build) =>
+        (needs & ForwardNeeds.FinalState) != 0
+        && ((needs & ForwardNeeds.Rules) == 0 || build is null || !LibraryTeamTables.Carries(build));
 
     private sealed class Tap(
         DemoReader inner,

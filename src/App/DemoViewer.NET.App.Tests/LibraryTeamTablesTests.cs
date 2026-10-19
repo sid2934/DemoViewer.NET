@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
@@ -272,6 +273,38 @@ public class LibraryTeamTablesTests
             await Assert.That(withRules.FinalState).IsNull().Because("a rules run carries the final state as tables");
             await Assert.That(Show(LibraryTeamTables.Read(withRules.Run, withRules.Demo.Players.Values, withRules.Overtime))).IsEqualTo(Show(alone.FinalState!));
             await Assert.That(alone.FinalState!.Ct).IsNotNull();
+        }
+    }
+
+    /// <summary>
+    ///     A rules run whose rulesets leave out library_teams, as a user overlay can, does not carry the score, so
+    ///     the tap replays it: the score is read rather than stored as none for good.
+    /// </summary>
+    [Test]
+    [Category("RealDemo")]
+    public async Task ARulesReadWithoutTheLibraryTables_StillReplaysTheFinalState()
+    {
+        string path = BenchmarkDemo(0);
+        MergedRulesBuild rules = new(ShippedRules);
+        IReadOnlyList<RulesetDoc> withoutLibrary = [.. rules.Docs.Where(d => !LibraryTeamTables.IsLibraryRuleset(d.Id))];
+        ForwardDemoResult alone;
+        ForwardDemoResult cut;
+        using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
+        {
+            alone = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState, null);
+        }
+
+        using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
+        {
+            cut = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, withoutLibrary);
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(cut.Run).IsNotNull();
+            await Assert.That(LibraryTeamTables.Carries(cut.Run!)).IsFalse();
+            await Assert.That(cut.FinalState).IsNotNull().Because("the run has no table to read the score from");
+            await Assert.That(Show(cut.FinalState!)).IsEqualTo(Show(alone.FinalState!));
         }
     }
 

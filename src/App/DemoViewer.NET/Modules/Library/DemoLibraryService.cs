@@ -2249,7 +2249,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             parsed.Players.Values, parsed.Duration.TotalSeconds, parsed.MapName, parsed.ServerName,
             parsed.Profile.SourceKind.ToString(), parsed.TickRate, parsed.TickCount, parsed.ServerStartTick,
             () => ClipRounds.Derive(parsed),
-            () => TeamRun?.Invoke(parsed, entry.FilePath) is { } run
+            () => TeamRun?.Invoke(parsed, entry.FilePath) is { } run && LibraryTeamTables.Carries(run)
                 ? LibraryTeamTables.Read(run, parsed.Players.Values, LibraryOvertime.Of(parsed.Frames))
                 : LibraryFinalStateReplay.Replay(parsed)));
 
@@ -2259,7 +2259,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             pass.Demo.Players.Values, pass.Demo.Duration.TotalSeconds, pass.Demo.MapName, pass.Demo.ServerName,
             pass.Demo.Profile.SourceKind.ToString(), pass.Demo.TickRate, pass.Demo.TickCount, pass.Demo.ServerStartTick,
             () => pass.Rounds,
-            () => pass.Run is { } run ? LibraryTeamTables.Read(run, pass.Demo.Players.Values, pass.Overtime)
+            () => pass.Run is { } run && LibraryTeamTables.Carries(run) ? LibraryTeamTables.Read(run, pass.Demo.Players.Values, pass.Overtime)
                 : pass.FinalState ?? throw new InvalidOperationException("the forward pass read no final state")));
 
     private sealed record Tier2Input(
