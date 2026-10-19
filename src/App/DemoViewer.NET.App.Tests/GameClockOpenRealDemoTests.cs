@@ -124,6 +124,7 @@ public class GameClockOpenRealDemoTests
             await Task.Delay(25);
         }
 
-        return vm.Playback.AuthoritativeTracker;
+        // Null, not the tracker as it stands: callers assert non-null, so a seek to another frame must fail them.
+        return null;
     }
 }

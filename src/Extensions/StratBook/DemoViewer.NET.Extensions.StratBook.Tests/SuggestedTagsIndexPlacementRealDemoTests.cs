@@ -70,6 +70,7 @@ public class SuggestedTagsIndexPlacementRealDemoTests
         using (Assert.Multiple())
         {
             await Assert.That(events.Count).IsGreaterThan(0);
+            await Assert.That(walkPlaced).IsGreaterThan(0).Because("no loss is only a check when the walk placed something");
             await Assert.That(lost).IsEqualTo(0).Because("a detonation the walk's cloud placed keeps a place on the index path");
         }
     }

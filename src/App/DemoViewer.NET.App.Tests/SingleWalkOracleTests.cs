@@ -22,7 +22,8 @@ namespace DemoViewer.NET.AppTests;
 ///     The byte oracle for the single-walk work: every output a benchmark demo's visits write, as one
 ///     SHA256 line per output, against <c>tests/fixtures/single-walk/&lt;demo&gt;.digest.txt</c>. Three
 ///     visits per demo: the sweep import, a forced scan after it (the scoreboard), and an open with every
-///     sweep off in a second config. With no fixture the test writes one. <c>SINGLE_WALK_DUMP_DIR</c>
+///     sweep off in a second config. With no fixture the test fails, unless <c>SINGLE_WALK_RECORD=1</c>
+///     asks it to write one. <c>SINGLE_WALK_DUMP_DIR</c>
 ///     keeps the canonical text each line hashes.
 /// </summary>
 [NotInParallel]
@@ -32,6 +33,8 @@ public partial class SingleWalkOracleTests
     private static readonly JsonSerializerOptions Fields = new() { IncludeFields = true };
 
     private const string DumpDirEnvVar = "SINGLE_WALK_DUMP_DIR";
+
+    private const string RecordEnvVar = "SINGLE_WALK_RECORD";
 
     [Test]
     [Arguments(0)]
@@ -99,6 +102,12 @@ public partial class SingleWalkOracleTests
             string fixture = Path.Combine(FixtureDir(), name + ".digest.txt");
             if (!File.Exists(fixture))
             {
+                // A missing fixture never passes on its own: a renamed demo or a fresh clone would record whatever runs.
+                if (Environment.GetEnvironmentVariable(RecordEnvVar) != "1")
+                {
+                    Assert.Fail($"{name}: no fixture at {fixture}; set {RecordEnvVar}=1 to record one");
+                }
+
                 Directory.CreateDirectory(Path.GetDirectoryName(fixture)!);
                 File.WriteAllText(fixture, digest);
                 Console.WriteLine($"wrote {fixture}");
