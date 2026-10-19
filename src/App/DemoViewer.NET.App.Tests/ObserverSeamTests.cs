@@ -129,6 +129,47 @@ public class ObserverSeamTests
     }
 
     [Test]
+    public async Task ACollectorReadsOnlyWhatItDeclared_EvenBesideOneThatDeclaredMore()
+    {
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        MergedRulesBuild rules = new(() => YamlConfigLoader.LoadWithOverlay(RuleSetLocator.ResolveShippedRulesDirectory(), null));
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            parseBytes: _ => MergedRulesBuildTests.TwoFrameDemo(),
+            compactHeap: () => Task.CompletedTask,
+            parseFileWithPlan: (_, _) => MergedRulesBuildTests.TwoFrameDemo());
+        rules.CollectorsFor = queue.CollectorsFor;
+        queue.CollectedFor = rules.Collected;
+
+        ReadingPass declaring = new("ext.declaring", "declares");
+        ReadingPass borrowing = new("ext.borrowing", "borrows");
+        Dictionary<string, PassOutcome> outcomes = [];
+        IDemoQueueHandle handle = queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Background,
+        [
+            new ExtensionPassHost(declaring, [], guard, static () => false,
+                collectors: CollectorSet.Of([new RegisteredCollector(
+                    CollectorKit.Reading("declares", "ext.declaring", ["entity.pawn.place"], "entity.pawn.place"), guard)])),
+            new ExtensionPassHost(borrowing, [], guard, static () => false,
+                collectors: CollectorSet.Of([new RegisteredCollector(
+                    CollectorKit.Reading("borrows", "ext.borrowing", [], "entity.pawn.place"), guard)]))
+        ], 0, "match.dem", (pass, outcome, _) =>
+        {
+            lock (outcomes)
+            {
+                outcomes[pass.Id] = outcome;
+            }
+        }));
+        await handle.Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(outcomes["ext.declaring"]).IsEqualTo(PassOutcome.Ran);
+            await Assert.That(outcomes["ext.borrowing"]).IsEqualTo(PassOutcome.Failed)
+                .Because("the provider is on the run only because the other collector declared it");
+            await Assert.That(borrowing.Failure?.InnerException?.Message).Contains("not declared by collector borrows");
+        }
+    }
+
+    [Test]
     public async Task ACollectorReadingUserCommands_WidensThePlan()
     {
         CollectorSet reading = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("cmds") with
@@ -321,6 +362,10 @@ internal static class CollectorKit
     public static CollectorContribution Throwing(string id, string passId = "ext.pass") =>
         new(id, passId, 1, [], [], () => new Thrower());
 
+    /// <summary>Counts frames and resolves <paramref name="reads" /> on each, declaring only <paramref name="declared" />.</summary>
+    public static CollectorContribution Reading(string id, string passId, IReadOnlyList<string> declared, string reads) =>
+        new(id, passId, 1, declared, [], () => new Reader(reads));
+
     public sealed record Count(int Frames);
 
     private sealed class Counter : IFrameCollector
@@ -328,6 +373,19 @@ internal static class CollectorKit
         private int _frames;
 
         public void OnFrame(IFrameReadView view) => _frames++;
+
+        public void Finish(ICollectorSink sink) => sink.Put(new Count(_frames));
+    }
+
+    private sealed class Reader(string reads) : IFrameCollector
+    {
+        private int _frames;
+
+        public void OnFrame(IFrameReadView view)
+        {
+            _ = view.Provider(reads);
+            _frames++;
+        }
 
         public void Finish(ICollectorSink sink) => sink.Put(new Count(_frames));
     }

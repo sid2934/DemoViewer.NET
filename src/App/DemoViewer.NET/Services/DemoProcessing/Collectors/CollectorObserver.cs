@@ -21,8 +21,8 @@ internal sealed class CollectorObserver : IFrameObserver
 
     public CollectorObserver(CollectorSet set)
     {
-        _slots = [.. set.All.Select(c => new Slot(c))];
         _view = new ReadView(set.Providers, set.ReadsUserCommands);
+        _slots = [.. set.All.Select(c => new Slot(c, new OwnView(_view, c.Contribution)))];
     }
 
     /// <summary>What each collector put, or why it failed. Complete after <see cref="Finish" />.</summary>
@@ -41,7 +41,7 @@ internal sealed class CollectorObserver : IFrameObserver
             try
             {
                 slot.Collector ??= slot.Registered.Contribution.Create();
-                slot.Collector.OnFrame(_view);
+                slot.Collector.OnFrame(slot.View);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
@@ -87,9 +87,10 @@ internal sealed class CollectorObserver : IFrameObserver
         slot.Registered.Guard?.Report("collector " + slot.Registered.Id + " " + where, ex);
     }
 
-    private sealed class Slot(RegisteredCollector registered)
+    private sealed class Slot(RegisteredCollector registered, OwnView view)
     {
         public RegisteredCollector Registered { get; } = registered;
+        public OwnView View { get; } = view;
         public IFrameCollector? Collector { get; set; }
         public Exception? Failure { get; set; }
     }
@@ -99,6 +100,69 @@ internal sealed class CollectorObserver : IFrameObserver
         public object? Result { get; private set; }
 
         public void Put<T>(T result) where T : class => Result = result ?? throw new ArgumentNullException(nameof(result));
+    }
+
+    // A collector reads through its own declaration, not the run's union: it reads the same alone on a run as
+    // beside others, and its stamp names everything it reads.
+    private sealed class OwnView(ReadView run, CollectorContribution own) : IFrameReadView
+    {
+        private readonly HashSet<string> _providers = new(own.Providers, StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _classes = new(own.ProjectileClasses, StringComparer.Ordinal);
+        private int _filteredAt = -1;
+        private IReadOnlyList<ObservedProjectile>? _projectiles;
+        private IReadOnlyList<ObservedProjectile>? _created;
+        private IReadOnlyList<ObservedProjectile>? _removed;
+
+        public DemoFrame Frame => run.Frame;
+
+        public int FrameIndex => run.FrameIndex;
+
+        public int Tick => run.Tick;
+
+        public IReadOnlyList<ObservedProjectile> Projectiles => Fresh()._projectiles ??= Own(run.Projectiles);
+
+        public IReadOnlyList<ObservedProjectile> Created => Fresh()._created ??= Own(run.Created);
+
+        public IReadOnlyList<ObservedProjectile> Removed => Fresh()._removed ??= Own(run.Removed);
+
+        public ObservedRead Provider(string providerName) =>
+            _providers.Contains(providerName)
+                ? run.Provider(providerName)
+                : throw new ArgumentException($"provider '{providerName}' is not declared by collector {own.Id}", nameof(providerName));
+
+        public object? Read(string providerName, int playerSlot) => run.Read(Provider(providerName).Name, playerSlot);
+
+        public bool TryReadInt(ObservedRead provider, int playerSlot, out int value) => run.TryReadInt(Mine(provider), playerSlot, out value);
+
+        public bool TryReadFloat(ObservedRead provider, int playerSlot, out float value) => run.TryReadFloat(Mine(provider), playerSlot, out value);
+
+        public bool TryReadString(ObservedRead provider, int playerSlot, out string? value) => run.TryReadString(Mine(provider), playerSlot, out value);
+
+        public int Team(int playerSlot) => run.Team(playerSlot);
+
+        public CSGOUserCmdPB? Command(int playerSlot) =>
+            own.ReadsUserCommands
+                ? run.Command(playerSlot)
+                : throw new InvalidOperationException($"collector {own.Id} did not declare ReadsUserCommands");
+
+        private ObservedRead Mine(ObservedRead provider) =>
+            _providers.Contains(provider.Name)
+                ? provider
+                : throw new ArgumentException($"provider '{provider.Name}' is not declared by collector {own.Id}", nameof(provider));
+
+        private OwnView Fresh()
+        {
+            if (_filteredAt != run.FrameIndex)
+            {
+                _filteredAt = run.FrameIndex;
+                _projectiles = _created = _removed = null;
+            }
+
+            return this;
+        }
+
+        private IReadOnlyList<ObservedProjectile> Own(IReadOnlyList<ObservedProjectile> all) =>
+            all.Count == 0 || all.All(p => _classes.Contains(p.ClassName)) ? all : [.. all.Where(p => _classes.Contains(p.ClassName))];
     }
 
     // One per run. Provider handles resolve against the engine view on first use, and again when the engine
