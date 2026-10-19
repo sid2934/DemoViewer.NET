@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using System.Reflection;
 using System.Text;
 using CS2DemoKit.Parser;
 using CS2OpenSchema.Protos;
@@ -44,6 +45,11 @@ public sealed record CollectorContribution(
     ///     What output written from this collector is current under: its version, its declared reads and the
     ///     engine build. A pass folds it into its own fingerprint, so a changed read set or engine re-runs it.
     /// </summary>
+    // The informational version: NBGV keeps AssemblyVersion at major.minor.0.0 for every patch and prerelease.
+    private static readonly string EngineBuild =
+        typeof(DemoFrame).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(DemoFrame).Assembly.GetName().Version?.ToString() ?? "";
+
     public string Stamp
     {
         get
@@ -62,7 +68,7 @@ public sealed record CollectorContribution(
                 text.Append(";g=").AppendJoin(',', GameEvents.Order(StringComparer.Ordinal));
             }
 
-            text.Append(";e=").Append(typeof(DemoFrame).Assembly.GetName().Version?.ToString() ?? "");
+            text.Append(";e=").Append(EngineBuild);
             return text.ToString();
         }
     }

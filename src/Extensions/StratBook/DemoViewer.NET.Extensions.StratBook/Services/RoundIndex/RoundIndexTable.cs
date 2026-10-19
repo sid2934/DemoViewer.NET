@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using System.Numerics;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using CS2DemoKit.Analysis;
@@ -124,7 +125,10 @@ public static class RoundIndexTable
 
     private static string ComputeIdentity()
     {
-        string engine = typeof(DemoAnalysis).Assembly.GetName().Version?.ToString() ?? "";
+        // The informational version: NBGV keeps AssemblyVersion at major.minor.0.0 for every patch and prerelease.
+        Assembly assembly = typeof(DemoAnalysis).Assembly;
+        string engine = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+                        ?? assembly.GetName().Version?.ToString() ?? "";
         byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(ReadYaml() + "\n" + engine));
         return Convert.ToHexStringLower(hash, 0, 16);
     }

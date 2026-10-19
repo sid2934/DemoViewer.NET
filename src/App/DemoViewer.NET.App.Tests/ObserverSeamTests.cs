@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Graphs;
@@ -222,7 +223,9 @@ public class ObserverSeamTests
             await Assert.That((base_ with { GameEvents = ["weapon_fire"] }).Stamp).IsNotEqualTo(base_.Stamp);
             await Assert.That((base_ with { GameEvents = ["weapon_fire", "decoy_started"] }).Stamp)
                 .IsEqualTo((base_ with { GameEvents = ["decoy_started", "weapon_fire"] }).Stamp);
-            await Assert.That(base_.Stamp).Contains(typeof(DemoFrame).Assembly.GetName().Version!.ToString()).Because("an engine build moves it");
+            await Assert.That(base_.Stamp)
+                .Contains(typeof(DemoFrame).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion)
+                .Because("an engine build moves it, a patch or prerelease included");
             await Assert.That(CollectorSet.Of([CollectorKit.Register(base_ with { Version = 2 })])
                 .IsSupersetOf(CollectorSet.Of([CollectorKit.Register(base_)]))).IsFalse().Because("a run carried an older collector");
         }
