@@ -31,6 +31,7 @@ using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
@@ -1221,7 +1222,7 @@ public class App : Application
 
         // The record passes: work over what the cache holds, no demo read. Fed by the cache's own change
         // events; a pack's passes are read from its contributions on the first run, and asked only while
-        // the pack is on.
+        // the pack is on. The core match-meta pass is always asked.
         services.AddSingleton(sp =>
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
@@ -1257,9 +1258,10 @@ public class App : Application
                     HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>).RecheckFacts());
             }
 
+            MatchMetaPass matchMeta = new(cache);
             runner = new RecordPassRunner(() =>
             {
-                List<IRecordPass> passes = [];
+                List<IRecordPass> passes = [matchMeta];
                 foreach ((IExtension pack, Func<IRecordPass> factory) in contributed.Value)
                 {
                     if (!(features?.IsEnabled(pack.FeatureId) ?? true))
