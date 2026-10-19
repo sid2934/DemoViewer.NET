@@ -238,7 +238,8 @@ contributions.Pass("dev.example.rounds", () => rounds, HostIds.LibraryPass);
 A pass that needs only the demo's header, frame clock and rounds declares `Read => PassRead.Forward` and reads
 `context.Demo`, `FrameCount`, `FirstServerTick`, `LastServerTick`, `LastFrameTick` and `Rounds`; its `Parsed` is null. A visit
 whose passes all read forward streams the demo instead of holding the whole parse, so declare it when you can.
-A forward pass must answer false to `ReadsUserCommands`: the host refuses one that reads them.
+A forward pass sees no player inputs itself, so the host does not consult its `ReadsUserCommands`; a collector or a
+`ReadBy` ruleset of the pass that reads them is how it gets them.
 
 Each entry in `Rounds` is a `PassRound`, one round opened by its `round_freeze_end`: `Number`, sequential
 from 1 in demo order with warmup and restarts included, and `FreezeEndTick`, the round's freeze end in
@@ -280,8 +281,8 @@ and `ProjectileClasses` name what the collector reads off each frame, from the e
 
 `ReadsUserCommands` opts into `IFrameReadView.Command`: the pass's visit then decodes user commands for
 the collector to read, where it would otherwise leave them out, whether or not the pass itself answers
-true to its own `ReadsUserCommands`. A forward pass must still answer false to that, so a collector
-that answers true is how a forward pass reaches commands anyway. `GameEvents` names game events the
+true to its own `ReadsUserCommands`. A forward pass's own answer is not consulted, so a collector that
+answers true is how a forward pass reaches commands. `GameEvents` names game events the
 collector reads off `Frame`: a streamed read decodes only the events the rules themselves subscribe
 to, plus these, where a held parse already carries every event.
 
