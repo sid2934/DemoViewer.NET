@@ -185,7 +185,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     /// <summary>
     ///     The rules run over a held parse of the demo at a path when its visit makes one anyway, which the score,
-    ///     clans and coaches are read from. Null, or a null answer, replays the two entity classes instead.
+    ///     clans and coaches are read from. Null, or a null answer, replays the three entity classes instead.
     /// </summary>
     internal Func<ParsedDemo, string, AnalysisRun?>? TeamRun { get; set; }
 
@@ -255,7 +255,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <inheritdoc />
     /// <remarks>
     ///     The final state only: a visit whose other passes run rules carries it as tables, and a visit with
-    ///     nothing else to do replays two entity classes rather than evaluate every ruleset for them.
+    ///     nothing else to do replays three entity classes rather than evaluate every ruleset for them.
     /// </remarks>
     public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.FinalState;
 

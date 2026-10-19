@@ -9,15 +9,15 @@ using DemoViewer.NET.Services.DemoProcessing;
 namespace DemoViewer.NET.Modules.Library;
 
 /// <summary>
-///     The library's read when its visit runs no rules: CCSTeam and the controllers replayed to the last frame
-///     through a tracker that stores only those two classes. A visit that runs rules reads
+///     The library's read when its visit runs no rules: CCSTeam, the controllers and the game rules replayed to
+///     the last frame through a tracker that stores only those three classes. A visit that runs rules reads
 ///     <see cref="LibraryTeamTables" /> instead.
 /// </summary>
 public static class LibraryFinalStateReplay
 {
     /// <summary>The only classes the read looks at; the tracker stores nothing else.</summary>
     public static IReadOnlySet<string> Classes { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { "CCSTeam", "CCSPlayerController" };
+        new HashSet<string>(StringComparer.Ordinal) { "CCSTeam", "CCSPlayerController", "CCSGameRulesProxy" };
 
     public static EntityTracker NewTracker() => new() { StoreClassFilter = Classes };
 
@@ -80,6 +80,11 @@ public static class LibraryFinalStateReplay
             }
         }
 
+        // The match's last round keeps its win reason past the panel; a later round would have reset it to 0.
+        int? winReason = tracker.CurrentEntities.OfClass("CCSGameRulesProxy").FirstOrDefault() is { } rules
+            ? CoerceInt(rules["m_pGameRules.m_eRoundWinReason"])
+            : null;
+
         HashSet<int> coachSlots = [];
         foreach (int slot in playerSlots)
         {
@@ -92,7 +97,7 @@ public static class LibraryFinalStateReplay
             }
         }
 
-        return LibraryTeamState.Of(ct, t, ctClan, tClan, coachSlots, matchEnded, overtime);
+        return LibraryTeamState.Of(ct, t, ctClan, tClan, coachSlots, matchEnded, overtime, LibraryFinalScore.IsSurrender(winReason));
     }
 
     private static int CoerceInt(object? v) => v switch

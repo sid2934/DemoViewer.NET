@@ -1009,7 +1009,7 @@ public class App : Application
         });
 
         // The score, clans and coaches come off the merged run when the visit makes one anyway (another pass
-        // needs rules, or the open's run is held); otherwise the library replays two entity classes.
+        // needs rules, or the open's run is held); otherwise the library replays three entity classes.
         services.AddSingleton(sp => new DemoLibraryService(
             settings: sp.GetRequiredService<SettingsService>(),
             demoCache: sp.GetRequiredService<DemoCacheStore>())

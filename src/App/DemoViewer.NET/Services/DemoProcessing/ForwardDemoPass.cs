@@ -23,7 +23,7 @@ public enum ForwardNeeds
 
     /// <summary>
     ///     The library's final scores, clans and coaches. A rules run carries them as tables; a read without one
-    ///     replays the two entity classes in the tap.
+    ///     replays the three entity classes in the tap.
     /// </summary>
     FinalState = 1,
 

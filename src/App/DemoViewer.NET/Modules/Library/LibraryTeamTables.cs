@@ -30,7 +30,7 @@ public sealed record LibraryTeamState(int? Ct, int? T, string? CtClan, string? T
     ///     demo never reaches, and the replay must read the same.
     /// </summary>
     public static LibraryTeamState Of(int? ct, int? t, string? ctClan, string? tClan, HashSet<int> coachSlots, bool matchEnded,
-        LibraryOvertime overtime)
+        LibraryOvertime overtime, bool surrendered = false)
     {
         ArgumentNullException.ThrowIfNull(coachSlots);
         if (ct is not { } c || t is not { } tt || c + tt == 0)
@@ -38,7 +38,7 @@ public sealed record LibraryTeamState(int? Ct, int? T, string? CtClan, string? T
             return Empty();
         }
 
-        (int fullCt, int fullT) = LibraryFinalScore.Complete(c, tt, matchEnded, overtime);
+        (int fullCt, int fullT) = LibraryFinalScore.Complete(c, tt, matchEnded, overtime, surrendered);
         return new LibraryTeamState(fullCt, fullT, ctClan, tClan, coachSlots);
     }
 }
@@ -65,12 +65,14 @@ public static class LibraryFinalScore
     /// <remarks>
     ///     The dropped snapshot also holds the round's win status, so nothing says who won the last round.
     ///     On a one-round lead the trailer's point would have tied it, so the leader's point is taken only
-    ///     when <paramref name="overtime" /> rules out a tie ending the match there.
+    ///     when <paramref name="overtime" /> rules out a tie ending the match there. A surrender also closes
+    ///     the match with the panel, on a score no round finished, so it is never completed.
     /// </remarks>
-    public static (int Ct, int T) Complete(int ct, int t, bool matchEnded, LibraryOvertime overtime)
+    public static (int Ct, int T) Complete(int ct, int t, bool matchEnded, LibraryOvertime overtime, bool surrendered = false)
     {
         int hi = Math.Max(ct, t), lo = Math.Min(ct, t);
-        if (!matchEnded || ct == t || IsResult(hi, lo) || !IsResult(hi + 1, lo) || (hi - lo == 1 && overtime.TieCanEnd(hi)))
+        if (!matchEnded || surrendered || ct == t || IsResult(hi, lo) || !IsResult(hi + 1, lo)
+            || (hi - lo == 1 && overtime.TieCanEnd(hi)))
         {
             return (ct, t);
         }
@@ -91,6 +93,9 @@ public static class LibraryFinalScore
 
     /// <summary>The event that says the match is over.</summary>
     public const string MatchEndEvent = "cs_win_panel_match";
+
+    /// <summary>True for the game rules' <c>m_eRoundWinReason</c> of a surrender: 17 the terrorists', 18 the counter-terrorists'.</summary>
+    public static bool IsSurrender(int? winReason) => winReason is 17 or 18;
 
     /// <summary>The event that starts a match over; what ended before it is another match.</summary>
     public const string MatchRestartEvent = "begin_new_match";
@@ -199,10 +204,11 @@ public static class LibraryTeamTables
 
         int? ct = null, t = null;
         string? ctClan = null, tClan = null;
-        bool matchEnded = false;
+        bool matchEnded = false, surrendered = false;
         foreach (MetricRow row in teams?.Rows ?? [])
         {
             matchEnded |= ToInt(row.Values.GetValueOrDefault("match_ended")) > 0;
+            surrendered |= LibraryFinalScore.IsSurrender(ToInt(row.Values.GetValueOrDefault("win_reason")));
             int? score = ToInt(row.Values.GetValueOrDefault("score"));
             string? clan = row.Values.GetValueOrDefault("clan_name") as string is { Length: > 0 } c ? c : null;
             switch (ToInt(row.Dimensions.GetValueOrDefault("side")))
@@ -218,7 +224,7 @@ public static class LibraryTeamTables
             }
         }
 
-        return LibraryTeamState.Of(ct, t, ctClan, tClan, CoachSlots(coaches, players), matchEnded, overtime);
+        return LibraryTeamState.Of(ct, t, ctClan, tClan, CoachSlots(coaches, players), matchEnded, overtime, surrendered);
     }
 
     /// <summary>

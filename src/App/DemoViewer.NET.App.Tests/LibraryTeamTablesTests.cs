@@ -78,6 +78,37 @@ public class LibraryTeamTablesTests
         await Assert.That(LibraryFinalScore.Complete(ct, t, true, new LibraryOvertime(overtime, limit))).IsEqualTo((ct, t));
     }
 
+    /// <summary>
+    ///     A surrender closes the match with the same panel on a score no round finished: 12:5 is 12:5, not the
+    ///     13:5 a dropped deciding point would have been.
+    /// </summary>
+    [Test]
+    [Arguments(12, 5, 17)]
+    [Arguments(5, 12, 18)]
+    [Arguments(15, 13, 18)]
+    public async Task ASurrenderedMatch_IsNeverCompleted(int ct, int t, int winReason)
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(LibraryFinalScore.IsSurrender(winReason)).IsTrue();
+            await Assert.That(LibraryFinalScore.Complete(ct, t, true, default, LibraryFinalScore.IsSurrender(winReason))).IsEqualTo((ct, t));
+            await Assert.That(LibraryFinalScore.Complete(ct, t, true, default)).IsNotEqualTo((ct, t))
+                .Because("the same score without the surrender is one the completion takes");
+        }
+    }
+
+    [Test]
+    [Arguments(null)]
+    [Arguments(0)]
+    [Arguments(1)]
+    [Arguments(8)]
+    [Arguments(9)]
+    [Arguments(12)]
+    public async Task OtherWinReasons_AreNotASurrender(int? winReason)
+    {
+        await Assert.That(LibraryFinalScore.IsSurrender(winReason)).IsFalse();
+    }
+
     [Test]
     public async Task TheMatchEnd_CountsOnlyAfterTheLastRestart()
     {
