@@ -597,6 +597,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             .WaitAsync(ct).ConfigureAwait(false);
     }
 
+    /// <summary>Awaited after a scan's copies are fingerprinted, before they are placed. Test seam.</summary>
+    internal Func<Task>? BeforeCopiesPlaced { get; set; }
+
     /// <summary>The latest scan's copy detection; completes when its copies are resolved or it is cancelled. Test seam.</summary>
     internal Task CopiesResolved { get; private set; } = Task.CompletedTask;
 
@@ -629,7 +632,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             HashSet<string> waiting = new(unread, StringComparer.OrdinalIgnoreCase);
             waiting.UnionWith(toHash.Select(f => f.Path));
             List<DemoEntry> needMap = [], needFull = [];
-            await PostAsync(() => Reconcile(placed.Primaries, placed.ShadowFolders, needMap, needFull, null, [], waiting, null))
+            if (BeforeCopiesPlaced is { } hook)
+            {
+                await hook().ConfigureAwait(false);
+            }
+
+            await PostIfCurrentAsync(() => Reconcile(placed.Primaries, placed.ShadowFolders, needMap, needFull, null, [], waiting, null), ct)
                 .ConfigureAwait(false);
             RaiseChanged();
             await IndexAsync(needMap, needFull, false, ct).ConfigureAwait(false);
@@ -675,7 +683,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
                 ContentGroups placed = ResolveContentIdentities(files);
                 List<DemoEntry> needMap = [], needFull = [];
-                await PostAsync(() => Reconcile(placed.Primaries, placed.ShadowFolders, needMap, needFull, null, [], unread, null))
+                await PostIfCurrentAsync(() => Reconcile(placed.Primaries, placed.ShadowFolders, needMap, needFull, null, [], unread, null), ct)
                     .ConfigureAwait(false);
                 RaiseChanged();
                 await IndexAsync(needMap, needFull, false, ct).ConfigureAwait(false);
@@ -2807,6 +2815,27 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             }
         });
         return tcs.Task;
+    }
+
+    // For work a scan leaves running after it returns. A newer scan cancels ct before it lists, and its own
+    // Reconcile must not be overwritten by this older listing. Checked on the post thread, where that cancel runs.
+    private async Task PostIfCurrentAsync(Action action, CancellationToken ct)
+    {
+        bool stale = false;
+        await PostAsync(() =>
+        {
+            if (ct.IsCancellationRequested)
+            {
+                stale = true;
+                return;
+            }
+
+            action();
+        }).ConfigureAwait(false);
+        if (stale)
+        {
+            throw new OperationCanceledException(ct);
+        }
     }
 
     private void RaiseChanged() => _post(() => Changed?.Invoke());

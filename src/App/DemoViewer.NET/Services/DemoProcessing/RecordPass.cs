@@ -78,6 +78,7 @@ public sealed class RecordPassRunner : IDisposable
     private readonly DemoCacheStore _store;
     private bool _recheckAll;
     private bool _runQueued;
+    private bool _scheduleSkipped;
     private bool _disposed;
 
     /// <param name="passes">Read on every run, so a pass whose extension came on is seen on the next run.</param>
@@ -93,6 +94,9 @@ public sealed class RecordPassRunner : IDisposable
 
     /// <summary>Told when a pass throws, with its owner and the demo when there is one.</summary>
     public Action<IRecordPass, string?, Exception>? Faulted { get; set; }
+
+    /// <summary>Runs when a run removed before it started is noticed, before the runner can queue another. Test seam.</summary>
+    internal Action? BeforeRemovedRunEnds { get; set; }
 
     /// <summary>Asks every record pass about every demo, off the UI thread.</summary>
     public void RecheckAll()
@@ -195,10 +199,12 @@ public sealed class RecordPassRunner : IDisposable
         {
             if (_runQueued)
             {
+                _scheduleSkipped = true;
                 return;
             }
 
             _runQueued = true;
+            _scheduleSkipped = false;
         }
 
         // A run the user removes before it starts never drains; the next change must still be able to queue one.
@@ -212,9 +218,20 @@ public sealed class RecordPassRunner : IDisposable
             {
                 if (!started.Value)
                 {
+                    BeforeRemovedRunEnds?.Invoke();
+                    // The queue shows the item removed before this continuation runs, so a change in between found
+                    // _runQueued still set and queued nothing. Queue for it now; the removed run alone does not requeue.
+                    bool again;
                     lock (_lock)
                     {
                         _runQueued = false;
+                        again = _scheduleSkipped;
+                        _scheduleSkipped = false;
+                    }
+
+                    if (again)
+                    {
+                        Schedule();
                     }
                 }
             }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);

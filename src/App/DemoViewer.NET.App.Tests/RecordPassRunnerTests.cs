@@ -178,6 +178,32 @@ public class RecordPassRunnerTests
         await Assert.That(pass.Runs.Order()).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
     }
 
+    // The queue shows a removed item before the runner hears the run ended, so a change made in that gap found a
+    // run still marked queued and was dropped until some later change.
+    [Test]
+    public async Task AChangeRightAfterTheQueuedRunIsRemoved_StillRuns()
+    {
+        using DemoProcessingQueue queue = CountingQueue(() => { });
+        DemoCacheStore store = new(null);
+        Recording pass = new("a", _ => true);
+        using ManualResetEventSlim changed = new(false);
+        using RecordPassRunner runner = new(() => [pass], store, queue);
+        runner.BeforeRemovedRunEnds = () => changed.Wait(TimeSpan.FromSeconds(10));
+
+        queue.Pause();
+        store.Upsert(HostLibraryTests.Parsed("/d/one.dem"));
+        await WaitFor(() => queue.Items.Any(i => i.Kind == QueueJobKind.RecordPass), "the queued run");
+        queue.CancelOwned(RecordPassRunner.Owner);
+        await WaitFor(() => !queue.Items.Any(i => i.Kind == QueueJobKind.RecordPass && i.State == DemoQueueItemState.Queued),
+            "the run's removal");
+        store.Upsert(HostLibraryTests.Parsed("/d/two.dem", sha: "bb"));
+        changed.Set();
+        queue.Resume();
+
+        await WaitFor(() => pass.Runs.Count == 2, "both demos, the removed run's included");
+        await Assert.That(pass.Runs.Order()).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
+    }
+
     // A user's light item preempts a background record run. The run must be requeued with the row it stopped
     // on and the rest of its batch, not end Completed with that work waiting for an unrelated change.
     [Test]
