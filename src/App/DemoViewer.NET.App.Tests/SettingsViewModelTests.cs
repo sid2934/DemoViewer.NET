@@ -367,6 +367,38 @@ public class SettingsViewModelTests
         }
     }
 
+    // Beta opt-in: off by default, a toggle persists, and an external write reaches the toggle.
+    [Test]
+    public async Task SubscribeToBeta_DefaultsOff_PersistsAndFollowsExternalWrites()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir);
+                using (sp)
+                {
+                    await Assert.That(vm.SubscribeToBeta).IsFalse();
+                    await Assert.That(svc.Current.Updates.SubscribeToBeta).IsFalse();
+
+                    vm.SubscribeToBeta = true;
+                    await Assert.That(svc.Current.Updates.SubscribeToBeta).IsTrue();
+                    await Assert.That(new SettingsService(dir).Current.Updates.SubscribeToBeta).IsTrue();
+
+                    svc.Write(s => s.Updates.SubscribeToBeta = false);
+                    await Assert.That(vm.SubscribeToBeta).IsFalse();
+
+                    vm.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
     // Render smoke: the real SettingsView bound to a real VM draws far more than an empty background.
     [Test]
     public async Task SettingsView_Renders_NonBlank()

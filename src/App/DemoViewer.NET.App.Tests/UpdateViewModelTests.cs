@@ -185,6 +185,27 @@ public class UpdateViewModelTests
         await Assert.That(vm.CurrentVersionDisplay).IsEqualTo("not a packaged build");
     }
 
+    /// <summary>
+    ///     Changing the beta subscription invalidates a found update: it was picked under the old
+    ///     setting, so the banner goes and the next check decides again.
+    /// </summary>
+    [Test]
+    public async Task ForgetAvailableUpdate_ClearsBannerAndStatus()
+    {
+        UpdateViewModel vm = new(new FakeUpdateService
+        {
+            CheckResult = UpdateCheckResult.UpdateAvailable("0.9.0-beta0001")
+        });
+        await vm.CheckNowCommand.ExecuteAsync(null);
+        await Assert.That(vm.IsUpdateAvailable).IsTrue();
+
+        vm.ForgetAvailableUpdate();
+
+        await Assert.That(vm.IsUpdateAvailable).IsFalse();
+        await Assert.That(vm.AvailableVersion).IsNull();
+        await Assert.That(vm.StatusMessage).IsEmpty();
+    }
+
     private sealed class FakeUpdateService : IUpdateService
     {
         public UpdateCheckResult CheckResult { get; init; } = UpdateCheckResult.UpToDate();

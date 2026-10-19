@@ -2,7 +2,16 @@
 # Each OS builds its own self-contained bundle + installer (vpk cannot cross-build):
 #   windows-latest → win-x64 Setup.exe · macos-14 (arm64) → osx-arm64 .app/.pkg · ubuntu → linux-x64 AppImage
 #
-# Triggered by a v* tag (a real release) or manually. Signing/notarization is DEFERRED:
+# Triggered by a v* tag (a real release) or manually. A vX.Y.Z-betaNNNN tag is a beta: it packs into
+# the <os>-beta channels and publishes as a GitHub prerelease, which only subscribed installs read.
+# Cutting one:
+#   1. Set version.json to X.Y.Z-betaNNNN (four digits; labels compare as text).
+#   2. Land it where `ci` runs (main, or a PR head) and let it go green. verify-ci refuses anything else.
+#   3. Tag vX.Y.Z-betaNNNN on that commit and push the tag.
+# pack-velopack.sh refuses a tag that disagrees with version.json. main keeps stamping the beta
+# version until the next bump.
+#
+# Signing/notarization is DEFERRED:
 # the DV_SIGN_* / DV_NOTARY_PROFILE secrets are unset today → unsigned. Wire them as repo
 # secrets to flip signing on with no workflow change (empty = unsigned).
 name: release
@@ -12,10 +21,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
-      channel:
-        description: 'Velopack channel (blank = per-OS default)'
-        required: false
-        default: ''
+      beta:
+        description: 'Pack into the <os>-beta channels (dry run; a manual run never publishes)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # upload release assets when cut from a tag
@@ -108,8 +117,12 @@ jobs:
           # A missing/failed download is non-fatal — full-only is a correct release. The repo is
           # public, so no token is needed to read the feed. Before the first release exists this
           # 404s, the seeding step swallows it, and the release ships full-only — correct.
-          DV_DELTA_SEED: '1'
+          # Tag builds only. A manual run's branch version sorts below the published release, and vpk
+          # refuses to pack below a release already in the output dir.
+          DV_DELTA_SEED: ${{ startsWith(github.ref, 'refs/tags/') && '1' || '0' }}
           DV_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          # Tag builds detect beta from the stamped version; this only forces it for a manual run.
+          DV_BETA: ${{ inputs.beta && '1' || '0' }}
         run: ./scripts/pack-velopack.sh ${{ matrix.rid }}
 
       # No build-path scan here by design — it was tried and removed. scripts/scan-release-artifacts.py
@@ -164,15 +177,23 @@ jobs:
           set -euo pipefail
           repo="${{ github.server_url }}/${{ github.repository }}"
           tag="${{ github.ref_name }}"
+          case "$tag" in
+            *-beta*) pre=true ;;
+            *)       pre=false ;;
+          esac
           for rid in win-x64 osx-arm64 linux-x64; do
             dir="dist/velopack-$rid"
-            # Derive the channel from the feed file vpk produced (win/osx/linux) — don't hardcode.
+            # Derive the channel from the feed file vpk produced (win/osx/linux, or <os>-beta). Don't hardcode.
             feed=$(ls "$dir"/releases.*.json 2>/dev/null | head -1 || true)
             if [ -z "$feed" ]; then
               echo "::warning::no Velopack feed in $dir — skipping $rid"; continue
             fi
             ch=$(basename "$feed" | sed 's/^releases\.//; s/\.json$//')
-            echo "Uploading $rid (channel=$ch) to release $tag"
+            case "$ch" in
+              *-beta) [ "$pre" = true ] || { echo "::error::beta feed $ch on non-beta tag $tag" >&2; exit 1; } ;;
+              *)      [ "$pre" = false ] || { echo "::error::stable feed $ch on beta tag $tag" >&2; exit 1; } ;;
+            esac
+            echo "Uploading $rid (channel=$ch, prerelease=$pre) to release $tag"
             dotnet vpk upload github \
               --outputDir "$dir" \
               --channel "$ch" \
@@ -181,13 +202,36 @@ jobs:
               --tag "$tag" \
               --releaseName "DemoViewer.NET $tag" \
               --publish true \
+              --pre "$pre" \
               --merge true
           done
 
+      # Stable notes are hand-written in release-body.md before tagging. Beta notes are fixed text plus
+      # a compare link against the latest full release, so a beta needs no notes edit to ship.
       - name: Set release notes (guide users to the right installer)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit "${{ github.ref_name }}" \
+          set -euo pipefail
+          tag="${{ github.ref_name }}"
+          notes=.github/release-body.md
+          case "$tag" in
+            *-beta*)
+              notes="$RUNNER_TEMP/release-body-beta.md"
+              changes=""
+              # Newest full app release. Not releases/latest: extension releases share this repo.
+              base=$(gh release list --repo "${{ github.repository }}" --exclude-pre-releases --limit 50 \
+                       --json tagName,createdAt \
+                       --jq '[.[] | select(.tagName | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))] | sort_by(.createdAt) | last | .tagName // empty' \
+                       2>/dev/null || true)
+              if [ -n "$base" ]; then
+                changes="**Changes since $base:** ${{ github.server_url }}/${{ github.repository }}/compare/$base...$tag"
+              fi
+              # awk, not sed: the URL is full of slashes.
+              awk -v c="$changes" '$0 == "<!-- changes -->" { print c; next } { print }' \
+                .github/release-body-beta.md > "$notes"
+              ;;
+          esac
+          gh release edit "$tag" \
             --repo "${{ github.repository }}" \
-            --notes-file .github/release-body.md
+            --notes-file "$notes"

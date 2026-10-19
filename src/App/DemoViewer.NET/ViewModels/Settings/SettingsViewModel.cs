@@ -59,7 +59,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [
         ("UserCategory", "user category consumer power-user developer tier show hide"),
         ("Theme", "theme dark light high contrast egirl colors appearance reload drop-in"),
-        ("Updates", "updates version check release notes update restart"),
+        ("Updates", "updates version check release notes update restart beta prerelease subscribe channel"),
         ("Folders", "library folders scan demos dem watch add remove folder"),
         ("Processing", "background processing queue max demos concurrency parse ram"),
         ("Idle", "idle timeout auto close memory ram resume inactivity"),
@@ -192,6 +192,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>Background library scan opt-in → <c>AppSettings.Highlights.BackgroundScan</c> (default OFF).</summary>
     [ObservableProperty]
     private bool _highlightsBackgroundScan;
+
+    /// <summary>Beta release opt-in → <c>AppSettings.Updates.SubscribeToBeta</c> (default OFF).</summary>
+    [ObservableProperty]
+    private bool _subscribeToBeta;
 
     // ── Idle mode: desktop only; suppressed on WASM like Background processing. ──
 
@@ -547,6 +551,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _idleEnabled = current.Idle.Enabled;
         _idleTimeoutMinutes = current.Idle.IdleTimeoutWait.TotalMinutes;
         _idleKeepBackgroundProcessing = current.Idle.KeepBackgroundProcessing;
+        _subscribeToBeta = current.Updates.SubscribeToBeta;
         foreach (string folder in current.Library.Folders)
         {
             LibraryFolders.Add(folder);
@@ -1608,6 +1613,17 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         Persist(s => s.ProcessingQueue.MaxConcurrency = value);
     }
 
+    partial void OnSubscribeToBetaChanged(bool value)
+    {
+        Update.ForgetAvailableUpdate();
+        if (_applyingExternal)
+        {
+            return;
+        }
+
+        Persist(s => s.Updates.SubscribeToBeta = value);
+    }
+
     // ── Idle mode handlers ────────────────────────────────────────────────────
 
     partial void OnIdleEnabledChanged(bool value)
@@ -2360,6 +2376,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             IdleEnabled = settings.Idle.Enabled;
             IdleTimeoutMinutes = settings.Idle.IdleTimeoutWait.TotalMinutes;
             IdleKeepBackgroundProcessing = settings.Idle.KeepBackgroundProcessing;
+            SubscribeToBeta = settings.Updates.SubscribeToBeta;
         }
         finally
         {

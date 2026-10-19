@@ -20,6 +20,9 @@
 #
 # Delta updates: vpk diffs against the *.nupkg files already in --outputDir, so keep a
 # release dir warm (download the previous channel release into it in CI) to emit deltas.
+#
+# Beta: a version with a -betaNNNN label (v0.9.0-beta0001) packs into the <os>-beta channel
+# instead of the default <os> one. DV_BETA=1 forces that for a non-tag dry run.
 
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -74,8 +77,21 @@ case "$TAG_REF" in
             exit 2
         fi
         echo "tag/version agreement: v$TAG_VER == $VERSION"
+        # The app's release-notes lookup and beta detection only understand these two shapes.
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta[0-9]{4})?$ ]]; then
+            echo "ERROR: release tags are vX.Y.Z or vX.Y.Z-betaNNNN; got v$VERSION." >&2
+            exit 2
+        fi
         ;;
 esac
+
+# Beta packs go to <os>-beta. vpk's default channel is the OS short name, which is the RID's
+# prefix, and the RID was checked against the host above, so this cannot name another platform.
+CHANNEL=""
+if [ "${DV_BETA:-0}" = "1" ] || [[ "$VERSION" =~ -beta[0-9]+ ]]; then
+    CHANNEL="${RID%%-*}-beta"
+    echo "beta build: channel $CHANNEL"
+fi
 
 # 1. Self-contained publish (+ asset/native layout + guards).
 ./scripts/publish.sh "$RID"
@@ -85,13 +101,11 @@ esac
 #     release into $REL before packing. Without this the dir starts empty every CI run and every
 #     release ships full-only — which is what v0.5.0 and v0.5.1 did.
 #
-#     NOTE ON CHANNEL: deliberately NOT passed to either command. vpk defaults the channel from the
-#     host OS for BOTH download and pack, so they agree by construction. Passing an explicit channel
-#     here would mean maintaining a RID→channel mapping whose only failure mode is silently diffing
-#     against ANOTHER platform's release — the exact "delta against the wrong base" hazard worth
-#     designing out rather than testing for.
+#     Stable passes no channel to either command, so both take vpk's OS default and agree by
+#     construction. Beta passes $CHANNEL to both.
 #
-#     --pre true because release.yml publishes with --pre true; the latest STABLE would be nothing.
+#     Stable seeds with --pre false and beta with --pre true. Betas live on prereleases, and
+#     diffing a stable package against a beta builds a delta no stable user can apply.
 #
 #     Never fatal. No previous release, no network, a rate-limited token: all mean "no delta base",
 #     and a full-only release is a correct release. Failing the build here would turn a size
@@ -102,7 +116,8 @@ if [ "${DV_DELTA_SEED:-0}" = "1" ]; then
     if dotnet vpk download github \
         --outputDir "$REL" \
         --repoUrl "${DV_REPO_URL:-https://github.com/sid2934/DemoViewer.NET}" \
-        --pre true \
+        ${CHANNEL:+--channel "$CHANNEL"} \
+        --pre "$([ -n "$CHANNEL" ] && echo true || echo false)" \
         ${DV_GITHUB_TOKEN:+--token "$DV_GITHUB_TOKEN"}; then
         echo "delta seed: base packages now in $REL:"
         ls -la "$REL" | grep -i nupkg || echo "  (none — first release on this channel; full-only is expected)"
@@ -123,6 +138,7 @@ args=(
     --runtime "$RID"
     --outputDir "$REL"
 )
+[ -n "$CHANNEL" ]                      && args+=(--channel             "$CHANNEL")
 [ -n "${DV_SIGN_APP_IDENTITY:-}" ]     && args+=(--signAppIdentity     "$DV_SIGN_APP_IDENTITY")
 [ -n "${DV_SIGN_INSTALL_IDENTITY:-}" ] && args+=(--signInstallIdentity "$DV_SIGN_INSTALL_IDENTITY")
 [ -n "${DV_SIGN_ENTITLEMENTS:-}" ]     && args+=(--signEntitlements    "$DV_SIGN_ENTITLEMENTS")
@@ -130,7 +146,7 @@ args=(
 # shellcheck disable=SC2206
 [ -n "${DV_VPK_EXTRA_ARGS:-}" ] && args+=($DV_VPK_EXTRA_ARGS)
 
-echo "vpk pack: id=$PACK_ID version=$VERSION rid=$RID -> $REL"
+echo "vpk pack: id=$PACK_ID version=$VERSION rid=$RID channel=${CHANNEL:-<os default>} -> $REL"
 dotnet vpk pack "${args[@]}"
 
 echo "velopack packages:"

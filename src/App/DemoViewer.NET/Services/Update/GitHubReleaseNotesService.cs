@@ -56,7 +56,8 @@ public sealed partial class GitHubReleaseNotesService : IReleaseNotesService
 
     /// <summary>
     ///     Reduces any version string the app encounters: Velopack's "0.6.0", NBGV's
-    ///     "0.6.0-alpha+g1a2b3c4", a "v0.6.0" tag, to the bare x.y.z the release tags use.
+    ///     "0.6.0-alpha+g1a2b3c4", a "v0.6.0" tag, to the x.y.z the release tags use. A
+    ///     <c>-betaNNNN</c> label is kept, because beta releases are tagged with it.
     ///     Null when no x.y.z can be found (e.g. "(unknown)").
     /// </summary>
     public static string? NormalizeVersion(string? version)
@@ -67,7 +68,7 @@ public sealed partial class GitHubReleaseNotesService : IReleaseNotesService
         }
 
         Match m = VersionCore().Match(version);
-        return m.Success ? m.Value : null;
+        return m.Success ? m.Groups["core"].Value + m.Groups["beta"].Value : null;
     }
 
     private static async Task<ReleaseNotes?> FetchAsync(string version, CancellationToken ct)
@@ -126,6 +127,7 @@ public sealed partial class GitHubReleaseNotesService : IReleaseNotesService
         return client;
     }
 
-    [GeneratedRegex(@"\d+\.\d+\.\d+")]
+    // NBGV's informational version puts the build height between the core and the label: 0.9.0.1-beta0001.
+    [GeneratedRegex(@"(?<core>\d+\.\d+\.\d+)(?:\.\d+)?(?<beta>-beta\d+)?")]
     private static partial Regex VersionCore();
 }

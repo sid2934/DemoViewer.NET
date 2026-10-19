@@ -40,6 +40,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Update;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Theming;
@@ -57,6 +58,7 @@ using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.ViewModels.Tutorial;
+using DemoViewer.NET.ViewModels.Update;
 using DemoViewer.NET.Views;
 using DemoViewer.NET.Views.Analysis;
 using DemoViewer.NET.Views.DemoProcessing;
@@ -155,6 +157,8 @@ public static partial class Variants
             // safety-critical element). The default state (1, no warning) is
             // captured by "settings".
             ["settings-queue-warn"] = () => Settings(2),
+            // The Updates section of an installed build, so the beta opt-in and its warning render.
+            ["settings-app-updates"] = () => Settings(appUpdates: true),
             // Extensions section: the filter text both selects the section (more reliable in a
             // one-shot capture than the posted ScrollTargetSection scroll) AND auto-expands its group.
             ["settings-extensions-on"] = () => Settings(packOff: false),
@@ -1330,7 +1334,7 @@ public static partial class Variants
     ///     the override. Rendered inside the headless UI thread by <c>CaptureHost</c>.
     /// </summary>
     private static SettingsView Settings(int maxConcurrency = 1, bool? packOff = null, bool armDelete = false, bool incompatible = false,
-        bool staged = false, string? updates = null)
+        bool staged = false, string? updates = null, bool appUpdates = false)
     {
         string dir = Path.Combine(
             Path.GetTempPath(), "demoviewer-uicapture-settings", Guid.NewGuid().ToString("N"));
@@ -1476,8 +1480,18 @@ public static partial class Variants
             updater.CheckAsync().GetAwaiter().GetResult();
         }
 
+        if (appUpdates)
+        {
+            UpdateViewModel.Shared = new UpdateViewModel(new CaptureAppUpdateService());
+        }
+
         SettingsViewModel vm = new(svc, monitor, gate, new ThemeRegistry(), settingsPages: settingsPages, dataRemovals: dataRemovals,
             packStatuses: statuses, extensionUpdates: updater);
+        if (appUpdates)
+        {
+            vm.SettingsFilterText = "beta";
+        }
+
         if (packOff is not null)
         {
             vm.SettingsFilterText = "extension";
@@ -1492,6 +1506,16 @@ public static partial class Variants
         {
             DataContext = vm
         };
+    }
+
+    // A capture-only installed build: Settings shows the update controls only when a service exists.
+    private sealed class CaptureAppUpdateService : IUpdateService
+    {
+        public string? CurrentVersion => "0.8.2";
+
+        public Task<UpdateCheckResult> CheckAsync(CancellationToken ct = default) => Task.FromResult(UpdateCheckResult.UpToDate());
+
+        public Task<bool> DownloadAndApplyAsync(IProgress<int>? progress = null, CancellationToken ct = default) => Task.FromResult(false);
     }
 
     // A capture-only feed: one canned extensions.json, no network, no download.
