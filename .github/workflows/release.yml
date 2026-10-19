@@ -117,7 +117,9 @@ jobs:
           # A missing/failed download is non-fatal — full-only is a correct release. The repo is
           # public, so no token is needed to read the feed. Before the first release exists this
           # 404s, the seeding step swallows it, and the release ships full-only — correct.
-          DV_DELTA_SEED: '1'
+          # Tag builds only. A manual run's branch version sorts below the published release, and vpk
+          # refuses to pack below a release already in the output dir.
+          DV_DELTA_SEED: ${{ startsWith(github.ref, 'refs/tags/') && '1' || '0' }}
           DV_REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           # Tag builds detect beta from the stamped version; this only forces it for a manual run.
           DV_BETA: ${{ inputs.beta && '1' || '0' }}
