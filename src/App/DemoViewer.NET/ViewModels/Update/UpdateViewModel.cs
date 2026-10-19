@@ -185,6 +185,22 @@ public sealed partial class UpdateViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    ///     Drops the last check's answer. Called when the beta subscription changes, because a found
+    ///     update was chosen under the old setting.
+    /// </summary>
+    public void ForgetAvailableUpdate()
+    {
+        if (IsDownloading)
+        {
+            return;
+        }
+
+        IsUpdateAvailable = false;
+        AvailableVersion = null;
+        StatusMessage = string.Empty;
+    }
+
     /// <summary>Dismisses the banner for this run. The next launch checks again.</summary>
     [RelayCommand]
     private void Dismiss() => IsUpdateAvailable = false;

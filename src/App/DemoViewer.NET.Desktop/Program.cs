@@ -130,7 +130,9 @@ internal sealed class Program
         // Browser head). VelopackApp.Build().Run() above handles install/update HOOKS only; it never
         // contacts a server. Without this factory the published releases.{channel}.json feeds would
         // go on being written and never read, which is exactly the state v0.5.1 shipped in.
-        AppHostHooks.UpdateServiceFactory = static () => new VelopackUpdateService();
+        AppHostHooks.UpdateServiceFactory = static () => new VelopackUpdateService(static () =>
+            (App.Services?.GetService(typeof(IOptionsMonitor<AppSettings>)) as IOptionsMonitor<AppSettings>)
+            ?.CurrentValue.Updates.SubscribeToBeta ?? false);
 
         // DEMOVIEWER_PROFILE=1 attaches the analysis profiling listeners (Meter counters + phase-timeline
         // spans) for the whole app session and dumps a combined (session-aggregate) report on exit.

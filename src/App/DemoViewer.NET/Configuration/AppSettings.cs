@@ -69,6 +69,9 @@ public sealed class AppSettings
     /// <summary>The extension updater's settings: the feed URL and when Settings last checked.</summary>
     public ExtensionsSettings Extensions { get; set; } = new();
 
+    /// <summary>The app updater's settings.</summary>
+    public UpdateSettings Updates { get; set; } = new();
+
     /// <summary>
     ///     The app version (x.y.z) whose release notes the user has been shown, the post-update
     ///     "What's new" gate. Null until a launch records it. Compared against the running version at
@@ -342,6 +345,16 @@ public enum LiveSyncLogLevel
 
     /// <summary>Silence the CSVG log surface entirely.</summary>
     None
+}
+
+/// <summary>The app updater's settings. Desktop only: the browser head has no updater.</summary>
+public sealed class UpdateSettings
+{
+    /// <summary>
+    ///     Also offer beta releases. Default OFF. A subscriber is offered whichever of the latest stable
+    ///     and latest beta is newer, so a stable release still reaches them.
+    /// </summary>
+    public bool SubscribeToBeta { get; set; }
 }
 
 /// <summary>

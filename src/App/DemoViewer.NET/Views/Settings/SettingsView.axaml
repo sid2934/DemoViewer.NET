@@ -421,6 +421,20 @@
                                         Text="This is not an installed build, so updates don't apply. Installed copies check for a new version at launch."
                                         Foreground="{DynamicResource TextDim}" FontSize="10" TextWrapping="Wrap" />
 
+                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding Update.IsSupported}">
+                                        <StackPanel Grid.Column="0" Spacing="1">
+                                            <TextBlock Text="Subscribe to beta releases"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="12" />
+                                            <TextBlock
+                                                Text="Beta releases might cause broken configurations or corrupt cached data. You get whichever of the latest beta and the latest full release is newer."
+                                                Foreground="{DynamicResource AccentCaution}" FontSize="10"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" VerticalAlignment="Center"
+                                                      OnContent="" OffContent=""
+                                                      IsChecked="{Binding SubscribeToBeta, Mode=TwoWay}" />
+                                    </Grid>
+
                                     <!-- On-demand notes (v0.6.0): the post-update What's New shows once; this
                                  re-opens it for the running version (cached — no re-fetch). -->
                                     <Button Content="View release notes" Classes="ghost" Padding="10,4"

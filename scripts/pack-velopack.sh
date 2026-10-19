@@ -91,7 +91,8 @@ esac
 #     against ANOTHER platform's release — the exact "delta against the wrong base" hazard worth
 #     designing out rather than testing for.
 #
-#     --pre true because release.yml publishes with --pre true; the latest STABLE would be nothing.
+#     --pre false: the base is the latest stable release. A future beta lives on a prerelease, and
+#     diffing a stable package against it builds a delta no stable user can apply.
 #
 #     Never fatal. No previous release, no network, a rate-limited token: all mean "no delta base",
 #     and a full-only release is a correct release. Failing the build here would turn a size
@@ -102,7 +103,7 @@ if [ "${DV_DELTA_SEED:-0}" = "1" ]; then
     if dotnet vpk download github \
         --outputDir "$REL" \
         --repoUrl "${DV_REPO_URL:-https://github.com/sid2934/DemoViewer.NET}" \
-        --pre true \
+        --pre false \
         ${DV_GITHUB_TOKEN:+--token "$DV_GITHUB_TOKEN"}; then
         echo "delta seed: base packages now in $REL:"
         ls -la "$REL" | grep -i nupkg || echo "  (none — first release on this channel; full-only is expected)"

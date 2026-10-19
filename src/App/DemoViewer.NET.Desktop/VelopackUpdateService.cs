@@ -15,8 +15,8 @@ namespace DemoViewer.NET.Desktop;
 ///     <c>AppHostHooks.UpdateServiceFactory</c>.
 ///     <para>
 ///         Reads the <c>releases.{channel}.json</c> feed that <c>release.yml</c> publishes onto the
-///         GitHub Release. Velopack picks the channel matching the running build, which is why the
-///         workflow derives it from the file vpk produced rather than hardcoding it.
+///         GitHub Release. The stable channel is the OS short name (<c>win</c>, <c>osx</c>, <c>linux</c>),
+///         the same name vpk defaults to at pack time and the workflow reads back from the feed file.
 ///     </para>
 /// </summary>
 internal sealed class VelopackUpdateService : IUpdateService
@@ -34,23 +34,35 @@ internal sealed class VelopackUpdateService : IUpdateService
     /// </summary>
     private const string RepoUrl = "https://github.com/sid2934/DemoViewer.NET";
 
-    private UpdateManager? _manager;
+    /// <summary>
+    ///     Appended to the OS channel (<c>win</c>, <c>osx</c>, <c>linux</c>) to name the beta feed, so a
+    ///     beta pack is <c>vpk pack --channel win-beta</c>. No release publishes one yet.
+    /// </summary>
+    private const string BetaChannelSuffix = "-beta";
+
+    private readonly Func<bool> _subscribedToBeta;
+
+    private UpdateManager? _stable;
+    private UpdateManager? _beta;
 
     /// <summary>
     ///     Resolved by the last successful <see cref="CheckAsync" />; consumed by
     ///     <see cref="DownloadAndApplyAsync" />. Velopack's apply step needs the same UpdateInfo the
-    ///     check produced, so we hold it rather than re-checking and risking a different answer.
+    ///     check produced, on the manager that produced it.
     /// </summary>
-    private UpdateInfo? _pending;
+    private (UpdateManager Manager, UpdateInfo Info, bool IsBeta)? _pending;
+
+    /// <param name="subscribedToBeta">Read on every check, so the Settings toggle applies without a restart.</param>
+    public VelopackUpdateService(Func<bool> subscribedToBeta) => _subscribedToBeta = subscribedToBeta;
 
     /// <inheritdoc />
-    public string? CurrentVersion => TryGetManager()?.CurrentVersion?.ToString();
+    public string? CurrentVersion => StableManager()?.CurrentVersion?.ToString();
 
     /// <inheritdoc />
     public async Task<UpdateCheckResult> CheckAsync(CancellationToken ct = default)
     {
-        UpdateManager? mgr = TryGetManager();
-        if (mgr is null || !mgr.IsInstalled)
+        UpdateManager? stable = StableManager();
+        if (stable is null || !stable.IsInstalled)
         {
             // A dev `dotnet run`, the headless capture host, or a portable copy without Velopack
             // metadata. Nothing is wrong. There is simply no install to update.
@@ -59,11 +71,26 @@ internal sealed class VelopackUpdateService : IUpdateService
 
         try
         {
-            UpdateInfo? info = await Task.Run(() => mgr.CheckForUpdatesAsync(), ct).ConfigureAwait(false);
-            _pending = info;
-            return info is null
+            _pending = null;
+            UpdateInfo? best = await Task.Run(() => stable.CheckForUpdatesAsync(), ct).ConfigureAwait(false);
+            (UpdateManager, UpdateInfo, bool)? pending = best is null ? null : (stable, best, false);
+
+            if (_subscribedToBeta() && BetaManager() is { } beta)
+            {
+                UpdateInfo? betaInfo = await Task.Run(() => beta.CheckForUpdatesAsync(), ct).ConfigureAwait(false);
+                if (betaInfo is not null &&
+                    (best is null || betaInfo.TargetFullRelease.Version > best.TargetFullRelease.Version))
+                {
+                    best = betaInfo;
+                    pending = (beta, betaInfo, true);
+                }
+            }
+
+            _pending = pending;
+
+            return best is null
                 ? UpdateCheckResult.UpToDate()
-                : UpdateCheckResult.UpdateAvailable(info.TargetFullRelease.Version.ToString());
+                : UpdateCheckResult.UpdateAvailable(best.TargetFullRelease.Version.ToString());
         }
         catch (OperationCanceledException)
         {
@@ -80,20 +107,20 @@ internal sealed class VelopackUpdateService : IUpdateService
     /// <inheritdoc />
     public async Task<bool> DownloadAndApplyAsync(IProgress<int>? progress = null, CancellationToken ct = default)
     {
-        UpdateManager? mgr = TryGetManager();
-        if (mgr is null || _pending is null)
+        // A beta found before the user unsubscribed is not installed after it.
+        if (_pending is not { } pending || (pending.IsBeta && !_subscribedToBeta()))
         {
             return false;
         }
 
         try
         {
-            await Task.Run(() => mgr.DownloadUpdatesAsync(_pending, progress is null ? null : progress.Report, ct), ct)
+            await Task.Run(() => pending.Manager.DownloadUpdatesAsync(pending.Info, progress is null ? null : progress.Report, ct), ct)
                 .ConfigureAwait(false);
 
             // Replaces the process. Nothing after this line runs on the success path, which is why
             // the caller must have already persisted anything it cares about.
-            mgr.ApplyUpdatesAndRestart(_pending);
+            pending.Manager.ApplyUpdatesAndRestart(pending.Info);
             return true;
         }
         catch (OperationCanceledException)
@@ -109,30 +136,36 @@ internal sealed class VelopackUpdateService : IUpdateService
     }
 
     /// <summary>
-    ///     Builds the manager lazily and never throws: constructing it touches the filesystem to
-    ///     locate install metadata, which fails in unpackaged runs. `prerelease: true` searches
-    ///     prereleases IN ADDITION to stable ones (Velopack filters on
-    ///     `includePrereleases || !Prerelease`), which is what still reaches 0.7.x and earlier:
-    ///     those were published as GitHub prereleases because `release.yml` passed `--pre true`
-    ///     before 0.8.0. It also means a deliberate prerelease would be offered to every user,
-    ///     so flip this to false if that ever becomes a real channel.
+    ///     Stable releases only. The channel is explicit because Velopack otherwise defaults to the
+    ///     channel the running build was packed with, and a beta install would keep reading the beta
+    ///     feed after the user unsubscribes. No version downgrade: leaving beta waits for stable to
+    ///     catch up rather than installing an older build over newer config and cache data.
     /// </summary>
-    private UpdateManager? TryGetManager()
-    {
-        if (_manager is not null)
-        {
-            return _manager;
-        }
+    private UpdateManager? StableManager() => _stable ??= TryCreate(OsChannel, false);
 
+    /// <summary>
+    ///     The beta feed, which lives on GitHub prereleases. Checked alongside <see cref="StableManager" />
+    ///     and the newer of the two wins, so a subscriber is never held on an old beta.
+    /// </summary>
+    private UpdateManager? BetaManager() => _beta ??= TryCreate(OsChannel + BetaChannelSuffix, true);
+
+    private static string OsChannel => VelopackRuntimeInfo.GetOsShortName(VelopackRuntimeInfo.SystemOs);
+
+    /// <summary>
+    ///     Never throws: constructing a manager touches the filesystem to locate install metadata,
+    ///     which fails in unpackaged runs.
+    /// </summary>
+    private static UpdateManager? TryCreate(string channel, bool prerelease)
+    {
         try
         {
-            _manager = new UpdateManager(new GithubSource(RepoUrl, null, true));
+            return new UpdateManager(
+                new GithubSource(RepoUrl, null, prerelease),
+                new UpdateOptions { ExplicitChannel = channel });
         }
         catch (Exception)
         {
             return null;
         }
-
-        return _manager;
     }
 }
