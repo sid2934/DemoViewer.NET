@@ -17,7 +17,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 public sealed class ThrowerCollector : IFrameCollector
 {
     /// <summary>The collector's id, which Suggested Tags reads the rows by.</summary>
-    public const string CollectorId = "stratbook.suggestedtags.thrower";
+    public const string CollectorId = "net.demoviewer.pack.stratbook.suggestedtags.thrower";
 
     /// <summary>Bumped when the rows it puts change.</summary>
     public const int Version = 1;

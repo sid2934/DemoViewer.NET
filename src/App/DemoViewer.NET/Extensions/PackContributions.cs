@@ -140,6 +140,11 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     public void Collector(CollectorContribution collector)
     {
         ArgumentNullException.ThrowIfNull(collector);
+        if (!OwnsId("collector", collector.Id))
+        {
+            return;
+        }
+
         string? refusal = RegisteredCollector.Refusal(collector)
                           ?? (_collectors.Any(c => string.Equals(c.Id, collector.Id, StringComparison.Ordinal))
                               ? $"collector {collector.Id} is registered twice"

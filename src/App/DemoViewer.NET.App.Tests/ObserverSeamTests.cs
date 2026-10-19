@@ -175,16 +175,34 @@ public class ObserverSeamTests
         ExtensionFaults faults = ExtensionFaults.For([pack], static a => a());
         PackContributions contributions = new(pack, () => null!, guard: faults.GuardFor(pack));
 
-        contributions.Collector(CollectorKit.Counting("bad.provider", providers: ["entity.pawn.no_such_read"]));
-        contributions.Collector(CollectorKit.Counting("bad.class", classes: ["CNoSuchProjectile"]));
-        contributions.Collector(CollectorKit.Counting("good", providers: ["entity.pawn.place"], classes: ["CSmokeGrenadeProjectile"]));
-        contributions.Collector(CollectorKit.Counting("good"));
+        contributions.Collector(CollectorKit.Counting("dev.example.collectors.bad.provider", providers: ["entity.pawn.no_such_read"]));
+        contributions.Collector(CollectorKit.Counting("dev.example.collectors.bad.class", classes: ["CNoSuchProjectile"]));
+        contributions.Collector(CollectorKit.Counting("dev.example.collectors.good", providers: ["entity.pawn.place"], classes: ["CSmokeGrenadeProjectile"]));
+        contributions.Collector(CollectorKit.Counting("dev.example.collectors.good"));
 
         using (Assert.Multiple())
         {
-            await Assert.That(contributions.Collectors.Select(c => c.Id)).IsEquivalentTo(["good"]);
+            await Assert.That(contributions.Collectors.Select(c => c.Id)).IsEquivalentTo(["dev.example.collectors.good"]);
             await Assert.That(RegisteredCollector.Refusal(CollectorKit.Counting("x", providers: ["entity.pawn.no_such_read"]))).Contains("entity.pawn.no_such_read");
             await Assert.That(faults.StateOf(pack.FeatureId).Count).IsEqualTo(3).Because("each refusal is reported against the extension");
+        }
+    }
+
+    [Test]
+    public async Task ACollectorIdOutsideTheExtensionsOwn_IsRefusedAtRegistration()
+    {
+        ExtensionPassHostTestsPack pack = new();
+        ExtensionFaults faults = ExtensionFaults.For([pack], static a => a());
+        PackContributions contributions = new(pack, () => null!, guard: faults.GuardFor(pack));
+
+        contributions.Collector(CollectorKit.Counting("dev.other.positions"));
+        contributions.Collector(CollectorKit.Counting("dev.example.collectors.positions"));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(contributions.Collectors.Select(c => c.Id)).IsEquivalentTo(["dev.example.collectors.positions"])
+                .Because("two extensions must never share a collector's results");
+            await Assert.That(faults.StateOf(pack.FeatureId).Count).IsEqualTo(1);
         }
     }
 

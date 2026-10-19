@@ -153,7 +153,7 @@ public sealed class GrenadeTrajectoryFold
 public sealed class GrenadeTrajectoryCollector : IFrameCollector
 {
     /// <summary>The collector's id, which the grenade pass reads the flights by.</summary>
-    public const string CollectorId = "stratbook.grenades.trajectories";
+    public const string CollectorId = "net.demoviewer.pack.stratbook.grenades.trajectories";
 
     /// <summary>Bumped when what it puts changes.</summary>
     public const int Version = 2;

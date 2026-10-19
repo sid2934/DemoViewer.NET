@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Extensions.Sdk;
 ///     and hands its <see cref="IFrameCollector.Finish" /> result to the pass that owns it through
 ///     <see cref="IPassContext.Collected{T}" />.
 /// </summary>
-/// <param name="Id">Unique across the app; the id the owning pass reads the result by.</param>
+/// <param name="Id">Starts with the extension's id and a dot; the id the owning pass reads the result by.</param>
 /// <param name="PassId">The <see cref="IExtensionPass.Id" /> that reads the result. The collector runs only on a visit that pass is on.</param>
 /// <param name="Version">Bumped when what the collector writes changes; part of <see cref="Stamp" />.</param>
 /// <param name="Providers">Per-player provider names the collector reads, from the engine's catalog (<c>entity.pawn.pos_x</c> ...).</param>

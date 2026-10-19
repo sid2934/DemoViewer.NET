@@ -269,7 +269,8 @@ contributions.Collector(new CollectorContribution("dev.example.positions", "dev.
 });
 ```
 
-`Id` is unique across the app and is how the owning pass reads the result back. `PassId` names the
+`Id` starts with your extension's id and a dot, as every id shared across extensions does; one that does not is
+left out and reported. It is how the owning pass reads the result back. `PassId` names the
 `IExtensionPass` that owns it: the collector runs only on a visit that pass is on. `Version` is bumped
 when what the collector puts changes; it folds into `Stamp` along with the declared reads and the engine
 build, so a pass that keys its own fingerprint on `Stamp` runs again when any of them moves. `Providers`
