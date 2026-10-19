@@ -116,6 +116,29 @@ public class RecordPassRunnerTests
     }
 
     [Test]
+    public async Task APassWhoseInputStampThrows_IsFaultedForThatDemo_AndTheRunGoesOn()
+    {
+        using DemoProcessingQueue queue = CountingQueue(() => { });
+        DemoCacheStore store = new(null);
+        StampThrower thrower = new();
+        Recording other = new("other", _ => true);
+        ConcurrentBag<string> faults = [];
+        using RecordPassRunner runner = new(() => [thrower, other], store, queue)
+        {
+            Faulted = (pass, path, _) => faults.Add(pass.Id + "@" + path)
+        };
+
+        store.Upsert(HostLibraryTests.Parsed("/d/one.dem"));
+        store.Upsert(HostLibraryTests.Parsed("/d/two.dem", sha: new string('b', 64)));
+        await WaitFor(() => other.Runs.Count == 2, "the other pass on both demos");
+
+        await Assert.That(other.Runs.Order(StringComparer.Ordinal)).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
+        await Assert.That(runner.IsFaulted("stamps", "/d/one.dem")).IsTrue();
+        await Assert.That(runner.IsFaulted("stamps", "/d/two.dem")).IsTrue();
+        await Assert.That(faults.Order(StringComparer.Ordinal)).IsEquivalentTo(["stamps@/d/one.dem", "stamps@/d/two.dem"]);
+    }
+
+    [Test]
     public async Task AnExtensionsPass_SeesTheSdkRowAndDetail()
     {
         using DemoProcessingQueue queue = CountingQueue(() => { });
@@ -227,6 +250,19 @@ public class RecordPassRunnerTests
                 throw new InvalidOperationException("boom");
             }
         }
+    }
+
+    private sealed class StampThrower : IRecordPass
+    {
+        public string Id => "stamps";
+
+        public IReadOnlyList<string> InputStamps => ["input"];
+
+        public PackStamp? InputStamp(DemoCacheIndexEntry entry, string id) => throw new ArgumentException("bad facet");
+
+        public bool Wants(DemoCacheIndexEntry entry) => true;
+
+        public void Run(DemoCacheRecord record, CancellationToken cancellationToken) => throw new InvalidOperationException("never runs");
     }
 
     private sealed class SdkPass : IExtensionRecordPass

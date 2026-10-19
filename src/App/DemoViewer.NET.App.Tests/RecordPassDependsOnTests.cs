@@ -271,6 +271,35 @@ public class RecordPassDependsOnTests
         await Assert.That(faults.ToArray()).IsEquivalentTo(UnknownOwnerRefusal);
     }
 
+    [Test]
+    public async Task AFacetNameTheDataStoreRejects_IsRefusedByTheRunner()
+    {
+        using DemoProcessingQueue queue = Queue();
+        DemoCacheStore store = new(null);
+        (PackContributions contributions, HostLibrary library) = Host(store);
+        DemoDataOwner owner = new(new FakeData(), () => true);
+        SdkPass reader = new("test.library.reader");
+        SdkPass barrier = new("test.library.barrier");
+        contributions.RecordPass(reader.Id, () => reader, new DemoDataKey("test.owner", "bad/facet"));
+        contributions.RecordPass(barrier.Id, () => barrier);
+        List<IRecordPass> passes =
+        [
+            .. contributions.RecordPasses.Select(r =>
+                ExtensionRecordPassHost.Cached(r, () => library, id => id == "test.owner" ? owner : null)())
+        ];
+        ConcurrentQueue<string> faults = new();
+        using RecordPassRunner runner = new(() => passes, store, queue)
+        {
+            Faulted = (pass, _, ex) => faults.Enqueue(pass.Id + ": " + ex.Message)
+        };
+
+        store.Upsert(HostLibraryTests.Parsed(Demo));
+        await WaitFor(() => barrier.Seen.Count == 1, "the row");
+        await Assert.That(reader.Seen).IsEmpty();
+        await Assert.That(faults.ToArray())
+            .IsEquivalentTo(["test.library.reader: depends on test.owner:bad/facet, which the library does not write."]);
+    }
+
     private sealed class FakeData : IExtensionDemoData
     {
         private readonly ConcurrentDictionary<(string Path, string Facet), DemoDataStamp> _stamps = new();

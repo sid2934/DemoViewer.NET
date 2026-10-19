@@ -322,12 +322,12 @@ public sealed class RecordPassRunner : IDisposable
             entry = _store.TryGetPrimary(path) ?? entry;
         }
 
-        foreach (IRecordPass pass in Wanting(passes, demo, entry))
+        foreach ((IRecordPass pass, PackStamp[]? inputs) in Wanting(passes, demo, entry))
         {
             token.ThrowIfCancellationRequested();
             lock (_lock)
             {
-                if (InputsOn(pass, entry) is { } inputs)
+                if (inputs is not null)
                 {
                     _ranOnInputs[(pass.Id, demo)] = inputs;
                 }
@@ -367,31 +367,40 @@ public sealed class RecordPassRunner : IDisposable
         return refreshed;
     }
 
-    private List<IRecordPass> Wanting(IReadOnlyList<IRecordPass> passes, string demo, DemoCacheIndexEntry entry)
+    private List<(IRecordPass Pass, PackStamp[]? Inputs)> Wanting(IReadOnlyList<IRecordPass> passes, string demo, DemoCacheIndexEntry entry)
     {
-        List<IRecordPass> wanting = [];
+        List<(IRecordPass, PackStamp[]?)> wanting = [];
         foreach (IRecordPass pass in passes)
         {
-            PackStamp[]? inputs = InputsOn(pass, entry);
-            if (pass.InputStamps.Count > 0 && inputs is null)
-            {
-                continue;
-            }
-
             lock (_lock)
             {
-                if (_faulted.Contains((pass.Id, demo)) || _faulted.Contains((pass.Id, entry.Path))
-                    || (inputs is null
-                        ? _ranOn.TryGetValue((pass.Id, demo), out DemoCacheIndexEntry? ran) && ReferenceEquals(ran, entry)
-                        : _ranOnInputs.TryGetValue((pass.Id, demo), out PackStamp[]? ranInputs) && ranInputs.SequenceEqual(inputs)))
+                if (_faulted.Contains((pass.Id, demo)) || _faulted.Contains((pass.Id, entry.Path)))
                 {
                     continue;
                 }
             }
 
+            // The input stamps are the pass's own code too: a throw faults this pass on this demo, not the run.
+            PackStamp[]? inputs;
             bool wants;
             try
             {
+                inputs = InputsOn(pass, entry);
+                if (pass.InputStamps.Count > 0 && inputs is null)
+                {
+                    continue;
+                }
+
+                lock (_lock)
+                {
+                    if (inputs is null
+                            ? _ranOn.TryGetValue((pass.Id, demo), out DemoCacheIndexEntry? ran) && ReferenceEquals(ran, entry)
+                            : _ranOnInputs.TryGetValue((pass.Id, demo), out PackStamp[]? ranInputs) && ranInputs.SequenceEqual(inputs))
+                    {
+                        continue;
+                    }
+                }
+
                 wants = pass.Wants(entry);
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -408,7 +417,7 @@ public sealed class RecordPassRunner : IDisposable
 
             if (wants)
             {
-                wanting.Add(pass);
+                wanting.Add((pass, inputs));
             }
         }
 

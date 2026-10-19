@@ -73,7 +73,11 @@ internal sealed class ExtensionRecordPassHost(
             return null;
         }
 
-        List<string> unknown = [.. _dataInputs.Values.Where(k => owners?.Invoke(k.Owner) is null).Select(k => k.ToString())];
+        // A facet name the data store would reject as a path segment can never be written, so it refuses too.
+        List<string> unknown =
+        [
+            .. _dataInputs.Values.Where(k => !ExtensionFolders.IsSafeName(k.Facet) || owners?.Invoke(k.Owner) is null).Select(k => k.ToString())
+        ];
         return RefusalOf([.. DependsOn.OfType<FactKey>()], library.Facts.Declared, IsOff(), unknown);
     }
 
