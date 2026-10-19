@@ -2,7 +2,9 @@
 
 using System.Text.Json;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -20,9 +22,19 @@ namespace DemoViewer.NET.AppTests;
 ///     </para>
 /// </summary>
 [NotInParallel]
-public class DemoLibraryPruneTests
+public sealed class DemoLibraryPruneTests : IDisposable
 {
     private static readonly Action<Action> _inline = a => a();
+
+    // A service with no queue of its own lists through QueueWork.Ambient, which any test building the app's
+    // services repoints at a queue it later disposes. A listing caught there never finishes and nothing prunes.
+    private readonly DemoProcessingQueue _queue = new(new HeavyJobGate(), a => a(),
+        _ => throw new InvalidOperationException("nothing is parsed here"));
+
+    public void Dispose() => _queue.Dispose();
+
+    private DemoLibraryService Library(string dataPath, DemoCacheStore? demoCache = null) =>
+        new(_inline, dataPath, demoCache: demoCache) { QueueOverride = _queue };
 
     private static string TempDir()
     {
@@ -93,7 +105,7 @@ public class DemoLibraryPruneTests
                 File.WriteAllBytes(files[i], Enumerable.Repeat((byte)(i + 1), 16).ToArray());
             }
 
-            using DemoLibraryService svc = new(_inline, SeedCache(dir, [demos]));
+            using DemoLibraryService svc = Library(SeedCache(dir, [demos]));
             await svc.RescanAsync();
             List<string> before = [.. svc.Entries.Select(e => e.FilePath)];
             File.Delete(files[1]);
@@ -130,7 +142,7 @@ public class DemoLibraryPruneTests
 
             string dataPath = SeedCache(dir, [demos], live, deleted);
 
-            DemoLibraryService svc = new(_inline, dataPath);
+            DemoLibraryService svc = Library(dataPath);
             await svc.RescanAsync();
             svc.Save();
 
@@ -174,7 +186,7 @@ public class DemoLibraryPruneTests
 
             string dataPath = SeedCache(dir, [demos], live, orphan);
 
-            DemoLibraryService svc = new(_inline, dataPath);
+            DemoLibraryService svc = Library(dataPath);
             await svc.RescanAsync();
             svc.Save();
 
@@ -218,7 +230,7 @@ public class DemoLibraryPruneTests
             string dataPath = SeedCache(dir, [demos, detached], live, onDetached);
             Directory.Delete(detached, true);
 
-            DemoLibraryService svc = new(_inline, dataPath);
+            DemoLibraryService svc = Library(dataPath);
             await svc.RescanAsync();
             svc.Save();
 
@@ -258,7 +270,7 @@ public class DemoLibraryPruneTests
             string dataPath = SeedCache(dir, [detached], a, b);
             Directory.Delete(detached, true);
 
-            DemoLibraryService svc = new(_inline, dataPath);
+            DemoLibraryService svc = Library(dataPath);
             await svc.RescanAsync();
             svc.Save();
 
@@ -297,7 +309,7 @@ public class DemoLibraryPruneTests
                 r.SetContentHash("sha-deleted", null);
                 DemoCacheStore.StampParse(r);
             });
-            DemoLibraryService svc = new(_inline, dataPath, demoCache: cache);
+            DemoLibraryService svc = Library(dataPath, cache);
             await svc.RescanAsync();
 
             using (Assert.Multiple())
@@ -340,7 +352,7 @@ public class DemoLibraryPruneTests
             string sidecar = cache.SidecarPathFor(deleted)!;
             await Assert.That(File.Exists(sidecar)).IsTrue();
 
-            DemoLibraryService svc = new(_inline, dataPath, demoCache: cache);
+            DemoLibraryService svc = Library(dataPath, cache);
             await svc.RescanAsync();
 
             using (Assert.Multiple())
