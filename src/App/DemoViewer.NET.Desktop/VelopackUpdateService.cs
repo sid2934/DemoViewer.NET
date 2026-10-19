@@ -73,7 +73,7 @@ internal sealed class VelopackUpdateService : IUpdateService
         {
             _pending = null;
             UpdateInfo? best = await Task.Run(() => stable.CheckForUpdatesAsync(), ct).ConfigureAwait(false);
-            (UpdateManager, UpdateInfo, bool)? pending = best is null ? null : (stable, best, false);
+            (UpdateManager Manager, UpdateInfo Info, bool IsBeta)? pending = best is null ? null : (stable, best, false);
 
             if (_subscribedToBeta() && BetaManager() is { } beta)
             {
@@ -84,6 +84,13 @@ internal sealed class VelopackUpdateService : IUpdateService
                     best = betaInfo;
                     pending = (beta, betaInfo, true);
                 }
+            }
+
+            if (pending is { } chosen && chosen.IsBeta != IsBetaVersion(stable.CurrentVersion?.ToString()))
+            {
+                // Crossing between stable and beta. Velopack picks deltas by version range alone and does not
+                // check the rebuilt package, so a delta built on the other line's base must not be used.
+                pending = chosen with { Info = new UpdateInfo(chosen.Info.TargetFullRelease, false) };
             }
 
             _pending = pending;
@@ -148,6 +155,8 @@ internal sealed class VelopackUpdateService : IUpdateService
     ///     and the newer of the two wins, so a subscriber is never held on an old beta.
     /// </summary>
     private UpdateManager? BetaManager() => _beta ??= TryCreate(OsChannel + BetaChannelSuffix, true);
+
+    private static bool IsBetaVersion(string? version) => version?.Contains(BetaChannelSuffix, StringComparison.OrdinalIgnoreCase) == true;
 
     private static string OsChannel => VelopackRuntimeInfo.GetOsShortName(VelopackRuntimeInfo.SystemOs);
 

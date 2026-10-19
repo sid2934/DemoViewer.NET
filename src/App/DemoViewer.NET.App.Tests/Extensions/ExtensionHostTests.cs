@@ -82,6 +82,6 @@ public class ExtensionHostTests
             return;
         }
 
-        await Assert.That(ExtensionHost.AppVersion).IsEqualTo(SemVersion.Parse(release));
+        await Assert.That(ExtensionHost.AppVersion).IsEqualTo(SemVersion.Parse(release) with { Prerelease = null });
     }
 }

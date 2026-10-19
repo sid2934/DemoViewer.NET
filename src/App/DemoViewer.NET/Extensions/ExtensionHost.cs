@@ -34,9 +34,12 @@ public static class ExtensionHost
     /// </summary>
     public static SemVersion ContractVersion { get; } = ReadContractVersion();
 
-    /// <summary>The app release (<see cref="AppVersionInfo.CurrentReleaseVersion" />), or null when unstamped.</summary>
+    /// <summary>
+    ///     The app release (<see cref="AppVersionInfo.CurrentReleaseVersion" />) without a beta label, or null
+    ///     when unstamped. A 0.9.0 beta must satisfy an extension's <c>minAppVersion</c> of 0.9.0.
+    /// </summary>
     public static SemVersion? AppVersion { get; } =
-        SemVersion.TryParse(AppVersionInfo.CurrentReleaseVersion, out SemVersion? app) ? app : null;
+        SemVersion.TryParse(AppVersionInfo.CurrentReleaseVersion, out SemVersion? app) ? app with { Prerelease = null } : null;
 
     /// <summary>
     ///     The CS2DemoKit version this build references, read from <c>CS2DemoKit.Analysis</c>'s
