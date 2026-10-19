@@ -37,10 +37,11 @@ the stamp leaves "not indexed" rather than a stamp with no file.
 ```
 
 * **`fingerprint`**: what the rows mean. `ri<schema>;cadence=<seconds>;token=<token grammar
-  version>;rf=<round facts schema>;src=<pawn|zones>[;zv=<zone set version>];pos=<n>;sampler=table;ruleset=<identity>`.
+  version>;rf=<round facts schema>;src=<pawn|zones>[;zv=<zone set version>];pos=<n>;sampler=table;ruleset=<identity>;roster=<n>`.
   The sampler term names how positions were read: from the `roundindex_positions` ruleset's cadence
   table on the rules run. `ruleset` is a hash of that ruleset's YAML and the engine's informational
-  version, so an edit to the ruleset or an engine bump rebuilds the index. A reader whose own fingerprint differs must rebuild, never
+  version, so an edit to the ruleset or an engine bump rebuilds the index. `roster` is the version of the
+  collector that names departed players (below). A reader whose own fingerprint differs must rebuild, never
   reinterpret: the same file under a different cadence would mean a different second.
 * **`demo.sha256`**: lowercase hex SHA-256 of the `.dem` bytes, or `null` until the cache has hashed
   the demo. When both sides have a hash it is the only field that takes part in matching; **a reader
@@ -150,7 +151,7 @@ and is round-trip-pinned by `RoundPositionsTests`.
 ```jsonc
 {
   "schemaVersion": 2,
-  "fingerprint": "ri1;cadence=1;token=1;rf=1;src=pawn;pos=4;…",   // identical to the .dvri.json it belongs to
+  "fingerprint": "ri1;cadence=1;token=1;rf=1;src=pawn;pos=5;…",   // identical to the .dvri.json it belongs to
   "demo": { "stableKey": "3f9c…", "sha256": null },
   "cadenceTicks": 64,
   "places": ["Outside", "Lobby", "Ramp", "?"],                   // the place table a tuple indexes; "?" is the null place
@@ -172,9 +173,11 @@ and is round-trip-pinned by `RoundPositionsTests`.
   sample is an empty list, so a tuple's tick is always its index times the cadence.
 * `players` names each slot a tuple uses as `[slot, "steamId64", name]`, slots ascending, from the
   demo's roster: who the slot is across demos. The SteamID64 is a string so a JSON reader with
-  doubles keeps every digit; a bot reads `"0"` and is told apart by its name, and a slot the roster
-  lacks reads `"0"` and `""`. Tuples and `ct` keep the slot, the same-round join to Round Facts.
-* `pos=<n>` in the fingerprint is what a tuple means (`pos=4`: the above). It is part of the
+  doubles keeps every digit; a bot reads `"0"` and is told apart by its name. The demo's final roster drops
+  a player whose slot freed, so a slot it lacks is named by that slot's last `player_connect` or
+  `player_disconnect`, and reads `"0"` and `""` only when neither names it. A slot a substitute took over
+  carries the later player for every round. Tuples and `ct` keep the slot, the same-round join to Round Facts.
+* `pos=<n>` in the fingerprint is what a tuple means (`pos=5`: the above). It is part of the
   index fingerprint, so a change re-indexes rather than reinterprets, and a sidecar written before
   the positions file existed carries no `pos=` and is stale. "Never indexed" and "indexed before
   positions existed" are therefore one state, which is what the cards' placeholder relies on.

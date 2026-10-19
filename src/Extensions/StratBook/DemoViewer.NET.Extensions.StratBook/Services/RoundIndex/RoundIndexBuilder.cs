@@ -176,7 +176,7 @@ public static class RoundIndexBuilder
             CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table, tally);
         }
 
-        positions.Players = PlayersOf(positions, demo.Players);
+        positions.Players = PlayersOf(positions, demo.Players, demo.Departed);
         document.Places = places;
         document.Transitions =
         [
@@ -387,15 +387,19 @@ public static class RoundIndexBuilder
         runs.Add(new RoundIndexRun(open.Step, open.Step, ctToken, tToken));
     }
 
-    // Every slot a tuple names, by the roster's player; a slot the roster lacks is named 0 and "".
-    private static List<RoundPositionsPlayer> PlayersOf(RoundPositionsDocument positions, IReadOnlyDictionary<int, PlayerInfo> roster)
+    // Every slot a tuple names, by the roster's player, else by the slot's last connect or disconnect (a player
+    // who left mid-match is gone from the final roster); a slot neither names is 0 and "".
+    private static List<RoundPositionsPlayer> PlayersOf(RoundPositionsDocument positions, IReadOnlyDictionary<int, PlayerInfo> roster,
+        IReadOnlyDictionary<int, RosterEntry> departed)
     {
         SortedSet<int> slots = [.. positions.Rounds.SelectMany(r => r.Pos).SelectMany(step => step).Select(t => t.Slot)];
         return
         [
             .. slots.Select(slot => roster.TryGetValue(slot, out PlayerInfo? player)
                 ? new RoundPositionsPlayer(slot, player.SteamId64, player.Name)
-                : new RoundPositionsPlayer(slot, 0, ""))
+                : departed.TryGetValue(slot, out RosterEntry left)
+                    ? new RoundPositionsPlayer(slot, left.SteamId64, left.Name)
+                    : new RoundPositionsPlayer(slot, 0, ""))
         ];
     }
 
@@ -484,13 +488,20 @@ public sealed record RoundIndexDemoValues(int TickRate, int LastFrameTick, Round
     /// <summary>The roster by slot, which names the positions file's slots; empty names none.</summary>
     public IReadOnlyDictionary<int, PlayerInfo> Players { get; init; } = new Dictionary<int, PlayerInfo>();
 
+    /// <summary>Each slot's last connect or disconnect, which names a slot <see cref="Players" /> no longer holds.</summary>
+    public IReadOnlyDictionary<int, RosterEntry> Departed { get; init; } = new Dictionary<int, RosterEntry>();
+
     /// <summary>The values of a held parse.</summary>
     /// <param name="demo">The parse.</param>
     public static RoundIndexDemoValues For(ParsedDemo demo)
     {
         ArgumentNullException.ThrowIfNull(demo);
         int last = demo.Frames.Count > 0 ? demo.Frames[^1].GameTick ?? demo.Frames[^1].ServerTick : 0;
-        return new RoundIndexDemoValues(demo.TickRate, last, RoundFactsClock.For(demo), demo.MapName) { Players = demo.Players };
+        return new RoundIndexDemoValues(demo.TickRate, last, RoundFactsClock.For(demo), demo.MapName)
+        {
+            Players = demo.Players,
+            Departed = RoundIndexRoster.Of(demo.AllGameEvents)
+        };
     }
 
     /// <summary>The values of a pass's demo.</summary>
@@ -506,6 +517,11 @@ public sealed record RoundIndexDemoValues(int TickRate, int LastFrameTick, Round
             FirstTick = context.FirstServerTick,
             LastTick = context.LastServerTick
         };
-        return new RoundIndexDemoValues(demo.TickRate, context.LastFrameTick, clock, demo.MapName) { Players = demo.Players };
+        return new RoundIndexDemoValues(demo.TickRate, context.LastFrameTick, clock, demo.MapName)
+        {
+            Players = demo.Players,
+            Departed = context.Collected<RoundIndexRosterCollector.Collected>(RoundIndexRosterCollector.CollectorId)?.Slots
+                       ?? new Dictionary<int, RosterEntry>()
+        };
     }
 }

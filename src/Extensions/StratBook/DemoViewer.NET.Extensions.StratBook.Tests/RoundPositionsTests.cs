@@ -130,7 +130,7 @@ public class RoundPositionsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=4" + SamplerTerm);
+            await Assert.That(current).IsEqualTo("ri1;cadence=1;token=1;rf=1;src=pawn;pos=5" + SamplerTerm);
             await Assert.That(current).Contains($";pos={RoundPositionsDocument.PositionSchema};");
             await Assert.That(store.IsCurrent(Demo, current)).IsFalse();
             await Assert.That(store.Needs(Demo, current)).IsTrue()
@@ -294,6 +294,30 @@ public class RoundPositionsTests
             await Assert.That(build.Positions.PlayerOf(2)).IsEqualTo(new RoundPositionsPlayer(2, 0, ""))
                 .Because("a slot the roster lacks is named, not dropped");
             await Assert.That(build.Positions.PlayerOf(40)).IsNull().Because("only slots a tuple names are in the table");
+        }
+    }
+
+    [Test]
+    public async Task ASlotTheFinalRosterLost_IsNamedByItsLastConnectOrDisconnect()
+    {
+        PositionSample[] samples = [.. Placed(1000), .. Placed(1064)];
+        Dictionary<int, PlayerInfo> roster = new() { [1] = new PlayerInfo(1, "alpha", 76561198000000001, 2, 2, false) };
+        Dictionary<int, RosterEntry> departed = new()
+        {
+            [1] = new RosterEntry(76561198000000099, "alpha before a rename"),
+            [2] = new RosterEntry(76561198000000002, "left at the half")
+        };
+        RoundIndexDemoValues values = RoundIndexDemoValues.For(RoundIndexTestData.Demo()) with { Players = roster, Departed = departed };
+
+        RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(values, Facts(Round(1, 1000, 1200)),
+            RoundIndexOptions.Default, PawnPlaceSource.Instance, samples);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(build.Positions.PlayerOf(2)).IsEqualTo(new RoundPositionsPlayer(2, 76561198000000002, "left at the half"))
+                .Because("the final roster dropped the slot when its player left");
+            await Assert.That(build.Positions.PlayerOf(1)).IsEqualTo(new RoundPositionsPlayer(1, 76561198000000001, "alpha"))
+                .Because("the final roster wins where it still holds the slot");
         }
     }
 

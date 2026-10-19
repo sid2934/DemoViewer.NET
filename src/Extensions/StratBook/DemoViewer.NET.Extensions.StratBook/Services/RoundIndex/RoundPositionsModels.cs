@@ -43,8 +43,10 @@ public sealed class RoundPositionsDocument
     ///     which is the same-round join to Round Facts.
     ///     4: a step is the first frame at or past its due tick, the cadence's frame, instead of the first
     ///     fourth frame at or past it.
+    ///     5: a slot the final roster no longer holds is named by its last <c>player_connect</c> or
+    ///     <c>player_disconnect</c>, where it read 0 and "".
     /// </summary>
-    public const int PositionSchema = 4;
+    public const int PositionSchema = 5;
 
     /// <summary>The serializer options: camel case and compact like the sidecar, tuples through their converter.</summary>
     public static JsonSerializerOptions JsonOptions { get; } = new()

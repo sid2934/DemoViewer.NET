@@ -908,6 +908,7 @@ public sealed class StratBookPack : IExtension
         contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
             RoundIndexEvaluator.EvaluatorId);
         contributions.Collector(ThrowerCollector.Contribution);
+        contributions.Collector(RoundIndexRosterCollector.Contribution);
         // Proposals follow their inputs without a parse once a visit has stored the demo's detonations.
         contributions.RecordPass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>().RecordPass,
             DemoDataKey.RoundFacts, new DemoDataKey(PackId, RoundIndexStore.Facet), new DemoDataKey(PackId, DetonationStore.Facet));

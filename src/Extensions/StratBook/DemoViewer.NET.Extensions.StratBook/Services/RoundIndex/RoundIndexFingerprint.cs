@@ -37,7 +37,8 @@ public static class RoundIndexFingerprint
         }
 
         // The table's identity carries the engine build, so an engine bump re-indexes like a ruleset's.
-        return $"{fingerprint};pos={RoundPositionsDocument.PositionSchema};sampler=table;ruleset={RoundIndexTable.Identity}";
+        return $"{fingerprint};pos={RoundPositionsDocument.PositionSchema};sampler=table;ruleset={RoundIndexTable.Identity}"
+               + $";roster={RoundIndexRosterCollector.Version}";
     }
 }
 
