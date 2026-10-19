@@ -654,6 +654,9 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
         // The demo is going away, so abort any in-flight evaluation with it.
         _runCts?.Cancel();
 
+        // An open that never reached its visit would otherwise hold the parse and the run until the next open.
+        _openSeed = null;
+
         RuleDiagnostics = [];
         RuleFireStats = [];
         IsDiagnosticsOpen = false;
