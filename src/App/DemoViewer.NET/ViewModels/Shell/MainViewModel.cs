@@ -948,6 +948,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 _settings.OnChange(current =>
                 {
                     bool nowEnabled = current.Highlights.BackgroundScan;
+                    if (nowEnabled != wasScanEnabled)
+                    {
+                        scanner.OptInChanged();
+                    }
+
                     if (nowEnabled && !wasScanEnabled)
                     {
                         scanner.RefreshStaleness();

@@ -244,6 +244,25 @@ public class HighlightScanServiceTests
     }
 
     [Test]
+    public async Task TheBacklogNotice_FollowsTheOptInBothWays()
+    {
+        DemoCacheStore store = new(null);
+        bool optIn = false;
+        using HighlightScanService scanner = NewScanner(store, new FakeHarvester(), () => ["/nfs/stale.dem"], () => optIn,
+            (_, _) => null);
+        using HighlightBacklogViewModel status = new(scanner, store);
+        await Assert.That(status.Notice).Contains("turn on the background scan");
+
+        optIn = true;
+        scanner.OptInChanged();
+        await Assert.That(status.Notice).Contains("refreshing in the background");
+
+        optIn = false;
+        scanner.OptInChanged();
+        await Assert.That(status.Notice).Contains("turn on the background scan").Because("turning it off must not keep promising a refresh");
+    }
+
+    [Test]
     public async Task TheStatusCounts_CountADemoHeldAtTwoPathsOnce()
     {
         DemoCacheStore store = new(null);

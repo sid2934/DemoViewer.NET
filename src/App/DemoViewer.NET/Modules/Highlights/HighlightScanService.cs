@@ -397,8 +397,11 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         return entry is null || entry.NeedsAnalysis(TryFingerprint());
     }
 
-    /// <summary>Raised (posted) when queue length / scanning state changes.</summary>
+    /// <summary>Raised (posted) when queue length / scanning state changes, or the background-scan opt-in flips.</summary>
     public event Action? ScanProgressChanged;
+
+    /// <summary>Tells readers of <see cref="BackgroundScanEnabled" /> the setting moved, either way.</summary>
+    public void OptInChanged() => RaiseProgress();
 
     /// <summary>
     ///     Re-fingerprint pass (triggers: app start, tab activation, rule save, manual rescan):
