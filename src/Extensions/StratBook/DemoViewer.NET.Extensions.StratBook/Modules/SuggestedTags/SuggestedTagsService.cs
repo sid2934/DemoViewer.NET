@@ -118,6 +118,10 @@ public sealed class SuggestedTagsService : IExtensionPass
 
     // The inputs each demo's proposals were last built from, this session. Under _gate.
     private readonly Dictionary<string, string> _builtOn = new(StringComparer.OrdinalIgnoreCase);
+
+    // A visit's build and the record pass's rebuild of one demo write the same proposals file, and they run on
+    // different queue lanes; striped so the locks stay bounded however large the library is.
+    private readonly object[] _buildLocks = [.. Enumerable.Range(0, 32).Select(_ => new object())];
     private IExtensionRecordPass? _recordPass;
     private readonly IZonePlaceResolverSource _zones;
 
@@ -679,14 +683,17 @@ public sealed class SuggestedTagsService : IExtensionPass
             RoundFactsClock clock = RoundFactsClock.For(parsed);
             List<PlacedEvent> unplaced = DetonationEvents.From(parsed, removed ?? WalkRemoved(parsed));
             DetectionInputs inputs = DetectionInputsFrom(path, map, clock.TickRate, unplaced, facts, record, parsed)!.Value;
-            // Before the proposals: the record pass takes proposals written after this as built from it.
-            _detonations?.Write(path, DetonationDocument.From(map, clock, unplaced));
-            WriteProposals(path, record, map, clock, inputs, profile, table, fingerprint);
-            if (InputsKey(record) is { } key)
+            lock (BuildLock(path))
             {
-                lock (_gate)
+                // Before the proposals: the record pass takes proposals written after this as built from it.
+                _detonations?.Write(path, DetonationDocument.From(map, clock, unplaced));
+                WriteProposals(path, record, map, clock, inputs, profile, table, fingerprint);
+                if (InputsKey(record) is { } key)
                 {
-                    _builtOn[path] = key;
+                    lock (_gate)
+                    {
+                        _builtOn[path] = key;
+                    }
                 }
             }
 
@@ -868,27 +875,40 @@ public sealed class SuggestedTagsService : IExtensionPass
     internal void Rebuild(LibraryDemo demo)
     {
         string path = demo.FilePath;
-        if (_detonations?.TryRead(path) is not { } stored || InputsKey(demo) is not { } key
-            || _roundFacts.TryGet(path) is not { Schema: RoundFactsRows.CurrentSchema } facts)
+        lock (BuildLock(path))
         {
-            return;
-        }
+            if (_detonations?.TryRead(path) is not { } stored || InputsKey(demo) is not { } key
+                || _roundFacts.TryGet(path) is not { Schema: RoundFactsRows.CurrentSchema } facts)
+            {
+                return;
+            }
 
-        DetectorProfile profile = _profile();
-        SiteRegionTable? table = TableFor(stored.Map);
-        if (DetectionInputsFrom(path, stored.Map, stored.Clock.TickRate, stored.ToEvents(), facts, demo, null) is not { } inputs)
-        {
-            return;
-        }
+            lock (_gate)
+            {
+                if (_builtOn.TryGetValue(path, out string? seen) && string.Equals(seen, key, StringComparison.Ordinal))
+                {
+                    return; // a visit built from these inputs while this rebuild waited
+                }
+            }
 
-        WriteProposals(path, demo, stored.Map, stored.Clock, inputs, profile, table, SuggestionsFingerprint.Compose(profile, table));
-        lock (_gate)
-        {
-            _builtOn[path] = key;
+            DetectorProfile profile = _profile();
+            SiteRegionTable? table = TableFor(stored.Map);
+            if (DetectionInputsFrom(path, stored.Map, stored.Clock.TickRate, stored.ToEvents(), facts, demo, null) is not { } inputs)
+            {
+                return;
+            }
+
+            WriteProposals(path, demo, stored.Map, stored.Clock, inputs, profile, table, SuggestionsFingerprint.Compose(profile, table));
+            lock (_gate)
+            {
+                _builtOn[path] = key;
+            }
         }
 
         RaiseChanged(path);
     }
+
+    private object BuildLock(string path) => _buildLocks[(StringComparer.OrdinalIgnoreCase.GetHashCode(path) & int.MaxValue) % _buildLocks.Length];
 
     // The input stamps a build reads, or null while one is missing, or the index or detonations are not current.
     private string? InputsKey(LibraryDemo demo)
