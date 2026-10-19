@@ -18,8 +18,8 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 ///     back to: a demo is not wanted until its index row carries a Round Facts fingerprint, and the
 ///     index simply follows Round Facts by one pass and never races it.
 ///     <para>
-///         Per demo the work is one position walk (1 to 3 s on top of the parse the queue already
-///         paid) and one write of the demo's round index facet, positions included, stamped last so a
+///         Per demo the work is a fold of the <see cref="RoundIndexTable" /> rows the visit's rules run
+///         recorded and one write of the demo's round index facet, positions included, stamped last so a
 ///         crash leaves "not indexed" and never a stamp without both. A throw marks the facet
 ///         <see cref="DemoDataState.Failed" />, which the derived backlog excludes until the user
 ///         retries; the parse itself failing is not this evaluator's to mark.
@@ -37,6 +37,9 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     private readonly IRoundFacts _roundFacts;
     private readonly Func<bool> _enabled;
 
+    // A downstream pass that reads the index for this demo, so it is never left to walk positions itself.
+    private readonly Func<string, bool> _wantedDownstream;
+
     // Manual per-demo requests (a Retry on the strip): they submit regardless of the opt-in, but only
     // these paths, and at user priority. Cleared when the demo's Evaluate or OnFailed runs.
     private readonly HashSet<string> _forcedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -45,8 +48,8 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     private readonly RoundIndexPlaceSources _sources;
     private readonly RoundIndexStore _store;
 
-    // Test seam: yields the position walk for a parse instead of PositionSampler.Walk. Null is the
-    // real walk; a synthetic parse carries no entity data for the tracker to replay.
+    // Test seam for Evaluate: yields the samples for a parse instead of running the ruleset over it. A
+    // synthetic parse carries no entity data to sample.
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
 
     /// <param name="library">The library: which demos are parsed and carry Round Facts.</param>
@@ -55,8 +58,9 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <param name="sources">The place source and fingerprint in force per map.</param>
     /// <param name="backgroundIndex">The live <see cref="Extensions.StratBook.StratBookSettings.SituationsBackgroundIndex" />; forced paths ignore it.</param>
     /// <param name="post">UI-thread marshal for <see cref="Indexed" />; defaults to synchronous.</param>
-    /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
+    /// <param name="walk">The samples to fold for a parse; null runs the round index ruleset over it.</param>
     /// <param name="enabled">The owning pack's gate; off, nothing is wanted. Defaults to always-on.</param>
+    /// <param name="wantedDownstream">True when a pass that reads the index wants the demo; the sweep opt-in does not apply then.</param>
     public RoundIndexEvaluator(
         IExtensionLibrary library,
         IRoundFacts roundFacts,
@@ -65,7 +69,8 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         Func<bool> backgroundIndex,
         Action<Action>? post = null,
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
-        Func<bool>? enabled = null)
+        Func<bool>? enabled = null,
+        Func<string, bool>? wantedDownstream = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(roundFacts);
@@ -80,6 +85,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         _post = post ?? (action => action());
         _walk = walk;
         _enabled = enabled ?? (() => true);
+        _wantedDownstream = wantedDownstream ?? (_ => false);
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(RoundIndexLog.Category);
@@ -109,8 +115,8 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     /// <summary>Whether the demo needs this pass now.</summary>
     /// <remarks>
     ///     From the index row alone: the owning pack's gate on, a parsed demo with Round Facts rows whose
-    ///     index is missing or stale under the fingerprint for its map, and either the background sweep is
-    ///     on or the demo was forced. No sidecar is read; the row carries everything.
+    ///     index is missing or stale under the fingerprint for its map, and the background sweep on, the
+    ///     demo forced, or a downstream reader wanting it. No sidecar is read; the row carries everything.
     /// </remarks>
     public bool Wants(string path)
     {
@@ -119,14 +125,14 @@ public sealed class RoundIndexEvaluator : IExtensionPass
             return false;
         }
 
-        lock (_gate)
-        {
-            return _forcedPaths.Contains(path) || _backgroundIndex();
-        }
+        return IsRequested(path);
     }
 
     /// <summary>Whether the demo will need this pass once the pass it runs after has written.</summary>
-    /// <remarks>A demo without Round Facts rows yet, with the sweep on or the demo forced: the index follows the rows.</remarks>
+    /// <remarks>
+    ///     A demo without Round Facts rows yet, with the sweep on, the demo forced or a downstream reader
+    ///     wanting it: the index follows the rows.
+    /// </remarks>
     public bool WantsAfterUpstream(string path)
     {
         if (!_enabled() || _library.Find(path) is { State: >= LibraryDemoState.Parsed } entry && HasRoundFacts(entry))
@@ -134,10 +140,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
             return false;
         }
 
-        lock (_gate)
-        {
-            return _forcedPaths.Contains(path) || _backgroundIndex();
-        }
+        return IsRequested(path);
     }
 
     /// <inheritdoc />
@@ -157,16 +160,27 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         Wants(demoPath) ? DemoInterest.Yes : WantsAfterUpstream(demoPath) ? DemoInterest.AfterUpstream : DemoInterest.No;
 
     /// <inheritdoc />
+    public PassRead Read => PassRead.Forward;
+
+    /// <inheritdoc />
+    /// <remarks>The samples are the <see cref="RoundIndexTable" /> rows of the visit's rules run.</remarks>
     public void Run(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        Evaluate(context.DemoPath, context.Parsed);
+        Refresh(context.DemoPath, context.Demo.MapName, (facts, source) =>
+            RoundIndexBuilder.BuildWithPositions(RoundIndexDemoValues.For(context), facts, _sources.Options, source,
+                RoundIndexTable.Samples(context.Table(RoundIndexTable.TableName))));
     }
 
-    /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
+    /// <summary>Does the pass's work on <paramref name="parsed" />, running the round index ruleset over it.</summary>
     /// <param name="path">The demo's path.</param>
     /// <param name="parsed">The demo's parse.</param>
-    public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
+    public void Evaluate(string path, ParsedDemo parsed)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        Refresh(path, parsed.MapName, (facts, source) =>
+            RoundIndexBuilder.BuildWithPositions(parsed, facts, _sources.Options, source, _walk?.Invoke(parsed)));
+    }
 
     /// <inheritdoc />
     public void OnFailed(string demoPath) => ClearForced(demoPath);
@@ -192,7 +206,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         return
         [
             .. _library.Demos
-                .Where(e => NeedsIndex(e) && (background || forced.Contains(e.FilePath)))
+                .Where(e => NeedsIndex(e) && (background || forced.Contains(e.FilePath) || _wantedDownstream(e.FilePath)))
                 .OrderByDescending(e => e.Modified.Ticks)
                 .Select(e => e.FilePath)
         ];
@@ -252,6 +266,19 @@ public sealed class RoundIndexEvaluator : IExtensionPass
         Passes?.RecheckAll();
     }
 
+    private bool IsRequested(string path)
+    {
+        lock (_gate)
+        {
+            if (_forcedPaths.Contains(path))
+            {
+                return true;
+            }
+        }
+
+        return _backgroundIndex() || _wantedDownstream(path);
+    }
+
     private bool NeedsIndex(LibraryDemo? entry) =>
         entry is { State: >= LibraryDemoState.Parsed } && HasRoundFacts(entry)
         && _store.Needs(entry.FilePath, _sources.FingerprintFor(entry.MapName));
@@ -259,7 +286,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
     private static bool HasRoundFacts(LibraryDemo entry) =>
         entry.Fact(RoundFactsRows.FacetId) is { IsWritten: true };
 
-    private void Refresh(string path, ParsedDemo parsed)
+    private void Refresh(string path, string? mapName, Func<RoundFactsRows, IPlaceSource, RoundIndexBuild> build)
     {
         string fileName = Path.GetFileName(path);
         bool forced;
@@ -283,21 +310,20 @@ public sealed class RoundIndexEvaluator : IExtensionPass
                 return; // no round windows to sample within; Round Facts has not written this demo yet
             }
 
-            IPlaceSource source = _sources.SourceFor(parsed.MapName);
+            IPlaceSource source = _sources.SourceFor(mapName);
             string fingerprint = RoundIndexFingerprint.Compose(_sources.Options, source);
             if (!forced && _store.IsCurrent(path, fingerprint))
             {
                 return; // a queued request an earlier visit already satisfied
             }
 
-            RoundIndexBuild build = RoundIndexBuilder.BuildWithPositions(parsed, facts, _sources.Options, source,
-                _walk?.Invoke(parsed));
-            foreach (RoundIndexDisagreement d in build.Disagreements)
+            RoundIndexBuild built = build(facts, source);
+            foreach (RoundIndexDisagreement d in built.Disagreements)
             {
                 RoundIndexLog.SampleDisagreedWithFacts(Log, fileName, d.Round, d.SideMismatches, d.AliveMismatches);
             }
 
-            RoundIndexDocument document = build.Index;
+            RoundIndexDocument document = built.Index;
             string stableKey = DemoKeys.StableKey(path);
             document.Demo = new RoundIndexDemo
             {
@@ -306,7 +332,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
                 FileName = fileName,
                 SizeBytes = record.FileSizeBytes
             };
-            build.Positions.Demo = new RoundPositionsDemo
+            built.Positions.Demo = new RoundPositionsDemo
             {
                 Sha256 = record.Sha256,
                 StableKey = stableKey
@@ -314,7 +340,7 @@ public sealed class RoundIndexEvaluator : IExtensionPass
 
             // The store writes the positions first, the index second and the stamp last: a crash between any
             // two leaves "not indexed", never an index whose cards have nothing to draw.
-            long computedAt = _store.Write(path, document, build.Positions, fingerprint)?.WrittenAtTicks ?? DateTime.UtcNow.Ticks;
+            long computedAt = _store.Write(path, document, built.Positions, fingerprint)?.WrittenAtTicks ?? DateTime.UtcNow.Ticks;
 
             RoundIndexedEvent indexed = new(path, document.Demo.StableKey, record.Sha256, document.Map, computedAt);
             Written?.Invoke(indexed);

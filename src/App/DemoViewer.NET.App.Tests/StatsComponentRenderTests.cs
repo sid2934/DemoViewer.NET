@@ -22,7 +22,7 @@ using DemoViewer.NET.Views.Stats;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Render smoke for the stats component library (docs/ui/stats-components.md). The maths is proved
+///     Render smoke for the stats component library (docs/ui/design-system.md). The maths is proved
 ///     without a harness in <see cref="StatScaleTests" />; what needs a renderer is the half that cannot
 ///     be unit tested: that each control actually paints, that it paints DIFFERENTLY under Dark and
 ///     Light, and that the inputs which would throw in a naive implementation do not.

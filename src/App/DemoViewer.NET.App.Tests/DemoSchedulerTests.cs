@@ -392,6 +392,88 @@ public class DemoSchedulerTests
         await Assert.That(parsed.Order()).IsEquivalentTo(["/x/first.dem", "/x/second.dem"]);
     }
 
+    // A full background tier refuses visits. The planner must stop and wait for the capacity event, not re-plan
+    // the refused demos until a visit ends: that held the planning item Running and starved the light lane.
+    [Test]
+    public async Task AFullQueue_StopsThePlanner_UntilAVisitEnds()
+    {
+        using ManualResetEventSlim release = new(false);
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, _ =>
+        {
+            release.Wait(5000);
+            return Synthetic();
+        })
+        {
+            MaxQueueSize = 1
+        };
+        int asks = 0;
+        HashSet<string> done = new(StringComparer.Ordinal);
+        Fake a = new("a", p =>
+        {
+            Interlocked.Increment(ref asks);
+            lock (done)
+            {
+                return !done.Contains(p);
+            }
+        }, p =>
+        {
+            lock (done)
+            {
+                done.Add(p);
+            }
+        });
+        using DemoScheduler scheduler = new([a], queue, () => Array.Empty<string>());
+
+        scheduler.DemoChanged("/x/first.dem");
+        await WaitFor(() => queue.RunningCount == 1 && queue.ActiveCount(QueueJobKind.Scheduling) == 0, "the first demo running");
+        scheduler.DemoChanged("/x/second.dem");
+        scheduler.DemoChanged("/x/third.dem");
+        await WaitFor(() => queue.ActiveCount(QueueJobKind.Scheduling) == 0, "the planner to give up on a full tier");
+        int before = Volatile.Read(ref asks);
+        await Task.Delay(300);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Volatile.Read(ref asks) - before).IsEqualTo(0).Because("nothing re-plans while the tier stays full");
+            await Assert.That(queue.ActiveCount(QueueJobKind.Scheduling)).IsEqualTo(0);
+            await Assert.That(scheduler.Check.IsChecking).IsFalse();
+            await Assert.That(scheduler.Check.Waiting).IsGreaterThan(0).Because("the flyout says demos wait for room");
+        }
+
+        release.Set();
+        await WaitFor(() => a.Count == 3, "every demo planned as visits end");
+        await WaitFor(() => scheduler.Check is { IsChecking: false, Waiting: 0, LastChecked: not null }, "a clean check stamped");
+    }
+
+    // A user's request bypasses the background cap, so it must not wait behind a backlog demo the tier refused.
+    [Test]
+    public async Task AUserRequest_IsPlanned_WhileTheBackgroundTierIsFull()
+    {
+        using ManualResetEventSlim release = new(false);
+        ConcurrentBag<string> parsed = [];
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), _inline, path =>
+        {
+            parsed.Add(path);
+            release.Wait(5000);
+            return Synthetic();
+        })
+        {
+            MaxQueueSize = 1
+        };
+        Fake a = new("a");
+        using DemoScheduler scheduler = new([a], queue, () => Array.Empty<string>());
+
+        scheduler.DemoChanged("/x/first.dem");
+        await WaitFor(() => queue.RunningCount == 1, "the first demo running");
+        scheduler.DemoChanged("/x/backlog.dem");
+        scheduler.Request("/x/asked.dem");
+
+        await WaitFor(() => queue.Snapshot().Any(s => s.Path == "/x/asked.dem"), "the user's demo queued behind the running one");
+        await Assert.That(queue.Snapshot().Any(s => s.Path == "/x/backlog.dem")).IsFalse()
+            .Because("the backlog demo waits for room; the request did not");
+        release.Set();
+    }
+
     [Test]
     public async Task DemoChanged_APassWaitingOnUpstream_JoinsTheUpstreamsVisit_AndRunsAfterItOnTheSameParse()
     {
@@ -627,6 +709,75 @@ public class DemoSchedulerTests
     // A queue that records what the scheduler submits and runs its planning item inline, or holds it when
     // Defer is set, as the extension test doubles do. Token is the planning item's cancellation token;
     // EndPasses reports every submitted pass as run at once, so a demo can be planned again.
+    [Test]
+    public async Task ARider_JoinsAVisitThatRunsRules_AndIsNeverSubmittedAlone()
+    {
+        RecordingQueue queue = new();
+        RulesFake grenades = new("grenades", path => path == "/x/demo.dem");
+        bool riderWants = false;
+        RulesFake highlights = new("highlights", _ => false, _ => riderWants);
+        using DemoScheduler scheduler = new([highlights, grenades], queue, () => _oneDemo);
+
+        // Grenades is out on the first visit; the rider turns stale only after.
+        scheduler.DemoChanged("/x/demo.dem");
+        riderWants = true;
+        scheduler.DemoChanged("/x/demo.dem");
+        scheduler.DemoChanged("/x/other.dem");
+        scheduler.DemoChanged("/x/third.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.Visits).HasCount().EqualTo(1)
+                .Because("the rider whose rules pass is out, and the rider on a demo nothing else wants, pay for no read");
+            await Assert.That(queue.Visits[0].Passes.Select(p => p.Id)).IsEquivalentTo(["grenades"]);
+        }
+
+        // A rider never upgrades a read that needs no rules.
+        RecordingQueue noRules = new();
+        using DemoScheduler finalStateOnly = new([highlights, new FinalStateFake("library")], noRules, () => _oneDemo);
+        finalStateOnly.DemoChanged("/x/demo.dem");
+        await Assert.That(noRules.Visits.Single().Passes.Select(p => p.Id)).IsEquivalentTo(["library"]);
+
+        RecordingQueue second = new();
+        using DemoScheduler fresh = new([highlights, grenades], second, () => _oneDemo);
+        fresh.DemoChanged("/x/demo.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(second.Visits[0].Passes.Select(p => p.Id)).IsEquivalentTo(["highlights", "grenades"],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(second.Visits[0].Riders).IsEquivalentTo(["highlights"]);
+        }
+    }
+
+    private sealed class FinalStateFake(string id) : IDemoEvaluator
+    {
+        public string Id => id;
+
+        public bool Wants(string path) => true;
+
+        public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.FinalState;
+
+        public void Evaluate(string path, ParsedDemo parsed)
+        {
+        }
+    }
+
+    private sealed class RulesFake(string id, Func<string, bool> wants, Func<string, bool>? ifRulesRun = null) : IDemoEvaluator
+    {
+        public string Id => id;
+
+        public bool Wants(string path) => wants(path);
+
+        public bool WantsIfRulesRun(string path) => ifRulesRun?.Invoke(path) ?? false;
+
+        public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.Rules;
+
+        public void Evaluate(string path, ParsedDemo parsed)
+        {
+        }
+    }
+
     private sealed class RecordingQueue : IDemoProcessingQueue
     {
         private readonly List<QueueJobRequest> _deferred = [];

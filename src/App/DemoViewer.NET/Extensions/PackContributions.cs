@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.Loading;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.Views.Settings;
 using SdkPlayback = DemoViewer.NET.Extensions.Sdk.Playback;
@@ -42,6 +43,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
     private readonly List<IWorkspaceModule> _modules = [];
     private readonly List<ContributedHub> _hubTabs = [];
     private readonly List<PassContribution> _passes = [];
+    private readonly List<RegisteredCollector> _collectors = [];
     private readonly List<RecordPassContribution> _recordPasses = [];
     private readonly List<SettingsPageContribution> _settingsPages = [];
     private readonly List<HostStatusChip> _statusChips = [];
@@ -71,6 +73,9 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
 
     /// <summary>Passes, in contribution order.</summary>
     public IReadOnlyList<PassContribution> Passes => _passes;
+
+    /// <summary>Collectors, in contribution order; a refused one is not here.</summary>
+    public IReadOnlyList<RegisteredCollector> Collectors => _collectors;
 
     /// <summary>Rulesets, in contribution order, each under its qualified id.</summary>
     public IReadOnlyList<ContributedRuleset> Rulesets => _rulesets;
@@ -128,20 +133,48 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
         string[] order = [.. after];
-        _passes.Add(new PassContribution(id, HostCache(factory, order), order));
+        _passes.Add(new PassContribution(id, HostCache(id, factory, order), order));
     }
 
     /// <inheritdoc />
-    public void RecordPass(string id, Func<IExtensionRecordPass> factory)
+    public void Collector(CollectorContribution collector)
+    {
+        ArgumentNullException.ThrowIfNull(collector);
+        if (!OwnsId("collector", collector.Id))
+        {
+            return;
+        }
+
+        string? refusal = RegisteredCollector.Refusal(collector)
+                          ?? (_collectors.Any(c => string.Equals(c.Id, collector.Id, StringComparison.Ordinal))
+                              ? $"collector {collector.Id} is registered twice"
+                              : null);
+        if (refusal is not null)
+        {
+            _guard.Report("collector " + collector.Id, new ArgumentException(refusal + ", so it is left out."));
+            return;
+        }
+
+        _collectors.Add(new RegisteredCollector(collector, _guard));
+    }
+
+    /// <inheritdoc />
+    public void RecordPass(string id, Func<IExtensionRecordPass> factory, params RecordInput[] dependsOn)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(factory);
-        _recordPasses.Add(new RecordPassContribution(id, factory, _guard));
+        ArgumentNullException.ThrowIfNull(dependsOn);
+        foreach (RecordInput key in dependsOn)
+        {
+            ArgumentNullException.ThrowIfNull(key, nameof(dependsOn));
+        }
+
+        _recordPasses.Add(new RecordPassContribution(id, factory, _guard, [.. dependsOn.Distinct()]));
     }
 
     // The registry calls the factory on every resolve. One host per pass instance keeps the identity a visit
     // tells passes apart by, and the quarantine with it; a factory that hands out a new instance gets a new host.
-    private Func<IDemoPass> HostCache(Func<IExtensionPass> factory, IReadOnlyList<string> after)
+    private Func<IDemoPass> HostCache(string id, Func<IExtensionPass> factory, IReadOnlyList<string> after)
     {
         object gate = new();
         ExtensionPassHost? cached = null;
@@ -152,7 +185,10 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             {
                 if (cached is null || !ReferenceEquals(cached.Inner, inner))
                 {
-                    cached = new ExtensionPassHost(inner, after, _guard);
+                    cached = new ExtensionPassHost(inner, after, _guard,
+                        collectors: CollectorSet.Of(_collectors.Where(c => string.Equals(c.Contribution.PassId, id, StringComparison.Ordinal))),
+                        tableRulesets: [.. _rulesets.Where(r => string.Equals(r.ReadBy, id, StringComparison.Ordinal)).Select(r => r.RulesetId)],
+                        tablesReadUserCommands: _rulesets.Any(r => string.Equals(r.ReadBy, id, StringComparison.Ordinal) && r.ReadsUserCommands));
                 }
 
                 return cached;
@@ -181,6 +217,12 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             return;
         }
 
+        if (ruleset.ReadBy is { } passId && string.IsNullOrWhiteSpace(passId))
+        {
+            _guard.Report("ruleset", new ArgumentException($"'{ruleset.Id}' names a blank pass in ReadBy.", nameof(ruleset)));
+            return;
+        }
+
         string id = RulesetContribution.QualifiedId(Pack.Id, ruleset.Id);
         Func<Stream> open = ruleset.Yaml;
         _rulesets.Add(new ContributedRuleset(id, Pack.Id, _guard.OwnFeature("ruleset", ruleset.FeatureId), () => _guard.Run<string?>("ruleset " + id, () =>
@@ -188,7 +230,7 @@ internal sealed class PackContributions(IExtension pack, Func<IExtensionContext>
             using Stream stream = open();
             using StreamReader reader = new(stream);
             return reader.ReadToEnd();
-        }, null)));
+        }, null)) { ReadBy = ruleset.ReadBy, ReadsUserCommands = ruleset.ReadsUserCommands });
     }
 
     // Ids that are global across extensions carry the owner's id, so two extensions never lose one to the other.

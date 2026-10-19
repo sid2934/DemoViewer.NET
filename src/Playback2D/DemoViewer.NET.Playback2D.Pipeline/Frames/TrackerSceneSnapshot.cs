@@ -18,7 +18,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Frames;
 ///         This is the headless twin of the App's <c>ModuleContext</c> player join: the same
 ///         <see cref="PawnLookup.ForEachLivePawn" /> sweep, the same controller-anchored emission (a dead
 ///         player keeps a row so the marker layer can hold a gray last-known position), the same
-///         <see cref="PositionUtil.CellToWorld" /> reconstruction. It exists so the CLI and the export
+///         <see cref="PositionUtil.CellToWorld(EntityState)" /> reconstruction. It exists so the CLI and the export
 ///         session can build frames without an App, a dispatcher, or a shared playback clock.
 ///     </para>
 ///     <para>

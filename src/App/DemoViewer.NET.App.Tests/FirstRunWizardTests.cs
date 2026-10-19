@@ -500,7 +500,7 @@ public class FirstRunWizardTests
             await Assert.That(live.PackOptions.Select(o => o.FeatureId))
                 .IsEquivalentTo(FeaturePacks.Compatible.Select(p => p.FeatureId));
 
-            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.13.0-beta0001"));
+            ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0-beta0001"));
             IExtension incompatible = new CatalogPack("pack.future", FakeManifests.For("net.demoviewer.pack.future", "Future", "2.0.0", "^2.0", "*"));
             IExtension fine = new CatalogPack("pack.fine", FakeManifests.For("net.demoviewer.pack.fine", "Fine"));
             IReadOnlyList<PackStatus> statuses = PackStatus.Evaluate([incompatible, fine], host);

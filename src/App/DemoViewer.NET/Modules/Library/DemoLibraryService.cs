@@ -4,10 +4,10 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text.Json;
 using Avalonia.Threading;
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
-using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Services;
@@ -183,6 +183,12 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     /// <summary>The clock a file's settle window is measured against. Test seam.</summary>
     internal TimeProvider Time { get; set; } = TimeProvider.System;
 
+    /// <summary>
+    ///     The rules run over a held parse of the demo at a path when its visit makes one anyway, which the score,
+    ///     clans and coaches are read from. Null, or a null answer, replays the three entity classes instead.
+    /// </summary>
+    internal Func<ParsedDemo, string, AnalysisRun?>? TeamRun { get; set; }
+
     private IDemoProcessingQueue? Queue => QueueOverride ?? QueueWork.Ambient;
 
     /// <summary>
@@ -248,10 +254,10 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
 
     /// <inheritdoc />
     /// <remarks>
-    ///     Rules as well as the final state: a new demo's highlights and round facts ride the same forward
-    ///     read on the same visit.
+    ///     The final state only: a visit whose other passes run rules carries it as tables, and a visit with
+    ///     nothing else to do replays three entity classes rather than evaluate every ruleset for them.
     /// </remarks>
-    public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.FinalState | ForwardNeeds.Rules;
+    public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.FinalState;
 
     /// <inheritdoc />
     public void EvaluateForward(string path, ForwardDemoResult pass) =>
@@ -1086,16 +1092,22 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             return;
         }
 
+        // Every row Reconcile hands here was awaiting its index or in the backlog. One that is in neither now
+        // had its tier 2 end since that reconcile; enlisting it again would read the demo a second time.
+        List<DemoEntry> owed = [];
         lock (_tier2Lock)
         {
             foreach (DemoEntry entry in needFull)
             {
-                _pendingFull[entry.FilePath] = entry;
-                _awaitingIndex.Remove(entry.FilePath);
+                if (_awaitingIndex.Remove(entry.FilePath) || _pendingFull.ContainsKey(entry.FilePath))
+                {
+                    _pendingFull[entry.FilePath] = entry;
+                    owed.Add(entry);
+                }
             }
         }
 
-        foreach (DemoEntry entry in needFull)
+        foreach (DemoEntry entry in owed)
         {
             DemoEntry captured = entry;
 
@@ -2237,17 +2249,18 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
             parsed.Players.Values, parsed.Duration.TotalSeconds, parsed.MapName, parsed.ServerName,
             parsed.Profile.SourceKind.ToString(), parsed.TickRate, parsed.TickCount, parsed.ServerStartTick,
             () => ClipRounds.Derive(parsed),
-            () => ExtractFinalState(parsed)));
+            () => TeamRun?.Invoke(parsed, entry.FilePath) is { } run && LibraryTeamTables.Carries(run)
+                ? LibraryTeamTables.Read(run, parsed.Players.Values, LibraryOvertime.Of(parsed.Frames))
+                : LibraryFinalStateReplay.Replay(parsed)));
 
-    // The same extraction off a forward pass: the pass already replayed the final state and derived the rounds.
+    // The same extraction off a forward pass: its rules run carries the library tables, or its tap replayed them.
     internal void IndexTier2Core(DemoEntry entry, ForwardDemoResult pass) =>
         IndexTier2Core(entry, new Tier2Input(
             pass.Demo.Players.Values, pass.Demo.Duration.TotalSeconds, pass.Demo.MapName, pass.Demo.ServerName,
             pass.Demo.Profile.SourceKind.ToString(), pass.Demo.TickRate, pass.Demo.TickCount, pass.Demo.ServerStartTick,
             () => pass.Rounds,
-            () => pass.FinalState is { } s
-                ? (s.Ct, s.T, s.CtClan, s.TClan, s.CoachSlots)
-                : throw new InvalidOperationException("the forward pass read no final state")));
+            () => pass.Run is { } run && LibraryTeamTables.Carries(run) ? LibraryTeamTables.Read(run, pass.Demo.Players.Values, pass.Overtime)
+                : pass.FinalState ?? throw new InvalidOperationException("the forward pass read no final state")));
 
     private sealed record Tier2Input(
         IEnumerable<PlayerInfo> Players,
@@ -2259,7 +2272,7 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         int TickCount,
         int ServerStartTick,
         Func<IReadOnlyList<ClipRound>> Rounds,
-        Func<(int? Ct, int? T, string? CtClan, string? TClan, HashSet<int> CoachSlots)> FinalState);
+        Func<LibraryTeamState> FinalState);
 
     private void IndexTier2Core(DemoEntry entry, Tier2Input parsed)
     {
@@ -2296,8 +2309,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
                 entry.State = DemoIndexState.Indexed;
             });
 
-            // Final score: CCSTeam.m_iScore at match end (no cheap event source exists in CS2, team_score /
-            // round_end are absent). Best-effort: a replay failure just leaves the score unset.
+            // Final score: CCSTeam.m_iScore at match end, completed by LibraryFinalScore (no cheap event source
+            // exists in CS2, team_score / round_end are absent). Best-effort: a failure leaves the score unset.
             try
             {
                 (ctScore, tScore, ctClan, tClan, coachSlots) = parsed.FinalState();
@@ -2555,11 +2568,9 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
         return (players, rounds);
     }
 
-    // Reads the authoritative final scoreboard: CCSTeam.m_iScore per side (CT = team 3, T = team 2) plus clan
-    // names, entity-replayed to the last frame, exactly what the app's own UpdateGameInfo treats as the score.
-    // Correct for complete demos; on demos truncated at the buzzer the winner's final-round increment can be
-    // absent from the recorded frames (unrecoverable, no event carries the final score), matching what the app
-    // itself would display. Returns nulls for warmup-only / team-less demos so the card omits the score.
+    // The final scoreboard: CCSTeam.m_iScore per side (CT = team 3, T = team 2) plus clan names at the last
+    // frame, completed by LibraryFinalScore when the match ended one round short of a result. Nulls for
+    // warmup-only / team-less demos so the card omits the score.
     internal static (int? Ct, int? T, string? CtClan, string? TClan) ExtractFinalScore(ParsedDemo parsed)
     {
         (int? ct, int? t, string? ctClan, string? tClan, HashSet<int> _) = ExtractFinalState(parsed);
@@ -2567,25 +2578,8 @@ public sealed class DemoLibraryService : IDisposable, IDemoEvaluator
     }
 
     // The score plus the coach slots, from one replay: the coach flag is CCSPlayerController.m_iCoachingTeam
-    // at the last frame, read off the controller seated at entity index slot + 1, so a registered coach
-    // (who sits on a side without being one of its five) stays out of Team Identity's side keys. Coach
-    // slots are returned even when the score is not, so a warmup-only demo still marks its coach.
-    internal static (int? Ct, int? T, string? CtClan, string? TClan, HashSet<int> CoachSlots) ExtractFinalState(
-        ParsedDemo parsed)
-    {
-        IReadOnlyList<DemoFrame> frames = parsed.Frames;
-        if (frames.Count == 0)
-        {
-            return (null, null, null, null, []);
-        }
-
-        // Replays every delta from frame 0 but stores only the two classes the read looks at: the same
-        // score as a full replay (EntityStoreFilterEquivalenceTests), ~1.2x faster and 30-60% less allocation.
-        EntityTracker tracker = FinalTeamState.NewTracker();
-        tracker.ReplayToIndex(frames.Count - 1, frames);
-        FinalTeamState state = FinalTeamState.Read(tracker, parsed.Players.Keys);
-        return (state.Ct, state.T, state.CtClan, state.TClan, state.CoachSlots);
-    }
+    // at the last frame, read off the controller seated at entity index slot + 1.
+    internal static LibraryTeamState ExtractFinalState(ParsedDemo parsed) => LibraryFinalStateReplay.Replay(parsed);
 
     /// <summary>
     ///     Is this score/clan tuple one <see cref="ExtractFinalScore" /> could actually have produced?

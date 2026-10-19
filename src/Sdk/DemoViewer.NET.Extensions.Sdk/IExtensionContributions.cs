@@ -27,12 +27,34 @@ public interface IExtensionContributions
     /// <summary>
     ///     A pass over what the library already holds for each demo, run without reading the demo file. The
     ///     factory is called only while the extension is on.
+    ///     <para>
+    ///         A pass that names inputs in <paramref name="dependsOn" /> waits until each one's write on the demo
+    ///         has settled, then runs again exactly when one of those writes moves, not on other changes to the
+    ///         row. A failed or stale write counts as settled: check <see cref="IAnalysisFacts.Status" />, or the
+    ///         facet's stamp. A ruleset's outputs share one write, so naming one table re-runs on any of its
+    ///         tables. While a named ruleset, or the extension owning a named facet, is off the pass waits. A fact
+    ///         key no ruleset on now declares (<see cref="IAnalysisFacts.Declared" />), a scoreboard, or a facet of
+    ///         an extension the host does not know refuses the pass; the keys are checked again on every run.
+    ///     </para>
     /// </summary>
     /// <param name="id">The pass's <see cref="IExtensionRecordPass.Id" />.</param>
     /// <param name="factory">Builds or returns the pass.</param>
-    void RecordPass(string id, Func<IExtensionRecordPass> factory);
+    /// <param name="dependsOn">
+    ///     Ruleset outputs (<see cref="FactKey" />) and per-demo facets (<see cref="DemoDataKey" />, such as
+    ///     <see cref="DemoDataKey.RoundFacts" />) the pass reads; empty runs it on every change to the demo's row.
+    /// </param>
+    void RecordPass(string id, Func<IExtensionRecordPass> factory, params RecordInput[] dependsOn);
 
-    /// <summary>A ruleset the host runs with the highlights on every demo; its tables become library facts.</summary>
+    /// <summary>
+    ///     A per-frame reader for one of the extension's passes, run inside the host's rules run of a demo instead of a
+    ///     walk of its own. A provider or projectile class the engine does not know refuses the collector.
+    /// </summary>
+    void Collector(CollectorContribution collector);
+
+    /// <summary>
+    ///     A ruleset the host runs with the highlights on every demo; its tables become library facts, or the input of
+    ///     the pass <see cref="RulesetContribution.ReadBy" /> names.
+    /// </summary>
     void Ruleset(RulesetContribution ruleset);
 
     /// <summary>A page in Settings with controls of the extension's own.</summary>

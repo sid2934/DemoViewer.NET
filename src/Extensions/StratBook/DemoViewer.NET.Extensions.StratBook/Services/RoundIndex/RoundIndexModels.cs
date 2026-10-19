@@ -24,13 +24,6 @@ public sealed record RoundIndexOptions
     /// </summary>
     public double CadenceSeconds { get; init; } = 1;
 
-    /// <summary>
-    ///     The <c>PositionSampler.Walk</c> frame stride. Four keeps every one-second row on the measured
-    ///     demos and costs the decode floor; eight dropped rows. Not in the fingerprint: it changes
-    ///     which frame a row is read from, never what the row means.
-    /// </summary>
-    public int FrameStride { get; init; } = 4;
-
     /// <summary>The cadence in ticks at a demo's rate.</summary>
     /// <param name="tickRate">The demo's tick rate; 64 when unknown.</param>
     public int CadenceTicks(int tickRate) =>

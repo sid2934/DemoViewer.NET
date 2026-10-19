@@ -110,6 +110,13 @@ public sealed class AnalysisFacts : IAnalysisFacts, IFactsVisibility
     bool IFactsVisibility.Shows(string stampId) =>
         StampedFacts.RulesetOf(stampId) is not { } rulesetId || _facts?.Facet(rulesetId) is not null;
 
+    bool IFactsVisibility.IsOff(string rulesetId) =>
+        _facts is not null
+        && !StampedFacts.IsHostRead(rulesetId)
+        && _facts.Rules.ReaderOf(rulesetId) is null
+        && _facts.Rules.IsStamped(rulesetId)
+        && _facts.Facet(rulesetId) is null;
+
     /// <inheritdoc />
     public IReadOnlyList<LibraryHighlight> Highlights(string demoPath)
     {
@@ -138,4 +145,11 @@ internal interface IFactsVisibility
     /// <summary>False for the facts stamp of a ruleset that is off or no longer contributed; true for every other stamp.</summary>
     /// <param name="stampId">A stamp id on the index row.</param>
     bool Shows(string stampId);
+
+    /// <summary>
+    ///     True for a stamped ruleset that is known but not on now (its owner off, or its doc disabled), so its
+    ///     facts are written once it is back. False for <c>round_facts</c> and for an id no pack contributes.
+    /// </summary>
+    /// <param name="rulesetId">A ruleset id.</param>
+    bool IsOff(string rulesetId);
 }

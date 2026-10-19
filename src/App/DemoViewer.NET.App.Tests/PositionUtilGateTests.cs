@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Position-constant gate: the highest-leverage correctness item for the 2D pilot. Asserts
-///     that <see cref="PositionUtil.CellToWorld" /> (constant lifted from the demofile-net oracle:
+///     that <see cref="PositionUtil.CellToWorld(EntityState)" /> (constant lifted from the demofile-net oracle:
 ///     <c>world = (cell - 32) * 512 + offset</c>) reconstructs known pawn positions that land ON-RADAR
 ///     (within plausible CS2 map bounds). This guards the pilot from plotting markers in the wrong
 ///     place. The test is DISCRIMINATING: it requires at least one OFF-CENTER pawn (cellX/cellY ≠ 32),

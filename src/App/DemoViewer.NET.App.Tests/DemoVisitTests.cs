@@ -1,8 +1,12 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.AppTests.Extensions;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
 
@@ -178,6 +182,129 @@ public class DemoVisitTests
     }
 
     [Test]
+    public async Task AVisitOfForwardExtensionPassesOnly_StaysForward()
+    {
+        int forwardReads = 0, parses = 0;
+        List<string> ran = [];
+        using DemoProcessingQueue queue = Queue(_ => Interlocked.Increment(ref parses), (_, _, _, _) =>
+        {
+            Interlocked.Increment(ref forwardReads);
+            return ForwardResult();
+        });
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        ExtensionPassHostTests.FakePass a = new() { PassName = "ext.a", Reads = PassRead.Forward, Ran = ran };
+        ExtensionPassHostTests.FakePass b = new() { PassName = "ext.b", Reads = PassRead.Forward, Ran = ran };
+
+        await queue.SubmitVisit(Visit(PassLevel.Background, null,
+            new ExtensionPassHost(a, [], guard, static () => false),
+            new ExtensionPassHost(b, ["ext.a"], guard, static () => false))).Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(forwardReads).IsEqualTo(1);
+            await Assert.That(parses).IsEqualTo(0).Because("no pass on the visit needs the retained parse");
+            await Assert.That(ran).IsEquivalentTo(["ext.a", "ext.b"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(a.Seen!.Parsed).IsNull();
+            await Assert.That(b.Seen!.FrameCount).IsEqualTo(10);
+        }
+    }
+
+    [Test]
+    public async Task TheVisitUnionsCollectorsBeforeTheFirstBareRun()
+    {
+        CollectorSet? seen = null;
+        using DemoProcessingQueue queue = Queue();
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        // A host pass that runs first and reads the rules run, as the highlights scan does.
+        FakePass first = new("host.rules") { OnRun = _ => seen = queue.CollectorsFor(Demo) };
+        ExtensionPassHost a = new(new ExtensionPassHostTests.FakePass { PassName = "ext.a" }, ["host.rules"], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.a", "ext.a"), guard)]));
+        ExtensionPassHost b = new(new ExtensionPassHostTests.FakePass { PassName = "ext.b" }, ["host.rules"], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.b", "ext.b"), guard)]));
+
+        await queue.SubmitVisit(Visit(PassLevel.Background, null, b, first, a)).Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(seen?.All.Select(c => c.Id)).IsEquivalentTo(["c.a", "c.b"])
+                .Because("the run the first pass makes must carry every collector on the visit");
+            await Assert.That(queue.CollectorsFor(Demo).IsEmpty).IsTrue().Because("the visit ended");
+        }
+    }
+
+    [Test]
+    public async Task ACollectingPass_DoesNotJoinAForwardReadThatStartedWithoutItsCollector()
+    {
+        int reads = 0;
+        using SemaphoreSlim firstRead = new(0);
+        using DemoProcessingQueue queue = Queue();
+        queue.ForwardRead = (_, _, declared, _, _) =>
+        {
+            if (Interlocked.Increment(ref reads) == 1)
+            {
+                firstRead.Wait(TimeSpan.FromSeconds(10), CancellationToken.None);
+            }
+
+            CollectorResults results = new();
+            foreach (RegisteredCollector c in declared.All)
+            {
+                results.Put(c.Id, new CollectorKit.Count(7));
+            }
+
+            ForwardDemoResult plain = ForwardResult();
+            return new ForwardDemoResult
+            {
+                Demo = plain.Demo, Rounds = plain.Rounds, FrameCount = plain.FrameCount,
+                FirstServerTick = plain.FirstServerTick, LastServerTick = plain.LastServerTick, Collected = results
+            };
+        };
+        ExtensionGuard guard = ExtensionPassHostTests.StandaloneGuard();
+        CollectingPass a = new("ext.a", "c.a");
+        CollectingPass b = new("ext.b", "c.b");
+        Dictionary<string, PassOutcome> outcomes = [];
+        Action<IDemoPass, PassOutcome, Exception?> ended = (pass, outcome, _) =>
+        {
+            lock (outcomes)
+            {
+                outcomes[pass.Id] = outcome;
+            }
+        };
+
+        IDemoQueueHandle first = queue.SubmitVisit(Visit(PassLevel.Background, ended, new ExtensionPassHost(a, [], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.a", "ext.a"), guard)]))));
+        await WaitForAsync(() => Volatile.Read(ref reads) == 1, "the first forward read");
+        IDemoQueueHandle second = queue.SubmitVisit(Visit(PassLevel.Background, ended, new ExtensionPassHost(b, [], guard, static () => false,
+            collectors: CollectorSet.Of([new RegisteredCollector(CollectorKit.Counting("c.b", "ext.b"), guard)]))));
+        firstRead.Release();
+        await first.Completion;
+        await second.Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(reads).IsEqualTo(2).Because("the running read never declared c.b, so ext.b needs a read of its own");
+            await Assert.That(outcomes["ext.a"]).IsEqualTo(PassOutcome.Ran);
+            await Assert.That(outcomes["ext.b"]).IsEqualTo(PassOutcome.Ran);
+            await Assert.That(b.Frames).IsEqualTo(7);
+        }
+    }
+
+    // A forward extension pass that reads its one collector's result.
+    private sealed class CollectingPass(string id, string collectorId) : IExtensionPass
+    {
+        public int Frames { get; private set; }
+
+        public string Id => id;
+
+        public bool ReadsUserCommands => false;
+
+        public PassRead Read => PassRead.Forward;
+
+        public DemoInterest Interest(string demoPath) => DemoInterest.Yes;
+
+        public void Run(IPassContext context) => Frames = context.Collected<CollectorKit.Count>(collectorId)?.Frames ?? -1;
+    }
+
+    [Test]
     public async Task EachSubmitter_HearsHowItsPassEnded()
     {
         List<(string, PassOutcome, string?)> ended = [];
@@ -301,6 +428,92 @@ public class DemoVisitTests
             await Assert.That(plan.Select(p => p.Id)).IsEquivalentTo(["library"]);
             await Assert.That(faulted).IsEquivalentTo(["broken: boom"]);
         }
+    }
+
+    [Test]
+    public async Task Planner_AddsARider_OnlyWhenAnotherPlannedPassNeedsARulesRun()
+    {
+        FakePass library = new("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) };
+        FakePass grenades = new("grenades") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        FakePass highlights = new("highlights")
+        {
+            Answer = PassInterest.IfRulesRun, NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules)
+        };
+        VisitedDemo demo = new(Demo);
+
+        List<IDemoPass> withRules = VisitPlanner.Plan([library, highlights, grenades], demo, PassLevel.Backlog, null,
+            out HashSet<string> riders);
+        List<IDemoPass> withoutRules = VisitPlanner.Plan([library, highlights], demo, PassLevel.Backlog);
+        List<IDemoPass> alone = VisitPlanner.Plan([highlights], demo, PassLevel.Backlog);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(withRules.Select(p => p.Id)).IsEquivalentTo(["library", "highlights", "grenades"],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(riders).IsEquivalentTo(["highlights"]);
+            await Assert.That(withoutRules.Select(p => p.Id)).IsEquivalentTo(["library"])
+                .Because("a read without rules would have to be upgraded for the rider");
+            await Assert.That(alone).IsEmpty().Because("a rider never pays for a read");
+        }
+    }
+
+    [Test]
+    public async Task CancellingTheRulesPass_CancelsAVisitLeftWithOnlyItsRider()
+    {
+        List<(string, PassOutcome)> ended = [];
+        using DemoProcessingQueue queue = Queue();
+        queue.Pause();
+        FakePass grenades = new("grenades") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        FakePass highlights = new("highlights") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        IDemoQueueHandle handle = queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Background, [grenades, highlights], 0,
+            "match.dem", (p, outcome, _) => ended.Add((p.Id, outcome)), new HashSet<string> { "highlights" }));
+
+        queue.CancelOwned("grenades");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(handle.State).IsEqualTo(DemoQueueItemState.Cancelled);
+            await Assert.That(ended).IsEquivalentTo([("grenades", PassOutcome.Cancelled), ("highlights", PassOutcome.Cancelled)]);
+            await Assert.That(highlights.Ran).IsEmpty();
+        }
+
+        queue.Resume();
+    }
+
+    [Test]
+    public async Task CancellingTheRulesPass_DropsTheRider_AndKeepsAPassThatNeedsNoRules()
+    {
+        List<string> ran = [];
+        using DemoProcessingQueue queue = Queue(forward: (_, _, _, _) => ForwardResult());
+        queue.Pause();
+        FakePass library = new("library") { Ran = ran, NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) };
+        FakePass grenades = new("grenades") { Ran = ran, NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        FakePass highlights = new("highlights") { Ran = ran, NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.Rules) };
+        IDemoQueueHandle handle = queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Background, [library, grenades, highlights], 0,
+            "match.dem", null, new HashSet<string> { "highlights" }));
+
+        queue.CancelOwned("grenades");
+        await Assert.That(queue.Snapshot().Single(s => s.Id == handle.Id).Owners).IsEquivalentTo(["library"])
+            .Because("the rider would turn the library's read into a rules run");
+        queue.Resume();
+        await handle.Completion;
+
+        await Assert.That(ran).IsEquivalentTo(["library"]);
+    }
+
+    [Test]
+    public async Task ARiderOnAVisit_RunsInTheSlot()
+    {
+        using DemoProcessingQueue queue = Queue();
+        List<string> ran = [];
+        FakePass grenades = new("grenades") { Ran = ran };
+        FakePass highlights = new("highlights") { Ran = ran, Answer = PassInterest.IfRulesRun };
+
+        IDemoQueueHandle handle = queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Background, [grenades, highlights], 0,
+            "match.dem", null, new HashSet<string> { "highlights" }));
+        await handle.Completion;
+
+        await Assert.That(ran).IsEquivalentTo(["grenades", "highlights"]);
     }
 
     private sealed class FakePass(string id, params string[] after) : IDemoPass

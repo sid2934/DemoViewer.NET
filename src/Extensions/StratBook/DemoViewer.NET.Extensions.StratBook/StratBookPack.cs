@@ -5,6 +5,7 @@ using System.Globalization;
 using Avalonia.Threading;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Visibility;
+using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Extensions.StratBook.Modules.Dossier;
 using DemoViewer.NET.Modules.Library;
@@ -24,6 +25,7 @@ using DemoViewer.NET.Services.Export.Pack;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
@@ -236,7 +238,11 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<RoundIndexPlaceSources>(),
                 () => settings.SituationsBackgroundIndex,
                 Host(sp).Post,
-                enabled: () => features.IsEnabled(PackFeatureId));
+                enabled: () => features.IsEnabled(PackFeatureId),
+                // Suggested Tags reads occupancy from the index, so the index is built wherever it wants a
+                // demo. Resolved per call: the service is not built while its feature is off.
+                wantedDownstream: path => features.IsEnabled(SuggestedTagsService.FeatureId)
+                                          && sp.GetRequiredService<SuggestedTagsService>().Interest(path) != DemoInterest.No);
             built.Passes = Host(sp).Passes;
             return built;
         });
@@ -472,7 +478,8 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 map => sp.GetRequiredService<ISituationIndex>().Places(map),
                 () => Host(sp).Shell.CurrentDemoPath,
-                Host(sp).Post);
+                Host(sp).Post,
+                detonations: new DetonationStore(Data(sp)));
             sp.GetRequiredService<StratBookPackInstances>().SuggestedTags = built;
             built.Passes = Host(sp).Passes;
             return built;
@@ -620,7 +627,7 @@ public sealed class StratBookPack : IExtension
             tabId => Host(sp).Shell.SelectTab(tabId)));
 
         // The Grenade Walk: every throw in a demo as one row, written as two siblings of
-        // the demo's cache record. An evaluator on the same fan-out, last because it reads nothing the others
+        // the demo's cache record. An evaluator on the same fan-out that reads nothing the others
         // write. The library sweep is its own opt-in, off by default; the open demo, resolved at call
         // time, is always walked on the parse its open paid for. Null cache root (the browser) keeps the
         // rows in memory for the session.
@@ -883,10 +890,28 @@ public sealed class StratBookPack : IExtension
         // never invoked, and these services never constructed, with the pack off.
         contributions.Pass(RoundIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<RoundIndexEvaluator>(),
             HostIds.RoundFactsPass);
-        contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
-            RoundIndexEvaluator.EvaluatorId);
+        contributions.Ruleset(new RulesetContribution(RoundIndexTable.RulesetName, RoundIndexTable.OpenYaml)
+            { ReadBy = RoundIndexEvaluator.EvaluatorId });
         contributions.Pass(GrenadeIndexEvaluator.EvaluatorId, () => sp.GetRequiredService<GrenadeIndexEvaluator>(),
             HostIds.LibraryPass);
+        // The grenade rows fold three tables off the run; the projectile ruleset reads the thrower's commands.
+        foreach (string ruleset in GrenadeTables.Rulesets)
+        {
+            contributions.Ruleset(new RulesetContribution(ruleset, () => GrenadeTables.OpenYaml(ruleset))
+            {
+                ReadBy = GrenadeIndexEvaluator.EvaluatorId,
+                ReadsUserCommands = ruleset == GrenadeTables.ProjectilesRuleset
+            });
+        }
+
+        contributions.Collector(GrenadeTrajectoryCollector.Contribution(() => sp.GetRequiredService<StratBookSettings>().TrajectoryStride));
+        contributions.Pass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>(),
+            RoundIndexEvaluator.EvaluatorId);
+        contributions.Collector(ThrowerCollector.Contribution);
+        contributions.Collector(RoundIndexRosterCollector.Contribution);
+        // Proposals follow their inputs without a parse once a visit has stored the demo's detonations.
+        contributions.RecordPass(SuggestedTagsService.EvaluatorId, () => sp.GetRequiredService<SuggestedTagsService>().RecordPass,
+            DemoDataKey.RoundFacts, new DemoDataKey(PackId, RoundIndexStore.Facet), new DemoDataKey(PackId, DetonationStore.Facet));
         contributions.Pass(LineupClipPass.PassId, () => sp.GetRequiredService<LineupClipPass>(),
             GrenadeIndexEvaluator.EvaluatorId);
 

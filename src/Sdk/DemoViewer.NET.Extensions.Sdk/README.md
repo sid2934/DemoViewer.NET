@@ -86,7 +86,8 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 | `StatusChip` | A chip on the status strip. You supply its state through `IStatusChipSource`; the host draws it. |
 | `Pass` | An `IExtensionPass` that runs on every demo the Library visits, on the one parse the visit reads. |
 | `RecordPass` | An `IExtensionRecordPass` that runs over what the library already holds for a demo, without a parse. |
-| `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts. |
+| `Collector` | A per-frame reader for one of your passes, run inside the host's rules run of a demo instead of a walk of its own. |
+| `Ruleset` | A ruleset as YAML, run with the highlights on every demo; its tables become library facts, or one pass's input. |
 | `SettingsSchema` | A page under Settings, Extensions that the host renders from a list of settings. |
 | `SettingsPage` | A page under Settings, Extensions with controls of your own. |
 | `Playback` | Lanes, panes, panels, toolbar items, mode toggles, map layers, map tools and key or action handlers in 2D Playback. |
@@ -234,6 +235,17 @@ contributions.Pass("dev.example.rounds", () => rounds, HostIds.LibraryPass);
 `after` names the passes whose output yours reads: `HostIds.LibraryPass` for the demo's cache record and
 `HostIds.RoundFactsPass` for its per-round, per-side rows.
 
+A pass that needs only the demo's header, frame clock and rounds declares `Read => PassRead.Forward` and reads
+`context.Demo`, `FrameCount`, `FirstServerTick`, `LastServerTick`, `LastFrameTick` and `Rounds`; its `Parsed` is null. A visit
+whose passes all read forward streams the demo instead of holding the whole parse, so declare it when you can.
+A forward pass sees no player inputs itself, so the host does not consult its `ReadsUserCommands`; a collector or a
+`ReadBy` ruleset of the pass that reads them is how it gets them.
+
+Each entry in `Rounds` is a `PassRound`, one round opened by its `round_freeze_end`: `Number`, sequential
+from 1 in demo order with warmup and restarts included, and `FreezeEndTick`, the round's freeze end in
+the frame clock (`GameEvent.GameTick`), not the server tick `FirstServerTick` and `LastServerTick` report.
+`LastFrameTick` is the last frame on that frame clock.
+
 A job that names a demo joins that demo's visit: it runs after the passes on the same parse, or on the parse
 the shell already holds when the demo is open, and holds the parse until its task ends.
 
@@ -243,6 +255,64 @@ IJobHandle handle = context.Jobs.Enqueue(JobRequest.OnDemo("Count frames", path,
     new JobOptions(Priority: JobPriority.UserRequested)));
 handle.Completed += result => Status = result.Status.ToString();
 ```
+
+## Collectors
+
+A collector is a per-frame reader that rides the rules run the host already makes of a demo for one of
+your passes, instead of reading the demo on its own. Register one with `contributions.Collector`, naming
+the pass that owns its result:
+
+```csharp
+contributions.Collector(new CollectorContribution("dev.example.positions", "dev.example.rounds", 1,
+    ["entity.pawn.pos_x", "entity.pawn.pos_y"], [], () => new PositionCollector())
+{
+    GameEvents = ["round_start"]
+});
+```
+
+`Id` starts with your extension's id and a dot, as every id shared across extensions does; one that does not is
+left out and reported. It is how the owning pass reads the result back. `PassId` names the
+`IExtensionPass` that owns it: the collector runs only on a visit that pass is on. `Version` is bumped
+when what the collector puts changes; it folds into `Stamp` along with the declared reads and the engine
+build, so a pass that keys its own fingerprint on `Stamp` runs again when any of them moves. `Providers`
+and `ProjectileClasses` name what the collector reads off each frame, from the engine's catalog
+(`entity.pawn.pos_x`, `CSmokeGrenadeProjectile`); a name the engine does not know refuses the collector.
+`Create` builds a fresh `IFrameCollector` for one run.
+
+`ReadsUserCommands` opts into `IFrameReadView.Command`: the pass's visit then decodes user commands for
+the collector to read, where it would otherwise leave them out, whether or not the pass itself answers
+true to its own `ReadsUserCommands`. A forward pass's own answer is not consulted, so a collector that
+answers true is how a forward pass reaches commands. `GameEvents` names game events the
+collector reads off `Frame`: a streamed read decodes only the events the rules themselves subscribe
+to, plus these, where a held parse already carries every event.
+
+`IFrameCollector.OnFrame` is called once per frame, in read order, with an `IFrameReadView` valid only
+during that call: copy what you keep. `Finish` runs once, after the last frame, and puts the result
+through `ICollectorSink.Put`; the owning pass reads it back with `IPassContext.Collected<T>(collectorId)`,
+which is null when nothing was put and throws when the collector failed on this demo or names a
+collector that is not one of the pass's own. A collector that throws from `OnFrame` ends that collector
+for the run and fails its pass's read, `Finish` is not called for it, and the run and every other
+collector on it carry on.
+
+`IFrameReadView` is the state at the end of one frame, as the rules run folded it: a read here always
+sees that frame's own update applied, not the frame-before state a rule's `player.*` read sees at a
+game event. `Frame` is the frame just read, `FrameIndex` its position in read order from zero, and
+`Tick` the frame clock (`Frame.GameTick ?? Frame.ServerTick`), the same clock `PassRound.FreezeEndTick`
+is on. `Provider` resolves a declared name once into an `ObservedRead`, so `TryReadInt`, `TryReadFloat`
+and `TryReadString` can read a slot by it without a further name lookup; `Read` takes the name directly
+and boxes. `Team` is the slot's controller team as last seen (2 T, 3 CT), or -1. `Command` is the
+slot's latest user command as of the end of this frame, or null before its first; one frame's commands
+collapse to the last one, and the instance is the engine's baseline for the next delta, so read it and
+never change it. It throws unless a collector on the run declared `ReadsUserCommands`.
+
+`Projectiles` is every live projectile of a declared class, in ascending entity index; `Created` holds
+the ones that appeared on this frame, and `Removed` the ones that were live last frame and are gone on
+this one, with their last-seen state. Each is an `ObservedProjectile` carrying its position, velocity,
+bounce count, thrower slot and, for an HE, `ExplodeEffectTickBegin` on the server-boot clock (0 while
+it flies, the tick its explosion began once it detonates, null when unseen). Slot reads are never
+cleared: a player who died, left or has no pawn on this frame still reads the values from before, so a
+present value does not mean the slot has a pawn, and a health or position read cannot tell a dead
+player from a live one.
 
 ## Reading the library
 
@@ -298,6 +368,32 @@ asked again when the hash lands, since that changes the row. A record pass runs 
 row changes. One that throws is skipped for that demo for the
 rest of the session and counted against the extension.
 
+A record pass that reads analysis facts names them after the factory:
+
+```csharp
+contributions.RecordPass("dev.example.kast", () => new KastPass(), new FactKey("kast", "kast_game_totals"));
+```
+
+The host then holds the pass on a demo until each named ruleset's write on it has settled, and runs it again
+when one of those writes moves, not on other changes to the row. A failed or stale write counts as settled, so
+the pass checks `Facts.Status` before it trusts a table. A ruleset writes all its tables at once, so naming one of
+them re-runs the pass on any. While a named ruleset is off, because its extension is off or its doc is
+disabled, the pass waits and is taken again once it is on. Any other key missing from `Facts.Declared`, or a
+scoreboard key, refuses the pass; the refusal is reported against the extension once, and the keys are checked
+again on every run.
+
+A pass can also wait on what other passes write per demo, named by `DemoDataKey`: the host's Round Facts rows
+(`DemoDataKey.RoundFacts`), or a facet an extension writes through `context.Data`, under that extension's id:
+
+```csharp
+contributions.RecordPass("dev.example.openings", () => new OpeningsPass(),
+    DemoDataKey.RoundFacts, new DemoDataKey("dev.example", "round-index"));
+```
+
+The same rules apply: the pass runs once every named facet has a stamp on the demo, and again when one of
+those stamps moves. While the owning extension is off the pass waits; a facet of an extension the host has not
+loaded refuses it.
+
 ## Analysis facts
 
 `context.Library.Facts` is every analysis output the library holds: the highlights its scan found
@@ -346,6 +442,27 @@ does not load. A ruleset the manifest does not list is left out and logged again
 
 "Delete extension data" removes the facts of your rulesets with the rest of your data.
 
+### A ruleset one pass reads
+
+A table can be a pass's input instead of a fact. Name the pass in `ReadBy` and read the rows with
+`IPassContext.Table` during its turn:
+
+```csharp
+contributions.Ruleset(new RulesetContribution("positions", OpenPositionsYaml) { ReadBy = "dev.example.rounds" });
+
+// in the pass's Run
+IReadOnlyList<FactRow> rows = context.Table("positions");
+```
+
+The host records the tables only on the rules run of a demo the pass wants, on a streamed read and a held parse
+alike, and never writes them as facts: they are not in `Declared` and have no status. The pass keeps what it
+derives from them under its own fingerprint, which should cover the YAML and the engine build. `Table` throws for a
+table no ruleset of the pass declares, and when the run did not record it because the ruleset was left out.
+
+A ruleset that reads `player.cmd.*` (or `thrower.cmd.*`) sets `ReadsUserCommands` on its contribution. A streamed read
+decodes the inputs from the build alone, but a visit that holds the parse leaves them out unless a pass on it asks, and
+a forward pass is never asked; the flag asks on the ruleset's behalf, so the table reads the same on both.
+
 ## Settings
 
 Describe your settings and the host draws the page and stores the values in `context.Settings`:
@@ -384,7 +501,7 @@ public DemoInterest Interest(string demoPath) =>
     data.Stamp(demoPath, "rounds") is { } stamp && stamp.IsCurrent(Schema, Fingerprint) ? DemoInterest.No : DemoInterest.Yes;
 
 public void Run(IPassContext context) =>
-    data.Write(context.DemoPath, new DemoDataWrite("rounds", Schema, Fingerprint, Serialize(Compute(context.Parsed))) { Count = rows });
+    data.Write(context.DemoPath, new DemoDataWrite("rounds", Schema, Fingerprint, Serialize(Compute(context.Parsed!))) { Count = rows });
 
 byte[]? payload = data.Read(demoPath, "rounds", Schema, Fingerprint);
 ```

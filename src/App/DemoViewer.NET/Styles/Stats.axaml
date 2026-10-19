@@ -15,8 +15,7 @@
         are layout and text (StatTile, TeamBadge) are templated and get a ControlTheme in
         Styles.Resources below.
 
-        See docs/ui/stats-components.md for what each component is for, and docs/ui/design-system.md for
-        the contracts.
+        See docs/ui/design-system.md for what each component is for and its contract.
     -->
 
     <Styles.Resources>

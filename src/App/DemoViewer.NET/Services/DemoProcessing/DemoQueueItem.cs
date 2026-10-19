@@ -70,6 +70,14 @@ public partial class DemoQueueItem : ObservableObject
     [ObservableProperty]
     private long _endedSeq;
 
+    /// <summary>Running on another item's read, so it takes no slot of its own.</summary>
+    [ObservableProperty]
+    private bool _ridesRead;
+
+    /// <summary>Stopped by the queue and handed to another item, not by anyone asking it to stop.</summary>
+    [ObservableProperty]
+    private bool _superseded;
+
     /// <summary>Stable item identity (the <see cref="IDemoProcessingQueue.RemoveByUser" /> key).</summary>
     public required Guid Id { get; init; }
 

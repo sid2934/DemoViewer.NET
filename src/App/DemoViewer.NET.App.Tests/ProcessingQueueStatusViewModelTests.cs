@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.ViewModels;
@@ -23,11 +24,7 @@ public class ProcessingQueueStatusViewModelTests
     [Test]
     public async Task Running_MapsToWorkingPulsingChip_AndCountLine()
     {
-        FakeQueue q = new()
-        {
-            RunningCount = 1,
-            QueuedCount = 0
-        };
+        FakeQueue q = Seeded(1, 0);
         ProcessingQueueStatusViewModel vm = new(q);
 
         await Assert.That(vm.Chip.DotState).IsEqualTo(StatusChipDotState.Working);
@@ -39,11 +36,7 @@ public class ProcessingQueueStatusViewModelTests
     [Test]
     public async Task QueuedOnly_MapsToWorkingNonPulsingChip()
     {
-        FakeQueue q = new()
-        {
-            RunningCount = 0,
-            QueuedCount = 2
-        };
+        FakeQueue q = Seeded(0, 2);
         ProcessingQueueStatusViewModel vm = new(q);
 
         await Assert.That(vm.Chip.DotState).IsEqualTo(StatusChipDotState.Working);
@@ -54,11 +47,7 @@ public class ProcessingQueueStatusViewModelTests
     [Test]
     public async Task Paused_MapsToOffChip_AndAnnotatesStatusLine()
     {
-        FakeQueue q = new()
-        {
-            RunningCount = 1,
-            QueuedCount = 3
-        };
+        FakeQueue q = Seeded(1, 3);
         q.Pause();
         ProcessingQueueStatusViewModel vm = new(q);
 
@@ -185,13 +174,13 @@ public class ProcessingQueueStatusViewModelTests
         DemoQueueRowViewModel lateRow = vm.Rows.Single(r => r.DisplayText == "late.dem");
 
         await Assert.That(string.Join(",", vm.Rows.Select(r => r.DisplayText)))
-            .IsEqualTo("running.dem,soon.dem,late.dem,section");
+            .IsEqualTo("running.dem,soon.dem,late.dem").Because("light work is not a row");
 
         late.StartRank = 0;
         soon.StartRank = 1;
         q.RaiseChanged();
         await Assert.That(string.Join(",", vm.Rows.Select(r => r.DisplayText)))
-            .IsEqualTo("running.dem,late.dem,soon.dem,section");
+            .IsEqualTo("running.dem,late.dem,soon.dem");
         await Assert.That(vm.Rows[1]).IsSameReferenceAs(lateRow).Because("rows move, they are not rebuilt");
     }
 
@@ -246,7 +235,7 @@ public class ProcessingQueueStatusViewModelTests
             await Assert.That(Row("r.dem").CanPromote).IsFalse();
             await Assert.That(Row("r.dem").RemoveLabel).IsEqualTo("Stop and remove");
             await Assert.That(Row("open").CanPromote).IsFalse().Because("an open already goes first");
-            await Assert.That(Row("save").CanPromote).IsFalse().Because("the queue refuses light items");
+            await Assert.That(vm.Rows.Any(r => r.DisplayText == "save")).IsFalse().Because("light work is not a row");
         }
 
         Row("q.dem").PromoteCommand.Execute(null);
@@ -305,10 +294,7 @@ public class ProcessingQueueStatusViewModelTests
     [Test]
     public async Task TogglePause_FlipsQueuePause_AndReMapsChip()
     {
-        FakeQueue q = new()
-        {
-            RunningCount = 1
-        };
+        FakeQueue q = Seeded(1, 0);
         ProcessingQueueStatusViewModel vm = new(q);
         await Assert.That(vm.IsPaused).IsFalse();
 
@@ -333,6 +319,113 @@ public class ProcessingQueueStatusViewModelTests
 
         await Assert.That(vm.IsBackgroundDisabled).IsTrue();
         await Assert.That(vm.StatusLine).Contains("background disabled");
+    }
+
+    // With concurrency at 1 the user saw two Running rows: the parse and the scheduler's planning. Only work the
+    // setting governs is a row and a count; the rest is a line.
+    [Test]
+    public async Task LightWork_IsALine_NotARowOrACount_AndTheChipIgnoresIt()
+    {
+        FakeQueue q = new();
+        DemoQueueItem plan = q.Add("Checking demos for work", "scheduler", DemoJobPriority.Background, DemoQueueItemState.Running);
+        plan.Kind = QueueJobKind.Scheduling;
+        plan.Light = true;
+        DemoQueueItem save = q.Add("Library: save the scan", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
+        save.Light = true;
+        q.RaiseChanged();
+        ProcessingQueueStatusViewModel vm = new(q);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Rows).IsEmpty();
+            await Assert.That(vm.RunningCount).IsEqualTo(0);
+            await Assert.That(vm.IsActive).IsFalse().Because("bookkeeping alone does not show the chip");
+            await Assert.That(vm.AlsoLine).IsEqualTo("Also: Library: save the scan").Because("planning has its own line");
+        }
+
+        q.Add("a.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
+        await Assert.That(vm.Chip.Label).IsEqualTo("Processing 1");
+    }
+
+    [Test]
+    public async Task AFailedLightItem_StaysInRecent_AndASupersededReadDoesNot()
+    {
+        FakeQueue q = new();
+        DemoQueueItem failed = q.Add("Save: grenade lineups", "stratbook", DemoJobPriority.Background, DemoQueueItemState.Failed);
+        failed.Light = true;
+        failed.EndedSeq = 1;
+        DemoQueueItem handed = q.Add("b.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Cancelled);
+        handed.Superseded = true;
+        handed.EndedSeq = 2;
+        q.RaiseChanged();
+        ProcessingQueueStatusViewModel vm = new(q);
+
+        await Assert.That(vm.RecentRows.Select(r => r.DisplayText)).IsEquivalentTo(["Save: grenade lineups"]);
+    }
+
+    [Test]
+    public async Task AVisitOnTheOpensParse_IsARow_ButNotASecondRunningItem()
+    {
+        FakeQueue q = new();
+        DemoQueueItem open = q.Add("match.dem", "shell", DemoJobPriority.Foreground, DemoQueueItemState.Running);
+        open.Kind = QueueJobKind.DemoOpen;
+        DemoQueueItem riding = q.Add("match.dem ", "library", DemoJobPriority.UserRequested, DemoQueueItemState.Running);
+        riding.RidesRead = true;
+        q.RaiseChanged();
+        ProcessingQueueStatusViewModel vm = new(q);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Rows.Count).IsEqualTo(2);
+            await Assert.That(vm.RunningCount).IsEqualTo(1);
+            await Assert.That(vm.Chip.Label).IsEqualTo("Processing 1");
+        }
+    }
+
+    [Test]
+    public async Task TheCheckLine_SaysChecking_Waiting_OrWhenItLastChecked()
+    {
+        FakeChecks checks = new();
+        ProcessingQueueStatusViewModel vm = new(new FakeQueue(), checks: checks, post: a => a());
+        await Assert.That(vm.HasCheckLine).IsFalse().Because("nothing has been checked yet");
+
+        checks.Set(new WorkCheck(true, 0, null));
+        await Assert.That(vm.CheckLine).IsEqualTo("Checking the library for work…");
+        checks.Set(new WorkCheck(false, 3, null));
+        await Assert.That(vm.CheckLine).IsEqualTo("3 demos waiting for room in the queue");
+        DateTimeOffset at = new(2026, 10, 17, 21, 5, 0, TimeSpan.Zero);
+        checks.Set(new WorkCheck(false, 0, at));
+        await Assert.That(vm.CheckLine)
+            .IsEqualTo("Library last checked for work at " + at.ToLocalTime().ToString("g", CultureInfo.CurrentCulture));
+    }
+
+    private sealed class FakeChecks : IWorkCheckStatus
+    {
+        public WorkCheck Check { get; private set; } = new(false, 0, null);
+
+        public event Action? CheckChanged;
+
+        public void Set(WorkCheck check)
+        {
+            Check = check;
+            CheckChanged?.Invoke();
+        }
+    }
+
+    private static FakeQueue Seeded(int running, int queued)
+    {
+        FakeQueue q = new();
+        for (int i = 0; i < running; i++)
+        {
+            q.Add($"r{i}.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Running);
+        }
+
+        for (int i = 0; i < queued; i++)
+        {
+            q.Add($"q{i}.dem", "library", DemoJobPriority.Background, DemoQueueItemState.Queued);
+        }
+
+        return q;
     }
 
     // ── Minimal in-memory IDemoProcessingQueue double (only the members the VM reads are meaningful) ──

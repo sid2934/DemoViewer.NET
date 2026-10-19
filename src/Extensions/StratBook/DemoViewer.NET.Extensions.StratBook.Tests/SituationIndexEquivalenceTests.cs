@@ -19,7 +19,7 @@ namespace DemoViewer.NET.AppTests;
 /// </summary>
 public class SituationIndexEquivalenceTests
 {
-    private const string Fingerprint = "ri1;cadence=1;token=1;rf=1;src=pawn;pos=2";
+    private static readonly string Fingerprint = "ri1;cadence=1;token=1;rf=1;src=pawn;pos=5" + RoundIndexTestData.SamplerTerm;
 
     private static readonly string[] Maps = ["de_nuke", "de_mirage", "de_inferno"];
 

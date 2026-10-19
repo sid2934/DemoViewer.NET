@@ -41,7 +41,7 @@ public class GrenadeIndexEvaluatorTests
             EndKind = GrenadeEndKind.Detonated,
             Trajectory = [new TrajectoryPoint(100, 1, 2, 3, 0), new TrajectoryPoint(140, 10.26f, 20, 30, 1)]
         }
-    ], 0.998, ReconstructedInputSource.DecoderName, 4);
+    ], 0.998, GrenadeWalker.InputDecoderName, 4);
 
     private static (DemoCacheStore Cache, GrenadeIndexEvaluator Evaluator) Wire(
         bool background = false, string? open = null, string? sha = "abc", Func<ParsedDemo, GrenadeWalk>? walk = null,
@@ -101,7 +101,23 @@ public class GrenadeIndexEvaluatorTests
 
         public ParsedDemo Parsed => parsed;
 
+        public DemoDescriptor Demo => DemoDescriptor.From(parsed);
+
+        public int FrameCount => parsed.Frames.Count;
+
+        public int FirstServerTick => 0;
+
+        public int LastServerTick => 0;
+
+        public int LastFrameTick => 0;
+
+        public IReadOnlyList<PassRound> Rounds => [];
+
         public CancellationToken CancellationToken => CancellationToken.None;
+
+        public T? Collected<T>(string collectorId) where T : class => throw new NotSupportedException();
+
+        public IReadOnlyList<FactRow> Table(string table) => throw new NotSupportedException();
     }
 
     [Test]
@@ -235,7 +251,7 @@ public class GrenadeIndexEvaluatorTests
             await Assert.That(rows.Demo.StableKey).IsEqualTo(DemoCacheStore.StableKey(Demo));
             await Assert.That(rows.Walker.Version).IsEqualTo(GrenadeWalker.Version);
             await Assert.That(rows.Walker.Engine).StartsWith("CS2DemoKit.Parser ");
-            await Assert.That(rows.Walker.InputDecoder).IsEqualTo(ReconstructedInputSource.DecoderName);
+            await Assert.That(rows.Walker.InputDecoder).IsEqualTo(GrenadeWalker.InputDecoderName);
             await Assert.That(rows.Clock.LastTick).IsEqualTo(5000);
             await Assert.That(rows.Source.TrajectoryStride).IsEqualTo(4);
             await Assert.That(rows.Grenades.Single().Trajectory).IsEmpty().Because("the rows file carries no paths");

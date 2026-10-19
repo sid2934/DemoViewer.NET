@@ -89,6 +89,75 @@ public class TeamIdentityTests
         return teams;
     }
 
+    // Every batch of store changes asked for a full sync of the library, and each one queued behind the last. A
+    // sync that has not started reads the library as it is then, so a burst must queue one.
+    [Test]
+    public async Task ABurstOfBatchChanges_QueuesOneFullSync()
+    {
+        async Task<int> RunsFor(int batches)
+        {
+            DemoCacheStore cache = new(null);
+            IExtensionLibrary library = cache.Library();
+            List<(Action Work, TaskCompletionSource Done)> held = [];
+            int runs = 0;
+            TeamIdentityService teams = new(TestFiles.Teams(null), library, run: work =>
+            {
+                Interlocked.Increment(ref runs);
+                TaskCompletionSource done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                lock (held)
+                {
+                    held.Add((work, done));
+                }
+
+                return done.Task;
+            });
+            await teams.StartAsync().WaitAsync(TimeSpan.FromSeconds(1)).ContinueWith(_ => { });
+            int before = Volatile.Read(ref runs);
+            for (int i = 0; i < batches; i++)
+            {
+                using (cache.BeginBatch())
+                {
+                    cache.Upsert(Record($"/d/b{i}.dem", i + 1, Strangers(), Strangers()));
+                }
+            }
+
+            // The library raises its change right after taking the row in, so once it holds every row the
+            // service has seen every change. Nothing may run before that, or a late change starts a new sync.
+            for (int wait = 0; wait < 400 && library.Demos.Count < batches; wait++)
+            {
+                await Task.Delay(5);
+            }
+
+            for (int spin = 0; spin < 200; spin++)
+            {
+                (Action Work, TaskCompletionSource Done)? next = null;
+                lock (held)
+                {
+                    if (held.Count > 0)
+                    {
+                        next = held[0];
+                        held.RemoveAt(0);
+                    }
+                }
+
+                if (next is { } item)
+                {
+                    item.Work();
+                    item.Done.SetResult();
+                }
+
+                await Task.Delay(5);
+            }
+
+            teams.Dispose();
+            return Volatile.Read(ref runs) - before;
+        }
+
+        int one = await RunsFor(1);
+        int three = await RunsFor(3);
+        await Assert.That(three).IsEqualTo(one).Because("the second and third batch fold into the sync still waiting");
+    }
+
     // ── 1. Matching ──────────────────────────────────────────────────────────────────────────────
 
     [Test]

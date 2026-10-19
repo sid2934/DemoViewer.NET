@@ -2,20 +2,10 @@
 
 using System.Numerics;
 using CS2DemoKit.Parser.EntityTracking;
-using CS2DemoKit.Parser.GameEvents;
-using CS2OpenSchema.Events;
 
 #endregion
 
 namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-
-/// <summary>A grenade <c>weapon_fire</c> or <c>grenade_thrown</c>: who released what, when.</summary>
-/// <param name="Slot">The thrower's player slot (<c>UserId</c>).</param>
-/// <param name="FrameIndex"><c>GameEvent.FrameNumber</c>: the frame the event arrived on.</param>
-/// <param name="Tick">Frame clock.</param>
-/// <param name="ProjectileClass">The projectile class it throws.</param>
-/// <param name="Weapon">The event's weapon name, which tells a molotov from an incendiary.</param>
-public sealed record GrenadeRelease(int Slot, int FrameIndex, int Tick, string ProjectileClass, string Weapon);
 
 /// <summary>A detonation event with the entity it names.</summary>
 /// <param name="Name">The event name, e.g. <c>smokegrenade_detonate</c>.</param>
@@ -25,9 +15,8 @@ public sealed record GrenadeRelease(int Slot, int FrameIndex, int Tick, string P
 public sealed record GrenadeDetonation(string Name, int Tick, int EntityIndex, Vector3 Position);
 
 /// <summary>
-///     The events a walk joins, indexed once per demo: grenade releases per slot,
-///     <c>grenade_thrown</c> where the source has it (HLTV only), and the five detonation events. The joins
-///     are pure over this index so they are tested without a demo.
+///     The detonation events a walk joins, indexed once per demo: the five detonation events by name, each with
+///     the entity it names. The joins are pure over this index so they are tested without a demo.
 /// </summary>
 public sealed class GrenadeEventIndex
 {
@@ -38,51 +27,18 @@ public sealed class GrenadeEventIndex
     public const string DecoyStarted = "decoy_started";
 
     private readonly Dictionary<string, List<GrenadeDetonation>> _detonations = new(StringComparer.Ordinal);
-    private readonly List<GrenadeRelease> _fires = [];
-    private readonly List<GrenadeRelease> _thrown = [];
 
-    /// <summary>Every grenade <c>weapon_fire</c>, in tick order.</summary>
-    public IReadOnlyList<GrenadeRelease> Fires => _fires;
-
-    /// <summary>Every <c>grenade_thrown</c>, in tick order; empty on GOTV.</summary>
-    public IReadOnlyList<GrenadeRelease> Thrown => _thrown;
-
-    /// <summary>Indexes a demo's events.</summary>
-    /// <param name="events"><c>ParsedDemo.AllGameEvents</c> or a synthetic list.</param>
-    public static GrenadeEventIndex From(IEnumerable<GameEvent> events)
+    /// <summary>Indexes the detonation rows a rules run recorded.</summary>
+    /// <param name="detonations">The five detonation events' rows, in any order.</param>
+    public static GrenadeEventIndex FromDetonations(IEnumerable<GrenadeDetonation> detonations)
     {
-        ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(detonations);
         GrenadeEventIndex index = new();
-        foreach (GameEvent e in events)
+        foreach (GrenadeDetonation d in detonations)
         {
-            switch (e.Payload)
-            {
-                case WeaponFireEvent fire when GrenadeRules.ProjectileClassOfWeapon(fire.Weapon) is { } cls:
-                    index._fires.Add(new GrenadeRelease(fire.UserId, e.FrameNumber, e.GameTick, cls, fire.Weapon));
-                    break;
-                case GrenadeThrownEvent thrown when GrenadeRules.ProjectileClassOfWeapon(thrown.Weapon) is { } cls:
-                    index._thrown.Add(new GrenadeRelease(thrown.UserId, e.FrameNumber, e.GameTick, cls, thrown.Weapon));
-                    break;
-                case HegrenadeDetonateEvent he:
-                    index.Add(HeDetonate, e.GameTick, he.EntityId, new Vector3(he.X, he.Y, he.Z));
-                    break;
-                case FlashbangDetonateEvent flash:
-                    index.Add(FlashDetonate, e.GameTick, flash.EntityId, new Vector3(flash.X, flash.Y, flash.Z));
-                    break;
-                case SmokeGrenadeDetonateEvent smoke:
-                    index.Add(SmokeDetonate, e.GameTick, smoke.EntityId, new Vector3(smoke.X, smoke.Y, smoke.Z));
-                    break;
-                case InfernoStartburnEvent fire:
-                    index.Add(InfernoStart, e.GameTick, fire.EntityId, new Vector3(fire.X, fire.Y, fire.Z));
-                    break;
-                case DecoyStartedEvent decoy:
-                    index.Add(DecoyStarted, e.GameTick, decoy.EntityId, new Vector3(decoy.X, decoy.Y, decoy.Z));
-                    break;
-            }
+            index.Add(d.Name, d.Tick, d.EntityIndex, d.Position);
         }
 
-        index._fires.Sort((a, b) => a.Tick.CompareTo(b.Tick));
-        index._thrown.Sort((a, b) => a.Tick.CompareTo(b.Tick));
         foreach (List<GrenadeDetonation> list in index._detonations.Values)
         {
             list.Sort((a, b) => a.Tick.CompareTo(b.Tick));
@@ -100,66 +56,6 @@ public sealed class GrenadeEventIndex
         GrenadeProjectileClasses.Decoy => DecoyStarted,
         _ => null
     };
-
-    /// <summary>
-    ///     The latest unclaimed release of <paramref name="projectileClass" /> by <paramref name="slot" /> in
-    ///     <c>[fromTick, toTick]</c>, from <paramref name="releases" />.
-    /// </summary>
-    public static GrenadeRelease? Latest(IReadOnlyList<GrenadeRelease> releases, int slot, string projectileClass,
-        int fromTick, int toTick, IReadOnlySet<GrenadeRelease> claimed)
-    {
-        ArgumentNullException.ThrowIfNull(releases);
-        GrenadeRelease? best = null;
-        foreach (GrenadeRelease r in releases)
-        {
-            if (r.Tick > toTick)
-            {
-                break;
-            }
-
-            if (r.Tick >= fromTick && r.Slot == slot
-                                   && string.Equals(r.ProjectileClass, projectileClass, StringComparison.Ordinal)
-                                   && !claimed.Contains(r))
-            {
-                best = r;
-            }
-        }
-
-        return best;
-    }
-
-    /// <summary>
-    ///     The thrower join for a projectile whose <c>m_hThrower</c> never resolved: the unclaimed grenade
-    ///     <c>weapon_fire</c> of the same family in <c>[spawn - 15, spawn - 6]</c>, the one nearest the
-    ///     measured seven-tick gap when several fit.
-    /// </summary>
-    public GrenadeRelease? JoinThrower(string projectileClass, int spawnTick, IReadOnlySet<GrenadeRelease> claimed)
-    {
-        GrenadeRelease? best = null;
-        int bestGap = int.MaxValue;
-        foreach (GrenadeRelease r in _fires)
-        {
-            if (r.Tick > spawnTick - GrenadeRules.ReleaseToSpawnMinTicks)
-            {
-                break;
-            }
-
-            if (r.Tick < spawnTick - GrenadeRules.ReleaseToSpawnMaxTicks
-                || !string.Equals(r.ProjectileClass, projectileClass, StringComparison.Ordinal) || claimed.Contains(r))
-            {
-                continue;
-            }
-
-            int gap = Math.Abs(spawnTick - r.Tick - GrenadeRules.ReleaseToSpawnTicks);
-            if (gap < bestGap)
-            {
-                bestGap = gap;
-                best = r;
-            }
-        }
-
-        return best;
-    }
 
     /// <summary>The first <paramref name="name" /> event naming <paramref name="entityIndex" /> in <c>[fromTick, toTick]</c>.</summary>
     public GrenadeDetonation? ByEntity(string name, int entityIndex, int fromTick, int toTick)

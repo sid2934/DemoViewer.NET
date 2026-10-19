@@ -17,12 +17,12 @@ namespace DemoViewer.NET.AppTests.Extensions;
 public class PackCompatibilityTests
 {
     private static readonly ExtensionHostInfo _host = new(
-        SemVersion.Parse("1.0.0"), SemVersion.Parse("0.6.2"), SemVersion.Parse("0.13.0-beta0001"));
+        SemVersion.Parse("1.0.0"), SemVersion.Parse("0.6.2"), SemVersion.Parse("0.14.0-beta0001"));
 
     [Test]
     public async Task Compatible_WhenEveryRangeHolds()
     {
-        ExtensionManifest m = FakeManifests.For("net.demoviewer.pack.x", "X", "1.0.0", "^1.0", "0.13.0-beta0001", "0.6.0");
+        ExtensionManifest m = FakeManifests.For("net.demoviewer.pack.x", "X", "1.0.0", "^1.0", "0.14.0-beta0001", "0.6.0");
         PackCompatibility result = PackCompatibility.Check(m, _host);
         using (Assert.Multiple())
         {
@@ -53,7 +53,7 @@ public class PackCompatibilityTests
         using (Assert.Multiple())
         {
             await Assert.That(result is PackCompatibility.Cs2DemoKitMismatch).IsTrue();
-            await Assert.That(result.Describe(m, "x")).IsEqualTo("Strat Book 1.0.0 needs CS2DemoKit 0.14.0; this app ships 0.13.0-beta0001");
+            await Assert.That(result.Describe(m, "x")).IsEqualTo("Strat Book 1.0.0 needs CS2DemoKit 0.14.0; this app ships 0.14.0-beta0001");
         }
     }
 

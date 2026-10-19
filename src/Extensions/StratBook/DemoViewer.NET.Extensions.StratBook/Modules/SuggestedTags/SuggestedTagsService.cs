@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions.StratBook.Services;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
@@ -43,7 +44,7 @@ public sealed record TagInstanceEdit(
 ///     the occupancy source and the walk is the exception.
 ///     <para>
 ///         Per demo: occupancy from a current <c>.dvri.json</c>, else the walk over the held parse; the
-///         detonations placed by zones, then the index's place snap, then the walk's sparse cloud;
+///         detonations placed by zones, then the index's place snap, then the sparse cloud;
 ///         the five detectors in the profile's order; the proposals file written; and the
 ///         record stamped with the detector-set fingerprint and the pending count, stamp last so a crash
 ///         leaves "not built". Everything needs Round Facts rows; a demo without them is
@@ -113,6 +114,15 @@ public sealed class SuggestedTagsService : IExtensionPass
     private readonly TagStore? _tags;
     private readonly Func<DateTime> _utcNow;
     private readonly Func<ParsedDemo, IEnumerable<PositionSample>>? _walk;
+    private readonly DetonationStore? _detonations;
+
+    // The inputs each demo's proposals were last built from, this session. Under _gate.
+    private readonly Dictionary<string, string> _builtOn = new(StringComparer.OrdinalIgnoreCase);
+
+    // A visit's build and the record pass's rebuild of one demo write the same proposals file, and they run on
+    // different queue lanes; striped so the locks stay bounded however large the library is.
+    private readonly object[] _buildLocks = [.. Enumerable.Range(0, 32).Select(_ => new object())];
+    private IExtensionRecordPass? _recordPass;
     private readonly IZonePlaceResolverSource _zones;
 
     /// <param name="library">The demo library: which demos are parsed and carry Round Facts.</param>
@@ -131,6 +141,7 @@ public sealed class SuggestedTagsService : IExtensionPass
     /// <param name="post">UI-thread marshal for <see cref="Changed" />; defaults to synchronous.</param>
     /// <param name="walk">The position walk to fold; null walks the parse through the engine's sampler.</param>
     /// <param name="utcNow">The clock verdicts and instances are stamped with.</param>
+    /// <param name="detonations">Where a build keeps what it read off the parse; null leaves <see cref="RecordPass" /> idle.</param>
     public SuggestedTagsService(
         IExtensionLibrary library,
         IRoundFacts roundFacts,
@@ -147,7 +158,8 @@ public sealed class SuggestedTagsService : IExtensionPass
         Func<string?>? openDemo = null,
         Action<Action>? post = null,
         Func<ParsedDemo, IEnumerable<PositionSample>>? walk = null,
-        Func<DateTime>? utcNow = null)
+        Func<DateTime>? utcNow = null,
+        DetonationStore? detonations = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         ArgumentNullException.ThrowIfNull(roundFacts);
@@ -172,6 +184,7 @@ public sealed class SuggestedTagsService : IExtensionPass
         _post = post ?? (action => action());
         _walk = walk;
         _utcNow = utcNow ?? (() => DateTime.UtcNow);
+        _detonations = detonations;
     }
 
     private static ILogger Log => _diagLog ??= DiagnosticsLog.CreateLogger(SuggestedTagsLog.Category);
@@ -274,13 +287,14 @@ public sealed class SuggestedTagsService : IExtensionPass
     public void Run(IPassContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        Evaluate(context.DemoPath, context.Parsed);
+        Evaluate(context.DemoPath, context.Parsed!, context.Collected<List<RemovedProjectile>>(ThrowerCollector.CollectorId));
     }
 
     /// <summary>Does the pass's work on <paramref name="parsed" />.</summary>
     /// <param name="path">The demo's path.</param>
     /// <param name="parsed">The demo's parse.</param>
-    public void Evaluate(string path, ParsedDemo parsed) => Refresh(path, parsed);
+    /// <param name="removed">The <see cref="ThrowerCollector" />'s rows from the rules run; null walks the parse for them.</param>
+    public void Evaluate(string path, ParsedDemo parsed, IReadOnlyList<RemovedProjectile>? removed = null) => Refresh(path, parsed, removed);
 
     /// <inheritdoc />
     public void OnFailed(string demoPath) => ClearForced(demoPath);
@@ -640,7 +654,7 @@ public sealed class SuggestedTagsService : IExtensionPass
         return (document, new ProposalSet(path, sha, entries, persistent, false));
     }
 
-    private void Refresh(string path, ParsedDemo parsed)
+    private void Refresh(string path, ParsedDemo parsed, IReadOnlyList<RemovedProjectile>? removed)
     {
         string fileName = Path.GetFileName(path);
         bool forced;
@@ -667,40 +681,22 @@ public sealed class SuggestedTagsService : IExtensionPass
             }
 
             RoundFactsClock clock = RoundFactsClock.For(parsed);
-            DetectionInputs inputs = BuildDetectionInputs(path, map, parsed, facts, record);
-            SiteRegions regions = SiteRegions.Compose(map, null, table, profile);
-            IReadOnlyList<TagProposal> proposals =
-                ProposalDetection.Detect(map, inputs.TickRate, regions, inputs.Events, inputs.Rounds, profile);
-            Dictionary<int, int> roundStarts = [];
-            foreach (RoundOccupancy round in inputs.Rounds)
+            List<PlacedEvent> unplaced = DetonationEvents.From(parsed, removed ?? WalkRemoved(parsed));
+            DetectionInputs inputs = DetectionInputsFrom(path, map, clock.TickRate, unplaced, facts, record, parsed)!.Value;
+            lock (BuildLock(path))
             {
-                roundStarts.TryAdd(round.Round, round.StartTick);
+                // Before the proposals: the record pass takes proposals written after this as built from it.
+                _detonations?.Write(path, DetonationDocument.From(map, clock, unplaced));
+                WriteProposals(path, record, map, clock, inputs, profile, table, fingerprint);
+                if (InputsKey(record) is { } key)
+                {
+                    lock (_gate)
+                    {
+                        _builtOn[path] = key;
+                    }
+                }
             }
 
-            ProposalDocument document = new()
-            {
-                Demo = new ProposalDemoHeader
-                {
-                    Sha256 = Normalize(record.Sha256),
-                    StableKey = DemoKeys.StableKey(path),
-                    FileName = fileName,
-                    SizeBytes = record.FileSizeBytes
-                },
-                Clock = clock,
-                DetectorSet = new ProposalDetectorSet
-                {
-                    Fingerprint = fingerprint,
-                    ProfileId = profile.Id,
-                    ComputedAtTicks = _utcNow().Ticks,
-                    Regions = regions.Source
-                },
-                OccupancySource = inputs.Source,
-                Proposals = [.. proposals.Select(p => StoredProposal.From(p, roundStarts.GetValueOrDefault(p.Round)))]
-            };
-
-            // The pending count needs the verdicts matched against these proposals, so it is counted before
-            // the write that stamps it.
-            _proposals.Write(path, document, fingerprint, CountPending(path, document));
             RaiseChanged(path);
         }
         catch (Exception ex)
@@ -733,27 +729,55 @@ public sealed class SuggestedTagsService : IExtensionPass
 
     /// <summary>
     ///     Builds a demo's occupancy and placed events: the index when it is current for the map, else
-    ///     the walk (both give the same rows); only the walk leaves a cloud behind for
-    ///     detonation placement. Internal so the tuning view's re-run harness can reuse it.
+    ///     the walk (both give the same rows). The detonation cloud comes from the index's positions file or
+    ///     from the walk. Internal so the tuning view's re-run harness can reuse it.
     /// </summary>
     /// <param name="path">The demo's path (the index sidecar and the zone/place lookups key by it).</param>
     /// <param name="map">The map, resolved.</param>
     /// <param name="parsed">The held parse.</param>
     /// <param name="facts">The demo's Round Facts rows.</param>
     /// <param name="record">The demo's library row.</param>
+    /// <param name="removed">The thrower collector's rows from the rules run, or null to walk the parse for them.</param>
     internal DetectionInputs BuildDetectionInputs(
-        string path, string map, ParsedDemo parsed, RoundFactsRows facts, LibraryDemo record)
+        string path, string map, ParsedDemo parsed, RoundFactsRows facts, LibraryDemo record,
+        IReadOnlyList<RemovedProjectile>? removed = null)
     {
         int tickRate = parsed.TickRate > 0 ? parsed.TickRate : 64;
+        return DetectionInputsFrom(path, map, tickRate, DetonationEvents.From(parsed, removed ?? WalkRemoved(parsed)), facts, record,
+            parsed)!.Value;
+    }
+
+    // Names a thrower for the 21 to 27 percent of inferno and decoy detonations the wire leaves unresolved
+    // (#56, #59). Removed samples are yielded on their own frame at any stride, so stride 8 loses none.
+    private static List<RemovedProjectile> WalkRemoved(ParsedDemo parsed)
+    {
+        DecodeSites.Enter(4);
+        return [.. ProjectileSampler.Walk(parsed, frameStride: 8).Where(s => s.Removed).Select(RemovedProjectile.From)];
+    }
+
+    // Null only without a parse to walk when the index is not current.
+    private DetectionInputs? DetectionInputsFrom(
+        string path, string map, int tickRate, IReadOnlyList<PlacedEvent> unplaced, RoundFactsRows facts, LibraryDemo record,
+        ParsedDemo? parsed)
+    {
         IReadOnlyList<RoundOccupancy> rounds;
         DetonationCloud? cloud = null;
         string source;
-        if (_index is not null && _indexSources is not null
-                               && _index.IsCurrent(path, _indexSources.FingerprintFor(map))
+        string? indexFingerprint = _indexSources?.FingerprintFor(map);
+        if (_index is not null && indexFingerprint is not null
+                               && _index.IsCurrent(path, indexFingerprint)
                                && _index.TryRead(path) is { } indexDocument)
         {
             rounds = RoundOccupancyBuilder.FromIndex(indexDocument, facts, tickRate);
             source = ProposalDocument.FromRoundIndex;
+            if (_index.TryReadPositions(path, indexFingerprint, record.Sha256) is { } positions)
+            {
+                cloud = DetonationCloud.FromPositions(positions);
+            }
+        }
+        else if (parsed is null)
+        {
+            return null;
         }
         else
         {
@@ -773,11 +797,142 @@ public sealed class SuggestedTagsService : IExtensionPass
             string.IsNullOrEmpty(map) ? null : _placesFor?.Invoke(map),
             cloud);
 
-        // Names a thrower for the 21 to 27 percent of inferno and decoy detonations the wire leaves unresolved
-        // (#56, #59); one bounded pass, since Removed samples are yielded on their own frame at any stride.
-        List<ProjectileSample> projectiles = [.. ProjectileSampler.Walk(parsed, frameStride: 8).Where(s => s.Removed)];
-        List<PlacedEvent> events = resolver.Place(DetonationEvents.From(parsed, projectiles));
+        List<PlacedEvent> events = resolver.Place(unplaced);
         return new DetectionInputs(tickRate, rounds, events, source);
+    }
+
+    private void WriteProposals(string path, LibraryDemo record, string map, RoundFactsClock clock, DetectionInputs inputs,
+        DetectorProfile profile, SiteRegionTable? table, string fingerprint)
+    {
+        SiteRegions regions = SiteRegions.Compose(map, null, table, profile);
+        IReadOnlyList<TagProposal> proposals =
+            ProposalDetection.Detect(map, inputs.TickRate, regions, inputs.Events, inputs.Rounds, profile);
+        Dictionary<int, int> roundStarts = [];
+        foreach (RoundOccupancy round in inputs.Rounds)
+        {
+            roundStarts.TryAdd(round.Round, round.StartTick);
+        }
+
+        ProposalDocument document = new()
+        {
+            Demo = new ProposalDemoHeader
+            {
+                Sha256 = Normalize(record.Sha256),
+                StableKey = DemoKeys.StableKey(path),
+                FileName = Path.GetFileName(path),
+                SizeBytes = record.FileSizeBytes
+            },
+            Clock = clock,
+            DetectorSet = new ProposalDetectorSet
+            {
+                Fingerprint = fingerprint,
+                ProfileId = profile.Id,
+                ComputedAtTicks = _utcNow().Ticks,
+                Regions = regions.Source
+            },
+            OccupancySource = inputs.Source,
+            Proposals = [.. proposals.Select(p => StoredProposal.From(p, roundStarts.GetValueOrDefault(p.Round)))]
+        };
+
+        // The pending count needs the verdicts matched against these proposals, so it is counted before
+        // the write that stamps it.
+        _proposals.Write(path, document, fingerprint, CountPending(path, document));
+    }
+
+    /// <summary>
+    ///     Builds a demo's proposals again without a parse when its Round Facts rows, its round index or its
+    ///     stored detonations move after its proposals were written. Registered with those three as its inputs.
+    /// </summary>
+    public IExtensionRecordPass RecordPass => _recordPass ??= new ProposalsRecordPass(this);
+
+    /// <summary>Whether <paramref name="demo" />'s proposals are older than the inputs they would be built from now.</summary>
+    /// <param name="demo">The demo's row.</param>
+    internal bool WantsRebuild(LibraryDemo demo)
+    {
+        if (_detonations is null || !_enabled() || !HasInputs(demo) || InputsKey(demo) is not { } key
+            || _proposals.Stamp(demo.FilePath) is not { } built || !built.IsCurrent(ProposalStore.Schema, FingerprintFor(demo.MapName)))
+        {
+            return false; // nothing stored to build from, or the visit pass owns the build
+        }
+
+        lock (_gate)
+        {
+            if (!_builtOn.TryGetValue(demo.FilePath, out string? seen))
+            {
+                // First sight this session: proposals written after every input were built from them.
+                long inputs = Math.Max(Math.Max(_detonations.Stamp(demo.FilePath)!.WrittenAtTicks, _index!.Stamp(demo.FilePath)!.WrittenAtTicks),
+                    demo.Fact(RoundFactsRows.FacetId)!.WrittenAtTicks);
+                seen = built.WrittenAtTicks >= inputs ? key : "";
+                _builtOn[demo.FilePath] = seen;
+            }
+
+            return !string.Equals(seen, key, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>Builds <paramref name="demo" />'s proposals from its stored detonations, Round Facts rows and current index.</summary>
+    /// <param name="demo">The demo's row.</param>
+    internal void Rebuild(LibraryDemo demo)
+    {
+        string path = demo.FilePath;
+        lock (BuildLock(path))
+        {
+            if (_detonations?.TryRead(path) is not { } stored || InputsKey(demo) is not { } key
+                || _roundFacts.TryGet(path) is not { Schema: RoundFactsRows.CurrentSchema } facts)
+            {
+                return;
+            }
+
+            lock (_gate)
+            {
+                if (_builtOn.TryGetValue(path, out string? seen) && string.Equals(seen, key, StringComparison.Ordinal))
+                {
+                    return; // a visit built from these inputs while this rebuild waited
+                }
+            }
+
+            DetectorProfile profile = _profile();
+            SiteRegionTable? table = TableFor(stored.Map);
+            if (DetectionInputsFrom(path, stored.Map, stored.Clock.TickRate, stored.ToEvents(), facts, demo, null) is not { } inputs)
+            {
+                return;
+            }
+
+            WriteProposals(path, demo, stored.Map, stored.Clock, inputs, profile, table, SuggestionsFingerprint.Compose(profile, table));
+            lock (_gate)
+            {
+                _builtOn[path] = key;
+            }
+        }
+
+        RaiseChanged(path);
+    }
+
+    private object BuildLock(string path) => _buildLocks[(StringComparer.OrdinalIgnoreCase.GetHashCode(path) & int.MaxValue) % _buildLocks.Length];
+
+    // The input stamps a build reads, or null while one is missing, or the index or detonations are not current.
+    private string? InputsKey(LibraryDemo demo)
+    {
+        string path = demo.FilePath;
+        if (_detonations?.Stamp(path) is not { } detonations || !_detonations.IsCurrent(path)
+            || _indexSources?.FingerprintFor(demo.MapName ?? "") is not { } indexFingerprint || _index?.Stamp(path) is not { } index
+            || !index.IsCurrent(RoundIndexStore.Schema, indexFingerprint)
+            || demo.Fact(RoundFactsRows.FacetId) is not { IsWritten: true } roundFacts)
+        {
+            return null;
+        }
+
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{index.Fingerprint}@{index.WrittenAtTicks}|{roundFacts.Schema}/{roundFacts.Fingerprint}|{detonations.WrittenAtTicks}");
+    }
+
+    private sealed class ProposalsRecordPass(SuggestedTagsService service) : IExtensionRecordPass
+    {
+        public string Id => EvaluatorId;
+
+        public bool Wants(LibraryDemo demo) => service.WantsRebuild(demo);
+
+        public void Run(LibraryDemoDetail detail, CancellationToken cancellationToken) => service.Rebuild(detail.Demo);
     }
 
     private bool NeedsBuild(LibraryDemo? entry) =>

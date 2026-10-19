@@ -14,9 +14,11 @@ using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Services.Zones;
 using Microsoft.Extensions.DependencyInjection;
@@ -465,9 +467,26 @@ public class StratBookPackBaselineTests
                 RoundIndexEvaluator roundIndex = provider.GetRequiredService<RoundIndexEvaluator>();
                 SuggestedTagsService suggestedTags = provider.GetRequiredService<SuggestedTagsService>();
                 GrenadeIndexEvaluator grenades = provider.GetRequiredService<GrenadeIndexEvaluator>();
-                forward = new ForwardPassRunner(provider.GetRequiredService<MergedRulesBuild>());
+                MergedRulesBuild rules = provider.GetRequiredService<MergedRulesBuild>();
+                forward = new ForwardPassRunner(rules);
                 demoCache = provider.GetRequiredService<DemoCacheStore>();
-                full = [library.Evaluate, highlights.Evaluate, roundFacts.Evaluate, roundIndex.Evaluate, suggestedTags.Evaluate, grenades.Evaluate];
+                // Outside a queue visit no collector is declared. Without the thrower rows Suggested Tags
+                // falls back to its own stride-8 walk, and Grenades to a rules run of its own, which the real
+                // visit does not pay.
+                CollectorSet collectors = CollectorSet.Of([
+                    new RegisteredCollector(ThrowerCollector.Contribution, null),
+                    new RegisteredCollector(GrenadeTrajectoryCollector.Contribution(() => 4), null)
+                ]);
+                rules.CollectorsFor = _ => collectors;
+                full =
+                [
+                    library.Evaluate, highlights.Evaluate, roundFacts.Evaluate, roundIndex.Evaluate,
+                    (path, parsed) => suggestedTags.Evaluate(path, parsed,
+                        rules.Collected(parsed, path).Get<List<RemovedProjectile>>(ThrowerCollector.CollectorId)),
+                    (path, parsed) => grenades.Evaluate(path, parsed, new GrenadeWalkInputs(
+                        GrenadeTables.Read(table => rules.Table(rules.BareRun(parsed, path), table, GrenadeTables.RulesetIds), parsed.ServerStartTick),
+                        rules.Collected(parsed, path).Get<GrenadeTrajectories>(GrenadeTrajectoryCollector.CollectorId)!))
+                ];
             });
 
             try

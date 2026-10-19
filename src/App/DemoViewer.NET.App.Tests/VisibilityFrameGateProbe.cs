@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 ///     <b>Phase-G coordinate-frame gate</b> for 3D visibility. The blocking
 ///     question before any raycast means anything: are the baker's collision triangles (from VRF
 ///     <c>PhysAggregateData</c>) in the SAME world frame as reconstructed player positions
-///     (<see cref="PositionUtil.CellToWorld" />)? A silent origin/scale/Z-datum mismatch yields
+///     (<see cref="PositionUtil.CellToWorld(EntityState)" />)? A silent origin/scale/Z-datum mismatch yields
 ///     plausible-but-wrong visibility, so we prove alignment empirically: cast a ray straight DOWN from a
 ///     scatter of living-player feet and confirm the nearest collision triangle sits ~0u below (feet rest on
 ///     the floor). Float hundreds of units / no hit ⇒ frame mismatch. This is the visibility analogue of the

@@ -202,7 +202,6 @@ DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.EnabledInSession = 1 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.ExtensionStartReason.Startup = 0 -> DemoViewer.NET.Extensions.Sdk.ExtensionStartReason
 DemoViewer.NET.Extensions.Sdk.FactKey
-DemoViewer.NET.Extensions.Sdk.FactKey.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactKey!
 DemoViewer.NET.Extensions.Sdk.FactKey.Deconstruct(out string! RulesetId, out string! Output) -> void
 DemoViewer.NET.Extensions.Sdk.FactKey.Equals(DemoViewer.NET.Extensions.Sdk.FactKey? other) -> bool
 DemoViewer.NET.Extensions.Sdk.FactKey.FactKey(string! RulesetId, string! Output) -> void
@@ -324,7 +323,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContributions.DemoAction(DemoViewer.NET.
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Library(DemoViewer.NET.Extensions.Sdk.ILibraryContribution! contribution) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Pass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionPass!>! factory, params string![]! after) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Playback(DemoViewer.NET.Extensions.Sdk.Playback.IPlaybackContribution! contribution) -> void
-DemoViewer.NET.Extensions.Sdk.IExtensionContributions.RecordPass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass!>! factory) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.RecordPass(string! id, System.Func<DemoViewer.NET.Extensions.Sdk.IExtensionRecordPass!>! factory, params DemoViewer.NET.Extensions.Sdk.RecordInput![]! dependsOn) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer.NET.Extensions.Sdk.IReindexEstimate! estimate) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Ruleset(DemoViewer.NET.Extensions.Sdk.RulesetContribution! ruleset) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void
@@ -373,6 +372,7 @@ DemoViewer.NET.Extensions.Sdk.IExtensionPass.Interest(string! demoPath) -> DemoV
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.OnFailed(string! demoPath) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.OrderHint(string! demoPath) -> long
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.PriorityFor(string! demoPath) -> DemoViewer.NET.Extensions.Sdk.JobPriority
+DemoViewer.NET.Extensions.Sdk.IExtensionPass.Read.get -> DemoViewer.NET.Extensions.Sdk.PassRead
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.ReadsUserCommands.get -> bool
 DemoViewer.NET.Extensions.Sdk.IExtensionPass.Run(DemoViewer.NET.Extensions.Sdk.IPassContext! context) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionPasses
@@ -424,8 +424,15 @@ DemoViewer.NET.Extensions.Sdk.ILibraryContribution.HasBadge.get -> bool
 DemoViewer.NET.Extensions.Sdk.ILibraryContribution.SetLabel(DemoViewer.NET.Extensions.Sdk.LibraryDemo! demo, string? label) -> void
 DemoViewer.NET.Extensions.Sdk.IPassContext
 DemoViewer.NET.Extensions.Sdk.IPassContext.CancellationToken.get -> System.Threading.CancellationToken
+DemoViewer.NET.Extensions.Sdk.IPassContext.Demo.get -> CS2DemoKit.Parser.DemoDescriptor!
 DemoViewer.NET.Extensions.Sdk.IPassContext.DemoPath.get -> string!
-DemoViewer.NET.Extensions.Sdk.IPassContext.Parsed.get -> CS2DemoKit.Parser.ParsedDemo!
+DemoViewer.NET.Extensions.Sdk.IPassContext.FirstServerTick.get -> int
+DemoViewer.NET.Extensions.Sdk.IPassContext.FrameCount.get -> int
+DemoViewer.NET.Extensions.Sdk.IPassContext.LastFrameTick.get -> int
+DemoViewer.NET.Extensions.Sdk.IPassContext.LastServerTick.get -> int
+DemoViewer.NET.Extensions.Sdk.IPassContext.Parsed.get -> CS2DemoKit.Parser.ParsedDemo?
+DemoViewer.NET.Extensions.Sdk.IPassContext.Rounds.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.PassRound!>!
+DemoViewer.NET.Extensions.Sdk.IPassContext.Table(string! table) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.FactRow!>!
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.CountAsync() -> System.Threading.Tasks.Task<int>!
 DemoViewer.NET.Extensions.Sdk.IReindexEstimate.FeatureId.get -> string!
@@ -609,6 +616,8 @@ DemoViewer.NET.Extensions.Sdk.LibraryFactState.Schema.get -> int
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.Schema.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.State.get -> DemoViewer.NET.Extensions.Sdk.DemoDataState
 DemoViewer.NET.Extensions.Sdk.LibraryFactState.State.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryFactState.WrittenAtTicks.get -> long
+DemoViewer.NET.Extensions.Sdk.LibraryFactState.WrittenAtTicks.init -> void
 DemoViewer.NET.Extensions.Sdk.LibraryFilter
 DemoViewer.NET.Extensions.Sdk.LibraryFilter.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryFilter!
 DemoViewer.NET.Extensions.Sdk.LibraryFilter.Deconstruct(out string! Label, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryFilterItem!>! Items, out System.Func<DemoViewer.NET.Extensions.Sdk.LibraryDemo!, string!, bool>! Matches, out string? Tooltip) -> void
@@ -733,6 +742,18 @@ DemoViewer.NET.Extensions.Sdk.ManCountState
 DemoViewer.NET.Extensions.Sdk.ManCountState.CtUp = 1 -> DemoViewer.NET.Extensions.Sdk.ManCountState
 DemoViewer.NET.Extensions.Sdk.ManCountState.Even = 0 -> DemoViewer.NET.Extensions.Sdk.ManCountState
 DemoViewer.NET.Extensions.Sdk.ManCountState.TUp = 2 -> DemoViewer.NET.Extensions.Sdk.ManCountState
+DemoViewer.NET.Extensions.Sdk.PassRead
+DemoViewer.NET.Extensions.Sdk.PassRead.Forward = 1 -> DemoViewer.NET.Extensions.Sdk.PassRead
+DemoViewer.NET.Extensions.Sdk.PassRead.Retained = 0 -> DemoViewer.NET.Extensions.Sdk.PassRead
+DemoViewer.NET.Extensions.Sdk.PassRound
+DemoViewer.NET.Extensions.Sdk.PassRound.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.PassRound!
+DemoViewer.NET.Extensions.Sdk.PassRound.Deconstruct(out int Number, out int FreezeEndTick) -> void
+DemoViewer.NET.Extensions.Sdk.PassRound.Equals(DemoViewer.NET.Extensions.Sdk.PassRound? other) -> bool
+DemoViewer.NET.Extensions.Sdk.PassRound.FreezeEndTick.get -> int
+DemoViewer.NET.Extensions.Sdk.PassRound.FreezeEndTick.init -> void
+DemoViewer.NET.Extensions.Sdk.PassRound.Number.get -> int
+DemoViewer.NET.Extensions.Sdk.PassRound.Number.init -> void
+DemoViewer.NET.Extensions.Sdk.PassRound.PassRound(int Number, int FreezeEndTick) -> void
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.MenuFor(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand! band) -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry!>!
 DemoViewer.NET.Extensions.Sdk.Playback.ILaneBehaviour.OnBandPressed(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand! band) -> void
@@ -1070,6 +1091,10 @@ DemoViewer.NET.Extensions.Sdk.RulesetContribution.FeatureId.get -> string?
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.FeatureId.init -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Id.get -> string!
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadBy.get -> string?
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadBy.init -> void
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadsUserCommands.get -> bool
+DemoViewer.NET.Extensions.Sdk.RulesetContribution.ReadsUserCommands.init -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.RulesetContribution(string! Id, System.Func<System.IO.Stream!>! Yaml, string? FeatureId = null) -> void
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Yaml.get -> System.Func<System.IO.Stream!>!
 DemoViewer.NET.Extensions.Sdk.RulesetContribution.Yaml.init -> void
@@ -1361,6 +1386,9 @@ override DemoViewer.NET.Extensions.Sdk.LibraryRound.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.PassRound.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.PassRound.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.PassRound.ToString() -> string!
 override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.Equals(object? obj) -> bool
 override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.GetHashCode() -> int
 override DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.ToString() -> string!
@@ -1482,6 +1510,8 @@ static DemoViewer.NET.Extensions.Sdk.LibraryRound.operator !=(DemoViewer.NET.Ext
 static DemoViewer.NET.Extensions.Sdk.LibraryRound.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryRound? left, DemoViewer.NET.Extensions.Sdk.LibraryRound? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.operator !=(DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer? left, DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer.operator ==(DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer? left, DemoViewer.NET.Extensions.Sdk.LibrarySidePlayer? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.PassRound.operator !=(DemoViewer.NET.Extensions.Sdk.PassRound? left, DemoViewer.NET.Extensions.Sdk.PassRound? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.PassRound.operator ==(DemoViewer.NET.Extensions.Sdk.PassRound? left, DemoViewer.NET.Extensions.Sdk.PassRound? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? left, DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry.operator ==(DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? left, DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand.operator !=(DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? left, DemoViewer.NET.Extensions.Sdk.Playback.PlaybackBand? right) -> bool
@@ -1718,3 +1748,130 @@ static DemoViewer.NET.Extensions.Sdk.KeymapBinding.operator ==(DemoViewer.NET.Ex
 DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.ActionFor(string! scope, Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers) -> string?
 DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.Changed -> System.Action?
 DemoViewer.NET.Extensions.Sdk.IExtensionKeymap.GestureText(string! actionId) -> string!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.CollectorContribution!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.CollectorContribution(string! Id, string! PassId, int Version, System.Collections.Generic.IReadOnlyList<string!>! Providers, System.Collections.Generic.IReadOnlyList<string!>! ProjectileClasses, System.Func<DemoViewer.NET.Extensions.Sdk.IFrameCollector!>! Create) -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Create.get -> System.Func<DemoViewer.NET.Extensions.Sdk.IFrameCollector!>!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Create.init -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Deconstruct(out string! Id, out string! PassId, out int Version, out System.Collections.Generic.IReadOnlyList<string!>! Providers, out System.Collections.Generic.IReadOnlyList<string!>! ProjectileClasses, out System.Func<DemoViewer.NET.Extensions.Sdk.IFrameCollector!>! Create) -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Equals(DemoViewer.NET.Extensions.Sdk.CollectorContribution? other) -> bool
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Id.get -> string!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Id.init -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.PassId.get -> string!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.PassId.init -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.ProjectileClasses.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.ProjectileClasses.init -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Providers.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Providers.init -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Stamp.get -> string!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Version.get -> int
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.Version.init -> void
+DemoViewer.NET.Extensions.Sdk.ICollectorSink
+DemoViewer.NET.Extensions.Sdk.ICollectorSink.Put<T>(T! result) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Collector(DemoViewer.NET.Extensions.Sdk.CollectorContribution! collector) -> void
+DemoViewer.NET.Extensions.Sdk.IFrameCollector
+DemoViewer.NET.Extensions.Sdk.IFrameCollector.Finish(DemoViewer.NET.Extensions.Sdk.ICollectorSink! sink) -> void
+DemoViewer.NET.Extensions.Sdk.IFrameCollector.OnFrame(DemoViewer.NET.Extensions.Sdk.IFrameReadView! view) -> void
+DemoViewer.NET.Extensions.Sdk.IFrameReadView
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.GameEvents.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.GameEvents.init -> void
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.ReadsUserCommands.get -> bool
+DemoViewer.NET.Extensions.Sdk.CollectorContribution.ReadsUserCommands.init -> void
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Command(int playerSlot) -> CS2OpenSchema.Protos.CSGOUserCmdPB?
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Created.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.ObservedProjectile>!
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Frame.get -> CS2DemoKit.Parser.DemoFrame!
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.FrameIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Projectiles.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.ObservedProjectile>!
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Provider(string! providerName) -> DemoViewer.NET.Extensions.Sdk.ObservedRead
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Read(string! providerName, int playerSlot) -> object?
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Removed.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.ObservedProjectile>!
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Team(int playerSlot) -> int
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.Tick.get -> int
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.TryReadFloat(DemoViewer.NET.Extensions.Sdk.ObservedRead provider, int playerSlot, out float value) -> bool
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.TryReadInt(DemoViewer.NET.Extensions.Sdk.ObservedRead provider, int playerSlot, out int value) -> bool
+DemoViewer.NET.Extensions.Sdk.IFrameReadView.TryReadString(DemoViewer.NET.Extensions.Sdk.ObservedRead provider, int playerSlot, out string? value) -> bool
+DemoViewer.NET.Extensions.Sdk.IPassContext.Collected<T>(string! collectorId) -> T?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Bounces.get -> int
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Bounces.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ClassName.get -> string!
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ClassName.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Deconstruct(out int EntityIndex, out int Serial, out string! ClassName, out int ThrowerSlot, out int Team, out System.Numerics.Vector3? Position, out System.Numerics.Vector3? InitialPosition, out System.Numerics.Vector3? InitialVelocity, out int Bounces, out int SmokeEffectTickBegin, out System.Numerics.Vector3? SmokeDetonationPosition, out bool? IsIncendiary) -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.EntityIndex.get -> int
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.EntityIndex.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Equals(DemoViewer.NET.Extensions.Sdk.ObservedProjectile other) -> bool
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ExplodeEffectTickBegin.get -> int?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ExplodeEffectTickBegin.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialPosition.get -> System.Numerics.Vector3?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialPosition.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialVelocity.get -> System.Numerics.Vector3?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.InitialVelocity.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.IsIncendiary.get -> bool?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.IsIncendiary.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ObservedProjectile() -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ObservedProjectile(int EntityIndex, int Serial, string! ClassName, int ThrowerSlot, int Team, System.Numerics.Vector3? Position, System.Numerics.Vector3? InitialPosition, System.Numerics.Vector3? InitialVelocity, int Bounces, int SmokeEffectTickBegin, System.Numerics.Vector3? SmokeDetonationPosition, bool? IsIncendiary) -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Position.get -> System.Numerics.Vector3?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Position.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Serial.get -> int
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Serial.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.SmokeDetonationPosition.get -> System.Numerics.Vector3?
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.SmokeDetonationPosition.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.SmokeEffectTickBegin.get -> int
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.SmokeEffectTickBegin.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Team.get -> int
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Team.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ThrowerSlot.get -> int
+DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ThrowerSlot.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedRead
+DemoViewer.NET.Extensions.Sdk.ObservedRead.Deconstruct(out string! Name, out int Index) -> void
+DemoViewer.NET.Extensions.Sdk.ObservedRead.Equals(DemoViewer.NET.Extensions.Sdk.ObservedRead other) -> bool
+DemoViewer.NET.Extensions.Sdk.ObservedRead.Index.get -> int
+DemoViewer.NET.Extensions.Sdk.ObservedRead.Index.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedRead.Name.get -> string!
+DemoViewer.NET.Extensions.Sdk.ObservedRead.Name.init -> void
+DemoViewer.NET.Extensions.Sdk.ObservedRead.ObservedRead() -> void
+DemoViewer.NET.Extensions.Sdk.ObservedRead.ObservedRead(string! Name, int Index) -> void
+override DemoViewer.NET.Extensions.Sdk.CollectorContribution.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.CollectorContribution.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.CollectorContribution.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.ObservedProjectile.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.ObservedRead.GetHashCode() -> int
+static DemoViewer.NET.Extensions.Sdk.CollectorContribution.operator !=(DemoViewer.NET.Extensions.Sdk.CollectorContribution? left, DemoViewer.NET.Extensions.Sdk.CollectorContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.CollectorContribution.operator ==(DemoViewer.NET.Extensions.Sdk.CollectorContribution? left, DemoViewer.NET.Extensions.Sdk.CollectorContribution? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ObservedProjectile.operator !=(DemoViewer.NET.Extensions.Sdk.ObservedProjectile left, DemoViewer.NET.Extensions.Sdk.ObservedProjectile right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ObservedProjectile.operator ==(DemoViewer.NET.Extensions.Sdk.ObservedProjectile left, DemoViewer.NET.Extensions.Sdk.ObservedProjectile right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ObservedRead.operator !=(DemoViewer.NET.Extensions.Sdk.ObservedRead left, DemoViewer.NET.Extensions.Sdk.ObservedRead right) -> bool
+static DemoViewer.NET.Extensions.Sdk.ObservedRead.operator ==(DemoViewer.NET.Extensions.Sdk.ObservedRead left, DemoViewer.NET.Extensions.Sdk.ObservedRead right) -> bool
+~override DemoViewer.NET.Extensions.Sdk.ObservedProjectile.Equals(object obj) -> bool
+~override DemoViewer.NET.Extensions.Sdk.ObservedProjectile.ToString() -> string
+~override DemoViewer.NET.Extensions.Sdk.ObservedRead.Equals(object obj) -> bool
+~override DemoViewer.NET.Extensions.Sdk.ObservedRead.ToString() -> string
+DemoViewer.NET.Extensions.Sdk.RecordInput
+virtual DemoViewer.NET.Extensions.Sdk.RecordInput.Equals(DemoViewer.NET.Extensions.Sdk.RecordInput? other) -> bool
+DemoViewer.NET.Extensions.Sdk.RecordInput.RecordInput(DemoViewer.NET.Extensions.Sdk.RecordInput! original) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataKey
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.DemoDataKey(string! Owner, string! Facet) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Deconstruct(out string! Owner, out string! Facet) -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Equals(DemoViewer.NET.Extensions.Sdk.DemoDataKey? other) -> bool
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Facet.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Facet.init -> void
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Owner.get -> string!
+DemoViewer.NET.Extensions.Sdk.DemoDataKey.Owner.init -> void
+override sealed DemoViewer.NET.Extensions.Sdk.FactKey.Equals(DemoViewer.NET.Extensions.Sdk.RecordInput? other) -> bool
+override DemoViewer.NET.Extensions.Sdk.DemoDataKey.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.DemoDataKey.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.DemoDataKey.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.DemoDataKey.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.DemoDataKey!
+override DemoViewer.NET.Extensions.Sdk.FactKey.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.FactKey!
+override DemoViewer.NET.Extensions.Sdk.RecordInput.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.RecordInput.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.RecordInput.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.DemoDataKey.RoundFacts.get -> DemoViewer.NET.Extensions.Sdk.DemoDataKey!
+static DemoViewer.NET.Extensions.Sdk.DemoDataKey.operator !=(DemoViewer.NET.Extensions.Sdk.DemoDataKey? left, DemoViewer.NET.Extensions.Sdk.DemoDataKey? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.DemoDataKey.operator ==(DemoViewer.NET.Extensions.Sdk.DemoDataKey? left, DemoViewer.NET.Extensions.Sdk.DemoDataKey? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.RecordInput.operator !=(DemoViewer.NET.Extensions.Sdk.RecordInput? left, DemoViewer.NET.Extensions.Sdk.RecordInput? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.RecordInput.operator ==(DemoViewer.NET.Extensions.Sdk.RecordInput? left, DemoViewer.NET.Extensions.Sdk.RecordInput? right) -> bool
+virtual DemoViewer.NET.Extensions.Sdk.RecordInput.EqualityContract.get -> System.Type!
+virtual DemoViewer.NET.Extensions.Sdk.RecordInput.PrintMembers(System.Text.StringBuilder! builder) -> bool
+abstract DemoViewer.NET.Extensions.Sdk.RecordInput.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.RecordInput!
+override sealed DemoViewer.NET.Extensions.Sdk.DemoDataKey.Equals(DemoViewer.NET.Extensions.Sdk.RecordInput? other) -> bool

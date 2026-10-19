@@ -75,7 +75,7 @@ public sealed class FactsEvaluator : IDemoEvaluator
     public ForwardNeeds? ForwardFor(string path) => ForwardNeeds.Rules;
 
     /// <inheritdoc />
-    public void Evaluate(string path, ParsedDemo parsed) => Record(path, _facts.Rules.BareRun(parsed), parsed.TickRate);
+    public void Evaluate(string path, ParsedDemo parsed) => Record(path, _facts.Rules.BareRun(parsed, path), parsed.TickRate);
 
     /// <inheritdoc />
     public void EvaluateForward(string path, ForwardDemoResult pass)

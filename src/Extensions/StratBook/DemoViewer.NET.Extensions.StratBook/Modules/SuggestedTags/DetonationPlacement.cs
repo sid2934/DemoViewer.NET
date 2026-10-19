@@ -46,10 +46,10 @@ public static class DetonationEvents
     /// </summary>
     /// <param name="demo">The held parse.</param>
     /// <param name="projectiles">
-    ///     The demo's <c>Removed</c> projectile samples, or null to skip the match and leave inferno and decoy
-    ///     unresolved as before.
+    ///     The demo's removed projectiles, or null to skip the match and leave inferno and decoy unresolved as
+    ///     before.
     /// </param>
-    public static List<PlacedEvent> From(ParsedDemo demo, IReadOnlyList<ProjectileSample>? projectiles = null)
+    public static List<PlacedEvent> From(ParsedDemo demo, IReadOnlyList<RemovedProjectile>? projectiles = null)
     {
         ArgumentNullException.ThrowIfNull(demo);
         List<PlacedEvent> events = [];
@@ -87,17 +87,16 @@ public static class DetonationEvents
     }
 
     // -1 with no projectiles offered or no match near the detonation; ProjectileThrowerMatch does the rest.
-    private static int ThrowerSlotNear(IReadOnlyList<ProjectileSample>? projectiles, string className, int tick, Vector3 position) =>
+    private static int ThrowerSlotNear(IReadOnlyList<RemovedProjectile>? projectiles, string className, int tick, Vector3 position) =>
         projectiles is not null && ProjectileThrowerMatch.Nearest(projectiles, className, tick, position) is { ThrowerSlot: >= 0 } sample
             ? sample.ThrowerSlot
             : -1;
 }
 
 /// <summary>
-///     The private sparse sample cloud: every 25th alive placed sample of the
-///     fallback walk, 5,000 to 8,000 points per demo. A detonation takes the place of its nearest
-///     point within the resolver's distance. It exists only when the walk runs; with the index or
-///     with zones the resolver never reaches it.
+///     The private sparse sample cloud: every 25th alive placed sample of the fallback walk or of the
+///     index's positions file, 5,000 to 8,000 points per demo. A detonation takes the place of its
+///     nearest point within the resolver's distance, after zones and the index centroids.
 /// </summary>
 public sealed class DetonationCloud
 {
@@ -119,6 +118,32 @@ public sealed class DetonationCloud
         {
             _points.Add((position, place));
         }
+    }
+
+    /// <summary>
+    ///     The cloud over an index's positions file: every placed tuple offered in round, step and file
+    ///     order. One tuple per alive slot per cadence step, the walk's one sample per slot per second.
+    /// </summary>
+    /// <param name="positions">The demo's positions file.</param>
+    public static DetonationCloud FromPositions(RoundPositionsDocument positions)
+    {
+        ArgumentNullException.ThrowIfNull(positions);
+        DetonationCloud cloud = new();
+        foreach (RoundPositionsRound round in positions.Rounds)
+        {
+            foreach (List<RoundPosition> step in round.Pos)
+            {
+                foreach (RoundPosition tuple in step)
+                {
+                    if (positions.PlaceOf(tuple.PlaceId) is { Length: > 0 } place)
+                    {
+                        cloud.Offer(new Vector3(tuple.X, tuple.Y, tuple.Z), place);
+                    }
+                }
+            }
+        }
+
+        return cloud;
     }
 
     /// <summary>Adds a point unconditionally; tests build a cloud by hand.</summary>
@@ -150,7 +175,7 @@ public sealed class DetonationCloud
 /// <summary>
 ///     The one resolver call behind which a detonation gets its place, in precedence order: the map's
 ///     zones, else the nearest index place centroid on the detonation's
-///     Z band, else the walk's private cloud. The 400-unit distance Suggested Tags measured (2.6 to 8.5
+///     Z band, else the sample cloud. The 400-unit distance Suggested Tags measured (2.6 to 8.5
 ///     percent unresolved with the cloud) is the limit for both fallbacks.
 /// </summary>
 public sealed class DetonationPlaceResolver
@@ -168,7 +193,7 @@ public sealed class DetonationPlaceResolver
 
     /// <param name="zones">The map's zone resolver, or null when the map has none.</param>
     /// <param name="places">The index's place summaries for the map, or null when nothing is indexed.</param>
-    /// <param name="cloud">The walk's cloud, or null when occupancy came from the index.</param>
+    /// <param name="cloud">The sample cloud, or null when there are no positions to build one from.</param>
     public DetonationPlaceResolver(IZonePlaceResolver? zones, IReadOnlyList<PlaceSummary>? places, DetonationCloud? cloud)
     {
         _zones = zones;

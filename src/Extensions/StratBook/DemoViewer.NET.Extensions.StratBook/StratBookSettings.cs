@@ -65,10 +65,10 @@ public sealed class StratBookSettings
     public RoundIndexTokenSource TokenSource => _store.Get(TokenSourceKey, RoundIndexTokenSource.Pawn);
 
     /// <summary>
-    ///     Background grenade walk, default off: about two and a half seconds a demo is half an hour over a
+    ///     Background grenade walk, default on: about two and a half seconds a demo is half an hour over a
     ///     700-demo library. Off, the open demo is still walked on its own parse.
     /// </summary>
-    public bool GrenadesBackgroundIndex => _store.Get(GrenadesBackgroundIndexKey, false);
+    public bool GrenadesBackgroundIndex => _store.Get(GrenadesBackgroundIndexKey, true);
 
     /// <summary>Keep every n-th moved sample of a flight; bounce vertices are always kept. At least 1.</summary>
     public int TrajectoryStride => Math.Max(1, _store.Get(TrajectoryStrideKey, 4));
@@ -118,7 +118,7 @@ public sealed class StratBookSettings
     /// <summary>The Grenade Index settings page, drawn by the host.</summary>
     public static SettingsSchema GrenadeIndexSchema { get; } = new("stratbook.grenade-index", "GRENADE INDEX",
     [
-        SettingDescriptor.Toggle(GrenadesBackgroundIndexKey, "Walk library grenades in the background", false,
+        SettingDescriptor.Toggle(GrenadesBackgroundIndexKey, "Walk library grenades in the background", true,
             "About 2 s per demo. Off = the open demo's grenades, and any demo from Match Overview."),
         SettingDescriptor.Toggle(RenderLineupClipsKey, "Render lineup clips", true,
             "A GIF of each lineup thrown more than once, beside its setpos line, queued in Review."),

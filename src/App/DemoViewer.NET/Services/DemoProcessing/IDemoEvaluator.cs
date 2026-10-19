@@ -41,6 +41,12 @@ public interface IDemoEvaluator
     bool WantsAfterUpstream(string path) => false;
 
     /// <summary>
+    ///     True when <see cref="Wants" /> is false only because this evaluator's output does not justify a read on
+    ///     its own. The visit then carries it when another evaluator on the demo needs a rules run. Default false.
+    /// </summary>
+    bool WantsIfRulesRun(string path) => false;
+
+    /// <summary>
     ///     Does this evaluator's work on the single held parse. Runs INSIDE the queue's gate slot with
     ///     the <see cref="ParsedDemo" /> still in memory (the one-heavy-parse invariant), so it must
     ///     finish SYNCHRONOUSLY before the slot releases. Failures are isolated by the queue: a throw

@@ -116,6 +116,29 @@ public class RecordPassRunnerTests
     }
 
     [Test]
+    public async Task APassWhoseInputStampThrows_IsFaultedForThatDemo_AndTheRunGoesOn()
+    {
+        using DemoProcessingQueue queue = CountingQueue(() => { });
+        DemoCacheStore store = new(null);
+        StampThrower thrower = new();
+        Recording other = new("other", _ => true);
+        ConcurrentBag<string> faults = [];
+        using RecordPassRunner runner = new(() => [thrower, other], store, queue)
+        {
+            Faulted = (pass, path, _) => faults.Add(pass.Id + "@" + path)
+        };
+
+        store.Upsert(HostLibraryTests.Parsed("/d/one.dem"));
+        store.Upsert(HostLibraryTests.Parsed("/d/two.dem", sha: new string('b', 64)));
+        await WaitFor(() => other.Runs.Count == 2, "the other pass on both demos");
+
+        await Assert.That(other.Runs.Order(StringComparer.Ordinal)).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
+        await Assert.That(runner.IsFaulted("stamps", "/d/one.dem")).IsTrue();
+        await Assert.That(runner.IsFaulted("stamps", "/d/two.dem")).IsTrue();
+        await Assert.That(faults.Order(StringComparer.Ordinal)).IsEquivalentTo(["stamps@/d/one.dem", "stamps@/d/two.dem"]);
+    }
+
+    [Test]
     public async Task AnExtensionsPass_SeesTheSdkRowAndDetail()
     {
         using DemoProcessingQueue queue = CountingQueue(() => { });
@@ -155,6 +178,60 @@ public class RecordPassRunnerTests
         await Assert.That(pass.Runs.Order()).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
     }
 
+    // A user's light item preempts a background record run. The run must be requeued with the row it stopped
+    // on and the rest of its batch, not end Completed with that work waiting for an unrelated change.
+    [Test]
+    public async Task APreemptedRun_IsRequeued_AndFinishesEveryRow()
+    {
+        using DemoProcessingQueue queue = CountingQueue(() => { });
+        DemoCacheStore store = new(null);
+        Interrupted pass = new();
+        using RecordPassRunner runner = new(() => [pass], store, queue);
+
+        queue.Pause();
+        store.Upsert(HostLibraryTests.Parsed("/d/one.dem"));
+        store.Upsert(HostLibraryTests.Parsed("/d/two.dem", sha: "bb"));
+        queue.Resume();
+        await WaitFor(() => pass.Started.IsSet, "the run inside its first row");
+
+        await QueueWork.Run(queue, QueueJobKind.StoreSave, "user save", "test", _ => { }, DemoJobPriority.UserRequested);
+        await WaitFor(() => pass.Finished.Count == 2, "every row finished after the requeue");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(pass.Finished.Order()).IsEquivalentTo(["/d/one.dem", "/d/two.dem"]);
+            await Assert.That(pass.Interruptions).IsEqualTo(1);
+        }
+    }
+
+    // Stops inside its first row until the run is preempted, then runs normally.
+    private sealed class Interrupted : IRecordPass
+    {
+        public ManualResetEventSlim Started { get; } = new(false);
+        public ConcurrentQueue<string> Finished { get; } = new();
+        public int Interruptions { get; private set; }
+
+        public string Id => "interrupted";
+
+        public bool Wants(DemoCacheIndexEntry entry) => true;
+
+        public void Run(DemoCacheRecord record, CancellationToken cancellationToken)
+        {
+            if (Interruptions == 0)
+            {
+                Started.Set();
+                cancellationToken.WaitHandle.WaitOne(5000);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    Interruptions++;
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+            }
+
+            Finished.Enqueue(record.Path);
+        }
+    }
+
     private sealed class Recording(string id, Func<DemoCacheIndexEntry, bool> wants) : IRecordPass
     {
         public ConcurrentQueue<string> Runs { get; } = new();
@@ -173,6 +250,19 @@ public class RecordPassRunnerTests
                 throw new InvalidOperationException("boom");
             }
         }
+    }
+
+    private sealed class StampThrower : IRecordPass
+    {
+        public string Id => "stamps";
+
+        public IReadOnlyList<string> InputStamps => ["input"];
+
+        public PackStamp? InputStamp(DemoCacheIndexEntry entry, string id) => throw new ArgumentException("bad facet");
+
+        public bool Wants(DemoCacheIndexEntry entry) => true;
+
+        public void Run(DemoCacheRecord record, CancellationToken cancellationToken) => throw new InvalidOperationException("never runs");
     }
 
     private sealed class SdkPass : IExtensionRecordPass

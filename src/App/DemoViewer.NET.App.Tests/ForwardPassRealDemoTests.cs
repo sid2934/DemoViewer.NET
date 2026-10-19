@@ -18,6 +18,8 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.AppTests.Extensions;
 
 #endregion
 
@@ -39,7 +41,7 @@ public class ForwardPassRealDemoTests
 
     // The two separate builds before the merge: highlights alone, round_facts alone.
     private static IReadOnlyList<RulesetDoc> HighlightsOnly(IReadOnlyList<RulesetDoc> rules) =>
-        [.. rules.Where(r => r.Id != RoundFactsFingerprint.RulesetId)];
+        [.. rules.Where(r => r.Id != RoundFactsFingerprint.RulesetId && !LibraryTeamTables.IsLibraryRuleset(r.Id))];
 
     [Test]
     [Arguments(0)]
@@ -94,7 +96,7 @@ public class ForwardPassRealDemoTests
                 await Assert.That(forward["round facts fingerprint"]).IsNotEqualTo(old["round facts fingerprint"]);
             }
 
-            foreach (string key in requireRows ? new[] { "firings", "round facts", "record", "library" } : ["firings", "record", "library"])
+            foreach (string key in requireRows ? new[] { "firings", "round facts", "record", "library", "extension pass" } : ["firings", "record", "library"])
             {
                 await Assert.That(forward[key].Length).IsGreaterThan(200).Because($"{key}: {forward[key]}");
             }
@@ -137,6 +139,7 @@ public class ForwardPassRealDemoTests
             facts.Evaluate(path, parsed);
         });
         written["firings"] = JsonSerializer.Serialize(merged.BareRun(parsed).Highlights, Json);
+        written["extension pass"] = ExtensionPassSees(path, parsed, null);
 
         IReadOnlyList<RulesetDoc> rules = ShippedRules().Rulesets;
         BuildResult highlightsOnly = DemoAnalysis.Build(parsed, HighlightsOnly(rules));
@@ -163,6 +166,16 @@ public class ForwardPassRealDemoTests
         return (written, old);
     }
 
+    // A forward extension pass stores what it reads here under one fingerprint, whichever read the visit ran.
+    private static string ExtensionPassSees(string path, ParsedDemo? parsed, ForwardDemoResult? read)
+    {
+        ExtensionPassHostTests.FakePass pass = new() { Reads = PassRead.Forward };
+        new ExtensionPassHost(pass, [], ExtensionPassHostTests.StandaloneGuard(), static () => false)
+            .Run(new PassInput(new VisitedDemo(path), PassLevel.Background, parsed, read, CancellationToken.None));
+        ExtensionPassHostTests.SeenContext seen = pass.Seen!;
+        return JsonSerializer.Serialize(new { seen.FrameCount, seen.FirstServerTick, seen.LastServerTick, seen.Map, seen.Rounds }, Json);
+    }
+
     private static Dictionary<string, string> Forward(string path, MergedRulesBuild merged)
     {
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
@@ -174,6 +187,7 @@ public class ForwardPassRealDemoTests
             facts.EvaluateForward(path, pass);
         });
         written["firings"] = JsonSerializer.Serialize(pass.Run!.Highlights, Json);
+        written["extension pass"] = ExtensionPassSees(path, null, pass);
         return written;
     }
 
@@ -181,7 +195,7 @@ public class ForwardPassRealDemoTests
     private static string RulesOnlyRoundFacts(string path, MergedRulesBuild merged)
     {
         using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
-        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, merged.Docs);
+        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, merged.Docs);
         DemoCacheStore cache = new(null);
         cache.Upsert(new DemoCacheRecord
         {
@@ -211,7 +225,7 @@ public class ForwardPassRealDemoTests
         RulesRoundFactsRulesetIdentity identity = new(merged);
         try
         {
-            using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache);
+            using DemoLibraryService library = new(a => a(), libraryJson, demoCache: cache) { TeamRun = merged.BareRun };
             using HighlightScanService highlights = new(cache, new RulesHighlightHarvester(merged), () => [path], () => true);
             RoundFactsEvaluator facts = new(cache, new EngineRoundFactsRowSource(identity), identity);
             run(library, entry, highlights, facts);
@@ -261,12 +275,16 @@ public class ForwardPassRealDemoTests
     }
 
     // Write times differ between the two runs by construction.
+    // A location's LastSeenUtcTicks is the store's write time, like a stamp's ComputedAtTicks.
+    private static bool IsWallClock(string key) =>
+        key.EndsWith("AtTicks", StringComparison.Ordinal) || key == nameof(DemoLocation.LastSeenUtcTicks);
+
     private static void StripStamps(JsonNode? node)
     {
         switch (node)
         {
             case JsonObject obj:
-                foreach (string key in obj.Select(kv => kv.Key).Where(k => k.EndsWith("AtTicks", StringComparison.Ordinal)).ToList())
+                foreach (string key in obj.Select(kv => kv.Key).Where(IsWallClock).ToList())
                 {
                     obj.Remove(key);
                 }

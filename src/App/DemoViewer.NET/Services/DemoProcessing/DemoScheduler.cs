@@ -23,7 +23,7 @@ namespace DemoViewer.NET.Services.DemoProcessing;
 ///         outstanding pass and one fault. The path planned is the one marked last at the highest level.
 ///     </para>
 /// </summary>
-public sealed class DemoScheduler : IDisposable
+public sealed class DemoScheduler : IDisposable, IWorkCheckStatus
 {
     private const string PlanTitle = "Checking demos for work";
     private const string PlanKey = "scheduler.plan";
@@ -40,6 +40,8 @@ public sealed class DemoScheduler : IDisposable
     private readonly Action? _validatePasses;
     private bool _recheckAll;
     private bool _planQueued;
+    private DateTimeOffset? _lastChecked;
+    private Task? _planTask;
     private bool _disposed;
 
     /// <param name="passes">
@@ -114,6 +116,21 @@ public sealed class DemoScheduler : IDisposable
 
     /// <summary>Validates the pass graph without constructing any pass: a cycle or an unknown After id throws here.</summary>
     public void ValidatePasses() => _validatePasses?.Invoke();
+
+    /// <inheritdoc />
+    public event Action? CheckChanged;
+
+    /// <inheritdoc />
+    public WorkCheck Check
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return new WorkCheck(_planQueued, _planQueued ? 0 : _dirty.Count, _lastChecked);
+            }
+        }
+    }
 
     /// <summary>The library added this demo or found it changed: plan its visit.</summary>
     public void DemoChanged(string path) => MarkDirty(path, PassLevel.Backlog);
@@ -287,32 +304,50 @@ public sealed class DemoScheduler : IDisposable
         bool userRequested = level >= PassLevel.UserRequested;
         lock (_lock)
         {
-            if (_planQueued && !userRequested)
+            // IsCompleted flips the moment a removed-before-start item is cancelled; the ContinueWith
+            // below that clears _planQueued runs later, on the pool, so it cannot be trusted alone.
+            if (_planQueued && !userRequested && _planTask?.IsCompleted != true)
             {
                 return;
             }
 
             _planQueued = true;
+            _planTask = null; // cleared until the real task is assigned, so no racing caller reads a stale completed one
         }
+
+        RaiseCheckChanged();
 
         // A planning item the user removes before it starts never drains; the next mark must still queue one.
         StrongBox<bool> started = new(false);
-        _ = QueueWork.Run(_queue, QueueJobKind.Scheduling, PlanTitle, "scheduler", token =>
-                {
-                    started.Value = true;
-                    Drain(token);
-                },
-                userRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background, PlanKey)
-            .ContinueWith(_ =>
+        Task task = QueueWork.Run(_queue, QueueJobKind.Scheduling, PlanTitle, "scheduler", token =>
             {
-                if (!started.Value)
+                started.Value = true;
+                Drain(token);
+            },
+            userRequested ? DemoJobPriority.UserRequested : DemoJobPriority.Background, PlanKey);
+
+        lock (_lock)
+        {
+            _planTask = task;
+        }
+
+        _ = task.ContinueWith(_ =>
+        {
+            if (!started.Value)
+            {
+                lock (_lock)
                 {
-                    lock (_lock)
+                    // Only clear the flag for this task: a later Schedule may already have moved
+                    // _planTask on to the item that replaced this removed one.
+                    if (ReferenceEquals(_planTask, task))
                     {
                         _planQueued = false;
                     }
                 }
-            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+                RaiseCheckChanged();
+            }
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     private void OnCapacityAvailable()
@@ -337,8 +372,9 @@ public sealed class DemoScheduler : IDisposable
         {
             while (true)
             {
-                List<(string Demo, string Path, PassLevel Level)> batch;
+                List<(string Demo, string Path, PassLevel Level)> batch = [];
                 bool recheck;
+                bool done = false;
                 lock (_lock)
                 {
                     recheck = _recheckAll;
@@ -346,11 +382,20 @@ public sealed class DemoScheduler : IDisposable
                     if (!recheck && (_dirty.Count == 0 || _disposed))
                     {
                         _planQueued = false;
-                        return;
+                        _lastChecked = DateTimeOffset.Now;
+                        done = true;
                     }
+                    else
+                    {
+                        batch = [.. _dirty.Select(d => (d.Key, d.Value.Path, d.Value.Level))];
+                        _dirty.Clear();
+                    }
+                }
 
-                    batch = [.. _dirty.Select(d => (d.Key, d.Value.Path, d.Value.Level))];
-                    _dirty.Clear();
+                if (done)
+                {
+                    RaiseCheckChanged();
+                    return;
                 }
 
                 if (recheck)
@@ -366,29 +411,26 @@ public sealed class DemoScheduler : IDisposable
                     }
                 }
 
+                // Highest level first: a user's demo bypasses the background cap and must not wait behind one
+                // the queue refuses.
+                batch = [.. batch.OrderByDescending(b => b.Level)];
                 IReadOnlyList<IDemoPass> passes = _passes();
                 for (int i = 0; i < batch.Count; i++)
                 {
-                    if (token.IsCancellationRequested)
+                    // Stopped by the user, or refused by a full background tier: what is left stays dirty, and the
+                    // queue's next capacity event plans it. Re-planning a refused demo here would spin until a
+                    // visit ends.
+                    if (token.IsCancellationRequested || !Plan(batch[i].Demo, batch[i].Path, batch[i].Level, passes))
                     {
-                        // Stopped by the user: what is left stays dirty for the next event.
                         lock (_lock)
                         {
-                            foreach ((string demo, string path, PassLevel level) in batch.Skip(i))
-                            {
-                                if (!_dirty.TryGetValue(demo, out (string Path, PassLevel Level) current) || level > current.Level)
-                                {
-                                    _dirty[demo] = (path, level);
-                                }
-                            }
-
+                            RedirtyLocked(batch.Skip(i));
                             _planQueued = false;
                         }
 
+                        RaiseCheckChanged();
                         return;
                     }
-
-                    Plan(batch[i].Demo, batch[i].Path, batch[i].Level, passes);
                 }
             }
         }
@@ -399,7 +441,32 @@ public sealed class DemoScheduler : IDisposable
                 _planQueued = false;
             }
 
+            RaiseCheckChanged();
             ReportFault("scheduler", null, ex);
+        }
+    }
+
+    private void RaiseCheckChanged()
+    {
+        try
+        {
+            CheckChanged?.Invoke();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            ReportFault("scheduler", null, ex);
+        }
+    }
+
+    private static bool NeedsRules(IDemoPass pass, VisitedDemo demo)
+    {
+        try
+        {
+            return (pass.Needs(demo).Forward & ForwardNeeds.Rules) != 0;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return false;
         }
     }
 
@@ -416,10 +483,22 @@ public sealed class DemoScheduler : IDisposable
         }
     }
 
+    // Under _lock. Keeps the higher level when a demo is already dirty.
+    private void RedirtyLocked(IEnumerable<(string Demo, string Path, PassLevel Level)> demos)
+    {
+        foreach ((string demo, string path, PassLevel level) in demos)
+        {
+            if (!_dirty.TryGetValue(demo, out (string Path, PassLevel Level) current) || level > current.Level)
+            {
+                _dirty[demo] = (path, level);
+            }
+        }
+    }
+
     // Plans one demo: the closure of interested passes, the level the highest of them or the caller asks for,
-    // one visit. A demo the queue refuses goes back on the dirty set for the next capacity event.
+    // one visit. False when the queue refused the visit; the caller puts the demo back on the dirty set.
     // The keys are taken once, here: a visit that hashes the file changes the path's key before it ends.
-    private void Plan(string demoKey, string path, PassLevel level, IReadOnlyList<IDemoPass> passes)
+    private bool Plan(string demoKey, string path, PassLevel level, IReadOnlyList<IDemoPass> passes)
     {
         VisitedDemo demo = new(path);
         string[] keys = [.. KeysOf(path).Append(demoKey).Distinct(StringComparer.OrdinalIgnoreCase)];
@@ -429,7 +508,8 @@ public sealed class DemoScheduler : IDisposable
             candidates = [.. passes.Where(p => !keys.Any(k => _faulted.Contains((p.Id, k))))];
         }
 
-        List<IDemoPass> planned = VisitPlanner.Plan(candidates, demo, level, (pass, ex) => ReportFault(pass.Id, path, ex));
+        List<IDemoPass> planned = VisitPlanner.Plan(candidates, demo, level, (pass, ex) => ReportFault(pass.Id, path, ex),
+            out HashSet<string> riders);
 
         long orderHint = 0;
         foreach (IDemoPass pass in planned)
@@ -446,43 +526,45 @@ public sealed class DemoScheduler : IDisposable
             }
         }
 
+        HashSet<string> rulesPasses = [.. planned.Where(p => !riders.Contains(p.Id) && NeedsRules(p, demo)).Select(p => p.Id)];
         List<IDemoPass> submitting = [];
         lock (_lock)
         {
             if (_disposed)
             {
-                return;
+                return true;
             }
 
-            foreach (IDemoPass pass in planned)
-            {
-                if (!keys.Any(k => _outstanding.Contains((pass.Id, k))))
-                {
-                    foreach (string key in keys)
-                    {
-                        _outstanding.Add((pass.Id, key));
-                    }
+            List<IDemoPass> fresh = [.. planned.Where(pass => !keys.Any(k => _outstanding.Contains((pass.Id, k))))];
 
-                    submitting.Add(pass);
+            // A rider whose rules-run pass is already on another visit would make this read run rules for it alone.
+            if (!fresh.Exists(pass => rulesPasses.Contains(pass.Id)))
+            {
+                fresh.RemoveAll(pass => riders.Contains(pass.Id));
+            }
+
+            foreach (IDemoPass pass in fresh)
+            {
+                foreach (string key in keys)
+                {
+                    _outstanding.Add((pass.Id, key));
                 }
+
+                submitting.Add(pass);
             }
         }
 
         if (submitting.Count == 0)
         {
-            return;
-        }
-
-        foreach (IDemoPass pass in submitting)
-        {
-            RaiseOutstanding(pass.Id);
+            return true;
         }
 
         IDemoQueueHandle handle = _queue.SubmitVisit(new DemoVisitRequest(path, level, submitting, orderHint,
-            Path.GetFileName(path), (pass, outcome, error) => PassEnded(keys, path, pass, outcome, error)));
+            Path.GetFileName(path), (pass, outcome, error) => PassEnded(keys, path, pass, outcome, error), riders));
 
         if (handle.State == DemoQueueItemState.Rejected)
         {
+            // Nothing was raised for these passes, so a refusal changes nothing a listener can see.
             lock (_lock)
             {
                 foreach (IDemoPass pass in submitting)
@@ -493,17 +575,18 @@ public sealed class DemoScheduler : IDisposable
                     }
                 }
 
-                if (!_dirty.TryGetValue(demoKey, out (string Path, PassLevel Level) current) || level > current.Level)
-                {
-                    _dirty[demoKey] = (path, level);
-                }
+                RedirtyLocked([(demoKey, path, level)]);
             }
 
-            foreach (IDemoPass pass in submitting)
-            {
-                RaiseOutstanding(pass.Id);
-            }
+            return false;
         }
+
+        foreach (IDemoPass pass in submitting)
+        {
+            RaiseOutstanding(pass.Id);
+        }
+
+        return true;
     }
 
     // Runs in the queue's slot. Clears the outstanding entry either way so a demo that becomes interesting

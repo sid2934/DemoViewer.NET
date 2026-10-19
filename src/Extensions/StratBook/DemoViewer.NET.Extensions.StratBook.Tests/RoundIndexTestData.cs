@@ -23,6 +23,9 @@ internal static class RoundIndexTestData
     internal static readonly int[] CtSlots = [1, 2, 3, 4, 5];
     internal static readonly int[] TSlots = [6, 7, 8, 9, 10];
 
+    /// <summary>The fingerprint's sampler term under the shipped options.</summary>
+    internal static readonly string SamplerTerm = $";sampler=table;ruleset={RoundIndexTable.Identity};roster={RoundIndexRosterCollector.Version}";
+
     /// <summary>A two-frame parse at <paramref name="tickRate" /> whose last frame is <paramref name="lastTick" />.</summary>
     internal static ParsedDemo Demo(int tickRate = 64, int lastTick = 20000, string map = "de_nuke")
     {

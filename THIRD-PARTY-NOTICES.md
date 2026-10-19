@@ -114,7 +114,7 @@ modified version be renamed. This project redistributes it unmodified.
 
 The Windows build links ANGLE (`av_libglesv2.dll`) **in-process** to create windowless EGL /
 OpenGL ES contexts for GPU-accelerated offscreen rendering (2D playback video export and headless
-rendering; see `docs/playback2d-v2/design.md` §5.8). The binary is redistributed exactly as
+rendering). The binary is redistributed exactly as
 published in the `Avalonia.Angle.Windows.Natives` NuGet package, built from
 <https://github.com/AvaloniaUI/angle> (commit `cb8b4e1307a9d8f5ff56b8c5973bea4158ffead8`).
 Upstream project: <https://github.com/google/angle>.

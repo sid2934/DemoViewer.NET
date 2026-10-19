@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -339,12 +340,10 @@ public class SuggestedTagsOccupancyTests
             Fire("inferno_startburn", 300, new InfernoStartburnEvent { EntityId = 1, X = 1, Y = 2, Z = 3 }),
             Fire("decoy_started", 400, new DecoyStartedEvent { EntityId = 5, UserId = 123456, X = 0, Y = 0, Z = 0 })
         ]);
-        List<ProjectileSample> projectiles =
+        List<RemovedProjectile> projectiles =
         [
-            new(300, 300, 11, 1, GrenadeProjectileClasses.Molotov, ThrowerSlot: 2,
-                Position: new Vector3(1, 2, 3), InitialPosition: null, InitialVelocity: null, Bounces: 0, Created: false, Removed: true),
-            new(9000, 9000, 12, 1, GrenadeProjectileClasses.Decoy, ThrowerSlot: 5,
-                Position: new Vector3(4000, 4000, 0), InitialPosition: null, InitialVelocity: null, Bounces: 0, Created: false, Removed: true)
+            new(300, GrenadeProjectileClasses.Molotov, ThrowerSlot: 2, Position: new Vector3(1, 2, 3)),
+            new(9000, GrenadeProjectileClasses.Decoy, ThrowerSlot: 5, Position: new Vector3(4000, 4000, 0))
         ];
 
         List<PlacedEvent> events = DetonationEvents.From(demo, projectiles);

@@ -1395,12 +1395,11 @@ spectating has no readback. Gated by `playback2d.follow`.
   **Third consumer (demo-processing-queue.md §12): the demo-processing queue** via
   `ViewModels/DemoProcessing/ProcessingQueueStatusViewModel` + `Views/DemoProcessing/ProcessingQueueStatusView`
   (see [Processing-queue chip + flyout](#processing-queue-surface)), the queue's live management surface.
-  **Fourth consumer (v0.5.3 step 9, `highlights-matchoverview-redesign.md` §5 row 2): the
-  library-wide highlight scan** via `ViewModels/Highlights/HighlightScanStatusViewModel` +
-  `Views/Highlights/HighlightScanStatusView`: the home the retired card grid's `ScanQueueSummary` badge and
-  its per-card scanning animation were re-assigned to. It **extended, did not fork**: zero changes to
-  `StatusChip`/`StatusChipViewModel`, zero new tokens, flyout body resolved by the `ViewLocator` like the
-  other three. Four consumers now share the control. **The 2D export chip and the Strat Book export chip
+  **The library-wide highlight scan chip was the fourth consumer and is retired.** Highlights became an
+  ordinary pass on the shared queue, so its progress is the processing-queue chip's, and a second count
+  of "queued" demos only disagreed with it. What it alone offered moved into the Reels tab as
+  `HighlightBacklogViewModel`: a notice for demos without current highlights, with `[Retry failed]`
+  (`⟳ Rescan all` is already in the tab header). Capture variant: `highlights-backlog`. **The 2D export chip and the Strat Book export chip
   are the fifth and sixth** (`Playback2DExportStatusViewModel`, mounted via `MainViewModel.AttachPlayback2DExportStatus`
   for the 2D chip, a core, dedicated slot). The Strat Book chip is a host-owned export slot too:
   `MainViewModel.MountExportStatus(chipId, featureId, status)`, reached by the pack through the first-party
@@ -1409,23 +1408,6 @@ spectating has no readback. Gated by `playback2d.follow`.
   extension supplies `IStatusChipSource` state and the host copies it into a `StatusChipViewModel` it owns,
   reading the source under the extension's guard and on the UI thread. Both kinds are `IShellChip`s keyed by
   id in a `_shownContributedChips` map.
-  - **Flyout contents:** queue depth · outdated count (`Pending && Events.Count > 0`) · failed count ·
-    `◐ scanning <name>` · `[Retry all failed]` · `[⟳ Rescan all]`. Counts are neutral `TextMid` labels with
-    `TextValue` values, never tinted, per the contrast rule above.
-  - **`Retry all failed` gave `HighlightScanService.RequestScan(path)` back a UI entry point**, which the
-    Reels-dashboard entry below recorded as lost when the card grid's per-demo badges went away. It re-queues
-    only `Failed` rows: a user retrying three broken demos has not asked to re-harvest the seven hundred
-    that worked, which is the whole difference from `Rescan all`.
-  - **⚠ Duplication is safe for THIS consumer only.** It is a *pure projection* of
-    `HighlightScanService` + `DemoCacheStore` and holds no job state, so two instances cannot disagree
-    (the shell may build its own before the lazily-created Reels tab exists). That is the opposite of
-    `ReelJobStatusViewModel`, where §4.3 requires exactly one instance because it models a running *job*.
-  - **Presence rule:** `IsRelevant` (`QueueDepth > 0 || IsScanning || FailedCount > 0`), AND
-    `!OperatingSystem.IsBrowser()`. Ungated: it appears only while work is happening, and
-    `chrome.processingQueue` already sets the precedent that background work on the user's behalf is visible
-    to every category. Shell registration shipped (`App.axaml.cs` DI singleton →
-    `MainViewModel.AttachHighlightScanStatus`, which re-evaluates the strip on `IsRelevant`).
-  - **Capture variants:** `scanchip-flyout`, `scanchip-chips`.
 - **Purpose:** the app's idiom for a **persistent, stateful, background-activity indicator** in the bottom
   status strip: a **dot + label** (not a filled pill) that opens a `Border.card-flyout` for detail +
   actions. Empty `Chips` ⇒ nothing rendered, so the strip reads exactly as before.
@@ -1481,14 +1463,21 @@ hidden for consumers).
   presence reconciled by `ReconcileQueueChip`, subscribed to `IDemoProcessingQueue.Changed` + re-run from
   `ApplyGateChange`). Gate shim `MainViewModel.IsProcessingQueueEnabled`.
 - **Presence rule:** chip added to `MainViewModel.Chips` only while `chrome.processingQueue` is on (fail-CLOSED,
-  ANDs `!IsBrowser()`) **AND** the queue has activity (`RunningCount>0 || QueuedCount>0`) or `IsPaused`, so an
-  idle+enabled queue adds no strip clutter, and a paused queue always offers Resume (mirrors the Reel chip's
+  ANDs `!IsBrowser()`) **AND** the status VM's `IsActive` (a counted item running or queued, or `IsPaused`), so an
+  idle+enabled queue adds no strip clutter and light bookkeeping never makes the chip blink, and a paused queue always offers Resume (mirrors the Reel chip's
   conditional presence).
 - **Chip mapping (no brushes; the shared `Ellipse.dot.*` state→token dots + neutral `TextMid` label):**
   paused → `Off` "Queue paused"; running>0 → `Working` **pulsing** "Processing N"; queued-only → `Working`
   steady "N queued"; idle → `Off` (hidden anyway). Tooltip = the full status line.
+- **Counted work:** only what the concurrency setting governs. Light items (saves, record passes, library
+  slices, the scheduler's planning) are not rows and not counts unless one failed, which stays in Recent. A visit
+  riding another item's read (`RidesRead`: on the open's parse, or an open joined to a background parse) is a row
+  but not a second running item. A read the queue superseded is not shown in Recent.
 - **Flyout:** header + live status line ("N running · M queued", + " · paused" / " · background disabled",
-  wraps), a transient **Pause/Resume** `ghost` button + a **Settings** link (`OpenSettings`), then a
+  wraps), then two `TextDim` lines: `CheckLine` from the scheduler's `IWorkCheckStatus` ("Checking the library
+  for work…", "N demos waiting for room in the queue", or "Library last checked for work at {local time}") and
+  `AlsoLine` naming other light work running ("Also: Library: save the scan"). Capture: `queue-flyout-bookkeeping`.
+  Then a transient **Pause/Resume** `ghost` button + a **Settings** link (`OpenSettings`), then a
   **Queue (N) / Recent (N)** `ToggleButton.chip` pair (the Library's Demos / Teams idiom) over two `ListBox`es
   (`data-list`). The flyout body is a fixed 340 px so switching views does not resize it.
   - **Queue** (`Rows`): running items first, then queued items in the order the queue reports it will start
@@ -1682,9 +1671,7 @@ the catalog rather than a hardcoded Strat Book reference.
 ### Stats component library (`Controls/Stats/`, v0.8.1)
 
 Nine controls plus a scale model and the abstract presenter they share, built for the Stats team and
-player views. Full rationale, the
-dependency survey that ruled out every charting library, and the open questions are in
-[`stats-components.md`](./stats-components.md); this is the contract.
+player views.
 
 | Type | What it is | Key API |
 |---|---|---|
@@ -2340,7 +2327,7 @@ of category; every write is an explicit `AppSettings.Features.Overrides[id]`.
   dot showing against an off toggle. This is *faithful* (the override is stored and takes effect once the
   parent is enabled), not thrash, toggle-disabling is scoped to `IsRequired` only, per the P2a-ii spec.
 
-### Settings Extensions section (strat-book-plugin.md item 5, 2026-10-02)
+### Settings Extensions section
 
 New top-level group between FEATURES and LIVE CS2, `Expander IsVisible="{Binding ShowGroupExtensions}"`,
 starting **expanded** (unlike FEATURES, which starts collapsed): the section is one master switch plus
@@ -2409,7 +2396,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   overflow at every indent level, verified at 560 and visually at 1280×800 (`settings-extensions-on/-off`
   UiCapture variants, Light + Dark; custom themes crash UiCapture per the open item on the editor-room
   decisions above).
-- **Delete extension data (strat-book-plugin.md item 24, 2026-10-03):** one row per `IExtensionDataRemoval`
+- **Delete extension data:** one row per `IExtensionDataRemoval`
   below `ContributedSettingsPages`, `ItemsControl ItemsSource="{Binding ExtensionDataActions}"`. Unlike a
   contributed page it is NOT gated by the pack's `FeatureId`: it shows whether the pack is on or off,
   since deleting while off is the main use. No modal dialog exists anywhere in this app to reuse, so the

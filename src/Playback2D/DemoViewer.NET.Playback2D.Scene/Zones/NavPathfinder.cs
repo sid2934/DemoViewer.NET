@@ -9,7 +9,7 @@ public readonly record struct NavWaypoint(double X, double Y, double FloorKey);
 /// <summary>
 ///     Routes a token over the baked nav areas (<see cref="ZoneSet.Areas" />, <see cref="ZoneSet.AreaLinks" />).
 ///     A* over the area graph picks the corridor, then a funnel pass pulls the string through the shared edges
-///     (docs/strat-book/token-pathing.md). Immutable once built and safe to query from any thread: each thread
+///     (docs/strat-format.md, "Motion on the canvas"). Immutable once built and safe to query from any thread: each thread
 ///     has its own search scratch, and recent answers are kept per graph.
 ///     <para>
 ///         The bake folds the nav's directed links into undirected pairs and drops ladders. A link through a shared

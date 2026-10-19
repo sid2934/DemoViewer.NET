@@ -1033,8 +1033,9 @@ public sealed class LineupClipService : IExtensionResident, IDisposable
 
         _ = handle.Completion.ContinueWith(_ =>
         {
-            // Cancelled from the queue list: this session does not render that demo's clips.
-            if (handle.Status == JobStatus.Cancelled)
+            // Cancelled from the queue list, or the demo's read failed: this session does not render that demo's
+            // clips. A failed read left pending would be picked again at once and fail the same way.
+            if (handle.Status is JobStatus.Cancelled or JobStatus.Failed)
             {
                 lock (_gate)
                 {

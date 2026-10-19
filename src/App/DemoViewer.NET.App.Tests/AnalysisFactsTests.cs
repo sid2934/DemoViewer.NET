@@ -12,6 +12,7 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
@@ -145,6 +146,51 @@ public class AnalysisFactsTests
                 await Assert.That(off).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId }).Because("an owner that is off records nothing");
                 await Assert.That(rules.Fingerprint(64).Fingerprint).IsEqualTo(MergedRulesBuildTests.ShippedFingerprint64)
                     .Because("a stamped ruleset never moves the highlights stamp");
+            }
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+        }
+    }
+
+    // round_facts rides every retained run: the row source reads it off that run.
+    [Test]
+    public async Task TheRetainedCut_MatchesTheForwardCut()
+    {
+        string fixture = WriteFixture((FactsRuleset, FactsYaml));
+        try
+        {
+            MergedRulesBuild rules = new(() => WithFixture(fixture),
+                () => [StampedRuleset.Core(RoundFactsFingerprint.RulesetId), new StampedRuleset(FactsRuleset, "dev.example.x", static () => true)]);
+            StampedFacts stamped = new(rules);
+            DemoCacheStore cache = new(null);
+            const string path = "/demos/a.dem";
+            cache.Upsert(new DemoCacheRecord { Path = path, Size = 1, Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 } });
+            FactsEvaluator evaluator = new(cache, stamped);
+            bool roundFactsStale = true;
+            rules.OutputsFor = p => rules.StampedOutputs(id => id == RoundFactsFingerprint.RulesetId ? roundFactsStale : evaluator.Records(p, id));
+
+            IReadOnlyList<string> Retained() =>
+                [.. (rules.BareRun(MergedRulesBuildTests.TwoFrameDemo(), path).Build.Outputs ?? []).Select(o => o.Id).Order(StringComparer.Ordinal)];
+            IReadOnlyList<string> Forward() =>
+                [.. (ForwardDemoPass.Build(MergedRulesBuildTests.TwoFrameDemo(), rules.Docs, rules.OutputsFor(path)).Outputs ?? [])
+                    .Select(o => o.Id).Order(StringComparer.Ordinal)];
+
+            IReadOnlyList<string> staleRetained = Retained();
+            IReadOnlyList<string> staleForward = Forward();
+            evaluator.Evaluate(path, MergedRulesBuildTests.TwoFrameDemo());
+            roundFactsStale = false;
+            IReadOnlyList<string> currentRetained = Retained();
+            IReadOnlyList<string> currentForward = Forward();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(staleRetained).IsEquivalentTo(new[] { FactsTable, RoundFactsFingerprint.RulesetId }.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal));
+                await Assert.That(staleRetained).IsEquivalentTo(staleForward);
+                await Assert.That(currentRetained).IsEquivalentTo(new[] { RoundFactsFingerprint.RulesetId }.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal))
+                    .Because("every stamp is current, so the retained run records round_facts and the library tables alone");
+                await Assert.That(currentForward).IsEquivalentTo(LibraryTeamTables.Tables.Order(StringComparer.Ordinal));
             }
         }
         finally

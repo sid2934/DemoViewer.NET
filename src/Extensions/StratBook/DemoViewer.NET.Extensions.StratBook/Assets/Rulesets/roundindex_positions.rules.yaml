@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../../../../../../rules/cs2demokit-rules.schema.json
+#
+# Round Index positions: every player once a second from each freeze end, the samples the round
+# index folds into its rows and positions file. No until: a round with no end runs to the next
+# freeze end, and the fold clips each round to its own window.
+#
+# A cadence step reads the frame it fires on, after that frame's entity fold.
+ruleset: net_demoviewer_pack_stratbook__roundindex_positions
+title: Round Index Positions
+summary: Each player's position, place, side, liveness and pawn index once a second, for the round index.
+for: each_player
+
+cadences:
+  second: { seconds: 1, anchor: round_freeze_end }
+
+stats:
+  pos_x: { capture: player.pos_x, on: cadence.second, keep: last, per: match }
+  pos_y: { capture: player.pos_y, on: cadence.second, keep: last, per: match }
+  pos_z: { capture: player.pos_z, on: cadence.second, keep: last, per: match }
+  place: { capture: player.place, on: cadence.second, keep: last, per: match }
+  side: { capture: player.team, on: cadence.second, keep: last, per: match }
+  is_alive: { capture: player.is_alive, on: cadence.second, keep: last, per: match }
+  entity_index: { capture: player.entity_index, on: cadence.second, keep: last, per: match }
+
+show:
+  tables:
+    roundindex_positions:
+      per: player_event
+      on: cadence.second
+      columns:
+        - { stat: pos_x }
+        - { stat: pos_y }
+        - { stat: pos_z }
+        - { stat: place }
+        - { stat: side }
+        - { stat: is_alive }
+        - { stat: entity_index }

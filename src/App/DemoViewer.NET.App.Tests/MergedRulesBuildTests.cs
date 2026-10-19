@@ -1,12 +1,17 @@
 #region
 
 using CS2DemoKit.Analysis;
+using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Compile;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.GameEvents;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Highlights;
+using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -39,7 +44,17 @@ public class MergedRulesBuildTests
     private const string Extension = "net.example.fixture";
 
     private static readonly string Shipped = RuleSetLocator.ResolveShippedRulesDirectory();
+
+    // The columns DemoCacheAnalysisProjector persists into the tier-3 scoreboard.
+    private static readonly string[] PersistedScoreboardColumns = ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"];
+
     private static string? _fixture;
+
+    private static bool ReadsEnemySpotted(string yaml) => yaml.Split('\n')
+        .Any(line => line.Split('#')[0].Contains("enemy_spotted", StringComparison.Ordinal));
+
+    private static string RulesetIdOf(string yaml) => yaml.Split('\n')
+        .First(line => line.StartsWith("ruleset:", StringComparison.Ordinal))["ruleset:".Length..].Trim();
 
     [Before(Class)]
     public static void WriteFixture()
@@ -297,6 +312,31 @@ public class MergedRulesBuildTests
         }
     }
 
+    // The identity is cached per doc: every scheduler plan asks for it, and composing it costs about a
+    // millisecond. A reload that edits the ruleset must not be answered from the cache.
+    [Test]
+    public async Task TheRulesetIdentity_IsCached_UntilTheRulesReload()
+    {
+        DirectoryInfo user = Directory.CreateTempSubdirectory("dv-mrb-identity-");
+        try
+        {
+            string yaml = await File.ReadAllTextAsync(Path.Combine(Shipped, "round_facts.rules.yaml"));
+            MergedRulesBuild build = new(() => YamlConfigLoader.LoadWithOverlay(Shipped, user.FullName),
+                () => [StampedRuleset.Core(RoundFacts)]);
+            string first = build.RulesetIdentity(RoundFacts, 64);
+            await Assert.That(build.RulesetIdentity(RoundFacts, 64)).IsEqualTo(first);
+
+            await File.WriteAllTextAsync(Path.Combine(user.FullName, "round_facts.rules.yaml"), yaml + "\n# edited\n");
+            await Assert.That(build.RulesetIdentity(RoundFacts, 64)).IsEqualTo(first).Because("no reload yet");
+            build.Invalidate();
+            await Assert.That(build.RulesetIdentity(RoundFacts, 64)).IsNotEqualTo(first).Because("the source moved");
+        }
+        finally
+        {
+            user.Delete(true);
+        }
+    }
+
     // The bare run is cached per held parse. A run from before a toggle is not the merged set's run: kept,
     // a stamped ruleset's reader would find nothing of its own in it and pin the demo as "no rows".
     [Test]
@@ -319,8 +359,120 @@ public class MergedRulesBuildTests
             await Assert.That(onAgain).IsSameReferenceAs(on);
             await Assert.That(off.Build.Outputs?.Select(o => o.Id) ?? []).Contains(RoundFacts)
                 .Because("round_facts is core and rides every run");
-            await Assert.That(on.Build.Outputs?.Select(o => o.Id) ?? []).IsEquivalentTo([RoundFacts])
-                .Because("the bare build keeps the round_facts output, and only that one");
+            await Assert.That(Recorded(on)).IsEquivalentTo(WithLibrary(RoundFacts))
+                .Because("the bare build keeps round_facts and the library tables, and only those");
+        }
+    }
+
+    private static IReadOnlyList<string> Recorded(AnalysisRun run) => [.. (run.Build.Outputs ?? []).Select(o => o.Id).Order(StringComparer.Ordinal)];
+
+    // Every merged run records the library tables beside whatever its cut names.
+    private static string[] WithLibrary(params string[] tables) => [.. tables.Concat(LibraryTeamTables.Tables).Order(StringComparer.Ordinal)];
+
+    // A cached run is served only when it recorded every table the caller's cut names.
+    [Test]
+    public async Task ABareRunCutToFewerTables_IsNotServedToACallerNeedingMore()
+    {
+        string fixture = AnalysisFactsTests.WriteFixture((AnalysisFactsTests.FactsRuleset, AnalysisFactsTests.FactsYaml));
+        try
+        {
+            bool factsStale = false;
+            MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+                () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+            build.OutputsFor = _ => build.StampedOutputs(id => id != AnalysisFactsTests.FactsRuleset || factsStale);
+            ParsedDemo parsed = TwoFrameDemo();
+
+            AnalysisRun narrow = build.BareRun(parsed, "/demos/a.dem");
+            factsStale = true;
+            AnalysisRun wide = build.BareRun(parsed, "/demos/a.dem");
+            AnalysisRun wideAgain = build.BareRun(parsed, "/demos/a.dem");
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(Recorded(narrow)).IsEquivalentTo(WithLibrary(RoundFacts)).Because("the facts are current, so only round_facts and the library tables are recorded");
+                await Assert.That(wide).IsNotSameReferenceAs(narrow).Because("the narrow run lacks a table the caller needs");
+                await Assert.That(Recorded(wide)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+                await Assert.That(wideAgain).IsSameReferenceAs(wide);
+            }
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+        }
+    }
+
+    // A collector writes only on the run its options carried, so a run made for a visit without it is not that visit's run.
+    [Test]
+    public async Task ABareRunWithoutACollector_IsNotServedToACallerWhoseVisitNeedsIt()
+    {
+        CollectorSet visit = CollectorSet.Empty;
+        MergedRulesBuild build = new(ShippedRules, () => [StampedRuleset.Core(RoundFacts)]) { CollectorsFor = _ => visit };
+        ParsedDemo parsed = TwoFrameDemo();
+
+        AnalysisRun bare = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a"))]);
+        AnalysisRun collected = build.BareRun(parsed, "/demos/a.dem");
+        AnalysisRun again = build.BareRun(parsed, "/demos/a.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(collected).IsNotSameReferenceAs(bare).Because("the cached run never ran the collector");
+            await Assert.That(again).IsSameReferenceAs(collected);
+            await Assert.That(build.Collected(parsed, "/demos/a.dem").Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+        }
+    }
+
+    [Test]
+    public async Task ABareRunWithASupersetOfCollectors_IsServed()
+    {
+        RegisteredCollector a = CollectorKit.Register(CollectorKit.Counting("count.a"));
+        RegisteredCollector b = CollectorKit.Register(CollectorKit.Counting("count.b"));
+        CollectorSet visit = CollectorSet.Of([a, b]);
+        MergedRulesBuild build = new(ShippedRules, () => [StampedRuleset.Core(RoundFacts)]) { CollectorsFor = _ => visit };
+        ParsedDemo parsed = TwoFrameDemo();
+
+        AnalysisRun both = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Of([a]);
+        AnalysisRun one = build.BareRun(parsed, "/demos/a.dem");
+        visit = CollectorSet.Empty;
+        AnalysisRun none = build.BareRun(parsed, "/demos/a.dem");
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(one).IsSameReferenceAs(both).Because("the cached run carried every collector this visit needs");
+            await Assert.That(none).IsSameReferenceAs(both);
+            await Assert.That(build.Collected(parsed, "/demos/a.dem").Get<CollectorKit.Count>("count.b")?.Frames).IsEqualTo(2);
+        }
+    }
+
+    // Pass order shrinks the cut: the first writer's stamps make the next caller's cut a subset.
+    [Test]
+    public async Task ABareRunRecordingASuperset_IsServed()
+    {
+        string fixture = AnalysisFactsTests.WriteFixture((AnalysisFactsTests.FactsRuleset, AnalysisFactsTests.FactsYaml));
+        try
+        {
+            bool factsStale = true;
+            MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+                () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+            build.OutputsFor = _ => build.StampedOutputs(id => id != AnalysisFactsTests.FactsRuleset || factsStale);
+            ParsedDemo parsed = TwoFrameDemo();
+
+            AnalysisRun wide = build.BareRun(parsed, "/demos/a.dem");
+            factsStale = false;
+            AnalysisRun narrow = build.BareRun(parsed, "/demos/a.dem");
+            AnalysisRun everything = build.BareRun(parsed);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(Recorded(wide)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+                await Assert.That(narrow).IsSameReferenceAs(wide).Because("the cached run recorded a superset of the cut");
+                await Assert.That(everything).IsSameReferenceAs(wide).Because("the cached run recorded every stamped output");
+            }
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
         }
     }
 
@@ -369,4 +521,346 @@ public class MergedRulesBuildTests
             await Assert.That(Joined(Ids(build.CoreDocs))).IsEqualTo(Joined(Ids(raw)));
         }
     }
+
+    // FullRun and the forced scan's scoreboard run without the visibility bake and the open runs with it.
+    // That is sound only while nothing persisted reads enemy_spotted. When this fails, the same change
+    // loads the bake in FullRun and adds a visibility term to the analysis stamp.
+    [Test]
+    public async Task NoStampedRulesetReferencesEnemySpotted()
+    {
+        string root = DemoTestHelper.FindRepoRoot() ?? throw new InvalidOperationException("repo root not found");
+        string[] files =
+        [
+            .. Directory.EnumerateFiles(Shipped, "*.rules.yaml"),
+            .. Directory.EnumerateFiles(Path.Combine(root, "samples"), "*.rules.yaml", SearchOption.AllDirectories)
+        ];
+        string[] readers =
+        [
+            .. files.Select(File.ReadAllText).Where(ReadsEnemySpotted)
+                .Select(RulesetIdOf).Order(StringComparer.Ordinal)
+        ];
+        RulesetDoc aim = ShippedRules().Rulesets.Single(r => r.Id == "aim_rating");
+        string[] persisted = [.. (aim.Show?.Scoreboard ?? []).Select(c => c.Label ?? c.Stat).Intersect(PersistedScoreboardColumns)];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(files.Length).IsGreaterThan(1);
+            await Assert.That(Joined(readers)).IsEqualTo("aim_rating")
+                .Because("a new enemy_spotted reader needs the FullRun bake load and a visibility stamp term");
+            await Assert.That(aim.Highlights ?? []).IsEmpty().Because("highlights are persisted from the bake-free runs");
+            await Assert.That(aim.Show?.Tables ?? []).IsEmpty().Because("stamped tables are persisted from the bake-free runs");
+            await Assert.That(aim.Exports ?? []).IsEmpty().Because("an export could feed a persisted column");
+            await Assert.That(persisted).IsEmpty().Because("the persisted scoreboard is projected from the bake-free forced scan");
+        }
+    }
+
+    private const string OpenPath = "/demos/a.dem";
+
+    // A build over the shipped rules plus the facts fixture, both stamped, with the facts table stale when
+    // the caller says so. round_facts is stale whenever anything is.
+    private static MergedRulesBuild FactsBuild(string fixture, Func<bool> factsStale, Func<bool>? gate = null)
+    {
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), new StampedRuleset(AnalysisFactsTests.FactsRuleset, Extension, gate ?? (() => true))]);
+        build.OutputsFor = _ => build.StampedOutputs(id => id != AnalysisFactsTests.FactsRuleset || factsStale());
+        return build;
+    }
+
+    // What the shell does: plan from its own read, build, evaluate with snapshots.
+    private static (OpenRunPlan Plan, AnalysisRun Run) OpenRun(MergedRulesBuild build, string fixture, ParsedDemo parsed)
+    {
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+        return (plan, DemoAnalysis.Evaluate(parsed, plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs))));
+    }
+
+    private static async Task WithFactsFixture(Func<string, Task> body)
+    {
+        string fixture = AnalysisFactsTests.WriteFixture((AnalysisFactsTests.FactsRuleset, AnalysisFactsTests.FactsYaml));
+        try
+        {
+            await body(fixture);
+        }
+        finally
+        {
+            Directory.Delete(fixture, true);
+        }
+    }
+
+    // A pass's own table rides the run while the pass wants the demo, reads back by name, and is never a facet.
+    [Test]
+    public async Task APassReadTable_IsRecordedWhileItsPassWantsTheDemo_AndOnlyItsReaderReadsIt() => await WithFactsFixture(async fixture =>
+    {
+        bool wanted = false;
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), new StampedRuleset(AnalysisFactsTests.FactsRuleset, Extension, () => true) { ReadBy = "ext.reader" }]);
+        build.OutputsFor = _ => build.StampedOutputs(id => id != AnalysisFactsTests.FactsRuleset || wanted);
+        ParsedDemo parsed = TwoFrameDemo();
+
+        AnalysisRun without = build.BareRun(parsed, OpenPath);
+        wanted = true;
+        AnalysisRun with = build.BareRun(parsed, OpenPath);
+        IReadOnlyList<FactRow> rows = build.Table(with, AnalysisFactsTests.FactsTable, [AnalysisFactsTests.FactsRuleset]);
+        int projected = with.ProjectConfiguredOutputs().Single(t => t.Name == AnalysisFactsTests.FactsTable).Rows.Count;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Recorded(without)).IsEquivalentTo(WithLibrary(RoundFacts));
+            await Assert.That(Recorded(with)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+            await Assert.That(rows.Count).IsEqualTo(projected);
+            await Assert.That(build.ReaderOf(AnalysisFactsTests.FactsRuleset)).IsEqualTo("ext.reader");
+            await Assert.That(new StampedFacts(build).Facets()).IsEmpty().Because("a pass's table is its input, not a fact");
+        }
+
+        Assert.Throws<InvalidOperationException>(() => build.Table(with, AnalysisFactsTests.FactsTable, ["another_ruleset"]));
+        Assert.Throws<InvalidOperationException>(() => build.Table(without, AnalysisFactsTests.FactsTable, [AnalysisFactsTests.FactsRuleset]));
+        Assert.Throws<InvalidOperationException>(() => build.Table(with, RoundFacts, [AnalysisFactsTests.FactsRuleset]));
+    });
+
+    // The open plans its cut from what it was handed, so the passes it asks are asked off the UI thread.
+    [Test]
+    public async Task AnOpenPlannedFromATakenCut_UsesThatCut() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => false);
+        HashSet<string> taken = new(StringComparer.Ordinal) { AnalysisFactsTests.FactsTable };
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath, taken);
+
+        await Assert.That(plan.Cut).Contains(AnalysisFactsTests.FactsTable);
+    });
+
+    [Test]
+    public async Task ASeededRun_IsServedToTheVisit() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+
+        bool seeded = build.Seed(parsed, OpenPath, plan, run);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsNotEmpty();
+            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.Docs))).Because("the open builds the merged set");
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsSameReferenceAs(run).Because("the visit reads the open's run");
+            await Assert.That(build.BareRun(parsed)).IsSameReferenceAs(run).Because("it recorded every stamped output");
+        }
+    });
+
+    // The open's run is made before its visit is planned, so it declares every registered collector.
+    [Test]
+    public async Task ASeededRunCarryingTheOpenCollectors_IsServedToAVisitThatNeedsOne() => await WithFactsFixture(async fixture =>
+    {
+        CollectorSet registered = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a")),
+            CollectorKit.Register(CollectorKit.Counting("count.b"))]);
+        CollectorSet visit = CollectorSet.Of([registered.All[0]]);
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        build.OpenCollectors = () => registered;
+        build.CollectorsFor = _ => visit;
+        ParsedDemo parsed = TwoFrameDemo();
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+        BuildResult built = plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs, plan.Collectors.DeclareReads(new AnalysisOptions())));
+        (AnalysisOptions options, CollectorObserver? observer) = plan.Collectors.Declare(new AnalysisOptions());
+        AnalysisRun run = DemoAnalysis.Evaluate(parsed, built, options);
+        bool seeded = build.Seed(parsed, OpenPath, plan, run, observer?.Results);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Collectors.Key).IsEqualTo(registered.Key);
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsSameReferenceAs(run).Because("the open's run carried the visit's collector");
+            await Assert.That(build.Collected(parsed, OpenPath).Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+        }
+    });
+
+    [Test]
+    public async Task ASeedWithoutCollectorResults_IsNotServedToAVisitThatNeedsACollector() => await WithFactsFixture(async fixture =>
+    {
+        CollectorSet visit = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a"))]);
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        build.CollectorsFor = _ => visit;
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+
+        bool seeded = build.Seed(parsed, OpenPath, plan, run);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Collectors.IsEmpty).IsTrue().Because("nothing registered a collector");
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run).Because("the open's run never ran count.a");
+            await Assert.That(build.Collected(parsed, OpenPath).Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+        }
+    });
+
+    [Test]
+    public async Task NothingStale_TheOpenRunsTheCoreRulesetsAlone() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+        build.OutputsFor = _ => new HashSet<string>();
+        ParsedDemo parsed = TwoFrameDemo();
+
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+        OpenRunPlan noPath = FactsBuild(fixture, () => true).PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, null);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsEmpty();
+            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.CoreDocs)));
+            await Assert.That(Recorded(run)).IsEquivalentTo(Recorded(DemoAnalysis.Run(parsed, build.CoreDocs)));
+            await Assert.That(build.Seed(parsed, OpenPath, plan, run)).IsFalse();
+            await Assert.That(noPath.Cut).IsEmpty().Because("a demo with no file has no visit to seed");
+        }
+    });
+
+    [Test]
+    public async Task NothingStale_TheOpenRunStillCarriesTheVisitsCollectors() => await WithFactsFixture(async fixture =>
+    {
+        CollectorSet registered = CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("count.a"))]);
+        MergedRulesBuild build = new(() => AnalysisFactsTests.WithFixture(fixture),
+            () => [StampedRuleset.Core(RoundFacts), StampedRuleset.Core(AnalysisFactsTests.FactsRuleset)]);
+        build.OutputsFor = _ => new HashSet<string>();
+        build.OpenCollectors = () => registered;
+        build.CollectorsFor = _ => registered;
+        ParsedDemo parsed = TwoFrameDemo();
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+        BuildResult built = plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs, plan.Collectors.DeclareReads(new AnalysisOptions())));
+        (AnalysisOptions options, CollectorObserver? observer) = plan.Collectors.Declare(new AnalysisOptions());
+        AnalysisRun run = DemoAnalysis.Evaluate(parsed, built, options);
+        bool seeded = build.Seed(parsed, OpenPath, plan, run, observer?.Results);
+        CollectorResults collected = build.Collected(parsed, OpenPath);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsEmpty();
+            await Assert.That(Joined(Ids(plan.Docs))).IsEqualTo(Joined(Ids(build.CoreDocs))).Because("the open still runs the core alone");
+            await Assert.That(seeded).IsTrue();
+            await Assert.That(collected.Get<CollectorKit.Count>("count.a")?.Frames).IsEqualTo(2);
+            await Assert.That(collected).IsSameReferenceAs(observer!.Results).Because("the visit read the open's collectors");
+            await Assert.That(build.HoldsRun(parsed)).IsFalse().Because("no rules reader can be served the open's run");
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run)
+                .Because("the open's run recorded no round_facts for a reader of the rules");
+        }
+    });
+
+    // An open that cannot seed shows the core graph whether its stamps are current or it has no file.
+    [Test]
+    public async Task AnOpenThatCannotSeed_ShowsTheCoreGraph() => await WithFactsFixture(async fixture =>
+    {
+        ParsedDemo parsed = TwoFrameDemo();
+        MergedRulesBuild current = FactsBuild(fixture, () => false);
+        current.OutputsFor = _ => new HashSet<string>();
+        (OpenRunPlan currentPlan, AnalysisRun fresh) = OpenRun(current, fixture, parsed);
+        MergedRulesBuild stale = FactsBuild(fixture, () => true);
+        OpenRunPlan noPathPlan = stale.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, null);
+        AnalysisRun noPath = DemoAnalysis.Evaluate(parsed, noPathPlan.Cuts(DemoAnalysis.Build(parsed, noPathPlan.Docs)));
+        AnalysisRun core = DemoAnalysis.Run(parsed, current.CoreDocs);
+
+        static string Graph(AnalysisRun run) => string.Join('\n',
+            run.FinalNodes.Select(n => n.Name)
+                .Concat(run.Build.Edges.Select(e => $"{e.Source.Name}>{e.Destination.Name}:{e.Label}"))
+                .Concat(run.Build.RulesetDiagnostics.Select(d => d.ToString()))
+                .Concat(run.Timeline.Events.Select(e => e.ChainName)));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(currentPlan.Cut).IsEmpty();
+            await Assert.That(noPathPlan.Cut).IsEmpty();
+            await Assert.That(Graph(fresh)).IsEqualTo(Graph(core));
+            await Assert.That(Graph(noPath)).IsEqualTo(Graph(core));
+            await Assert.That(Recorded(currentPlan.Shown(fresh))).IsEquivalentTo(Recorded(core));
+        }
+    });
+
+    [Test]
+    public async Task ASeedWithAnotherGateSet_IsDropped() => await WithFactsFixture(async fixture =>
+    {
+        bool on = true;
+        MergedRulesBuild build = FactsBuild(fixture, () => true, () => on);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+
+        on = false;
+        bool seeded = build.Seed(parsed, OpenPath, plan, run);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(seeded).IsFalse();
+            await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run);
+        }
+    });
+
+    [Test]
+    public async Task ASeedWithASmallerCut_IsDropped() => await WithFactsFixture(async fixture =>
+    {
+        bool factsStale = false;
+        MergedRulesBuild build = FactsBuild(fixture, () => factsStale);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+
+        factsStale = true;
+        bool seeded = build.Seed(parsed, OpenPath, plan, run);
+        AnalysisRun visit = build.BareRun(parsed, OpenPath);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut!.Order(StringComparer.Ordinal)).IsEquivalentTo(WithLibrary(RoundFacts));
+            await Assert.That(seeded).IsFalse();
+            await Assert.That(visit).IsNotSameReferenceAs(run);
+            await Assert.That(Recorded(visit)).IsEquivalentTo(WithLibrary(AnalysisFactsTests.FactsTable, RoundFacts));
+        }
+    });
+
+    [Test]
+    public async Task ForgetReleasesTheSeed() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+        build.Seed(parsed, OpenPath, plan, run);
+
+        build.Forget(parsed);
+
+        await Assert.That(build.BareRun(parsed, OpenPath)).IsNotSameReferenceAs(run);
+    });
+
+    // The background read is cached for the session; the shell reads the rules on every run.
+    [Test]
+    public async Task ASeedAfterARulesEdit_IsNotPlanned() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        _ = build.Docs;
+        string kast = Path.Combine(fixture, "kast.rules.yaml");
+        File.WriteAllText(kast, File.ReadAllText(Path.Combine(Shipped, "kast.rules.yaml"))
+            .Replace("title: ", "title: Edited ", StringComparison.Ordinal));
+
+        OpenRunPlan plan = build.PlanOpen(AnalysisFactsTests.WithFixture(fixture).Rulesets, OpenPath);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(plan.Cut).IsEmpty();
+            await Assert.That(plan.Docs.Single(d => d.Id == "kast").Title).StartsWith("Edited ")
+                .Because("the shell runs what it read");
+        }
+    });
+
+    // The run carries the stamped tables; the Stats tab does not see them.
+    [Test]
+    public async Task TheOpenRun_ShowsTheCoreOutputsOnly() => await WithFactsFixture(async fixture =>
+    {
+        MergedRulesBuild build = FactsBuild(fixture, () => true);
+        ParsedDemo parsed = TwoFrameDemo();
+        (OpenRunPlan plan, AnalysisRun run) = OpenRun(build, fixture, parsed);
+        IReadOnlyList<string> core = Recorded(DemoAnalysis.Run(parsed, build.CoreDocs));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(Recorded(run)).IsEquivalentTo([.. core.Append(AnalysisFactsTests.FactsTable).Append(RoundFacts).Order(StringComparer.Ordinal)]);
+            await Assert.That(Recorded(plan.Shown(run))).IsEquivalentTo(core);
+            await Assert.That(core).IsNotEmpty().Because("the shipped core rulesets declare tables");
+        }
+    });
 }

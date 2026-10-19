@@ -520,7 +520,7 @@ A step's destination moves its tokens. The canvas, the Detected preview and an e
   the location's point when it has one, else the place's arrival (`StratPlaceCentres.Arrival`: its centre on the
   token's floor when the place has areas there, else on the floor holding most of it, and the token arrives on that
   floor). A place the map lacks, or zones not loaded yet, moves nothing.
-* **Routes.** Tokens walk the map's nav round walls (docs/strat-book/token-pathing.md). The graph is the baked nav areas
+* **Routes.** Tokens walk the map's nav round walls (`NavPathfinder`). The graph is the baked nav areas
   and links in the map's `zones.json` (`ZoneSet.Areas`, `ZoneSet.AreaLinks`), built with the zones when the canvas reads
   them through the processing queue, and searched with A* plus a funnel (`NavPathfinder`). A link through a shared
   edge is walked both ways; a link with no shared edge (a drop, a jump, a gap) is climbed only when the far area's mean

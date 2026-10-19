@@ -9,7 +9,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The nav pathfinder over the committed <c>zones.json</c> bakes (docs/strat-book/token-pathing.md): every map
+///     The nav pathfinder over the committed <c>zones.json</c> bakes: every map
 ///     builds, known routes stay on the mesh and go round walls, the climb rule keeps mirage's window a drop, and a
 ///     route across nuke's floors changes key where it crosses. Reads committed assets only; skipped without them.
 /// </summary>

@@ -6,6 +6,10 @@
              GC's stop-the-world Gen0 serializes them (every thread stalls on any thread's collection); Server
              GC's per-core heaps + background collection let them run concurrently. -->
         <ServerGarbageCollection>true</ServerGarbageCollection>
+        <!-- Linked files doc-comment crefs against siblings this project does not also link
+             (IExtensionContributions, IPassContext, ...), hence CS1574. DecodeSites.Entered is
+             assigned only by the app's decode-count harness, which is the same story: CS0649. -->
+        <NoWarn>$(NoWarn);CS1574;CS0649</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <!-- Shared by SOURCE rather than duplicated: the bench has to resolve and inflate a bake the
@@ -13,6 +17,18 @@
              A ProjectReference would drag Avalonia into a console bench, so it is not an option. -->
         <Compile Include="../../src/App/DemoViewer.NET/Services/CollisionSoup.cs" Link="CollisionSoup.cs"/>
         <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/ForwardDemoPass.cs" Link="ForwardDemoPass.cs"/>
+        <!-- RegisteredCollector.Guard is ICollectorFaultReporter, not ExtensionGuard: ExtensionGuard
+             reaches Avalonia.Threading through ExtensionFaults, and a ProjectReference to pull it
+             in is not an option (see the comment above). -->
+        <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/Collectors/CollectorSet.cs" Link="Collectors/CollectorSet.cs"/>
+        <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/Collectors/CollectorObserver.cs" Link="Collectors/CollectorObserver.cs"/>
+        <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/Collectors/ICollectorFaultReporter.cs" Link="Collectors/ICollectorFaultReporter.cs"/>
+        <Compile Include="../../src/Sdk/DemoViewer.NET.Extensions.Sdk/Collectors.cs" Link="Sdk/Collectors.cs"/>
+        <!-- ForwardDemoPass.FinalState is LibraryTeamState, read through LibraryFinalStateReplay;
+             DecodeSites is its one decode-count hook. All three are Avalonia-free. -->
+        <Compile Include="../../src/App/DemoViewer.NET/Modules/Library/LibraryTeamTables.cs" Link="Library/LibraryTeamTables.cs"/>
+        <Compile Include="../../src/App/DemoViewer.NET/Modules/Library/LibraryFinalStateReplay.cs" Link="Library/LibraryFinalStateReplay.cs"/>
+        <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/DecodeSites.cs" Link="DecodeSites.cs"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
     </ItemGroup>

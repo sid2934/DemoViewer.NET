@@ -152,6 +152,9 @@ public sealed record LibrarySidePlayer(ulong SteamId64, string Name)
 /// <param name="Count">The writer's own count (rows, items), or 0.</param>
 public sealed record LibraryFactState(string Id, int Schema, string? Fingerprint, DemoDataState State, int Count)
 {
+    /// <summary>When it was last written, in UTC ticks, or 0 when the host did not record it.</summary>
+    public long WrittenAtTicks { get; init; }
+
     /// <summary>True when it was written at <paramref name="schema" /> under <paramref name="fingerprint" />.</summary>
     /// <param name="schema">The shape the reader expects.</param>
     /// <param name="fingerprint">The fingerprint the reader expects.</param>

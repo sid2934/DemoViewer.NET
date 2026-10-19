@@ -144,7 +144,7 @@ else
     expected=$(find "$csvg_native_dir" -type f 2>/dev/null | sed 's#.*/##' | sort -u)
     if [ -z "$expected" ]; then
         echo "NOTE: Cs2VideoGenerator.Core $csvg_ver carries no natives for $RID — bundle ships" \
-             "without live-sync for this platform (see docs/distribution/build-and-packaging-plan.md)." >&2
+             "without live-sync for this platform." >&2
     else
         # while-read, not `for f in $expected` — robust to whitespace and to shells that don't
         # word-split unquoted expansions.

@@ -440,6 +440,14 @@ public class DemoCachePackPayloadTests
         }
 
         json["RoundFactsFingerprint"] = rf?.Fingerprint;
+
+        // The round facts write time postdates the flat shape. A flat mirror would carry it too, since
+        // the record pass reads it off the row, so it is not stamp overhead.
+        if (rf is { ComputedAtTicks: not 0 })
+        {
+            json["RoundFactsComputedAtTicks"] = rf.ComputedAtTicks;
+        }
+
         if (payload is null)
         {
             json["RoundIndexSchema"] = ri?.Schema ?? 0;

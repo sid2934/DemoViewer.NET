@@ -315,18 +315,19 @@ public class ForwardQueueTests
                 passes.Add(needs);
             }
 
-            return needs == ForwardNeeds.Rules ? UntilCancelled(started, token) : Pass();
+            return needs == ForwardNeeds.FinalState ? UntilCancelled(started, token) : Pass();
         });
         int facts = 0, library = 0;
 
-        queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules, _ => facts++));
+        // A rules read carries the final state, so the library alone is the narrow read here.
+        queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.FinalState, _ => library++));
         started.Wait(TimeSpan.FromSeconds(5));
-        queue.SubmitBackground(Forward("a.dem", "library", ForwardNeeds.FinalState | ForwardNeeds.Rules, _ => library++));
+        queue.SubmitBackground(Forward("a.dem", "roundfacts", ForwardNeeds.Rules, _ => facts++));
         await WaitForAsync(() => facts + library == 2 && queue.ActiveWorkerCount == 0, "both owners");
 
         using (Assert.Multiple())
         {
-            await Assert.That(passes).IsEquivalentTo([ForwardNeeds.Rules, ForwardNeeds.FinalState | ForwardNeeds.Rules]);
+            await Assert.That(passes).IsEquivalentTo([ForwardNeeds.FinalState, ForwardNeeds.FinalState | ForwardNeeds.Rules]);
             await Assert.That(facts).IsEqualTo(1);
             await Assert.That(library).IsEqualTo(1);
         }

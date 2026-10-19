@@ -24,12 +24,11 @@ namespace DemoViewer.NET.Modules.Highlights;
 ///     tier-2/backfill double-parse). Three feeders:
 ///     <list type="bullet">
 ///         <item>
-///             <b>Piggyback:</b> the Library tier-2 hook hands over its already-parsed demo: a
-///             stale/missing row refreshes on the already-serialized job; only when the background-scan opt-in is on.
+///             <b>Piggyback:</b> a stale row joins any visit whose other passes need a rules run, whatever the
+///             opt-in says: the run evaluates the highlight rulesets anyway.
 ///         </item>
 ///         <item>
-///             <b>Backfill:</b> demos wanting a scan are submitted to the queue: auto rows only while the
-///             the opt-in holds; forced (manual) rows always, at <see cref="DemoJobPriority.UserRequested" />.
+///             <b>Backfill:</b> stale demos get a read of their own only while the opt-in holds; forced (manual) rows always, at <see cref="DemoJobPriority.UserRequested" />.
 ///         </item>
 ///         <item>
 ///             <b>Open-demo harvest:</b> the Analysis tab's own evaluation refreshes the open demo's
@@ -69,6 +68,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     private bool _disposed;
     private int _refreshQueued;
 
+    // What the last staleness pass rechecked against. Guarded by _refreshGate.
+    private (int Count, int Paths, string? Fingerprint, bool OptIn)? _lastRecheck;
+
 
     /// <param name="harvester">Rules/analysis access (fake in tests).</param>
     /// <param name="libraryDemoPaths">Current library demo paths (reconciliation + backfill universe).</param>
@@ -100,6 +102,9 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
     /// <summary>Queued-demo count: the tab toolbar's "⟳ scan: N queued". DERIVED, never stored.</summary>
     public int QueueLength => BacklogNewestFirst().Count;
+
+    /// <summary>Whether a stale demo gets a read of its own, not only a ride on another pass's rules run.</summary>
+    public bool BackgroundScanEnabled => _backgroundScanEnabled();
 
     /// <summary>True while any highlights demo is outstanding in the shared queue (via the scheduler).</summary>
     public bool IsScanning => Scheduler?.HasOutstanding(Id) ?? false;
@@ -139,6 +144,25 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         }
 
         return forced || _backgroundScanEnabled();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    ///     A stale demo with the opt-in off: the highlights are written off a rules run another pass on the visit
+    ///     needs, which evaluates the highlight rulesets anyway. The opt-in only decides whether a stale demo is
+    ///     worth a read of its own.
+    /// </remarks>
+    public bool WantsIfRulesRun(string path)
+    {
+        if (!NeedsScan(path))
+        {
+            return false;
+        }
+
+        lock (_lifecycle)
+        {
+            return !_openHarvestPending.Contains(path);
+        }
     }
 
     /// <inheritdoc />
@@ -197,7 +221,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
             }
             else
             {
-                run = forced ? _harvester.RunFullAnalysis(parsed) : _harvester.RunBareAnalysis(parsed);
+                run = forced ? _harvester.RunFullAnalysis(parsed) : _harvester.RunBareAnalysis(parsed, path);
                 harvested = run.Highlights;
             }
 
@@ -373,8 +397,11 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         return entry is null || entry.NeedsAnalysis(TryFingerprint());
     }
 
-    /// <summary>Raised (posted) when queue length / scanning state changes.</summary>
+    /// <summary>Raised (posted) when queue length / scanning state changes, or the background-scan opt-in flips.</summary>
     public event Action? ScanProgressChanged;
+
+    /// <summary>Tells readers of <see cref="BackgroundScanEnabled" /> the setting moved, either way.</summary>
+    public void OptInChanged() => RaiseProgress();
 
     /// <summary>
     ///     Re-fingerprint pass (triggers: app start, tab activation, rule save, manual rescan):
@@ -427,9 +454,31 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         // them, and a configured folder on a detached volume enumerates zero files, so it would fire exactly
         // when the demos are still perfectly fine. Pruning the unified cache belongs to the Library, which
         // already does it, with the reached-roots guard that makes it safe.
+        //
+        // The library raises Changed on every scan phase and every few tier-2 indexes. A full recheck only
+        // has something new to find when the demo set, the rules or the opt-in moved; the library plans the
+        // demos it indexes itself.
+        IReadOnlyList<string> paths = _libraryDemoPaths();
+        int pathHash = 0;
+        foreach (string path in paths)
+        {
+            pathHash ^= StringComparer.OrdinalIgnoreCase.GetHashCode(path);
+        }
+
+        (int, int, string?, bool) seen = (paths.Count, pathHash, TryFingerprint(), _backgroundScanEnabled());
         RaiseProgress();
+        if (_lastRecheck == seen)
+        {
+            return;
+        }
+
+        _lastRecheck = seen;
+        Rechecks++;
         EnsureBackfillRunning();
     }
+
+    /// <summary>How many staleness passes asked for a full recheck. Test seam.</summary>
+    internal int Rechecks { get; private set; }
 
     /// <summary>
     ///     Manual per-demo rescan (staleness badge / failed-retry click). Runs regardless of the opt-in,

@@ -17,7 +17,7 @@
         <!-- Headless UI testing (TUnit + SkiaSharp frame capture). Keep in sync with Avalonia version. -->
         <PackageVersion Include="Avalonia.Headless" Version="12.1.2"/>
         <PackageVersion Include="Avalonia.Skia" Version="12.1.2"/>
-        <!-- SkiaSharp: the Playback2D v2 render core (docs/playback2d-v2/design.md §3).
+        <!-- SkiaSharp: the Playback2D v2 render core.
              PINNED to the version Avalonia.Skia 11.3.12 resolves. In B1 the on-screen path takes
              Avalonia's ISkiaSharpApiLeaseFeature, which hands back Avalonia's OWN SKCanvas: a different
              SkiaSharp major would make that a different type identity and break the lease outright.
@@ -35,8 +35,7 @@
              SkiaSharp, which moves with Avalonia. -->
         <PackageVersion Include="SkiaSharp.NativeAssets.Win32" Version="3.119.4"/>
         <PackageVersion Include="SkiaSharp.NativeAssets.macOS" Version="3.119.4"/>
-        <!-- ANGLE (EGL + GLES2 over D3D11) native binaries: the windowless GPU render-surface backend
-             (docs/playback2d-v2/design.md).
+        <!-- ANGLE (EGL + GLES2 over D3D11) native binaries: the windowless GPU render-surface backend.
 
              This is ALREADY in the desktop graph: Avalonia.Win32 11.3.12 depends on exactly this
              version, and the Desktop publish has been shipping av_libglesv2.dll all along. The explicit
@@ -52,7 +51,7 @@
              ffmpeg this is LINKED IN-PROCESS, so the "separate programs" posture does not apply; the
              obligation is reproducing the notice, which §d does. -->
         <PackageVersion Include="Avalonia.Angle.Windows.Natives" Version="2.1.27548.20260419"/>
-        <!-- 2D-playback video export (docs/playback2d-v2/design.md §5.7). FFMpegCore is MIT and only
+        <!-- 2D-playback video export (docs/playback2d-v2/export.md). FFMpegCore is MIT and only
              BUILDS ARGUMENTS and pipes rawvideo to an ffmpeg SUBPROCESS. No ffmpeg code is linked, which
              is what keeps the GPL/LGPL posture clean (FSF "separate programs"). We never ship an ffmpeg
              binary; see THIRD-PARTY-NOTICES.md §g. Xabe.FFmpeg is CC BY-NC-SA and must never be added.
@@ -90,9 +89,9 @@
             and the per-pawn digest gains entity.controller.money. rules/ is re-extracted from the
             package with each bump, since the shipped rulesets changed with it.
         -->
-        <PackageVersion Include="CS2DemoKit.Parser" Version="0.13.0-beta0001"/>
-        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.13.0-beta0001"/>
-        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.13.0-beta0001"/>
+        <PackageVersion Include="CS2DemoKit.Parser" Version="0.14.0-beta0001"/>
+        <PackageVersion Include="CS2DemoKit.Analysis" Version="0.14.0-beta0001"/>
+        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.14.0-beta0001"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
         <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor
@@ -112,7 +111,7 @@
         <PackageVersion Include="FuzzySharp" Version="2.0.2"/>
         <!-- Versioning -->
         <PackageVersion Include="Nerdbank.GitVersioning" Version="3.7.115"/>
-        <!-- Install / auto-update packaging (docs/distribution/build-and-packaging-plan.md §5).
+        <!-- Install / auto-update packaging.
              Keep in sync with the vpk CLI pin in .config/dotnet-tools.json. -->
         <PackageVersion Include="Velopack" Version="1.2.0"/>
         <!-- Test -->
@@ -133,7 +132,7 @@
         <PackageVersion Include="CS2OpenDev.Sdk" Version="0.9.0"/>
         <PackageVersion Include="CS2OpenDev.Sdk.GameEvents" Version="0.9.0"/>
         <PackageVersion Include="CS2OpenDev.Sdk.Entities.Abstractions" Version="1.0.3"/>
-        <PackageVersion Include="CS2OpenDev.Sdk.Entities" Version="1.1.3"/>
+        <PackageVersion Include="CS2OpenDev.Sdk.Entities" Version="1.2.0"/>
         <PackageVersion Include="CS2OpenDev.Protos" Version="0.9.0"/>
         <!-- ^ 5.0.1 is the family renumber riding the Sdk 5.0 TypeMapper repair; protos/ is
              byte-identical to 4.1.1 (empty tag diff, audited 2026-08-13). -->

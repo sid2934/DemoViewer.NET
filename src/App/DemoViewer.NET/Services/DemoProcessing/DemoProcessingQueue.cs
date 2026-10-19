@@ -3,9 +3,12 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using Avalonia.Threading;
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using Microsoft.Extensions.Logging;
 
@@ -60,6 +63,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     private readonly Func<ReadOnlyMemory<byte>, ParsedDemo> _parseBytes; // foreground: parse in-hand bytes
     private readonly Func<string, DecodePlan, ParsedDemo> _parseFile; // background: read file at path → parse
     private readonly Func<string, ForwardNeeds, Action<double>, CancellationToken, ForwardDemoResult>? _forwardPass;
+
+    private readonly ActiveCollectors _visitCollectors = new();
     private readonly Func<string, string?>? _contentHash;
     private readonly DemoFileRead _fileRead;
     private readonly Dictionary<string, int> _parsesByPath = new(StringComparer.OrdinalIgnoreCase);
@@ -160,6 +165,43 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     private static ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger(AppLog.QueueCategory);
+
+    /// <summary>What a pass's collectors put on the bare run of a held parse, by its path. Null reads none.</summary>
+    internal Func<ParsedDemo, string, CollectorResults>? CollectedFor { get; set; }
+
+    /// <summary>The bare run of a held parse, by its path. Null offers none.</summary>
+    internal Func<ParsedDemo, string, AnalysisRun>? RunFor { get; set; }
+
+    /// <summary>Projects one table of a run for a pass that reads it, given the rulesets it may read. Null serves none.</summary>
+    internal Func<AnalysisRun, string, IReadOnlyList<string>, IReadOnlyList<FactRow>>? TableOf { get; set; }
+
+    /// <summary>
+    ///     The forward read with the collectors its rules run declares; wins over the constructor's
+    ///     <c>forwardPass</c>, which declares none.
+    /// </summary>
+    internal Func<string, ForwardNeeds, CollectorSet, Action<double>, CancellationToken, ForwardDemoResult>? ForwardRead { get; set; }
+
+    /// <summary>The collectors of the retained visits of <paramref name="path" /> in flight; none between visits.</summary>
+    internal CollectorSet CollectorsFor(string path) => _visitCollectors.For(path);
+
+    /// <summary>
+    ///     True while a retained visit of <paramref name="path" /> in flight makes a rules run anyway: a pass on it
+    ///     needs rules, or it carries collectors, which ride the run.
+    /// </summary>
+    internal bool RunsRules(string path) =>
+        (_visitCollectors.NeedsFor(path) & ForwardNeeds.Rules) != 0 || !_visitCollectors.For(path).IsEmpty;
+
+    // A read not yet started declares the visit's collectors when it starts, the joining pass's among them.
+    private static bool CarriesCollectorsLocked(Entry entry, IDemoPass pass) =>
+        pass is not ICollectingPass { Collectors.IsEmpty: false } collecting
+        || entry.DeclaredCollectors is not { } declared
+        || declared.IsSupersetOf(collecting.Collectors);
+
+    private Func<CollectorResults>? RetainedCollected(ParsedDemo parsed, string path) =>
+        CollectedFor is { } collected ? () => collected(parsed, path) : null;
+
+    private Func<AnalysisRun>? RetainedRun(ParsedDemo parsed, string path) =>
+        RunFor is { } run ? () => run(parsed, path) : null;
 
     /// <summary>
     ///     The background parse. Maps a settled local file instead of reading it into one LOH-sized array; the
@@ -534,6 +576,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 running.ForegroundWaiters.Add(waiter);
                 joined = waiter.Task;
                 entry.State = DemoQueueItemState.Running;
+                entry.RidesRead = true;
                 entry.Detail = "Parsing with the background parse of this demo";
             }
             else
@@ -734,7 +777,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         ArgumentNullException.ThrowIfNull(request);
         return Submit(request.Path, LevelOf(request.Priority), request.Priority, request.OrderHint, request.DisplayName,
-            [new CallbackPass(request)], null);
+            [new CallbackPass(request)], null, null);
     }
 
     public IDemoQueueHandle SubmitVisit(DemoVisitRequest request)
@@ -742,7 +785,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Path);
         return Submit(request.Path, request.Level, PriorityOf(request.Level), request.OrderHint, request.DisplayName,
-            request.Passes, request.PassEnded);
+            request.Passes, request.PassEnded, request.Riders);
     }
 
     // An open demo's passes and a user's request outrank the backlog; the finer levels order later.
@@ -753,7 +796,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         priority >= DemoJobPriority.UserRequested ? PassLevel.UserRequested : PassLevel.Background;
 
     private Handle Submit(string path, PassLevel level, DemoJobPriority priority, long orderHint, string? displayName,
-        IReadOnlyList<IDemoPass> passes, Action<IDemoPass, PassOutcome, Exception?>? ended)
+        IReadOnlyList<IDemoPass> passes, Action<IDemoPass, PassOutcome, Exception?>? ended, IReadOnlySet<string>? riders)
     {
         VisitedDemo demo = new(path);
         // Asked once, outside the lock: the answer fixes how this pass may join and what the visit reads.
@@ -770,17 +813,19 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             }
 
             // A running parse without user commands cannot serve a pass that reads them, and a running
-            // forward read serves only forward passes whose needs it already covers.
+            // forward read serves only forward passes whose needs it already covers. A forward read declared its
+            // collectors when it started, so it serves only a pass whose collectors it carries.
             Entry? existing = _entries.FirstOrDefault(e =>
                 e.Kind == QueueJobKind.DemoProcessing && IsActive(e) && !e.Finalizing && PathEquals(e.Path, path)
                 && (e.State == DemoQueueItemState.Queued
-                    || joining.TrueForAll(j => DemoVisit.CanJoinRunning(j.Needs, e.Forward, e.Needs, e.UserCommands))));
+                    || joining.TrueForAll(j => DemoVisit.CanJoinRunning(j.Needs, e.Forward, e.Needs, e.UserCommands)
+                                               && (!e.Forward || CarriesCollectorsLocked(e, j.Pass)))));
             if (existing is not null)
             {
                 // Coalesce: one read, every pass; bump level, priority and order to the max seen.
                 foreach ((IDemoPass pass, PassNeeds needs) in joining)
                 {
-                    existing.Visit!.Add(pass, needs, ended);
+                    existing.Visit!.Add(pass, needs, ended, riders?.Contains(pass.Id) == true);
                 }
 
                 existing.Visit!.Raise(level);
@@ -824,7 +869,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 entry.Visit.TakeFrom(forward.Visit!);
                 foreach ((IDemoPass pass, PassNeeds needs) in joining)
                 {
-                    entry.Visit.Add(pass, needs, ended);
+                    entry.Visit.Add(pass, needs, ended, riders?.Contains(pass.Id) == true);
                 }
 
                 forward.CancelRequested = true;
@@ -853,7 +898,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 };
                 foreach ((IDemoPass pass, PassNeeds needs) in joining)
                 {
-                    entry.Visit.Add(pass, needs, ended);
+                    entry.Visit.Add(pass, needs, ended, riders?.Contains(pass.Id) == true);
                 }
 
                 _entries.Add(entry);
@@ -1136,8 +1181,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     }
 
     // Under _sync. Takes the owner's passes off the visit and collects them for the callbacks outside the lock.
-    private static int RemovePassesLocked(Entry e, string ownerTag, List<VisitPass> removed) =>
-        e.Visit!.RemoveWhere(p =>
+    private static int RemovePassesLocked(Entry e, string ownerTag, List<VisitPass> removed)
+    {
+        int count = e.Visit!.RemoveWhere(p =>
         {
             if (!string.Equals(p.Pass.Id, ownerTag, StringComparison.Ordinal)
                 && !string.Equals(p.Pass.Owner, ownerTag, StringComparison.Ordinal))
@@ -1148,6 +1194,13 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             removed.Add(p);
             return true;
         });
+        if (count > 0)
+        {
+            e.Visit.DropStrandedRiders(removed);
+        }
+
+        return count;
+    }
 
     public void CancelPass(string path, IDemoPass pass)
     {
@@ -1176,6 +1229,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                 removed.Add(p);
                 return true;
             });
+            e.Visit.DropStrandedRiders(removed);
             if (e.Visit.Count > 0 || e.ForegroundWaiters.Count > 0)
             {
                 // Another pass still wants the read.
@@ -1581,7 +1635,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         lock (_sync)
         {
             // The visit's read is decided now, from every pass that joined, and fixed for later joiners.
-            (forward, entry.Needs, entry.UserCommands) = entry.Visit!.ChooseMode(_forwardPass is not null);
+            (forward, entry.Needs, entry.UserCommands) = entry.Visit!.ChooseMode(_forwardPass is not null || ForwardRead is not null);
             entry.Forward = forward;
         }
 
@@ -1715,6 +1769,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 visit.State = DemoQueueItemState.Running;
                 visit.Finalizing = true;
+                visit.RidesRead = true;
                 visit.Detail = "On the open demo's parse";
                 merged.AddAll(visit.Visit!);
             }
@@ -1726,9 +1781,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         RaiseChanged();
         if (!cancelled)
         {
+            using IDisposable collecting = _visitCollectors.Begin(open.Path, merged.Collectors(), merged.ChooseMode(false).Needs);
             foreach (VisitPass p in merged.Ordered())
             {
-                RunPass(p, new PassInput(merged.Demo, PassLevel.OpenDemo, parsed, null, ct));
+                RunPass(p, new PassInput(merged.Demo, PassLevel.OpenDemo, parsed, null, ct)
+                {
+                    RetainedCollected = RetainedCollected(parsed, open.Path),
+                    RetainedRun = RetainedRun(parsed, open.Path),
+                    TableOf = TableOf
+                });
             }
         }
 
@@ -1749,10 +1810,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
     {
         CancellationTokenSource cancel = CancellationTokenSource.CreateLinkedTokenSource(_shutdownToken);
         ForwardNeeds needs;
+        CollectorSet collectors;
         lock (_sync)
         {
             entry.Cancel = cancel;
             needs = entry.Needs;
+            // Fixed with the read: a pass joins later only when this set already carries its collectors.
+            collectors = entry.DeclaredCollectors = (needs & ForwardNeeds.Rules) != 0 && ForwardRead is not null
+                ? entry.Visit!.Collectors()
+                : CollectorSet.Empty;
             if (entry.CancelRequested || entry.Preempted)
             {
                 cancel.Cancel();
@@ -1766,7 +1832,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         try
         {
             NoteParse(entry.Path, "forward");
-            pass = _forwardPass!(entry.Path, needs, fraction =>
+            Action<double> progress = fraction =>
             {
                 int percent = (int)(fraction * 100);
                 if (percent != reported)
@@ -1774,7 +1840,10 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     reported = percent;
                     ReportProgress(entry, percent, 100, null);
                 }
-            }, cancel.Token);
+            };
+            pass = ForwardRead is { } read
+                ? read(entry.Path, needs, collectors, progress, cancel.Token)
+                : _forwardPass!(entry.Path, needs, progress, cancel.Token);
         }
         catch (OperationCanceledException) when (cancel.IsCancellationRequested)
         {
@@ -1787,6 +1856,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         // The source stays on the entry through the passes, so a remove during their turn still reaches them.
         FinishForward(entry, pass, failure, cancelled, cancel.Token);
+
         lock (_sync)
         {
             entry.Cancel = null;
@@ -1849,7 +1919,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
         foreach (VisitPass p in passes)
         {
-            RunPass(p, new PassInput(demo, level, null, pass!, token));
+            RunPass(p, new PassInput(demo, level, null, pass!, token) { TableOf = TableOf });
         }
 
         SetTerminal(entry, DemoQueueItemState.Completed, null);
@@ -1857,6 +1927,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
 
     // Asks the pass again right before its turn: an upstream pass on the same visit may have done its work,
     // or written what it was waiting for. A pass still waiting on upstream after upstream ran sits out.
+    // A rider runs: the visit was only planned with it when another pass needed the rules run.
     private static void RunPass(VisitPass p, PassInput input)
     {
         PassInterest interest;
@@ -2223,6 +2294,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         VisitedDemo demo;
         PassLevel level;
         List<TaskCompletionSource<ParsedDemo>> foreground;
+        CollectorSet collectors;
+        ForwardNeeds needs;
         lock (_sync)
         {
             // Close the entry to further coalescing ATOMICALLY with capturing the pass snapshot: any
@@ -2234,6 +2307,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             level = entry.Visit.Level;
             passes = entry.Visit.Ordered();
             foreground = [.. entry.ForegroundWaiters];
+            collectors = entry.Visit.Collectors();
+            needs = entry.Visit.ChooseMode(false).Needs;
         }
 
         if (failure is not null)
@@ -2261,9 +2336,15 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
         else
         {
+            using IDisposable collecting = _visitCollectors.Begin(demo.Path, collectors, needs);
             foreach (VisitPass p in passes)
             {
-                RunPass(p, new PassInput(demo, level, parsed!, null, token));
+                RunPass(p, new PassInput(demo, level, parsed!, null, token)
+                {
+                    RetainedCollected = RetainedCollected(parsed!, demo.Path),
+                    RetainedRun = RetainedRun(parsed!, demo.Path),
+                    TableOf = TableOf
+                });
             }
         }
 
@@ -2423,6 +2504,8 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                     item.Promoted = s.Promoted;
                     item.Hold = s.Hold;
                     item.EndedSeq = s.EndedSeq;
+                    item.RidesRead = s.RidesRead;
+                    item.Superseded = s.Superseded;
                 }
                 else
                 {
@@ -2443,7 +2526,9 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
                         Light = s.Light,
                         Promoted = s.Promoted,
                         Hold = s.Hold,
-                        EndedSeq = s.EndedSeq
+                        EndedSeq = s.EndedSeq,
+                        RidesRead = s.RidesRead,
+                        Superseded = s.Superseded
                     });
                 }
             }
@@ -2604,7 +2689,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         e.Id, e.Path, e.DisplayName,
         e.JobOwner is { } owner ? [owner] : e.Visit?.OwnerIds ?? [],
         e.Priority, e.State, e.Error, e.Kind, e.Progress, e.Detail, e.ExtensionKind,
-        Promoted: e.PromotedSeq > 0, EndedSeq: e.EndedSeq);
+        Promoted: e.PromotedSeq > 0, EndedSeq: e.EndedSeq, RidesRead: e.RidesRead, Superseded: e.Superseded);
 
     private static void SafeInvoke(Action action)
     {
@@ -2805,11 +2890,17 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         // Read forward instead of retained; fixed once it runs.
         public bool Forward { get; set; }
 
+        // What a forward read's rules run declared; null until it starts.
+        public CollectorSet? DeclaredCollectors { get; set; }
+
         // What a forward pass produces: the union of the owners' needs.
         public ForwardNeeds Needs { get; set; }
 
         // Stopped because an owner it could not serve arrived; its owners moved to the Front entry.
         public bool Superseded { get; set; }
+
+        // Running on another entry's read: a visit on the open's parse, or an open joined to a background parse.
+        public bool RidesRead { get; set; }
 
         // Replaces a superseded forward pass and runs before any other demo.
         public bool Front { get; init; }

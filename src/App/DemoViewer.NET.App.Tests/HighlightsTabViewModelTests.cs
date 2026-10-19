@@ -455,7 +455,7 @@ public class HighlightsTabViewModelTests
     }
 
     [Test]
-    public async Task ScanStatus_Projects_TheQueue_And_Is_A_Shell_Seam()
+    public async Task Backlog_ProjectsStaleAndFailedRows_AndIsATabSeam()
     {
         DemoCacheRecord indexed = Row("/d/a.dem", "de_dust2", 2, [("s1mple", "1", 2, 0)],
             [Ev("s1mple", "1", 0, 7, 5000, "clutch.ace")]);
@@ -466,13 +466,13 @@ public class HighlightsTabViewModelTests
             DemoAnalysisState.Failed);
         (DemoCacheStore store, HighlightScanService scanner) = NewStore(indexed, stale, failed);
 
-        using HighlightScanStatusViewModel scan = new(scanner, store);
-        await Assert.That(scan.QueueDepth).IsEqualTo(1);
+        using HighlightBacklogViewModel scan = new(scanner, store);
         await Assert.That(scan.StaleCount).IsEqualTo(1);
         await Assert.That(scan.FailedCount).IsEqualTo(1);
         await Assert.That(scan.IsRelevant).IsTrue();
-        // State is carried by the WORD in the label; the dot is a redundant colour cue (WCAG 1.4.1).
-        await Assert.That(scan.Chip.Label).Contains("queued");
+        await Assert.That(scan.Notice).Contains("1 demo has highlights from older rules");
+        await Assert.That(scan.Notice).Contains("turn on the background scan").Because("the opt-in is off here");
+        await Assert.That(scan.Notice).Contains("1 demo failed");
         await Assert.That(scan.RetryAllFailedCommand.CanExecute(null)).IsTrue();
 
         // Retry re-queues the FAILED row only. A user retrying one broken demo has not asked to re-harvest
@@ -484,12 +484,13 @@ public class HighlightsTabViewModelTests
         await Assert.That(scan.FailedCount).IsEqualTo(0)
             .Because("the projection tracks the store, not a snapshot taken at construction");
 
-        // The tab exposes it the way it exposes JobStatus: a settable seam the shell fills.
+        // A settable seam the composition root fills from the container.
         HighlightsTabViewModel vm = Vm(store, scanner);
-        await Assert.That(vm.ScanStatus).IsNull();
-        vm.ScanStatus = scan;
-        await Assert.That(vm.ScanStatus).IsSameReferenceAs(scan)
-            .Because("the shell hands the tab the SAME mapper the status-strip chip uses");
+        await Assert.That(vm.Backlog).IsNull();
+        await Assert.That(vm.ShowBacklogNotice).IsFalse();
+        vm.Backlog = scan;
+        await Assert.That(vm.Backlog).IsSameReferenceAs(scan);
+        await Assert.That(vm.ShowBacklogNotice).IsEqualTo(vm.CanScan).Because("one stale row is still out");
     }
 
     [Test]

@@ -16,7 +16,14 @@ namespace DemoViewer.NET.Modules.Highlights;
 /// <param name="Owner">The extension's id.</param>
 /// <param name="FeatureId">The feature that switches it.</param>
 /// <param name="ReadYaml">Reads the YAML; null when the extension could not supply it.</param>
-public sealed record ContributedRuleset(string RulesetId, string Owner, string FeatureId, Func<string?> ReadYaml);
+public sealed record ContributedRuleset(string RulesetId, string Owner, string FeatureId, Func<string?> ReadYaml)
+{
+    /// <summary>The pass of the owner that reads its tables off the run; null when they are library facts.</summary>
+    public string? ReadBy { get; init; }
+
+    /// <summary>True when the YAML reads player commands, so the reader's visit keeps them in a held parse.</summary>
+    public bool ReadsUserCommands { get; init; }
+}
 
 /// <summary>
 ///     The three rule layers in order: the shipped rules, then the extensions' rulesets, then the user's own

@@ -1,6 +1,9 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.AppTests.Extensions;
+using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -105,6 +108,35 @@ public class QueueParseCountTests
         await retained.Completion;
 
         await Assert.That(queue.ParseCount(Demo)).IsEqualTo(2).Because("the stopped forward read still read the file");
+    }
+
+    [Test]
+    public async Task AFrameCountingExtensionPass_RidesTheLibrarysForwardRead()
+    {
+        int retainedParses = 0;
+        using DemoProcessingQueue queue = new(new HeavyJobGate(), a => a(),
+            parseBytes: _ => SyntheticParsedDemo.Create(),
+            compactHeap: () => Task.CompletedTask,
+            parseFileWithPlan: (_, plan) =>
+            {
+                Interlocked.Increment(ref retainedParses);
+                return SyntheticParsedDemo.Create(plan: plan);
+            },
+            forwardPass: (_, _, _, _) => ExtensionPassHostTests.ForwardResult());
+        ExtensionPassHostTests.FakePass frames = new() { Reads = PassRead.Forward };
+
+        await queue.SubmitVisit(new DemoVisitRequest(Demo, PassLevel.Backlog,
+        [
+            new TestPass("library") { NeedsValue = PassNeeds.ForwardRead(ForwardNeeds.FinalState) },
+            new ExtensionPassHost(frames, ["library"], ExtensionPassHostTests.StandaloneGuard(), static () => false)
+        ])).Completion;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(queue.ParseCount(Demo)).IsEqualTo(1);
+            await Assert.That(retainedParses).IsEqualTo(0);
+            await Assert.That(frames.Seen!.FrameCount).IsEqualTo(10);
+        }
     }
 }
 

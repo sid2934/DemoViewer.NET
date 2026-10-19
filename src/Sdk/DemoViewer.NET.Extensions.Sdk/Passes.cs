@@ -18,20 +18,74 @@ public enum DemoInterest
     AfterUpstream
 }
 
+/// <summary>How a pass reads the demo.</summary>
+public enum PassRead
+{
+    /// <summary>The whole parse, held in memory for the pass's turn.</summary>
+    Retained,
+
+    /// <summary>
+    ///     The demo's header, rounds and frame clock only. A visit whose passes all read forward streams the demo
+    ///     and keeps no frames.
+    /// </summary>
+    Forward
+}
+
+/// <summary>One round of the demo, opened by its <c>round_freeze_end</c>.</summary>
+/// <param name="Number">Sequential from 1 in demo order, warmup and restarts included.</param>
+/// <param name="FreezeEndTick">The round's freeze end in the frame clock (<c>GameEvent.GameTick</c>), not the server tick.</param>
+public sealed record PassRound(int Number, int FreezeEndTick);
+
 /// <summary>What a pass gets when its turn comes on a demo's visit.</summary>
 public interface IPassContext
 {
     /// <summary>The demo.</summary>
     string DemoPath { get; }
 
-    /// <summary>The demo's parse, shared with every other pass on the visit. Read only; do not keep it.</summary>
-    ParsedDemo Parsed { get; }
+    /// <summary>
+    ///     The demo's parse, shared with every other pass on the visit. Read only; do not keep it. Null for a pass
+    ///     that declared <see cref="PassRead.Forward" />, whichever way the visit read the demo.
+    /// </summary>
+    ParsedDemo? Parsed { get; }
+
+    /// <summary>The demo's header and roster.</summary>
+    DemoDescriptor Demo { get; }
+
+    /// <summary>How many frames the demo holds.</summary>
+    int FrameCount { get; }
+
+    /// <summary>The server tick of the first frame, 0 when the demo has none.</summary>
+    int FirstServerTick { get; }
+
+    /// <summary>The server tick of the last frame, 0 when the demo has none.</summary>
+    int LastServerTick { get; }
+
+    /// <summary>The frame clock (<c>GameTick</c>, else the server tick) of the last frame, 0 when the demo has none.</summary>
+    int LastFrameTick { get; }
+
+    /// <summary>The demo's rounds in order.</summary>
+    IReadOnlyList<PassRound> Rounds { get; }
 
     /// <summary>
     ///     Fires when the visit is cancelled or the app shuts down. The parse cannot stop, the pass can; throw
     ///     <see cref="OperationCanceledException" /> to end the turn.
     /// </summary>
     CancellationToken CancellationToken { get; }
+
+    /// <summary>
+    ///     What the collector <paramref name="collectorId" /> put on this demo's rules run, the run made first if the
+    ///     visit has not made one yet. Null when it put nothing. Throws when the collector failed on this demo, or is
+    ///     not one of this pass's.
+    /// </summary>
+    T? Collected<T>(string collectorId) where T : class;
+
+    /// <summary>
+    ///     The rows the table <paramref name="table" /> recorded on this demo's rules run, the run made first if the
+    ///     visit has not made one yet. The table must be declared by a ruleset the extension contributed with
+    ///     <see cref="RulesetContribution.ReadBy" /> naming this pass. Throws when it is not, or when the run did not
+    ///     record it because its ruleset was left out of the build.
+    /// </summary>
+    IReadOnlyList<FactRow> Table(string table);
 }
 
 /// <summary>
@@ -51,6 +105,13 @@ public interface IExtensionPass
 
     /// <summary>False lets the parse leave out player inputs when no other pass on the visit reads them.</summary>
     bool ReadsUserCommands => true;
+
+    /// <summary>
+    ///     How the pass reads the demo. A forward pass does not hold the visit on the retained parse and sees no
+    ///     player inputs itself: <see cref="ReadsUserCommands" /> is not consulted for it, and a collector of its
+    ///     that declares <see cref="CollectorContribution.ReadsUserCommands" /> reads them on the rules run.
+    /// </summary>
+    PassRead Read => PassRead.Retained;
 
     /// <summary>
     ///     Whether <paramref name="demoPath" /> needs this pass. Asked when the library adds or changes the demo,

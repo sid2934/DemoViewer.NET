@@ -37,7 +37,7 @@ public static class RoundFactsRecords
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(rows);
         record.RoundFacts = rows;
-        record.SetStamp(new PackStamp(FacetId, rows.Schema, fingerprint));
+        record.SetStamp(new PackStamp(FacetId, rows.Schema, fingerprint) { ComputedAtTicks = DateTime.UtcNow.Ticks });
     }
 
     /// <summary>The round facts stamp, or null when none were written.</summary>

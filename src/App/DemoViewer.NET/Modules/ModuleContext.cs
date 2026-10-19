@@ -65,9 +65,10 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     // e.g. weapon_fire, are never built). Reset on unload.
     private IReadOnlyList<GameEvent> _allGameEvents = Array.Empty<GameEvent>();
 
-    // Shared game-clock calibration (set once per demo at load by the shell, mirroring SetRoster). When
-    // not calibrated CurtimeSeconds returns the naive reading (clockBase 0 → tick/tickRate).
+    // Shared game-clock calibration, handed over per load by the shell (mirroring SetRoster) and settled by
+    // the open's rules run. When not calibrated CurtimeSeconds returns the naive reading (clockBase 0).
     private double _clockBase;
+    private GameClockSource? _clock;
 
     // The currently-loaded parsed demo (set once at load, mirroring SetRoster). Exposed to first-party
     // modules via ICurrentDemoSource so the Rulesets v2 Workbench can evaluate against it: the Parser
@@ -135,11 +136,30 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     public double Speed => _controller.Speed;
 
     // CurtimeSeconds(tick) = tick/tickRate − clockBase (m_flGameStartTime cancels out of the consume
-    // path; see GameClock). One subtraction per call; no entity reads. clockBase 0 = naive fallback.
+    // path; see GameClock). clockBase 0 = naive fallback.
     public double CurtimeSeconds(int tick)
     {
         int rate = TickRate > 0 ? TickRate : 64;
-        return tick / (double)rate - _clockBase;
+        return tick / (double)rate - ClockBase();
+    }
+
+    // Until the open's run settles the clock, the base matters only against entity state, and there is
+    // none before the first seek; with a tracker in hand, an unsettled clock replays for its value.
+    private double ClockBase()
+    {
+        if (_clock is not { } clock)
+        {
+            return _clockBase;
+        }
+
+        if (clock.Settled is { } settled)
+        {
+            _clockBase = settled;
+            _clock = null;
+            return settled;
+        }
+
+        return _controller.AuthoritativeTracker is null ? 0 : clock.Resolve();
     }
 
     public void RequestSeekToFrame(int frameIndex) => _controller.SeekToFrame(frameIndex);
@@ -354,12 +374,22 @@ public sealed class ModuleContext : IModuleContext, ICurrentDemoSource
     }
 
     /// <summary>
-    ///     Sets the shared game-clock calibration on demo load (mirrors <see cref="SetRoster" />). The
-    ///     host computes <c>clockBase</c> once via <see cref="GameClock.ComputeClockBase" />: it owns
-    ///     the frame history + the precomputed <c>round_freeze_end</c> frames a seeking module lacks.
-    ///     Reset to 0 (naive fallback) on unload.
+    ///     Sets the shared game-clock calibration (mirrors <see cref="SetRoster" />). The host owns the
+    ///     frame history and the precomputed <c>round_freeze_end</c> frames a seeking module lacks; a load
+    ///     hands over a <see cref="GameClockSource" /> instead. Reset to 0 (naive fallback) on unload.
     /// </summary>
-    public void SetGameClock(double clockBase) => _clockBase = clockBase;
+    public void SetGameClock(double clockBase)
+    {
+        _clockBase = clockBase;
+        _clock = null;
+    }
+
+    /// <summary>Sets the clock calibration that the open's rules run settles, replacing any previous one.</summary>
+    internal void SetGameClock(GameClockSource clock)
+    {
+        _clockBase = 0;
+        _clock = clock;
+    }
 
     /// <summary>
     ///     Hands the context the demo's pre-decoded flat event list at load (mirrors <see cref="SetRoster" />).

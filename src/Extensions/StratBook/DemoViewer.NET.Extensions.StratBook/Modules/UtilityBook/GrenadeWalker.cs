@@ -3,240 +3,265 @@
 using System.Globalization;
 using System.Numerics;
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Text;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
-using CS2DemoKit.Parser.Entities;
 using CS2DemoKit.Parser.EntityTracking;
 
 #endregion
 
 namespace DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 
-/// <summary>What one walk is asked for.</summary>
-/// <param name="TrajectoryStride">Keep every n-th moved sample of each flight; bounce vertices are always kept.</param>
-/// <param name="MaxFrames">Stop after this many frames; a projectile still alive ends as <see cref="GrenadeEndKind.DemoEnded" />.</param>
-/// <param name="Inputs">The thrower inputs; null rebuilds the demo's own commands through <see cref="UserCmdReconstructor" />.</param>
-/// <param name="Rounds">The round starts; null derives them with <see cref="ClipRounds.Derive(ParsedDemo)" />.</param>
-/// <param name="FilterClasses">
-///     Store only the classes the pawn pass reads (<see cref="EntityTracker.StoreClassFilter" />). Off until
-///     the parity test pins the two walks equal row for row, because an omitted class is silent.
-/// </param>
-public sealed record GrenadeWalkOptions(
-    int TrajectoryStride = 4,
-    int MaxFrames = int.MaxValue,
-    IThrowerInputSource? Inputs = null,
-    IReadOnlyList<ClipRound>? Rounds = null,
-    bool FilterClasses = false);
-
 /// <summary>A walk's output: the rows, and what the header records about how they were made.</summary>
 /// <param name="Rows">One per grenade, in spawn order.</param>
-/// <param name="InputCoverage">Share of the demo's commands that decoded.</param>
+/// <param name="InputCoverage">Share of the throws with a thrower read at the spawn whose thrower had commands on the lane there.</param>
 /// <param name="InputDecoder">The input source's name.</param>
 /// <param name="TrajectoryStride">The stride the trajectories were thinned at.</param>
 public sealed record GrenadeWalk(IReadOnlyList<GrenadeRow> Rows, double InputCoverage, string InputDecoder, int TrajectoryStride);
 
-/// <summary>The thrower's pawn on one frame, as far as it decoded.</summary>
-public readonly record struct PawnRead(
-    int Tick,
-    Vector3? Position,
-    float? Pitch,
-    float? Yaw,
-    uint? Flags,
-    bool? Ducked,
-    bool? Walking,
-    int Team,
-    float? ThrowStrength,
-    bool HeldGrenade)
-{
-    public bool? OnGround => Flags is { } f ? (f & GrenadeRules.OnGroundFlag) != 0 : null;
-}
-
-/// <summary>The per-class fields of a projectile the engine sample does not carry.</summary>
-/// <param name="IsIncendiary"><c>m_bIsIncGrenade</c> on a molotov-class projectile, read on the spawn frame.</param>
-/// <param name="ExplodeTickBegin"><c>m_nExplodeEffectTickBegin</c> (server clock) on the last frame, or null.</param>
-/// <param name="SmokeTickBegin"><c>m_nSmokeEffectTickBegin</c> (server clock) on the last frame, or null.</param>
-/// <param name="SmokeDetonationPosition"><c>m_vSmokeDetonationPos</c> on the last frame, or null.</param>
-public readonly record struct ProjectileRead(bool? IsIncendiary, int? ExplodeTickBegin, int? SmokeTickBegin, Vector3? SmokeDetonationPosition);
-
-/// <summary>A projectile's thrower and release, decided from the events before any pawn is read.</summary>
-public sealed record ThrowPlan(
-    ProjectileTrack Track,
-    int ThrowerSlot,
-    ThrowerSource ThrowerSource,
-    int ReleaseTick,
-    int? ReleaseFrame,
-    ReleaseSource ReleaseSource,
-    int? SpeedFrame,
-    string? Weapon);
-
-/// <summary>What the read pass found: pawns by (frame, slot) and projectile fields by (index, serial).</summary>
-public sealed class GrenadeReads
-{
-    public Dictionary<(int Frame, int Slot), PawnRead> Pawns { get; } = [];
-    public Dictionary<(int Index, int Serial), ProjectileRead> Projectiles { get; } = [];
-}
-
 /// <summary>
-///     Turns every grenade in a demo into one <see cref="GrenadeRow" />, rebased on CS2DemoKit 0.13's
-///     <see cref="ProjectileSampler" /> (#59): the engine walks the projectile
-///     slots, resolves the thrower chain and rejects zero-cell positions, and this is the thin app-side layer
-///     the sampler's own contract leaves to the consumer, the release, detonation and jump-throw joins.
+///     Turns every grenade in a demo into one <see cref="GrenadeRow" /> from the three grenade tables the visit's
+///     rules run recorded (<see cref="GrenadeTables" />) and the flights the frame observer kept
+///     (<see cref="GrenadeTrajectoryCollector" />). The engine carries the projectile lifecycle, the thrower chain,
+///     the thrower's state and commands and the look-backs; this is the thin layer its contract leaves to the
+///     consumer: the release, detonation and jump-throw joins.
 ///     <para>
-///         <b>Two passes over one held parse.</b> The sampler walks the projectiles; its tracks and the
-///         events decide which frames need the thrower's pawn; one tracker pass then reads only those frames
-///         (release, eight ticks before it, spawn) and the last frame of each projectile, and rebuilds the
-///         commands inside each jump window through <see cref="UserCmdReconstructor" />. A single
-///         walk with a pawn ring is not possible over the sampler, which exposes no tracker; the second
-///         decode is the price, about the same as the sampler's own.
-///     </para>
-///     <para>
-///         Every step between the passes is pure (<see cref="Plan" />, <see cref="Assemble" />), so the
-///         joins are tested on synthetic samples and events without a demo.
+///         Every step is pure (<see cref="Plan" />, <see cref="Assemble(IReadOnlyList{GrenadeThrow}, GrenadeEventIndex, GrenadeTrajectories, IReadOnlyList{ClipRound}, IEnumerable{PlayerInfo}, int, int)" />),
+///         so the joins are tested on synthetic rows without a demo.
 ///     </para>
 /// </summary>
 public static class GrenadeWalker
 {
-    /// <summary>Bumped when a row's meaning changes; a demo walked under another version re-indexes.</summary>
-    public const string Version = "2";
-
-    private const string ControllerClass = "CCSPlayerController";
-    private const string PawnClass = "CCSPlayerPawn";
+    /// <summary>Bumped when a row's meaning changes in the fold itself.</summary>
+    private const string WalkVersion = "5";
 
     /// <summary>The engine the rows were read with, for the sidecar header.</summary>
     public static string EngineVersion { get; } = DescribeEngine();
 
     /// <summary>
-    ///     Walks <paramref name="demo" />. Blocking and CPU-bound, about two decodes of the demo: call it
-    ///     off the UI thread.
+    ///     What stored rows are current under: <see cref="WalkVersion" />, the three grenade rulesets' YAML, the
+    ///     trajectory collector's version and the engine, so a change to any of them re-indexes the demo.
     /// </summary>
-    /// <param name="demo">The held parse.</param>
-    /// <param name="options">Stride, bounds and seams; null for the defaults.</param>
-    /// <param name="samples">The projectile samples; null walks the demo with <see cref="ProjectileSampler.Walk(ParsedDemo, int, int)" />.</param>
-    /// <param name="ct">Checked between frames.</param>
-    public static GrenadeWalk Walk(ParsedDemo demo, GrenadeWalkOptions? options = null,
-        IEnumerable<ProjectileSample>? samples = null, CancellationToken ct = default)
+    public static string Version { get; } = ComputeVersion();
+
+    /// <summary>The sidecar's input decoder name: the jump inputs come off the rules run's command lane.</summary>
+    public const string InputDecoderName = "rules-command-lane";
+
+    /// <summary>
+    ///     The rows off a visit's rules run: the three grenade tables joined, with the flights the observer kept and
+    ///     the demo's roster and clock values. A grenade whose thrower never resolved takes its own fields from the
+    ///     observer's flight. The input coverage is the share of throws read at the spawn whose thrower had
+    ///     commands on the lane there, which is how often the jump-throw flag came from inputs.
+    /// </summary>
+    /// <param name="inputs">The tables and the flights.</param>
+    /// <param name="rounds">Round starts, frame clock.</param>
+    /// <param name="players">The demo's players, for the thrower's SteamID and name.</param>
+    /// <param name="tickRate">Ticks per second.</param>
+    /// <param name="serverStartTick">Subtracted from the server-clock effect ticks.</param>
+    public static GrenadeWalk Assemble(GrenadeWalkInputs inputs, IReadOnlyList<ClipRound> rounds, IEnumerable<PlayerInfo> players,
+        int tickRate, int serverStartTick)
     {
-        ArgumentNullException.ThrowIfNull(demo);
-        options ??= new GrenadeWalkOptions();
-        int stride = Math.Max(1, options.TrajectoryStride);
+        ArgumentNullException.ThrowIfNull(inputs);
+        List<GrenadeThrow> throws = Plan(WithFlights(inputs.Tables.Projectiles, inputs.Flights), inputs.Tables.Releases);
+        List<GrenadeRow> rows = Assemble(throws, inputs.Tables.Events, inputs.Flights, rounds, players, tickRate, serverStartTick);
+        int read = 0, covered = 0;
+        foreach (GrenadeThrow t in throws)
+        {
+            if (t.ThrowerSlot < 0 || t.Projectile.AtSpawn is not { } atSpawn)
+            {
+                continue;
+            }
 
-        List<ProjectileTrack> tracks = ProjectileTrack.Collect(
-            samples ?? ProjectileSampler.Walk(demo, 1, options.MaxFrames), stride, ct);
-        GrenadeEventIndex events = GrenadeEventIndex.From(demo.AllGameEvents);
-        IReadOnlyList<DemoFrame> frames = demo.Frames;
-        List<ThrowPlan> plans = Plan(tracks, events, tick => FrameAtOrBefore(frames, tick));
+            read++;
+            if (atSpawn.Coverage > 0)
+            {
+                covered++;
+            }
+        }
 
-        ReconstructedInputSource? rebuilt = options.Inputs is null
-            ? new ReconstructedInputSource(plans
-                .Where(p => p.ThrowerSlot >= 0)
-                .Select(p => (p.ThrowerSlot, p.Track.SpawnTick - GrenadeRules.JumpWindowTicks, p.Track.SpawnTick)))
-            : null;
-        GrenadeReads reads = ReadPass(demo, plans, rebuilt, options, ct);
-        IThrowerInputSource inputs = options.Inputs ?? rebuilt!;
-
-        List<GrenadeRow> rows = Assemble(plans, reads, events, inputs, options.Rounds ?? ClipRounds.Derive(demo),
-            demo.Players.Values, demo.TickRate > 0 ? demo.TickRate : 64, demo.ServerStartTick);
-        return new GrenadeWalk(rows, inputs.Coverage, inputs.Decoder, stride);
+        return new GrenadeWalk(rows, read == 0 ? 0 : (double)covered / read, InputDecoderName, inputs.Flights.Stride);
     }
 
     /// <summary>
-    ///     Decides each projectile's thrower and release from the events: the sampler's
-    ///     resolved slot, else the thrower join; then the latest matching <c>weapon_fire</c> within
-    ///     <see cref="GrenadeRules.ReleaseLookbackTicks" /> before the spawn, else <c>grenade_thrown</c>, else
-    ///     the spawn minus the measured gap. Resolved throwers claim their releases first, so a join never
-    ///     takes a release that belongs to a known thrower.
+    ///     The table grenades completed from the observer's flights: a landing row takes the projectile's own spawn
+    ///     fields and rest tick, and a flight with no row at all, a grenade whose thrower never resolved and that
+    ///     was still live when the run ended, becomes one. Spawn order. Pure.
     /// </summary>
-    /// <param name="tracks">The projectiles, in spawn order.</param>
-    /// <param name="events">The demo's event index.</param>
-    /// <param name="frameAtOrBefore">Frame clock to the last frame index at or before it, or -1.</param>
-    public static List<ThrowPlan> Plan(IReadOnlyList<ProjectileTrack> tracks, GrenadeEventIndex events, Func<int, int> frameAtOrBefore)
+    /// <param name="projectiles">The folded table grenades.</param>
+    /// <param name="flights">The observer's flights.</param>
+    public static List<ProjectileFacts> WithFlights(IReadOnlyList<ProjectileFacts> projectiles, GrenadeTrajectories flights)
     {
-        ArgumentNullException.ThrowIfNull(tracks);
-        ArgumentNullException.ThrowIfNull(events);
-        ArgumentNullException.ThrowIfNull(frameAtOrBefore);
+        ArgumentNullException.ThrowIfNull(projectiles);
+        ArgumentNullException.ThrowIfNull(flights);
+        List<ProjectileFacts> all = new(projectiles.Count);
+        HashSet<(int, int)> known = [];
+        foreach (ProjectileFacts p in projectiles)
+        {
+            known.Add((p.EntityIndex, p.Serial));
+            all.Add(p.ThrowerSlot < 0 && p.AtSpawn is null && flights.Facts.TryGetValue((p.EntityIndex, p.Serial), out FlightFacts? f)
+                ? p with
+                {
+                    InitialPosition = p.InitialPosition ?? f.InitialPosition, InitialVelocity = p.InitialVelocity ?? f.InitialVelocity,
+                    IsIncendiary = p.IsIncendiary ?? f.IsIncendiary, LastMovedTick = f.LastMovedTick
+                }
+                : p);
+        }
 
-        HashSet<GrenadeRelease> claimed = [];
-        ThrowPlan?[] plans = new ThrowPlan?[tracks.Count];
+        int added = 0;
+        foreach (((int index, int serial), FlightFacts f) in flights.Facts)
+        {
+            if (known.Contains((index, serial)) || f.ClassName.Length == 0)
+            {
+                continue;
+            }
 
-        // Two rounds: known throwers first, then the joins over what they left.
+            added++;
+            all.Add(new ProjectileFacts(index, serial, f.ClassName, -1, f.SpawnTick, f.SpawnTick, f.EndTick, f.Removed, f.InitialPosition,
+                f.InitialVelocity, f.LastPosition, f.LastMovedTick, f.Bounces, f.IsIncendiary, null, null, null, null, null, null));
+        }
+
+        if (added > 0)
+        {
+            all.Sort((a, b) => a.SpawnTick != b.SpawnTick ? a.SpawnTick.CompareTo(b.SpawnTick) : a.EntityIndex.CompareTo(b.EntityIndex));
+        }
+
+        return all;
+    }
+
+    /// <summary>
+    ///     Decides each projectile's thrower and release from the tables: the row's resolved slot, else the thrower
+    ///     join; then the latest matching release within <see cref="GrenadeRules.ReleaseLookbackTicks" /> before the
+    ///     spawn, else the spawn minus the measured gap, read through the row's look-backs. Resolved throwers claim
+    ///     their releases first, so a join never takes a release that belongs to a known thrower.
+    /// </summary>
+    /// <param name="projectiles">The grenades, in spawn order.</param>
+    /// <param name="releases">The grenade releases, in tick order.</param>
+    public static List<GrenadeThrow> Plan(IReadOnlyList<ProjectileFacts> projectiles, IReadOnlyList<ReleaseFacts> releases)
+    {
+        ArgumentNullException.ThrowIfNull(projectiles);
+        ArgumentNullException.ThrowIfNull(releases);
+
+        HashSet<ReleaseFacts> claimed = [];
+        GrenadeThrow?[] throws = new GrenadeThrow?[projectiles.Count];
         for (int round = 0; round < 2; round++)
         {
-            for (int i = 0; i < tracks.Count; i++)
+            for (int i = 0; i < projectiles.Count; i++)
             {
-                ProjectileTrack track = tracks[i];
-                bool resolved = track.ThrowerSlot >= 0;
+                ProjectileFacts p = projectiles[i];
+                bool resolved = p.ThrowerSlot >= 0;
                 if (resolved != (round == 0))
                 {
                     continue;
                 }
 
-                int slot = track.ThrowerSlot;
+                int slot = p.ThrowerSlot;
                 ThrowerSource throwerSource = resolved ? ThrowerSource.Entity : ThrowerSource.None;
-                GrenadeRelease? fire = null;
+                ReleaseFacts? fire = null;
                 if (resolved)
                 {
-                    fire = GrenadeEventIndex.Latest(events.Fires, slot, track.ClassName,
-                        track.SpawnTick - GrenadeRules.ReleaseLookbackTicks, track.SpawnTick, claimed);
+                    fire = LatestRelease(releases, slot, p.ClassName, p.SpawnTick - GrenadeRules.ReleaseLookbackTicks, p.SpawnTick, claimed);
                 }
-                else if (events.JoinThrower(track.ClassName, track.SpawnTick, claimed) is { } joined)
+                else if (JoinThrower(releases, p.ClassName, p.SpawnTick, claimed) is { } joined)
                 {
                     fire = joined;
                     slot = joined.Slot;
                     throwerSource = ThrowerSource.WeaponFire;
                 }
 
-                int releaseTick;
-                int? releaseFrame;
-                ReleaseSource releaseSource;
-                string? weapon = fire?.Weapon;
                 if (fire is not null)
                 {
                     claimed.Add(fire);
-                    (releaseTick, releaseFrame, releaseSource) = (fire.Tick, fire.FrameIndex, ReleaseSource.WeaponFire);
-                }
-                else if (slot >= 0 && GrenadeEventIndex.Latest(events.Thrown, slot, track.ClassName,
-                             track.SpawnTick - GrenadeRules.ReleaseLookbackTicks, track.SpawnTick, claimed) is { } thrown)
-                {
-                    claimed.Add(thrown);
-                    weapon = thrown.Weapon;
-                    (releaseTick, releaseFrame, releaseSource) = (thrown.Tick, thrown.FrameIndex, ReleaseSource.GrenadeThrown);
+                    throws[i] = new GrenadeThrow(p, slot, throwerSource, fire.Tick, ReleaseSource.WeaponFire, fire.Weapon, fire.Pawn, fire.Before);
                 }
                 else
                 {
-                    releaseTick = track.SpawnTick - GrenadeRules.ReleaseToSpawnTicks;
-                    int frame = frameAtOrBefore(releaseTick);
-                    releaseFrame = frame >= 0 ? frame : null;
-                    releaseSource = ReleaseSource.SpawnOffset;
+                    throws[i] = new GrenadeThrow(p, slot, throwerSource, p.SpawnTick - GrenadeRules.ReleaseToSpawnTicks, ReleaseSource.SpawnOffset,
+                        null, resolved ? p.OffsetRelease : null, resolved ? p.OffsetBefore : null);
                 }
-
-                int speedFrame = frameAtOrBefore(releaseTick - GrenadeRules.SpeedWindowTicks);
-                plans[i] = new ThrowPlan(track, slot, throwerSource, releaseTick, releaseFrame, releaseSource,
-                    speedFrame >= 0 ? speedFrame : null, weapon);
             }
         }
 
-        return [.. plans.Select(p => p!)];
+        return [.. throws.Select(t => t!)];
     }
 
     /// <summary>
-    ///     Builds the rows from the plans and what the read pass found. Pure.
+    ///     The latest unclaimed release of <paramref name="projectileClass" /> by <paramref name="slot" /> in
+    ///     <c>[fromTick, toTick]</c>.
     /// </summary>
-    /// <param name="plans">From <see cref="Plan" />.</param>
-    /// <param name="reads">The pawn and projectile reads.</param>
-    /// <param name="events">The demo's event index.</param>
-    /// <param name="inputs">The thrower inputs.</param>
+    public static ReleaseFacts? LatestRelease(IReadOnlyList<ReleaseFacts> releases, int slot, string projectileClass,
+        int fromTick, int toTick, IReadOnlySet<ReleaseFacts> claimed)
+    {
+        ArgumentNullException.ThrowIfNull(releases);
+        ArgumentNullException.ThrowIfNull(claimed);
+        ReleaseFacts? best = null;
+        foreach (ReleaseFacts r in releases)
+        {
+            if (r.Tick > toTick)
+            {
+                break;
+            }
+
+            if (r.Tick >= fromTick && r.Slot == slot && string.Equals(r.ProjectileClass, projectileClass, StringComparison.Ordinal)
+                && !claimed.Contains(r))
+            {
+                best = r;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>
+    ///     The thrower join for a projectile whose thrower never resolved: the unclaimed release of the same family
+    ///     in <c>[spawn - 15, spawn - 6]</c>, the one nearest the measured seven-tick gap when several fit.
+    /// </summary>
+    public static ReleaseFacts? JoinThrower(IReadOnlyList<ReleaseFacts> releases, string projectileClass, int spawnTick,
+        IReadOnlySet<ReleaseFacts> claimed)
+    {
+        ArgumentNullException.ThrowIfNull(releases);
+        ArgumentNullException.ThrowIfNull(claimed);
+        ReleaseFacts? best = null;
+        int bestGap = int.MaxValue;
+        foreach (ReleaseFacts r in releases)
+        {
+            if (r.Tick > spawnTick - GrenadeRules.ReleaseToSpawnMinTicks)
+            {
+                break;
+            }
+
+            if (r.Tick < spawnTick - GrenadeRules.ReleaseToSpawnMaxTicks
+                || !string.Equals(r.ProjectileClass, projectileClass, StringComparison.Ordinal) || claimed.Contains(r))
+            {
+                continue;
+            }
+
+            int gap = Math.Abs(spawnTick - r.Tick - GrenadeRules.ReleaseToSpawnTicks);
+            if (gap < bestGap)
+            {
+                bestGap = gap;
+                best = r;
+            }
+        }
+
+        return best;
+    }
+
+    /// <summary>Builds the rows from the throws, the detonations and the flights. Pure.</summary>
+    /// <param name="throws">From <see cref="Plan" />.</param>
+    /// <param name="events">The detonation events.</param>
+    /// <param name="flights">The trajectories.</param>
     /// <param name="rounds">Round starts, frame clock.</param>
     /// <param name="players">The demo's players, for the thrower's SteamID.</param>
     /// <param name="tickRate">Ticks per second.</param>
     /// <param name="serverStartTick">Subtracted from the server-clock effect ticks.</param>
-    public static List<GrenadeRow> Assemble(IReadOnlyList<ThrowPlan> plans, GrenadeReads reads, GrenadeEventIndex events,
-        IThrowerInputSource inputs, IReadOnlyList<ClipRound> rounds, IEnumerable<PlayerInfo> players, int tickRate,
-        int serverStartTick)
+    public static List<GrenadeRow> Assemble(IReadOnlyList<GrenadeThrow> throws, GrenadeEventIndex events, GrenadeTrajectories flights,
+        IReadOnlyList<ClipRound> rounds, IEnumerable<PlayerInfo> players, int tickRate, int serverStartTick)
     {
-        ArgumentNullException.ThrowIfNull(plans);
-        ArgumentNullException.ThrowIfNull(reads);
+        ArgumentNullException.ThrowIfNull(throws);
         ArgumentNullException.ThrowIfNull(events);
-        ArgumentNullException.ThrowIfNull(inputs);
+        ArgumentNullException.ThrowIfNull(flights);
+        ArgumentNullException.ThrowIfNull(rounds);
         ArgumentNullException.ThrowIfNull(players);
 
         Dictionary<int, ulong> steamBySlot = [];
@@ -255,37 +280,38 @@ public static class GrenadeWalker
         }
 
         HashSet<GrenadeDetonation> claimedFires = [];
-        List<GrenadeRow> rows = new(plans.Count);
-        foreach (ThrowPlan plan in plans)
+        List<GrenadeRow> rows = new(throws.Count);
+        foreach (GrenadeThrow t in throws)
         {
-            ProjectileTrack track = plan.Track;
-            int slot = plan.ThrowerSlot;
-            PawnRead? release = Pawn(reads, plan.ReleaseFrame, slot);
-            PawnRead? before = Pawn(reads, plan.SpeedFrame, slot);
-            PawnRead? atSpawn = Pawn(reads, track.SpawnFrame, slot);
-            ProjectileRead projectile = reads.Projectiles.GetValueOrDefault((track.EntityIndex, track.Serial));
+            ProjectileFacts p = t.Projectile;
+            int slot = t.ThrowerSlot;
+            ThrowerRead? release = t.Release;
+            ThrowerAtSpawn? atSpawn = slot >= 0 ? p.AtSpawn : null;
 
-            GrenadeKind kind = GrenadeRules.KindOf(track.ClassName, plan.Weapon, projectile.IsIncendiary) ?? GrenadeKind.Smoke;
-            float? speed = GrenadeRules.HorizontalSpeed(before?.Position, before?.Tick ?? 0, release?.Position,
-                release?.Tick ?? 0, tickRate);
+            GrenadeKind kind = GrenadeRules.KindOf(p.ClassName, t.Weapon, p.IsIncendiary) ?? GrenadeKind.Smoke;
+            // The look-back is a fixed eight ticks behind the release read.
+            float? speed = GrenadeRules.HorizontalSpeed(t.Before, t.ReleaseTick - GrenadeRules.SpeedWindowTicks, release?.Position,
+                t.ReleaseTick, tickRate);
 
-            bool covered = slot >= 0 && inputs.HasCoverage(slot, track.SpawnTick - GrenadeRules.JumpWindowTicks, track.SpawnTick);
-            int? press = covered ? inputs.FindJumpPress(slot, track.SpawnTick - GrenadeRules.JumpWindowTicks, track.SpawnTick) : null;
-            (bool jumpThrow, JumpThrowSource jumpSource, int? pressTick) =
-                GrenadeRules.ClassifyJumpThrow(covered, press, atSpawn?.OnGround);
+            bool covered = atSpawn is { Coverage: > 0 };
+            int? press = covered && atSpawn!.Value.LastJumpTick >= p.SpawnTick - GrenadeRules.JumpWindowTicks
+                                 && atSpawn.Value.LastJumpTick <= p.SpawnTick
+                ? atSpawn.Value.LastJumpTick
+                : null;
+            (bool jumpThrow, JumpThrowSource jumpSource, int? pressTick) = GrenadeRules.ClassifyJumpThrow(covered, press, atSpawn?.OnGround);
 
             (int? detTick, Vector3? detPosition, DetonationSource detSource, int? inferno) =
-                ResolveDetonation(track, projectile, events, serverStartTick, claimedFires);
+                ResolveDetonation(p, events, serverStartTick, claimedFires);
 
-            int restTick = track.LastMovedTick;
+            int restTick = p.LastMovedTick;
             int airEnd = detTick is { } d && d < restTick ? d : restTick;
             GrenadeEndKind endKind = detTick is not null ? GrenadeEndKind.Detonated
-                : track.Removed ? GrenadeEndKind.Removed
+                : p.Removed ? GrenadeEndKind.Removed
                 : GrenadeEndKind.DemoEnded;
 
             rows.Add(new GrenadeRow
             {
-                Id = track.Id,
+                Id = p.Id,
                 Kind = kind,
                 ThrowerSlot = slot,
                 ThrowerSteamId64 = slot >= 0 && steamBySlot.TryGetValue(slot, out ulong steam)
@@ -293,10 +319,10 @@ public static class GrenadeWalker
                     : null,
                 ThrowerName = slot >= 0 ? nameBySlot.GetValueOrDefault(slot) : null,
                 ThrowerTeam = atSpawn is { Team: > 0 } spawned ? spawned.Team : release?.Team ?? 0,
-                ThrowerSource = slot >= 0 ? plan.ThrowerSource : ThrowerSource.None,
-                RoundNumber = GrenadeRules.RoundAt(rounds, track.SpawnTick),
-                ReleaseTick = plan.ReleaseTick,
-                ReleaseSource = plan.ReleaseSource,
+                ThrowerSource = slot >= 0 ? t.ThrowerSource : ThrowerSource.None,
+                RoundNumber = GrenadeRules.RoundAt(rounds, p.SpawnTick),
+                ReleaseTick = t.ReleaseTick,
+                ReleaseSource = t.ReleaseSource,
                 ReleasePosition = Point(release?.Position),
                 ReleaseEyePitch = release?.Pitch,
                 ReleaseEyeYaw = release?.Yaw,
@@ -306,21 +332,21 @@ public static class GrenadeWalker
                 ThrowStrengthClass = GrenadeRules.ClassifyStrength(release?.ThrowStrength, release?.HeldGrenade ?? false),
                 Movement = GrenadeRules.ClassifyMovement(speed),
                 SpeedAtRelease = speed,
-                SpawnTick = track.SpawnTick,
-                SpawnPosition = Point(track.InitialPosition),
-                SpawnVelocity = Point(track.InitialVelocity),
+                SpawnTick = p.SpawnTick,
+                SpawnPosition = Point(p.InitialPosition),
+                SpawnVelocity = Point(p.InitialVelocity),
                 ThrowerPositionAtSpawn = Point(atSpawn?.Position),
                 ThrowerOnGroundAtSpawn = atSpawn?.OnGround,
                 JumpThrow = jumpThrow,
                 JumpThrowSource = jumpSource,
                 JumpPressTick = pressTick,
-                Trajectory = track.Trajectory,
-                BounceCount = track.MaxBounces,
-                AirTimeTicks = Math.Max(0, airEnd - track.SpawnTick),
+                Trajectory = flights.Of(p.EntityIndex, p.Serial),
+                BounceCount = p.Bounces,
+                AirTimeTicks = Math.Max(0, airEnd - p.SpawnTick),
                 DetonationTick = detTick,
                 DetonationPosition = Point(detPosition),
                 DetonationSource = detSource,
-                EndTick = track.EndTick,
+                EndTick = p.EndTick,
                 EndKind = endKind,
                 InfernoEntityIndex = inferno
             });
@@ -330,22 +356,20 @@ public static class GrenadeWalker
     }
 
     /// <summary>
-    ///     A projectile's detonation: the kind's event by entity index (a fire by tick,
-    ///     since <c>inferno_startburn</c> names the inferno), else the entity's effect-tick field, else for
-    ///     an HE or a flash the last position seen. Pure.
+    ///     A projectile's detonation: the kind's event by entity index (a fire by tick, since
+    ///     <c>inferno_startburn</c> names the inferno), else the row's effect-tick field, else for an HE or a flash the
+    ///     last position seen. Pure.
     /// </summary>
     public static (int? Tick, Vector3? Position, DetonationSource Source, int? InfernoIndex) ResolveDetonation(
-        ProjectileTrack track, ProjectileRead projectile, GrenadeEventIndex events, int serverStartTick,
-        HashSet<GrenadeDetonation> claimedFires)
+        ProjectileFacts projectile, GrenadeEventIndex events, int serverStartTick, HashSet<GrenadeDetonation> claimedFires)
     {
-        ArgumentNullException.ThrowIfNull(track);
+        ArgumentNullException.ThrowIfNull(projectile);
         ArgumentNullException.ThrowIfNull(events);
         ArgumentNullException.ThrowIfNull(claimedFires);
 
-        if (track.ClassName == GrenadeProjectileClasses.Molotov)
+        if (projectile.ClassName == GrenadeProjectileClasses.Molotov)
         {
-            if (events.NearestInferno(track.LastTick, track.EndTick, track.LastPosition, claimedFires)
-                is { } fire)
+            if (events.NearestInferno(projectile.LastTick, projectile.EndTick, projectile.LastPosition, claimedFires) is { } fire)
             {
                 claimedFires.Add(fire);
                 return (fire.Tick, fire.Position, DetonationSource.Event, fire.EntityIndex);
@@ -355,216 +379,33 @@ public static class GrenadeWalker
         }
 
         // The event names the projectile's index, which is reused once it is gone: only its own life counts.
-        if (GrenadeEventIndex.DetonationEventOf(track.ClassName) is { } name
-            && events.ByEntity(name, track.EntityIndex, track.SpawnTick, track.EndTick + 1) is { } hit)
+        if (GrenadeEventIndex.DetonationEventOf(projectile.ClassName) is { } name
+            && events.ByEntity(name, projectile.EntityIndex, projectile.SpawnTick, projectile.EndTick + 1) is { } hit)
         {
             return (hit.Tick, hit.Position, DetonationSource.Event, null);
         }
 
-        switch (track.ClassName)
+        switch (projectile.ClassName)
         {
             case GrenadeProjectileClasses.HEGrenade when projectile.ExplodeTickBegin is > 0 and var explode:
-                return (explode - serverStartTick, track.LastPosition, DetonationSource.Entity, null);
+                return (explode - serverStartTick, projectile.LastPosition, DetonationSource.Entity, null);
             case GrenadeProjectileClasses.Smoke when projectile.SmokeTickBegin is > 0 and var pop:
-                return (pop - serverStartTick, projectile.SmokeDetonationPosition ?? track.LastPosition, DetonationSource.Entity, null);
+                return (pop - serverStartTick, projectile.SmokeDetonationPosition ?? projectile.LastPosition, DetonationSource.Entity, null);
             case GrenadeProjectileClasses.HEGrenade or GrenadeProjectileClasses.Flashbang
-                when track.Removed && track.LastPosition is not null:
-                return (track.LastTick, track.LastPosition, DetonationSource.LastSample, null);
+                when projectile.Removed && projectile.LastPosition is not null:
+                return (projectile.LastTick, projectile.LastPosition, DetonationSource.LastSample, null);
             default:
                 return (null, null, DetonationSource.None, null);
         }
     }
 
-    /// <summary>The last frame index whose tick is at or before <paramref name="tick" />, or -1 before the first.</summary>
-    /// <param name="frames">The frame list, tick-ordered.</param>
-    /// <param name="tick">Frame clock.</param>
-    public static int FrameAtOrBefore(IReadOnlyList<DemoFrame> frames, int tick)
-    {
-        ArgumentNullException.ThrowIfNull(frames);
-        int lo = 0, hi = frames.Count - 1, found = -1;
-        while (lo <= hi)
-        {
-            int mid = lo + (hi - lo) / 2;
-            if (frames[mid].ServerTick <= tick)
-            {
-                found = mid;
-                lo = mid + 1;
-            }
-            else
-            {
-                hi = mid - 1;
-            }
-        }
-
-        return found;
-    }
-
-    /// <summary>
-    ///     The one tracker pass: advances from frame 0 to the last frame any plan needs, reading the thrower
-    ///     pawns and projectile fields on the frames the plans name, and feeding every frame's commands to the
-    ///     reconstructor when the walk rebuilds its own inputs.
-    /// </summary>
-    private static GrenadeReads ReadPass(ParsedDemo demo, IReadOnlyList<ThrowPlan> plans, ReconstructedInputSource? inputs,
-        GrenadeWalkOptions options, CancellationToken ct)
-    {
-        GrenadeReads reads = new();
-        Dictionary<int, List<int>> pawnFrames = [];
-        Dictionary<int, List<(ProjectileTrack Track, bool Spawn)>> projectileFrames = [];
-        int lastFrame = -1;
-        int lastWindowTick = int.MinValue;
-
-        foreach (ThrowPlan plan in plans)
-        {
-            ProjectileTrack track = plan.Track;
-            if (plan.ThrowerSlot >= 0)
-            {
-                foreach (int? frame in new[] { plan.ReleaseFrame, plan.SpeedFrame, (int?)track.SpawnFrame })
-                {
-                    if (frame is { } f)
-                    {
-                        Add(pawnFrames, f, plan.ThrowerSlot);
-                        lastFrame = Math.Max(lastFrame, f);
-                    }
-                }
-
-                lastWindowTick = Math.Max(lastWindowTick, track.SpawnTick);
-            }
-
-            Add(projectileFrames, track.SpawnFrame, (track, true));
-            Add(projectileFrames, track.LastFrame, (track, false));
-            lastFrame = Math.Max(lastFrame, track.LastFrame);
-        }
-
-        IReadOnlyList<DemoFrame> frames = demo.Frames;
-        if (inputs is not null && lastWindowTick > int.MinValue)
-        {
-            lastFrame = Math.Max(lastFrame, Math.Min(frames.Count - 1, FrameAtOrBefore(frames, lastWindowTick) + 1));
-        }
-
-        lastFrame = Math.Min(lastFrame, Math.Min(frames.Count, options.MaxFrames) - 1);
-        if (lastFrame < 0)
-        {
-            return reads;
-        }
-
-        EntityTracker tracker = options.FilterClasses
-            ? new EntityTracker { StoreClassFilter = FilteredClasses() }
-            : EntityTrackerFactory.CreateCurated();
-        UserCmdReconstructor? reconstructor = inputs is null ? null : new UserCmdReconstructor();
-        int serverStartTick = demo.ServerStartTick;
-
-        for (int i = 0; i <= lastFrame; i++)
-        {
-            if ((i & 0x3FF) == 0)
-            {
-                ct.ThrowIfCancellationRequested();
-            }
-
-            DemoFrame frame = frames[i];
-            tracker.AdvanceOneFrame(frame);
-            if (reconstructor is not null)
-            {
-                foreach (ReconstructedUserCmd command in reconstructor.AdvanceOneFrame(frame))
-                {
-                    inputs!.Observe(command, serverStartTick);
-                }
-            }
-
-            if (pawnFrames.TryGetValue(i, out List<int>? slots))
-            {
-                foreach (int slot in slots)
-                {
-                    if (!reads.Pawns.ContainsKey((i, slot)) && PawnLookup.ResolvePawn(tracker, slot) is { } pawn)
-                    {
-                        reads.Pawns[(i, slot)] = ReadPawn(tracker, pawn, frame.ServerTick);
-                    }
-                }
-            }
-
-            if (projectileFrames.TryGetValue(i, out List<(ProjectileTrack Track, bool Spawn)>? wanted))
-            {
-                foreach ((ProjectileTrack track, bool spawn) in wanted)
-                {
-                    ReadProjectile(tracker, track, spawn, reads);
-                }
-            }
-        }
-
-        if (reconstructor is not null)
-        {
-            inputs!.Finish(reconstructor.Stats);
-        }
-
-        return reads;
-    }
-
-    private static PawnRead ReadPawn(EntityTracker tracker, EntityState pawn, int tick)
-    {
-        float? strength = null;
-        bool heldGrenade = false;
-        if (pawn.TryGetValue("m_pWeaponServices.m_hActiveWeapon", out object? handle) && handle is not null
-                                                                                       && PawnLookup.ResolveHandle(tracker, handle) is { } weapon)
-        {
-            heldGrenade = GrenadeRules.IsGrenadeWeaponClass(weapon.ClassName);
-            strength = EntityReads.Float(weapon, "m_flThrowStrength");
-        }
-
-        Vector3? eye = EntityReads.Vector(pawn, "m_angEyeAngles");
-        uint? flags = EntityReads.UInt(pawn, "m_fFlags");
-        return new PawnRead(tick,
-            PositionUtil.CellToWorld(pawn),
-            eye?.X,
-            eye?.Y,
-            flags,
-            flags is { } f ? (f & GrenadeRules.DuckingFlag) != 0 : EntityReads.Bool(pawn, "m_pMovementServices.m_bDucked"),
-            EntityReads.Bool(pawn, "m_bIsWalking"),
-            EntityReads.Int(pawn, "m_iTeamNum") ?? 0,
-            strength,
-            heldGrenade);
-    }
-
-    private static void ReadProjectile(EntityTracker tracker, ProjectileTrack track, bool spawn, GrenadeReads reads)
-    {
-        if (tracker.CurrentEntities[track.EntityIndex] is not { } entity || entity.Serial != track.Serial
-                                                                         || !string.Equals(entity.ClassName, track.ClassName, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        ProjectileRead current = reads.Projectiles.GetValueOrDefault((track.EntityIndex, track.Serial));
-        reads.Projectiles[(track.EntityIndex, track.Serial)] = spawn
-            ? current with { IsIncendiary = EntityReads.Bool(entity, "m_bIsIncGrenade") ?? current.IsIncendiary }
-            : current with
-            {
-                ExplodeTickBegin = EntityReads.Int(entity, "m_nExplodeEffectTickBegin"),
-                SmokeTickBegin = EntityReads.Int(entity, "m_nSmokeEffectTickBegin"),
-                SmokeDetonationPosition = EntityReads.Vector(entity, "m_vSmokeDetonationPos"),
-                IsIncendiary = current.IsIncendiary ?? EntityReads.Bool(entity, "m_bIsIncGrenade")
-            };
-    }
-
-    private static HashSet<string> FilteredClasses()
-    {
-        HashSet<string> classes = new(StringComparer.Ordinal) { PawnClass, ControllerClass };
-        classes.UnionWith(GrenadeProjectileClasses.All);
-        classes.UnionWith(GrenadeRules.GrenadeWeaponClasses);
-        return classes;
-    }
-
-    private static PawnRead? Pawn(GrenadeReads reads, int? frame, int slot) =>
-        frame is { } f && slot >= 0 && reads.Pawns.TryGetValue((f, slot), out PawnRead read) ? read : null;
-
     private static WorldPoint? Point(Vector3? v) => v is { } p ? WorldPoint.From(p) : null;
 
-    private static void Add<T>(Dictionary<int, List<T>> map, int key, T value)
+    private static string ComputeVersion()
     {
-        if (!map.TryGetValue(key, out List<T>? list))
-        {
-            list = [];
-            map[key] = list;
-        }
-
-        list.Add(value);
+        string inputs = string.Join("\n", GrenadeTables.Rulesets.Select(GrenadeTables.ReadYaml))
+                        + "\n" + GrenadeTrajectoryCollector.Version.ToString(CultureInfo.InvariantCulture) + "\n" + EngineVersion;
+        return WalkVersion + ";" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(inputs)), 0, 8);
     }
 
     private static string DescribeEngine()
@@ -578,64 +419,4 @@ public static class GrenadeWalker
 
         return $"CS2DemoKit.Parser {version ?? engine.GetName().Version?.ToString() ?? "unknown"}";
     }
-}
-
-/// <summary>Seen-gated, boxing-tolerant reads of one entity field.</summary>
-internal static class EntityReads
-{
-    public static Vector3? Vector(EntityState entity, string path) =>
-        entity.TryGetValue(path, out object? value) && value is Vector3 v ? v : null;
-
-    public static float? Float(EntityState entity, string path) =>
-        entity.TryGetValue(path, out object? value)
-            ? value switch
-            {
-                float f => f,
-                double d => (float)d,
-                int i => i,
-                _ => null
-            }
-            : null;
-
-    public static int? Int(EntityState entity, string path) =>
-        entity.TryGetValue(path, out object? value)
-            ? value switch
-            {
-                int i => i,
-                uint u => (int)u,
-                short s => s,
-                ushort us => us,
-                byte b => b,
-                sbyte sb => sb,
-                long l => (int)l,
-                ulong ul => (int)ul,
-                _ => null
-            }
-            : null;
-
-    public static uint? UInt(EntityState entity, string path) =>
-        entity.TryGetValue(path, out object? value)
-            ? value switch
-            {
-                uint u => u,
-                int i => (uint)i,
-                ulong ul => (uint)ul,
-                long l => (uint)l,
-                ushort us => us,
-                byte b => b,
-                _ => null
-            }
-            : null;
-
-    public static bool? Bool(EntityState entity, string path) =>
-        entity.TryGetValue(path, out object? value)
-            ? value switch
-            {
-                bool b => b,
-                int i => i != 0,
-                uint u => u != 0,
-                byte b => b != 0,
-                _ => null
-            }
-            : null;
 }

@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Engine-fidelity cross-check for the nav-derived floor boundary: does the baker's
 ///     Nuke split (nav-Z valley ≈ −528; the map's radar split = −495) actually sit in a VALLEY of the
 ///     REAL observed player-Z, and do players occupy BOTH bands? Reconstructs player-Z exactly as the app
-///     does (<see cref="PawnLookup.ForEachLivePawn" /> → <see cref="PositionUtil.CellToWorld" />) so any
+///     does (<see cref="PawnLookup.ForEachLivePawn" /> → <see cref="PositionUtil.CellToWorld(EntityState)" />) so any
 ///     nav-surface-vs-player-feet datum offset shows up. Diagnostic: prints a histogram; skips if no Nuke
 ///     demo is present.
 /// </summary>

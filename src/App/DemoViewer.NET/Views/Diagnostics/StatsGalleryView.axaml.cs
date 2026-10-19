@@ -8,7 +8,7 @@ using DemoViewer.NET.ViewModels.Diagnostics;
 namespace DemoViewer.NET.Views.Diagnostics;
 
 /// <summary>
-///     Dev-only component gallery for the stats library (docs/ui/stats-components.md), hosted in the
+///     Dev-only component gallery for the stats library (docs/ui/design-system.md), hosted in the
 ///     Diagnostics tab and therefore already covered by the <c>tab.diagnostics</c> gate.
 ///     <para>
 ///         It builds its OWN view model rather than binding through <c>DiagnosticsTabViewModel</c>. The

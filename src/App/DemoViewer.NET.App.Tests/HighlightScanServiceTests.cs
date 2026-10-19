@@ -150,6 +150,34 @@ public class HighlightScanServiceTests
             .IsEqualTo(RulesHighlightHarvester.GotvProfileId);
     }
 
+    // The library raises Changed on every scan phase and every few tier-2 indexes; a recheck on each would walk
+    // the whole library. Only a moved demo set, rules fingerprint or opt-in has anything new for a recheck to find.
+    [Test]
+    public async Task RefreshStaleness_RechecksOnlyWhenTheDemoSetRulesOrOptInMoved()
+    {
+        DemoCacheStore store = new(null);
+        List<string> library = ["/demos/a.dem"];
+        bool optIn = false;
+        using HighlightScanService scanner = NewScanner(store, new FakeHarvester(), () => [.. library], () => optIn,
+            (_, _) => null);
+
+        async Task Refresh(int expected, string because)
+        {
+            scanner.RefreshStaleness();
+            await WaitForAsync(() => scanner.Rechecks == expected, because);
+            await Task.Delay(50);
+            await Assert.That(scanner.Rechecks).IsEqualTo(expected).Because(because);
+        }
+
+        await Refresh(1, "the first pass always rechecks");
+        await Refresh(1, "nothing moved");
+        library.Add("/demos/b.dem");
+        await Refresh(2, "a demo joined the library");
+        await Refresh(2, "nothing moved again");
+        optIn = true;
+        await Refresh(3, "the opt-in came on");
+    }
+
     [Test]
     public async Task Backlog_IsDerived_SkipsSidecars_AndNeverPrunesTheSharedCache()
     {
@@ -216,6 +244,25 @@ public class HighlightScanServiceTests
     }
 
     [Test]
+    public async Task TheBacklogNotice_FollowsTheOptInBothWays()
+    {
+        DemoCacheStore store = new(null);
+        bool optIn = false;
+        using HighlightScanService scanner = NewScanner(store, new FakeHarvester(), () => ["/nfs/stale.dem"], () => optIn,
+            (_, _) => null);
+        using HighlightBacklogViewModel status = new(scanner, store);
+        await Assert.That(status.Notice).Contains("turn on the background scan");
+
+        optIn = true;
+        scanner.OptInChanged();
+        await Assert.That(status.Notice).Contains("refreshing in the background");
+
+        optIn = false;
+        scanner.OptInChanged();
+        await Assert.That(status.Notice).Contains("turn on the background scan").Because("turning it off must not keep promising a refresh");
+    }
+
+    [Test]
     public async Task TheStatusCounts_CountADemoHeldAtTwoPathsOnce()
     {
         DemoCacheStore store = new(null);
@@ -228,7 +275,7 @@ public class HighlightScanServiceTests
         }
 
         using HighlightScanService scanner = NewScanner(store, new FakeHarvester(), () => [], () => false, (_, _) => null);
-        HighlightScanStatusViewModel status = new(scanner, store);
+        using HighlightBacklogViewModel status = new(scanner, store);
 
         await Assert.That(status.FailedCount).IsEqualTo(1);
     }
@@ -382,6 +429,25 @@ public class HighlightScanServiceTests
         scanner.Evaluate("/d/fresh.dem", parsed);
         await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(1)
             .Because("a current row is skipped regardless of the opt-in");
+    }
+
+    [Test]
+    public async Task OptInOff_AStaleRowRidesARulesRun_AndAFreshRowDoesNot()
+    {
+        DemoCacheStore store = new(null);
+        FakeHarvester harvester = new();
+        using HighlightScanService scanner = NewScanner(store, harvester, () => [], () => false);
+        store.Upsert(IndexedRow("/d/fresh.dem", 0));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scanner.Wants("/d/a.dem")).IsFalse().Because("the opt-in alone decides a read of its own");
+            await Assert.That(scanner.WantsIfRulesRun("/d/a.dem")).IsTrue();
+            await Assert.That(scanner.WantsIfRulesRun("/d/fresh.dem")).IsFalse();
+        }
+
+        scanner.Evaluate("/d/a.dem", SyntheticDemo());
+        await Assert.That(harvester.RunBareAnalysisCalls).IsEqualTo(1).Because("a rider's turn writes the run's highlights");
     }
 
     [Test]

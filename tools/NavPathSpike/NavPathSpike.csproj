@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <!-- Token pathing spike (docs/strat-book/token-pathing.md). Out of the .slnx on purpose. -->
+    <!-- Token pathing spike. Out of the .slnx on purpose. -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
         <ImplicitUsings>enable</ImplicitUsings>

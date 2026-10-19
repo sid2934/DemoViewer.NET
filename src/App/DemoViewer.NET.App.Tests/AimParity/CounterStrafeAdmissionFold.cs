@@ -37,7 +37,7 @@ namespace DemoViewer.NET.AppTests.AimParity;
 ///         engine samples speed off the digest's per-pawn position columns, gated on the pawn being
 ///         a live, team-assigned viewer that tick; this samples every pawn the tracker reports with
 ///         a controller. Both reconstruct position through
-///         <see cref="PositionUtil.CellToWorld" /> and difference it the same way (same maximum
+///         <see cref="PositionUtil.CellToWorld(EntityState)" /> and difference it the same way (same maximum
 ///         sample gap, same teleport cap, same repeat-tick rule), so the two agree wherever the
 ///         liveness gates agree. <c>CounterStrafeAdmissionFoldTests</c> pins that agreement at the
 ///         shipped window before it trusts the curve at any other one: an oracle nobody checked

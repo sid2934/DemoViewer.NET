@@ -290,7 +290,7 @@ Tuning tokens for the map-name-hash accent generator. `MapAccentNeutral` is the 
 ### Stat: `Stat*` (12)
 
 The stat heat ramp and the in-cell bar, used by the stats component library
-(`Controls/Stats/`, see [stats-components.md](./stats-components.md)).
+(`Controls/Stats/`, see [design-system.md](./design-system.md#stats-components)).
 
 Four ramp stops, not two: bad through mildly-bad, an **unpainted** neutral band, then mildly-good
 through good. The soft-bad tier is **amber rather than a desaturated red**, so the two bad tiers stay

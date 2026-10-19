@@ -916,6 +916,39 @@ public class LineupClipTests
     }
 
     [Test]
+    public async Task ADemoThatFailsToRead_IsNotSubmittedAgain_AndTheNextDemoGoesOn()
+    {
+        using DemoViewer.NET.Services.HeavyJobGate gate = new();
+        int brokenReads = 0;
+        using DemoProcessingQueue processing = new(gate, a => a(), _ => throw new NotSupportedException(),
+            _ => throw new NotSupportedException(), () => Task.CompletedTask,
+            parseFileWithPlan: (path, plan) =>
+            {
+                if (path == "/d/five.dem")
+                {
+                    Interlocked.Increment(ref brokenReads);
+                    throw new InvalidDataException("truncated");
+                }
+
+                return SyntheticParsedDemo.Create(plan: plan);
+            });
+        FakeRenderer renderer = new();
+        GrenadeCluster cluster = Cluster(Thrown("/d/two.dem", "t", 2), Thrown("/d/five.dem", "f", 5));
+        using LineupClipService service = new(() => [cluster], Directory, () => true, renderer,
+            _ => false, (_, _) => { }, jobs: Jobs(processing));
+
+        service.Plan();
+        await service.WorkerTask.WaitAsync(TimeSpan.FromSeconds(10));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(brokenReads).IsEqualTo(1);
+            await Assert.That(string.Join(",", renderer.Calls.Select(c => c.Demo))).IsEqualTo("/d/two.dem");
+            await Assert.That(service.Pending).IsEmpty();
+        }
+    }
+
+    [Test]
     public async Task TheRenderer_WritesAside_AndRenamesOnlyAFinishedGif()
     {
         string clips = TempClips();

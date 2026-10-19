@@ -36,16 +36,16 @@ public static class RoundIndexBuilder
     ///     Builds the index document for <paramref name="demo" /> over its Round Facts rows. The demo
     ///     block is left for the caller, which has the record; the fingerprint is
     ///     <paramref name="options" /> and <paramref name="source" /> composed. The positions file of the
-    ///     same walk is discarded; <see cref="BuildWithPositions" /> keeps it.
+    ///     same walk is discarded; <see cref="BuildWithPositions(ParsedDemo, RoundFactsRows, RoundIndexOptions, IPlaceSource, IEnumerable{PositionSample})" /> keeps it.
     /// </summary>
     /// <param name="demo">The held parse.</param>
     /// <param name="facts">The demo's Round Facts rows: the round windows, the sides and the kills.</param>
     /// <param name="options">The sampling parameters.</param>
     /// <param name="source">Which string names a sample's place.</param>
     /// <param name="samples">
-    ///     The position walk to fold; null walks <paramref name="demo" /> through
-    ///     <see cref="PositionSampler.Walk" /> at <see cref="RoundIndexOptions.FrameStride" />. Tests
-    ///     hand in synthetic samples here; a synthetic parse carries no entity data to walk.
+    ///     The samples to fold; null runs the <see cref="RoundIndexTable" /> ruleset over
+    ///     <paramref name="demo" />. Tests hand in synthetic samples here; a synthetic parse carries no
+    ///     entity data to sample.
     /// </param>
     public static RoundIndexDocument Build(
         ParsedDemo demo,
@@ -63,7 +63,7 @@ public static class RoundIndexBuilder
     /// <param name="facts">The demo's Round Facts rows.</param>
     /// <param name="options">The sampling parameters.</param>
     /// <param name="source">Which string names a sample's place.</param>
-    /// <param name="samples">The position walk to fold; null walks the parse.</param>
+    /// <param name="samples">The samples to fold; null runs the round index ruleset over the parse.</param>
     public static RoundIndexBuild BuildWithPositions(
         ParsedDemo demo,
         RoundFactsRows facts,
@@ -75,16 +75,45 @@ public static class RoundIndexBuilder
         ArgumentNullException.ThrowIfNull(facts);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(source);
+        if (samples is null)
+        {
+            DecodeSites.Enter(3);
+            samples = RoundIndexTable.Samples(demo);
+        }
+
+        return BuildWithPositions(RoundIndexDemoValues.For(demo), facts, options, source, samples);
+    }
+
+    /// <summary>
+    ///     <see cref="BuildWithPositions(ParsedDemo, RoundFactsRows, RoundIndexOptions, IPlaceSource, IEnumerable{PositionSample})" />
+    ///     over the values it reads off a parse, for a fold that holds no parse.
+    /// </summary>
+    /// <param name="demo">The tick rate, last frame tick, clock, map and roster.</param>
+    /// <param name="facts">The demo's Round Facts rows.</param>
+    /// <param name="options">The sampling parameters.</param>
+    /// <param name="source">Which string names a sample's place.</param>
+    /// <param name="samples">The samples to fold, in frame order.</param>
+    public static RoundIndexBuild BuildWithPositions(
+        RoundIndexDemoValues demo,
+        RoundFactsRows facts,
+        RoundIndexOptions options,
+        IPlaceSource source,
+        IEnumerable<PositionSample> samples)
+    {
+        ArgumentNullException.ThrowIfNull(demo);
+        ArgumentNullException.ThrowIfNull(facts);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(samples);
 
         int cadenceTicks = options.CadenceTicks(demo.TickRate);
-        int lastFrameTick = demo.Frames.Count > 0 ? demo.Frames[^1].GameTick ?? demo.Frames[^1].ServerTick : 0;
-        List<RoundWindow> windows = Windows(facts, lastFrameTick);
+        List<RoundWindow> windows = Windows(facts, demo.LastFrameTick);
         string fingerprint = RoundIndexFingerprint.Compose(options, source);
 
         RoundIndexDocument document = new()
         {
             Fingerprint = fingerprint,
-            Clock = RoundFactsClock.For(demo),
+            Clock = demo.Clock,
             Map = demo.MapName,
             CadenceTicks = cadenceTicks,
             Rounds = [.. windows.Select(w => w.Round)]
@@ -99,8 +128,6 @@ public static class RoundIndexBuilder
         Dictionary<string, PlaceSampleSummary> places = new(StringComparer.Ordinal);
         Dictionary<(string A, string B), int> transitions = [];
         PlaceTable table = new(positions.Places);
-
-        samples ??= PositionSampler.Walk(demo, options.FrameStride);
 
         int current = 0;
         OpenRow? row = null;
@@ -149,6 +176,7 @@ public static class RoundIndexBuilder
             CloseRow(ref row, windows[current], source, places, transitions, previousPlaces, table, tally);
         }
 
+        positions.Players = PlayersOf(positions, demo.Players, demo.Departed);
         document.Places = places;
         document.Transitions =
         [
@@ -359,6 +387,22 @@ public static class RoundIndexBuilder
         runs.Add(new RoundIndexRun(open.Step, open.Step, ctToken, tToken));
     }
 
+    // Every slot a tuple names, by the roster's player, else by the slot's last connect or disconnect (a player
+    // who left mid-match is gone from the final roster); a slot neither names is 0 and "".
+    private static List<RoundPositionsPlayer> PlayersOf(RoundPositionsDocument positions, IReadOnlyDictionary<int, PlayerInfo> roster,
+        IReadOnlyDictionary<int, RosterEntry> departed)
+    {
+        SortedSet<int> slots = [.. positions.Rounds.SelectMany(r => r.Pos).SelectMany(step => step).Select(t => t.Slot)];
+        return
+        [
+            .. slots.Select(slot => roster.TryGetValue(slot, out PlayerInfo? player)
+                ? new RoundPositionsPlayer(slot, player.SteamId64, player.Name)
+                : departed.TryGetValue(slot, out RosterEntry left)
+                    ? new RoundPositionsPlayer(slot, left.SteamId64, left.Name)
+                    : new RoundPositionsPlayer(slot, 0, ""))
+        ];
+    }
+
     private static void Accumulate(Dictionary<string, PlaceSampleSummary> places, string place, PositionSample sample)
     {
         if (!places.TryGetValue(place, out PlaceSampleSummary? summary))
@@ -431,5 +475,53 @@ public static class RoundIndexBuilder
 
             return id;
         }
+    }
+}
+
+/// <summary>What the round index reads off a demo besides its samples.</summary>
+/// <param name="TickRate">The demo's tick rate; the cadence is a second of it.</param>
+/// <param name="LastFrameTick">The last frame's frame clock (<c>GameTick ?? ServerTick</c>); a round with no end runs to one past it.</param>
+/// <param name="Clock">The frame-clock header the document carries.</param>
+/// <param name="MapName">The map.</param>
+public sealed record RoundIndexDemoValues(int TickRate, int LastFrameTick, RoundFactsClock Clock, string MapName)
+{
+    /// <summary>The roster by slot, which names the positions file's slots; empty names none.</summary>
+    public IReadOnlyDictionary<int, PlayerInfo> Players { get; init; } = new Dictionary<int, PlayerInfo>();
+
+    /// <summary>Each slot's last connect or disconnect, which names a slot <see cref="Players" /> no longer holds.</summary>
+    public IReadOnlyDictionary<int, RosterEntry> Departed { get; init; } = new Dictionary<int, RosterEntry>();
+
+    /// <summary>The values of a held parse.</summary>
+    /// <param name="demo">The parse.</param>
+    public static RoundIndexDemoValues For(ParsedDemo demo)
+    {
+        ArgumentNullException.ThrowIfNull(demo);
+        int last = demo.Frames.Count > 0 ? demo.Frames[^1].GameTick ?? demo.Frames[^1].ServerTick : 0;
+        return new RoundIndexDemoValues(demo.TickRate, last, RoundFactsClock.For(demo), demo.MapName)
+        {
+            Players = demo.Players,
+            Departed = RoundIndexRoster.Of(demo.AllGameEvents)
+        };
+    }
+
+    /// <summary>The values of a pass's demo.</summary>
+    /// <param name="context">The pass's context.</param>
+    public static RoundIndexDemoValues For(IPassContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        DemoDescriptor demo = context.Demo;
+        RoundFactsClock clock = new()
+        {
+            TickRate = demo.TickRate > 0 ? demo.TickRate : 64,
+            FrameCount = context.FrameCount,
+            FirstTick = context.FirstServerTick,
+            LastTick = context.LastServerTick
+        };
+        return new RoundIndexDemoValues(demo.TickRate, context.LastFrameTick, clock, demo.MapName)
+        {
+            Players = demo.Players,
+            Departed = context.Collected<RoundIndexRosterCollector.Collected>(RoundIndexRosterCollector.CollectorId)?.Slots
+                       ?? new Dictionary<int, RosterEntry>()
+        };
     }
 }

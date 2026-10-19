@@ -27,6 +27,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
@@ -186,10 +187,6 @@ public class App : Application
                     viewModel.AttachPlayback2DExportStatus,
                     viewModel.OpenOutputFolder));
             }
-
-            // The highlight-scan chip. Attached from the container's instance so the strip shows a
-            // running library scan even when the Reels tab has never been opened (module tab VMs are lazy).
-            viewModel.AttachHighlightScanStatus(services.GetRequiredService<HighlightScanStatusViewModel>());
 
             // Match Overview's [ + ] stages into the Reels tray. A locator, not a reference: the
             // Reels tab is lazy, and staging must work before it has ever been opened.
@@ -657,6 +654,28 @@ public class App : Application
     }
 
     // A store's startup read: a light queue item ahead of background work, so it shows in the queue list.
+    // Asks the owner's pass the way a visit plans it. A pass is never asked on the UI thread, where the open's seed
+    // check runs; there the table counts as unwanted, which only narrows that check. A throw is the visit's to
+    // report; here it only leaves the table out.
+    private static bool PassWants(PackContributionSet packs, string owner, string passId, string path)
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            return false;
+        }
+
+        try
+        {
+            return packs.Packs.FirstOrDefault(c => string.Equals(c.Pack.Id, owner, StringComparison.Ordinal))?.Passes
+                       .FirstOrDefault(p => string.Equals(p.Id, passId, StringComparison.Ordinal)) is { } pass
+                   && pass.Factory().Interest(new VisitedDemo(path), PassLevel.Background) != PassInterest.No;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return false;
+        }
+    }
+
     private static Func<Action, Task> StartupLoad(IServiceProvider sp, string title, string owner) =>
         load => QueueWork.Run(sp.GetRequiredService<IDemoProcessingQueue>(), QueueJobKind.StoreLoad, title, owner, _ => load(),
             DemoJobPriority.UserRequested);
@@ -885,16 +904,38 @@ public class App : Application
             IFeatureGate? gate = sp.GetService<IFeatureGate>();
             Lazy<IReadOnlyList<ContributedRuleset>> contributed =
                 new(() => sp.GetRequiredService<PackContributionSet>().Rulesets, LazyThreadSafetyMode.ExecutionAndPublication);
-            return new MergedRulesBuild(() => MergedRulesBuild.LoadShippedExtensionsUser(contributed.Value), () =>
+            MergedRulesBuild rules = new(() => MergedRulesBuild.LoadShippedExtensionsUser(contributed.Value), () =>
             [
                 StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
-                .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true)),
+                .. LibraryTeamTables.RulesetIds.Select(StampedRuleset.Core),
+                .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true) { ReadBy = c.ReadBy }),
                 .. FeaturePacks.ClaimedRulesets.Select(id => new StampedRuleset(id, StampedRuleset.ClaimedOwner, static () => false))
             ]);
+            // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo. The
+            // evaluators take this build, so they are resolved per call, never here.
+            // The library tables are recorded on every run whatever this says. A pass's own tables are recorded
+            // while that pass wants the demo.
+            rules.OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
+                ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
+                : rules.StampedRulesets.FirstOrDefault(r => string.Equals(r.RulesetId, id, StringComparison.Ordinal)) is { ReadBy: { } reader } read
+                    ? PassWants(sp.GetRequiredService<PackContributionSet>(), read.Owner, reader, path)
+                    : !LibraryTeamTables.IsLibraryRuleset(id) && sp.GetRequiredService<FactsEvaluator>().Records(path, id));
+            rules.GuardOf = owner => sp.GetRequiredService<PackContributionSet>().Packs
+                .FirstOrDefault(c => string.Equals(c.Pack.Id, owner, StringComparison.Ordinal))?.Guard;
+            // The visit in flight answers which collectors its rules run carries; resolved per call, like the cut.
+            rules.CollectorsFor = path => sp.GetRequiredService<DemoProcessingQueue>().CollectorsFor(path);
+            // Every enabled pack's collectors: the open's run declares them before its visit is planned.
+            rules.OpenCollectors = () =>
+            {
+                IFeatureGate? features = sp.GetService<IFeatureGate>();
+                return CollectorSet.Of(sp.GetRequiredService<PackContributionSet>().Packs
+                    .Where(c => features?.IsEnabled(c.Pack.FeatureId) ?? true)
+                    .SelectMany(c => c.Collectors));
+            };
+            return rules;
         });
         services.AddSingleton(sp =>
         {
-            // A read records the tables of the stamped rulesets whose stored outputs are stale for the demo.
             MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
             // A parse of a demo with no confirmed hash hashes the bytes it reads, so the library and the cache
             // never read the file again for it. Resolved at the first read, never while the queue is built.
@@ -907,9 +948,7 @@ public class App : Application
                 : new ForwardPassRunner(rules)
                 {
                     FileRead = fileRead,
-                    OutputsFor = path => rules.StampedOutputs(id => string.Equals(id, RoundFactsFingerprint.RulesetId, StringComparison.Ordinal)
-                        ? sp.GetRequiredService<RoundFactsEvaluator>().Records(path)
-                        : sp.GetRequiredService<FactsEvaluator>().Records(path, id))
+                    OutputsFor = rules.OutputsFor
                 };
             DemoProcessingQueue queue = new(
                 sp.GetRequiredService<HeavyJobGate>(),
@@ -923,6 +962,10 @@ public class App : Application
                 // Resolved at the first read, never while the queue is built.
                 contentHash: path => sp.GetRequiredService<DemoCacheStore>().TryGetIndex(path)?.Sha256,
                 fileRead: fileRead);
+            queue.CollectedFor = rules.Collected;
+            queue.RunFor = rules.BareRun;
+            queue.TableOf = rules.Table;
+            queue.ForwardRead = forward is null ? null : forward.Run;
             IOptionsMonitor<AppSettings>? monitor = sp.GetService<IOptionsMonitor<AppSettings>>();
             if (monitor is not null)
             {
@@ -965,9 +1008,21 @@ public class App : Application
             return store;
         });
 
+        // The score, clans and coaches come off the merged run when the visit makes one anyway (another pass
+        // needs rules, or the open's run is held); otherwise the library replays three entity classes.
         services.AddSingleton(sp => new DemoLibraryService(
             settings: sp.GetRequiredService<SettingsService>(),
-            demoCache: sp.GetRequiredService<DemoCacheStore>()) { ParseHashesContent = !OperatingSystem.IsBrowser() });
+            demoCache: sp.GetRequiredService<DemoCacheStore>())
+        {
+            ParseHashesContent = !OperatingSystem.IsBrowser(),
+            TeamRun = (parsed, path) =>
+            {
+                MergedRulesBuild rules = sp.GetRequiredService<MergedRulesBuild>();
+                return sp.GetRequiredService<DemoProcessingQueue>().RunsRules(path) || rules.HoldsRun(parsed)
+                    ? rules.BareRun(parsed, path)
+                    : null;
+            }
+        });
 
         // Highlights pipeline: the library-wide cache store and the
         // scanner over it. The scanner's library universe is the indexer's current entries; the
@@ -1009,13 +1064,13 @@ public class App : Application
                 // The tray is a client of the Review Queue: what it stages is queued there.
                 sp.GetRequiredService<ReviewQueue>())
             {
-                // The SAME instances the status-strip chips are bound to.
+                // The same reel job instance the status-strip chip is bound to.
                 JobStatus = Shell().ReelJobStatus,
-                ScanStatus = sp.GetRequiredService<HighlightScanStatusViewModel>()
+                Backlog = sp.GetRequiredService<HighlightBacklogViewModel>()
             };
         });
 
-        services.AddSingleton(sp => new HighlightScanStatusViewModel(
+        services.AddSingleton(sp => new HighlightBacklogViewModel(
             sp.GetRequiredService<HighlightScanService>(),
             sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(sp =>
@@ -1171,12 +1226,30 @@ public class App : Application
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
             IDemoProcessingQueue queue = sp.GetRequiredService<IDemoProcessingQueue>();
-            Lazy<IReadOnlyList<(IExtension Pack, Func<IRecordPass> Factory)>> contributed = new(() =>
-            [
-                .. sp.GetRequiredService<PackContributionSet>().Packs.SelectMany(c => c.RecordPasses.Select(r =>
-                    (c.Pack, ExtensionRecordPassHost.Cached(r, () => HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>)))))
-            ]);
             IFeatureGate? features = sp.GetService<IFeatureGate>();
+            RecordPassRunner? runner = null;
+            Lazy<IReadOnlyList<(IExtension Pack, Func<IRecordPass> Factory)>> contributed = new(() =>
+            {
+                IReadOnlyList<PackContributions> packs = sp.GetRequiredService<PackContributionSet>().Packs;
+                DemoDataOwner? OwnerOf(string id) => packs.FirstOrDefault(c => string.Equals(c.Pack.Id, id, StringComparison.Ordinal)) is { } c
+                    ? new DemoDataOwner(c.Context.Data, () => features?.IsEnabled(c.Pack.FeatureId) ?? true)
+                    : null;
+                // A named facet's write lands in its extension's own store, which the cache never hears of.
+                foreach (string owner in packs.SelectMany(c => c.RecordPasses)
+                             .SelectMany(r => ExtensionRecordPassHost.DataOwnersOf(r.DependsOn)).Distinct(StringComparer.Ordinal))
+                {
+                    if (OwnerOf(owner) is { } data)
+                    {
+                        data.Data.Changed += path => runner?.InputChanged(path);
+                    }
+                }
+
+                return
+                [
+                    .. packs.SelectMany(c => c.RecordPasses.Select(r =>
+                        (c.Pack, ExtensionRecordPassHost.Cached(r, () => HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>), OwnerOf))))
+                ];
+            });
             // An extension switched off takes its rulesets' facts off every library row; readers hear it as one change.
             if (features is not null)
             {
@@ -1184,7 +1257,7 @@ public class App : Application
                     HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>).RecheckFacts());
             }
 
-            return new RecordPassRunner(() =>
+            runner = new RecordPassRunner(() =>
             {
                 List<IRecordPass> passes = [];
                 foreach ((IExtension pack, Func<IRecordPass> factory) in contributed.Value)
@@ -1215,6 +1288,7 @@ public class App : Application
                     }
                 }
             };
+            return runner;
         });
 
         // Recently-opened-demos store. SINGLETON: it holds the live in-memory recents list
@@ -1442,10 +1516,6 @@ public class App : Application
         HighlightScanService hlScanner =
             sp.GetRequiredService<HighlightScanService>();
         SettingsService hlSettingsService = sp.GetRequiredService<SettingsService>();
-        // The FOURTH StatusChip consumer. Resolved (not new'd) so the tab and the status strip
-        // share one mapper; the chip can therefore appear while a background scan runs even if the user has
-        // never opened the Reels tab, since module tab VMs are lazy. The shell owns its lifetime.
-        HighlightScanStatusViewModel scanStatus = sp.GetRequiredService<HighlightScanStatusViewModel>();
 
         // The tab VM is a container singleton (see BuildServices) so Match Overview's [ + ] and the tab
         // itself share ONE tray. Still resolved lazily. The module only invokes this on first activation.

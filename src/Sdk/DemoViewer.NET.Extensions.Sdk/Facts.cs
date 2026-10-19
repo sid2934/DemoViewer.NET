@@ -2,10 +2,21 @@ using System.Globalization;
 
 namespace DemoViewer.NET.Extensions.Sdk;
 
+/// <summary>
+///     Something a record pass reads and waits on, named in <see cref="IExtensionContributions.RecordPass" />: a
+///     ruleset's output (<see cref="FactKey" />) or a facet a pass writes per demo (<see cref="DemoDataKey" />).
+/// </summary>
+public abstract record RecordInput
+{
+    private protected RecordInput()
+    {
+    }
+}
+
 /// <summary>Names one output of one ruleset: a table its <c>show: tables:</c> declares, or its scoreboard.</summary>
 /// <param name="RulesetId">The ruleset's id, as its <c>ruleset:</c> key spells it.</param>
 /// <param name="Output">The table's name, or <see cref="ScoreboardOutput" />.</param>
-public sealed record FactKey(string RulesetId, string Output)
+public sealed record FactKey(string RulesetId, string Output) : RecordInput
 {
     /// <summary>
     ///     The output name of a ruleset's <c>show: scoreboard:</c>. A scoreboard is read off snapshots only a full
@@ -16,6 +27,21 @@ public sealed record FactKey(string RulesetId, string Output)
 
     /// <summary>"<c>ruleset/output</c>".</summary>
     public override string ToString() => RulesetId + "/" + Output;
+}
+
+/// <summary>
+///     Names a facet a pass writes per demo: one of an extension's <see cref="IExtensionDemoData" /> facets under
+///     the extension's id, or the host's Round Facts rows (<see cref="RoundFacts" />).
+/// </summary>
+/// <param name="Owner">The writing extension's <see cref="IExtension.Id" />, or <see cref="HostIds.RoundFactsPass" /> for <see cref="RoundFacts" />.</param>
+/// <param name="Facet">The facet, as the owner writes it.</param>
+public sealed record DemoDataKey(string Owner, string Facet) : RecordInput
+{
+    /// <summary>The Round Facts rows the host writes for every parsed demo.</summary>
+    public static DemoDataKey RoundFacts { get; } = new(HostIds.RoundFactsPass, RoundFactsRows.FacetId);
+
+    /// <summary>"<c>owner:facet</c>".</summary>
+    public override string ToString() => Owner + ":" + Facet;
 }
 
 /// <summary>Where one output of a demo stands.</summary>

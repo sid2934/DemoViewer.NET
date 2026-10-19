@@ -1,6 +1,9 @@
 #region
 
+using CS2DemoKit.Analysis;
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.Sdk;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
 
@@ -50,7 +53,13 @@ public enum PassInterest
     ///     reads. The visit includes the pass when one of its <see cref="IDemoPass.After" /> ancestors is on
     ///     it, and asks again right before its turn.
     /// </summary>
-    IfUpstreamRuns
+    IfUpstreamRuns,
+
+    /// <summary>
+    ///     Stale, but not worth a read of its own. The visit includes the pass when another pass on it needs a
+    ///     rules run, and never submits it alone.
+    /// </summary>
+    IfRulesRun
 }
 
 /// <summary>Why a demo is being visited. Higher runs sooner.</summary>
@@ -114,6 +123,37 @@ public sealed class PassInput
 
     /// <summary>Fires when the visit is cancelled.</summary>
     public CancellationToken CancellationToken { get; }
+
+    /// <summary>The bare run's collector results for a retained read, the run made on first ask. Null reads none.</summary>
+    internal Func<CollectorResults>? RetainedCollected { get; init; }
+
+    /// <summary>What the visit's collectors put on this demo's rules run.</summary>
+    internal CollectorResults Collected() =>
+        Forward is { } forward ? forward.Collected : RetainedCollected?.Invoke() ?? CollectorResults.None;
+
+    /// <summary>The bare run of a retained read, made on first ask. Null when the visit offers none.</summary>
+    internal Func<AnalysisRun>? RetainedRun { get; init; }
+
+    /// <summary>Projects one table of a run, given the rulesets it must belong to. Null reads none.</summary>
+    internal Func<AnalysisRun, string, IReadOnlyList<string>, IReadOnlyList<FactRow>>? TableOf { get; init; }
+
+    /// <summary>The rows <paramref name="table" /> recorded on this demo's rules run.</summary>
+    /// <param name="table">The table's name.</param>
+    /// <param name="rulesets">The rulesets the reader may read; the table must be one of theirs.</param>
+    internal IReadOnlyList<FactRow> Table(string table, IReadOnlyList<string> rulesets)
+    {
+        AnalysisRun run = (Forward is { } forward ? forward.Run : RetainedRun?.Invoke())
+                          ?? throw new InvalidOperationException($"the visit made no rules run, so table {table} was not recorded");
+        return TableOf is { } read
+            ? read(run, table, rulesets)
+            : throw new InvalidOperationException($"the visit reads no tables, so table {table} is not served");
+    }
+}
+
+/// <summary>A pass that reads collectors; a visit carrying it declares them on the rules run.</summary>
+internal interface ICollectingPass
+{
+    CollectorSet Collectors { get; }
 }
 
 /// <summary>
@@ -206,10 +246,14 @@ public enum PassOutcome
 ///     Told once per submitted pass how its turn ended, in the slot. The error is set for
 ///     <see cref="PassOutcome.Failed" /> and <see cref="PassOutcome.ParseFailed" />.
 /// </param>
+/// <param name="Riders">
+///     The ids of passes that only ride another pass's rules run. A visit left with nothing but riders is cancelled.
+/// </param>
 public sealed record DemoVisitRequest(
     string Path,
     PassLevel Level,
     IReadOnlyList<IDemoPass> Passes,
     long OrderHint = 0,
     string? DisplayName = null,
-    Action<IDemoPass, PassOutcome, Exception?>? PassEnded = null);
+    Action<IDemoPass, PassOutcome, Exception?>? PassEnded = null,
+    IReadOnlySet<string>? Riders = null);
