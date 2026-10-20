@@ -22,6 +22,10 @@ namespace DemoViewer.NET.Services.Facts;
 ///         A ruleset the engine left out of the build is stamped failed under its fingerprint: it reads as
 ///         <see cref="FactStatus.Failed" /> and is tried again only once the ruleset changes.
 ///     </para>
+///     <para>
+///         Writing the <see cref="PlayerMatchFacet" /> also sets the record's <see cref="DemoCacheRecord.FacetPlayers" />,
+///         in the same update as the stamp.
+///     </para>
 /// </summary>
 public sealed class FactsEvaluator : IDemoEvaluator
 {
@@ -109,6 +113,7 @@ public sealed class FactsEvaluator : IDemoEvaluator
         HashSet<string> recorded = new((run.Build.Outputs ?? []).Select(o => o.Id), StringComparer.Ordinal);
         Dictionary<string, MetricTable>? projected = null;
         List<PackStamp> stamps = [];
+        IReadOnlyList<FactRow>? playerRows = null;
         foreach (StampedFacet facet in _facts.Facets())
         {
             string? fingerprint = _facts.Fingerprint(facet.RulesetId, tickRate);
@@ -148,6 +153,10 @@ public sealed class FactsEvaluator : IDemoEvaluator
                         : new FactTable(key, fingerprint, StampedFacts.Schema, table.Per ?? "", [], [], new Dictionary<string, string>(), []);
                     _cache.WriteSiblingBytes(path, StampedFacts.Suffix(key), FactsCodec.Encode(facts));
                     rows += facts.Rows.Count;
+                    if (key == PlayerMatchFacet.Key)
+                    {
+                        playerRows = facts.Rows;
+                    }
                 }
 
                 stamps.Add(new PackStamp(StampedFacts.StampId(facet.RulesetId), StampedFacts.Schema, fingerprint)
@@ -173,6 +182,11 @@ public sealed class FactsEvaluator : IDemoEvaluator
             foreach (PackStamp stamp in stamps)
             {
                 record.SetStamp(stamp);
+            }
+
+            if (playerRows is not null)
+            {
+                record.FacetPlayers = PlayerMatchFacet.Players(playerRows, record.Players);
             }
         });
         _cache.SaveIndex();

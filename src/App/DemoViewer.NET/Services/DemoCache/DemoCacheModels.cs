@@ -104,6 +104,22 @@ public sealed class IndexSidePlayer
     public List<int> Slots { get; set; } = [];
 }
 
+/// <summary>
+///     One account in a demo's <c>player_match</c> facet (<c>docs/player-match-format.md</c>): every slot its
+///     rows sit on and every name it played under. Covers players who are in no side list, such as one who
+///     ended the demo as a spectator.
+/// </summary>
+public sealed class FacetPlayer
+{
+    public string SteamId64 { get; set; } = "";
+
+    /// <summary>RAW names, as <see cref="CachedPlayerInfo.Name" />, distinct, in slot order.</summary>
+    public List<string> Names { get; set; } = [];
+
+    /// <summary>Every slot with a facet row for the account, ascending.</summary>
+    public List<int> Slots { get; set; } = [];
+}
+
 /// <summary>A round boundary. Needed by clip lead-in flooring and by the round count.</summary>
 public sealed class CachedRound
 {
@@ -335,6 +351,15 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DemoMatchMeta? MatchMeta { get; set; }
 
+    // ── Player match ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     The accounts in the demo's <c>player_match</c> facet, written beside its <c>facts:player_match</c>
+    ///     stamp, or null until the facet is first written.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<FacetPlayer>? FacetPlayers { get; set; }
+
     // ── Packs ────────────────────────────────────────────────────────────────
     // A pack's data rides the record as one opaque JSON object under its id, read and written typed by
     // the pack through IPackPayloads and never deserialised by core. What core needs for the backlog and
@@ -426,6 +451,7 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
 
         RoundFacts ??= other.RoundFacts;
         MatchMeta ??= other.MatchMeta;
+        FacetPlayers ??= other.FacetPlayers;
         foreach ((string packId, JsonElement payload) in other.Packs)
         {
             Packs.TryAdd(packId, payload);
@@ -616,7 +642,8 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         TSideWins = TSideWins,
         MatchTimeUtcTicks = MatchMeta?.MatchTimeUtcTicks,
         MatchTimeSource = MatchMeta?.MatchTimeSource,
-        ReservationId = MatchMeta?.ReservationId
+        ReservationId = MatchMeta?.ReservationId,
+        FacetPlayers = FacetPlayers
     };
 
     /// <summary>
@@ -778,6 +805,10 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     /// <summary>The record's <see cref="DemoMatchMeta.ReservationId" />: the tie-break between matches with one time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ReservationId { get; set; }
+
+    /// <summary>The record's <see cref="DemoCacheRecord.FacetPlayers" />, so the player directory reads no sidecar.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<FacetPlayer>? FacetPlayers { get; set; }
 
     /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
     [JsonExtensionData]
