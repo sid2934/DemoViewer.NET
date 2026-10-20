@@ -1124,6 +1124,8 @@ public class App : Application
 
         // Every account in the library, projected from the index on read; the Player Overview's source.
         services.AddSingleton(sp => new PlayerDirectory(sp.GetRequiredService<DemoCacheStore>()));
+        services.AddSingleton(sp => new PlayerRowCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>(),
+            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerMatchFacet.Key)));
 
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
