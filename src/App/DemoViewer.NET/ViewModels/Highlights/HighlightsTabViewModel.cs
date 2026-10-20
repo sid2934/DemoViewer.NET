@@ -726,6 +726,12 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     [RelayCommand]
     private Task AddClipsAsync() => OpenPickerAsync(null);
 
+    /// <summary>
+    ///     Opens an account in the Player Overview tab, given its SteamID64 and the name the picker shows. Null where
+    ///     there is no such tab, which hides the picker's entry.
+    /// </summary>
+    public Action<ulong, string?>? PlayerOverviewOpener { get; init; }
+
     /// <summary>Opens the <c>Add clips…</c> picker with its player filter set to one account.</summary>
     /// <param name="steamId64">The account, as a decimal SteamID64.</param>
     public Task AddClipsForAsync(string steamId64)
@@ -759,7 +765,8 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
             ReelConfig.DontCrossRoundStart,
             CanScan ? _scanner.RescanAll : null,
             _scanner.QueueLength,
-            players);
+            players,
+            PlayerOverviewOpener);
     }
 
     /// <summary>Dismisses the picker: the scrim click, the ✕, and Escape all land here.</summary>
