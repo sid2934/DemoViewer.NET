@@ -11,10 +11,8 @@ public static class PlayerOverviewSections
         new HeaderSectionViewModel(services),
         new SummarySectionViewModel(filter),
         new HistorySectionViewModel(services),
-
         new MapsSectionViewModel(),
-
-        // Trends go here.
+        new TrendsSectionViewModel(),
         new RankSectionViewModel(),
 
         // Stat categories go here.
