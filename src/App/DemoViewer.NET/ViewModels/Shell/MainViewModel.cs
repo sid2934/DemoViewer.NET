@@ -668,7 +668,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     SelectTabById,
                     // Until Stats can focus a player by SteamID, this opens the demo on the Stats tab.
                     (path, steamId64) => _ = OpenDemoOnStatsAsync(path),
-                    OpenSettingsCore),
+                    OpenSettingsCore,
+                    facts,
+                    // The picker lives on the lazy Reels tab: select it first, then resolve its view model.
+                    steamId64 =>
+                    {
+                        if (TrySelectTab("highlights.browser") && ReelTrayLocator?.Invoke() is { } reels)
+                        {
+                            _ = reels.AddClipsForAsync(steamId64.ToString(CultureInfo.InvariantCulture));
+                        }
+                    }),
                 processingQueue,
                 action => Dispatcher.UIThread.Post(action));
         }

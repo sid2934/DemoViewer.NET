@@ -76,6 +76,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <param name="dontCrossRoundStart">Whether the estimate floors the lead-in at the round start.</param>
     /// <param name="rescanAll">Mirrored <c>⟳ Rescan all</c>; null hides it (browser host / tests).</param>
     /// <param name="scanQueueDepth">Demos without current highlights, drives the "not every demo is here" note.</param>
+    /// <param name="players">Player filter keys ticked at open (the Player Overview's link); null ticks none.</param>
     public AddClipsPickerViewModel(
         IReadOnlyList<DemoCacheRecord> records,
         int libraryRowCount,
@@ -87,7 +88,8 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
         double leadOutSeconds = 5,
         bool dontCrossRoundStart = false,
         Action? rescanAll = null,
-        int scanQueueDepth = 0)
+        int scanQueueDepth = 0,
+        IReadOnlyCollection<string>? players = null)
     {
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(isStaged);
@@ -131,6 +133,10 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
         BuildTypeFilters();
         BuildMapFilters();
         BuildKindFilters();
+        foreach (PlayerFilterItem item in PlayerFilters)
+        {
+            item.IsSelected = players?.Contains(item.SteamId64) == true;
+        }
 
         foreach (AddClipsRowViewModel row in _allRows)
         {

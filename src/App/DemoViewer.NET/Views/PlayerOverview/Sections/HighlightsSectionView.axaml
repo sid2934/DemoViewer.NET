@@ -1,0 +1,112 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.HighlightsSectionView"
+             x:DataType="sections:HighlightsSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!--
+        The subject's highlights, best first. Bounded by MaxHeight inside the page's ScrollViewer, as the history
+        is, so the VirtualizingStackPanel realises only the rows in view. "Add clips" opens the Reels tab's picker
+        with the subject ticked; staging happens there.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="Grid.highlightRow > TextBlock:not(.col-label)">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Grid.highlightRow > TextBlock.num">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0 0 8 0" />
+        </Style>
+        <Style Selector="Grid.highlightRow > TextBlock.dim">
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="Border.highlightChip">
+            <Setter Property="Padding" Value="4 0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style Selector="Border.highlightChip > TextBlock">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="9.5" />
+        </Style>
+        <Style Selector="Border.highlightChip.funny > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="Border.highlightChip.lowlight > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource StatNegative}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="8">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Classes="ghost chip" Content="Add clips" Margin="10 0 0 0"
+                        IsVisible="{Binding CanAddClips}" Command="{Binding AddClipsCommand}"
+                        ToolTip.Tip="Open the Reels picker with this player's highlights" />
+                <TextBlock DockPanel.Dock="Right" Text="{Binding LoadText}" IsVisible="{Binding IsLoading}"
+                           FontSize="11.5" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Highlights" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextCardHeader}" />
+                    <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextMid}"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding KindText}" FontSize="12" Foreground="{DynamicResource TextDim}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </DockPanel>
+
+            <TextBlock Text="{Binding UnscannedText}" IsVisible="{Binding HasUnscanned}" FontSize="11.5"
+                       Foreground="{DynamicResource TextDim}" />
+            <TextBlock Text="No highlights for this player yet" IsVisible="{Binding ShowEmpty}" FontSize="12"
+                       FontStyle="Italic" Foreground="{DynamicResource TextDim}" />
+
+            <Grid Classes="highlightRow" Margin="8 0" IsVisible="{Binding HasRows}" ColumnDefinitions="*,40,96,130,72,40,Auto">
+                <TextBlock Grid.Column="0" Classes="col-label" Text="HIGHLIGHT" />
+                <TextBlock Grid.Column="1" Classes="col-label" Text="ROUND" />
+                <TextBlock Grid.Column="2" Classes="col-label" Text="MAP" />
+                <TextBlock Grid.Column="3" Classes="col-label" Text="DATE" />
+                <TextBlock Grid.Column="4" Classes="col-label" Text="KIND" />
+                <TextBlock Grid.Column="5" Classes="col-label num" Text="SCORE" ToolTip.Tip="The authored score, higher is rarer and cooler" />
+            </Grid>
+
+            <ListBox x:Name="HighlightList" Classes="data-list" MaxHeight="360" ItemsSource="{Binding Rows}"
+                     IsVisible="{Binding HasRows}" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="sections:PlayerHighlightItem">
+                        <Grid Classes="highlightRow" Height="26" Background="Transparent"
+                              ColumnDefinitions="*,40,96,130,72,40,Auto">
+                            <TextBlock Grid.Column="0" Text="{Binding Title}" ToolTip.Tip="{Binding Title}" />
+                            <TextBlock Grid.Column="1" Classes="dim" Text="{Binding RoundText}" />
+                            <TextBlock Grid.Column="2" Text="{Binding MapText}" />
+                            <TextBlock Grid.Column="3" Classes="dim" Text="{Binding DateText}" />
+                            <Border Grid.Column="4" Classes="badge highlightChip"
+                                    Classes.funny="{Binding IsFunny}" Classes.lowlight="{Binding IsLowlight}">
+                                <TextBlock Text="{Binding KindText}" />
+                            </Border>
+                            <TextBlock Grid.Column="5" Classes="num" Text="{Binding ScoreText}" />
+                            <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                <TextBlock Text="file missing" FontSize="11" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource StatNegative}" IsVisible="{Binding IsFileMissing}" />
+                                <Button Classes="ghost chip" Content="Open" IsVisible="{Binding !IsFileMissing}"
+                                        ToolTip.Tip="Open this demo"
+                                        Command="{Binding $parent[ListBox].((sections:HighlightsSectionViewModel)DataContext).OpenDemoCommand}"
+                                        CommandParameter="{Binding}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+    </Border>
+</UserControl>
