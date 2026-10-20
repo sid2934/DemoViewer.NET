@@ -451,6 +451,91 @@ public class PlayerOverviewTabTests
         });
     }
 
+    // ── Search ───────────────────────────────────────────────────────────────────────────────────────────
+
+    // Two accounts both called "Twin" (three demos and one), and Me as "me" in one more.
+    private static DemoCacheStore TwinLibrary()
+    {
+        DemoCacheStore store = new(null);
+        (string Path, ulong Id, string Name)[] rows =
+        [
+            ("/d/0.dem", Other, "Twin"), ("/d/1.dem", Other, "Twin"), ("/d/2.dem", Other, "Twin"),
+            ("/d/3.dem", Alt, "Twin"), ("/d/4.dem", Me, "me")
+        ];
+        foreach ((string path, ulong id, string name) in rows)
+        {
+            DemoCacheRecord record = new()
+            {
+                Path = path, Size = 100, ModifiedTicks = 1, Map = "de_nuke",
+                Players = [new CachedPlayerInfo { Slot = 1, Name = name, SteamId64 = Id(id), Team = 2 }]
+            };
+            DemoCacheStore.StampHeader(record);
+            DemoCacheStore.StampParse(record);
+            store.Upsert(record);
+        }
+
+        return store;
+    }
+
+    [Test]
+    public async Task Search_PastedIdForms_OpenThatPlayerAtOnce()
+    {
+        using IdentityService identity = Identity(Me);
+        using PlayerOverviewTabViewModel vm = Shown(TwinLibrary(), identity);
+        foreach (string form in new[] { Id(Other), "https://steamcommunity.com/profiles/" + Id(Other), "[U:1:" + (Other - SteamIdParser.IndividualBase) + "]" })
+        {
+            vm.OpenPlayer(Me);
+            vm.SearchText = form;
+            await Assert.That(vm.SubjectSteamId64).IsEqualTo(Other).Because(form);
+            await Assert.That(vm.IsPinned).IsTrue();
+            await Assert.That(vm.SearchText).IsEqualTo("");
+        }
+    }
+
+    [Test]
+    public async Task Search_AName_ListsEachAccountMostDemosFirst_AndEnterOpensOnlyASingleOne()
+    {
+        using IdentityService identity = Identity(Me);
+        using PlayerOverviewTabViewModel vm = Shown(TwinLibrary(), identity);
+        vm.SearchText = "twin";
+        await Assert.That(vm.Candidates.Select(c => c.SteamId64).ToArray()).IsEquivalentTo(new[] { Other, Alt });
+        await Assert.That(vm.Candidates[0].Demos).IsEqualTo("3 demos");
+        vm.SubmitSearchCommand.Execute(null);
+        await Assert.That(vm.SubjectSteamId64).IsEqualTo(Me).Because("two candidates are not opened by Enter");
+
+        vm.SearchText = "twin";
+        vm.OpenCandidateCommand.Execute(vm.Candidates[1]);
+        await Assert.That(vm.SubjectSteamId64).IsEqualTo(Alt);
+        await Assert.That(vm.Candidates.Count).IsEqualTo(0);
+
+        vm.SearchText = "me";
+        vm.SubmitSearchCommand.Execute(null);
+        await Assert.That(vm.SubjectSteamId64).IsEqualTo(Me);
+    }
+
+    [Test]
+    public async Task Search_VanityUrl_SaysItIsOfflineAndMatchesTheName()
+    {
+        using IdentityService identity = Identity(Me);
+        using PlayerOverviewTabViewModel vm = Shown(TwinLibrary(), identity);
+        vm.SearchText = "https://steamcommunity.com/id/twin";
+        await Assert.That(vm.SearchMessage).Contains("Online Connectivity");
+        await Assert.That(vm.Candidates.Count).IsEqualTo(2);
+        await Assert.That(vm.SubjectSteamId64).IsEqualTo(Me);
+    }
+
+    [Test]
+    public async Task Search_NoMatch_SaysSo_AndClearingEmptiesTheList()
+    {
+        using IdentityService identity = Identity(Me);
+        using PlayerOverviewTabViewModel vm = Shown(TwinLibrary(), identity);
+        vm.SearchText = "nobody";
+        await Assert.That(vm.HasSearchMessage).IsTrue();
+        await Assert.That(vm.HasCandidates).IsFalse();
+        vm.SearchText = "";
+        await Assert.That(vm.HasSearchMessage).IsFalse();
+    }
+
     [Test]
     public async Task Sections_EachHaveAViewOfTheSameName()
     {

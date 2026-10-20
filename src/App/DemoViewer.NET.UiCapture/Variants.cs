@@ -295,6 +295,7 @@ public static partial class Variants
             // while background processing is off.
             ["player-overview-empty"] = () => PlayerOverview(false),
             ["player-overview-processing-off"] = () => PlayerOverview(true),
+            ["player-overview-search"] = () => PlayerOverview(true, "zyw"),
             ["strat-editor"] = () => StratEditor(false, false),
             ["strat-editor-collapsed"] = () => StratEditor(true, true),
             ["strat-editor-bare"] = () => StratEditor(false, false, true),
@@ -4487,7 +4488,7 @@ public static partial class Variants
     }
 
     // The real Player Overview tab over an in-memory library of three demos, one with its player stats.
-    private static Panel PlayerOverview(bool withMe)
+    private static Panel PlayerOverview(bool withMe, string? search = null)
     {
         const string me = "76561198000000001";
         DemoCacheStore store = new(null);
@@ -4502,7 +4503,8 @@ public static partial class Variants
                 Players =
                 [
                     new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = me, Team = 3 },
-                    new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "76561198000000002", Team = 2 }
+                    new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "76561198000000002", Team = 2 },
+                    new CachedPlayerInfo { Slot = 3, Name = i == 0 ? "ZywOo" : "zywoo-alt", SteamId64 = "76561198000000003", Team = 2 }
                 ]
             };
             DemoCacheStore.StampHeader(r);
@@ -4529,6 +4531,11 @@ public static partial class Variants
             new PlayerOverviewServices(directory, identity, null, _ => { }, _ => { }, (_, _) => { }, _ => { }),
             new FakeProcessingQueue { BackgroundEnabled = false });
         vm.OnActivated(null!);
+        if (search is not null)
+        {
+            vm.SearchText = search;
+        }
+
         return new Panel
         {
             Background = Tok("ShellBg"),

@@ -48,12 +48,14 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
     private readonly Action<Action> _post;
     private readonly IDemoProcessingQueue? _queue;
+    private readonly PlayerSearch _search;
     private readonly PlayerOverviewServices _services;
     private bool _active;
     private PlayerOverviewContext? _context;
     private bool _disposed;
     private bool _pinned;
     private bool _queueRefreshQueued;
+    private bool _clearingSearch;
     private bool _refreshQueued;
     private bool _stale = true;
     private ulong? _subject;
@@ -71,6 +73,15 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     /// <summary>The processing chip's caption while the queue is computing the subject's stats, else empty.</summary>
     [ObservableProperty]
     private string _queueText = "";
+
+    /// <summary>The text in the search box: a name, or a SteamID in any form Steam shows one.</summary>
+    [ObservableProperty]
+    private string _searchText = "";
+
+    /// <summary>Under the search box: why there are no candidates, or the offline note for a vanity URL.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSearchMessage))]
+    private string _searchMessage = "";
 
     /// <summary>What the page can show for its subject.</summary>
     [ObservableProperty]
@@ -90,6 +101,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _queue = queue;
         _post = post ?? (action => action());
+        _search = new PlayerSearch(services.Directory);
         Sections = PlayerOverviewSections.Create(services);
         MainSections = [.. Sections.Where(s => s.Column == SectionColumn.Main)];
         SideSections = [.. Sections.Where(s => s.Column == SectionColumn.Side)];
@@ -112,6 +124,15 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
     /// <summary>The sections of the side column, in page order.</summary>
     public IReadOnlyList<PlayerOverviewSection> SideSections { get; }
+
+    /// <summary>The players the search text matches, most demos first.</summary>
+    public ObservableCollection<PlayerCandidateItem> Candidates { get; } = [];
+
+    /// <summary>True when the search box has something to say besides candidates.</summary>
+    public bool HasSearchMessage => SearchMessage.Length > 0;
+
+    /// <summary>True when the candidate list shows.</summary>
+    public bool HasCandidates => Candidates.Count > 0;
 
     /// <summary>The user's Me accounts for the header switcher, the active one marked.</summary>
     public ObservableCollection<MeAccountItem> MeAccounts { get; } = [];
@@ -236,6 +257,31 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     /// <summary>Called by the view with its measured width.</summary>
     public void SetViewportWidth(double width) => IsNarrow = width > 0 && width < TwoColumnBreakpoint;
 
+    /// <summary>Opens the only candidate, or the account the text names when it is not a bare account id.</summary>
+    [RelayCommand]
+    private void SubmitSearch()
+    {
+        PlayerSearchResult result = _search.Search(SearchText);
+        if (result.Candidates.Count == 1)
+        {
+            OpenFromSearch(result.Candidates[0].SteamId64);
+        }
+        else if (result.SteamId64 is { } id && !result.IsFlagged)
+        {
+            OpenFromSearch(id);
+        }
+    }
+
+    /// <summary>Opens <paramref name="candidate" /> and clears the search.</summary>
+    [RelayCommand]
+    private void OpenCandidate(PlayerCandidateItem? candidate)
+    {
+        if (candidate is not null)
+        {
+            OpenFromSearch(candidate.SteamId64);
+        }
+    }
+
     /// <summary>Makes <paramref name="account" /> the active Me account and shows it.</summary>
     [RelayCommand]
     private void SwitchAccount(MeAccountItem? account)
@@ -257,6 +303,45 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     /// <summary>Opens Settings at Background Processing.</summary>
     [RelayCommand]
     private void OpenProcessingSettings() => _services.OpenSettings("SectionBackgroundProcessing");
+
+    partial void OnSearchTextChanged(string value)
+    {
+        if (_clearingSearch)
+        {
+            return;
+        }
+
+        PlayerSearchResult result = _search.Search(value);
+        Candidates.Clear();
+        foreach (PlayerEntry entry in result.Candidates)
+        {
+            Candidates.Add(PlayerCandidateItem.From(entry));
+        }
+
+        OnPropertyChanged(nameof(HasCandidates));
+        if (result.SteamId64 is { } id && !result.IsFlagged)
+        {
+            OpenFromSearch(id);
+            return;
+        }
+
+        SearchMessage = result.Notice is { } notice
+            ? $"Steam vanity URLs: {notice}."
+            : result.Candidates.Count == 0 && value.Trim().Length > 0
+                ? "No player in this library matches."
+                : "";
+    }
+
+    private void OpenFromSearch(ulong steamId64)
+    {
+        _clearingSearch = true;
+        SearchText = "";
+        _clearingSearch = false;
+        Candidates.Clear();
+        SearchMessage = "";
+        OnPropertyChanged(nameof(HasCandidates));
+        OpenPlayer(steamId64);
+    }
 
     private void SetSubject(ulong? steamId64, bool pinned)
     {

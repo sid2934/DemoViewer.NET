@@ -73,6 +73,46 @@
             </DockPanel>
         </Border>
 
+        <!-- ── Search: a name, or a SteamID in any form; an ID opens at once, names list candidates. ─── -->
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="28 8">
+            <StackPanel Spacing="6" MaxWidth="1180">
+                <TextBox x:Name="SearchBox" Text="{Binding SearchText}"
+                         Watermark="Search a player by name, SteamID or profile URL"
+                         AutomationProperties.Name="Search players">
+                    <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding SubmitSearchCommand}" />
+                    </TextBox.KeyBindings>
+                </TextBox>
+                <TextBlock Classes="slotMessage" Text="{Binding SearchMessage}" IsVisible="{Binding HasSearchMessage}" />
+                <ItemsControl x:Name="CandidateList" ItemsSource="{Binding Candidates}" IsVisible="{Binding HasCandidates}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PlayerCandidateItem">
+                            <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                    Command="{Binding $parent[ItemsControl].((vm:PlayerOverviewTabViewModel)DataContext).OpenCandidateCommand}"
+                                    CommandParameter="{Binding}">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" FontSize="11.5" Foreground="{DynamicResource TextMid}"
+                                               VerticalAlignment="Center" Text="{Binding LastSeen}" />
+                                    <TextBlock DockPanel.Dock="Right" FontSize="11.5" Foreground="{DynamicResource TextMid}"
+                                               VerticalAlignment="Center" Margin="0 0 14 0" Text="{Binding Demos}" />
+                                    <StackPanel Spacing="1">
+                                        <StackPanel Orientation="Horizontal" Spacing="10">
+                                            <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                            <TextBlock FontFamily="Consolas,Menlo,monospace" FontSize="11.5"
+                                                       Foreground="{DynamicResource TextMid}" VerticalAlignment="Center"
+                                                       Text="{Binding SteamIdText}" />
+                                        </StackPanel>
+                                        <TextBlock FontSize="11.5" Foreground="{DynamicResource TextMid}"
+                                                   Text="{Binding Aliases}" IsVisible="{Binding HasAliases}" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
         <Panel>
 
             <!-- ── Empty state: nobody open, nobody in the library, or the subject is in no demo. ─────── -->

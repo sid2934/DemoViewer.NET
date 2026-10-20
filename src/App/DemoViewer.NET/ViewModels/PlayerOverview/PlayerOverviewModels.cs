@@ -106,3 +106,48 @@ public sealed class MeAccountItem(string steamId64, string title, bool isActive)
         return new MeAccountItem(account.SteamId64, title, string.Equals(account.SteamId64, active, StringComparison.Ordinal));
     }
 }
+
+/// <summary>One search result: a player the typed text matched.</summary>
+public sealed class PlayerCandidateItem
+{
+    private PlayerCandidateItem(ulong steamId64, string name, string demos, string lastSeen, string aliases)
+    {
+        SteamId64 = steamId64;
+        Name = name;
+        Demos = demos;
+        LastSeen = lastSeen;
+        Aliases = aliases;
+    }
+
+    /// <summary>The account.</summary>
+    public ulong SteamId64 { get; }
+
+    /// <summary>The latest name, sanitized.</summary>
+    public string Name { get; }
+
+    /// <summary>The account as a decimal string.</summary>
+    public string SteamIdText => SteamId64.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>"N demos".</summary>
+    public string Demos { get; }
+
+    /// <summary>"last seen yyyy-MM-dd", or empty when no demo has a time.</summary>
+    public string LastSeen { get; }
+
+    /// <summary>The other names the account used, sanitized, or empty.</summary>
+    public string Aliases { get; }
+
+    /// <summary>True when there is an alias line.</summary>
+    public bool HasAliases => Aliases.Length > 0;
+
+    internal static PlayerCandidateItem From(PlayerEntry entry)
+    {
+        string name = entry.Name.Length > 0 ? DisplayText.Sanitize(entry.Name) : "Unnamed player";
+        string demos = entry.DemoCount == 1 ? "1 demo" : string.Create(CultureInfo.InvariantCulture, $"{entry.DemoCount} demos");
+        string lastSeen = entry.LastSeenTicks > 0 && entry.LastSeenTicks <= DateTime.MaxValue.Ticks
+            ? "last seen " + new DateTime(entry.LastSeenTicks, DateTimeKind.Utc).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : "";
+        string aliases = string.Join(", ", entry.Aliases.Skip(1).Take(3).Select(a => DisplayText.Sanitize(a.Name)));
+        return new PlayerCandidateItem(entry.SteamId64, name, demos, lastSeen, aliases);
+    }
+}
