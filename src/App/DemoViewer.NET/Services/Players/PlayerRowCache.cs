@@ -162,7 +162,7 @@ public sealed class PlayerRowCache
                 PackStamp? stamp = match.Row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId));
                 if (stamp is not { State: DemoAnalysisState.Indexed })
                 {
-                    entries[id] = new Entry(stamp, false, null, null);
+                    entries[id] = new Entry(stamp, false, false, null, null);
                 }
                 else if (subject.Entries.TryGetValue(id, out Entry? held) && held.Stamp == stamp)
                 {
@@ -190,7 +190,7 @@ public sealed class PlayerRowCache
 
                 (PlayerMatch match, string id, PackStamp stamp) = toRead[i];
                 Held held = Read(match.Row, id, stamp);
-                entries[id] = new Entry(stamp, held.HasFacet, held.Stats?.GetValueOrDefault(steamId64),
+                entries[id] = new Entry(stamp, held.HasFacet, held.HasSight, held.Stats?.GetValueOrDefault(steamId64),
                     held.Stats is null ? null : PlayerAggregate.Others(held.Stats, steamId64, PlayerDemo.OtherColumns));
                 progress?.Report(new PlayerRowsProgress(i + 1, toRead.Count));
             }
@@ -200,7 +200,7 @@ public sealed class PlayerRowCache
             foreach (PlayerMatch match in matches)
             {
                 Entry entry = entries[ContentIdOf(match.Row)];
-                demos.Add(new PlayerDemo(match, entry.HasFacet, entry.Stats) { Others = entry.Others });
+                demos.Add(new PlayerDemo(match, entry.HasFacet, entry.Stats) { Others = entry.Others, HasSight = entry.HasSight });
             }
 
             return subject.Rows = new PlayerRows(steamId64, version, demos);
@@ -282,7 +282,7 @@ public sealed class PlayerRowCache
                 foreach (PlayerMatch match in theirs)
                 {
                     Held held = entries[ContentIdOf(match.Row)];
-                    demos.Add(new PlayerDemo(match, held.HasFacet, held.Stats?.GetValueOrDefault(steamId64)));
+                    demos.Add(new PlayerDemo(match, held.HasFacet, held.Stats?.GetValueOrDefault(steamId64)) { HasSight = held.HasSight });
                 }
 
                 accounts[steamId64] = demos;
@@ -303,7 +303,7 @@ public sealed class PlayerRowCache
     private Held Read(DemoCacheIndexEntry row, string id, PackStamp stamp)
     {
         Lazy<Held> held = _held.GetOrAdd((id, stamp),
-            _ => new Lazy<Held>(() => _read(row.Path) is { } table ? new Held(true, MergeAll(table.Rows)) : Held.None));
+            _ => new Lazy<Held>(() => _read(row.Path) is { } table ? new Held(true, stamp.HasVisibility, MergeAll(table.Rows)) : Held.None));
         try
         {
             return held.Value;
@@ -343,12 +343,12 @@ public sealed class PlayerRowCache
     // What a demo is across copies and renames: its content hash, or its one path before it is hashed.
     private static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
 
-    private sealed record Entry(PackStamp? Stamp, bool HasFacet, IReadOnlyDictionary<string, double>? Stats,
+    private sealed record Entry(PackStamp? Stamp, bool HasFacet, bool HasSight, IReadOnlyDictionary<string, double>? Stats,
         IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Others);
 
-    private sealed record Held(bool HasFacet, IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Stats)
+    private sealed record Held(bool HasFacet, bool HasSight, IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Stats)
     {
-        public static readonly Held None = new(false, null);
+        public static readonly Held None = new(false, false, null);
     }
 
     private sealed class Subject(ulong steamId64)

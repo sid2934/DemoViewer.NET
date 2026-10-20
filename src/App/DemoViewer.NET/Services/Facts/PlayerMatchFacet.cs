@@ -3,6 +3,7 @@
 using System.Text.RegularExpressions;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.ViewModels.Stats;
 
 #endregion
 
@@ -87,6 +88,18 @@ public static partial class PlayerMatchFacet
         }
 
         return players;
+    }
+
+    /// <summary>
+    ///     Whether the run that wrote <paramref name="rows" /> had the map's line-of-sight geometry: some row counts a
+    ///     first contact (<see cref="ColumnCatalogue.VisibilityAnchorColumn" />). Without geometry no contact fires and
+    ///     every sight column of every row is 0, which is no data, not a score.
+    /// </summary>
+    /// <param name="rows">The table's rows.</param>
+    public static bool HasSight(IReadOnlyList<FactRow> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        return rows.Any(r => r.Values.GetValueOrDefault(ColumnCatalogue.VisibilityAnchorColumn)?.AsNumber() > 0);
     }
 
     [GeneratedRegex(@"^Player \d+$")]

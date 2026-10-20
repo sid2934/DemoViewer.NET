@@ -43,16 +43,34 @@ public class ColumnRuleSweepTests
     }
 
     [Test]
-    public async Task EverySightColumn_IsNotAggregable_AndOutOfTheFacet()
+    public async Task EverySightColumn_PoolsFromTheFacet_ButTheRoundBoardsSpot()
     {
         List<ColumnMeta> sight = [.. ColumnCatalogue.All.Where(m => m.RequiresVisibility)];
+        IReadOnlyList<string> facet = ShippedFacetColumns();
 
         using (Assert.Multiple())
         {
             await Assert.That(sight.Count).IsEqualTo(17);
-            await Assert.That(sight.Where(m => ColumnRules.For(m.Key) is not ColumnRule.NotAggregable)).IsEmpty();
-            await Assert.That(ShippedFacetColumns().Where(ColumnCatalogue.RequiresVisibility)).IsEmpty()
-                .Because("a forward run has no line-of-sight geometry, so a sight column would store a permanent 0");
+            await Assert.That(ColumnRules.For("Spot")).IsTypeOf<ColumnRule.NotAggregable>();
+            await Assert.That(sight.Where(m => m.Key != "Spot" && ColumnRules.For(m.Key) is ColumnRule.NotAggregable)).IsEmpty();
+            await Assert.That(sight.Where(m => m.Key != "Spot").SelectMany(m => ColumnRules.For(m.Key)!.Inputs).Except(facet)).IsEmpty();
+            await Assert.That(facet).Contains(ColumnCatalogue.VisibilityAnchorColumn)
+                .Because("the contact count is what tells a facet with sight from one without");
+        }
+    }
+
+    [Test]
+    public async Task ATimeToX_PoolsItsTickSums_InMilliseconds()
+    {
+        // 20 ticks over 2 engagements and 44 over 2: 64 ticks over 4 is 16 ticks, 250 ms at 64 tick.
+        Dictionary<string, double> first = Row(("ttd_ticks", 20), ("TTDn", 2), ("travel_sum", 9), ("XShots", 3));
+        Dictionary<string, double> second = Row(("ttd_ticks", 44), ("TTDn", 2), ("travel_sum", 3), ("XShots", 1));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(ColumnRules.For("TTD")!.Pool([first, second])).IsEqualTo(250.0);
+            await Assert.That(ColumnRules.For("XPlace")!.Pool([first, second])).IsEqualTo(3.0);
+            await Assert.That(ColumnRules.For("TTDn")!.Pool([first, second])).IsEqualTo(4.0);
         }
     }
 

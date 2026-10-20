@@ -24,8 +24,9 @@
 # re-authored as per-round counts and a tally: the rounds a count reached its threshold is the
 # number of rounds the player_stats highlight fired in.
 #
-# No sight: true column is here. A forward run has no line-of-sight geometry, so they would store a
-# permanent 0.
+# The sight columns are copies of aim_rating's Tier 3 components. They need the run to have been handed
+# the map's collision bake; without one no enemy_spotted fires and every one of them stores 0, which is
+# why a reader decides whether a demo has sight data from the table's Spots, never from a single cell.
 ruleset: player_match
 title: Player Match
 summary: Per-player match totals and the components of every rate, for cross-demo player stats.
@@ -359,6 +360,134 @@ stats:
     while: round.active
     per: match
 
+  # ── Copies of aim_rating: the Tier 3 components (line of sight) ──
+  enemy_seen_round:
+    flag: true
+    on: enemy_spotted
+    while: round.active
+    per: round
+
+  contact_shots:
+    count: shot
+    match: { bullet: true }
+    while: enemy_seen_round
+    per: match
+
+  contact_hits:
+    count: damage_dealt
+    match: { enemy: true, bullet: true }
+    while: enemy_seen_round
+    per: match
+
+  first_bullet_shots:
+    count: shot
+    match: { bullet: true, first_bullet: true }
+    while: enemy_seen_round
+    per: match
+
+  first_bullet_hits:
+    count: shot_landed
+    match: { first_bullet: true }
+    while: enemy_seen_round
+    per: match
+
+  spray_shots_fired:
+    count: shot
+    match: { bullet: true, first_bullet: false }
+    while: enemy_seen_round
+    per: match
+
+  spray_hits:
+    count: shot_landed
+    match: { first_bullet: false }
+    while: enemy_seen_round
+    per: match
+
+  first_contacts:
+    count: enemy_spotted
+    match: { first_contact: true }
+    while: round.active
+    per: match
+
+  first_contact_angle_sum:
+    sum: abs(event.AngleToChestDeg)
+    on: enemy_spotted
+    match: { first_contact: true }
+    while: round.active
+    per: match
+
+  aimrx_shots:
+    count: shot
+    match: { first_after_on_target: true, ticks_since_on_target: "<= 320", bullet: true }
+    while: round.active
+    per: match
+
+  aimrx_ticks:
+    sum: enrich.shot.ticks_since_on_target
+    on: shot
+    match: { first_after_on_target: true, ticks_since_on_target: "<= 320", bullet: true }
+    while: round.active
+    per: match
+
+  ttk_kills:
+    count: kill
+    match: { enemy: true, ticks_since_spot: "<= 640" }
+    while: round.active
+    per: match
+
+  ttk_ticks:
+    sum: enrich.kill.ticks_since_spot
+    on: kill
+    match: { enemy: true, ticks_since_spot: "<= 640" }
+    while: round.active
+    per: match
+
+  tts_shots:
+    count: shot
+    match: { first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
+    while: round.active
+    per: match
+
+  tts_ticks:
+    sum: enrich.shot.ticks_since_spot
+    on: shot
+    match: { first_after_spot: true, ticks_since_spot: "<= 320", bullet: true }
+    while: round.active
+    per: match
+
+  ttd_shots:
+    count: shot_landed
+    match: { first_after_spot: true, ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  ttd_ticks:
+    sum: enrich.shot.ticks_since_spot
+    on: shot_landed
+    match: { first_after_spot: true, ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  travel_shots:
+    count: shot_landed
+    match: { travel_from_spot_deg: ">= 0", ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  travel_sum:
+    sum: abs(enrich.shot.travel_from_spot_deg)
+    on: shot_landed
+    match: { travel_from_spot_deg: ">= 0", ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
+  flick_error_sum:
+    sum: min(enrich.shot.flick_error_deg, 360.0)
+    on: shot_landed
+    match: { travel_from_spot_deg: ">= 0", ticks_since_spot: "<= 320" }
+    while: round.active
+    per: match
+
   # ── Multi-kill rounds: kast's tally, re-authored because its targets are not exported ──
   kills_round:
     count: kill
@@ -482,3 +611,22 @@ show:
         - { stat: moving_shots,         label: moving_shots }
         - { stat: spray_error_sum,      label: spray_error_sum }
         - { stat: spray_residual_shots, label: SprayN }
+        - { stat: first_contacts,       label: Spots }
+        - { stat: first_contact_angle_sum, label: preaim_angle_sum }
+        - { stat: contact_shots,        label: contact_shots }
+        - { stat: contact_hits,         label: contact_hits }
+        - { stat: first_bullet_shots,   label: first_bullet_shots }
+        - { stat: first_bullet_hits,    label: first_bullet_hits }
+        - { stat: spray_shots_fired,    label: spray_shots }
+        - { stat: spray_hits,           label: spray_hits }
+        - { stat: travel_shots,         label: XShots }
+        - { stat: travel_sum,           label: travel_sum }
+        - { stat: flick_error_sum,      label: flick_error_sum }
+        - { stat: tts_shots,            label: TTSn }
+        - { stat: tts_ticks,            label: tts_ticks }
+        - { stat: ttd_shots,            label: TTDn }
+        - { stat: ttd_ticks,            label: ttd_ticks }
+        - { stat: aimrx_shots,          label: AimRxn }
+        - { stat: aimrx_ticks,          label: aimrx_ticks }
+        - { stat: ttk_kills,            label: TTKn }
+        - { stat: ttk_ticks,            label: ttk_ticks }

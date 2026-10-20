@@ -84,10 +84,12 @@ public class PlayerAggregateTests
             ulong id = ulong.Parse(row.Dimensions["steam_id"].AsText()!, CultureInfo.InvariantCulture);
             Dictionary<string, double> cells = row.Values.ToDictionary(c => c.Key, c => c.Value.AsNumber() ?? 0, StringComparer.Ordinal);
             IReadOnlyDictionary<string, double> merged = PlayerAggregate.Merge(table.Rows, id)!;
-            PlayerAggregate aggregate = PlayerAggregate.Of([new PlayerDemo(new PlayerMatch(Row, 3, [], [], false), true, merged)]);
+            bool sight = PlayerMatchFacet.HasSight(table.Rows);
+            PlayerAggregate aggregate = PlayerAggregate.Of([new PlayerDemo(new PlayerMatch(Row, 3, [], [], false), true, merged) { HasSight = sight }]);
             foreach ((string key, ColumnRule rule) in ColumnRules.All.Where(r => r.Value is not ColumnRule.NotAggregable))
             {
-                double? expected = rule is ColumnRule.Sum sum ? cells[sum.Column] : rule.Pool([cells]);
+                double? expected = ColumnCatalogue.RequiresVisibility(key) && !sight ? null
+                    : rule is ColumnRule.Sum sum ? cells[sum.Column] : rule.Pool([cells]);
                 if (aggregate[key] != expected)
                 {
                     mismatches.Add($"{id} {key}: {aggregate[key]} against {expected}");
@@ -99,6 +101,35 @@ public class PlayerAggregateTests
         {
             await Assert.That(table.Rows.Count).IsEqualTo(2);
             await Assert.That(mismatches).IsEmpty().Because(string.Join("; ", mismatches));
+        }
+    }
+
+    [Test]
+    public async Task ASightColumn_PoolsOnlyTheDemosWithSight_AndIsNoDataWithout()
+    {
+        Dictionary<string, double> sighted = Cells(20, 15, 10, 3, 1500, 14);
+        sighted["Spots"] = 30;
+        sighted["preaim_angle_sum"] = 300;
+        sighted["ttd_ticks"] = 400;
+        sighted["TTDn"] = 25;
+        Dictionary<string, double> blind = Cells(20, 25, 10, 3, 2500, 14);
+
+        PlayerAggregate mixed = PlayerAggregate.Of([Demo(sighted) with { HasSight = true }, Demo(blind)]);
+        PlayerAggregate none = PlayerAggregate.Of([Demo(blind), Demo(blind)]);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(mixed.WithStats).IsEqualTo(2);
+            await Assert.That(mixed.WithSight).IsEqualTo(1);
+            await Assert.That(mixed["Preaim"]).IsEqualTo(10.0).Because("the demo without sight measured nothing, so it does not dilute the pool");
+            await Assert.That(mixed["TTD"]).IsEqualTo(400.0 / 25 * 15.625);
+            await Assert.That(mixed["Spots"]).IsEqualTo(30.0);
+            await Assert.That(mixed["TotalK"]).IsEqualTo(40.0).Because("every other column still pools both demos");
+            await Assert.That(none.WithSight).IsEqualTo(0);
+            await Assert.That(none["Preaim"]).IsNull().Because("no data, never 0");
+            await Assert.That(none["Spots"]).IsNull();
+            await Assert.That(none.Values.Keys.Where(ColumnCatalogue.RequiresVisibility)).IsEmpty();
+            await Assert.That(none["Acc%"]).IsNotNull().Because("accuracy needs no geometry");
         }
     }
 

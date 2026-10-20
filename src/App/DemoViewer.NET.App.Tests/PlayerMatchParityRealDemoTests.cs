@@ -9,12 +9,14 @@ using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
+using TUnit.Core.Exceptions;
 
 #endregion
 
@@ -84,13 +86,9 @@ public class PlayerMatchParityRealDemoTests
         File.WriteAllText(path, PlayerMatchFacetTests.Indent(FactsCodec.Encode(sample)));
     }
 
-    [Test]
-    public async Task TheFacet_IsTheStatsTabsGameTable_RowForRow()
+    // A library row for the demo with its roster, as the library's visit leaves it before the facts pass.
+    private static DemoCacheStore Library(string path, ParsedDemo parsed)
     {
-        string path = DemoTestHelper.RequireDemo();
-        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
-        MergedRulesBuild rules = AppRules();
-        StampedFacts stamped = new(rules);
         DemoCacheStore cache = new(null);
         cache.Upsert(new DemoCacheRecord
         {
@@ -109,6 +107,17 @@ public class PlayerMatchParityRealDemoTests
                 })
             ]
         });
+        return cache;
+    }
+
+    [Test]
+    public async Task TheFacet_IsTheStatsTabsGameTable_RowForRow()
+    {
+        string path = DemoTestHelper.RequireDemo();
+        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
+        MergedRulesBuild rules = AppRules();
+        StampedFacts stamped = new(rules);
+        DemoCacheStore cache = Library(path, parsed);
         FactsEvaluator facts = new(cache, stamped);
         AnalysisFacts library = new(cache, stamped, new RoundFactsSource(cache));
         IReadOnlySet<string> cut = rules.StampedOutputs(id => facts.Records(path, id));
@@ -176,7 +185,8 @@ public class PlayerMatchParityRealDemoTests
 
             foreach ((string key, ColumnRule rule) in ColumnRules.All)
             {
-                if (rule is ColumnRule.NotAggregable || !stats.Values.TryGetValue(key, out object? value))
+                // The background visit has no geometry: its sight columns are no data, and the open's test compares them.
+                if (rule is ColumnRule.NotAggregable || ColumnCatalogue.RequiresVisibility(key) || !stats.Values.TryGetValue(key, out object? value))
                 {
                     continue;
                 }
@@ -201,7 +211,8 @@ public class PlayerMatchParityRealDemoTests
             await Assert.That(library.Status(path, PlayerMatchFacet.Key)).IsEqualTo(FactStatus.Current);
             await Assert.That(row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId))?.State).IsEqualTo(DemoAnalysisState.Indexed);
             await Assert.That(facet.Values.Order(StringComparer.Ordinal)).IsEquivalentTo(ColumnRules.FacetColumns.Order(StringComparer.Ordinal));
-            await Assert.That(facet.Values.Where(ColumnCatalogue.RequiresVisibility)).IsEmpty();
+            await Assert.That(row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId))?.HasVisibility).IsEqualTo(false)
+                .Because("a forward visit has no line-of-sight geometry");
             await Assert.That(game.Keys.Where(s => facet.Rows.All(r => r.Dimensions["player_slot"].AsInteger() != s))).IsEmpty()
                 .Because("every Stats tab row has a facet row");
             await Assert.That(compared).IsGreaterThan(facet.Rows.Count * 40);
@@ -211,6 +222,93 @@ public class PlayerMatchParityRealDemoTests
             await Assert.That((row.CtPlayers ?? []).Concat(row.TPlayers ?? []).Select(p => p.SteamId64).Except(row.FacetPlayers!.Select(p => p.SteamId64)))
                 .IsEmpty().Because("every side player is in the facet");
             await Assert.That(row.FacetPlayers!.SelectMany(p => p.Names).Where(n => System.Text.RegularExpressions.Regex.IsMatch(n, @"^Player \d+$"))).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task AnOpenWithGeometry_GivesTheFacetTheStatsTabsSightColumns()
+    {
+        string path = DemoTestHelper.RequireDemo();
+        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
+        if (CollisionSoup.Find(parsed.MapName) is not { } tris)
+        {
+            throw new SkipTestException($"no collision bake for {parsed.MapName}");
+        }
+
+        MergedRulesBuild rules = AppRules();
+        StampedFacts stamped = new(rules);
+        DemoCacheStore cache = Library(path, parsed);
+        FactsEvaluator facts = new(cache, stamped);
+        AnalysisFacts library = new(cache, stamped, new RoundFactsSource(cache));
+        string stampId = StampedFacts.StampId(PlayerMatchFacet.RulesetId);
+        // As the composition root wires it, less round facts, which this test does not store.
+        rules.OutputsFor = p => rules.StampedOutputs(id => !StampedFacts.IsHostRead(id) && facts.Records(p, id));
+        using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
+        {
+            facts.EvaluateForward(path, ForwardDemoPass.Run(reader, ForwardNeeds.Rules, rules.Docs, outputs: rules.StaleOutputs(path)));
+        }
+
+        PackStamp background = cache.TryGetIndex(path)!.Stamp(stampId)!;
+
+        // The open, as AnalysisViewModel runs it: geometry in the build, the stale tables cut in, the run seeded.
+        facts.OpenWithSight(path);
+        OpenRunPlan plan = rules.PlanOpen(rules.ReadRules().Rulesets, path, rules.StaleOutputs(path));
+        AnalysisOptions options = new() { VisibilityEngine = CollisionSoup.Load(tris) };
+        AnalysisRun open = DemoAnalysis.Evaluate(parsed, plan.Cuts(DemoAnalysis.Build(parsed, plan.Docs, options)), options);
+        bool seeded = rules.Seed(parsed, path, plan, open);
+        bool wanted = facts.Wants(path);
+        facts.Evaluate(path, parsed);
+        rules.Forget(parsed);
+
+        DemoCacheIndexEntry row = cache.TryGetIndex(path)!;
+        PackStamp upgraded = row.Stamp(stampId)!;
+        FactTable facet = library.TryGet(path, PlayerMatchFacet.Key) ?? throw new InvalidOperationException("the open wrote no facet");
+        Dictionary<long, MetricRow> game = new PlayerGameStatsProjector().Project(open.Snapshots!, parsed).Single().Rows
+            .ToDictionary(r => Convert.ToInt64(r.Dimensions["player_slot"], CultureInfo.InvariantCulture));
+        Dictionary<string, int> decimals = Decimals(rules.CoreDocs);
+        string[] sight = [.. ColumnRules.All.Where(r => r.Value is not ColumnRule.NotAggregable && ColumnCatalogue.RequiresVisibility(r.Key)).Select(r => r.Key)];
+
+        List<string> mismatches = [];
+        int compared = 0;
+        foreach (IGrouping<string, FactRow> account in facet.Rows
+                     .Where(r => r.Dimensions["steam_id"].AsText() is { Length: > 0 } id && id != "0")
+                     .GroupBy(r => r.Dimensions["steam_id"].AsText()!)
+                     .Where(g => g.Count() == 1))
+        {
+            long slot = account.Single().Dimensions["player_slot"].AsInteger()!.Value;
+            if (PlayerAggregate.Merge(facet.Rows, ulong.Parse(account.Key, CultureInfo.InvariantCulture)) is not { } merged
+                || !game.TryGetValue(slot, out MetricRow? stats))
+            {
+                continue;
+            }
+
+            PlayerAggregate pooled = PlayerAggregate.Of([new PlayerDemo(new PlayerMatch(row, null, [], [], false), true, merged) { HasSight = upgraded.HasVisibility }]);
+            foreach (string key in sight.Where(stats.Values.ContainsKey))
+            {
+                compared++;
+                double expected = Cell(stats.Values[key]);
+                bool agrees = ColumnRules.For(key) is ColumnRule.Sum
+                    ? pooled[key] == expected
+                    : pooled[key] is { } p && Math.Abs(p - expected) <= (0.5 * Math.Pow(10, -decimals.GetValueOrDefault(key, 1))) + 1e-9;
+                if (!agrees)
+                {
+                    mismatches.Add($"slot {slot}: {key} facet {pooled[key]?.ToString("R", CultureInfo.InvariantCulture) ?? "null"}, Stats tab {stats.Values[key]}");
+                }
+            }
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(background.HasVisibility).IsFalse();
+            await Assert.That(seeded).IsTrue().Because("the open's run recorded the facet, so the visit reads it");
+            await Assert.That(wanted).IsTrue();
+            await Assert.That(upgraded.HasVisibility).IsTrue();
+            await Assert.That(upgraded.Fingerprint).IsEqualTo(background.Fingerprint).Because("sight is not a new ruleset; nothing else re-walks");
+            await Assert.That(upgraded.ComputedAtTicks).IsGreaterThan(background.ComputedAtTicks);
+            await Assert.That(library.Status(path, PlayerMatchFacet.Key)).IsEqualTo(FactStatus.Current);
+            await Assert.That(facts.Wants(path)).IsFalse();
+            await Assert.That(compared).IsGreaterThan(8 * 10);
+            await Assert.That(mismatches).IsEmpty().Because(string.Join("; ", mismatches));
         }
     }
 }
