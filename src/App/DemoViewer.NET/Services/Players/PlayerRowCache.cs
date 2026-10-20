@@ -58,6 +58,7 @@ public sealed class PlayerRowCache
     private readonly LinkedList<Subject> _subjects = [];
     private readonly DemoCacheStore _store;
     private LibraryRows? _library;
+    private HashSet<Stamps>? _libraryLive;
 
     /// <param name="store">The demo cache.</param>
     /// <param name="directory">The player directory over <paramref name="store" />.</param>
@@ -145,6 +146,9 @@ public sealed class PlayerRowCache
         }
     }
 
+    /// <summary>How many demo reads are held for the fills to share; a test seam.</summary>
+    internal int HeldReads => _held.Count;
+
     private PlayerRows Fill(ulong steamId64, IProgress<PlayerRowsProgress>? progress, CancellationToken cancellationToken)
     {
         Subject subject = Use(steamId64);
@@ -184,12 +188,14 @@ public sealed class PlayerRowCache
             {
                 if (cancellationToken.IsCancellationRequested)
                 {
-                    // Keep what was read: the next load reads only the rest.
+                    // Keep what was read: the next load reads only the rest. A new map, as Prune reads it unlocked.
+                    Dictionary<string, Entry> kept = new(subject.Entries, StringComparer.Ordinal);
                     foreach ((string read, Entry entry) in entries)
                     {
-                        subject.Entries[read] = entry;
+                        kept[read] = entry;
                     }
 
+                    subject.Entries = kept;
                     cancellationToken.ThrowIfCancellationRequested();
                 }
 
@@ -205,6 +211,7 @@ public sealed class PlayerRowCache
             }
 
             subject.Entries = entries;
+            Prune(entries.Values.Select(e => e.Key));
             List<PlayerDemo> demos = new(matches.Count);
             foreach (PlayerMatch match in matches)
             {
@@ -267,6 +274,12 @@ public sealed class PlayerRowCache
                 }
             }
 
+            // Kept from before the reads, so a tab fill pruning meanwhile keeps what this fill is reading.
+            lock (_gate)
+            {
+                _libraryLive = live;
+            }
+
             progress?.Report(new PlayerRowsProgress(0, toRead.Count));
             for (int i = 0; i < toRead.Count; i++)
             {
@@ -277,14 +290,7 @@ public sealed class PlayerRowCache
                 progress?.Report(new PlayerRowsProgress(i + 1, toRead.Count));
             }
 
-            // A stamp that moved, or a demo that left the library, leaves its old read behind.
-            foreach (Stamps key in _held.Keys)
-            {
-                if (!live.Contains(key))
-                {
-                    _held.TryRemove(key, out _);
-                }
-            }
+            Prune(live);
 
             Dictionary<ulong, IReadOnlyList<PlayerDemo>> accounts = new(matches.Count);
             foreach ((ulong steamId64, IReadOnlyList<PlayerMatch> theirs) in matches)
@@ -322,6 +328,40 @@ public sealed class PlayerRowCache
         catch (Exception)
         {
             return null;
+        }
+    }
+
+    // Drops the reads no fill asks for again: a demo that neither a held account nor the library fill holds, and an
+    // old stamp of a demo that a fill has just seen under a new one. What stays is bounded by the held accounts'
+    // demos, and by the library's once its fill has run.
+    private void Prune(IEnumerable<Stamps> seen)
+    {
+        HashSet<Stamps> wanted = [];
+        lock (_gate)
+        {
+            foreach (Subject subject in _subjects)
+            {
+                wanted.UnionWith(subject.Entries.Values.Select(e => e.Key));
+            }
+
+            if (_libraryLive is { } library)
+            {
+                wanted.UnionWith(library);
+            }
+        }
+
+        Dictionary<string, Stamps> current = new(StringComparer.Ordinal);
+        foreach (Stamps key in seen)
+        {
+            current[key.Id] = key;
+        }
+
+        foreach (Stamps key in _held.Keys)
+        {
+            if (!wanted.Contains(key) || (current.TryGetValue(key.Id, out Stamps now) && now != key))
+            {
+                _held.TryRemove(key, out _);
+            }
         }
     }
 

@@ -26,7 +26,7 @@ public class PlayerRowCacheTests
 
     private static string Id(ulong steamId) => steamId.ToString(CultureInfo.InvariantCulture);
 
-    private static DemoCacheRecord Demo(int i, bool stamped = true, long writtenAt = 1)
+    private static DemoCacheRecord Demo(int i, bool stamped = true, long writtenAt = 1, ulong player = Grim)
     {
         DemoCacheRecord record = new()
         {
@@ -35,7 +35,7 @@ public class PlayerRowCacheTests
             ModifiedTicks = 1,
             Sha256 = $"sha{i}",
             Map = Maps[i % Maps.Length],
-            Players = [new CachedPlayerInfo { Slot = 2, Name = "grim", SteamId64 = Id(Grim), Team = i % 2 == 0 ? 3 : 2 }],
+            Players = [new CachedPlayerInfo { Slot = 2, Name = "grim", SteamId64 = Id(player), Team = i % 2 == 0 ? 3 : 2 }],
             MatchMeta = new DemoMatchMeta { MatchTimeUtcTicks = (i + 1) * TimeSpan.TicksPerDay, MatchTimeSource = MatchTimeSource.ValveMatchInfo }
         };
         DemoCacheStore.StampHeader(record);
@@ -230,6 +230,53 @@ public class PlayerRowCacheTests
             await Assert.That(library.Accounts[Grim].Count(d => d.Stats is not null)).IsEqualTo(4);
             await Assert.That(reads.Order(StringComparer.Ordinal).ToArray()).IsEquivalentTo(["/lib/0.dem", "/lib/3.dem"]).Because("the failed demo is read again, the rest are held");
             await Assert.That(after.Aggregate().WithStats).IsEqualTo(5);
+        }
+    }
+
+    [Test]
+    public async Task TheHeldReads_DropOldStamps_AndAccountsNoLongerHeld()
+    {
+        (DemoCacheStore store, PlayerRowCache cache, _) = Library(20);
+        await cache.LoadAsync(Grim);
+        int cold = cache.HeldReads;
+        using (store.BeginBatch())
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                store.Upsert(Demo(i, writtenAt: 2));
+            }
+        }
+
+        await cache.LoadAsync(Grim);
+        int rewritten = cache.HeldReads;
+        await cache.LoadLibraryAsync();
+        store.Upsert(Demo(7, writtenAt: 3));
+        await cache.LoadAsync(Grim);
+        int afterLibrary = cache.HeldReads;
+
+        // Six accounts of three demos each, past the four the cache holds.
+        DemoCacheStore many = new(null);
+        using (many.BeginBatch())
+        {
+            for (int i = 0; i < 18; i++)
+            {
+                many.Upsert(Demo(i, player: Grim + (ulong)(i / 3)));
+            }
+        }
+
+        PlayerRowCache accounts = new(many, new PlayerDirectory(many), path =>
+            Facet(int.Parse(Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture), 10));
+        for (ulong a = 0; a < 6; a++)
+        {
+            await accounts.LoadAsync(Grim + a);
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(cold).IsEqualTo(20);
+            await Assert.That(rewritten).IsEqualTo(20).Because("a facts write drops the read under the old stamp");
+            await Assert.That(afterLibrary).IsEqualTo(20).Because("the library fill holds the old stamp no longer once a fill sees the new one");
+            await Assert.That(accounts.HeldReads).IsEqualTo(12).Because("only the four held accounts' demos stay");
         }
     }
 
