@@ -45,6 +45,14 @@ public partial class StatsTabView : UserControl
 
     private void OnRowDetailsClick(object? sender, RoutedEventArgs e) => OpenDetailsFrom(sender);
 
+    private void OnRowPlayerOverviewClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is StatsTabViewModel vm && sender is Control { DataContext: StatsRow row })
+        {
+            vm.OpenPlayerOverviewCommand.Execute(row);
+        }
+    }
+
     private void OpenDetailsFrom(object? sender)
     {
         if (DataContext is not StatsTabViewModel vm || sender is not Control { DataContext: StatsRow row })

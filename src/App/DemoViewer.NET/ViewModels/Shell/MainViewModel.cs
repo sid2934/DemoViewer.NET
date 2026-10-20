@@ -666,11 +666,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     playerRows,
                     path => _ = LoadDemoFromPathAsync(path),
                     SelectTabById,
-                    // Until Stats can focus a player by SteamID, this opens the demo on the Stats tab.
-                    (path, steamId64) => _ = OpenDemoOnStatsAsync(path),
+                    (path, steamId64) => _ = FocusPlayerInStatsAsync(path, steamId64),
                     OpenSettingsCore),
                 processingQueue,
                 action => Dispatcher.UIThread.Post(action));
+            StatsTab.PlayerOverviewOpener = (steamId64, name) => OpenPlayerOverview(steamId64, name);
         }
 
         // 3.3b + 3.5a forwarder: re-raise ParserTab scalar property changes on the
@@ -4485,10 +4485,48 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void OpenSettingsAtCategory() => OpenSettingsCore("SectionUserCategory");
 
-    private async Task OpenDemoOnStatsAsync(string path)
+    /// <summary>
+    ///     Shows <paramref name="steamId64" /> in the Player Overview tab and switches to it. False where there is no
+    ///     tab to show (the browser, or the tab switched off), which the status line reports by
+    ///     <paramref name="name" /> when the caller has one.
+    /// </summary>
+    /// <param name="steamId64">The account; 0 opens nothing.</param>
+    /// <param name="name">The name the caller shows for the account, or null.</param>
+    public bool OpenPlayerOverview(ulong steamId64, string? name = null)
     {
-        await LoadDemoFromPathAsync(path);
+        if (steamId64 == 0 || PlayerOverviewTab is null)
+        {
+            return false;
+        }
+
+        if (!TrySelectTab(PlayerOverviewTabViewModel.TabId))
+        {
+            StatusText = name is { Length: > 0 }
+                ? $"Player Overview is turned off, so {DisplayText.Sanitize(name)} was not opened."
+                : "Player Overview is turned off.";
+            return false;
+        }
+
+        PlayerOverviewTab.OpenPlayer(steamId64);
+        return true;
+    }
+
+    // Opens the demo unless it is the one loaded, then focuses the account on Stats. The open's evaluation runs
+    // inside the load, so the tables are usually there when it returns; when they are not, Stats keeps the focus
+    // until they are. A load that did not land (a missing file, a superseded open) focuses nobody.
+    private async Task FocusPlayerInStatsAsync(string path, ulong steamId64)
+    {
+        if (!string.Equals(_loadedDemoPath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            await LoadDemoFromPathAsync(path);
+            if (!string.Equals(_loadedDemoPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
         SelectTabById("builtin.stats");
+        StatsTab.FocusPlayer(steamId64);
     }
 
     private void OpenSettingsCore(string? scrollTargetSection)
