@@ -32,6 +32,7 @@ using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Services.MatchMeta;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
@@ -1120,6 +1121,9 @@ public class App : Application
 
         // Game mode and rank: what the matchmeta record pass cannot see without reading the demo.
         services.AddSingleton(sp => new MatchMetaEvaluator(sp.GetRequiredService<DemoCacheStore>()));
+
+        // Every account in the library, projected from the index on read; the Player Overview's source.
+        services.AddSingleton(sp => new PlayerDirectory(sp.GetRequiredService<DemoCacheStore>()));
 
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must

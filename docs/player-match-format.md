@@ -121,7 +121,8 @@ one who ended the demo as a spectator, without opening a sidecar.
 ]
 ```
 
-* One entry per `steam_id` in the table, sorted ordinally. Rows with no `steam_id`, or `0`, are left out.
+* One entry per `steam_id` in the table, sorted ordinally. Rows with no `steam_id`, or `0`, are left out,
+  and so is an account the record's roster has only as a coach or a bot.
 * **`Slots`**: every slot with a row for the account, ghosts included, ascending.
 * **`Names`**: the record's roster name of each slot whose roster entry is the same account, distinct, in
   slot order. Only when the roster has none does the table's `player_name` stand, and a `Player N`
