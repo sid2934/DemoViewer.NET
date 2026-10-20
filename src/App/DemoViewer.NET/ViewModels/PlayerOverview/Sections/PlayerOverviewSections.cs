@@ -18,7 +18,7 @@ public static class PlayerOverviewSections
         // Stat categories and personal bests go here.
         new HighlightsSectionViewModel(services),
 
-        // Teammates goes here.
+        new TeammatesSectionViewModel(services),
         new HeadToHeadSectionViewModel(services)
 
         // Then compare, benchmarks, aim quality.

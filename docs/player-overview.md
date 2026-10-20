@@ -68,6 +68,15 @@ Peer scales are never used on a cross-demo board; a column keeps its absolute co
   ([`player-match-format.md`](player-match-format.md#dimensions)).
 * Bots, coaches and SteamID 0 are never subjects.
 
+## Teammates
+
+The teammates section lists everyone who ended one of the subject's demos on the same side, over the filter's
+window, the most shared first. A demo either of them left early is not shared: sides come from the index's
+side lists. The record and win rate together are the subject's outcomes in those demos, and each teammate's
+HLTV is their own `player_match` rows in the shared demos pooled by the HLTV rule above. The subject's facet
+read keeps every other account's rating inputs, so a teammate costs no extra read. A shared demo whose facet
+is not written counts as a match together and adds nothing to the win rate or the rating.
+
 ## Head-to-head
 
 The head-to-head section pits the subject against one opponent, picked from everyone who ended one of the
