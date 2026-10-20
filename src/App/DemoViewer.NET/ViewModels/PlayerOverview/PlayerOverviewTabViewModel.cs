@@ -32,6 +32,11 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview;
 ///         demo has its player stats from the row's <c>facts:player_match</c> stamp. It never runs the engine. Work is
 ///         deferred while the tab is hidden and done once when it is shown again.
 ///     </para>
+///     <para>
+///         The tab also reads the subject's stats, through <see cref="PlayerRowCache" /> off the UI thread, and
+///         owns the filter bar: every section renders the one filtered set in its context, so a filter change
+///         recomputes every panel from the rows already read and touches no file.
+///     </para>
 /// </summary>
 public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
@@ -48,6 +53,8 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
     private readonly Action<Action> _post;
     private readonly IDemoProcessingQueue? _queue;
+    private int _load;
+    private ulong? _optionsFor;
     private readonly PlayerSearch _search;
     private readonly PlayerOverviewServices _services;
     private bool _active;
@@ -57,6 +64,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     private bool _queueRefreshQueued;
     private bool _clearingSearch;
     private bool _refreshQueued;
+    private PlayerRows? _rows;
     private bool _stale = true;
     private ulong? _subject;
     private bool _subjectWasMine;
@@ -83,6 +91,11 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     [NotifyPropertyChangedFor(nameof(HasSearchMessage))]
     private string _searchMessage = "";
 
+    /// <summary>"Reading stats 12 of 340" while the subject's facets are being read, else empty.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReadingStats))]
+    private string _readText = "";
+
     /// <summary>What the page can show for its subject.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEmpty), nameof(ShowBanner), nameof(ShowSections), nameof(CanOpenIdentity),
@@ -102,7 +115,8 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         _queue = queue;
         _post = post ?? (action => action());
         _search = new PlayerSearch(services.Directory);
-        Sections = PlayerOverviewSections.Create(services);
+        Filter = new PlayerOverviewFilterViewModel();
+        Sections = PlayerOverviewSections.Create(services, Filter);
         MainSections = [.. Sections.Where(s => s.Column == SectionColumn.Main)];
         SideSections = [.. Sections.Where(s => s.Column == SectionColumn.Side)];
 
@@ -110,11 +124,21 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
         services.Directory.Changed += OnDirectoryChanged;
         services.Identity.Changed += OnIdentityChanged;
+        Filter.Changed += OnFilterChanged;
         if (queue is not null)
         {
             queue.Changed += OnQueueChanged;
         }
     }
+
+    /// <summary>The filter bar every section's window follows.</summary>
+    public PlayerOverviewFilterViewModel Filter { get; }
+
+    /// <summary>True while the subject's facets are being read.</summary>
+    public bool IsReadingStats => ReadText.Length > 0;
+
+    /// <summary>The latest read of the subject's facets; completed when nothing is being read.</summary>
+    internal Task Loading { get; private set; } = Task.CompletedTask;
 
     /// <summary>Every section, in page order.</summary>
     public IReadOnlyList<PlayerOverviewSection> Sections { get; }
@@ -190,6 +214,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         _disposed = true;
         _services.Directory.Changed -= OnDirectoryChanged;
         _services.Identity.Changed -= OnIdentityChanged;
+        Filter.Changed -= OnFilterChanged;
         if (_queue is not null)
         {
             _queue.Changed -= OnQueueChanged;
@@ -367,6 +392,15 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
     private void OnDirectoryChanged() => Invalidate();
 
+    // The rows are read already: a new window is a recompute over them, with no directory or file read.
+    private void OnFilterChanged()
+    {
+        if (_context is { } context)
+        {
+            Show(context with { Filter = Filter.Filter, Window = PlayerAggregate.Window(context.Demos, Filter.Filter) });
+        }
+    }
+
     private void OnQueueChanged()
     {
         if (_queueRefreshQueued || !_active || _context is null)
@@ -408,6 +442,8 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     private void Refresh()
     {
         _stale = false;
+        // A read still running for an earlier refresh finishes into the cache and is not shown.
+        int load = ++_load;
         PlayerDirectory directory = _services.Directory;
         PlayerEntry? player = _subject is { } id ? directory.Get(id) : null;
         IReadOnlyList<PlayerMatch> matches = player is null ? [] : directory.Matches(player.SteamId64);
@@ -420,15 +456,113 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
             }
         }
 
-        PlayerOverviewContext context = new(_subject, player, matches, withStats, _subjectWasMine, _services);
-        _context = context;
+        // A new subject starts unfiltered; the same subject keeps the user's selection.
+        Filter.SetOptions(matches, reset: _optionsFor != _subject);
+        _optionsFor = _subject;
+
+        PlayerRowCache? cache = _services.Rows;
+        if (player is null || _rows?.SteamId64 != player.SteamId64)
+        {
+            _rows = null;
+        }
+
+        bool reading = false;
+        if (player is not null && cache is not null)
+        {
+            if (cache.TryGet(player.SteamId64) is { } rows)
+            {
+                _rows = rows;
+            }
+            else
+            {
+                reading = true;
+            }
+        }
+
+        PlayerOverviewContext context = Compose(new PlayerOverviewContext(_subject, player, matches, withStats, _subjectWasMine,
+            _services, [], Filter.Filter, [], reading));
         RebuildMeAccounts();
         ApplyState(context);
+        Show(context);
+        if (reading)
+        {
+            Loading = LoadAsync(cache!, player!.SteamId64, load);
+        }
+        else
+        {
+            ReadText = "";
+        }
+    }
+
+    private async Task LoadAsync(PlayerRowCache cache, ulong steamId64, int load)
+    {
+        Progress<PlayerRowsProgress> progress = new(p =>
+        {
+            if (_load == load && p.Total > 0)
+            {
+                ReadText = string.Create(CultureInfo.InvariantCulture, $"Reading stats {p.Done} of {p.Total}");
+            }
+        });
+        ReadText = "Reading stats";
+        PlayerRows? rows = null;
+        try
+        {
+            rows = await cache.LoadAsync(steamId64, progress);
+        }
+        catch (Exception)
+        {
+            // A sidecar that will not read leaves its demo "stats not read"; the next refresh tries again.
+        }
+
+        if (_load != load || _disposed || _context is not { } context)
+        {
+            return;
+        }
+
+        _rows = rows ?? _rows;
+        ReadText = "";
+        Show(Compose(context with { IsReadingStats = false }));
+    }
+
+    // Pairs each demo with the stats last read for it, kept only while its facet stamp has not moved, and
+    // windows the result by the filter.
+    private PlayerOverviewContext Compose(PlayerOverviewContext context)
+    {
+        Dictionary<string, PlayerDemo>? read = null;
+        if (_rows is { } rows)
+        {
+            read = new Dictionary<string, PlayerDemo>(rows.Demos.Count, StringComparer.Ordinal);
+            foreach (PlayerDemo demo in rows.Demos)
+            {
+                read[ContentIdOf(demo.Match.Row)] = demo;
+            }
+        }
+
+        List<PlayerDemo> demos = new(context.Matches.Count);
+        foreach (PlayerMatch match in context.Matches)
+        {
+            demos.Add(read is not null
+                      && read.TryGetValue(ContentIdOf(match.Row), out PlayerDemo? held)
+                      && held.HasFacet
+                      && match.Row.Stamp(FacetStamp) is { State: DemoAnalysisState.Indexed } stamp
+                      && held.Match.Row.Stamp(FacetStamp) == stamp
+                ? new PlayerDemo(match, true, held.Stats)
+                : new PlayerDemo(match, false, null));
+        }
+
+        return context with { Demos = demos, Window = PlayerAggregate.Window(demos, context.Filter) };
+    }
+
+    private void Show(PlayerOverviewContext context)
+    {
+        _context = context;
         foreach (PlayerOverviewSection section in Sections)
         {
             section.Update(context);
         }
     }
+
+    private static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
 
     private void ApplyState(PlayerOverviewContext context)
     {

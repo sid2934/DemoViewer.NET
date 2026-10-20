@@ -153,7 +153,7 @@ public class PlayerOverviewHistoryTests
         }
 
         using Shell shell = new(store, null, Grim);
-        await shell.History.Loading;
+        await shell.Tab.Loading;
         string[] order = [.. shell.History.Rows.Select(r => r.Match.Row.Path)];
         await Assert.That(order).IsEquivalentTo(["/lib/2.dem", "/lib/1.dem", "/lib/4.dem", "/lib/3.dem", "/lib/0.dem"], CollectionOrdering.Matching)
             .Because("one match time breaks by the higher reservation id, then the path");
@@ -164,7 +164,7 @@ public class PlayerOverviewHistoryTests
                 time: demo.MatchMeta!.MatchTimeUtcTicks, reservation: demo.MatchMeta.ReservationId));
         }
 
-        await shell.History.Loading;
+        await shell.Tab.Loading;
         await Assert.That(shell.History.Rows.Select(r => r.Match.Row.Path)).IsEquivalentTo(order, CollectionOrdering.Matching);
     }
 
@@ -172,7 +172,7 @@ public class PlayerOverviewHistoryTests
     public async Task ARowWithNoFacet_ShowsStatsPending_NeverZero()
     {
         using Shell shell = new(Library(4, i => i != 1), null, Grim);
-        await shell.History.Loading;
+        await shell.Tab.Loading;
         HistoryRowItem pending = shell.History.Rows.Single(r => r.Match.Row.Path == "/lib/1.dem");
         HistoryRowItem won = shell.History.Rows.Single(r => r.Match.Row.Path == "/lib/2.dem");
 
@@ -200,7 +200,7 @@ public class PlayerOverviewHistoryTests
     public async Task OneRowsStats_EqualTheAggregateOfThatDemo()
     {
         using Shell shell = new(Library(3), null, Grim);
-        await shell.History.Loading;
+        await shell.Tab.Loading;
         PlayerRows rows = shell.Tab.Context!.Services.Rows!.TryGet(Grim)!;
         foreach (PlayerDemo demo in rows.Demos)
         {
@@ -216,16 +216,16 @@ public class PlayerOverviewHistoryTests
     {
         DemoCacheStore store = Library(3);
         using Shell shell = new(store, null, Grim);
-        await shell.History.Loading;
+        await shell.Tab.Loading;
         await Assert.That(shell.History.Rows.Count).IsEqualTo(3);
 
         store.Detach("/lib/1.dem");
-        await shell.History.Loading;
+        await shell.Tab.Loading;
         await Assert.That(shell.History.Rows.Select(r => r.Match.Row.Path)).DoesNotContain("/lib/1.dem");
         await Assert.That(shell.Header.DemoCountText).IsEqualTo("2 demos");
 
         await Assert.That(store.Reattach("/lib/1.dem", 100, 1)).IsTrue();
-        await shell.History.Loading;
+        await shell.Tab.Loading;
         await Assert.That(shell.History.Rows.Count).IsEqualTo(3);
         HistoryRowItem back = shell.History.Rows.Single(r => r.Match.Row.Path == "/lib/1.dem");
         await Assert.That(back.HasStats).IsTrue().Because("the demo's facet is still held under its content id");
