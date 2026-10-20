@@ -41,6 +41,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Idle;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Services.Tutorial;
 using DemoViewer.NET.Services.Update;
@@ -652,7 +653,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             (demo, ruleset, id, tick, slot) =>
                 ReelTrayLocator?.Invoke()?.Unstage(new HighlightKey(demo, ruleset, id, tick, slot)),
             (demo, ruleset, id, tick, slot) =>
-                ReelTrayLocator?.Invoke()?.IsStaged(new HighlightKey(demo, ruleset, id, tick, slot)) ?? false);
+                ReelTrayLocator?.Invoke()?.IsStaged(new HighlightKey(demo, ruleset, id, tick, slot)) ?? false,
+            SetMatchTime);
 
         // Player Overview: one player across the library, from the index and the cached facets; it never runs the
         // engine. Desktop only: the browser keeps its cache in memory for one session, so there is no library of
@@ -1920,6 +1922,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        MatchOverviewTab.SetMatchTime(record.MatchMeta);
+
         // LIVE: fill only the highlight section, never the whole page. The open's own harvest lands here.
         // It runs off-thread and completes after SetAnalysis, so without this the demo you just opened shows
         // an empty moments column until you navigate away and back. A full SetCachedRecord would flip the
@@ -1964,6 +1968,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         MatchOverviewTab.SeedFromCache(subjectKey, record, Facet(localPath));
+    }
+
+    // The hero's "Set match date": the override store writes the record, whose change repaints the page.
+    private void SetMatchTime(string path, DateTime? utc)
+    {
+        if (_demoCache is null)
+        {
+            return;
+        }
+
+        if (utc is { } time)
+        {
+            MatchTimeOverrides.Set(_demoCache, path, time);
+        }
+        else
+        {
+            MatchTimeOverrides.Clear(_demoCache, path);
+        }
     }
 
     // The demo's player_match table, current or stale: the one source of Match Overview's cached scoreboard.
