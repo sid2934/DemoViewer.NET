@@ -87,6 +87,16 @@ five benchmark demos, interleaved over three rounds, the forward visit with a `V
   ([`player-match-format.md`](player-match-format.md#dimensions)).
 * Bots, coaches and SteamID 0 are never subjects.
 
+## Maps and sides
+
+The maps section lists one row per map in the filter's window, each pooled over that map's demos by the rules
+above, so the rows add up to the summary. Under it, each side: rounds won and lost and opening duels from the
+`player_match` side columns (`CTW/CTL/TW/TL`, `CTFK/CTFD/TFK/TFD`), then K/D, ADR and KAST from the
+`player_round` facet ([`player-round-format.md`](player-round-format.md)). Those three divide the account's
+rounds summed by side: damage over the rounds played on the side, KAST rounds over the same rounds, kills
+over deaths. They pool over the demos whose `player_round` facet is written; while the library is still
+computing some, a line under the sides says how many of the matches with stats they cover.
+
 ## Stat categories
 
 The categories section lists the catalogue's groups over the filter's window: opening duels, trades, clutches,

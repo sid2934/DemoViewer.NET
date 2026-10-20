@@ -27,8 +27,9 @@ public class PlayerOverviewFilterTests
     private const ulong Grim = PlayerOverviewHistoryTests.Grim;
     private static readonly string[] Maps = ["de_nuke", "de_inferno", "de_mirage"];
 
-    // Demo i is on Maps[i % 3], competitive on even i and premier on odd; Grim ends on CT on even demos.
-    private static DemoCacheStore Library(int demos, Func<int, bool>? stamped = null)
+    // Demo i is on Maps[i % 3], competitive on even i and premier on odd; Grim ends on CT on even demos. A demo
+    // that passes rounds has its player_round facet written.
+    private static DemoCacheStore Library(int demos, Func<int, bool>? stamped = null, Func<int, bool>? rounds = null)
     {
         DemoCacheStore store = new(null);
         using (store.BeginBatch())
@@ -38,6 +39,11 @@ public class PlayerOverviewFilterTests
                 DemoCacheRecord record = PlayerOverviewHistoryTests.Demo(i, stamped?.Invoke(i) ?? true);
                 record.Map = Maps[i % Maps.Length];
                 record.MatchMeta!.GameMode = i % 2 == 0 ? "competitive" : "premier";
+                if (rounds?.Invoke(i) == true)
+                {
+                    record.PackStamps.Add(new PackStamp(StampedFacts.StampId(PlayerRoundFacet.RulesetId), StampedFacts.Schema, "fp") { ComputedAtTicks = 1 });
+                }
+
                 store.Upsert(record);
             }
         }
@@ -60,9 +66,33 @@ public class PlayerOverviewFilterTests
         return facet with { Rows = [new FactRow(row.Dimensions, values)] };
     }
 
+    // Grim's rounds in demo i: two CT rounds with 2 kills, a death, 150 damage and KAST each; two T rounds with a
+    // kill and 25 damage each, KAST in the first, a death in the first and, on odd demos, in the second.
+    private static FactTable SidedRounds(string path)
+    {
+        long i = long.Parse(Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture);
+        FactRow Round(long round, long side, long kills, long deaths, long damage, bool kast) => new(
+            new Dictionary<string, FactValue>
+            {
+                ["round_number"] = FactValue.Of(round), ["player_slot"] = FactValue.Of(2L),
+                ["steam_id"] = FactValue.Of(Grim.ToString(CultureInfo.InvariantCulture))
+            },
+            new Dictionary<string, FactValue>
+            {
+                ["side"] = FactValue.Of(side), ["kills"] = FactValue.Of(kills), ["deaths"] = FactValue.Of(deaths), ["assists"] = FactValue.Of(0L),
+                ["damage"] = FactValue.Of(damage), ["survived"] = FactValue.Of(deaths == 0 ? 1L : 0L), ["kast"] = FactValue.Of(kast)
+            });
+        return new FactTable(PlayerRoundFacet.Key, "fp", StampedFacts.Schema, "player_round", ["round_number", "player_slot", "steam_id"],
+            [.. PlayerRoundFacet.Counts.Prepend("side")], new Dictionary<string, string>(),
+            [
+                Round(1, PlayerRoundFacet.Ct, 2, 1, 150, true), Round(2, PlayerRoundFacet.Ct, 2, 1, 150, true),
+                Round(3, PlayerRoundFacet.T, 1, 1, 25, true), Round(4, PlayerRoundFacet.T, 1, i % 2, 25, false)
+            ]);
+    }
+
     private sealed class Shell : IDisposable
     {
-        public Shell(DemoCacheStore store, Func<string, FactTable?>? read = null)
+        public Shell(DemoCacheStore store, Func<string, FactTable?>? read = null, Func<string, FactTable?>? readRounds = null)
         {
             Store = store;
             Directory = new PlayerDirectory(store, _ => true);
@@ -73,7 +103,7 @@ public class PlayerOverviewFilterTests
                 Reads.Enqueue(path);
                 return PlayerOverviewHistoryTests.Facet(int.Parse(Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture));
             });
-            Cache = new PlayerRowCache(store, Directory, facet);
+            Cache = new PlayerRowCache(store, Directory, facet, readRounds);
             Tab = new PlayerOverviewTabViewModel(new PlayerOverviewServices(Directory, Identity, Cache, _ => { }, _ => { }, (_, _) => { }, _ => { }));
             Tab.OnActivated(null!);
         }
@@ -377,6 +407,39 @@ public class PlayerOverviewFilterTests
             await Assert.That(shell.Maps.Sides.Select(s => (s.Side, s.RoundsText, s.OpeningText))).IsEquivalentTo(
                 [("CT", "66-66 (50%)", "12-6 (67%)"), ("T", "18-15 (55%)", "6-9 (40%)")],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(shell.Maps.Sides.All(s => s is { KdText: "–", AdrText: "–", KastText: "–" })).IsTrue()
+                .Because("no demo has its rounds by side yet");
+            await Assert.That(shell.Maps.SideNote).IsEqualTo("K/D, ADR and KAST by side need per-round stats; the library is computing them.");
+        }
+    }
+
+    [Test]
+    public async Task SideRates_PoolTheRoundsBySide_OverTheDemosThatHaveThem()
+    {
+        using Shell shell = new(Library(4, rounds: i => i != 3), SidedFacet, SidedRounds);
+        await shell.Tab.Loading;
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Maps.Sides.Select(s => (s.Side, s.KdText, s.AdrText, s.KastText))).IsEquivalentTo(
+                [("CT", "2.00", "150.0", "100.0%"), ("T", "1.50", "25.0", "50.0%")],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("demos 0-2: 6 rounds a side, 12-6 and 6-4 kills to deaths");
+            await Assert.That(shell.Maps.SideNote).IsEqualTo("K/D, ADR and KAST by side cover 3 of 4 matches; the library is computing the rest.");
+        }
+
+        shell.Filter.Map = Choice(shell.Filter.Maps, "Nuke");
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Maps.Sides.Select(s => (s.Side, s.KdText))).IsEquivalentTo([("CT", "2.00"), ("T", "2.00")],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("Nuke is demos 0 and 3, and only 0 has its rounds");
+            await Assert.That(shell.Maps.SideNote).IsEqualTo("K/D, ADR and KAST by side cover 1 of 2 matches; the library is computing the rest.");
+        }
+
+        using Shell all = new(Library(4, rounds: _ => true), SidedFacet, SidedRounds);
+        await all.Tab.Loading;
+        using (Assert.Multiple())
+        {
+            await Assert.That(all.Maps.SideNote).IsEmpty();
+            await Assert.That(all.Maps.Sides.Select(s => s.KdText)).IsEquivalentTo(["2.00", "1.33"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
         }
     }
 

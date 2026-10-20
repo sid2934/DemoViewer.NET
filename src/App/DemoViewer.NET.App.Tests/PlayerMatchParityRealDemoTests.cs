@@ -37,13 +37,14 @@ public class PlayerMatchParityRealDemoTests
 
     private static readonly string[] Buckets = ["2K", "3K", "4K", "5K"];
 
-    /// <summary>The app's stamped set over the shipped rules: round facts, the two player facets and the library tables.</summary>
+    /// <summary>The app's stamped set over the shipped rules: round facts, the player facets and the library tables.</summary>
     internal static MergedRulesBuild AppRules(string? user = null) => new(() => YamlConfigLoader.LoadWithOverlay(Shipped, user),
         () =>
         [
             StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
             StampedRuleset.Core(PlayerMatchFacet.RulesetId),
             StampedRuleset.Core(PlayerEventFacet.RulesetId),
+            StampedRuleset.Core(PlayerRoundFacet.RulesetId),
             .. LibraryTeamTables.RulesetIds.Select(StampedRuleset.Core)
         ]);
 
@@ -110,22 +111,27 @@ public class PlayerMatchParityRealDemoTests
         return cache;
     }
 
+    // A library visit of the demo through the facts pass, over a cache that holds only its parse and roster.
+    private static (DemoCacheStore Cache, AnalysisFacts Library, ForwardDemoResult Pass) Visit(string path, ParsedDemo parsed, MergedRulesBuild rules)
+    {
+        StampedFacts stamped = new(rules);
+        DemoCacheStore cache = Library(path, parsed);
+        FactsEvaluator facts = new(cache, stamped);
+        AnalysisFacts library = new(cache, stamped, new RoundFactsSource(cache));
+        IReadOnlySet<string> cut = rules.StampedOutputs(id => facts.Records(path, id));
+        using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
+        ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.Rules, rules.Docs, outputs: cut);
+        facts.EvaluateForward(path, pass);
+        return (cache, library, pass);
+    }
+
     [Test]
     public async Task TheFacet_IsTheStatsTabsGameTable_RowForRow()
     {
         string path = DemoTestHelper.RequireDemo();
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         MergedRulesBuild rules = AppRules();
-        StampedFacts stamped = new(rules);
-        DemoCacheStore cache = Library(path, parsed);
-        FactsEvaluator facts = new(cache, stamped);
-        AnalysisFacts library = new(cache, stamped, new RoundFactsSource(cache));
-        IReadOnlySet<string> cut = rules.StampedOutputs(id => facts.Records(path, id));
-        using (DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None)))
-        {
-            facts.EvaluateForward(path, ForwardDemoPass.Run(reader, ForwardNeeds.Rules, rules.Docs, outputs: cut));
-        }
-
+        (DemoCacheStore cache, AnalysisFacts library, _) = Visit(path, parsed, rules);
         FactTable facet = library.TryGet(path, PlayerMatchFacet.Key) ?? throw new InvalidOperationException("the visit wrote no facet");
         DemoCacheIndexEntry row = cache.TryGetIndex(path)!;
         if (Environment.GetEnvironmentVariable(PlayerMatchFacetTests.SampleUpdateVar) == "1" && DemoTestHelper.FindRepoRoot() is { } repo)
@@ -222,6 +228,117 @@ public class PlayerMatchParityRealDemoTests
             await Assert.That((row.CtPlayers ?? []).Concat(row.TPlayers ?? []).Select(p => p.SteamId64).Except(row.FacetPlayers!.Select(p => p.SteamId64)))
                 .IsEmpty().Because("every side player is in the facet");
             await Assert.That(row.FacetPlayers!.SelectMany(p => p.Names).Where(n => System.Text.RegularExpressions.Regex.IsMatch(n, @"^Player \d+$"))).IsEmpty();
+        }
+    }
+
+    [Test]
+    public async Task TheRoundFacet_IsTheRetainedRoundTable_AndAddsUpToTheMatch()
+    {
+        string path = DemoTestHelper.RequireDemo();
+        ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
+        MergedRulesBuild rules = AppRules();
+        (DemoCacheStore cache, AnalysisFacts library, ForwardDemoResult pass) = Visit(path, parsed, rules);
+        FactTable rounds = library.TryGet(path, PlayerRoundFacet.Key) ?? throw new InvalidOperationException("the visit wrote no player_round");
+        FactTable facet = library.TryGet(path, PlayerMatchFacet.Key) ?? throw new InvalidOperationException("the visit wrote no player_match");
+        DemoCacheIndexEntry row = cache.TryGetIndex(path)!;
+        if (Environment.GetEnvironmentVariable(PlayerRoundFacetTests.SampleUpdateVar) == "1" && DemoTestHelper.FindRepoRoot() is { } repo)
+        {
+            PlayerRoundFacetTests.WriteSample(PlayerRoundFacetTests.SamplePath(repo), rounds);
+        }
+
+        AnalysisOptions options = new();
+        AnalysisRun retained = DemoAnalysis.Evaluate(parsed, DemoAnalysis.Build(parsed, rules.CoreDocs, options), options);
+        Dictionary<(long Round, long Slot), MetricRow> retainedRounds = new PlayerRoundStatsProjector().Project(retained.Snapshots!, parsed).Single().Rows
+            .ToDictionary(r => (Convert.ToInt64(r.Dimensions["round_number"], CultureInfo.InvariantCulture),
+                Convert.ToInt64(r.Dimensions["player_slot"], CultureInfo.InvariantCulture)));
+
+        // The side of each slot at each freeze end, by the round_facts rows the same visit recorded.
+        Dictionary<(long Round, long Slot), long> sideOf = [];
+        foreach (MetricRow side in pass.Run!.ProjectConfiguredOutputs().Single(t => t.Name == RoundFactsFingerprint.RulesetId).Rows)
+        {
+            long round = Convert.ToInt64(side.Dimensions["round_number"], CultureInfo.InvariantCulture);
+            foreach (int slot in RoundFactsValues.ToIntList(side.Dimensions["slots"]) ?? [])
+            {
+                sideOf[(round, slot)] = Convert.ToInt64(side.Dimensions["side"], CultureInfo.InvariantCulture);
+            }
+        }
+
+        List<string> mismatches = [];
+        foreach (FactRow line in rounds.Rows)
+        {
+            (long Round, long Slot) key = (line.Dimensions["round_number"].AsInteger()!.Value, line.Dimensions["player_slot"].AsInteger()!.Value);
+            long side = line.Values["side"].AsInteger() ?? 0;
+            // round_facts lists the slots with a player at freeze end; a slot it leaves out (a player gone for the round) still has its team.
+            if (sideOf.TryGetValue(key, out long expected) && side != expected)
+            {
+                mismatches.Add($"round {key.Round} slot {key.Slot}: side {side}, round_facts {expected}");
+            }
+
+            if (retainedRounds.TryGetValue(key, out MetricRow? stats)
+                && Convert.ToBoolean(stats.Values["HasKAST"], CultureInfo.InvariantCulture) != (line.Values["kast"].AsBoolean() == true))
+            {
+                mismatches.Add($"round {key.Round} slot {key.Slot}: kast {line.Values["kast"].AsBoolean()}, HasKAST {stats.Values["HasKAST"]}");
+            }
+        }
+
+        // Each account's sides add up to its match: every count, the rounds it played a side and the rounds it won and lost there.
+        (string Round, string Match)[] totals = [("kills", "TotalK"), ("deaths", "TotalD"), ("assists", "TotalA"), ("damage", "EnemyDmg"), ("survived", "Survived")];
+        Dictionary<ulong, Dictionary<string, double>> sides = PlayerRoundFacet.Sides(rounds.Rows);
+        long lastRound = rounds.Rows.Max(r => r.Dimensions["round_number"].AsInteger() ?? 0);
+        int reconciled = 0, whole = 0;
+        foreach ((ulong id, Dictionary<string, double> split) in sides)
+        {
+            if (PlayerAggregate.Merge(facet.Rows, id) is not { } match)
+            {
+                continue;
+            }
+
+            reconciled++;
+            double Both(string count) => split.GetValueOrDefault(PlayerRoundFacet.Column(PlayerRoundFacet.Ct, count))
+                                         + split.GetValueOrDefault(PlayerRoundFacet.Column(PlayerRoundFacet.T, count));
+            foreach ((string round, string column) in totals.Where(t => Both(t.Round) != match.GetValueOrDefault(t.Match)))
+            {
+                mismatches.Add($"{id}: {round} {Both(round)} by side, player_match {column} {match.GetValueOrDefault(column)}");
+            }
+
+            // KAST% is a match-end compute, and the last round's survival lands after it: the sides may hold that round's KAST beside it.
+            double kastRounds = Math.Round(match.GetValueOrDefault("KAST%") * match.GetValueOrDefault(ColumnRules.Rounds) / 100);
+            double lastKast = rounds.Rows.Any(r => r.Dimensions["round_number"].AsInteger() == lastRound
+                                                   && r.Dimensions["steam_id"].AsText() == id.ToString(CultureInfo.InvariantCulture)
+                                                   && r.Values["kast"].AsBoolean() == true) ? 1 : 0;
+            if (Both("kast") != kastRounds && Both("kast") - lastKast != kastRounds)
+            {
+                mismatches.Add($"{id}: kast {Both("kast")} by side ({lastKast} in the last round), KASTRounds {kastRounds}");
+            }
+
+            if (Both("rounds") > match.GetValueOrDefault(ColumnRules.Rounds))
+            {
+                mismatches.Add($"{id}: {Both("rounds")} rounds by side, the match has {match.GetValueOrDefault(ColumnRules.Rounds)}");
+            }
+
+            whole += Both("rounds") == match.GetValueOrDefault(ColumnRules.Rounds) ? 1 : 0;
+            foreach ((int side, string won, string lost) in (ReadOnlySpan<(int, string, string)>) [(PlayerRoundFacet.Ct, "CTW", "CTL"), (PlayerRoundFacet.T, "TW", "TL")])
+            {
+                double played = split.GetValueOrDefault(PlayerRoundFacet.Column(side, "rounds"));
+                if (played != match.GetValueOrDefault(won) + match.GetValueOrDefault(lost))
+                {
+                    mismatches.Add($"{id}: {played} rounds on {won[..^1]}, player_match {won}+{lost} {match.GetValueOrDefault(won) + match.GetValueOrDefault(lost)}");
+                }
+            }
+        }
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(library.Status(path, PlayerRoundFacet.Key)).IsEqualTo(FactStatus.Current);
+            await Assert.That(row.Stamp(StampedFacts.StampId(PlayerRoundFacet.RulesetId))?.State).IsEqualTo(DemoAnalysisState.Indexed);
+            await Assert.That(row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId))?.State).IsEqualTo(DemoAnalysisState.Indexed);
+            await Assert.That(rounds.Grain).IsEqualTo("player_round");
+            await Assert.That(rounds.Rows.Count).IsGreaterThanOrEqualTo(retainedRounds.Count).Because("a row per player per round, as the retained run has");
+            await Assert.That(retainedRounds.Keys.Where(k => rounds.Rows.All(r => r.Dimensions["round_number"].AsInteger() != k.Round
+                                                                                 || r.Dimensions["player_slot"].AsInteger() != k.Slot))).IsEmpty();
+            await Assert.That(reconciled).IsGreaterThanOrEqualTo(10);
+            await Assert.That(whole).IsGreaterThanOrEqualTo(8).Because("a player there all match played every round on a side");
+            await Assert.That(mismatches).IsEmpty().Because(string.Join("; ", mismatches.Take(40)));
         }
     }
 

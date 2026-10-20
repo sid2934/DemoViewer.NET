@@ -31,10 +31,10 @@ public readonly record struct PlayerRowsProgress(int Done, int Total);
 
 /// <summary>
 ///     The facet rows of the accounts the Player Overview shows, held in memory so a filter change reads no file.
-///     A demo's row is kept under its content id and its <c>facts:player_match</c> stamp (fingerprint, state and
-///     write time), so after the index moves a fill reads back only the demos whose facet was written since or
-///     that are new to the account; a facts write moves the stamp, and a re-walk under a new ruleset moves the
-///     fingerprint. Each demo also keeps the rating inputs of every other account in it, which the teammates
+///     A demo's row is kept under its content id and its <c>facts:player_match</c> and <c>facts:player_round</c>
+///     stamps (fingerprint, state and write time), so after the index moves a fill reads back only the demos whose
+///     facets were written since or that are new to the account; a facts write moves a stamp, and a re-walk under
+///     a new ruleset moves a fingerprint. The <c>player_round</c> rows are kept summed by side per account. Each demo also keeps the rating inputs of every other account in it, which the teammates
 ///     section reads, so a teammate costs no read of their own. The last few accounts are kept.
 ///     <para>
 ///         The library fill (<see cref="LoadLibraryAsync" />) serves every account at once, for the benchmarks. Both
@@ -48,9 +48,13 @@ public sealed class PlayerRowCache
 
     private readonly PlayerDirectory _directory;
     private readonly object _gate = new();
-    private readonly ConcurrentDictionary<(string Id, PackStamp Stamp), Lazy<Held>> _held = new();
+    private static readonly string MatchStamp = StampedFacts.StampId(PlayerMatchFacet.RulesetId);
+    private static readonly string RoundStamp = StampedFacts.StampId(PlayerRoundFacet.RulesetId);
+
+    private readonly ConcurrentDictionary<Stamps, Lazy<Held>> _held = new();
     private readonly object _libraryGate = new();
     private readonly Func<string, FactTable?> _read;
+    private readonly Func<string, FactTable?>? _readRounds;
     private readonly LinkedList<Subject> _subjects = [];
     private readonly DemoCacheStore _store;
     private LibraryRows? _library;
@@ -58,11 +62,13 @@ public sealed class PlayerRowCache
     /// <param name="store">The demo cache.</param>
     /// <param name="directory">The player directory over <paramref name="store" />.</param>
     /// <param name="read">Reads a demo's <c>player_match</c> table by path, current or stale; null when none is written.</param>
-    public PlayerRowCache(DemoCacheStore store, PlayerDirectory directory, Func<string, FactTable?> read)
+    /// <param name="readRounds">Reads a demo's <c>player_round</c> table the same way; null reads none, so no demo has sides.</param>
+    public PlayerRowCache(DemoCacheStore store, PlayerDirectory directory, Func<string, FactTable?> read, Func<string, FactTable?>? readRounds = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _directory = directory ?? throw new ArgumentNullException(nameof(directory));
         _read = read ?? throw new ArgumentNullException(nameof(read));
+        _readRounds = readRounds;
     }
 
     /// <summary>The account's rows when they are filled at the index's current version, else null: call <see cref="LoadAsync" />.</summary>
@@ -155,22 +161,21 @@ public sealed class PlayerRowCache
 
             IReadOnlyList<PlayerMatch> matches = _directory.Matches(steamId64);
             Dictionary<string, Entry> entries = new(matches.Count, StringComparer.Ordinal);
-            List<(PlayerMatch Match, string Id, PackStamp Stamp)> toRead = [];
+            List<(PlayerMatch Match, Stamps Key)> toRead = [];
             foreach (PlayerMatch match in matches)
             {
-                string id = ContentIdOf(match.Row);
-                PackStamp? stamp = match.Row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId));
-                if (stamp is not { State: DemoAnalysisState.Indexed })
+                Stamps key = StampsOf(match.Row);
+                if (key.Match is not { State: DemoAnalysisState.Indexed })
                 {
-                    entries[id] = new Entry(stamp, false, false, null, null);
+                    entries[key.Id] = new Entry(key, false, false, null, null, null);
                 }
-                else if (subject.Entries.TryGetValue(id, out Entry? held) && held.Stamp == stamp)
+                else if (subject.Entries.TryGetValue(key.Id, out Entry? held) && held.Key == key)
                 {
-                    entries[id] = held;
+                    entries[key.Id] = held;
                 }
                 else
                 {
-                    toRead.Add((match, id, stamp));
+                    toRead.Add((match, key));
                 }
             }
 
@@ -188,10 +193,11 @@ public sealed class PlayerRowCache
                     cancellationToken.ThrowIfCancellationRequested();
                 }
 
-                (PlayerMatch match, string id, PackStamp stamp) = toRead[i];
-                Held held = Read(match.Row, id, stamp);
-                entries[id] = new Entry(stamp, held.HasFacet, held.HasSight, held.Stats?.GetValueOrDefault(steamId64),
-                    held.Stats is null ? null : PlayerAggregate.Others(held.Stats, steamId64, PlayerDemo.OtherColumns));
+                (PlayerMatch match, Stamps key) = toRead[i];
+                Held held = Read(match.Row, key);
+                entries[key.Id] = new Entry(key, held.HasFacet, held.HasSight, held.Stats?.GetValueOrDefault(steamId64),
+                    held.Stats is null ? null : PlayerAggregate.Others(held.Stats, steamId64, PlayerDemo.OtherColumns),
+                    held.Sides?.GetValueOrDefault(steamId64));
                 progress?.Report(new PlayerRowsProgress(i + 1, toRead.Count));
             }
 
@@ -200,7 +206,7 @@ public sealed class PlayerRowCache
             foreach (PlayerMatch match in matches)
             {
                 Entry entry = entries[ContentIdOf(match.Row)];
-                demos.Add(new PlayerDemo(match, entry.HasFacet, entry.Stats) { Others = entry.Others, HasSight = entry.HasSight });
+                demos.Add(new PlayerDemo(match, entry.HasFacet, entry.Stats) { Others = entry.Others, HasSight = entry.HasSight, Sides = entry.Sides });
             }
 
             return subject.Rows = new PlayerRows(steamId64, version, demos);
@@ -221,8 +227,8 @@ public sealed class PlayerRowCache
             IReadOnlyList<PlayerEntry> players = _directory.Players;
             Dictionary<ulong, IReadOnlyList<PlayerMatch>> matches = new(players.Count);
             Dictionary<string, Held> entries = new(StringComparer.Ordinal);
-            HashSet<(string Id, PackStamp Stamp)> live = [];
-            List<(DemoCacheIndexEntry Row, string Id, PackStamp Stamp)> toRead = [];
+            HashSet<Stamps> live = [];
+            List<(DemoCacheIndexEntry Row, Stamps Key)> toRead = [];
             foreach (PlayerEntry player in players)
             {
                 IReadOnlyList<PlayerMatch> theirs = _directory.Matches(player.SteamId64);
@@ -235,15 +241,15 @@ public sealed class PlayerRowCache
                         continue;
                     }
 
-                    PackStamp? stamp = match.Row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId));
-                    if (stamp is not { State: DemoAnalysisState.Indexed })
+                    Stamps key = StampsOf(match.Row);
+                    if (key.Match is not { State: DemoAnalysisState.Indexed })
                     {
                         entries[id] = Held.None;
                         continue;
                     }
 
-                    live.Add((id, stamp));
-                    if (_held.TryGetValue((id, stamp), out Lazy<Held>? held) && held.IsValueCreated)
+                    live.Add(key);
+                    if (_held.TryGetValue(key, out Lazy<Held>? held) && held.IsValueCreated)
                     {
                         entries[id] = held.Value;
                     }
@@ -251,7 +257,7 @@ public sealed class PlayerRowCache
                     {
                         // Claimed now, so the demo's other accounts do not queue it again.
                         entries[id] = Held.None;
-                        toRead.Add((match.Row, id, stamp));
+                        toRead.Add((match.Row, key));
                     }
                 }
             }
@@ -261,13 +267,13 @@ public sealed class PlayerRowCache
             {
                 // What was read stays held: the next fill reads only the rest.
                 cancellationToken.ThrowIfCancellationRequested();
-                (DemoCacheIndexEntry row, string id, PackStamp stamp) = toRead[i];
-                entries[id] = Read(row, id, stamp);
+                (DemoCacheIndexEntry row, Stamps key) = toRead[i];
+                entries[key.Id] = Read(row, key);
                 progress?.Report(new PlayerRowsProgress(i + 1, toRead.Count));
             }
 
             // A stamp that moved, or a demo that left the library, leaves its old read behind.
-            foreach ((string Id, PackStamp Stamp) key in _held.Keys)
+            foreach (Stamps key in _held.Keys)
             {
                 if (!live.Contains(key))
                 {
@@ -282,7 +288,10 @@ public sealed class PlayerRowCache
                 foreach (PlayerMatch match in theirs)
                 {
                     Held held = entries[ContentIdOf(match.Row)];
-                    demos.Add(new PlayerDemo(match, held.HasFacet, held.Stats?.GetValueOrDefault(steamId64)) { HasSight = held.HasSight });
+                    demos.Add(new PlayerDemo(match, held.HasFacet, held.Stats?.GetValueOrDefault(steamId64))
+                    {
+                        HasSight = held.HasSight, Sides = held.Sides?.GetValueOrDefault(steamId64)
+                    });
                 }
 
                 accounts[steamId64] = demos;
@@ -298,19 +307,27 @@ public sealed class PlayerRowCache
         }
     }
 
-    // A demo's facet merged for every account in it, read once per stamp by whichever fill asks first; a read
-    // that throws is not kept, so the next fill tries again.
-    private Held Read(DemoCacheIndexEntry row, string id, PackStamp stamp)
+    // A demo's facets merged for every account in it, read once per pair of stamps by whichever fill asks first;
+    // a read that throws is not kept, so the next fill tries again. The rounds are read only once written.
+    private Held Read(DemoCacheIndexEntry row, Stamps key)
     {
-        Lazy<Held> held = _held.GetOrAdd((id, stamp),
-            _ => new Lazy<Held>(() => _read(row.Path) is { } table ? new Held(true, stamp.HasVisibility, MergeAll(table.Rows)) : Held.None));
+        Lazy<Held> held = _held.GetOrAdd(key, k => new Lazy<Held>(() =>
+        {
+            if (_read(row.Path) is not { } table)
+            {
+                return Held.None;
+            }
+
+            FactTable? rounds = k.Rounds is { State: DemoAnalysisState.Indexed } ? _readRounds?.Invoke(row.Path) : null;
+            return new Held(true, k.Match?.HasVisibility == true, MergeAll(table.Rows), rounds is null ? null : PlayerRoundFacet.Sides(rounds.Rows));
+        }));
         try
         {
             return held.Value;
         }
         catch (Exception)
         {
-            _held.TryRemove(new KeyValuePair<(string, PackStamp), Lazy<Held>>((id, stamp), held));
+            _held.TryRemove(new KeyValuePair<Stamps, Lazy<Held>>(key, held));
             throw;
         }
     }
@@ -343,10 +360,16 @@ public sealed class PlayerRowCache
     // What a demo is across copies and renames: its content hash, or its one path before it is hashed.
     private static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
 
-    private sealed record Entry(PackStamp? Stamp, bool HasFacet, bool HasSight, IReadOnlyDictionary<string, double>? Stats,
-        IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Others);
+    private static Stamps StampsOf(DemoCacheIndexEntry row) => new(ContentIdOf(row), row.Stamp(MatchStamp), row.Stamp(RoundStamp));
 
-    private sealed record Held(bool HasFacet, bool HasSight, IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Stats)
+    // A demo's content id and the stamps of the two facets a read of it holds.
+    private readonly record struct Stamps(string Id, PackStamp? Match, PackStamp? Rounds);
+
+    private sealed record Entry(Stamps Key, bool HasFacet, bool HasSight, IReadOnlyDictionary<string, double>? Stats,
+        IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Others, IReadOnlyDictionary<string, double>? Sides);
+
+    private sealed record Held(bool HasFacet, bool HasSight, IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Stats,
+        IReadOnlyDictionary<ulong, Dictionary<string, double>>? Sides = null)
     {
         public static readonly Held None = new(false, false, null);
     }

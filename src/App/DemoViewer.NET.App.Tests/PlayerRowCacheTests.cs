@@ -198,6 +198,75 @@ public class PlayerRowCacheTests
         }
     }
 
+    // Two rounds for the account: a CT round with two kills and 200 damage that counts for KAST, then a T round
+    // it died in with 30 damage.
+    internal static FactTable Rounds(ulong steamId64) => new(PlayerRoundFacet.Key, "fp", StampedFacts.Schema, "player_round",
+        ["round_number", "player_slot", "steam_id"], [.. PlayerRoundFacet.Counts.Prepend("side")], new Dictionary<string, string>(),
+        [
+            RoundRow(steamId64, 1, PlayerRoundFacet.Ct, kills: 2, deaths: 0, damage: 200, kast: true),
+            RoundRow(steamId64, 2, PlayerRoundFacet.T, kills: 0, deaths: 1, damage: 30, kast: false)
+        ]);
+
+    private static FactRow RoundRow(ulong steamId64, long round, long side, long kills, long deaths, long damage, bool kast) => new(
+        new Dictionary<string, FactValue>
+        {
+            ["round_number"] = FactValue.Of(round), ["player_slot"] = FactValue.Of(2L), ["steam_id"] = FactValue.Of(Id(steamId64))
+        },
+        new Dictionary<string, FactValue>
+        {
+            ["side"] = FactValue.Of(side), ["kills"] = FactValue.Of(kills), ["deaths"] = FactValue.Of(deaths), ["assists"] = FactValue.Of(0L),
+            ["damage"] = FactValue.Of(damage), ["survived"] = FactValue.Of(deaths == 0 ? 1L : 0L), ["kast"] = FactValue.Of(kast)
+        });
+
+    [Test]
+    public async Task ARoundsWrite_ReReadsOnlyItsDemo_AndAddsItsSides()
+    {
+        DemoCacheStore store = new(null);
+        using (store.BeginBatch())
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                store.Upsert(Demo(i));
+            }
+        }
+
+        ConcurrentQueue<string> reads = new(), roundReads = new();
+        PlayerRowCache cache = new(store, new PlayerDirectory(store), path =>
+        {
+            reads.Enqueue(path);
+            return Facet(int.Parse(Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture), 10);
+        }, path =>
+        {
+            roundReads.Enqueue(path);
+            return Rounds(Grim);
+        });
+        PlayerRows before = await cache.LoadAsync(Grim);
+        reads.Clear();
+
+        DemoCacheRecord written = Demo(1);
+        written.PackStamps.Add(new PackStamp(StampedFacts.StampId(PlayerRoundFacet.RulesetId), StampedFacts.Schema, "fp") { ComputedAtTicks = 2 });
+        store.Upsert(written);
+        PlayerRows after = await cache.LoadAsync(Grim);
+        PlayerAggregate pool = after.Aggregate();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(before.Demos.All(d => d.Sides is null)).IsTrue().Because("no demo has its rounds written");
+            await Assert.That(before.Aggregate().WithSides).IsEqualTo(0);
+            await Assert.That(before.Aggregate()["CT:ADR"]).IsNull();
+            await Assert.That(reads).IsEquivalentTo(["/lib/1.dem"]);
+            await Assert.That(roundReads).IsEquivalentTo(["/lib/1.dem"]).Because("a demo's rounds are read only once written");
+            await Assert.That(after.Demos.Single(d => d.Match.Row.Path == "/lib/1.dem").Sides!["CT:kills"]).IsEqualTo(2);
+            await Assert.That((pool.WithStats, pool.WithSides)).IsEqualTo((4, 1));
+            await Assert.That(pool["CT:ADR"]).IsEqualTo(200);
+            await Assert.That(pool["CT:KAST%"]).IsEqualTo(100);
+            await Assert.That(pool["CT:KD"]).IsEqualTo(0).Because("no deaths reads 0, as the catalogue's ratios do");
+            await Assert.That(pool["T:ADR"]).IsEqualTo(30);
+            await Assert.That(pool["T:KAST%"]).IsEqualTo(0);
+            await Assert.That(pool["T:KD"]).IsEqualTo(0);
+        }
+    }
+
     private sealed class Stopper(CancellationTokenSource cancel, int after) : IProgress<PlayerRowsProgress>
     {
         public void Report(PlayerRowsProgress value)

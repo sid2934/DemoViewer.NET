@@ -3,6 +3,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.ViewModels.Stats;
 
@@ -13,17 +14,17 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 /// <summary>
 ///     The filter's window by map and by side. One row per map the window holds, most played first, each pooled by
 ///     <see cref="PlayerAggregate" /> over that map's demos alone, so the rows add up to the summary; a map with no
-///     demo in the window has no row. Under the table, the window's rounds and opening duels on each side, from the
-///     facet's side counts (<c>CTW/CTL/TW/TL</c>, <c>CTFK/CTFD/TFK/TFD</c>). The facet has no other per-side
-///     column; those splits need per-round rows.
+///     demo in the window has no row. Under the table, the window on each side: rounds and opening duels from the
+///     <c>player_match</c> facet's side counts (<c>CTW/CTL/TW/TL</c>, <c>CTFK/CTFD/TFK/TFD</c>), and K/D, ADR and
+///     KAST from the <c>player_round</c> facet's rounds summed by side, over the demos that have it.
 /// </summary>
 public sealed partial class MapsSectionViewModel : PlayerOverviewSection
 {
-    /// <summary>What the section says about the side splits it cannot show yet.</summary>
-    public const string SideNote = "K/D, ADR and KAST by side arrive with per-round stats.";
-
     [ObservableProperty]
     private string _countText = "";
+
+    [ObservableProperty]
+    private string _sideNote = "";
 
     [ObservableProperty]
     private IReadOnlyList<MapRowItem> _rows = [];
@@ -44,12 +45,14 @@ public sealed partial class MapsSectionViewModel : PlayerOverviewSection
             Rows = [];
             Sides = [];
             CountText = "";
+            SideNote = "";
             return;
         }
 
         Rows = Build(context.Window);
         PlayerAggregate window = PlayerAggregate.Of(context.Window);
         Sides = [new SideSplitItem("CT", window, "CTW", "CTL", "CTFK", "CTFD"), new SideSplitItem("T", window, "TW", "TL", "TFK", "TFD")];
+        SideNote = NoteOf(window);
         CountText = Rows.Count == 1 ? "1 map" : string.Create(CultureInfo.InvariantCulture, $"{Rows.Count} maps");
         IsVisible = true;
     }
@@ -63,6 +66,16 @@ public sealed partial class MapsSectionViewModel : PlayerOverviewSection
             .OrderByDescending(r => r.Pool.Matches)
             .ThenBy(r => r.MapText, StringComparer.OrdinalIgnoreCase)
     ];
+
+    /// <summary>What the section says when some matches with stats have no rounds by side yet; empty when all do.</summary>
+    /// <param name="window">The window, pooled.</param>
+    internal static string NoteOf(PlayerAggregate window) =>
+        window.WithSides >= window.WithStats
+            ? ""
+            : window.WithSides == 0
+                ? "K/D, ADR and KAST by side need per-round stats; the library is computing them."
+                : string.Create(CultureInfo.InvariantCulture,
+                    $"K/D, ADR and KAST by side cover {window.WithSides} of {window.WithStats} matches; the library is computing the rest.");
 
     internal static string Format(double? value, string format) =>
         value is { } v ? v.ToString(format, CultureInfo.InvariantCulture) : "–";
@@ -152,6 +165,10 @@ public sealed class SideSplitItem
         Side = side;
         RoundsText = MapsSectionViewModel.Split(pool, won, lost);
         OpeningText = MapsSectionViewModel.Split(pool, openingKills, openingDeaths);
+        int cell = side == "CT" ? PlayerRoundFacet.Ct : PlayerRoundFacet.T;
+        KdText = MapsSectionViewModel.Format(pool[PlayerRoundFacet.Column(cell, "KD")], "0.00");
+        AdrText = MapsSectionViewModel.Format(pool[PlayerRoundFacet.Column(cell, "ADR")], "0.0");
+        KastText = MapsSectionViewModel.Format(pool[PlayerRoundFacet.Column(cell, "KAST%")], "0.0'%'");
     }
 
     /// <summary>"CT" or "T".</summary>
@@ -162,4 +179,13 @@ public sealed class SideSplitItem
 
     /// <summary>Opening kills-deaths on the side, with the share won.</summary>
     public string OpeningText { get; }
+
+    /// <summary>Kills over deaths on the side; a dash without per-round stats.</summary>
+    public string KdText { get; }
+
+    /// <summary>Damage per round played on the side; a dash without per-round stats.</summary>
+    public string AdrText { get; }
+
+    /// <summary>The share of the side's rounds with a kill, an assist, survival or a trade; a dash without per-round stats.</summary>
+    public string KastText { get; }
 }

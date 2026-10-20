@@ -901,8 +901,8 @@ public class App : Application
         // The one rules read highlights and round facts share, and the queue's forward pass over it. An entry
         // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
         // round_facts is a core stamped ruleset: always on, it rides every merged run, and it stays out of
-        // the highlights fingerprint because its rows are stamped under its own identity. player_match and
-        // player_event are too, and the facts pass stores their tables like an extension's.
+        // the highlights fingerprint because its rows are stamped under its own identity. player_match,
+        // player_event and player_round are too, and the facts pass stores their tables like an extension's.
         // An extension's ruleset is a stamped ruleset gated by its feature, read between the shipped rules and the
         // user's. A ruleset an extension's manifest claims but this launch did not contribute (safe mode, a failed
         // load) stays stamped and off, so a user override of it never joins the highlights set.
@@ -916,6 +916,7 @@ public class App : Application
                 StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
                 StampedRuleset.Core(PlayerMatchFacet.RulesetId),
                 StampedRuleset.Core(PlayerEventFacet.RulesetId),
+                StampedRuleset.Core(PlayerRoundFacet.RulesetId),
                 .. LibraryTeamTables.RulesetIds.Select(StampedRuleset.Core),
                 .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true) { ReadBy = c.ReadBy }),
                 .. FeaturePacks.ClaimedRulesets.Select(id => new StampedRuleset(id, StampedRuleset.ClaimedOwner, static () => false))
@@ -1133,7 +1134,8 @@ public class App : Application
         // Every account in the library, projected from the index on read; the Player Overview's source.
         services.AddSingleton(sp => new PlayerDirectory(sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(sp => new PlayerRowCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>(),
-            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerMatchFacet.Key)));
+            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerMatchFacet.Key),
+            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerRoundFacet.Key)));
         services.AddSingleton(sp => new PlayerRankCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>()));
 
         // Who the user is, from settings; the directory feeds its "this is you" suggestion.

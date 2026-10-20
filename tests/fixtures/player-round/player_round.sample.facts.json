@@ -1,0 +1,409 @@
+{
+  "format": 1,
+  "ruleset": "player_round",
+  "output": "player_round",
+  "fingerprint": "sample",
+  "schema": 1,
+  "grain": "player_round",
+  "dimensions": [
+    "match_id",
+    "map",
+    "round_number",
+    "player_slot",
+    "player_name",
+    "steam_id",
+    "team"
+  ],
+  "values": [
+    "side",
+    "kills",
+    "deaths",
+    "assists",
+    "damage",
+    "survived",
+    "kast"
+  ],
+  "clocks": {},
+  "rows": [
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 0,
+        "player_name": "player_0",
+        "steam_id": "76561190000000000",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 1,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 114,
+        "survived": 0,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 1,
+        "player_name": "player_1",
+        "steam_id": "76561190000000001",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 0,
+        "survived": 0,
+        "kast": null
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 2,
+        "player_name": "player_2",
+        "steam_id": "76561190000000002",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 0,
+        "survived": 0,
+        "kast": null
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 3,
+        "player_name": "player_3",
+        "steam_id": "76561190000000003",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 124,
+        "survived": 0,
+        "kast": null
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 4,
+        "player_name": "player_4",
+        "steam_id": "76561190000000004",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 0,
+        "survived": 0,
+        "kast": null
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 5,
+        "player_name": "player_5",
+        "steam_id": "76561190000000005",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 0,
+        "deaths": 0,
+        "assists": 1,
+        "damage": 30,
+        "survived": 1,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 6,
+        "player_name": "player_6",
+        "steam_id": "76561190000000006",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 0,
+        "survived": 0,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 7,
+        "player_name": "player_7",
+        "steam_id": "76561190000000007",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 1,
+        "deaths": 0,
+        "assists": 0,
+        "damage": 84,
+        "survived": 1,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 4,
+        "deaths": 0,
+        "assists": 0,
+        "damage": 203,
+        "survived": 1,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "player_slot": 9,
+        "player_name": "player_9",
+        "steam_id": "76561190000000009",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 0,
+        "deaths": 0,
+        "assists": 3,
+        "damage": 183,
+        "survived": 1,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 0,
+        "player_name": "player_0",
+        "steam_id": "76561190000000000",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 64,
+        "survived": 0,
+        "kast": null
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 1,
+        "player_name": "player_1",
+        "steam_id": "76561190000000001",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 1,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 61,
+        "survived": 0,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 2,
+        "player_name": "player_2",
+        "steam_id": "76561190000000002",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 1,
+        "damage": 39,
+        "survived": 0,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 3,
+        "player_name": "player_3",
+        "steam_id": "76561190000000003",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 14,
+        "survived": 0,
+        "kast": null
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 4,
+        "player_name": "player_4",
+        "steam_id": "76561190000000004",
+        "team": 3
+      },
+      "v": {
+        "side": 3,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 68,
+        "survived": 0,
+        "kast": null
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 5,
+        "player_name": "player_5",
+        "steam_id": "76561190000000005",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 1,
+        "deaths": 0,
+        "assists": 0,
+        "damage": 52,
+        "survived": 1,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 6,
+        "player_name": "player_6",
+        "steam_id": "76561190000000006",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 1,
+        "deaths": 0,
+        "assists": 0,
+        "damage": 100,
+        "survived": 1,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 7,
+        "player_name": "player_7",
+        "steam_id": "76561190000000007",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 0,
+        "deaths": 1,
+        "assists": 0,
+        "damage": 0,
+        "survived": 0,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 3,
+        "deaths": 0,
+        "assists": 0,
+        "damage": 300,
+        "survived": 1,
+        "kast": true
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "player_slot": 9,
+        "player_name": "player_9",
+        "steam_id": "76561190000000009",
+        "team": 2
+      },
+      "v": {
+        "side": 2,
+        "kills": 0,
+        "deaths": 0,
+        "assists": 1,
+        "damage": 48,
+        "survived": 1,
+        "kast": true
+      }
+    }
+  ]
+}
