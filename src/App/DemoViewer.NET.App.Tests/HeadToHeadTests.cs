@@ -164,12 +164,13 @@ public class HeadToHeadTests
         public HeadToHeadSectionViewModel Section { get; }
         public ConcurrentQueue<string> Reads { get; } = new();
 
-        public PlayerOverviewContext Context(ulong subject)
+        public PlayerOverviewContext Context(ulong subject, PlayerFilter? filter = null)
         {
             IReadOnlyList<PlayerMatch> matches = Directory.Matches(subject);
             PlayerDemo[] demos = [.. matches.Select(m => new PlayerDemo(m, false, null))];
-            return new PlayerOverviewContext(subject, Directory.Get(subject), matches, 0, false, Services, demos, PlayerFilter.All, demos,
-                false, null, false);
+            filter ??= PlayerFilter.All;
+            return new PlayerOverviewContext(subject, Directory.Get(subject), matches, 0, false, Services, demos, filter,
+                PlayerAggregate.Window(demos, filter), false, null, false);
         }
 
         public void Dispose() => Identity.Dispose();
@@ -274,6 +275,61 @@ public class HeadToHeadTests
             await Assert.That(rig.Reads.Count).IsEqualTo(8).Because("Rival's demos are held");
             await Assert.That(rig.Section.KillsText).IsEqualTo("6");
         }
+    }
+
+    [Test]
+    public async Task TheFiltersWindow_NarrowsTheOpponentsAndTheRecord()
+    {
+        using Rig rig = new(Library());
+        rig.Section.Update(rig.Context(Grim, new PlayerFilter { Map = "de_nuke" }));
+        await rig.Section.Loading;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rig.Section.Opponents.Select(o => o.Title)).IsEquivalentTo(["rival (2 matches)", "stranger (1 match)"],
+                CollectionOrdering.Matching).Because("demo 1 is on Inferno");
+            await Assert.That(rig.Section.Rows.Select(r => r.Match.Match.Row.Path)).IsEquivalentTo(["/lib/2.dem", "/lib/0.dem"],
+                CollectionOrdering.Matching);
+            await Assert.That(rig.Section.CountText).IsEqualTo("2 matches against");
+            await Assert.That(rig.Section.RecordText).IsEqualTo("2-0");
+            await Assert.That(rig.Section.KillsText).IsEqualTo("4");
+        }
+
+        rig.Section.Update(rig.Context(Grim, new PlayerFilter { Map = "de_inferno" }));
+        await rig.Section.Loading;
+        await Assert.That(rig.Section.Opponents.Select(o => o.SteamId64)).IsEquivalentTo([Rival]);
+        await Assert.That((rig.Section.CountText, rig.Section.RecordText)).IsEqualTo(("1 match against", "0-1"));
+    }
+
+    [Test]
+    public async Task ARefreshWithinTheDemosRead_ShowsTheKillsHeld_AndReadsNothing()
+    {
+        using Rig rig = new(Library());
+        rig.Section.Update(rig.Context(Grim));
+        await rig.Section.Loading;
+
+        rig.Section.Update(rig.Context(Grim, new PlayerFilter { Map = "de_nuke" }));
+        bool narrowed = rig.Section.Loading.IsCompleted;
+        (string Note, string Kills) shown = (rig.Section.NoteText, rig.Section.KillsText);
+        rig.Section.Update(rig.Context(Grim));
+        bool widened = rig.Section.Loading.IsCompleted;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(narrowed).IsTrue().Because("the demos of a narrower window were all read for the pair");
+            await Assert.That(shown).IsEqualTo(("", "4"));
+            await Assert.That(widened).IsTrue().Because("the held read still covers the whole window");
+            await Assert.That(rig.Section.KillsText).IsEqualTo("6");
+            await Assert.That(rig.Reads.Count).IsEqualTo(6);
+        }
+
+        DemoCacheRecord rewritten = Demo(1);
+        rewritten.PackStamps.RemoveAll(s => s.Id == EventStamp);
+        rewritten.PackStamps.Add(new PackStamp(EventStamp, StampedFacts.Schema, "fp-events2") { ComputedAtTicks = 2 });
+        rig.Store.Upsert(rewritten);
+        rig.Section.Update(rig.Context(Grim));
+        await rig.Section.Loading;
+        await Assert.That(rig.Reads.Count).IsEqualTo(8).Because("demo 1's facet was written again");
     }
 
     [Test]

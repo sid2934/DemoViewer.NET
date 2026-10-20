@@ -3,6 +3,7 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Players;
 
@@ -11,14 +12,15 @@ using DemoViewer.NET.Services.Players;
 namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 
 /// <summary>
-///     The subject against one opponent the user picks from everyone they ended a demo against: the match record
-///     from the subject's <c>player_match</c> rows and the kills each way from the demos' <c>player_event</c>
-///     facets, with one line per demo they met in. Both are read off the UI thread; a demo whose facet is not
-///     written says so and adds nothing to the counts.
+///     The subject against one opponent the user picks from everyone they ended a demo of the filter's window
+///     against: the match record from the subject's <c>player_match</c> rows and the kills each way from the demos'
+///     <c>player_event</c> facets, with one line per demo they met in. Both are read off the UI thread; a demo whose
+///     facet is not written says so and adds nothing to the counts.
 /// </summary>
 public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
 {
     private const string None = "–";
+    private static readonly string EventStamp = StampedFacts.StampId(PlayerEventFacet.RulesetId);
 
     private readonly PlayerOverviewServices _services;
     private PlayerOverviewContext? _context;
@@ -26,7 +28,10 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
     // The kills last read and the pair they were read for: a re-read for the same pair shows them meanwhile.
     private (ulong Subject, ulong Opponent)? _pair;
     private IReadOnlyDictionary<string, IReadOnlyList<PlayerKill>> _kills = new Dictionary<string, IReadOnlyList<PlayerKill>>();
+    // The facet stamp of each demo the last whole read covered, by content id: a refresh within them reads nothing.
+    private Dictionary<string, PackStamp?> _readStamps = new(StringComparer.Ordinal);
     private bool _updating;
+    private IReadOnlyList<PlayerMatch> _window = [];
 
     [ObservableProperty]
     private string _countText = "";
@@ -85,7 +90,8 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
     {
         ArgumentNullException.ThrowIfNull(context);
         _context = context;
-        IReadOnlyList<PlayerOpponent> met = context.Player is { } player ? HeadToHead.Opponents(player.SteamId64, context.Matches) : [];
+        _window = [.. context.Window.Select(d => d.Match)];
+        IReadOnlyList<PlayerOpponent> met = context.Player is { } player ? HeadToHead.Opponents(player.SteamId64, _window) : [];
         if (met.Count == 0)
         {
             _load++;
@@ -130,21 +136,37 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
             return;
         }
 
-        IReadOnlyList<PlayerMatch> against = HeadToHead.Against(context.Matches, _services.Directory.Matches(opponent.SteamId64));
+        IReadOnlyList<PlayerMatch> against = HeadToHead.Against(_window, _services.Directory.Matches(opponent.SteamId64));
         PlayerRows? stats = _services.Rows?.TryGet(player.SteamId64);
         if (_pair != (player.SteamId64, opponent.SteamId64))
         {
             _pair = null;
             _kills = new Dictionary<string, IReadOnlyList<PlayerKill>>();
+            _readStamps = new Dictionary<string, PackStamp?>(StringComparer.Ordinal);
         }
 
         Show(player.SteamId64, opponent.SteamId64, against, stats, _kills, reading: _pair is null);
+        if (_pair is not null && (stats is not null || _services.Rows is null) && against.All(IsRead))
+        {
+            Loading = Task.CompletedTask;
+            return;
+        }
+
         Loading = LoadAsync(player.SteamId64, opponent.SteamId64, against, stats, load);
     }
+
+    private bool IsRead(PlayerMatch match) =>
+        _readStamps.TryGetValue(PlayerEventCache.ContentIdOf(match.Row), out PackStamp? stamp) && stamp == match.Row.Stamp(EventStamp);
 
     private async Task LoadAsync(ulong subject, ulong opponent, IReadOnlyList<PlayerMatch> against, PlayerRows? stats, int load)
     {
         IReadOnlyDictionary<string, IReadOnlyList<PlayerKill>> kills = new Dictionary<string, IReadOnlyList<PlayerKill>>();
+        Dictionary<string, PackStamp?> stamps = new(StringComparer.Ordinal);
+        foreach (PlayerMatch match in against)
+        {
+            stamps.TryAdd(PlayerEventCache.ContentIdOf(match.Row), match.Row.Stamp(EventStamp));
+        }
+
         try
         {
             Task<PlayerRows>? rows = stats is null ? _services.Rows?.LoadAsync(subject) : null;
@@ -161,12 +183,14 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
         catch (Exception)
         {
             // What did not read shows as not read; the next refresh tries again.
+            stamps.Clear();
         }
 
         if (_load == load)
         {
             _pair = (subject, opponent);
             _kills = kills;
+            _readStamps = stamps;
             Show(subject, opponent, against, stats, kills, reading: false);
         }
     }

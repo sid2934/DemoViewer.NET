@@ -155,8 +155,8 @@ is not written counts as a match together and adds nothing to the win rate or th
 ## Head-to-head
 
 The head-to-head section pits the subject against one opponent, picked from everyone who ended one of the
-subject's demos on the other side, the most often met first. It covers the demos the two ended on opposite
-sides: the record is the subject's wins, losses and ties there from the `player_match` facet, and the kills
+subject's demos that pass the tab's filter on the other side, the most often met first. It covers the demos of
+that window the two ended on opposite sides: the record is the subject's wins, losses and ties there from the `player_match` facet, and the kills
 each way, the K/D between them and the headshot share of the subject's kills come from each demo's
 `player_event` facet ([`player-event-format.md`](player-event-format.md)). A demo whose `player_event` facet
 is not written yet is listed as pending and adds nothing to the counts.
