@@ -86,7 +86,7 @@ public sealed class PlayerDirectory
             return account.Matches;
         }
 
-        IEnumerable<PlayerMatch> matches = account.Matches.Where(m => Passes(m, filter));
+        IEnumerable<PlayerMatch> matches = account.Matches.Where(m => PlayerAggregate.Passes(m, filter));
         return filter.Last is { } last ? [.. matches.Take(Math.Max(last, 0))] : [.. matches];
     }
 
@@ -137,17 +137,6 @@ public sealed class PlayerDirectory
 
             return _projection;
         }
-    }
-
-    private static bool Passes(PlayerMatch match, PlayerFilter filter)
-    {
-        DemoCacheIndexEntry row = match.Row;
-        return (filter.Map is null || string.Equals(row.Map, filter.Map, StringComparison.OrdinalIgnoreCase))
-               && (filter.FromTicks is not { } from || match.TimeTicks >= from)
-               && (filter.BeforeTicks is not { } before || match.TimeTicks < before)
-               && (filter.Side is null || match.Side == filter.Side)
-               && (filter.Source is null || string.Equals(row.MatchSource ?? row.SourceKind, filter.Source, StringComparison.OrdinalIgnoreCase))
-               && (filter.GameMode is null || string.Equals(row.GameMode, filter.GameMode, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>

@@ -12,6 +12,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.ViewModels.Stats;
 
@@ -132,6 +133,15 @@ public class PlayerMatchParityRealDemoTests
             .Select(r => Convert.ToInt32(r.Dimensions["round_number"], CultureInfo.InvariantCulture)).Distinct().Count();
         Dictionary<string, int> decimals = Decimals(rules.CoreDocs);
 
+        // An account on one slot is pooled the way the Player Overview pools it, so one demo is the Stats tab's row.
+        Dictionary<long, PlayerAggregate> aggregates = facet.Rows
+            .Where(r => r.Dimensions["steam_id"].AsText() is { Length: > 0 } id && id != "0")
+            .GroupBy(r => r.Dimensions["steam_id"].AsText()!)
+            .Where(g => g.Count() == 1)
+            .Select(g => (Slot: g.Single().Dimensions["player_slot"].AsInteger()!.Value,
+                Stats: PlayerAggregate.Merge(facet.Rows, ulong.Parse(g.Key, CultureInfo.InvariantCulture))))
+            .Where(a => a.Stats is not null)
+            .ToDictionary(a => a.Slot, a => PlayerAggregate.Of([new PlayerDemo(new PlayerMatch(row, null, [], [], false), true, a.Stats)]));
         List<string> mismatches = [];
         int compared = 0;
         foreach (FactRow facetRow in facet.Rows)
@@ -172,7 +182,7 @@ public class PlayerMatchParityRealDemoTests
 
                 compared++;
                 double expected = Cell(value);
-                double? pooled = rule.Pool([cells]);
+                double? pooled = aggregates.TryGetValue(slot, out PlayerAggregate? aggregate) ? aggregate[key] : rule.Pool([cells]);
                 bool agrees = rule is ColumnRule.Sum or ColumnRule.DifferenceOfSums
                     ? pooled == expected
                     : double.IsFinite(expected)
@@ -194,6 +204,7 @@ public class PlayerMatchParityRealDemoTests
             await Assert.That(game.Keys.Where(s => facet.Rows.All(r => r.Dimensions["player_slot"].AsInteger() != s))).IsEmpty()
                 .Because("every Stats tab row has a facet row");
             await Assert.That(compared).IsGreaterThan(facet.Rows.Count * 40);
+            await Assert.That(aggregates.Count).IsGreaterThanOrEqualTo(8).Because("most accounts sit on one slot");
             await Assert.That(mismatches).IsEmpty().Because(string.Join("; ", mismatches));
             await Assert.That(row.FacetPlayers).IsNotNull();
             await Assert.That((row.CtPlayers ?? []).Concat(row.TPlayers ?? []).Select(p => p.SteamId64).Except(row.FacetPlayers!.Select(p => p.SteamId64)))
