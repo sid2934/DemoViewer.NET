@@ -23,8 +23,8 @@ namespace DemoViewer.NET.Services.Facts;
 ///         <see cref="FactStatus.Failed" /> and is tried again only once the ruleset changes.
 ///     </para>
 ///     <para>
-///         Writing the <see cref="PlayerMatchFacet" /> also sets the record's <see cref="DemoCacheRecord.FacetPlayers" />,
-///         in the same update as the stamp.
+///         Writing the <see cref="PlayerMatchFacet" /> also sets the record's <see cref="DemoCacheRecord.FacetPlayers" />
+///         and its side wins, in the same update as the stamp.
 ///     </para>
 /// </summary>
 public sealed class FactsEvaluator : IDemoEvaluator
@@ -113,7 +113,7 @@ public sealed class FactsEvaluator : IDemoEvaluator
         HashSet<string> recorded = new((run.Build.Outputs ?? []).Select(o => o.Id), StringComparer.Ordinal);
         Dictionary<string, MetricTable>? projected = null;
         List<PackStamp> stamps = [];
-        IReadOnlyList<FactRow>? playerRows = null;
+        FactTable? playerMatch = null;
         foreach (StampedFacet facet in _facts.Facets())
         {
             string? fingerprint = _facts.Fingerprint(facet.RulesetId, tickRate);
@@ -155,7 +155,7 @@ public sealed class FactsEvaluator : IDemoEvaluator
                     rows += facts.Rows.Count;
                     if (key == PlayerMatchFacet.Key)
                     {
-                        playerRows = facts.Rows;
+                        playerMatch = facts;
                     }
                 }
 
@@ -184,9 +184,10 @@ public sealed class FactsEvaluator : IDemoEvaluator
                 record.SetStamp(stamp);
             }
 
-            if (playerRows is not null)
+            if (playerMatch is not null)
             {
-                record.FacetPlayers = PlayerMatchFacet.Players(playerRows, record.Players);
+                record.FacetPlayers = PlayerMatchFacet.Players(playerMatch.Rows, record.Players);
+                (record.CtSideWins, record.TSideWins) = DemoCacheAnalysisProjector.ComputeSideWins(DemoCacheAnalysisProjector.ProjectScoreboard(playerMatch));
             }
         });
         _cache.SaveIndex();

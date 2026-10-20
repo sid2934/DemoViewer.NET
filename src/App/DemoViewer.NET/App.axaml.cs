@@ -1471,7 +1471,9 @@ public class App : Application
                 // The Player Overview: every account in the library, who the user is, and the facet rows.
                 sp.GetRequiredService<PlayerDirectory>(),
                 sp.GetRequiredService<IdentityService>(),
-                sp.GetRequiredService<PlayerRowCache>());
+                sp.GetRequiredService<PlayerRowCache>(),
+                // Match Overview's cached scoreboard: the demo's player_match facet.
+                sp.GetRequiredService<AnalysisFacts>());
 
             // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
             // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.

@@ -24,6 +24,7 @@ using CS2DemoKit.Parser.Models;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Debugging;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Models;
 using DemoViewer.NET.Modules;
@@ -36,6 +37,7 @@ using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Idle;
 using DemoViewer.NET.Services.LiveSync;
@@ -135,6 +137,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     // The unified demo cache, the source for a cached Match Overview render. Null on WASM and in tests
     // that do not exercise the preview path.
     private readonly DemoCacheStore? _demoCache;
+    private readonly IAnalysisFacts? _facts;
 
     // The demo scheduler. An interactive open asks it to plan the demo's visit, which then runs on the
     // just-parsed demo, so an un-indexed library demo fills its card from THAT parse rather than a second
@@ -550,6 +553,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </param>
     /// <param name="identity">Who the user is: the Player Overview's default subject.</param>
     /// <param name="playerRows">The facet rows the Player Overview's stat sections read; null where none is wired.</param>
+    /// <param name="facts">
+    ///     The library's facts: Match Overview's cached scoreboard is the demo's <c>player_match</c> facet. Null
+    ///     (the browser, most tests) renders the scoreboard a record stored, if any.
+    /// </param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -564,10 +571,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IReadOnlyList<ContributedHub>? hubTabs = null,
         PlayerDirectory? players = null,
         IdentityService? identity = null,
-        PlayerRowCache? playerRows = null)
+        PlayerRowCache? playerRows = null,
+        IAnalysisFacts? facts = null)
     {
         _hubTabs = hubTabs ?? [];
         _demoCache = demoCache;
+        _facts = facts;
         _windowService = windowService;
         _settingsService = settingsService;
         _settings = settings;
@@ -1907,7 +1916,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         if (MatchOverviewTab.Mode == OverviewMode.Cached)
         {
-            MatchOverviewTab.SetCachedRecord(record);
+            MatchOverviewTab.SetCachedRecord(record, Facet(path));
             return;
         }
 
@@ -1954,18 +1963,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        MatchOverviewTab.SeedFromCache(subjectKey, record);
+        MatchOverviewTab.SeedFromCache(subjectKey, record, Facet(localPath));
     }
 
-    /// <summary>
-    ///     Stores the interactive run's per-player table as the demo's tier-3 scoreboard.
-    ///     <para>
-    ///         Paired with the highlights scanner's mirror, this is what completes tier 3: the scanner supplies
-    ///         highlights (bare mode, affordable library-wide), this supplies the scoreboard (snapshot mode,
-    ///         which only a real open runs). Neither alone makes a record <c>FULL</c>, and Match Overview
-    ///         reports exactly which half it holds.
-    ///     </para>
-    /// </summary>
+    // The demo's player_match table, current or stale: the one source of Match Overview's cached scoreboard.
+    private FactTable? Facet(string path) => _facts?.TryGet(path, PlayerMatchFacet.Key);
+
     // The open has the whole file in hand, so its hash settles a path the library attached by fingerprint
     // alone, and gives a row not hashed yet its hash. Must run before anything writes the open's results to
     // the cache under that path.
@@ -1989,52 +1992,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         return key;
-    }
-
-    private void WriteTier3ScoreboardToCache(string? localPath, MetricTable? gameTable, int roundCount)
-    {
-        if (_demoCache is null || gameTable is null || localPath is not { Length: > 0 })
-        {
-            return;
-        }
-
-        try
-        {
-            List<CachedStatRow> scoreboard = DemoCacheAnalysisProjector.ProjectScoreboard(gameTable);
-            if (scoreboard.Count == 0)
-            {
-                // A run that produced no per-player rows is not a scoreboard. Writing an empty list would
-                // stamp the tier and let ClassifyCached read FULL off a record with nothing in it.
-                return;
-            }
-
-            (int? ctSide, int? tSide) = DemoCacheAnalysisProjector.ComputeSideWins(gameTable);
-
-            // UpdateExisting, not Update: the record's file identity belongs to whichever writer established
-            // it, and the two existing writers disagree on local-vs-UTC mtime. Restating it here in a third
-            // convention would fail MatchesFile and discard the tier-2 roster. See DemoCacheStore.
-            _demoCache.UpdateExisting(localPath, record =>
-            {
-                record.Scoreboard = scoreboard;
-                record.CtSideWins = ctSide;
-                record.TSideWins = tSide;
-                record.AnalysisRoundCount = roundCount;
-
-                // Only the analysis STAMP is set here, NEVER AnalysisState: that field tracks the highlights
-                // scan's own lifecycle and is the scanner's alone. Setting it from here said "a scan
-                // succeeded" on a demo that had never been scanned, so the highlight section, which reads it
-                // , asserted "No highlights fired for this demo" while the harvest was still running, and
-                // would have overridden the failure copy if that harvest then threw.
-                DemoCacheStore.StampAnalysis(record);
-            });
-        }
-        catch (Exception ex)
-        {
-            // Non-fatal: the open itself succeeded and the page is already showing these numbers live. Logged
-            // rather than swallowed: a silently-failing cache write is precisely how the highlight section
-            // came to be empty for every demo in the first place.
-            AppLog.CacheWriteFailed(DiagLog, localPath, ex);
-        }
     }
 
     /// <summary>
@@ -2077,6 +2034,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             record = null;
         }
 
+        // The facet is read only beside a record that describes this file: a replaced demo's is the old match's.
+        FactTable? facet = record is null ? null : Facet(entry.FilePath);
         if (record is null)
         {
             // Known to the library but never indexed (or its sidecar is gone). Still worth rendering: the
@@ -2090,7 +2049,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             };
         }
 
-        MatchOverviewTab.SetCachedRecord(record);
+        MatchOverviewTab.SetCachedRecord(record, facet);
 
         // Offer the way back only while a different demo is genuinely open.
         MatchOverviewTab.LiveDemoName = _loadedDemoPath is { Length: > 0 } live
@@ -4378,11 +4337,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 subjectKey,
                 StatsTab.TeamScoresBySort.GetValueOrDefault(0),
                 StatsTab.TeamScoresBySort.GetValueOrDefault(1));
-            // The tier-3 SCOREBOARD producer, and the cheapest one there is: this run already computed the
-            // table, and it ran in snapshot mode, which is the only mode that can produce per-player stats at
-            // all (the background highlights sweep is deliberately snapshot-free). Storing it here is what
-            // makes a demo you have opened once render as FULL forever after, with no second pass.
-            WriteTier3ScoreboardToCache(localPath, StatsTab.GameTable, StatsTab.Rounds.Count);
             _teamNamesTask = ResolveTeamNamesAsync(localPath);
 
             // Append any event names seen in this demo that aren't already in the filter list.

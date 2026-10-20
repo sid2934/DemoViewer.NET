@@ -118,6 +118,17 @@ Writing the facet sets `FacetPlayers` on the demo's record in the same update as
 row mirrors it (omitted when null), so the player directory finds a player who is in no side list, such as
 one who ended the demo as a spectator, without opening a sidecar.
 
+The same update sets the record's `CtSideWins` and `TSideWins` (rounds won on each side across the match, from
+`CTW` and `TW` of one row per final team; null when a team's rows disagree), which the index row carries to
+Strat Book.
+
+## Match Overview
+
+Match Overview's cached scoreboard is projected from this table: `TotalK`, `TotalD`, `TotalA`, ADR as
+`EnemyDmg / rounds` at `F1`, `HLTV` at `F2`, and the side split and round count, so a demo the facts pass has
+reached reads `FULL` once its highlights are scanned. A record's own `Scoreboard`, which earlier versions wrote
+from an open or a forced scan, is read only for a demo with no facet; nothing writes it now.
+
 ```jsonc
 "FacetPlayers": [
   { "SteamId64": "76561190000000003", "Names": [ "grim" ], "Slots": [ 3, 4 ] }

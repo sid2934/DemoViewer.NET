@@ -689,17 +689,6 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     The snapshot run a forced scan asks for, over <see cref="CoreDocs" /> only: the scoreboard is
-    ///     projected from these snapshots, and a stamped ruleset would add nodes and memory to both.
-    /// </summary>
-    public AnalysisRun FullRun(ParsedDemo parsed)
-    {
-        BuildResult build = DemoAnalysis.Build(parsed, CoreDocs);
-        ReportExclusions(build);
-        return DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = true });
-    }
-
-    /// <summary>
     ///     Logs every ruleset <paramref name="build" /> excluded, and reports each one an extension contributed
     ///     through its <see cref="GuardOf" />. A user's same-id override is the user's file, never the extension's.
     /// </summary>
