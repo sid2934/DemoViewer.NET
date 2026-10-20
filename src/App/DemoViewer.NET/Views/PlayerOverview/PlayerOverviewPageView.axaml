@@ -6,10 +6,9 @@
 
     <!--
         One inner tab: the top sections across the page, then the primary column and the rail, then the bottom
-        sections two abreast. Each page has its
-        own ScrollViewer so switching tabs keeps where each one was scrolled. The rail binds Grid.Row / Grid.Column
-        / Grid.ColumnSpan to the page's ints; the star weights are set from the page in code-behind, since a
-        ColumnDefinition is not in the tree a binding reaches.
+        sections two abreast. Each page has its own ScrollViewer so switching tabs keeps where each was scrolled.
+        The rail binds Grid.Row / Grid.Column / Grid.ColumnSpan to the page's ints; the star weights are set from the
+        page in code-behind, since a ColumnDefinition is not in the tree a binding reaches.
     -->
 
     <ScrollViewer x:Name="PageScroll" Padding="28 16 28 20" HorizontalScrollBarVisibility="Disabled">

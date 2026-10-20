@@ -18,7 +18,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The scoreboard Match Overview projects from a library visit's <c>player_match</c> facet, against the Stats
 ///     tab's game table of the same demo: the nine fields row for row, and the side wins the facts pass stores on
-///     the record. Before the facet these came from the open's table, so a cached render must not move a number.
+///     the record. A cached render and the open's table must agree on every number.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]

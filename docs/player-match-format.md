@@ -97,7 +97,7 @@ marked *double*.
 | `AimRxn`, `aimrx_ticks` | Acquisitions answered by a shot, and the ticks from the crosshair arriving to the shot: `AimRx`. |
 | `TTKn`, `ttk_ticks` | Contacts that ended in a kill, and the ticks to the kill: `TTK`. A tick is 15.625 ms. |
 
-How they are produced, and why that matters to a reader:
+### How the columns are produced
 
 * **Counts are copies, not reads.** Each count is a word-for-word copy of its `player_stats` or `aim_rating`
   definition, which the engine resolves to the same node and its final value. A `per: match` compute that
@@ -106,8 +106,7 @@ How they are produced, and why that matters to a reader:
 * **The four highlight counts are re-authored.** `TotalFK`, `TotalFD`, `DeagleHSRnds` and `TradedD` are
   `.count`s of highlights in `player_stats`, which do not resolve across rulesets. They are per-round
   counts with a `tally:`, or a count of round ends while the player is traded. A highlight inside
-  `player_match` would have worked too, but it would join the highlights fingerprint of any rules build that
-  does not stamp the ruleset.
+  `player_match` would join the highlights fingerprint of any rules build that does not stamp the ruleset.
 * **Rates are stored only where the engine computes them at match end** (KAST%, HLTV), with `format: R`.
   A compute's format rounds the stored value, and the default `F1` stores 1.6 for an HLTV of 1.56.
 * **One demo equals its Stats tab.** `PlayerMatchParityRealDemoTests` rebuilds every pooling column from one
@@ -156,13 +155,6 @@ The same update sets the record's `CtSideWins` and `TSideWins` (rounds won on ea
 `CTW` and `TW` of one row per final team; null when a team's rows disagree), which the index row carries to
 Strat Book.
 
-## Match Overview
-
-Match Overview's cached scoreboard is projected from this table: `TotalK`, `TotalD`, `TotalA`, ADR as
-`EnemyDmg / rounds` at `F1`, `HLTV` at `F2`, and the side split and round count, so a demo the facts pass has
-reached reads `FULL` once its highlights are scanned. A record's own `Scoreboard`, which earlier versions wrote
-from an open or a forced scan, is read only for a demo with no facet; nothing writes it now.
-
 ```jsonc
 "FacetPlayers": [
   { "SteamId64": "76561190000000003", "Names": [ "grim" ], "Slots": [ 3, 4 ] }
@@ -179,3 +171,10 @@ from an open or a forced scan, is read only for a demo with no facet; nothing wr
 A player whose roster entry the game cleared on disconnect has a row with a null `steam_id` and so is not
 in `FacetPlayers`. The "left early" case the directory can show is a player who ended as a spectator or on
 an abandoned slot that still carries the account.
+
+## Match Overview
+
+Match Overview's cached scoreboard is projected from this table: `TotalK`, `TotalD`, `TotalA`, ADR as
+`EnemyDmg / rounds` at `F1`, `HLTV` at `F2`, and the side split and round count, so a demo the facts pass has
+reached reads `FULL` once its highlights are scanned. A record's own `Scoreboard` is legacy: it is read only
+for a demo with no facet, and nothing writes it.

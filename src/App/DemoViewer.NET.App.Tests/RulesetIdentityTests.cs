@@ -16,7 +16,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     A stamped ruleset with <c>use:</c> composes with the rulesets it reads, so its identity covers their
 ///     sources too. <c>player_stats</c> (<c>use: [ kast ]</c>) is the shipped case. A ruleset without
-///     <c>use:</c> hashes exactly as before the closure, so every existing round facts stamp stays current.
+///     <c>use:</c> is its own closure and hashes its source alone, so existing round facts stamps stay current.
 /// </summary>
 public class RulesetIdentityTests
 {
@@ -87,7 +87,7 @@ public class RulesetIdentityTests
         }
     }
 
-    // The formula before the closure: the doc composed alone, its file's hash, the engine version.
+    // The identity of a ruleset without use:, the doc composed alone, its file's hash, the engine version.
     private static string Alone(RulesetDoc doc, int tickRate)
     {
         string composed = HighlightConfigFingerprint.Compute([doc], tickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint;

@@ -34,8 +34,8 @@ public readonly record struct PlayerRowsProgress(int Done, int Total);
 ///     A demo's row is kept under its content id and its <c>facts:player_match</c> and <c>facts:player_round</c>
 ///     stamps (fingerprint, state and write time), so after the index moves a fill reads back only the demos whose
 ///     facets were written since or that are new to the account; a facts write moves a stamp, and a re-walk under
-///     a new ruleset moves a fingerprint. The <c>player_round</c> rows are kept summed by side per account. Each demo also keeps the rating inputs of every other account in it, which the teammates
-///     section reads, so a teammate costs no read of their own. The last few accounts are kept.
+///     a new ruleset moves a fingerprint. The <c>player_round</c> rows are kept summed by side per account, and each
+///     demo keeps every other account's rating inputs for the teammates section. The last few accounts are kept.
 ///     <para>
 ///         The library fill (<see cref="LoadLibraryAsync" />) serves every account at once, for the benchmarks. Both
 ///         fills go through one read per demo and stamp, which merges the rows of every account in the demo: the

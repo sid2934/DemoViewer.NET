@@ -29,16 +29,10 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview;
 ///         new active account or to nobody.
 ///     </para>
 ///     <para>
-///         The tab reads only the index: who is in which demo comes from <see cref="PlayerDirectory" />, and whether a
-///         demo has its player stats from the row's <c>facts:player_match</c> stamp. It never runs the engine. Work is
-///         deferred while the tab is hidden and done once when it is shown again, and likewise for an inner page:
-///         only the page on show renders, and another catches up when it is opened.
-///     </para>
-///     <para>
-///         The tab also reads the subject's stats and rank rows, through <see cref="PlayerRowCache" /> and
-///         <see cref="PlayerRankCache" /> off the UI thread, and
-///         owns the filter bar: every section renders the one filtered set in its context, so a filter change
-///         recomputes every panel from the rows already read and touches no file.
+///         It reads the index through <see cref="PlayerDirectory" />, and the subject's stats and rank rows through
+///         <see cref="PlayerRowCache" /> and <see cref="PlayerRankCache" /> off the UI thread; it never runs the
+///         engine. A hidden tab or page renders when it is next shown, and a filter change recomputes every panel
+///         from the rows already read.
 ///     </para>
 /// </summary>
 public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable

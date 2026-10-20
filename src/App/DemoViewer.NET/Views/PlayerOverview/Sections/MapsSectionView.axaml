@@ -130,7 +130,7 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- Narrower than its columns, the side table scrolls sideways rather than squeezing them. -->
+            <!-- The side table keeps its column widths and scrolls when the card is narrower. -->
             <ScrollViewer x:Name="SidesScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="2" MinWidth="600">
                     <Grid Classes="mapRow" Margin="8 4 8 0" ColumnDefinitions="110,150,150,52,56,64,*">

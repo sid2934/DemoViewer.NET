@@ -11,10 +11,8 @@ namespace DemoViewer.NET.Services.DemoCache;
 ///     Projects a demo's <c>player_match</c> facet into the scoreboard Match Overview renders from the cache and the
 ///     side wins the index carries.
 ///     <para>
-///         The facet is the one producer: the facts pass writes it on every visit, the open's included, so a
-///         demo's cached scoreboard does not depend on which route stored it. A record's own
-///         <see cref="DemoCacheRecord.Scoreboard" /> is what earlier versions wrote, read only while the demo has
-///         no facet.
+///         The facts pass writes the facet on every visit, opens included. A record's legacy
+///         <see cref="DemoCacheRecord.Scoreboard" /> is read only while the demo has no facet.
 ///     </para>
 ///     <para>
 ///         The values are the Stats tab's: the facet's counts are copies of its scoreboard columns, and ADR and

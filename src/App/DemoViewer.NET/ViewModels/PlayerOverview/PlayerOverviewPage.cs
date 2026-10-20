@@ -12,8 +12,8 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview;
 ///     One inner tab of the Player Overview: the sections whose <see cref="PlayerOverviewSection.Page" /> names it,
 ///     split by <see cref="PlayerOverviewSection.Slot" />. The top sections span the page; under them the primary
 ///     column and the rail sit side by side from <see cref="RailBreakpoint" /> and stack below it, and under those the
-///     bottom sections sit two abreast, or stack with them. The page view
-///     binds the grid ints here, the Match Overview split, so there is one subtree at every width.
+///     bottom sections sit two abreast, or stack with them. The page view binds the grid ints here, so one subtree
+///     serves every width.
 /// </summary>
 public sealed partial class PlayerOverviewPage : ObservableObject
 {
@@ -23,7 +23,7 @@ public sealed partial class PlayerOverviewPage : ObservableObject
 
     private readonly string _title;
 
-    /// <summary>The page shows.</summary>
+    /// <summary>True while the page is on show.</summary>
     [ObservableProperty]
     private bool _isActive;
 

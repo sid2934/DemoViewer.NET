@@ -66,7 +66,7 @@ public sealed partial class MatchMetaPass : IRecordPass
 
     /// <summary>
     ///     The match meta for a demo from what was found now and what an earlier run captured. The first
-    ///     <see cref="MatchTimeSource" /> present wins; on a tie what was found now wins, so a reader fix applies.
+    ///     <see cref="MatchTimeSource" /> present wins; on a tie the fresh read wins, so a new reader version takes effect.
     ///     What the demo's visit read (<see cref="MatchMetaEvaluator" />) is kept as it was.
     /// </summary>
     /// <param name="previous">What the record holds, or null.</param>

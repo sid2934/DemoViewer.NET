@@ -90,7 +90,7 @@ public class StratBookPackTests
         "DemoViewer.NET.Services.Facts.StampedFacts",
         "DemoViewer.NET.Services.Facts.FactsEvaluator",
         "DemoViewer.NET.Services.Facts.AnalysisFacts",
-        // The core pass and services the Player Overview added after the pack, none of them the pack's.
+        // The core match-meta pass and the Player Overview's services; none of them is the pack's.
         "DemoViewer.NET.Services.MatchMeta.MatchMetaEvaluator",
         "DemoViewer.NET.Services.Players.PlayerDirectory",
         "DemoViewer.NET.Services.Players.PlayerRowCache",

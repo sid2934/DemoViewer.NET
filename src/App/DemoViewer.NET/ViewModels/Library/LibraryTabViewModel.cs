@@ -434,8 +434,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     }
 
     /// <summary>
-    ///     Scans the library folders once per session: the shell calls this at launch, since the library feeds
-    ///     every tab and the landing tab is not this one, and the first activation calls it again harmlessly.
+    ///     Scans the library folders once per session. The shell calls this at launch; the first activation's call
+    ///     then does nothing.
     /// </summary>
     public void StartFirstScan()
     {

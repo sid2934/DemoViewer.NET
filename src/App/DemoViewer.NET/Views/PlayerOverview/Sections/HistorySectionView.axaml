@@ -58,7 +58,7 @@
                            VerticalAlignment="Center" />
             </StackPanel>
 
-            <!-- Narrower than its columns, the table scrolls sideways rather than squeezing them. -->
+            <!-- Scrolls sideways when narrower than its columns. -->
             <ScrollViewer x:Name="HistoryScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                 <StackPanel Spacing="8" MinWidth="940">
                     <Grid Classes="historyRow" Margin="8 0" ColumnDefinitions="164,96,96,52,30,72,78,52,44,56,46,42,*">

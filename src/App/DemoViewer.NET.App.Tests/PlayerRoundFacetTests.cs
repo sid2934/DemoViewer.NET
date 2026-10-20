@@ -32,7 +32,7 @@ public class PlayerRoundFacetTests
 
     internal static string SamplePath(string repo) => Path.Combine(repo, "tests", "fixtures", "player-round", "player_round.sample.facts.json");
 
-    // The first rounds of a real demo, the accounts and names replaced by slot: the format is the point, not the players.
+    // The first rounds of a real demo, the accounts and names replaced by slot.
     internal static void WriteSample(string path, FactTable table)
     {
         List<FactRow> rows = [];

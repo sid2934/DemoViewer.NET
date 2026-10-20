@@ -20,10 +20,10 @@ filters apply to every tab. Each section names its tab and slot (`PlayerOverview
 | Achievements | Personal bests | Highlights | | |
 
 The rail sits beside the main column from 1,100 px (Overview), 1,300 px (Stats) and 1,500 px (History) and
-stacks under it below. The sections below the columns sit two abreast, and stack
-with them. Match history and Maps and sides scroll sideways rather than squeeze their columns. Content stops
-widening at 2,400 px. Match history fills the History tab's height and scrolls inside itself. The tab
-remembers which inner tab was open across sessions and keeps it when another player is opened.
+stacks under it below. The sections below the columns sit two abreast, and stack with them. Match history and
+the side table scroll sideways when narrower than their columns. Content stops widening at 2,400 px. Match
+history fills the History tab's height and scrolls inside itself. The tab remembers which inner tab was open
+across sessions and keeps it when another player is opened.
 
 The name card above the tabs shows the player's latest Premier rating and latest Competitive Skill Group,
 each from the newest match of its system, and the Maps and sides table shows the latest Competitive Skill
@@ -101,10 +101,8 @@ map's collision geometry, so they pool over a narrower set of demos: those whose
 out of them, not counted as 0, and when no demo in the window has it the column has no value at all and the
 tab says "no data". `PlayerAggregate.WithSight` is the count of demos they pool.
 
-The background visit that writes the facet has no geometry; an interactive open of a demo whose map has a
-bake upgrades that demo's facet. Handing the background run the geometry was measured and rejected: on the
-five benchmark demos, interleaved over three rounds, the forward visit with a `VisibilityEngine` took 14 to
-23% longer per demo (median about 17%), allocated 27% more and peaked 280 MB higher in working set.
+The background visit that writes the facet has no geometry, for the cost measured in that same section; an
+interactive open of a demo whose map has a bake upgrades that demo's facet.
 
 ## Which demos count
 

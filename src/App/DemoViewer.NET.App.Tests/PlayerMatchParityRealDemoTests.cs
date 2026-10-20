@@ -66,7 +66,7 @@ public class PlayerMatchParityRealDemoTests
         return decimals;
     }
 
-    // One CT and one T row of a real facet, the accounts and names replaced: the format is the point, not the players.
+    // One CT and one T row of a real facet, the accounts and names replaced.
     private static void WriteSample(string path, FactTable facet)
     {
         List<FactRow> rows = [];

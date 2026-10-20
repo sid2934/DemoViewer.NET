@@ -313,8 +313,8 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     public DemoAnalysisState AnalysisState { get; set; } = DemoAnalysisState.Pending;
 
     /// <summary>
-    ///     The scoreboard earlier versions stored from an open or a forced scan. Nothing writes it now: Match Overview
-    ///     projects the <c>player_match</c> facet and reads this only for a demo that has none.
+    ///     Legacy scoreboard: Match Overview projects the <c>player_match</c> facet and reads this only for a demo that
+    ///     has none. Nothing writes it.
     /// </summary>
     public List<CachedStatRow> Scoreboard { get; set; } = [];
     public List<CachedHighlightEvent> Highlights { get; set; } = [];

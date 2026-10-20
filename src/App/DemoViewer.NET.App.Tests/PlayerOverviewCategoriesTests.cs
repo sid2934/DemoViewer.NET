@@ -23,7 +23,7 @@ using TUnit.Assertions.Enums;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Player Overview's stat categories over an in-memory store: the plan's seven groups in order, every
+///     The Player Overview's stat categories over an in-memory store: the seven groups in order, every
 ///     pooled column of a mirrored catalogue group listed, no line-of-sight column anywhere, each value the
 ///     <see cref="PlayerAggregate" /> of the filter's window and each rate over the window's pooled denominator.
 /// </summary>

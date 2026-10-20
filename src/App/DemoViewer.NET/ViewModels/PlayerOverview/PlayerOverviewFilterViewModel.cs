@@ -28,9 +28,8 @@ public sealed class PlayerFilterChoice(string label, Func<PlayerFilter, PlayerFi
 
 /// <summary>
 ///     The Player Overview's filter bar: the window (the last 10, 30 or 100 matches, a date range or all), the
-///     map, the mode or source and the side at the end. One instance per tab; the tab turns
-///     <see cref="Filter" /> into the one filtered set every panel recomputes from and refreshes the panels on
-///     <see cref="Changed" />. The map and mode lists hold only what the subject has played.
+///     map, the mode or source and the side at the end. One per tab; on <see cref="Changed" /> the tab recomputes
+///     every panel from <see cref="Filter" />. The map and mode lists hold only what the subject has played.
 /// </summary>
 public sealed partial class PlayerOverviewFilterViewModel : ObservableObject
 {

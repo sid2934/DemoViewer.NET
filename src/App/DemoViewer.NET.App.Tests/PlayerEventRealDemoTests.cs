@@ -22,7 +22,7 @@ namespace DemoViewer.NET.AppTests;
 [Category("RealDemo")]
 public class PlayerEventRealDemoTests
 {
-    // The first rounds of a real demo, the accounts and names replaced by slot: the format is the point, not the players.
+    // The first rounds of a real demo, the accounts and names replaced by slot.
     private static void WriteSamples(string repo, FactTable kills, FactTable deaths)
     {
         foreach (FactTable table in (FactTable[]) [kills, deaths])

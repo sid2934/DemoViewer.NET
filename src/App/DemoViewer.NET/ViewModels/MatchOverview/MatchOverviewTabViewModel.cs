@@ -1427,8 +1427,8 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         //
         // Highlights and the scoreboard have different producers. The highlights scan stamps the record; the
         // scoreboard is projected from the player_match facet, which the facts pass writes under its own stamp.
-        // So "this demo has been scanned" and "this demo has stats" are genuinely independent, and a demo can
-        // legitimately sit with real highlights and no scoreboard until the facts pass reaches it.
+        // So "this demo has been scanned" and "this demo has stats" are independent, and a demo can sit with
+        // highlights and no scoreboard until the facts pass reaches it.
         //
         // Reading both off one flag meant a scanned demo rendered a FULL chip directly above "Analysis produced
         // no per-player stats for this demo." That's on the same screen, about the same demo. A page whose whole job

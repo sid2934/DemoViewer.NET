@@ -76,7 +76,7 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
         }
 
         // Library: Order -1, right after Player Overview. Uses ViewModelFactory (not DataContext) so the VM
-        // receives OnActivated; the shell also starts its first folder scan at launch, whichever tab opens.
+        // receives OnActivated.
         yield return new WorkspaceTabDescriptor
         {
             TabId = "builtin.library",
