@@ -5,6 +5,7 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
+using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using CS2DemoKit.Parser.GameEvents;
@@ -105,16 +106,21 @@ public static class ForwardDemoPass
     /// </summary>
     public static BuildResult Build(DemoReader reader, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs = null,
         CancellationToken cancellationToken = default) =>
-        Build(reader, docs, outputs, CollectorSet.Empty, cancellationToken);
+        Build(reader, docs, outputs, CollectorSet.Empty, null, cancellationToken);
 
     /// <inheritdoc cref="Build(DemoReader, IReadOnlyList{RulesetDoc}, IReadOnlySet{string}, CancellationToken)" />
     public static BuildResult Build(ParsedDemo parsed, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs = null) =>
         Build(parsed, docs, outputs, CollectorSet.Empty);
 
     // The observed reads must reach the build: it activates their columns, and the run's view refuses any other.
+    // The geometry must too: the builder synthesizes enemy_spotted only when it has an engine.
     internal static BuildResult Build(DemoReader reader, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs,
-        CollectorSet collectors, CancellationToken cancellationToken = default) =>
-        CutOutputs(DemoAnalysis.Build(reader, docs, collectors.DeclareReads(new AnalysisOptions { CancellationToken = cancellationToken })), outputs);
+        CollectorSet collectors, VisibilityEngine? visibility = null, CancellationToken cancellationToken = default) =>
+        CutOutputs(DemoAnalysis.Build(reader, docs, collectors.DeclareReads(new AnalysisOptions
+        {
+            CancellationToken = cancellationToken,
+            VisibilityEngine = visibility
+        })), outputs);
 
     internal static BuildResult Build(ParsedDemo parsed, IReadOnlyList<RulesetDoc> docs, IReadOnlySet<string>? outputs, CollectorSet collectors) =>
         CutOutputs(DemoAnalysis.Build(parsed, docs, collectors.DeclareReads(new AnalysisOptions())), outputs);
@@ -190,13 +196,15 @@ public static class ForwardDemoPass
         Action<double>? progress = null,
         IReadOnlySet<string>? outputs = null,
         CancellationToken cancellationToken = default) =>
-        Run(reader, needs, docs, progress, outputs, CollectorSet.Empty, null, cancellationToken);
+        Run(reader, needs, docs, progress, outputs, CollectorSet.Empty, null, null, cancellationToken);
 
     /// <summary>
     ///     <see cref="Run(DemoReader, ForwardNeeds, IReadOnlyList{RulesetDoc}, Action{double}, IReadOnlySet{string}, CancellationToken)" />
     ///     with <paramref name="collectors" /> on the rules run. Collectors ride only a rules run, so they need
     ///     <see cref="ForwardNeeds.Rules" />. <paramref name="ranks" /> is the capture the reader was opened with
-    ///     (<see cref="ServerRankCapture.Attach" />), or null to capture no rank update.
+    ///     (<see cref="ServerRankCapture.Attach" />), or null to capture no rank update. <paramref name="visibility" /> is
+    ///     the map's collision geometry, or null when it has none: the run then synthesizes no <c>enemy_spotted</c> and
+    ///     every line-of-sight stat reads 0.
     /// </summary>
     internal static ForwardDemoResult Run(
         DemoReader reader,
@@ -206,6 +214,7 @@ public static class ForwardDemoPass
         IReadOnlySet<string>? outputs,
         CollectorSet collectors,
         ServerRankCapture? ranks = null,
+        VisibilityEngine? visibility = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -216,7 +225,7 @@ public static class ForwardDemoPass
 
         // Build before Configure: the build probes the dialect, which needs the reader unstarted.
         BuildResult? build = (needs & ForwardNeeds.Rules) != 0
-            ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)), outputs, collectors, cancellationToken)
+            ? Build(reader, docs ?? throw new ArgumentNullException(nameof(docs)), outputs, collectors, visibility, cancellationToken)
             : null;
         reader.Configure(PlanFor(build, needs, collectors.GameEvents));
 
@@ -231,7 +240,8 @@ public static class ForwardDemoPass
             (options, observer) = collectors.Declare(new AnalysisOptions
             {
                 CaptureSnapshots = false,
-                CancellationToken = cancellationToken
+                CancellationToken = cancellationToken,
+                VisibilityEngine = visibility
             });
             run = DemoAnalysis.Evaluate(tap, build, options);
         }
