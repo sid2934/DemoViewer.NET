@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
@@ -325,6 +326,15 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     /// </summary>
     public RoundFactsRows? RoundFacts { get; set; }
 
+    // ── Match meta ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     When and which match the demo is (<c>docs/match-meta-format.md</c>), or null until the
+    ///     <c>matchmeta</c> record pass has run. Stamped in <see cref="PackStamps" /> under <c>matchmeta</c>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DemoMatchMeta? MatchMeta { get; set; }
+
     // ── Packs ────────────────────────────────────────────────────────────────
     // A pack's data rides the record as one opaque JSON object under its id, read and written typed by
     // the pack through IPackPayloads and never deserialised by core. What core needs for the backlog and
@@ -415,6 +425,7 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         }
 
         RoundFacts ??= other.RoundFacts;
+        MatchMeta ??= other.MatchMeta;
         foreach ((string packId, JsonElement payload) in other.Packs)
         {
             Packs.TryAdd(packId, payload);
@@ -602,7 +613,10 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         CtPlayers = Parse.IsPresent ? SidePlayers(3) : null,
         TPlayers = Parse.IsPresent ? SidePlayers(2) : null,
         CtSideWins = CtSideWins,
-        TSideWins = TSideWins
+        TSideWins = TSideWins,
+        MatchTimeUtcTicks = MatchMeta?.MatchTimeUtcTicks,
+        MatchTimeSource = MatchMeta?.MatchTimeSource,
+        ReservationId = MatchMeta?.ReservationId
     };
 
     /// <summary>
@@ -752,6 +766,18 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     /// <summary>The record's <see cref="DemoCacheRecord.TSideWins" />.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? TSideWins { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.MatchTimeUtcTicks" />, so history sorts without a sidecar. See <see cref="NewestMatchFirst" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MatchTimeUtcTicks { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.MatchTimeSource" />: whether <see cref="MatchTimeUtcTicks" /> is exact.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public MatchTimeSource? MatchTimeSource { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.ReservationId" />: the tie-break between matches with one time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReservationId { get; set; }
 
     /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
     [JsonExtensionData]
