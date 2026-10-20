@@ -5,6 +5,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.TestSupport;
 
 #endregion
@@ -63,7 +64,8 @@ public class DemoProvenanceRealDemoTests
         Console.WriteLine($"{Path.GetFileName(path)}: source kind {kind}, server '{parsed.ServerName}', tags {(tagged ? "both" : "not both")}");
 
         DemoCacheStore cache = new(null);
-        using TeamIdentityService teams = new(null, cache.Library(), run: _inline);
+        FakeExtensionIdentity identity = new();
+        using TeamIdentityService teams = new(null, cache.Library(), run: _inline, identity: identity);
         using DemoProvenanceSource source = new(cache.Library(), teams);
         await teams.StartAsync();
         cache.Upsert(record);
@@ -82,7 +84,7 @@ public class DemoProvenanceRealDemoTests
 
         // One account of the replay as me: our side resolves through Me, and the label follows the header.
         string me = SideKeys.Side(record.AsDetail(), 2).Key[0];
-        teams.SetMyAccounts([me]);
+        identity.Set([me]);
         string? forMe = source.Resolve(path)!.Label;
         string expected = tagged ? "official" : kind == DemoSourceKind.GotvMatchmaking ? "matchmaking" : "scrim";
         Console.WriteLine($"me = {me}: label '{forMe}'");
