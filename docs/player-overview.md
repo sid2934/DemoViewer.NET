@@ -6,6 +6,9 @@ never runs the engine.
 
 ## Layout
 
+Player Overview is the first tab in the strip and the landing tab: the app opens on it unless the saved
+session remembers another tab, and a remembered tab that no longer exists falls back to it.
+
 The player's header, the coverage line, the inner tab strip and the filter bar sit above four inner tabs; the
 filters apply to every tab. Each section names its tab and slot (`PlayerOverviewSection.Page` and `Slot`):
 
