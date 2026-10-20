@@ -620,6 +620,39 @@ public class PlayerOverviewTabTests
     }
 
     [Test]
+    public async Task Search_TypedIdForms_OpenNothingUntilWhole()
+    {
+        using IdentityService identity = Identity(Me);
+        using PlayerOverviewTabViewModel vm = Shown(TwinLibrary(), identity);
+        ulong account = Other - SteamIdParser.IndividualBase;
+        string steamId2 = "STEAM_0:" + (account % 2) + ":" + (account / 2);
+        foreach (string form in new[]
+                 {
+                     Id(Other), "[U:1:" + account + "]", "https://steamcommunity.com/profiles/[U:1:" + account + "]",
+                     "https://steamcommunity.com/profiles/" + Id(Other), steamId2
+                 })
+        {
+            vm.OpenPlayer(Me);
+            for (int typed = 1; typed < form.Length; typed++)
+            {
+                vm.SearchText = form[..typed];
+                await Assert.That(vm.SubjectSteamId64).IsEqualTo(Me).Because($"'{form[..typed]}' is a prefix of {form}");
+                await Assert.That(vm.SearchText).IsEqualTo(form[..typed]);
+            }
+
+            vm.SearchText = form;
+            if (form == steamId2)
+            {
+                await Assert.That(vm.SubjectSteamId64).IsEqualTo(Me).Because("a longer account id has the same start");
+                vm.SubmitSearchCommand.Execute(null);
+            }
+
+            await Assert.That(vm.SubjectSteamId64).IsEqualTo(Other).Because(form);
+            await Assert.That(vm.SearchText).IsEqualTo("");
+        }
+    }
+
+    [Test]
     public async Task Search_AName_ListsEachAccountMostDemosFirst_AndEnterOpensOnlyASingleOne()
     {
         using IdentityService identity = Identity(Me);

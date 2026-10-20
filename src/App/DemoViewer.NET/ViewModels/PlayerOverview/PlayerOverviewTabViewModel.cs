@@ -365,7 +365,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         }
 
         OnPropertyChanged(nameof(HasCandidates));
-        if (result.SteamId64 is { } id && !result.IsFlagged)
+        if (result.SteamId64 is { } id && IsWhole(value, result))
         {
             OpenFromSearch(id);
             return;
@@ -376,6 +376,28 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
             : result.Candidates.Count == 0 && value.Trim().Length > 0
                 ? "No player in this library matches."
                 : "";
+    }
+
+    // Whether no more typing could make the text a different account: a SteamID64 of an individual account, an
+    // [U:1:n] closed by its bracket, or a profile URL holding either or ending its path. The box updates per
+    // keystroke, so any shorter spelling waits for Enter rather than opening a prefix of the id being typed.
+    private static bool IsWhole(string text, PlayerSearchResult result)
+    {
+        if (result.SteamId64 is not { } id || result.IsFlagged || !SteamIdParser.IsIndividual(id))
+        {
+            return false;
+        }
+
+        string input = text.Trim();
+        return result.Form switch
+        {
+            SteamIdForm.SteamId64 => true,
+            SteamIdForm.SteamId3 => input.EndsWith(']'),
+            SteamIdForm.ProfileUrl => input.IndexOfAny(['/', '?', '#'], input.IndexOf("/profiles/", StringComparison.OrdinalIgnoreCase) + 10) >= 0
+                                      || input.EndsWith(']')
+                                      || input.EndsWith(id.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal),
+            _ => false
+        };
     }
 
     private void OpenFromSearch(ulong steamId64)
