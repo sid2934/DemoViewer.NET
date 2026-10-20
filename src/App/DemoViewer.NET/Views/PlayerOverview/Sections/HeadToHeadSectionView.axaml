@@ -1,0 +1,116 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.HeadToHeadSectionView"
+             x:DataType="sections:HeadToHeadSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- The subject against one opponent: the counts read left to right as the subject's side of it. -->
+
+    <UserControl.Styles>
+        <Style Selector="StackPanel.h2hCount > TextBlock.value">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Grid.h2hRow > TextBlock:not(.col-label)">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Grid.h2hRow > TextBlock.num">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0 0 8 0" />
+        </Style>
+        <Style Selector="Grid.h2hRow > TextBlock.win">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="Grid.h2hRow > TextBlock.loss">
+            <Setter Property="Foreground" Value="{DynamicResource StatNegative}" />
+        </Style>
+        <Style Selector="Grid.h2hRow > TextBlock.note">
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="FontStyle" Value="Italic" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="10">
+            <DockPanel>
+                <ComboBox x:Name="OpponentPicker" DockPanel.Dock="Right" MinWidth="220" MaxWidth="320"
+                          ItemsSource="{Binding Opponents}" SelectedItem="{Binding SelectedOpponent}"
+                          AutomationProperties.Name="Opponent">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="sections:OpponentItem">
+                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="Head-to-head" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextCardHeader}" />
+                    <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextMid}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </DockPanel>
+
+            <WrapPanel Orientation="Horizontal">
+                <StackPanel Classes="h2hCount" Margin="0 0 28 0" ToolTip.Tip="Matches won, lost and tied against them">
+                    <TextBlock Classes="col-label" Text="RECORD" />
+                    <TextBlock Classes="value" Text="{Binding RecordText}" />
+                </StackPanel>
+                <StackPanel Classes="h2hCount" Margin="0 0 28 0" ToolTip.Tip="Times this player killed them">
+                    <TextBlock Classes="col-label" Text="KILLS" />
+                    <TextBlock Classes="value" Text="{Binding KillsText}" />
+                </StackPanel>
+                <StackPanel Classes="h2hCount" Margin="0 0 28 0" ToolTip.Tip="Times they killed this player">
+                    <TextBlock Classes="col-label" Text="DEATHS" />
+                    <TextBlock Classes="value" Text="{Binding DeathsText}" />
+                </StackPanel>
+                <StackPanel Classes="h2hCount" Margin="0 0 28 0">
+                    <TextBlock Classes="col-label" Text="K/D" />
+                    <TextBlock Classes="value" Text="{Binding KdText}" />
+                </StackPanel>
+                <StackPanel Classes="h2hCount" ToolTip.Tip="Headshots among the kills on them">
+                    <TextBlock Classes="col-label" Text="HS%" />
+                    <TextBlock Classes="value" Text="{Binding HsText}" />
+                </StackPanel>
+            </WrapPanel>
+
+            <TextBlock Text="{Binding NoteText}" IsVisible="{Binding HasNote}" FontSize="11.5"
+                       Foreground="{DynamicResource TextMid}" />
+
+            <Grid Classes="h2hRow" Margin="8 0" ColumnDefinitions="164,96,30,64,*">
+                <TextBlock Grid.Column="0" Classes="col-label" Text="DATE" />
+                <TextBlock Grid.Column="1" Classes="col-label" Text="MAP" />
+                <TextBlock Grid.Column="2" Classes="col-label" Text="W/L" />
+                <TextBlock Grid.Column="3" Classes="col-label num" Text="K-D" ToolTip.Tip="Kills on them and deaths to them" />
+            </Grid>
+
+            <ListBox x:Name="HeadToHeadList" Classes="data-list" MaxHeight="260" ItemsSource="{Binding Rows}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="sections:HeadToHeadRowItem">
+                        <Grid Classes="h2hRow" Height="26" Background="Transparent" ColumnDefinitions="164,96,30,64,*">
+                            <TextBlock Grid.Column="0" Text="{Binding DateText}" />
+                            <TextBlock Grid.Column="1" Text="{Binding MapText}" />
+                            <TextBlock Grid.Column="2" Text="{Binding ResultText}" FontWeight="SemiBold"
+                                       Classes.win="{Binding IsWin}" Classes.loss="{Binding IsLoss}" />
+                            <TextBlock Grid.Column="3" Classes="num" Text="{Binding KillsText}" IsVisible="{Binding HasKills}" />
+                            <TextBlock Grid.Column="3" Classes="note" TextAlignment="Right" Margin="0 0 8 0"
+                                       Text="{Binding KillsNote}" IsVisible="{Binding !HasKills}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+    </Border>
+</UserControl>

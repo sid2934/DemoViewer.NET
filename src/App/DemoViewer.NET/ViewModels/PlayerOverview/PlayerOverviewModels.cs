@@ -63,7 +63,11 @@ public sealed record PlayerOverviewServices(
     Action<string> OpenDemo,
     Action<string> SelectTab,
     Action<string, ulong> FocusPlayerInStats,
-    Action<string?> OpenSettings);
+    Action<string?> OpenSettings)
+{
+    /// <summary>The kills of each demo, from its <c>player_event</c> facet; null where nothing reads them.</summary>
+    public PlayerEventCache? Events { get; init; }
+}
 
 /// <summary>What a section renders from: the subject and the demos they are in, read once per refresh.</summary>
 /// <param name="SteamId64">The subject, or null when nobody is open.</param>
