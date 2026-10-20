@@ -317,7 +317,7 @@ stats:
     min_streak: 2
     per: match
 
-  # ── Copies of aim_rating: the hit-rate half (every sight: true column is left out) ──
+  # ── Copies of aim_rating: the hit rates, counter-strafing and spray ──
   enemy_head_hits:
     count: damage_dealt
     match: { enemy: true, bullet: true, hitgroup: 1 }
