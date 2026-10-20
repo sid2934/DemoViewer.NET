@@ -136,6 +136,18 @@ public class PlayerRowCacheTests
     }
 
     [Test]
+    public async Task AContentId_IsTheHash_ElseThePath()
+    {
+        using (Assert.Multiple())
+        {
+            await Assert.That(new DemoCacheIndexEntry { Path = "/lib/a.dem", Sha256 = "sha-a" }.ContentId()).IsEqualTo("sha-a");
+            await Assert.That(new DemoCacheIndexEntry { Path = "/lib/a.dem", Sha256 = "" }.ContentId()).IsEqualTo("/lib/a.dem");
+            await Assert.That(new DemoCacheIndexEntry { Path = "/lib/a.dem" }.ContentId()).IsEqualTo("/lib/a.dem");
+            await Assert.That(((DemoCacheIndexEntry?)null).ContentId()).IsEqualTo("");
+        }
+    }
+
+    [Test]
     public async Task AFactsWrite_ReReadsOnlyItsDemo()
     {
         (DemoCacheStore store, PlayerRowCache cache, ConcurrentQueue<string> reads) = Library(20);

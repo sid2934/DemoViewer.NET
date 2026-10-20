@@ -205,7 +205,7 @@ public sealed class PlayerRowCache
             List<PlayerDemo> demos = new(matches.Count);
             foreach (PlayerMatch match in matches)
             {
-                Entry entry = entries[ContentIdOf(match.Row)];
+                Entry entry = entries[match.Row.ContentId()];
                 demos.Add(new PlayerDemo(match, entry.HasFacet, entry.Stats) { Others = entry.Others, HasSight = entry.HasSight, Sides = entry.Sides });
             }
 
@@ -235,7 +235,7 @@ public sealed class PlayerRowCache
                 matches[player.SteamId64] = theirs;
                 foreach (PlayerMatch match in theirs)
                 {
-                    string id = ContentIdOf(match.Row);
+                    string id = match.Row.ContentId();
                     if (entries.ContainsKey(id))
                     {
                         continue;
@@ -287,7 +287,7 @@ public sealed class PlayerRowCache
                 List<PlayerDemo> demos = new(theirs.Count);
                 foreach (PlayerMatch match in theirs)
                 {
-                    Held held = entries[ContentIdOf(match.Row)];
+                    Held held = entries[match.Row.ContentId()];
                     demos.Add(new PlayerDemo(match, held.HasFacet, held.Stats?.GetValueOrDefault(steamId64))
                     {
                         HasSight = held.HasSight, Sides = held.Sides?.GetValueOrDefault(steamId64)
@@ -357,10 +357,7 @@ public sealed class PlayerRowCache
         return merged;
     }
 
-    // What a demo is across copies and renames: its content hash, or its one path before it is hashed.
-    private static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
-
-    private static Stamps StampsOf(DemoCacheIndexEntry row) => new(ContentIdOf(row), row.Stamp(MatchStamp), row.Stamp(RoundStamp));
+    private static Stamps StampsOf(DemoCacheIndexEntry row) => new(row.ContentId(), row.Stamp(MatchStamp), row.Stamp(RoundStamp));
 
     // A demo's content id and the stamps of the two facets a read of it holds.
     private readonly record struct Stamps(string Id, PackStamp? Match, PackStamp? Rounds);

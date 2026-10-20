@@ -50,11 +50,6 @@ public sealed class PlayerEventCache
         return Task.Run<IReadOnlyDictionary<string, IReadOnlyList<PlayerKill>>>(() => Fill(rows, progress, cancellationToken), cancellationToken);
     }
 
-    /// <summary>What a demo is across copies and renames: its content hash, or its one path before it is hashed.</summary>
-    /// <param name="row">The demo's index row.</param>
-    public static string ContentIdOf(DemoCacheIndexEntry row) =>
-        string.IsNullOrEmpty(row?.Sha256) ? row?.Path ?? "" : row.Sha256;
-
     private Dictionary<string, IReadOnlyList<PlayerKill>> Fill(IReadOnlyList<DemoCacheIndexEntry> rows,
         IProgress<PlayerEventsProgress>? progress, CancellationToken cancellationToken)
     {
@@ -65,7 +60,7 @@ public sealed class PlayerEventCache
         {
             foreach (DemoCacheIndexEntry row in rows)
             {
-                string id = ContentIdOf(row);
+                string id = row.ContentId();
                 if (row.Stamp(FacetStamp) is not { State: DemoAnalysisState.Indexed } stamp || !seen.Add(id))
                 {
                     continue;

@@ -19,7 +19,7 @@ public sealed record PlayerRanks(ulong SteamId64, long IndexVersion, IReadOnlyLi
         Dictionary<string, MatchRankRow?> map = new(Demos.Count, StringComparer.Ordinal);
         foreach (PlayerRank demo in Demos)
         {
-            map[PlayerRankCache.ContentIdOf(demo.Match.Row)] = demo.Rank;
+            map[demo.Match.Row.ContentId()] = demo.Rank;
         }
 
         return map;
@@ -30,7 +30,7 @@ public sealed record PlayerRanks(ulong SteamId64, long IndexVersion, IReadOnlyLi
     public MatchRankRow? For(DemoCacheIndexEntry row)
     {
         ArgumentNullException.ThrowIfNull(row);
-        return _byContent.Value.GetValueOrDefault(PlayerRankCache.ContentIdOf(row));
+        return _byContent.Value.GetValueOrDefault(row.ContentId());
     }
 }
 
@@ -156,7 +156,7 @@ public sealed class PlayerRankCache
             List<PlayerRank> demos = new(matches.Count);
             foreach (PlayerMatch match in matches)
             {
-                string id = ContentIdOf(match.Row);
+                string id = match.Row.ContentId();
                 PackStamp? stamp = match.Row.Stamp(MatchMetaEvaluator.StampId);
                 if (!entries.TryGetValue(id, out Entry? entry))
                 {
@@ -199,7 +199,7 @@ public sealed class PlayerRankCache
                 // Newest first: the first rated Premier demo is the account's latest rating.
                 foreach (PlayerMatch match in _directory.Matches(player.SteamId64))
                 {
-                    string id = ContentIdOf(match.Row);
+                    string id = match.Row.ContentId();
                     if (!entries.TryGetValue(id, out LibraryEntry? entry))
                     {
                         PackStamp? stamp = match.Row.Stamp(MatchMetaEvaluator.StampId);
@@ -263,9 +263,6 @@ public sealed class PlayerRankCache
     }
 
     private static int? RankAfter(MatchRankRow row) => row.RankNew ?? row.RankOld;
-
-    // What a demo is across copies and renames: its content hash, or its one path before it is hashed.
-    internal static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
 
     private sealed record Entry(PackStamp? Stamp, MatchRankRow? Rank);
 

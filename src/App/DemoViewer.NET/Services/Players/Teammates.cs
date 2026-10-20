@@ -46,7 +46,7 @@ public static class Teammates
         foreach (PlayerDemo demo in demos)
         {
             PlayerMatch match = demo.Match;
-            if (match.Side is not { } side || !seen.Add(PlayerEventCache.ContentIdOf(match.Row)))
+            if (match.Side is not { } side || !seen.Add(match.Row.ContentId()))
             {
                 continue;
             }

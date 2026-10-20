@@ -67,3 +67,12 @@ public sealed record PlayerFilter
     /// <summary>Only the newest this many of the demos that pass the rest.</summary>
     public int? Last { get; init; }
 }
+
+/// <summary>The key the player caches hold a demo under.</summary>
+public static class PlayerContentIds
+{
+    /// <summary>What a demo is across copies and renames: its content hash, or its one path before it is hashed.</summary>
+    /// <param name="row">The demo's index row; null is the empty id.</param>
+    public static string ContentId(this DemoCacheIndexEntry? row) =>
+        string.IsNullOrEmpty(row?.Sha256) ? row?.Path ?? "" : row.Sha256;
+}

@@ -69,7 +69,7 @@ public sealed record HeadToHead(IReadOnlyList<HeadToHeadMatch> Matches)
         HashSet<string> demos = new(StringComparer.Ordinal);
         foreach (PlayerMatch match in matches)
         {
-            if (match.Side is not { } side || !demos.Add(PlayerEventCache.ContentIdOf(match.Row)))
+            if (match.Side is not { } side || !demos.Add(match.Row.ContentId()))
             {
                 continue;
             }
@@ -106,7 +106,7 @@ public sealed record HeadToHead(IReadOnlyList<HeadToHeadMatch> Matches)
         {
             if (match.Side is { } side)
             {
-                sides.TryAdd(PlayerEventCache.ContentIdOf(match.Row), side);
+                sides.TryAdd(match.Row.ContentId(), side);
             }
         }
 
@@ -114,8 +114,8 @@ public sealed record HeadToHead(IReadOnlyList<HeadToHeadMatch> Matches)
         return
         [
             .. subject.Where(m => m.Side is { } side
-                                  && sides.TryGetValue(PlayerEventCache.ContentIdOf(m.Row), out int theirs) && theirs != side
-                                  && taken.Add(PlayerEventCache.ContentIdOf(m.Row)))
+                                  && sides.TryGetValue(m.Row.ContentId(), out int theirs) && theirs != side
+                                  && taken.Add(m.Row.ContentId()))
         ];
     }
 
@@ -136,7 +136,7 @@ public sealed record HeadToHead(IReadOnlyList<HeadToHeadMatch> Matches)
         List<HeadToHeadMatch> matches = new(against.Count);
         foreach (PlayerMatch match in against)
         {
-            if (!kills.TryGetValue(PlayerEventCache.ContentIdOf(match.Row), out IReadOnlyList<PlayerKill>? demo))
+            if (!kills.TryGetValue(match.Row.ContentId(), out IReadOnlyList<PlayerKill>? demo))
             {
                 matches.Add(new HeadToHeadMatch(match, outcome(match), false, 0, 0, 0));
                 continue;

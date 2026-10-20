@@ -201,10 +201,10 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
         Dictionary<string, MatchOutcome?> outcomes = new(StringComparer.Ordinal);
         foreach (PlayerDemo demo in stats?.Demos ?? [])
         {
-            outcomes.TryAdd(PlayerEventCache.ContentIdOf(demo.Match.Row), demo.Outcome);
+            outcomes.TryAdd(demo.Match.Row.ContentId(), demo.Outcome);
         }
 
-        HeadToHead result = HeadToHead.Of(subject, opponent, against, m => outcomes.GetValueOrDefault(PlayerEventCache.ContentIdOf(m.Row)), kills);
+        HeadToHead result = HeadToHead.Of(subject, opponent, against, m => outcomes.GetValueOrDefault(m.Row.ContentId()), kills);
         CountText = against.Count == 1 ? "1 match against" : string.Create(CultureInfo.InvariantCulture, $"{against.Count} matches against");
         RecordText = result.WithOutcome == 0
             ? None

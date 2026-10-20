@@ -610,7 +610,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
             read = new Dictionary<string, PlayerDemo>(rows.Demos.Count, StringComparer.Ordinal);
             foreach (PlayerDemo demo in rows.Demos)
             {
-                read[ContentIdOf(demo.Match.Row)] = demo;
+                read[demo.Match.Row.ContentId()] = demo;
             }
         }
 
@@ -618,7 +618,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         foreach (PlayerMatch match in context.Matches)
         {
             demos.Add(read is not null
-                      && read.TryGetValue(ContentIdOf(match.Row), out PlayerDemo? held)
+                      && read.TryGetValue(match.Row.ContentId(), out PlayerDemo? held)
                       && held.HasFacet
                       && match.Row.Stamp(FacetStamp) is { State: DemoAnalysisState.Indexed } stamp
                       && held.Match.Row.Stamp(FacetStamp) == stamp
@@ -656,8 +656,6 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
             section.Update(context);
         }
     }
-
-    private static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
 
     private void ApplyState(PlayerOverviewContext context)
     {
