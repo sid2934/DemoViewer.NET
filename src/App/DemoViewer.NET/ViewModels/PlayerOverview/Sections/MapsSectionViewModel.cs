@@ -14,10 +14,11 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 /// <summary>
 ///     The filter's window by map and by side. One row per map the window holds, most played first, each pooled by
 ///     <see cref="PlayerAggregate" /> over that map's demos alone, so the rows add up to the summary; a map with no
-///     demo in the window has no row. Beside each map name, the subject's latest Competitive Skill Group there,
-///     taken over all their demos (<see cref="RankSectionViewModel.LatestByMap" />). Under the table, the window on each side: rounds and opening duels from the
-///     <c>player_match</c> facet's side counts (<c>CTW/CTL/TW/TL</c>, <c>CTFK/CTFD/TFK/TFD</c>), and K/D, ADR and
-///     KAST from the <c>player_round</c> facet's rounds summed by side, over the demos that have it.
+///     demo in the window has no row. The RANK column holds the subject's latest Competitive Skill Group on each map,
+///     taken over all their demos (<see cref="RankSectionViewModel.LatestByMap" />). Under the table, the window on
+///     each side: rounds and opening duels from the <c>player_match</c> facet's side counts (<c>CTW/CTL/TW/TL</c>,
+///     <c>CTFK/CTFD/TFK/TFD</c>), and K/D, ADR and KAST from the <c>player_round</c> facet's rounds summed by side,
+///     over the demos that have it.
 /// </summary>
 public sealed partial class MapsSectionViewModel : PlayerOverviewSection
 {

@@ -2,6 +2,7 @@
 
 using System.Collections.Concurrent;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
@@ -351,6 +352,41 @@ public class PlayerOverviewRankRenderTests
                     vm.Sections.OfType<HeaderSectionViewModel>().Single().Ranks.Select(r => r.BadgeKey), CollectionOrdering.Matching);
                 await Assert.That(badges.All(b => b.Bounds.Width > 0)).IsTrue();
                 await Assert.That(header.FindControl<Border>("AvatarPlaceholder")!.Bounds.Width).IsEqualTo(64.0);
+            }
+
+            window.Close();
+        });
+    }
+
+    [Test]
+    public async Task MapRankBadges_LineUpInTheirOwnColumn()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            DemoCacheStore store = PlayerOverviewRankTests.Library();
+            PlayerDirectory directory = new(store, _ => true);
+            using IdentityService identity = new(new SettingsService((string?)null));
+            PlayerRankCache ranks = new(store, directory);
+            await ranks.LoadAsync(PlayerOverviewHistoryTests.Grim);
+            using PlayerOverviewTabViewModel vm = new(new PlayerOverviewServices(directory, identity, null,
+                _ => { }, _ => { }, (_, _) => { }, _ => { }, Ranks: ranks));
+            vm.OnActivated(null!);
+            vm.OpenPlayer(PlayerOverviewHistoryTests.Grim);
+            vm.ShowPage(PlayerOverviewPageKind.History);
+
+            Window window = new() { Width = 1300, Height = 900, Content = new PlayerOverviewTabView { DataContext = vm } };
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+            Dispatcher.UIThread.RunJobs();
+
+            MapsSectionView view = window.GetVisualDescendants().OfType<MapsSectionView>().Single();
+            double[] lefts = [.. view.GetVisualDescendants().OfType<GameIcon>().Where(i => i.Name == "MapRankBadge" && i.IsVisible)
+                .Select(i => i.TranslatePoint(new Point(0, 0), view)!.Value.X)];
+            using (Assert.Multiple())
+            {
+                await Assert.That(lefts.Length).IsEqualTo(2).Because("Nuke and Mirage have a Competitive rank; Inferno does not");
+                await Assert.That(lefts.Distinct().Count()).IsEqualTo(1).Because("the badges sit in one column whatever the map name's width");
             }
 
             window.Close();
