@@ -12,53 +12,56 @@
 #
 # side is the player's team at the round's freeze end, 3 for CT and 2 for T; 0 when the player was not on
 # a side then (connected later, or spectating). A per-player row carries only the final roster team.
+#
+# The stat ids carry round_ as player_match's carry total_: the workbench trace keys stats on the bare id
+# across every loaded ruleset, so a bare kills here would merge with kast's. The facet's names are the labels.
 ruleset: player_round
 title: Player Round
 summary: Per-player round lines with the side played, for CT and T splits across demos.
 for: each_player
 
 stats:
-  side:
+  round_side:
     capture: player.team
     on: raw.round_freeze_end
     per: round
 
-  kills:
+  round_kills:
     count: kill
     match: { enemy: true }
     per: round
 
-  deaths:
+  round_deaths:
     count: death
     while: match.live
     per: round
 
-  assists:
+  round_assists:
     count: assist
     match: { enemy: true }
     where: "event.AssistedFlash == false"
     per: round
 
-  damage:
+  round_damage:
     sum: enrich.hurt.capped_damage
     on: damage_dealt
     match: { enemy: true }
     per: round
 
-  survived:
+  round_survived:
     count: round_ended
     while: player.alive
     per: round
 
   # kast's team_assists_round: an assist on any enemy kill, looser than assists above.
-  kast_assists:
+  round_kast_assists:
     count: assist
     where: "enrich.kill.was_enemy_kill == true"
     per: round
 
-  kast:
+  round_kast:
     flag:
-      when: "kills > 0 or kast_assists > 0 or player.survived or player.traded"
+      when: "round_kills > 0 or round_kast_assists > 0 or player.survived or player.traded"
     per: round
 
 show:
@@ -66,10 +69,10 @@ show:
     player_round:
       per: player_round
       columns:
-        - { stat: side,     label: side }
-        - { stat: kills,    label: kills }
-        - { stat: deaths,   label: deaths }
-        - { stat: assists,  label: assists }
-        - { stat: damage,   label: damage }
-        - { stat: survived, label: survived }
-        - { stat: kast,     label: kast }
+        - { stat: round_side,     label: side }
+        - { stat: round_kills,    label: kills }
+        - { stat: round_deaths,   label: deaths }
+        - { stat: round_assists,  label: assists }
+        - { stat: round_damage,   label: damage }
+        - { stat: round_survived, label: survived }
+        - { stat: round_kast,     label: kast }
