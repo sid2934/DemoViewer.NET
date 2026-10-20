@@ -58,6 +58,19 @@ public sealed class ForwardDemoResult
     /// <summary>The overtime convars, which a read of the run's library tables needs.</summary>
     public LibraryOvertime Overtime { get; init; }
 
+    /// <summary><c>svc_ServerInfo.game_session_config.gamemode</c> ("premier", "competitive", ...), or null when the demo has none.</summary>
+    public string? GameMode { get; init; }
+
+    /// <summary>
+    ///     The controllers' rank fields at the end of the demo; empty unless the read was asked for
+    ///     <see cref="ForwardNeeds.FinalState" />. Off the tap's replay, or off the last full packet when it replayed
+    ///     nothing.
+    /// </summary>
+    public IReadOnlyList<ControllerRank> ControllerRanks { get; init; } = [];
+
+    /// <summary>The server's end-of-match rank update; empty when the demo has none or the read captured none.</summary>
+    public IReadOnlyList<ServerRankUpdate> RankUpdates { get; init; } = [];
+
     public AnalysisRun? Run { get; init; }
 
     /// <summary>What the read's collectors put; empty when it carried none.</summary>
@@ -75,7 +88,7 @@ public static class ForwardDemoPass
     public const string RoundFactsTable = "round_facts";
 
     private const string FreezeEndEvent = "round_freeze_end";
-    private static readonly IReadOnlySet<int> ConVarsOnly = new HashSet<int> { (int)NET_Messages.NetSetConVar };
+    private static readonly IReadOnlySet<int> ConVarsOnly = new HashSet<int> { (int)NET_Messages.NetSetConVar, ServerRankCapture.MessageType };
     private const int CheckEveryFrames = 1024;
 
     /// <summary>The reader options <c>DemoAnalysis.Run(path)</c> uses: a 1024-frame parallel decode window.</summary>
@@ -152,9 +165,10 @@ public static class ForwardDemoPass
             events = widened;
         }
 
-        // A handful of messages per demo; the library's score completion reads overtime off them.
+        // A handful of messages per demo; the library's score completion reads overtime off them, and the
+        // rank update is one message at the end of a matchmaking demo.
         IReadOnlySet<int> include = plan.IncludeMessageTypes is { } types
-            ? new HashSet<int>(types) { (int)NET_Messages.NetSetConVar }
+            ? new HashSet<int>(types) { (int)NET_Messages.NetSetConVar, ServerRankCapture.MessageType }
             : ConVarsOnly;
         return plan with { Categories = categories, GameEventNames = events, IncludeMessageTypes = include };
     }
@@ -176,12 +190,13 @@ public static class ForwardDemoPass
         Action<double>? progress = null,
         IReadOnlySet<string>? outputs = null,
         CancellationToken cancellationToken = default) =>
-        Run(reader, needs, docs, progress, outputs, CollectorSet.Empty, cancellationToken);
+        Run(reader, needs, docs, progress, outputs, CollectorSet.Empty, null, cancellationToken);
 
     /// <summary>
     ///     <see cref="Run(DemoReader, ForwardNeeds, IReadOnlyList{RulesetDoc}, Action{double}, IReadOnlySet{string}, CancellationToken)" />
     ///     with <paramref name="collectors" /> on the rules run. Collectors ride only a rules run, so they need
-    ///     <see cref="ForwardNeeds.Rules" />.
+    ///     <see cref="ForwardNeeds.Rules" />. <paramref name="ranks" /> is the capture the reader was opened with
+    ///     (<see cref="ServerRankCapture.Attach" />), or null to capture no rank update.
     /// </summary>
     internal static ForwardDemoResult Run(
         DemoReader reader,
@@ -190,6 +205,7 @@ public static class ForwardDemoPass
         Action<double>? progress,
         IReadOnlySet<string>? outputs,
         CollectorSet collectors,
+        ServerRankCapture? ranks = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(reader);
@@ -204,7 +220,9 @@ public static class ForwardDemoPass
             : null;
         reader.Configure(PlanFor(build, needs, collectors.GameEvents));
 
-        Tap tap = new(reader, TapReplays(needs, build) ? LibraryFinalStateReplay.NewTracker() : null, progress, cancellationToken);
+        bool finalState = (needs & ForwardNeeds.FinalState) != 0;
+        Tap tap = new(reader, TapReplays(needs, build) ? LibraryFinalStateReplay.NewTracker() : null, finalState, ranks, progress,
+            cancellationToken);
         AnalysisRun? run = null;
         CollectorObserver? observer = null;
         if (build is not null)
@@ -226,6 +244,12 @@ public static class ForwardDemoPass
 
         cancellationToken.ThrowIfCancellationRequested();
         DemoDescriptor demo = run?.Demo ?? reader.Enrichment.Snapshot();
+        // A rules run replays no entities in the tap; the rank fields come off the last full packet instead,
+        // a few ms against a replay that would cost the visit a sixth of its time.
+        EntityTracker? rankState = tap.Tracker
+                                   ?? (finalState && tap.LastFullPacket is { } full
+                                       ? LibraryFinalStateReplay.Checkpoint(reader.SignonPrefix, reader.LastInstanceBaselineFullPacket, full)
+                                       : null);
         return new ForwardDemoResult
         {
             Demo = demo,
@@ -238,6 +262,9 @@ public static class ForwardDemoPass
                 : tap.Frames == 0 ? LibraryTeamState.Empty()
                 : LibraryFinalStateReplay.Read(tap.Tracker, demo.Players.Keys, tap.MatchEnded, tap.Overtime),
             Overtime = tap.Overtime,
+            GameMode = tap.GameMode,
+            ControllerRanks = finalState && rankState is not null ? LibraryFinalStateReplay.ReadRanks(rankState) : [],
+            RankUpdates = ranks?.Decode() ?? [],
             Run = run,
             Collected = observer?.Results ?? CollectorResults.None
         };
@@ -254,6 +281,8 @@ public static class ForwardDemoPass
     private sealed class Tap(
         DemoReader inner,
         EntityTracker? tracker,
+        bool holdLastFullPacket,
+        ServerRankCapture? ranks,
         Action<double>? progress,
         CancellationToken cancellationToken) : IDemoFrameSource
     {
@@ -261,6 +290,8 @@ public static class ForwardDemoPass
         public bool MatchEnded { get; private set; }
         public LibraryOvertime Overtime { get; private set; }
         public EntityTracker? Tracker => tracker;
+        public string? GameMode { get; private set; }
+        public DemoFrame? LastFullPacket { get; private set; }
         public int Frames { get; private set; }
         public int FirstServerTick { get; private set; }
         public int LastServerTick { get; private set; }
@@ -307,12 +338,21 @@ public static class ForwardDemoPass
                     case GameEventMessage { DecodedEvent.Name: LibraryFinalScore.MatchEndEvent or LibraryFinalScore.MatchRestartEvent } evt:
                         MatchEnded = LibraryFinalScore.FoldMatchEnded(MatchEnded, evt.DecodedEvent.Name);
                         break;
+                    case { Payload: CSVCMsg_ServerInfo info }:
+                        GameMode ??= info.GameSessionConfig?.Gamemode is { Length: > 0 } mode ? mode : null;
+                        break;
                     default:
                         Overtime = Overtime.With(message);
                         break;
                 }
             }
 
+            if (tracker is null && holdLastFullPacket && frame.CommandKind == EDemoCommands.DemFullPacket)
+            {
+                LastFullPacket = frame;
+            }
+
+            ranks?.Observe(frame);
             tracker?.AdvanceOneFrame(frame);
             return true;
         }
