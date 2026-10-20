@@ -9,6 +9,7 @@ using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.ViewModels.Library;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 
 #endregion
 
@@ -77,6 +78,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
     /// <param name="rescanAll">Mirrored <c>⟳ Rescan all</c>; null hides it (browser host / tests).</param>
     /// <param name="scanQueueDepth">Demos without current highlights, drives the "not every demo is here" note.</param>
     /// <param name="players">Player filter keys ticked at open (the Player Overview's link); null ticks none.</param>
+    /// <param name="playerOverviewOpener">Opens a row's player in the Player Overview tab; null hides the entry.</param>
     public AddClipsPickerViewModel(
         IReadOnlyList<DemoCacheRecord> records,
         int libraryRowCount,
@@ -89,7 +91,8 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
         bool dontCrossRoundStart = false,
         Action? rescanAll = null,
         int scanQueueDepth = 0,
-        IReadOnlyCollection<string>? players = null)
+        IReadOnlyCollection<string>? players = null,
+        Action<ulong, string?>? playerOverviewOpener = null)
     {
         ArgumentNullException.ThrowIfNull(records);
         ArgumentNullException.ThrowIfNull(isStaged);
@@ -118,7 +121,7 @@ public sealed partial class AddClipsPickerViewModel : ObservableObject
             foreach (CachedHighlightEvent highlight in record.Highlights)
             {
                 built.Add(new AddClipsRowViewModel(record, highlight,
-                    leadInSeconds, leadOutSeconds, dontCrossRoundStart, OnRowStageRequested));
+                    leadInSeconds, leadOutSeconds, dontCrossRoundStart, OnRowStageRequested, playerOverviewOpener));
             }
         }
 
@@ -574,13 +577,15 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
     /// <param name="leadOutSeconds">Lead-out for the window estimate.</param>
     /// <param name="dontCrossRoundStart">Whether the estimate floors the lead-in at the round start.</param>
     /// <param name="stageRequested">Raised by the row's <c>[ + ]</c> / <c>[ ✓ ]</c> button.</param>
+    /// <param name="playerOverviewOpener">Opens the row's player in the Player Overview tab; null hides the entry.</param>
     public AddClipsRowViewModel(
         DemoCacheRecord record,
         CachedHighlightEvent highlight,
         double leadInSeconds,
         double leadOutSeconds,
         bool dontCrossRoundStart,
-        Action<AddClipsRowViewModel> stageRequested)
+        Action<AddClipsRowViewModel> stageRequested,
+        Action<ulong, string?>? playerOverviewOpener = null)
     {
         ArgumentNullException.ThrowIfNull(record);
         ArgumentNullException.ThrowIfNull(highlight);
@@ -594,6 +599,8 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
         // Falls back to the raw name for the same reason the card grid did: a demo with no steamId join
         // would otherwise collapse every player into one filter bucket keyed "".
         PlayerKey = string.IsNullOrEmpty(Selection.SteamId64) ? Selection.RawPlayerName : Selection.SteamId64;
+        PlayerOverview = new PlayerOverviewEntry(
+            PlayerOverviewLink.Of(Selection.SteamId64, false, false), PlayerName, playerOverviewOpener);
         TypeKey = highlight.TypeKey;
         Title = string.IsNullOrEmpty(highlight.RenderedTitle)
             ? highlight.HighlightId.Replace('_', ' ')
@@ -635,6 +642,9 @@ public sealed partial class AddClipsRowViewModel : ObservableObject
 
     /// <summary>Player aggregation key (steamId64, or the raw name when the join is missing).</summary>
     public string PlayerKey { get; }
+
+    /// <summary>The row's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; }
 
     /// <summary>Qualified <c>{rulesetId}.{highlightId}</c> (the type filter's key).</summary>
     public string TypeKey { get; }

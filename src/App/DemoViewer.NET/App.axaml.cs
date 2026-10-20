@@ -1075,6 +1075,9 @@ public class App : Application
             {
                 // The same reel job instance the status-strip chip is bound to.
                 JobStatus = Shell().ReelJobStatus,
+                PlayerOverviewOpener = OperatingSystem.IsBrowser()
+                    ? null
+                    : (steamId64, name) => Shell().OpenPlayerOverview(steamId64, name),
                 Backlog = sp.GetRequiredService<HighlightBacklogViewModel>()
             };
         });
@@ -1528,7 +1531,11 @@ public class App : Application
         // use this path. The packs' playback contributions (band menus, panes) attach to each tab
         // view-model through the host, gated live by the pack's umbrella id.
         registry.Register(new Playback2DModule(() => PlaybackContributionHost.From(
-            sp.GetRequiredService<PackContributionSet>(), sp.GetService<IFeatureGate>()), sp.GetRequiredService<IRoundFactsSource>));
+            sp.GetRequiredService<PackContributionSet>(), sp.GetService<IFeatureGate>()), sp.GetRequiredService<IRoundFactsSource>,
+            // Resolved when the tab is built, long after the shell exists; the browser has no such tab.
+            () => OperatingSystem.IsBrowser()
+                ? null
+                : (steamId64, name) => sp.GetRequiredService<MainViewModel>().OpenPlayerOverview(steamId64, name)));
         // The Rulesets v2 authoring Workbench.
         // Registered on both hosts; desktop-only features (editor save, FileSystemWatcher, code --goto)
         // gate at runtime via OperatingSystem.IsBrowser() as they land, so the WASM build compiles

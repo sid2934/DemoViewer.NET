@@ -42,6 +42,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.ViewModels.Playback2D;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -522,6 +523,12 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// </summary>
     public PlaybackContributionHost? Contributions { get; init; }
 
+    /// <summary>
+    ///     Opens an account in the Player Overview tab, given its SteamID64 and the name the roster shows. Null where
+    ///     there is no such tab, which hides the entry on every card. Read when the roster is seeded.
+    /// </summary>
+    public Action<ulong, string?>? PlayerOverviewOpener { get; init; }
+
     /// <summary>The current frame's marker draw-state. Read by the custom-drawn viewport.</summary>
     public IReadOnlyList<PlayerMarker> Markers => CurrentFrame.Markers;
 
@@ -552,7 +559,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         Attributes.Where(a => a.InMatch)
             .OrderBy(a => a.Team)
             .ThenBy(a => a.Slot)
-            .Select(a => new FollowablePlayer(a.Slot, a.Name, a.Team))
+            .Select(a => new FollowablePlayer(a.Slot, a.Name, a.Team) { PlayerOverview = a.PlayerOverview })
             .ToList();
 
     /// <summary>Number of <c>Advanced</c> pushes received while active (read by tests).</summary>
@@ -2261,7 +2268,8 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             _steamIdBySlot[entry.Slot] = entry.SteamId;
             PlayerAttributes attrs = new(entry.Slot)
             {
-                Name = entry.Name
+                Name = entry.Name,
+                PlayerOverview = new PlayerOverviewEntry(entry.SteamId, entry.Name, PlayerOverviewOpener)
             };
             _attrsBySlot[entry.Slot] = attrs;
             Attributes.Add(attrs);

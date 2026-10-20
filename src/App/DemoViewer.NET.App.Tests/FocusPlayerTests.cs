@@ -42,7 +42,7 @@ public class FocusPlayerTests
             (3, "Alice", 8, 5),
             (4, "Coach", 0, 0)
         ];
-        string[] columns = ["TotalK", "CTW", "CTL", "TW", "TL"];
+        string[] columns = ["TotalK", "HLTV", "CTW", "CTL", "TW", "TL"];
 
         List<PerPlayerNodeTemplate.MaterializedPlayer> materialized = [];
         NodeSnapshot[] vector = new NodeSnapshot[1 + players.Length * columns.Length];
@@ -59,6 +59,7 @@ public class FocusPlayerTests
                     "TW" => tw,
                     "TL" => tl,
                     "TotalK" => slot * 3,
+                    "HLTV" => 10 - slot,
                     _ => 0
                 });
                 tracked.Add(node);

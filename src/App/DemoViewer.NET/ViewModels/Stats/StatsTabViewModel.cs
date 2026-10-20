@@ -144,6 +144,9 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     // The account each slot opens in the Player Overview, per PlayerOverviewLink; a slot with none is absent.
     private Dictionary<int, ulong> _steamIdBySlot = [];
 
+    /// <summary>The account each slot of the shown demo opens in the Player Overview; a slot with none is absent.</summary>
+    internal IReadOnlyDictionary<int, ulong> AccountsBySlot => _steamIdBySlot;
+
     // A FocusPlayer that arrived before the tables did; the next evaluation takes it, a demo unload drops it.
     private ulong? _pendingFocus;
 
@@ -736,7 +739,10 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 Convert.ToInt32(r.Dimensions.GetValueOrDefault("round_number") ?? 0, CultureInfo.InvariantCulture),
                 Convert.ToInt32(r.Dimensions.GetValueOrDefault("tick") ?? 0, CultureInfo.InvariantCulture),
                 r.Dimensions.GetValueOrDefault("chain")?.ToString() ?? "?",
-                r.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? ""))
+                r.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "")
+            {
+                PlayerOverview = EntryFor(r)
+            })
             .OrderBy(h => h.Tick)
             .ToList();
         OnPropertyChanged(nameof(Highlights));
@@ -1294,7 +1300,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     ///         metric and without it there is nothing to rank.
     ///     </para>
     /// </summary>
-    private static List<PodiumEntry> BuildPodium(IReadOnlyList<MetricRow> rows)
+    private List<PodiumEntry> BuildPodium(IReadOnlyList<MetricRow> rows)
     {
         const string ratingColumn = "HLTV";
         StatScale? scale = ColumnCatalogue.Resolve(ratingColumn).Scale?.Resolve(
@@ -1317,7 +1323,10 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 ? Convert.ToInt32(t, CultureInfo.InvariantCulture)
                 : 0;
             podium.Add(new PodiumEntry(rank++,
-                row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?", team, rating, scale));
+                row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?", team, rating, scale)
+            {
+                PlayerOverview = EntryFor(row)
+            });
         }
 
         return podium;
@@ -1678,6 +1687,12 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     // The round wins and losses per side: every round a slot ended on a side.
     private static readonly string[] _sideRoundColumns = ["CTW", "CTL", "TW", "TL"];
 
+    // The entry for a row naming a player; a game-scoped row names nobody and offers nothing.
+    private PlayerOverviewEntry EntryFor(MetricRow row) =>
+        row.Dimensions.GetValueOrDefault("player_name")?.ToString() is { Length: > 0 } name
+            ? new PlayerOverviewEntry(_steamIdBySlot.GetValueOrDefault(RowSlot(row)), name, PlayerOverviewOpener)
+            : PlayerOverviewEntry.None;
+
     private StatsRow WithAccount(StatsRow row) => row with
     {
         SteamId64 = _steamIdBySlot.GetValueOrDefault(row.PlayerSlot),
@@ -1944,6 +1959,9 @@ public sealed record StatColumn(string Label, int Index, ColumnMeta Meta, bool I
 /// </summary>
 public sealed record HighlightRow(int Round, int Tick, string Chain, string Player)
 {
+    /// <summary>The row's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
+
     /// <summary>"round 7" / "warmup" locator text.</summary>
     public string RoundLabel => Round > 0
         ? $"round {Round}"
@@ -2114,6 +2132,9 @@ public sealed record TeamSection(
 /// </summary>
 public sealed record PodiumEntry(int Rank, string Name, int Team, double Rating, StatScale? Scale)
 {
+    /// <summary>The entry's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
+
     /// <summary>"1ST" / "2ND" / "3RD".</summary>
     public string RankLabel => Rank switch
     {

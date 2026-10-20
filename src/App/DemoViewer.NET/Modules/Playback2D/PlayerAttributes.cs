@@ -1,6 +1,7 @@
 #region
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 
 #endregion
 
@@ -86,6 +87,9 @@ public sealed partial class PlayerAttributes : ObservableObject
 
     /// <summary>Stable join key into the roster.</summary>
     public int Slot { get; }
+
+    /// <summary>The card's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
 
     /// <summary>Dead players' cards gray out (dimmed) instead of being removed from the panel.</summary>
     public double RowOpacity => IsAlive ? 1.0 : 0.45;
