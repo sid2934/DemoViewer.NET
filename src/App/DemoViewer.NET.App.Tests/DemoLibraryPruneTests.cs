@@ -136,7 +136,9 @@ public sealed class DemoLibraryPruneTests : IDisposable
         string dir = TempDir();
         string demos = Path.Combine(dir, "demos");
         Directory.CreateDirectory(demos);
+        TaskCompletionSource firstReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource firstPlacement = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TimeSpan bound = TimeSpan.FromSeconds(30);
         try
         {
             string[] files = [.. Enumerable.Range(1, 5).Select(i => Path.Combine(demos, $"d{i}.dem"))];
@@ -147,17 +149,29 @@ public sealed class DemoLibraryPruneTests : IDisposable
 
             using DemoLibraryService svc = Library(SeedCache(dir, [demos]));
             int placements = 0;
-            svc.BeforeCopiesPlaced = () => Interlocked.Increment(ref placements) == 1 ? firstPlacement.Task : Task.CompletedTask;
+            svc.BeforeCopiesPlaced = () =>
+            {
+                if (Interlocked.Increment(ref placements) != 1)
+                {
+                    return Task.CompletedTask;
+                }
+
+                firstReached.SetResult();
+                return firstPlacement.Task;
+            };
             await svc.RescanAsync();
             Task olderCopies = svc.CopiesResolved;
+            // The newer scan must start only once the older placement is parked, or it cancels the older one
+            // before the hook and takes the first call itself.
+            await firstReached.Task.WaitAsync(bound);
             File.Delete(files[1]);
             File.Delete(files[2]);
             File.Delete(files[4]);
             await svc.RescanAsync();
-            await svc.CopiesResolved;
+            await svc.CopiesResolved.WaitAsync(bound);
 
             firstPlacement.SetResult();
-            await olderCopies;
+            await olderCopies.WaitAsync(bound);
 
             using (Assert.Multiple())
             {
