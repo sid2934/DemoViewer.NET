@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Players;
 
@@ -56,6 +57,8 @@ public sealed record PlayerOverviewSession(string? SubjectSteamId64, bool Pinned
 /// <param name="SelectTab">Selects a shell tab by its TabId.</param>
 /// <param name="FocusPlayerInStats">Opens a demo by path and shows the account in Stats.</param>
 /// <param name="OpenSettings">Opens Settings scrolled to a section anchor, or the top when null.</param>
+/// <param name="Facts">The library's analysis outputs, read for highlights; null where nothing reads them.</param>
+/// <param name="AddClips">Opens the Reels tab's Add-clips picker filtered to an account; null where there is no Reels tab.</param>
 /// <param name="Ranks">The rank rows of the accounts shown; null where nothing reads them.</param>
 public sealed record PlayerOverviewServices(
     PlayerDirectory Directory,
@@ -65,7 +68,13 @@ public sealed record PlayerOverviewServices(
     Action<string> SelectTab,
     Action<string, ulong> FocusPlayerInStats,
     Action<string?> OpenSettings,
-    PlayerRankCache? Ranks = null);
+    IAnalysisFacts? Facts = null,
+    Action<ulong>? AddClips = null,
+    PlayerRankCache? Ranks = null)
+{
+    /// <summary>The kills of each demo, from its <c>player_event</c> facet; null where nothing reads them.</summary>
+    public PlayerEventCache? Events { get; init; }
+}
 
 /// <summary>What a section renders from: the subject and the demos they are in, read once per refresh.</summary>
 /// <param name="SteamId64">The subject, or null when nobody is open.</param>

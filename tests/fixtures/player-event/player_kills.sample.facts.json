@@ -1,0 +1,220 @@
+{
+  "format": 1,
+  "ruleset": "player_event",
+  "output": "player_kills",
+  "fingerprint": "sample",
+  "schema": 1,
+  "grain": "player_event",
+  "dimensions": [
+    "match_id",
+    "map",
+    "round_number",
+    "tick",
+    "player_slot",
+    "player_name",
+    "steam_id",
+    "team"
+  ],
+  "values": [
+    "victim_slot",
+    "weapon",
+    "headshot"
+  ],
+  "clocks": {
+    "tick": "frame"
+  },
+  "rows": [
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 9829,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 4,
+        "weapon": "glock",
+        "headshot": 0
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10213,
+        "player_slot": 7,
+        "player_name": "player_7",
+        "steam_id": "76561190000000007",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 1,
+        "weapon": "glock",
+        "headshot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10288,
+        "player_slot": 0,
+        "player_name": "player_0",
+        "steam_id": "76561190000000000",
+        "team": 3
+      },
+      "v": {
+        "victim_slot": 6,
+        "weapon": "hkp2000",
+        "headshot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10367,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 2,
+        "weapon": "glock",
+        "headshot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10520,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 0,
+        "weapon": "glock",
+        "headshot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10863,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 3,
+        "weapon": "glock",
+        "headshot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 13221,
+        "player_slot": 6,
+        "player_name": "player_6",
+        "steam_id": "76561190000000006",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 3,
+        "weapon": "mac10",
+        "headshot": 0
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 13843,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 0,
+        "weapon": "mac10",
+        "headshot": 0
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 14198,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 2,
+        "weapon": "mac10",
+        "headshot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 15277,
+        "player_slot": 1,
+        "player_name": "player_1",
+        "steam_id": "76561190000000001",
+        "team": 3
+      },
+      "v": {
+        "victim_slot": 7,
+        "weapon": "usp_silencer",
+        "headshot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 15376,
+        "player_slot": 8,
+        "player_name": "player_8",
+        "steam_id": "76561190000000008",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 1,
+        "weapon": "mac10",
+        "headshot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 15845,
+        "player_slot": 5,
+        "player_name": "player_5",
+        "steam_id": "76561190000000005",
+        "team": 2
+      },
+      "v": {
+        "victim_slot": 4,
+        "weapon": "ak47",
+        "headshot": 1
+      }
+    }
+  ]
+}

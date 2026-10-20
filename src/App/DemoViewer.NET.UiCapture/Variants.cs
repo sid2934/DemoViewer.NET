@@ -4654,7 +4654,7 @@ public static partial class Variants
         IdentityService identity = new(new SettingsService((string?)null), directory);
         identity.SetAccounts([new IdentityAccount(me, "main", DateTime.UtcNow)]);
         PlayerOverviewTabViewModel vm = new(
-            new PlayerOverviewServices(directory, identity, rows, _ => { }, _ => { }, (_, _) => { }, _ => { }, ranks),
+            new PlayerOverviewServices(directory, identity, rows, _ => { }, _ => { }, (_, _) => { }, _ => { }, Ranks: ranks),
             new FakeProcessingQueue { QueuedCount = 1 });
         vm.OnActivated(null!);
         return new Panel

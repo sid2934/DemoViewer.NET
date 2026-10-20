@@ -13,9 +13,14 @@ public static class PlayerOverviewSections
         new HistorySectionViewModel(services),
 
         // Per-map and trends go here.
-        new RankSectionViewModel(services)
+        new RankSectionViewModel(services),
 
-        // Later items, in this order: stat categories, personal bests, highlights, teammates, head-to-head, compare,
-        // benchmarks, aim quality.
+        // Stat categories and personal bests go here.
+        new HighlightsSectionViewModel(services),
+
+        // Teammates goes here.
+        new HeadToHeadSectionViewModel(services)
+
+        // Then compare, benchmarks, aim quality.
     ];
 }

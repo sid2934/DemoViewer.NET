@@ -227,6 +227,10 @@ public sealed partial class PlayerDetailsViewModel : ObservableObject
         }
     }
 
+    /// <summary>Opens the shown player in the Player Overview tab.</summary>
+    [RelayCommand]
+    private void OpenPlayerOverview() => Parent.OpenPlayerOverview(SelectedPlayer);
+
     /// <summary>Steps to the previous player (wraps).</summary>
     [RelayCommand]
     private void PrevPlayer() => StepPlayer(-1);

@@ -8,9 +8,9 @@ using DemoViewer.NET.Services.DemoCache;
 namespace DemoViewer.NET.Services.MatchMeta;
 
 /// <summary>
-///     Where a demo's match time came from, in precedence order: the first one present wins. Only
-///     <see cref="ValveMatchInfo" /> and <see cref="FileWriteTime" /> are written today; <see cref="UserOverride" />
-///     and <see cref="ExternalMetadata" /> are reserved for an override store and an online source.
+///     Where a demo's match time came from, in precedence order: the first one present wins.
+///     <see cref="UserOverride" />, <see cref="ValveMatchInfo" /> and <see cref="FileWriteTime" /> are written today;
+///     <see cref="ExternalMetadata" /> is reserved for an online source.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<MatchTimeSource>))]
 public enum MatchTimeSource

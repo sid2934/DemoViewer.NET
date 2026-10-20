@@ -457,6 +457,13 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         }
 
         RoundFacts ??= other.RoundFacts;
+        if (other.MatchMeta is { MatchTimeSource: MatchTimeSource.UserOverride } chosen && MatchMeta?.MatchTimeSource != MatchTimeSource.UserOverride)
+        {
+            MatchMeta ??= chosen;
+            MatchMeta.MatchTimeUtcTicks = chosen.MatchTimeUtcTicks;
+            MatchMeta.MatchTimeSource = MatchTimeSource.UserOverride;
+        }
+
         MatchMeta ??= other.MatchMeta;
         FacetPlayers ??= other.FacetPlayers;
         foreach ((string packId, JsonElement payload) in other.Packs)

@@ -12,6 +12,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.MatchMeta;
 
 #endregion
 
@@ -108,6 +109,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
     private readonly Func<bool>? _isVerifyPresent;
     private readonly Action<string>? _openDemo;
+    private readonly Action<string, DateTime?>? _setMatchTime;
     private readonly Action? _returnToLive;
     private readonly Func<string, string, string, int, int, bool>? _stageClip;
     private readonly Action<string, string, string, int, int>? _unstageClip;
@@ -376,6 +378,10 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     Whether a clip is already in the tray. Called once per row build, so it must be cheap: the tray
     ///     backs it with a dictionary lookup.
     /// </param>
+    /// <param name="setMatchTime">
+    ///     Sets a demo's match time from the hero's "Set match date", or clears the override when the time is null.
+    ///     Null leaves the button off.
+    /// </param>
     public MatchOverviewTabViewModel(
         Action? viewStats = null,
         Action? viewPlayback = null,
@@ -386,7 +392,8 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         Func<bool>? isVerifyPresent = null,
         Func<string, string, string, int, int, bool>? stageClip = null,
         Action<string, string, string, int, int>? unstageClip = null,
-        Func<string, string, string, int, int, bool>? isClipStaged = null)
+        Func<string, string, string, int, int, bool>? isClipStaged = null,
+        Action<string, DateTime?>? setMatchTime = null)
     {
         _viewStats = viewStats;
         _viewPlayback = viewPlayback;
@@ -398,6 +405,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         _stageClip = stageClip;
         _unstageClip = unstageClip;
         _isClipStaged = isClipStaged;
+        _setMatchTime = setMatchTime;
         Stages = [ParseStage, EnrichStage, AnalyseStage];
     }
 
@@ -611,6 +619,36 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// </summary>
     public bool CanExplorePlayback => Mode == OverviewMode.Live && HasSummary && _viewPlayback is not null;
 
+    /// <summary>When the match was played, local time, or empty while the demo has no time.</summary>
+    [ObservableProperty]
+    private string _matchDateText = string.Empty;
+
+    /// <summary>True when <see cref="MatchDateText" /> is a guess (the file's write time).</summary>
+    [ObservableProperty]
+    private bool _isMatchDateApproximate;
+
+    /// <summary>True when the user set the match time, which is what "Clear" undoes.</summary>
+    [ObservableProperty]
+    private bool _hasMatchDateOverride;
+
+    /// <summary>The "Set match date" field: local <see cref="MatchTimeOverrides.InputFormat" />.</summary>
+    [ObservableProperty]
+    private string _matchDateInput = string.Empty;
+
+    [ObservableProperty]
+    private string _matchDateError = string.Empty;
+
+    /// <summary>Gates the hero's "Set match date" button.</summary>
+    public bool CanSetMatchDate => _setMatchTime is not null && SubjectKey is not null;
+
+    /// <summary>The hero button's text: the time the page shows, else the prompt to set one.</summary>
+    public string MatchDateButtonText => MatchDateText.Length == 0 ? "Set match date"
+        : IsMatchDateApproximate ? $"~ {MatchDateText}" : MatchDateText;
+
+    partial void OnMatchDateTextChanged(string value) => OnPropertyChanged(nameof(MatchDateButtonText));
+
+    partial void OnIsMatchDateApproximateChanged(bool value) => OnPropertyChanged(nameof(MatchDateButtonText));
+
     /// <summary>Gates the cached render's primary CTA: the one that turns a preview into a real open.</summary>
     public bool CanOpenDemo =>
         Mode == OverviewMode.Cached && _openDemo is not null && SubjectKey is not null;
@@ -802,6 +840,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
         // Identity, map and server are already set by BeginOpening from the cheap header read. The record
         // cannot improve on them and a stale record must not overwrite them.
+        SetMatchTime(record.MatchMeta);
         if (record.Parse.IsPresent)
         {
             if (record.DurationSeconds > 0)
@@ -1269,6 +1308,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         ResetValues();
         Mode = OverviewMode.Cached;
         SubjectKey = record.Path;
+        SetMatchTime(record.MatchMeta);
         HasContent = true;
         FileName = Path.GetFileName(record.Path);
         MapDisplay = string.IsNullOrEmpty(record.Map) ? string.Empty : DemoEntry.PrettifyMap(record.Map);
@@ -1590,6 +1630,46 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         OnPropertyChanged(nameof(CanReturnToLive));
     }
 
+    /// <summary>Shows the time <paramref name="meta" /> carries, or none. The shell calls it whenever the subject's record changes.</summary>
+    /// <param name="meta">The subject's match meta, or null.</param>
+    public void SetMatchTime(DemoMatchMeta? meta)
+    {
+        bool known = meta is { MatchTimeUtcTicks: not null };
+        MatchDateText = known ? MatchTimeOverrides.Format(meta!.MatchTimeUtcTicks!.Value) : string.Empty;
+        IsMatchDateApproximate = known && meta!.IsApproximate;
+        HasMatchDateOverride = meta?.MatchTimeSource == MatchTimeSource.UserOverride;
+        MatchDateInput = MatchDateText;
+        MatchDateError = string.Empty;
+        OnPropertyChanged(nameof(CanSetMatchDate));
+    }
+
+    [RelayCommand]
+    private void SetMatchDate()
+    {
+        if (SubjectKey is not { } key || _setMatchTime is null)
+        {
+            return;
+        }
+
+        if (!MatchTimeOverrides.TryParse(MatchDateInput, out DateTime utc))
+        {
+            MatchDateError = "Use yyyy-MM-dd HH:mm";
+            return;
+        }
+
+        MatchDateError = string.Empty;
+        _setMatchTime(key, utc);
+    }
+
+    [RelayCommand]
+    private void ClearMatchDate()
+    {
+        if (SubjectKey is { } key)
+        {
+            _setMatchTime?.Invoke(key, null);
+        }
+    }
+
     [RelayCommand]
     private void ViewStats() => _viewStats?.Invoke();
 
@@ -1633,6 +1713,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         ErrorText = string.Empty;
         IsSampleClip = false;
         IsDamaged = false;
+        SetMatchTime(null);
         DamageSummary = string.Empty;
         HasSummary = false;
         HasRoster = false;
@@ -1717,6 +1798,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     {
         OnPropertyChanged(nameof(CanExploreStats));
         OnPropertyChanged(nameof(CanExplorePlayback));
+        OnPropertyChanged(nameof(CanSetMatchDate));
     }
 
     private static OverviewStatRow BuildStatRow(MetricRow row) =>

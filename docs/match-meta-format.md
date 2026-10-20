@@ -49,7 +49,7 @@ record neither pass has reached has no `MatchMeta`, and no tier schema moved whe
 
   | Source | Meaning | Exact |
   |---|---|---|
-  | `UserOverride` | Reserved for a user-set time. Nothing writes it yet. | yes |
+  | `UserOverride` | The time the user set with "Set match date" on the Match Overview hero. | yes |
   | `ValveMatchInfo` | `matchtime` from the Steam replays folder's `<demo>.dem.info`. | yes |
   | `ExternalMetadata` | Reserved for an online source. Nothing writes it yet. | yes |
   | `FileWriteTime` | The demo file's last write time: when it was downloaded or copied, not when it was played. | no, show it as approximate |
@@ -58,6 +58,16 @@ record neither pass has reached has no `MatchMeta`, and no tier schema moved whe
   A source captured earlier is kept when a later run finds only a lower one. The `.dem.info` lives only
   beside the original download, so a demo moved out of the replays folder keeps the time it was first
   seen with. On a tie the later run wins.
+
+  **The user's override** is stored in this same field, on the demo's record, so it is keyed by the
+  row's current content key: it follows the row when the row re-keys, and when another path of the same
+  bytes joins the row it brings the override with it (a record already holding one keeps its own). Neither
+  the `matchmeta` pass nor a later `.dem.info` replaces it. The hero takes the time as local
+  `yyyy-MM-dd HH:mm` and stores it as UTC ticks. Clearing it sets the source back to `Unknown`, drops the
+  `matchmeta` stamp and runs the pass again, which dates the demo from its own sources. The history sorts
+  and labels by it like any other row. A second committed sample,
+  [`tests/fixtures/match-meta/match-meta.override.sample.json`](../tests/fixtures/match-meta/match-meta.override.sample.json),
+  pins the shape of an overridden record.
 * **`ReservationId`**: Valve's matchmaking reservation id as a decimal string (it does not fit a double).
   From the `.dem.info` when there is one, else the file name. Absent for a demo that is not a Valve match.
 * **`OutcomeId`**, **`Token`**: the second and third numbers of a Valve file name

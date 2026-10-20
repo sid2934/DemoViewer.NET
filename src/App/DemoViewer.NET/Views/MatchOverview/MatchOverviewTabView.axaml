@@ -377,6 +377,32 @@
                                             Command="{Binding ComputeFullStatsCommand}"
                                             FontSize="11" Padding="12 4" Margin="0 2 8 2"
                                             ToolTip.Tip="Queue this demo for a full analysis pass — it runs in the background and never opens the demo" />
+                                    <Button Classes="chip" Content="{Binding MatchDateButtonText}"
+                                            IsVisible="{Binding CanSetMatchDate}"
+                                            FontSize="11" Padding="12 4" Margin="0 2 8 2"
+                                            ToolTip.Tip="When this match was played. A time from the file's write date is a guess; set the real one here.">
+                                        <Button.Flyout>
+                                            <Flyout Placement="BottomEdgeAlignedRight">
+                                                <StackPanel Spacing="8" Width="240">
+                                                    <TextBlock Text="Match date (local time)" Classes="eyebrow" />
+                                                    <TextBox Text="{Binding MatchDateInput, Mode=TwoWay}"
+                                                             Watermark="yyyy-MM-dd HH:mm" />
+                                                    <TextBlock Text="{Binding MatchDateError}"
+                                                               IsVisible="{Binding MatchDateError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                               Foreground="{DynamicResource TextMid}" FontSize="11" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                                        <Button Classes="chip" Content="Clear"
+                                                                IsEnabled="{Binding HasMatchDateOverride}"
+                                                                Command="{Binding ClearMatchDateCommand}"
+                                                                FontSize="11" Padding="12 4" />
+                                                        <Button Classes="primary" Content="Set"
+                                                                Command="{Binding SetMatchDateCommand}"
+                                                                FontSize="12" Padding="14 5" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <ItemsControl ItemsSource="{Binding DemoActions}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>

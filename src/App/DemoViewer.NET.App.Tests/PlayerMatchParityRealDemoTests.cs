@@ -35,12 +35,13 @@ public class PlayerMatchParityRealDemoTests
 
     private static readonly string[] Buckets = ["2K", "3K", "4K", "5K"];
 
-    /// <summary>The app's stamped set over the shipped rules: round facts, the facet and the library tables.</summary>
+    /// <summary>The app's stamped set over the shipped rules: round facts, the two player facets and the library tables.</summary>
     internal static MergedRulesBuild AppRules(string? user = null) => new(() => YamlConfigLoader.LoadWithOverlay(Shipped, user),
         () =>
         [
             StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
             StampedRuleset.Core(PlayerMatchFacet.RulesetId),
+            StampedRuleset.Core(PlayerEventFacet.RulesetId),
             .. LibraryTeamTables.RulesetIds.Select(StampedRuleset.Core)
         ]);
 

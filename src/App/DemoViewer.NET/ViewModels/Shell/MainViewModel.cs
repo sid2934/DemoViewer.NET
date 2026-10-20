@@ -41,6 +41,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Idle;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Services.Tutorial;
 using DemoViewer.NET.Services.Update;
@@ -554,8 +555,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <param name="identity">Who the user is: the Player Overview's default subject.</param>
     /// <param name="playerRows">The facet rows the Player Overview's stat sections read; null where none is wired.</param>
     /// <param name="facts">
-    ///     The library's facts: Match Overview's cached scoreboard is the demo's <c>player_match</c> facet. Null
-    ///     (the browser, most tests) renders the scoreboard a record stored, if any.
+    ///     The library's facts: Match Overview's cached scoreboard is the demo's <c>player_match</c> facet, and the
+    ///     Player Overview's head-to-head reads the <c>player_event</c> facets. Null (the browser, most tests)
+    ///     renders the scoreboard a record stored, if any.
     /// </param>
     /// <param name="playerRanks">The rank rows the Player Overview's rank sections read; null where none is wired.</param>
     public MainViewModel(
@@ -654,7 +656,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             (demo, ruleset, id, tick, slot) =>
                 ReelTrayLocator?.Invoke()?.Unstage(new HighlightKey(demo, ruleset, id, tick, slot)),
             (demo, ruleset, id, tick, slot) =>
-                ReelTrayLocator?.Invoke()?.IsStaged(new HighlightKey(demo, ruleset, id, tick, slot)) ?? false);
+                ReelTrayLocator?.Invoke()?.IsStaged(new HighlightKey(demo, ruleset, id, tick, slot)) ?? false,
+            SetMatchTime);
 
         // Player Overview: one player across the library, from the index and the cached facets; it never runs the
         // engine. Desktop only: the browser keeps its cache in memory for one session, so there is no library of
@@ -668,12 +671,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     playerRows,
                     path => _ = LoadDemoFromPathAsync(path),
                     SelectTabById,
-                    // Until Stats can focus a player by SteamID, this opens the demo on the Stats tab.
-                    (path, steamId64) => _ = OpenDemoOnStatsAsync(path),
+                    (path, steamId64) => _ = FocusPlayerInStatsAsync(path, steamId64),
                     OpenSettingsCore,
-                    playerRanks),
+                    facts,
+                    // The picker lives on the lazy Reels tab: select it first, then resolve its view model.
+                    steamId64 =>
+                    {
+                        if (TrySelectTab("highlights.browser") && ReelTrayLocator?.Invoke() is { } reels)
+                        {
+                            _ = reels.AddClipsForAsync(steamId64.ToString(CultureInfo.InvariantCulture));
+                        }
+                    },
+                    playerRanks)
+                {
+                    Events = facts is null ? null : new PlayerEventCache(facts.TryGet)
+                },
                 processingQueue,
                 action => Dispatcher.UIThread.Post(action));
+            StatsTab.PlayerOverviewOpener = (steamId64, name) => OpenPlayerOverview(steamId64, name);
         }
 
         // 3.3b + 3.5a forwarder: re-raise ParserTab scalar property changes on the
@@ -1923,6 +1938,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        MatchOverviewTab.SetMatchTime(record.MatchMeta);
+
         // LIVE: fill only the highlight section, never the whole page. The open's own harvest lands here.
         // It runs off-thread and completes after SetAnalysis, so without this the demo you just opened shows
         // an empty moments column until you navigate away and back. A full SetCachedRecord would flip the
@@ -1967,6 +1984,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         MatchOverviewTab.SeedFromCache(subjectKey, record, Facet(localPath));
+    }
+
+    // The hero's "Set match date": the override store writes the record, whose change repaints the page.
+    private void SetMatchTime(string path, DateTime? utc)
+    {
+        if (_demoCache is null)
+        {
+            return;
+        }
+
+        if (utc is { } time)
+        {
+            MatchTimeOverrides.Set(_demoCache, path, time);
+        }
+        else
+        {
+            MatchTimeOverrides.Clear(_demoCache, path);
+        }
     }
 
     // The demo's player_match table, current or stale: the one source of Match Overview's cached scoreboard.
@@ -4488,10 +4523,48 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void OpenSettingsAtCategory() => OpenSettingsCore("SectionUserCategory");
 
-    private async Task OpenDemoOnStatsAsync(string path)
+    /// <summary>
+    ///     Shows <paramref name="steamId64" /> in the Player Overview tab and switches to it. False where there is no
+    ///     tab to show (the browser, or the tab switched off), which the status line reports by
+    ///     <paramref name="name" /> when the caller has one.
+    /// </summary>
+    /// <param name="steamId64">The account; 0 opens nothing.</param>
+    /// <param name="name">The name the caller shows for the account, or null.</param>
+    public bool OpenPlayerOverview(ulong steamId64, string? name = null)
     {
-        await LoadDemoFromPathAsync(path);
+        if (steamId64 == 0 || PlayerOverviewTab is null)
+        {
+            return false;
+        }
+
+        if (!TrySelectTab(PlayerOverviewTabViewModel.TabId))
+        {
+            StatusText = name is { Length: > 0 }
+                ? $"Player Overview is turned off, so {DisplayText.Sanitize(name)} was not opened."
+                : "Player Overview is turned off.";
+            return false;
+        }
+
+        PlayerOverviewTab.OpenPlayer(steamId64);
+        return true;
+    }
+
+    // Opens the demo unless it is the one loaded, then focuses the account on Stats. The open's evaluation runs
+    // inside the load, so the tables are usually there when it returns; when they are not, Stats keeps the focus
+    // until they are. A load that did not land (a missing file, a superseded open) focuses nobody.
+    private async Task FocusPlayerInStatsAsync(string path, ulong steamId64)
+    {
+        if (!string.Equals(_loadedDemoPath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            await LoadDemoFromPathAsync(path);
+            if (!string.Equals(_loadedDemoPath, path, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+        }
+
         SelectTabById("builtin.stats");
+        StatsTab.FocusPlayer(steamId64);
     }
 
     private void OpenSettingsCore(string? scrollTargetSection)
