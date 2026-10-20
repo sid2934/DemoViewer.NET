@@ -156,7 +156,7 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
     }
 
     private bool IsRead(PlayerMatch match) =>
-        _readStamps.TryGetValue(PlayerEventCache.ContentIdOf(match.Row), out PackStamp? stamp) && stamp == match.Row.Stamp(EventStamp);
+        _readStamps.TryGetValue(match.Row.ContentId(), out PackStamp? stamp) && stamp == match.Row.Stamp(EventStamp);
 
     private async Task LoadAsync(ulong subject, ulong opponent, IReadOnlyList<PlayerMatch> against, PlayerRows? stats, int load)
     {
@@ -164,7 +164,7 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
         Dictionary<string, PackStamp?> stamps = new(StringComparer.Ordinal);
         foreach (PlayerMatch match in against)
         {
-            stamps.TryAdd(PlayerEventCache.ContentIdOf(match.Row), match.Row.Stamp(EventStamp));
+            stamps.TryAdd(match.Row.ContentId(), match.Row.Stamp(EventStamp));
         }
 
         try
