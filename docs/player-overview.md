@@ -45,6 +45,13 @@ played is never a denominator: the engine does not use one, and no source measur
 | Equip | RatioOfSums | equipment_sum / equipment_rounds |
 | Duel% | RatioOfSums ×100 | TotalFK / (TotalFK + TotalFD) |
 | FK± | DifferenceOfSums | TotalFK − TotalFD |
+| FB% | RatioOfSums ×100 | first_bullet_hits / first_bullet_shots (sight) |
+| SAcc% | RatioOfSums ×100 | contact_hits / contact_shots (sight) |
+| SprayAcc% | RatioOfSums ×100 | spray_hits / spray_shots (sight) |
+| Preaim | RatioOfSums | preaim_angle_sum / Spots (sight) |
+| XPlace, FlickErr | RatioOfSums | travel_sum / XShots, flick_error_sum / XShots (sight) |
+| TTS, TTD, AimRx, TTK | RatioOfSums ×15.625 | tts_ticks / TTSn, ttd_ticks / TTDn, aimrx_ticks / AimRxn, ttk_ticks / TTKn: ticks to ms (sight) |
+| Spots, XShots, TTSn, TTDn, AimRxn, TTKn | Sum | the column itself (sight) |
 | TotalK, TotalD, TotalA, TotalHS, FlashAst, TrdK, TradedD, Clutch, RapidKills | Sum | the column itself |
 | CSAtt, SprayN | Sum | the column itself |
 | EnemyDmg, TeamDmg, SelfDmg, HitFoe, HitTeam, Shots | Sum | the column itself |
@@ -53,10 +60,22 @@ played is never a denominator: the engine does not use one, and no source measur
 | NoScope, WB, Smoke, Blind, Revenge, FlashK | Sum | the column itself |
 | HE, Flash, Smokes, Molly, EFlash, Plants, Defuses, Armor | Sum | the column itself |
 | 2K, 3K, 4K, 5K, CTW, CTL, TW, TL, Survived | Sum | the column itself |
-| Kills, Deaths, Assists, Damage, UtilDmg, Traded, HasKAST, HSKills, EKills, Flashed, FK, FD, DeagleHS | NotAggregable | round-board cells, not match totals |
-| FB%, Preaim, SAcc%, SprayAcc%, Spots, XPlace, FlickErr, XShots, TTS, TTSn, TTD, TTDn, AimRx, AimRxn, TTK, TTKn, Spot | NotAggregable | `sight: true`: the background run has no line-of-sight geometry |
+| Kills, Deaths, Assists, Damage, UtilDmg, Traded, HasKAST, HSKills, EKills, Flashed, FK, FD, DeagleHS, Spot | NotAggregable | round-board cells, not match totals |
 
 Peer scales are never used on a cross-demo board; a column keeps its absolute colour band only.
+
+### Line-of-sight columns
+
+The columns marked (sight) are the Stats tab's `sight: true` columns. They exist only when the run had the
+map's collision geometry, so they pool over a narrower set of demos: those whose `player_match` stamp has
+`HasVisibility` ([`player-match-format.md`](player-match-format.md#line-of-sight)). A demo without it is left
+out of them, not counted as 0, and when no demo in the window has it the column has no value at all and the
+tab says "no data". `PlayerAggregate.WithSight` is the count of demos they pool.
+
+The background visit that writes the facet has no geometry; an interactive open of a demo whose map has a
+bake upgrades that demo's facet. Handing the background run the geometry was measured and rejected: on the
+five benchmark demos, interleaved over three rounds, the forward visit with a `VisibilityEngine` took 14 to
+23% longer per demo (median about 17%), allocated 27% more and peaked 280 MB higher in working set.
 
 ## Which demos count
 
@@ -74,8 +93,18 @@ The categories section lists the catalogue's groups over the filter's window: op
 utility, weapons, multi-kills and economy. Each value is the column's pool by the rules above, labelled and
 banded as on the Stats tab (absolute bands only). Beside a count sits a rate that reads across a career: per
 round over the summed `rounds`, per match over the demos with stats, or a share (weapon kills of all kills,
-traded deaths of all deaths, armor rounds of all rounds). Aim quality is not a category: its columns are
-`sight: true` and the facet does not carry them, which the section's footer says.
+traded deaths of all deaths, armor rounds of all rounds). Aim quality is not a category: it has a section of
+its own, which the categories' footer points to.
+
+## Aim quality
+
+The aim quality section lists reaction (TTS, TTD, AimRx, TTK), crosshair placement (Preaim, XPlace, FlickErr),
+the after-contact hit rates (FB%, SAcc%, SprayAcc%) and the accuracy columns every demo carries (Acc%,
+HSAcc%, HSDmg%, CS%, CSAll%, Linear%, Spray), each with the population behind it from the catalogue's
+denominator ("after 412 contacts"). A line-of-sight column reads "no data" when no demo in the window has
+sight, and the note under the blocks says how many matches were left out and that opening one on a map with a
+collision bake adds them. The summary carries two of them as tiles, time to damage and preaim, with the same
+"no data" rule.
 
 ## Teammates
 
