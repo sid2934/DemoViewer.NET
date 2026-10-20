@@ -129,22 +129,23 @@ public sealed partial class HighlightsSectionViewModel : PlayerOverviewSection
             LoadText = "Reading highlights";
         }
 
-        try
+        await Task.Run(() =>
         {
-            await Task.Run(() =>
+            for (int i = 0; i < unread.Count; i++)
             {
-                for (int i = 0; i < unread.Count; i++)
+                DemoCacheIndexEntry row = unread[i].Row;
+                try
                 {
-                    DemoCacheIndexEntry row = unread[i].Row;
                     _read[row.Path] = new Read(row.HighlightCount, row.ConfigFingerprint, facts.Highlights(row.Path));
-                    progress.Report(i + 1);
                 }
-            });
-        }
-        catch (Exception)
-        {
-            // A sidecar that will not read leaves its demo out; the next refresh tries again.
-        }
+                catch (Exception)
+                {
+                    // A sidecar that will not read leaves its demo out; the next refresh tries again.
+                }
+
+                progress.Report(i + 1);
+            }
+        });
 
         if (_load == load)
         {

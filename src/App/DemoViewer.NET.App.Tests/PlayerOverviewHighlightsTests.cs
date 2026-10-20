@@ -132,9 +132,16 @@ public class PlayerOverviewHighlightsTests
 
         public FactTable? TryGet(string demoPath, FactKey key) => null;
 
+        public HashSet<string> Throws { get; } = new(StringComparer.Ordinal);
+
         public IReadOnlyList<LibraryHighlight> Highlights(string demoPath)
         {
             Reads.Enqueue(demoPath);
+            if (Throws.Contains(demoPath))
+            {
+                throw new IOException("sidecar will not read");
+            }
+
             return store.TryLoadRecord(demoPath, false) is { } record
                 ? [.. record.Highlights.Select(h => new LibraryHighlight(h.RulesetId, h.HighlightId, h.Tick, h.PlayerSlot,
                     h.RoundNumber, h.RenderedTitle, h.Score, h.Kind.ToString()))]
@@ -198,6 +205,30 @@ public class PlayerOverviewHighlightsTests
             await Assert.That(shell.Facts.Reads.ToArray()[3..]).IsEquivalentTo(["/lib/2.dem"]);
             await Assert.That(shell.Highlights.Rows[0].Highlight.HighlightId).IsEqualTo("five_k");
         }
+    }
+
+    [Test]
+    public async Task ADemoThatWillNotRead_IsLeftOut_AndTheRestAreRead()
+    {
+        DemoCacheStore store = Library(3);
+        using Shell shell = new(store);
+        shell.Facts.Throws.Add("/lib/1.dem");
+        shell.Tab.OpenPlayer(Grim);
+        await shell.Highlights.Loading;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Highlights.Rows.Select(r => r.Match.Row.Path).Distinct().Order())
+                .IsEquivalentTo(["/lib/0.dem", "/lib/2.dem"], CollectionOrdering.Matching);
+            await Assert.That(shell.Highlights.IsLoading).IsFalse();
+        }
+
+        shell.Facts.Throws.Clear();
+        store.Upsert(Demo(2, "cfg2"));
+        await shell.Highlights.Loading;
+        await Assert.That(shell.Facts.Reads.ToArray()[3..].Order()).IsEquivalentTo(["/lib/1.dem", "/lib/2.dem"], CollectionOrdering.Matching)
+            .Because("the next refresh reads the demo that failed and the one rescanned, and nothing else");
+        await Assert.That(shell.Highlights.Rows.Any(r => r.Match.Row.Path == "/lib/1.dem")).IsTrue();
     }
 
     [Test]
