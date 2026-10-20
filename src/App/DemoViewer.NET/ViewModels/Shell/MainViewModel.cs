@@ -686,6 +686,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 processingQueue,
                 action => Dispatcher.UIThread.Post(action));
             StatsTab.PlayerOverviewOpener = (steamId64, name) => OpenPlayerOverview(steamId64, name);
+            MatchOverviewTab.PlayerOverviewOpener = StatsTab.PlayerOverviewOpener;
         }
 
         // 3.3b + 3.5a forwarder: re-raise ParserTab scalar property changes on the
@@ -966,6 +967,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // Selecting a card (single click / arrow key) renders that demo's CACHED record on Match Overview:
         // browsing, not opening. Reads the cache and starts nothing; double-click still owns the parse.
         LibraryTab.DemoPreviewRequested += PreviewDemoFromCache;
+        LibraryTab.PlayerOverviewOpener = StatsTab.PlayerOverviewOpener;
 
         // A scan finishing must reach the page that is SHOWING that demo. Without this, pressing "Compute
         // full stats" queued real work, wrote a real record, and changed nothing on screen until the user
@@ -2124,7 +2126,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             MatchOverviewTab.BeginAnalysis(path);
             MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort,
-                StatsTab.Rounds.Count);
+                StatsTab.Rounds.Count, StatsTab.AccountsBySlot);
             MatchOverviewTab.SetTeamScores(path,
                 StatsTab.TeamScoresBySort.GetValueOrDefault(0),
                 StatsTab.TeamScoresBySort.GetValueOrDefault(1));
@@ -2987,7 +2989,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             open.Report(0.6, "Analysing");
             await Analysis.RunOpenAsync(parsed, demoKey, path, clock);
             ThrowIfSuperseded(open);
-            MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
+            MatchOverviewTab.SetAnalysis(path, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count, StatsTab.AccountsBySlot);
             // Per-team round wins from the same evaluation: each team's total across BOTH halves.
             MatchOverviewTab.SetTeamScores(
                 path,
@@ -4366,7 +4368,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             // RunAsync (AnalysisViewModel.cs), so its tables are already built by the time this await
             // returns. Reading them here rather than subscribing keeps the Match Overview's score and
             // scoreboard byte-identical to the Stats tab's with no handler-order dependency.
-            MatchOverviewTab.SetAnalysis(subjectKey, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count);
+            MatchOverviewTab.SetAnalysis(subjectKey, StatsTab.GameTable, StatsTab.TeamScoresBySort, StatsTab.Rounds.Count, StatsTab.AccountsBySlot);
             // Per-team round wins from the same evaluation: each team's total across BOTH halves.
             MatchOverviewTab.SetTeamScores(
                 subjectKey,

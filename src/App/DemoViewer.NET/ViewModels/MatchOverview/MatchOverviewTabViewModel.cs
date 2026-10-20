@@ -13,6 +13,7 @@ using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.MatchMeta;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 
 #endregion
 
@@ -21,7 +22,14 @@ namespace DemoViewer.NET.ViewModels.MatchOverview;
 /// <summary>
 ///     One roster entry on the Match Overview landing page: a player's name + bot flag, grouped by side.
 /// </summary>
-public sealed record OverviewPlayer(string Name, bool IsBot);
+public sealed record OverviewPlayer(string Name, bool IsBot)
+{
+    /// <summary>The player slot of a live-parsed roster row, or -1 for a cached one.</summary>
+    public int Slot { get; init; } = -1;
+
+    /// <summary>The roster row's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
+}
 
 /// <summary>
 ///     One scoreboard line on the Match Overview landing page. Deliberately a handful of pre-formatted
@@ -39,6 +47,9 @@ public sealed record OverviewStatRow(
 {
     /// <summary>CT rows carry the blue side accent, T rows amber (the app-wide scoreboard convention).</summary>
     public bool IsCt => Team == 3;
+
+    /// <summary>The scoreboard row's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
 }
 
 /// <summary>
@@ -110,6 +121,10 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     private readonly Func<bool>? _isVerifyPresent;
     private readonly Action<string>? _openDemo;
     private readonly Action<string, DateTime?>? _setMatchTime;
+
+    // The account each live-parsed slot opens in the Player Overview, per PlayerOverviewLink; the analysis table
+    // joins its rows to it by slot.
+    private readonly Dictionary<int, ulong> _steamIdBySlot = [];
     private readonly Action? _returnToLive;
     private readonly Func<string, string, string, int, int, bool>? _stageClip;
     private readonly Action<string, string, string, int, int>? _unstageClip;
@@ -408,6 +423,13 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         _setMatchTime = setMatchTime;
         Stages = [ParseStage, EnrichStage, AnalyseStage];
     }
+
+    /// <summary>
+    ///     Opens an account in the Player Overview tab, given its SteamID64 and the name this page shows. Null where
+    ///     there is no such tab, which hides the entry on every row. Set before a demo is shown; rows built earlier
+    ///     keep what they were built with.
+    /// </summary>
+    public Action<ulong, string?>? PlayerOverviewOpener { get; set; }
 
     // ── Subject identity ──────────────────────────────────────────────────────
     //
@@ -859,7 +881,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                 CounterTerrorists.Clear();
                 foreach (CachedPlayerInfo p in record.Roster)
                 {
-                    OverviewPlayer entry = new(DisplayText.Sanitize(p.Name), p.IsBot);
+                    OverviewPlayer entry = CachedPlayer(p);
                     if (p.Team == 3)
                     {
                         CounterTerrorists.Add(entry);
@@ -1017,6 +1039,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         CounterTerrorists.Clear();
         int players = 0;
         int spectators = 0;
+        _steamIdBySlot.Clear();
         foreach (PlayerInfo p in parsed.Players.Values)
         {
             // The GOTV proxy / demo recorder occupies a userinfo slot with a name, so counting
@@ -1028,7 +1051,12 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                 continue;
             }
 
-            OverviewPlayer entry = new(p.Name, p.IsBot);
+            OverviewPlayer entry = new(p.Name, p.IsBot)
+            {
+                Slot = p.Slot,
+                PlayerOverview = Entry(PlayerOverviewLink.Of(p.SteamId64, p.IsBot, false), p.Name)
+            };
+            _steamIdBySlot[p.Slot] = entry.PlayerOverview.SteamId64;
 
             // Team 2 = T, 3 = CT (parser convention). ONLY these count as players.
             //
@@ -1104,15 +1132,32 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     that finished T). Not per-side totals; see the SideWins fields.
     /// </param>
     /// <param name="roundCount">Rounds the analysis resolved, or 0 when unknown.</param>
+    /// <param name="accounts">
+    ///     The account each slot opens in the Player Overview, coaches already left out. The roster was filled before
+    ///     the analysis could say who coached, so a live page takes this over from the one it built; null keeps it.
+    /// </param>
     public void SetAnalysis(
         string? subjectKey,
         MetricTable? gameTable,
         IReadOnlyDictionary<int, int?>? teamScoresBySort,
-        int roundCount)
+        int roundCount,
+        IReadOnlyDictionary<int, ulong>? accounts = null)
     {
         if (!Accepts(subjectKey))
         {
             return;
+        }
+
+        if (accounts is not null)
+        {
+            _steamIdBySlot.Clear();
+            foreach ((int slot, ulong id) in accounts)
+            {
+                _steamIdBySlot[slot] = id;
+            }
+
+            RefreshRosterEntries(CounterTerrorists);
+            RefreshRosterEntries(Terrorists);
         }
 
         // EVERY analysis-stage value is keyed off the one fact "did this run produce a table", not off the
@@ -1335,7 +1380,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         {
             foreach (CachedPlayerInfo p in record.Roster)
             {
-                OverviewPlayer entry = new(DisplayText.Sanitize(p.Name), p.IsBot);
+                OverviewPlayer entry = CachedPlayer(p);
                 if (p.Team == 3)
                 {
                     CounterTerrorists.Add(entry);
@@ -1448,7 +1493,12 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                 r.Deaths.ToString(CultureInfo.InvariantCulture),
                 r.Assists.ToString(CultureInfo.InvariantCulture),
                 r.Adr.ToString("0.##", CultureInfo.InvariantCulture),
-                r.Rating.ToString("0.##", CultureInfo.InvariantCulture)))
+                r.Rating.ToString("0.##", CultureInfo.InvariantCulture))
+            {
+                PlayerOverview = bySlot.TryGetValue(r.Slot, out CachedPlayerInfo? owner)
+                    ? CachedPlayer(owner).PlayerOverview
+                    : PlayerOverviewEntry.None
+            })
             .Where(r => r.Name.Length > 0)
             .OrderBy(r => r.IsCt ? 0 : 1)
             .ThenByDescending(r => ParseSortable(r.Rating))
@@ -1801,7 +1851,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         OnPropertyChanged(nameof(CanSetMatchDate));
     }
 
-    private static OverviewStatRow BuildStatRow(MetricRow row) =>
+    private OverviewStatRow BuildStatRow(MetricRow row) =>
         new(
             row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? string.Empty,
             row.Dimensions.GetValueOrDefault("team") is { } t
@@ -1811,7 +1861,36 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
             Format(row.Values.GetValueOrDefault("TotalD")),
             Format(row.Values.GetValueOrDefault("TotalA")),
             Format(row.Values.GetValueOrDefault("ADR")),
-            Format(row.Values.GetValueOrDefault("HLTV")));
+            Format(row.Values.GetValueOrDefault("HLTV")))
+        {
+            PlayerOverview = Entry(
+                row.Dimensions.GetValueOrDefault("player_slot") is { } slot
+                    ? _steamIdBySlot.GetValueOrDefault(Convert.ToInt32(slot, CultureInfo.InvariantCulture))
+                    : 0,
+                row.Dimensions.GetValueOrDefault("player_name")?.ToString())
+        };
+
+    private void RefreshRosterEntries(ObservableCollection<OverviewPlayer> side)
+    {
+        for (int i = 0; i < side.Count; i++)
+        {
+            OverviewPlayer player = side[i];
+            ulong id = player.Slot >= 0 ? _steamIdBySlot.GetValueOrDefault(player.Slot) : player.PlayerOverview.SteamId64;
+            if (id != player.PlayerOverview.SteamId64)
+            {
+                side[i] = player with { PlayerOverview = Entry(id, player.PlayerOverview.Name) };
+            }
+        }
+    }
+
+    // An entry opening `steamId64` through the shell; with no opener wired the entry is hidden.
+    private PlayerOverviewEntry Entry(ulong steamId64, string? name) => new(steamId64, name, PlayerOverviewOpener);
+
+    private OverviewPlayer CachedPlayer(CachedPlayerInfo p) =>
+        new(DisplayText.Sanitize(p.Name), p.IsBot)
+        {
+            PlayerOverview = Entry(PlayerOverviewLink.Of(p.SteamId64, p.IsBot, p.IsCoach), p.Name)
+        };
 
     // Same rendering contract as the Stats tab's StatCell.Display (invariant, doubles to 2 decimals), with
     // the page-wide placeholder standing in for a missing value instead of a blank cell.

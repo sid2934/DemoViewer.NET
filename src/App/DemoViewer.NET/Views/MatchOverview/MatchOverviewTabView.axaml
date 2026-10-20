@@ -609,7 +609,17 @@
                                     <ItemsControl ItemsSource="{Binding CounterTerrorists}" Margin="14 10 14 12">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:OverviewPlayer">
-                                                <StackPanel Orientation="Horizontal" Margin="0 3">
+                                                <StackPanel Orientation="Horizontal" Margin="0 3" Background="Transparent">
+                                                    <StackPanel.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Open player overview"
+                                                                      Command="{Binding PlayerOverview.OpenCommand}"
+                                                                      IsVisible="{Binding PlayerOverview.Offers}"
+                                                                      IsEnabled="{Binding PlayerOverview.CanOpen}"
+                                                                      ToolTip.Tip="{Binding PlayerOverview.Tip}"
+                                                                      ToolTip.ShowOnDisabled="True" />
+                                                        </ContextMenu>
+                                                    </StackPanel.ContextMenu>
                                                     <TextBlock Text="{Binding Name}" Classes="rosterName" />
                                                     <Border Classes="botTag" IsVisible="{Binding IsBot}">
                                                         <TextBlock Text="BOT" Classes="botTagText" />
@@ -644,7 +654,17 @@
                                     <ItemsControl ItemsSource="{Binding Terrorists}" Margin="14 10 14 12">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:OverviewPlayer">
-                                                <StackPanel Orientation="Horizontal" Margin="0 3">
+                                                <StackPanel Orientation="Horizontal" Margin="0 3" Background="Transparent">
+                                                    <StackPanel.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Open player overview"
+                                                                      Command="{Binding PlayerOverview.OpenCommand}"
+                                                                      IsVisible="{Binding PlayerOverview.Offers}"
+                                                                      IsEnabled="{Binding PlayerOverview.CanOpen}"
+                                                                      ToolTip.Tip="{Binding PlayerOverview.Tip}"
+                                                                      ToolTip.ShowOnDisabled="True" />
+                                                        </ContextMenu>
+                                                    </StackPanel.ContextMenu>
                                                     <TextBlock Text="{Binding Name}" Classes="rosterName" />
                                                     <Border Classes="botTag" IsVisible="{Binding IsBot}">
                                                         <TextBlock Text="BOT" Classes="botTagText" />
@@ -690,7 +710,17 @@
                                     <ItemsControl ItemsSource="{Binding PlayerStats}" Margin="14 8 14 10">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:OverviewStatRow">
-                                                <Grid ColumnDefinitions="3,9,*,50,50,50,60,60" Margin="0 3">
+                                                <Grid ColumnDefinitions="3,9,*,50,50,50,60,60" Margin="0 3" Background="Transparent">
+                                                    <Grid.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Open player overview"
+                                                                      Command="{Binding PlayerOverview.OpenCommand}"
+                                                                      IsVisible="{Binding PlayerOverview.Offers}"
+                                                                      IsEnabled="{Binding PlayerOverview.CanOpen}"
+                                                                      ToolTip.Tip="{Binding PlayerOverview.Tip}"
+                                                                      ToolTip.ShowOnDisabled="True" />
+                                                        </ContextMenu>
+                                                    </Grid.ContextMenu>
                                                     <Rectangle Grid.Column="0" Classes="sideBar"
                                                                Classes.ct="{Binding IsCt}" />
                                                     <TextBlock Grid.Column="2" Text="{Binding Name}"
