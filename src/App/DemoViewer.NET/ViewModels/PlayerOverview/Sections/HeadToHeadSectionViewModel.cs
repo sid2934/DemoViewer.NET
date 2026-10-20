@@ -72,7 +72,7 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
     public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.History;
 
     /// <inheritdoc />
-    public override SectionSlot Slot => SectionSlot.Rail;
+    public override SectionSlot Slot => SectionSlot.Bottom;
 
     /// <summary>True when there is a line under the counts.</summary>
     public bool HasNote => NoteText.Length > 0;

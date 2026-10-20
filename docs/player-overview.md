@@ -9,17 +9,18 @@ never runs the engine.
 The player's header, the coverage line, the inner tab strip and the filter bar sit above four inner tabs; the
 filters apply to every tab. Each section names its tab and slot (`PlayerOverviewSection.Page` and `Slot`):
 
-| Tab | Across the top | Main column | Rail |
-|---|---|---|---|
-| Overview | Summary tiles | Trends | Rank |
-| History | Maps and sides | Match history | Teammates, Head-to-head |
-| Stats | | Stat categories, Aim quality | Compare, Benchmarks |
-| Achievements | Personal bests | Highlights | |
+| Tab | Across the top | Main column | Rail | Below |
+|---|---|---|---|---|
+| Overview | Summary tiles | Trends | Rank | |
+| History | | Match history | Maps and sides | Teammates, Head-to-head |
+| Stats | | Stat categories, Aim quality | Compare, Benchmarks | |
+| Achievements | Personal bests | Highlights | | |
 
-The rail sits beside the main column from 1,100 px (Overview), 1,300 px (Stats) and 1,700 px (History,
-whose table needs the room) and stacks under it below. Content stops widening at 2,400 px. Match history
-fills the History tab's height and scrolls inside itself. The tab remembers which inner tab was open
-across sessions and keeps it when another player is opened.
+The rail sits beside the main column from 1,100 px (Overview), 1,300 px (Stats) and 1,500 px (History) and
+stacks under it below. The sections below the columns sit two abreast, and stack
+with them. Match history and Maps and sides scroll sideways rather than squeeze their columns. Content stops
+widening at 2,400 px. Match history fills the History tab's height and scrolls inside itself. The tab
+remembers which inner tab was open across sessions and keeps it when another player is opened.
 
 The name card above the tabs shows the player's latest Premier rating and latest Competitive Skill Group,
 each from the newest match of its system, and the Maps and sides table shows the latest Competitive Skill

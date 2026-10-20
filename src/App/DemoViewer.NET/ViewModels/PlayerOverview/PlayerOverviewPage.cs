@@ -11,7 +11,8 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview;
 /// <summary>
 ///     One inner tab of the Player Overview: the sections whose <see cref="PlayerOverviewSection.Page" /> names it,
 ///     split by <see cref="PlayerOverviewSection.Slot" />. The top sections span the page; under them the primary
-///     column and the rail sit side by side from <see cref="RailBreakpoint" /> and stack below it. The page view
+///     column and the rail sit side by side from <see cref="RailBreakpoint" /> and stack below it, and under those the
+///     bottom sections sit two abreast, or stack with them. The page view
 ///     binds the grid ints here, the Match Overview split, so there is one subtree at every width.
 /// </summary>
 public sealed partial class PlayerOverviewPage : ObservableObject
@@ -28,7 +29,7 @@ public sealed partial class PlayerOverviewPage : ObservableObject
 
     /// <summary>True below <see cref="RailBreakpoint" />, or with nothing in the rail: one column.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PrimarySpan), nameof(RailColumn), nameof(RailRow), nameof(RailSpan))]
+    [NotifyPropertyChangedFor(nameof(PrimarySpan), nameof(RailColumn), nameof(RailRow), nameof(RailSpan), nameof(BottomColumns))]
     private bool _isStacked = true;
 
     /// <summary>
@@ -60,6 +61,7 @@ public sealed partial class PlayerOverviewPage : ObservableObject
         Top = [.. own.Where(s => s.Slot == SectionSlot.Top)];
         Primary = [.. own.Where(s => s.Slot == SectionSlot.Primary)];
         Rail = [.. own.Where(s => s.Slot == SectionSlot.Rail)];
+        Bottom = [.. own.Where(s => s.Slot == SectionSlot.Bottom)];
     }
 
     /// <summary>Which page.</summary>
@@ -79,8 +81,11 @@ public sealed partial class PlayerOverviewPage : ObservableObject
     /// <summary>The sections of the rail, in page order.</summary>
     public IReadOnlyList<PlayerOverviewSection> Rail { get; }
 
+    /// <summary>The sections under the columns, in page order.</summary>
+    public IReadOnlyList<PlayerOverviewSection> Bottom { get; }
+
     /// <summary>Every section on the page, in page order.</summary>
-    public IEnumerable<PlayerOverviewSection> Sections => Top.Concat(Primary).Concat(Rail);
+    public IEnumerable<PlayerOverviewSection> Sections => Top.Concat(Primary).Concat(Rail).Concat(Bottom);
 
     /// <summary>The primary column's star weight.</summary>
     public double PrimaryWeight { get; }
@@ -103,6 +108,9 @@ public sealed partial class PlayerOverviewPage : ObservableObject
     /// <summary>The rail's span.</summary>
     public int RailSpan => IsStacked ? 3 : 1;
 
+    /// <summary>How many bottom sections sit abreast: two beside each other while the columns do, else one.</summary>
+    public int BottomColumns => IsStacked || Bottom.Count < 2 ? 1 : 2;
+
     /// <summary>Sizes page-long lists for a page <paramref name="height" /> tall; zero (not measured yet) keeps the last.</summary>
     public void SetHeight(double height)
     {
@@ -113,5 +121,5 @@ public sealed partial class PlayerOverviewPage : ObservableObject
     }
 
     /// <summary>Lays the page out for <paramref name="width" />; zero (not measured yet) stacks.</summary>
-    public void SetWidth(double width) => IsStacked = Rail.Count == 0 || width < RailBreakpoint;
+    public void SetWidth(double width) => IsStacked = (Rail.Count == 0 && Bottom.Count < 2) || width < RailBreakpoint;
 }

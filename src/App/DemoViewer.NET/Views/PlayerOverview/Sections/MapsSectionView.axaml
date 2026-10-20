@@ -34,70 +34,75 @@
                            VerticalAlignment="Center" />
             </StackPanel>
 
-            <Grid Classes="mapRow" Margin="8 0" ColumnDefinitions="110,76,64,64,56,52,56,52,110,110,*">
-                <TextBlock Grid.Column="0" Classes="col-label" Text="MAP" />
-                <TextBlock Grid.Column="1" Classes="col-label" Text="RANK"
-                           ToolTip.Tip="The latest Competitive Skill Group on the map, over every demo of the player" />
-                <TextBlock Grid.Column="2" Classes="col-label num" Text="MATCHES" />
-                <TextBlock Grid.Column="3" Classes="col-label num" Text="W-L" ToolTip.Tip="Matches won and lost; ties after a second dash" />
-                <TextBlock Grid.Column="4" Classes="col-label num" Text="WIN%" />
-                <TextBlock Grid.Column="5" Classes="col-label num" Text="K/D" />
-                <TextBlock Grid.Column="6" Classes="col-label num" Text="ADR" />
-                <TextBlock Grid.Column="7" Classes="col-label num" Text="HLTV" />
-                <TextBlock Grid.Column="8" Classes="col-label num" Text="CT ROUNDS" ToolTip.Tip="Rounds won and lost on CT" />
-                <TextBlock Grid.Column="9" Classes="col-label num" Text="T ROUNDS" ToolTip.Tip="Rounds won and lost on T" />
-            </Grid>
+            <!-- Narrower than its columns, the tables scroll sideways rather than squeezing them. -->
+            <ScrollViewer x:Name="MapsScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="8" MinWidth="820">
+                    <Grid Classes="mapRow" Margin="8 0" ColumnDefinitions="110,76,64,64,56,52,56,52,110,110,*">
+                        <TextBlock Grid.Column="0" Classes="col-label" Text="MAP" />
+                        <TextBlock Grid.Column="1" Classes="col-label" Text="RANK"
+                                   ToolTip.Tip="The latest Competitive Skill Group on the map, over every demo of the player" />
+                        <TextBlock Grid.Column="2" Classes="col-label num" Text="MATCHES" />
+                        <TextBlock Grid.Column="3" Classes="col-label num" Text="W-L" ToolTip.Tip="Matches won and lost; ties after a second dash" />
+                        <TextBlock Grid.Column="4" Classes="col-label num" Text="WIN%" />
+                        <TextBlock Grid.Column="5" Classes="col-label num" Text="K/D" />
+                        <TextBlock Grid.Column="6" Classes="col-label num" Text="ADR" />
+                        <TextBlock Grid.Column="7" Classes="col-label num" Text="HLTV" />
+                        <TextBlock Grid.Column="8" Classes="col-label num" Text="CT ROUNDS" ToolTip.Tip="Rounds won and lost on CT" />
+                        <TextBlock Grid.Column="9" Classes="col-label num" Text="T ROUNDS" ToolTip.Tip="Rounds won and lost on T" />
+                    </Grid>
 
-            <ListBox x:Name="MapList" Classes="data-list" ItemsSource="{Binding Rows}"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="sections:MapRowItem">
-                        <Grid Classes="mapRow" Height="26" Background="Transparent"
-                              ColumnDefinitions="110,76,64,64,56,52,56,52,110,110,*">
-                            <TextBlock Grid.Column="0" Text="{Binding MapText}" />
-                            <ui:GameIcon Grid.Column="1" x:Name="MapRankBadge" Key="{Binding Rank.BadgeKey}" IconHeight="20"
-                                         HorizontalAlignment="Left" VerticalAlignment="Center"
-                                         IsVisible="{Binding HasRank}" ToolTip.Tip="{Binding Rank.Tooltip}" />
-                            <TextBlock Grid.Column="1" Text="–" IsVisible="{Binding !HasRank}"
-                                       Foreground="{DynamicResource TextDim}"
-                                       ToolTip.Tip="No Competitive match on this map" />
-                            <TextBlock Grid.Column="2" Classes="num" Text="{Binding MatchesText}" />
-                            <TextBlock Grid.Column="3" Classes="num" Text="{Binding RecordText}" />
-                            <TextBlock Grid.Column="4" Classes="num" Text="{Binding WinRateText}" />
-                            <TextBlock Grid.Column="5" Classes="num" Text="{Binding KdText}" />
-                            <TextBlock Grid.Column="6" Classes="num" Text="{Binding AdrText}" />
-                            <TextBlock Grid.Column="7" Classes="num" Text="{Binding HltvText}" />
-                            <TextBlock Grid.Column="8" Classes="num" Text="{Binding CtText}" />
-                            <TextBlock Grid.Column="9" Classes="num" Text="{Binding TText}" />
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                    <ListBox x:Name="MapList" Classes="data-list" ItemsSource="{Binding Rows}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="sections:MapRowItem">
+                                <Grid Classes="mapRow" Height="26" Background="Transparent"
+                                      ColumnDefinitions="110,76,64,64,56,52,56,52,110,110,*">
+                                    <TextBlock Grid.Column="0" Text="{Binding MapText}" />
+                                    <ui:GameIcon Grid.Column="1" x:Name="MapRankBadge" Key="{Binding Rank.BadgeKey}" IconHeight="20"
+                                                 HorizontalAlignment="Left" VerticalAlignment="Center"
+                                                 IsVisible="{Binding HasRank}" ToolTip.Tip="{Binding Rank.Tooltip}" />
+                                    <TextBlock Grid.Column="1" Text="–" IsVisible="{Binding !HasRank}"
+                                               Foreground="{DynamicResource TextDim}"
+                                               ToolTip.Tip="No Competitive match on this map" />
+                                    <TextBlock Grid.Column="2" Classes="num" Text="{Binding MatchesText}" />
+                                    <TextBlock Grid.Column="3" Classes="num" Text="{Binding RecordText}" />
+                                    <TextBlock Grid.Column="4" Classes="num" Text="{Binding WinRateText}" />
+                                    <TextBlock Grid.Column="5" Classes="num" Text="{Binding KdText}" />
+                                    <TextBlock Grid.Column="6" Classes="num" Text="{Binding AdrText}" />
+                                    <TextBlock Grid.Column="7" Classes="num" Text="{Binding HltvText}" />
+                                    <TextBlock Grid.Column="8" Classes="num" Text="{Binding CtText}" />
+                                    <TextBlock Grid.Column="9" Classes="num" Text="{Binding TText}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
 
-            <Grid Classes="mapRow" Margin="8 6 8 0" ColumnDefinitions="110,150,150,52,56,64,*">
-                <TextBlock Grid.Column="0" Classes="col-label" Text="SIDE" />
-                <TextBlock Grid.Column="1" Classes="col-label num" Text="ROUNDS" ToolTip.Tip="Rounds won and lost on the side" />
-                <TextBlock Grid.Column="2" Classes="col-label num" Text="OPENING DUELS"
-                           ToolTip.Tip="Opening kills and deaths on the side: the first kill of the round" />
-                <TextBlock Grid.Column="3" Classes="col-label num" Text="K/D" ToolTip.Tip="Kills over deaths on the side" />
-                <TextBlock Grid.Column="4" Classes="col-label num" Text="ADR" ToolTip.Tip="Damage per round played on the side" />
-                <TextBlock Grid.Column="5" Classes="col-label num" Text="KAST"
-                           ToolTip.Tip="Rounds on the side with a kill, an assist, survival or a trade" />
-            </Grid>
-            <ItemsControl ItemsSource="{Binding Sides}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="sections:SideSplitItem">
-                        <Grid Classes="mapRow" Margin="8 0" Height="24" ColumnDefinitions="110,150,150,52,56,64,*">
-                            <TextBlock Grid.Column="0" Text="{Binding Side}" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="1" Classes="num" Text="{Binding RoundsText}" />
-                            <TextBlock Grid.Column="2" Classes="num" Text="{Binding OpeningText}" />
-                            <TextBlock Grid.Column="3" Classes="num" Text="{Binding KdText}" />
-                            <TextBlock Grid.Column="4" Classes="num" Text="{Binding AdrText}" />
-                            <TextBlock Grid.Column="5" Classes="num" Text="{Binding KastText}" />
-                        </Grid>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                    <Grid Classes="mapRow" Margin="8 6 8 0" ColumnDefinitions="110,150,150,52,56,64,*">
+                        <TextBlock Grid.Column="0" Classes="col-label" Text="SIDE" />
+                        <TextBlock Grid.Column="1" Classes="col-label num" Text="ROUNDS" ToolTip.Tip="Rounds won and lost on the side" />
+                        <TextBlock Grid.Column="2" Classes="col-label num" Text="OPENING DUELS"
+                                   ToolTip.Tip="Opening kills and deaths on the side: the first kill of the round" />
+                        <TextBlock Grid.Column="3" Classes="col-label num" Text="K/D" ToolTip.Tip="Kills over deaths on the side" />
+                        <TextBlock Grid.Column="4" Classes="col-label num" Text="ADR" ToolTip.Tip="Damage per round played on the side" />
+                        <TextBlock Grid.Column="5" Classes="col-label num" Text="KAST"
+                                   ToolTip.Tip="Rounds on the side with a kill, an assist, survival or a trade" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Sides}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="sections:SideSplitItem">
+                                <Grid Classes="mapRow" Margin="8 0" Height="24" ColumnDefinitions="110,150,150,52,56,64,*">
+                                    <TextBlock Grid.Column="0" Text="{Binding Side}" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1" Classes="num" Text="{Binding RoundsText}" />
+                                    <TextBlock Grid.Column="2" Classes="num" Text="{Binding OpeningText}" />
+                                    <TextBlock Grid.Column="3" Classes="num" Text="{Binding KdText}" />
+                                    <TextBlock Grid.Column="4" Classes="num" Text="{Binding AdrText}" />
+                                    <TextBlock Grid.Column="5" Classes="num" Text="{Binding KastText}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
             <TextBlock Margin="8 0" FontSize="11" Foreground="{DynamicResource TextDim}" TextWrapping="Wrap"
                        Text="{Binding SideNote}" IsVisible="{Binding SideNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
         </StackPanel>

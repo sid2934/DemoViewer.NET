@@ -448,7 +448,11 @@ public class PlayerOverviewTabTests
             PlayerOverviewPage history = vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History);
             await Assert.That(window.GetVisualDescendants().OfType<HeaderSectionView>().Count()).IsEqualTo(1);
             await Assert.That(overview.IsStacked).IsFalse();
-            await Assert.That(history.IsStacked).IsTrue().Because("history's table needs the width before its rail sits beside it");
+            await Assert.That(history.IsStacked).IsTrue().Because("history's two tables need the width before they sit side by side");
+            await Assert.That(history.BottomColumns).IsEqualTo(1);
+            window.Width = 1600;
+            Dispatcher.UIThread.RunJobs();
+            await Assert.That((history.IsStacked, history.BottomColumns)).IsEqualTo((false, 2));
             window.Width = 700;
             Dispatcher.UIThread.RunJobs();
             await Assert.That(overview.IsStacked).IsTrue();
@@ -482,7 +486,9 @@ public class PlayerOverviewTabTests
             await Assert.That(vm.Persistent.Concat(placed).Select(s => s.Id)).IsEquivalentTo(vm.Sections.Select(s => s.Id), CollectionOrdering.Matching)
                 .Because("the registry lists the sections in page order");
             await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History).Sections.Select(s => s.Id))
-                .IsEquivalentTo(["maps", "history", "teammates", "headtohead"], CollectionOrdering.Matching);
+                .IsEquivalentTo(["history", "maps", "teammates", "headtohead"], CollectionOrdering.Matching);
+            await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History).Bottom.Select(s => s.Id))
+                .IsEquivalentTo(["teammates", "headtohead"], CollectionOrdering.Matching);
             await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.Achievements).Sections.Select(s => s.Id))
                 .IsEquivalentTo(["personal-bests", "highlights"], CollectionOrdering.Matching);
             await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History).Header).IsEqualTo("History · 2");

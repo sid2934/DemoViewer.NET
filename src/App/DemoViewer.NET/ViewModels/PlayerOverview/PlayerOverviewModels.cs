@@ -60,7 +60,10 @@ public enum SectionSlot
     Primary,
 
     /// <summary>The right rail; stacked under the primary column when the page is narrower than its rail needs.</summary>
-    Rail
+    Rail,
+
+    /// <summary>Under the columns, two abreast while the rail sits beside the primary column and stacked below.</summary>
+    Bottom
 }
 
 /// <summary>The tab's session blob: who was open, whether the user picked them, and which inner tab was showing.</summary>

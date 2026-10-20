@@ -113,11 +113,12 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         Filter = new PlayerOverviewFilterViewModel();
         Sections = PlayerOverviewSections.Create(services with { OpenPlayer = OpenPlayer }, Filter);
         Persistent = [.. Sections.Where(s => s.IsPersistent)];
-        // History's table needs about 900px of its own before Teammates and Head-to-head can sit beside it.
+        // History's two tables need about 1,850px between them; from 1,500 they sit side by side and scroll sideways
+        // until they fit.
         Pages =
         [
             new PlayerOverviewPage(PlayerOverviewPageKind.Overview, Sections),
-            new PlayerOverviewPage(PlayerOverviewPageKind.History, Sections, 3, 2, 1700),
+            new PlayerOverviewPage(PlayerOverviewPageKind.History, Sections, 8, 7, 1500),
             new PlayerOverviewPage(PlayerOverviewPageKind.Stats, Sections, 3, 2, 1300),
             new PlayerOverviewPage(PlayerOverviewPageKind.Achievements, Sections)
         ];

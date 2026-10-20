@@ -5,7 +5,8 @@
              x:DataType="vm:PlayerOverviewPage">
 
     <!--
-        One inner tab: the top sections across the page, then the primary column and the rail. Each page has its
+        One inner tab: the top sections across the page, then the primary column and the rail, then the bottom
+        sections two abreast. Each page has its
         own ScrollViewer so switching tabs keeps where each one was scrolled. The rail binds Grid.Row / Grid.Column
         / Grid.ColumnSpan to the page's ints; the star weights are set from the page in code-behind, since a
         ColumnDefinition is not in the tree a binding reaches.
@@ -38,6 +39,13 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
             </Grid>
+            <ItemsControl ItemsSource="{Binding Bottom}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="{Binding BottomColumns}" ColumnSpacing="20" RowSpacing="14" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

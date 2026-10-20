@@ -359,6 +359,65 @@ public class PlayerOverviewRankRenderTests
     }
 
     [Test]
+    public async Task HistoryPage_PutsMapsBesideTheHistory_ScrollingSidewaysUntilBothFit()
+    {
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            DemoCacheStore store = PlayerOverviewRankTests.Library();
+            PlayerDirectory directory = new(store, _ => true);
+            using IdentityService identity = new(new SettingsService((string?)null));
+            PlayerRankCache ranks = new(store, directory);
+            await ranks.LoadAsync(PlayerOverviewHistoryTests.Grim);
+            using PlayerOverviewTabViewModel vm = new(new PlayerOverviewServices(directory, identity, null,
+                _ => { }, _ => { }, (_, _) => { }, _ => { }, Ranks: ranks));
+            vm.OnActivated(null!);
+            vm.OpenPlayer(PlayerOverviewHistoryTests.Grim);
+            vm.ShowPage(PlayerOverviewPageKind.History);
+
+            Window window = new() { Width = 1600, Height = 900, Content = new PlayerOverviewTabView { DataContext = vm } };
+            window.Show();
+            Settle();
+            HistorySectionView history = window.GetVisualDescendants().OfType<HistorySectionView>().Single();
+            MapsSectionView maps = window.GetVisualDescendants().OfType<MapsSectionView>().Single();
+            ScrollViewer mapsScroll = maps.FindControl<ScrollViewer>("MapsScroll")!;
+            ScrollViewer historyScroll = history.FindControl<ScrollViewer>("HistoryScroll")!;
+            double mapsLeft = maps.TranslatePoint(new Point(0, 0), window)!.Value.X;
+            double historyRight = history.TranslatePoint(new Point(history.Bounds.Width, 0), window)!.Value.X;
+            double tops = Math.Abs(maps.TranslatePoint(new Point(0, 0), window)!.Value.Y - history.TranslatePoint(new Point(0, 0), window)!.Value.Y);
+            using (Assert.Multiple())
+            {
+                await Assert.That(mapsLeft).IsGreaterThan(historyRight).Because("maps sits to the right of the history");
+                await Assert.That(tops).IsLessThan(1.0).Because("both start at the top of the page");
+                await Assert.That(mapsScroll.Extent.Width).IsGreaterThan(mapsScroll.Viewport.Width).Because("at 1,600 px the maps table scrolls");
+            }
+
+            window.Width = 2560;
+            Settle();
+            using (Assert.Multiple())
+            {
+                await Assert.That(mapsScroll.Extent.Width).IsLessThanOrEqualTo(mapsScroll.Viewport.Width + 0.5);
+                await Assert.That(historyScroll.Extent.Width).IsLessThanOrEqualTo(historyScroll.Viewport.Width + 0.5);
+                await Assert.That(historyScroll.Viewport.Width).IsGreaterThan(940.0).Because("with room, the table stretches rather than sitting at its minimum");
+            }
+
+            window.Width = 1200;
+            Settle();
+            await Assert.That(maps.TranslatePoint(new Point(0, 0), window)!.Value.Y)
+                .IsGreaterThan(history.TranslatePoint(new Point(0, history.Bounds.Height), window)!.Value.Y - 0.5)
+                .Because("narrow, maps stacks under the history");
+
+            window.Close();
+
+            static void Settle()
+            {
+                Dispatcher.UIThread.RunJobs();
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                Dispatcher.UIThread.RunJobs();
+            }
+        });
+    }
+
+    [Test]
     public async Task MapRankBadges_LineUpInTheirOwnColumn()
     {
         await HeadlessSession.RunOnUi(async () =>

@@ -18,8 +18,8 @@ public static class PlayerOverviewSections
         new TrendsSectionViewModel(),
         new RankSectionViewModel(),
 
-        new MapsSectionViewModel(),
         new HistorySectionViewModel(services),
+        new MapsSectionViewModel(),
         new TeammatesSectionViewModel(services),
         new HeadToHeadSectionViewModel(services),
 

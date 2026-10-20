@@ -41,7 +41,7 @@ public sealed partial class MapsSectionViewModel : PlayerOverviewSection
     public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.History;
 
     /// <inheritdoc />
-    public override SectionSlot Slot => SectionSlot.Top;
+    public override SectionSlot Slot => SectionSlot.Rail;
 
     /// <inheritdoc />
     public override void Update(PlayerOverviewContext context)

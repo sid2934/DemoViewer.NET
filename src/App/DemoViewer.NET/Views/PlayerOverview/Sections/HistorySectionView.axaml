@@ -58,77 +58,82 @@
                            VerticalAlignment="Center" />
             </StackPanel>
 
-            <Grid Classes="historyRow" Margin="8 0" ColumnDefinitions="164,96,96,52,30,72,78,52,44,56,46,42,*">
-                <TextBlock Grid.Column="0" Classes="col-label" Text="DATE" />
-                <TextBlock Grid.Column="1" Classes="col-label" Text="MAP" />
-                <TextBlock Grid.Column="2" Classes="col-label" Text="MODE" />
-                <TextBlock Grid.Column="3" Classes="col-label" Text="SCORE" />
-                <TextBlock Grid.Column="4" Classes="col-label" Text="W/L" />
-                <TextBlock Grid.Column="5" Classes="col-label" Text="SIDE" ToolTip.Tip="The side at the end of the match" />
-                <TextBlock Grid.Column="6" Classes="col-label num" Text="K-D-A" />
-                <TextBlock Grid.Column="7" Classes="col-label num" Text="ADR" />
-                <TextBlock Grid.Column="8" Classes="col-label num" Text="HS%" />
-                <TextBlock Grid.Column="9" Classes="col-label num" Text="KAST" />
-                <TextBlock Grid.Column="10" Classes="col-label num" Text="HLTV" />
-                <TextBlock Grid.Column="11" Classes="col-label num" Text="RANK" ToolTip.Tip="Rank change in the match" />
-            </Grid>
+            <!-- Narrower than its columns, the table scrolls sideways rather than squeezing them. -->
+            <ScrollViewer x:Name="HistoryScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="8" MinWidth="940">
+                    <Grid Classes="historyRow" Margin="8 0" ColumnDefinitions="164,96,96,52,30,72,78,52,44,56,46,42,*">
+                        <TextBlock Grid.Column="0" Classes="col-label" Text="DATE" />
+                        <TextBlock Grid.Column="1" Classes="col-label" Text="MAP" />
+                        <TextBlock Grid.Column="2" Classes="col-label" Text="MODE" />
+                        <TextBlock Grid.Column="3" Classes="col-label" Text="SCORE" />
+                        <TextBlock Grid.Column="4" Classes="col-label" Text="W/L" />
+                        <TextBlock Grid.Column="5" Classes="col-label" Text="SIDE" ToolTip.Tip="The side at the end of the match" />
+                        <TextBlock Grid.Column="6" Classes="col-label num" Text="K-D-A" />
+                        <TextBlock Grid.Column="7" Classes="col-label num" Text="ADR" />
+                        <TextBlock Grid.Column="8" Classes="col-label num" Text="HS%" />
+                        <TextBlock Grid.Column="9" Classes="col-label num" Text="KAST" />
+                        <TextBlock Grid.Column="10" Classes="col-label num" Text="HLTV" />
+                        <TextBlock Grid.Column="11" Classes="col-label num" Text="RANK" ToolTip.Tip="Rank change in the match" />
+                    </Grid>
 
-            <ListBox x:Name="HistoryList" Classes="data-list" ItemsSource="{Binding Rows}"
-                     MaxHeight="{Binding $parent[poViews:PlayerOverviewPageView].((po:PlayerOverviewPage)DataContext).ListMaxHeight, FallbackValue=520}"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <VirtualizingStackPanel />
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="sections:HistoryRowItem">
-                        <Grid Classes="historyRow" Height="26" Background="Transparent"
-                              ColumnDefinitions="164,96,96,52,30,72,78,52,44,56,46,42,*">
-                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="{Binding DateText}" FontSize="12" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextValue}" />
-                                <Border Classes="badge historyChip" ToolTip.Tip="{Binding TimeTip}">
-                                    <TextBlock Text="{Binding TimeChip}" />
-                                </Border>
-                            </StackPanel>
-                            <TextBlock Grid.Column="1" Text="{Binding MapText}" />
-                            <TextBlock Grid.Column="2" Text="{Binding ModeText}" Foreground="{DynamicResource TextMid}" />
-                            <TextBlock Grid.Column="3" Classes="num" Text="{Binding ScoreText}" TextAlignment="Left" />
-                            <TextBlock Grid.Column="4" Text="{Binding ResultText}" FontWeight="SemiBold"
-                                       Classes.win="{Binding IsWin}" Classes.loss="{Binding IsLoss}" />
-                            <TextBlock Grid.Column="5" Text="{Binding SideText}" IsVisible="{Binding ShowSide}" />
-                            <Border Grid.Column="5" Classes="badge historyChip" IsVisible="{Binding LeftEarly}"
-                                    HorizontalAlignment="Left"
-                                    ToolTip.Tip="Ended the match as a spectator or on an abandoned slot">
-                                <TextBlock Text="left early" />
-                            </Border>
-                            <TextBlock Grid.Column="6" Classes="num" Text="{Binding KdaText}" IsVisible="{Binding HasStats}" />
-                            <TextBlock Grid.Column="7" Classes="num" Text="{Binding AdrText}" IsVisible="{Binding HasStats}" />
-                            <TextBlock Grid.Column="8" Classes="num" Text="{Binding HsText}" IsVisible="{Binding HasStats}" />
-                            <TextBlock Grid.Column="9" Classes="num" Text="{Binding KastText}" IsVisible="{Binding HasStats}" />
-                            <TextBlock Grid.Column="10" Classes="num" Text="{Binding HltvText}" IsVisible="{Binding HasStats}" />
-                            <TextBlock Grid.Column="6" Grid.ColumnSpan="5" Classes="note" TextAlignment="Center" Text="{Binding StatsNote}"
-                                       IsVisible="{Binding !HasStats}" />
-                            <TextBlock Grid.Column="11" Classes="num rank" Text="{Binding RankChangeText}"
-                                       Classes.win="{Binding IsRankUp}" Classes.loss="{Binding IsRankDown}"
-                                       ToolTip.Tip="{Binding RankTip}" />
-                            <StackPanel Grid.Column="12" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
-                                <TextBlock Text="file missing" FontSize="11" VerticalAlignment="Center"
-                                           Foreground="{DynamicResource StatNegative}" IsVisible="{Binding IsFileMissing}" />
-                                <Button Classes="ghost chip" Content="Open" IsVisible="{Binding !IsFileMissing}"
-                                        ToolTip.Tip="Open this demo"
-                                        Command="{Binding $parent[ListBox].((sections:HistorySectionViewModel)DataContext).OpenDemoCommand}"
-                                        CommandParameter="{Binding}" />
-                                <Button Classes="ghost chip" Content="Stats" IsVisible="{Binding !IsFileMissing}"
-                                        ToolTip.Tip="Open this demo with the player shown in Stats"
-                                        Command="{Binding $parent[ListBox].((sections:HistorySectionViewModel)DataContext).FocusInStatsCommand}"
-                                        CommandParameter="{Binding}" />
-                            </StackPanel>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                    <ListBox x:Name="HistoryList" Classes="data-list" ItemsSource="{Binding Rows}"
+                             MaxHeight="{Binding $parent[poViews:PlayerOverviewPageView].((po:PlayerOverviewPage)DataContext).ListMaxHeight, FallbackValue=520}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="sections:HistoryRowItem">
+                                <Grid Classes="historyRow" Height="26" Background="Transparent"
+                                      ColumnDefinitions="164,96,96,52,30,72,78,52,44,56,46,42,*">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding DateText}" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextValue}" />
+                                        <Border Classes="badge historyChip" ToolTip.Tip="{Binding TimeTip}">
+                                            <TextBlock Text="{Binding TimeChip}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding MapText}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding ModeText}" Foreground="{DynamicResource TextMid}" />
+                                    <TextBlock Grid.Column="3" Classes="num" Text="{Binding ScoreText}" TextAlignment="Left" />
+                                    <TextBlock Grid.Column="4" Text="{Binding ResultText}" FontWeight="SemiBold"
+                                               Classes.win="{Binding IsWin}" Classes.loss="{Binding IsLoss}" />
+                                    <TextBlock Grid.Column="5" Text="{Binding SideText}" IsVisible="{Binding ShowSide}" />
+                                    <Border Grid.Column="5" Classes="badge historyChip" IsVisible="{Binding LeftEarly}"
+                                            HorizontalAlignment="Left"
+                                            ToolTip.Tip="Ended the match as a spectator or on an abandoned slot">
+                                        <TextBlock Text="left early" />
+                                    </Border>
+                                    <TextBlock Grid.Column="6" Classes="num" Text="{Binding KdaText}" IsVisible="{Binding HasStats}" />
+                                    <TextBlock Grid.Column="7" Classes="num" Text="{Binding AdrText}" IsVisible="{Binding HasStats}" />
+                                    <TextBlock Grid.Column="8" Classes="num" Text="{Binding HsText}" IsVisible="{Binding HasStats}" />
+                                    <TextBlock Grid.Column="9" Classes="num" Text="{Binding KastText}" IsVisible="{Binding HasStats}" />
+                                    <TextBlock Grid.Column="10" Classes="num" Text="{Binding HltvText}" IsVisible="{Binding HasStats}" />
+                                    <TextBlock Grid.Column="6" Grid.ColumnSpan="5" Classes="note" TextAlignment="Center" Text="{Binding StatsNote}"
+                                               IsVisible="{Binding !HasStats}" />
+                                    <TextBlock Grid.Column="11" Classes="num rank" Text="{Binding RankChangeText}"
+                                               Classes.win="{Binding IsRankUp}" Classes.loss="{Binding IsRankDown}"
+                                               ToolTip.Tip="{Binding RankTip}" />
+                                    <StackPanel Grid.Column="12" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                                        <TextBlock Text="file missing" FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource StatNegative}" IsVisible="{Binding IsFileMissing}" />
+                                        <Button Classes="ghost chip" Content="Open" IsVisible="{Binding !IsFileMissing}"
+                                                ToolTip.Tip="Open this demo"
+                                                Command="{Binding $parent[ListBox].((sections:HistorySectionViewModel)DataContext).OpenDemoCommand}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Classes="ghost chip" Content="Stats" IsVisible="{Binding !IsFileMissing}"
+                                                ToolTip.Tip="Open this demo with the player shown in Stats"
+                                                Command="{Binding $parent[ListBox].((sections:HistorySectionViewModel)DataContext).FocusInStatsCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </ScrollViewer>
         </StackPanel>
     </Border>
 </UserControl>
