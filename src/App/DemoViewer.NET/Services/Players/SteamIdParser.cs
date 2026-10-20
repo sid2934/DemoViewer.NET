@@ -66,7 +66,16 @@ public static partial class SteamIdParser
                 return new SteamIdParse(SteamIdForm.VanityUrl, null, Uri.UnescapeDataString(value));
             }
 
-            return IsSteamId64(value, out ulong profile) ? new SteamIdParse(SteamIdForm.ProfileUrl, profile) : null;
+            // Steam serves a profile under its SteamID64 and under its [U:1:n] too.
+            if (IsSteamId64(value, out ulong profile))
+            {
+                return new SteamIdParse(SteamIdForm.ProfileUrl, profile);
+            }
+
+            return SteamId3Pattern().Match(value) is { Success: true } inUrl
+                   && FromAccountId(inUrl.Groups["n"].Value, SteamIdForm.ProfileUrl) is { } parsed
+                ? parsed
+                : null;
         }
 
         if (SteamId3Pattern().Match(input) is { Success: true } id3)
@@ -88,6 +97,10 @@ public static partial class SteamIdParser
 
         return input.All(char.IsAsciiDigit) ? FromAccountId(input, SteamIdForm.AccountId) : null;
     }
+
+    /// <summary>True for an individual account in the public universe: account ids 1 to 2^32 - 1.</summary>
+    /// <param name="steamId64">The account.</param>
+    public static bool IsIndividual(ulong steamId64) => steamId64 > IndividualBase && steamId64 - IndividualBase <= uint.MaxValue;
 
     private static SteamIdParse? FromAccountId(string digits, SteamIdForm form) =>
         ulong.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out ulong account) && account is > 0 and <= uint.MaxValue

@@ -3,7 +3,6 @@
 using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services.Players;
 using Microsoft.Extensions.Primitives;
@@ -41,13 +40,10 @@ public sealed record AccountInput(string? SteamId64, bool FromAccountId, string?
 ///         edit made elsewhere (the file watcher's threadpool thread).
 ///     </para>
 /// </summary>
-public sealed partial class IdentityService : IDisposable
+public sealed class IdentityService : IDisposable
 {
     /// <summary>The fewest demos holding any account before a suggestion is made.</summary>
     public const int SuggestionMinDemos = 20;
-
-    // An individual account's SteamID64 is this plus its 32-bit account id.
-    private const ulong IndividualBase = 76561197960265728UL;
 
     private readonly PlayerDirectory? _directory;
     private readonly object _gate = new();
@@ -179,9 +175,10 @@ public sealed partial class IdentityService : IDisposable
     }
 
     /// <summary>
-    ///     Reads an account from what the user typed: a SteamID64, a <c>steamcommunity.com/profiles/</c> link,
-    ///     <c>[U:1:n]</c>, <c>STEAM_X:Y:Z</c>, or a bare account id, which is read as an individual account and
-    ///     flagged. A <c>/id/</c> vanity link needs a lookup this app does not make offline.
+    ///     Reads an account from what the user typed, through <see cref="SteamIdParser" />: a SteamID64, a
+    ///     <c>steamcommunity.com/profiles/</c> link, <c>[U:1:n]</c>, <c>STEAM_X:Y:Z</c>, or a bare account id, which is
+    ///     read as an individual account and flagged. Only an individual account is one of the user's. A <c>/id/</c>
+    ///     vanity link needs a lookup this app does not make offline.
     /// </summary>
     /// <param name="text">What the user typed.</param>
     public static AccountInput ParseAccount(string? text)
@@ -192,45 +189,15 @@ public sealed partial class IdentityService : IDisposable
             return new AccountInput(null, false, "Enter a SteamID64, a profile link, [U:1:n] or STEAM_X:Y:Z.");
         }
 
-        if (ProfileLink().Match(input) is { Success: true } link)
+        return SteamIdParser.Parse(input) switch
         {
-            if (string.Equals(link.Groups["kind"].Value, "id", StringComparison.OrdinalIgnoreCase))
-            {
-                return new AccountInput(null, false,
-                    "A custom profile link needs the Online Connectivity extension to look up; paste the /profiles/ link or the SteamID instead.");
-            }
-
-            input = link.Groups["value"].Value;
-        }
-
-        if (SteamId3().Match(input) is { Success: true } id3)
-        {
-            return FromAccountId(id3.Groups[1].Value, false);
-        }
-
-        if (SteamId2().Match(input) is { Success: true } id2
-            && ulong.TryParse(id2.Groups[2].Value, NumberStyles.None, CultureInfo.InvariantCulture, out ulong half)
-            && half <= uint.MaxValue / 2)
-        {
-            return Of(IndividualBase + half * 2 + (id2.Groups[1].Value == "1" ? 1UL : 0UL), false);
-        }
-
-        if (ulong.TryParse(input, NumberStyles.None, CultureInfo.InvariantCulture, out ulong number))
-        {
-            return number <= uint.MaxValue ? FromAccountId(input, true) : Of(number, false);
-        }
-
-        return new AccountInput(null, false, $"\"{input}\" is not a SteamID.");
-
-        static AccountInput FromAccountId(string digits, bool flagged) =>
-            ulong.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out ulong accountId) && accountId <= uint.MaxValue
-                ? Of(IndividualBase + accountId, flagged)
-                : new AccountInput(null, false, "That account id is out of range.");
-
-        static AccountInput Of(ulong id, bool flagged) =>
-            IsIndividual(id)
-                ? new AccountInput(id.ToString(CultureInfo.InvariantCulture), flagged, null)
-                : new AccountInput(null, false, "That number is not an individual account's SteamID64.");
+            { Form: SteamIdForm.VanityUrl } => new AccountInput(null, false,
+                "A custom profile link needs the Online Connectivity extension to look up; paste the /profiles/ link or the SteamID instead."),
+            { SteamId64: { } id } parse when SteamIdParser.IsIndividual(id) =>
+                new AccountInput(id.ToString(CultureInfo.InvariantCulture), parse.IsFlagged, null),
+            _ when input.All(char.IsAsciiDigit) => new AccountInput(null, false, "That number is not an individual account's SteamID64."),
+            _ => new AccountInput(null, false, $"\"{input}\" is not a SteamID.")
+        };
     }
 
     /// <summary>
@@ -320,8 +287,6 @@ public sealed partial class IdentityService : IDisposable
     private static bool IsSteamId64(string? id) =>
         ulong.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out ulong value) && value != 0
                                                                                            && value.ToString(CultureInfo.InvariantCulture) == id;
-
-    private static bool IsIndividual(ulong id) => id > IndividualBase && id - IndividualBase <= uint.MaxValue;
 
     private static string? ActiveOf(List<IdentityAccount> accounts, string? active) =>
         accounts.Any(a => string.Equals(a.SteamId64, active, StringComparison.Ordinal)) ? active : accounts.Count > 0 ? accounts[0].SteamId64 : null;
@@ -414,15 +379,6 @@ public sealed partial class IdentityService : IDisposable
 
         _post(() => Changed?.Invoke());
     }
-
-    [GeneratedRegex(@"^(?:https?://)?(?:www\.)?steamcommunity\.com/(?<kind>profiles|id)/(?<value>[^/?#\s]+)/?(?:[?#].*)?$", RegexOptions.IgnoreCase)]
-    private static partial Regex ProfileLink();
-
-    [GeneratedRegex(@"^\[U:1:(\d+)\]$", RegexOptions.IgnoreCase)]
-    private static partial Regex SteamId3();
-
-    [GeneratedRegex(@"^STEAM_[0-5]:([01]):(\d+)$", RegexOptions.IgnoreCase)]
-    private static partial Regex SteamId2();
 
     private sealed record State(List<IdentityAccount> Accounts, string? Active, List<string> Dismissed)
     {
