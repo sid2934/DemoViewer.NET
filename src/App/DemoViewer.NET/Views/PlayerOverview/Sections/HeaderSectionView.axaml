@@ -1,47 +1,110 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.HeaderSectionView"
              x:DataType="sections:HeaderSectionViewModel"
              IsVisible="{Binding IsVisible}">
 
     <!--
-        A compact strip above the inner tabs, so it costs every page little height. The profile address is plain
-        text to copy: the app is offline and opens nothing on the web.
+        The name card above the inner tabs: avatar, name and identity, then the latest Premier and Competitive ranks
+        beside the name, and the Me actions on the right. The avatar shows the name's initials until an online
+        extension can fetch the Steam picture into the same slot. The profile address is plain text to copy: the app
+        is offline and opens nothing on the web.
     -->
-    <Border Classes="card" Padding="16 10">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.meta">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="TextBlock.up">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="TextBlock.down">
+            <Setter Property="Foreground" Value="{DynamicResource StatNegative}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="0" ClipToBounds="True">
         <DockPanel>
-            <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
-                <Button Classes="ghost chip" Content="Set as me" x:Name="SetAsMeButton"
-                        IsVisible="{Binding CanSetAsMe}" Command="{Binding SetAsMeCommand}"
-                        ToolTip.Tip="Add this account to the accounts that are yours" />
-                <Button Classes="ghost chip" Content="Set active" x:Name="SetActiveButton"
-                        IsVisible="{Binding CanSetActive}" Command="{Binding SetActiveCommand}"
-                        ToolTip.Tip="Use this account for your own stats" />
-            </StackPanel>
-            <StackPanel Spacing="3">
-                <WrapPanel Orientation="Horizontal">
-                    <TextBlock Text="{Binding Name}" FontSize="19" FontWeight="SemiBold" Margin="0 0 10 0"
-                               Foreground="{DynamicResource TextCardHeader}" TextTrimming="CharacterEllipsis" />
-                    <Border Classes="badge" IsVisible="{Binding IsMine}" VerticalAlignment="Center" Margin="0 0 14 0">
-                        <TextBlock Text="YOU" FontSize="10" FontWeight="SemiBold" FontFamily="Consolas,Menlo,monospace" />
-                    </Border>
-                    <SelectableTextBlock Classes="mono" Text="{Binding SteamId64}" FontSize="12" VerticalAlignment="Center"
-                                         Foreground="{DynamicResource TextMid}" />
-                    <Button Classes="ghost chip" Content="Copy" Margin="6 0 16 0" Click="OnCopySteamIdClick"
-                            VerticalAlignment="Center" AutomationProperties.Name="Copy SteamID64" />
-                    <TextBlock Text="{Binding DemoCountText}" FontSize="12" Margin="0 0 14 0" VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextMid}" />
-                    <TextBlock Text="{Binding SeenText}" FontSize="12" VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextMid}" />
-                </WrapPanel>
-                <WrapPanel Orientation="Horizontal">
-                    <SelectableTextBlock Classes="mono" Text="{Binding ProfileUrl}" FontSize="11.5" Margin="0 0 16 0"
+            <Border DockPanel.Dock="Top" Height="3" Background="{DynamicResource AccentInteractive}" />
+            <Grid Margin="18 14" ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="20">
+
+                <!-- The Steam avatar's slot. -->
+                <Border x:Name="AvatarPlaceholder" Width="64" Height="64" CornerRadius="14" VerticalAlignment="Center"
+                        Background="{DynamicResource PanelHeaderBg}" BorderBrush="{DynamicResource BorderAccent}"
+                        BorderThickness="1" ToolTip.Tip="The Steam avatar shows here once an online extension can fetch it">
+                    <TextBlock Text="{Binding Initials}" FontSize="22" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextBright}" />
+                </Border>
+
+                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center" MaxWidth="460">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock Text="{Binding Name}" FontSize="22" FontWeight="SemiBold" MaxWidth="400"
+                                   Foreground="{DynamicResource TextCardHeader}" TextTrimming="CharacterEllipsis"
+                                   ToolTip.Tip="{Binding Name}" />
+                        <Border Classes="badge" IsVisible="{Binding IsMine}" VerticalAlignment="Center">
+                            <TextBlock Text="YOU" FontSize="10" FontWeight="SemiBold" FontFamily="Consolas,Menlo,monospace" />
+                        </Border>
+                    </StackPanel>
+                    <WrapPanel Orientation="Horizontal">
+                        <SelectableTextBlock Classes="mono" Text="{Binding SteamId64}" FontSize="12" VerticalAlignment="Center"
+                                             Foreground="{DynamicResource TextMid}" />
+                        <Button Classes="ghost chip" Content="Copy" Margin="6 0 14 0" Click="OnCopySteamIdClick"
+                                VerticalAlignment="Center" AutomationProperties.Name="Copy SteamID64" />
+                        <TextBlock Classes="meta" Text="{Binding DemoCountText}" Margin="0 0 12 0" />
+                        <TextBlock Classes="meta" Text="{Binding SeenText}" />
+                    </WrapPanel>
+                    <SelectableTextBlock Classes="mono" Text="{Binding ProfileUrl}" FontSize="11"
                                          Foreground="{DynamicResource TextDim}" />
                     <TextBlock Text="{Binding Aliases}" IsVisible="{Binding HasAliases}" FontSize="11.5"
                                Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
-                </WrapPanel>
-            </StackPanel>
+                </StackPanel>
+
+                <!-- The latest standing of each rank system, over every demo of the player. -->
+                <ItemsControl Grid.Column="2" x:Name="RankChips" ItemsSource="{Binding Ranks}" IsVisible="{Binding HasRanks}"
+                              VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" ItemSpacing="10" LineSpacing="8" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="sections:RankCardItem">
+                            <Border CornerRadius="10" Padding="10 6 14 6" Background="{DynamicResource PanelHeaderBg}"
+                                    BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="1"
+                                    ToolTip.Tip="{Binding Tooltip}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <ui:GameIcon Key="{Binding BadgeKey}" IconHeight="30" VerticalAlignment="Center" />
+                                    <StackPanel Spacing="0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}" FontSize="9.5" FontWeight="SemiBold"
+                                                   FontFamily="Consolas,Menlo,monospace" Foreground="{DynamicResource TextMid}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="{Binding ValueText}" FontSize="15" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextValue}" />
+                                            <TextBlock Text="{Binding ChangeText}" FontSize="11" VerticalAlignment="Center"
+                                                       FontFamily="Consolas,Menlo,monospace"
+                                                       Classes.up="{Binding IsUp}" Classes.down="{Binding IsDown}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Grid.Column="3" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="ghost chip" Content="Set as me" x:Name="SetAsMeButton"
+                            IsVisible="{Binding CanSetAsMe}" Command="{Binding SetAsMeCommand}"
+                            ToolTip.Tip="Add this account to the accounts that are yours" />
+                    <Button Classes="ghost chip" Content="Set active" x:Name="SetActiveButton"
+                            IsVisible="{Binding CanSetActive}" Command="{Binding SetActiveCommand}"
+                            ToolTip.Tip="Use this account for your own stats" />
+                </StackPanel>
+            </Grid>
         </DockPanel>
     </Border>
 </UserControl>

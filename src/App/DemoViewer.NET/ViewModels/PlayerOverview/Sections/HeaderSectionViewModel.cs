@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Services.Identity;
@@ -13,7 +14,9 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 /// <summary>
 ///     Who the page is about: the subject's latest name and the others it played under, its SteamID64 and Steam
 ///     profile address, how many demos hold it and when it was first and last seen, and whether it is the user,
-///     with the action that makes it one of the user's accounts or the active one.
+///     with the action that makes it one of the user's accounts or the active one. Beside the name, the latest
+///     Premier rating and Competitive Skill Group over every demo of the subject. The avatar is a placeholder with
+///     the name's initials until an online extension can fetch the Steam picture.
 /// </summary>
 public sealed partial class HeaderSectionViewModel : PlayerOverviewSection
 {
@@ -39,7 +42,14 @@ public sealed partial class HeaderSectionViewModel : PlayerOverviewSection
     private bool _isMine;
 
     [ObservableProperty]
+    private string _initials = "";
+
+    [ObservableProperty]
     private string _name = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasRanks))]
+    private IReadOnlyList<RankCardItem> _ranks = [];
 
     [ObservableProperty]
     private string _profileUrl = "";
@@ -65,6 +75,10 @@ public sealed partial class HeaderSectionViewModel : PlayerOverviewSection
     /// <summary>True when there is an alias line.</summary>
     public bool HasAliases => Aliases.Length > 0;
 
+    /// <summary>True when the card shows a rank.</summary>
+    public bool HasRanks => Ranks.Count > 0;
+
+
     /// <inheritdoc />
     public override void Update(PlayerOverviewContext context)
     {
@@ -77,6 +91,7 @@ public sealed partial class HeaderSectionViewModel : PlayerOverviewSection
 
         string id = player.SteamId64.ToString(CultureInfo.InvariantCulture);
         Name = player.Name.Length > 0 ? DisplayText.Sanitize(player.Name) : "Unnamed player";
+        Initials = InitialsOf(DisplayText.Sanitize(player.Name));
         Aliases = AliasLine(player.Aliases);
         SteamId64 = id;
         ProfileUrl = "https://steamcommunity.com/profiles/" + id;
@@ -84,6 +99,7 @@ public sealed partial class HeaderSectionViewModel : PlayerOverviewSection
         SeenText = player.FirstSeenTicks == player.LastSeenTicks
             ? "seen " + DateOf(player.LastSeenTicks)
             : $"first seen {DateOf(player.FirstSeenTicks)} · last seen {DateOf(player.LastSeenTicks)}";
+        Ranks = context.Ranks is { } ranks ? RankSectionViewModel.Latest(context.Matches, ranks) : [];
         IsMine = context.IsMine;
         CanSetAsMe = !context.IsMine;
         CanSetActive = context.IsMine && !string.Equals(_services.Identity.ActiveSteamId64, id, StringComparison.Ordinal);
@@ -101,6 +117,32 @@ public sealed partial class HeaderSectionViewModel : PlayerOverviewSection
         string shown = string.Join(", ", aliases.Skip(1).Take(AliasesShown).Select(a => DisplayText.Sanitize(a.Name)));
         int more = aliases.Count - 1 - AliasesShown;
         return more > 0 ? string.Create(CultureInfo.InvariantCulture, $"also {shown} and {more} more") : "also " + shown;
+    }
+
+    // The first letter or digit of each of the first two words; "?" for a name with none.
+    internal static string InitialsOf(string name)
+    {
+        StringBuilder letters = new();
+        int taken = 0;
+        foreach (string word in name.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            foreach (Rune rune in word.EnumerateRunes())
+            {
+                if (Rune.IsLetterOrDigit(rune))
+                {
+                    letters.Append(Rune.ToUpperInvariant(rune).ToString());
+                    taken++;
+                    break;
+                }
+            }
+
+            if (taken == 2)
+            {
+                break;
+            }
+        }
+
+        return taken > 0 ? letters.ToString() : "?";
     }
 
     private static string DateOf(long ticks) =>

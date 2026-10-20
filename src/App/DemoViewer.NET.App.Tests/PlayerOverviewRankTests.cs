@@ -106,6 +106,7 @@ public class PlayerOverviewRankTests
         public RankSectionViewModel Rank => Tab.Sections.OfType<RankSectionViewModel>().Single();
         public HistorySectionViewModel History => Tab.Sections.OfType<HistorySectionViewModel>().Single();
         public MapsSectionViewModel Maps => Tab.Sections.OfType<MapsSectionViewModel>().Single();
+        public HeaderSectionViewModel Header => Tab.Sections.OfType<HeaderSectionViewModel>().Single();
 
         public Task Settled() => Tab.Loading;
 
@@ -119,7 +120,7 @@ public class PlayerOverviewRankTests
     }
 
     [Test]
-    public async Task Cards_ShowTheLatestPremierRating_AndTheHighestCompetitive()
+    public async Task Charts_OnePerRankSystem_PremierFirst()
     {
         using Shell shell = new(Library());
         await shell.Settled();
@@ -129,41 +130,59 @@ public class PlayerOverviewRankTests
         {
             await Assert.That(rank.IsVisible).IsTrue();
             await Assert.That(rank.Slot).IsEqualTo(SectionSlot.Rail);
-            await Assert.That(rank.Cards.Select(c => c.Title))
-                .IsEquivalentTo(["Premier rating", "Highest Competitive"], CollectionOrdering.Matching);
+            await Assert.That(rank.Charts.Select(c => c.Title)).IsEquivalentTo(["Premier", "Competitive"], CollectionOrdering.Matching);
         }
     }
 
     [Test]
-    public async Task PremierCard_IsTheLatestMatch_WithItsBadgeAndChange()
+    public async Task PremierChart_IsABarPerMatch_OldestFirst_OnAFloorUnderTheLowest()
     {
         using Shell shell = new(Library());
         await shell.Settled();
-        RankCardItem premier = shell.Rank.Cards[0];
+        RankChartItem premier = shell.Rank.Charts[0];
 
         using (Assert.Multiple())
         {
-            await Assert.That(premier.ValueText).IsEqualTo("14,350");
-            await Assert.That((premier.ChangeText, premier.IsUp, premier.IsDown)).IsEqualTo(("+250", true, false));
-            await Assert.That(premier.BadgeKey).IsEqualTo(GameIcons.IconCatalogue.PremierEmblem(14350)!.Key);
-            await Assert.That(premier.CaptionText).EndsWith("Inferno");
-            await Assert.That(premier.Tooltip).IsEqualTo("Premier 14,100 → 14,350 (+250)");
+            await Assert.That(premier.Values).IsEquivalentTo([14189.0, 14100.0, 14350.0], CollectionOrdering.Matching);
+            await Assert.That((premier.Minimum, premier.Maximum)).IsEqualTo((13000.0, (double?) null));
+            await Assert.That(premier.SummaryText).IsEqualTo("3 matches · latest 14,350 · peak 14,350 · +161");
+            await Assert.That(premier.PointTips[0]).EndsWith("Nuke · Premier 14,000 → 14,189 (+189)");
         }
     }
 
     [Test]
-    public async Task CompetitiveCard_IsTheBestSkillGroupOnAnyMap_WithoutAChange()
+    public async Task CompetitiveChart_SpansEveryMap_OnTheSkillGroupScale()
     {
         using Shell shell = new(Library());
         await shell.Settled();
-        RankCardItem best = shell.Rank.Cards[1];
+        RankChartItem competitive = shell.Rank.Charts[1];
 
         using (Assert.Multiple())
         {
-            await Assert.That(best.ValueText).IsEqualTo(GameIcons.IconCatalogue.RankName(11));
-            await Assert.That(best.BadgeKey).IsEqualTo("rank/competitive/11");
-            await Assert.That(best.CaptionText).EndsWith("Mirage").Because("Mirage's 11 beats Nuke's 10, though Nuke was played later");
-            await Assert.That((best.ChangeText, best.IsUp, best.IsDown)).IsEqualTo(("", false, false));
+            await Assert.That(competitive.Values).IsEquivalentTo([10.0, 11.0, 10.0], CollectionOrdering.Matching);
+            await Assert.That((competitive.Minimum, competitive.Maximum)).IsEqualTo((0.0, (double?) 18));
+            await Assert.That(competitive.PointTips[1]).Contains("Mirage");
+            await Assert.That(competitive.SummaryText).IsEqualTo(
+                $"3 matches · latest {GameIcons.IconCatalogue.RankName(10)} · peak {GameIcons.IconCatalogue.RankName(11)}");
+        }
+    }
+
+    [Test]
+    public async Task NameCard_ShowsTheLatestPremierAndCompetitive()
+    {
+        using Shell shell = new(Library());
+        await shell.Settled();
+        IReadOnlyList<RankCardItem> ranks = shell.Header.Ranks;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(ranks.Select(r => r.Title)).IsEquivalentTo(["PREMIER", "COMPETITIVE"], CollectionOrdering.Matching);
+            await Assert.That((ranks[0].ValueText, ranks[0].ChangeText, ranks[0].IsUp)).IsEqualTo(("14,350", "+250", true));
+            await Assert.That(ranks[0].BadgeKey).IsEqualTo(GameIcons.IconCatalogue.PremierEmblem(14350)!.Key);
+            await Assert.That(ranks[0].Tooltip).StartsWith("Premier 14,100 → 14,350 (+250) · ");
+            await Assert.That(ranks[0].Tooltip).EndsWith("Inferno");
+            await Assert.That((ranks[1].ValueText, ranks[1].BadgeKey)).IsEqualTo((GameIcons.IconCatalogue.RankName(10), "rank/competitive/10"))
+                .Because("the latest Competitive match was on Nuke, whatever Mirage's was");
         }
     }
 
@@ -192,13 +211,15 @@ public class PlayerOverviewRankTests
         store.Upsert(Ranked(1, "de_mirage", new MatchRankRow { RankType = 11, RankSource = RankSource.Controller }));
         using Shell shell = new(store);
         await shell.Settled();
-        RankCardItem premier = shell.Rank.Cards.Single(c => c.Title == "Premier rating");
-        RankCardItem competitive = shell.Rank.Cards.Single(c => c.Title == "Competitive");
+        RankCardItem premier = shell.Header.Ranks.Single(c => c.Title == "PREMIER");
+        RankCardItem competitive = shell.Header.Ranks.Single(c => c.Title == "COMPETITIVE");
+        RankChartItem chart = shell.Rank.Charts.Single(c => c.Title == "Competitive");
 
         using (Assert.Multiple())
         {
             await Assert.That((competitive.ValueText, competitive.BadgeKey)).IsEqualTo(("Unranked", "rank/competitive/needwins"));
             await Assert.That((premier.ValueText, premier.BadgeKey)).IsEqualTo(("Unranked", "premier/unranked"));
+            await Assert.That((chart.HasBars, chart.SummaryText)).IsEqualTo((false, "1 match · unranked"));
             await Assert.That(shell.Maps.Rows.Single(r => r.Map == "de_nuke").Rank!.BadgeKey).IsEqualTo("rank/competitive/needwins");
             HistoryRowItem row = shell.History.Rows.Single(r => r.Match.Row.Path == "/lib/0.dem");
             await Assert.That(row.RankChangeText).IsEqualTo("–");
@@ -216,7 +237,8 @@ public class PlayerOverviewRankTests
         await shell.Settled();
 
         await Assert.That(shell.Rank.IsVisible).IsFalse();
-        await Assert.That(shell.Rank.Cards).IsEmpty();
+        await Assert.That(shell.Rank.Charts).IsEmpty();
+        await Assert.That(shell.Header.HasRanks).IsFalse();
         await Assert.That(shell.Reads.Count).IsEqualTo(1).Because("a demo without a matchrank stamp has nothing to read");
     }
 
@@ -239,7 +261,7 @@ public class PlayerOverviewRankTests
     }
 
     [Test]
-    public async Task AFilterSetWhileRanksAreRead_NarrowsTheHistoryNotTheStanding_AndAClearReadsNothing()
+    public async Task AFilterSetWhileRanksAreRead_NarrowsTheChartsNotTheNameCard_AndAClearReadsNothing()
     {
         using Shell shell = new(Library(), held: true);
         await Assert.That(shell.Rank.IsLoading).IsTrue();
@@ -251,16 +273,15 @@ public class PlayerOverviewRankTests
         using (Assert.Multiple())
         {
             await Assert.That(shell.Rank.IsLoading).IsFalse();
-            await Assert.That(shell.Rank.Cards.Select(c => c.ValueText))
-                .IsEquivalentTo(["14,350", GameIcons.IconCatalogue.RankName(11)], CollectionOrdering.Matching)
-                .Because("a standing reads every demo, whatever the filter");
+            await Assert.That(shell.Rank.Charts.Select(c => c.Values.Single())).IsEquivalentTo([14100.0, 11.0], CollectionOrdering.Matching);
+            await Assert.That(shell.Header.Ranks[0].ValueText).IsEqualTo("14,350").Because("a standing reads every demo, whatever the filter");
             await Assert.That(shell.History.Rows.Select(r => r.RankChangeText)).IsEquivalentTo(["-1", "-89"], CollectionOrdering.Matching);
         }
 
         filter.Map = filter.Maps[0];
         using (Assert.Multiple())
         {
-            await Assert.That(shell.Rank.Cards.Count).IsEqualTo(2);
+            await Assert.That(shell.Rank.Charts.Sum(c => c.Values.Count)).IsEqualTo(6);
             await Assert.That(shell.History.Rows.Count).IsEqualTo(7);
             await Assert.That(shell.Reads.Count).IsEqualTo(7).Because("a filter change recomputes from the rows already read");
         }
@@ -285,18 +306,19 @@ public class PlayerOverviewRankTests
         {
             await Assert.That(shell.Reads.Count).IsEqualTo(8);
             await Assert.That(shell.Reads.Last()).IsEqualTo("/lib/5.dem");
-            await Assert.That(shell.Rank.Cards[0].ValueText).IsEqualTo("14,400");
+            await Assert.That(shell.Header.Ranks[0].ValueText).IsEqualTo("14,400");
+            await Assert.That(shell.Rank.Charts[0].Values[^1]).IsEqualTo(14400.0);
         }
     }
 }
 
-/// <summary>The rank card renders a badge per standing.</summary>
+/// <summary>The rank history draws a bar chart per system, and the name card a badge per latest standing.</summary>
 [NotInParallel]
 [Category("Render")]
 public class PlayerOverviewRankRenderTests
 {
     [Test]
-    public async Task EachCard_RendersItsBadge()
+    public async Task TheChartsAndTheNameCardBadges_Render()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -317,13 +339,18 @@ public class PlayerOverviewRankRenderTests
             Dispatcher.UIThread.RunJobs();
 
             RankSectionView view = window.GetVisualDescendants().OfType<RankSectionView>().Single();
-            string?[] badges = [.. view.GetVisualDescendants().OfType<GameIcon>().Select(i => i.Key)];
+            Sparkline[] bars = [.. view.GetVisualDescendants().OfType<Sparkline>().Where(l => l.IsVisible)];
+            HeaderSectionView header = window.GetVisualDescendants().OfType<HeaderSectionView>().Single();
+            GameIcon[] badges = [.. header.GetVisualDescendants().OfType<GameIcon>()];
             using (Assert.Multiple())
             {
                 await Assert.That(view.IsVisible).IsTrue();
-                await Assert.That(badges).IsEquivalentTo(vm.Sections.OfType<RankSectionViewModel>().Single().Cards.Select(c => c.BadgeKey),
-                    CollectionOrdering.Matching);
-                await Assert.That(view.GetVisualDescendants().OfType<GameIcon>().All(i => i.Bounds.Width > 0)).IsTrue();
+                await Assert.That(bars.Length).IsEqualTo(2);
+                await Assert.That(bars.All(b => b.Mode == SparklineMode.Bars && b.Bounds.Width > 0)).IsTrue();
+                await Assert.That(badges.Select(b => b.Key)).IsEquivalentTo(
+                    vm.Sections.OfType<HeaderSectionViewModel>().Single().Ranks.Select(r => r.BadgeKey), CollectionOrdering.Matching);
+                await Assert.That(badges.All(b => b.Bounds.Width > 0)).IsTrue();
+                await Assert.That(header.FindControl<Border>("AvatarPlaceholder")!.Bounds.Width).IsEqualTo(64.0);
             }
 
             window.Close();

@@ -21,9 +21,13 @@ whose table needs the room) and stacks under it below. Content stops widening at
 fills the History tab's height and scrolls inside itself. The tab remembers which inner tab was open
 across sessions and keeps it when another player is opened.
 
-The Rank card shows the latest Premier rating and the highest Competitive Skill Group on any map, and the
-Maps and sides table shows the latest Competitive Skill Group beside each map. All three read every demo of
-the player rather than the filter's window, since a standing does not narrow with a filter.
+The name card above the tabs shows the player's latest Premier rating and latest Competitive Skill Group,
+each from the newest match of its system, and the Maps and sides table shows the latest Competitive Skill
+Group beside each map. These read every demo of the player rather than the filter's window, since a standing
+does not narrow with a filter. The Rank history panel on Overview follows the filter: a bar per ranked match,
+oldest on the left, for Premier (on a floor just under the lowest rating, so the changes show) and for
+Competitive across every map (on the fixed 1-18 Skill Group scale). The name card's avatar shows the name's
+initials until an online extension can fetch the Steam picture.
 
 ## Aggregation rules
 

@@ -1,55 +1,44 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
-             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
              x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.RankSectionView"
              x:DataType="sections:RankSectionViewModel"
              IsVisible="{Binding IsVisible}">
 
     <!--
-        The latest Premier rating and the highest Competitive Skill Group, over every demo of the subject. Badges are
-        drawn untinted: Premier's emblem is pre-washed for its tier and the Skill Groups are artwork.
+        The rank over the filter's window: one bar chart per rank system, a bar per ranked match, oldest on the left.
+        Each bar's tooltip says when, where and what moved. The latest standing of each system is on the name card.
     -->
-    <UserControl.Styles>
-        <Style Selector="TextBlock.up">
-            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
-        </Style>
-        <Style Selector="TextBlock.down">
-            <Setter Property="Foreground" Value="{DynamicResource StatNegative}" />
-        </Style>
-    </UserControl.Styles>
 
     <Border Classes="card" Padding="14 12">
         <StackPanel Spacing="10">
             <DockPanel>
                 <TextBlock DockPanel.Dock="Right" Text="{Binding LoadText}" IsVisible="{Binding IsLoading}"
                            FontSize="11.5" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
-                <TextBlock Text="Rank" FontSize="15" FontWeight="SemiBold"
+                <TextBlock Text="Rank history" FontSize="15" FontWeight="SemiBold"
                            Foreground="{DynamicResource TextCardHeader}" />
             </DockPanel>
 
-            <ItemsControl x:Name="CardList" ItemsSource="{Binding Cards}">
+            <ItemsControl x:Name="ChartList" ItemsSource="{Binding Charts}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal" ItemSpacing="24" LineSpacing="12" />
+                        <StackPanel Spacing="14" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="sections:RankCardItem">
-                        <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="12" MinWidth="200" ToolTip.Tip="{Binding Tooltip}">
-                            <ui:GameIcon Key="{Binding BadgeKey}" IconHeight="34" VerticalAlignment="Center" />
-                            <StackPanel Grid.Column="1" Spacing="1">
-                                <TextBlock Text="{Binding Title}" FontSize="11.5" Foreground="{DynamicResource TextMid}" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding ValueText}" FontSize="16" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextValue}" />
-                                    <TextBlock Text="{Binding ChangeText}" FontSize="12" VerticalAlignment="Center"
-                                               FontFamily="Consolas,Menlo,monospace"
-                                               Classes.up="{Binding IsUp}" Classes.down="{Binding IsDown}" />
-                                </StackPanel>
-                                <TextBlock Text="{Binding CaptionText}" FontSize="11" Foreground="{DynamicResource TextDim}" />
-                            </StackPanel>
-                        </Grid>
+                    <DataTemplate x:DataType="sections:RankChartItem">
+                        <StackPanel Spacing="4">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" Text="{Binding Title}" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextValue}" Margin="0 0 10 0" />
+                                <TextBlock Text="{Binding SummaryText}" FontSize="11" Foreground="{DynamicResource TextDim}"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
+                            <statsCtl:Sparkline Mode="Bars" Height="56" Gap="2" IsVisible="{Binding HasBars}"
+                                                Values="{Binding Values}" PointTooltips="{Binding PointTips}"
+                                                Minimum="{Binding Minimum}" Maximum="{Binding Maximum}" />
+                        </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>

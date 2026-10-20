@@ -457,6 +457,16 @@ public class PlayerOverviewTabTests
     }
 
     [Test]
+    [Arguments("grim reaper", "GR")]
+    [Arguments("s1mple", "S")]
+    [Arguments("[NaVi] b1t the third", "NB")]
+    [Arguments("éclair", "É")]
+    [Arguments("☆ ☆", "?")]
+    [Arguments("", "?")]
+    public async Task TheAvatarPlaceholder_TakesTheFirstLetterOfTwoWords(string name, string initials) =>
+        await Assert.That(HeaderSectionViewModel.InitialsOf(name)).IsEqualTo(initials);
+
+    [Test]
     public async Task Pages_HoldEverySectionOnce_AndTheHeaderAboveThem()
     {
         using IdentityService identity = Identity(Me);
