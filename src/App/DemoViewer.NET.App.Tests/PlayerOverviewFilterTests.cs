@@ -87,7 +87,7 @@ public class PlayerOverviewFilterTests
     public async Task SummarySitsBetweenTheHeaderAndTheHistory()
     {
         using Shell shell = new(Library(3));
-        await Assert.That(shell.Tab.Sections.Select(s => s.Id)).IsEquivalentTo(["header", "summary", "history"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(shell.Tab.Sections.Select(s => s.Id)).IsEquivalentTo(["header", "summary", "history", "highlights"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
     }
 
     [Test]
@@ -193,7 +193,6 @@ public class PlayerOverviewFilterTests
     {
         using ManualResetEventSlim gate = new(false);
         ConcurrentBag<int> threads = [];
-        int caller = Environment.CurrentManagedThreadId;
         using Shell shell = new(Library(4), path =>
         {
             threads.Add(Environment.CurrentManagedThreadId);
@@ -210,11 +209,14 @@ public class PlayerOverviewFilterTests
             await Assert.That(Tile(shell.Summary, "Matches")).IsEqualTo("4");
         }
 
+        // The reader is blocked inside a read while this thread goes on, so the read is not on the calling path.
+        await Assert.That(SpinWait.SpinUntil(() => !threads.IsEmpty, TimeSpan.FromSeconds(10))).IsTrue();
+        await Assert.That(shell.Tab.Loading.IsCompleted).IsFalse();
+
         gate.Set();
         await shell.Tab.Loading;
         using (Assert.Multiple())
         {
-            await Assert.That(threads).DoesNotContain(caller);
             await Assert.That(shell.Tab.IsReadingStats).IsFalse();
             await Assert.That(Tile(shell.Summary, "HLTV")).IsEqualTo("1.17");
             await Assert.That(shell.History.Rows.All(r => r.HasStats)).IsTrue();

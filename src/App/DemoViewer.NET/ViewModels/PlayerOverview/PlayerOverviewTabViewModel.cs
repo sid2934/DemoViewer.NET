@@ -496,11 +496,17 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
     private async Task LoadAsync(PlayerRowCache cache, ulong steamId64, int load)
     {
+        // Without a synchronization context a report is posted to the pool and can land after the read ends.
+        object gate = new();
+        bool reading = true;
         Progress<PlayerRowsProgress> progress = new(p =>
         {
-            if (_load == load && p.Total > 0)
+            lock (gate)
             {
-                ReadText = string.Create(CultureInfo.InvariantCulture, $"Reading stats {p.Done} of {p.Total}");
+                if (reading && _load == load && p.Total > 0)
+                {
+                    ReadText = string.Create(CultureInfo.InvariantCulture, $"Reading stats {p.Done} of {p.Total}");
+                }
             }
         });
         ReadText = "Reading stats";
@@ -512,6 +518,11 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         catch (Exception)
         {
             // A sidecar that will not read leaves its demo "stats not read"; the next refresh tries again.
+        }
+
+        lock (gate)
+        {
+            reading = false;
         }
 
         if (_load != load || _disposed || _context is not { } context)
