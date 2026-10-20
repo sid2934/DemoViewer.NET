@@ -1131,6 +1131,7 @@ public class App : Application
         services.AddSingleton(sp => new PlayerDirectory(sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(sp => new PlayerRowCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>(),
             path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerMatchFacet.Key)));
+        services.AddSingleton(sp => new PlayerRankCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>()));
 
         // Who the user is, from settings; the directory feeds its "this is you" suggestion.
         services.AddSingleton(sp => new IdentityService(sp.GetRequiredService<SettingsService>(), sp.GetRequiredService<PlayerDirectory>(),
@@ -1474,7 +1475,9 @@ public class App : Application
                 sp.GetRequiredService<IdentityService>(),
                 sp.GetRequiredService<PlayerRowCache>(),
                 // Match Overview's cached scoreboard: the demo's player_match facet.
-                sp.GetRequiredService<AnalysisFacts>());
+                sp.GetRequiredService<AnalysisFacts>(),
+                // The Player Overview's rank rows, read from the records.
+                sp.GetRequiredService<PlayerRankCache>());
 
             // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
             // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.

@@ -559,6 +559,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     Player Overview's head-to-head reads the <c>player_event</c> facets. Null (the browser, most tests)
     ///     renders the scoreboard a record stored, if any.
     /// </param>
+    /// <param name="playerRanks">The rank rows the Player Overview's rank sections read; null where none is wired.</param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -574,7 +575,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         PlayerDirectory? players = null,
         IdentityService? identity = null,
         PlayerRowCache? playerRows = null,
-        IAnalysisFacts? facts = null)
+        IAnalysisFacts? facts = null,
+        PlayerRankCache? playerRanks = null)
     {
         _hubTabs = hubTabs ?? [];
         _demoCache = demoCache;
@@ -679,7 +681,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         {
                             _ = reels.AddClipsForAsync(steamId64.ToString(CultureInfo.InvariantCulture));
                         }
-                    })
+                    },
+                    playerRanks)
                 {
                     Events = facts is null ? null : new PlayerEventCache(facts.TryGet)
                 },

@@ -33,7 +33,8 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview;
 ///         deferred while the tab is hidden and done once when it is shown again.
 ///     </para>
 ///     <para>
-///         The tab also reads the subject's stats, through <see cref="PlayerRowCache" /> off the UI thread, and
+///         The tab also reads the subject's stats and rank rows, through <see cref="PlayerRowCache" /> and
+///         <see cref="PlayerRankCache" /> off the UI thread, and
 ///         owns the filter bar: every section renders the one filtered set in its context, so a filter change
 ///         recomputes every panel from the rows already read and touches no file.
 ///     </para>
@@ -64,6 +65,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     private bool _queueRefreshQueued;
     private bool _clearingSearch;
     private bool _refreshQueued;
+    private PlayerRanks? _ranks;
     private PlayerRows? _rows;
     private bool _stale = true;
     private ulong? _subject;
@@ -137,7 +139,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     /// <summary>True while the subject's facets are being read.</summary>
     public bool IsReadingStats => ReadText.Length > 0;
 
-    /// <summary>The latest read of the subject's facets; completed when nothing is being read.</summary>
+    /// <summary>The latest read of the subject's facets and records; completed when nothing is being read.</summary>
     internal Task Loading { get; private set; } = Task.CompletedTask;
 
     /// <summary>Every section, in page order.</summary>
@@ -479,19 +481,38 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
             }
         }
 
+        PlayerRankCache? ranks = _services.Ranks;
+        if (player is null || _ranks?.SteamId64 != player.SteamId64)
+        {
+            _ranks = null;
+        }
+
+        bool ranking = false;
+        if (player is not null && ranks is not null)
+        {
+            if (ranks.TryGet(player.SteamId64) is { } held)
+            {
+                _ranks = held;
+            }
+            else
+            {
+                ranking = true;
+            }
+        }
+
         PlayerOverviewContext context = Compose(new PlayerOverviewContext(_subject, player, matches, withStats, _subjectWasMine,
-            _services, [], Filter.Filter, [], reading));
+            _services, [], Filter.Filter, [], reading, _ranks, ranking));
         RebuildMeAccounts();
         ApplyState(context);
         Show(context);
-        if (reading)
-        {
-            Loading = LoadAsync(cache!, player!.SteamId64, load);
-        }
-        else
+        if (!reading)
         {
             ReadText = "";
         }
+
+        Task stats = reading ? LoadAsync(cache!, player!.SteamId64, load) : Task.CompletedTask;
+        Task records = ranking ? LoadRanksAsync(ranks!, player!.SteamId64, load) : Task.CompletedTask;
+        Loading = Task.WhenAll(stats, records);
     }
 
     private async Task LoadAsync(PlayerRowCache cache, ulong steamId64, int load)
@@ -533,6 +554,27 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         _rows = rows ?? _rows;
         ReadText = "";
         Show(Compose(context with { IsReadingStats = false }));
+    }
+
+    private async Task LoadRanksAsync(PlayerRankCache cache, ulong steamId64, int load)
+    {
+        PlayerRanks? ranks = null;
+        try
+        {
+            ranks = await cache.LoadAsync(steamId64);
+        }
+        catch (Exception)
+        {
+            // A record that will not read leaves its rank empty; the next refresh tries again.
+        }
+
+        if (_load != load || _disposed || _context is not { } context)
+        {
+            return;
+        }
+
+        _ranks = ranks ?? _ranks;
+        Show(context with { Ranks = _ranks, IsReadingRanks = false });
     }
 
     // Pairs each demo with the stats last read for it, kept only while its facet stamp has not moved, and

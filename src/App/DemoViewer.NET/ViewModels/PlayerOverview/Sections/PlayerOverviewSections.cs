@@ -12,7 +12,10 @@ public static class PlayerOverviewSections
         new SummarySectionViewModel(filter),
         new HistorySectionViewModel(services),
 
-        // Later items, in this order: per-map, trends, rank history, stat categories, personal bests.
+        // Per-map and trends go here.
+        new RankSectionViewModel(),
+
+        // Stat categories and personal bests go here.
         new HighlightsSectionViewModel(services),
 
         // Teammates goes here.

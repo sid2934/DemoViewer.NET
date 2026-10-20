@@ -164,8 +164,13 @@ public class HeadToHeadTests
         public HeadToHeadSectionViewModel Section { get; }
         public ConcurrentQueue<string> Reads { get; } = new();
 
-        public PlayerOverviewContext Context(ulong subject) =>
-            new(subject, Directory.Get(subject), Directory.Matches(subject), 0, false, Services);
+        public PlayerOverviewContext Context(ulong subject)
+        {
+            IReadOnlyList<PlayerMatch> matches = Directory.Matches(subject);
+            PlayerDemo[] demos = [.. matches.Select(m => new PlayerDemo(m, false, null))];
+            return new PlayerOverviewContext(subject, Directory.Get(subject), matches, 0, false, Services, demos, PlayerFilter.All, demos,
+                false, null, false);
+        }
 
         public void Dispose() => Identity.Dispose();
     }

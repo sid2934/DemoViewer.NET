@@ -87,7 +87,7 @@ public class PlayerOverviewFilterTests
     public async Task SummarySitsBetweenTheHeaderAndTheHistory()
     {
         using Shell shell = new(Library(3));
-        await Assert.That(shell.Tab.Sections.Select(s => s.Id)).IsEquivalentTo(["header", "summary", "history", "highlights"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(shell.Tab.Sections.Select(s => s.Id).Take(3)).IsEquivalentTo(["header", "summary", "history"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
     }
 
     [Test]

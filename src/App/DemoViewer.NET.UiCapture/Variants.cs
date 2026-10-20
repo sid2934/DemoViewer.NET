@@ -4580,9 +4580,26 @@ public static partial class Variants
                     MatchTimeSource = i == 7
                         ? DemoViewer.NET.Services.MatchMeta.MatchTimeSource.FileWriteTime
                         : DemoViewer.NET.Services.MatchMeta.MatchTimeSource.ValveMatchInfo,
-                    GameMode = i % 3 == 0 ? "competitive" : "premier"
+                    GameMode = i % 3 == 0 ? "competitive" : "premier",
+                    // Premier climbs from 13,640 by the oldest match; Competitive is one Skill Group per map.
+                    Players =
+                    [
+                        i % 3 == 0
+                            ? new DemoViewer.NET.Services.MatchMeta.MatchRankRow
+                            {
+                                SteamId64 = me, RankType = 12, RankOld = 11 + (i % 2), RankNew = 11 + ((i + 1) % 2), RankChange = (i + 1) % 2 - i % 2,
+                                RankSource = DemoViewer.NET.Services.MatchMeta.RankSource.ServerRankUpdate
+                            }
+                            : new DemoViewer.NET.Services.MatchMeta.MatchRankRow
+                            {
+                                SteamId64 = me, RankType = 11, RankOld = 15_100 - (i * 130), RankNew = 15_100 - (i * 130) + (i % 3 == 1 ? -110 : 240),
+                                RankChange = i % 3 == 1 ? -110 : 240, RankSource = DemoViewer.NET.Services.MatchMeta.RankSource.ServerRankUpdate
+                            }
+                    ]
                 }
             };
+            r.SetStamp(new PackStamp(DemoViewer.NET.Services.MatchMeta.MatchMetaEvaluator.StampId,
+                DemoViewer.NET.Services.MatchMeta.DemoMatchMeta.CurrentSchema, DemoViewer.NET.Services.MatchMeta.MatchMetaEvaluator.Version) { ComputedAtTicks = 1 });
             if (leftEarly)
             {
                 r.FacetPlayers = [new FacetPlayer { SteamId64 = me, Names = ["s1mple"], Slots = [1] }];
@@ -4631,11 +4648,13 @@ public static partial class Variants
                 ]);
         });
         rows.LoadAsync(ulong.Parse(me, CultureInfo.InvariantCulture)).GetAwaiter().GetResult();
+        PlayerRankCache ranks = new(store, directory);
+        ranks.LoadAsync(ulong.Parse(me, CultureInfo.InvariantCulture)).GetAwaiter().GetResult();
 
         IdentityService identity = new(new SettingsService((string?)null), directory);
         identity.SetAccounts([new IdentityAccount(me, "main", DateTime.UtcNow)]);
         PlayerOverviewTabViewModel vm = new(
-            new PlayerOverviewServices(directory, identity, rows, _ => { }, _ => { }, (_, _) => { }, _ => { }),
+            new PlayerOverviewServices(directory, identity, rows, _ => { }, _ => { }, (_, _) => { }, _ => { }, Ranks: ranks),
             new FakeProcessingQueue { QueuedCount = 1 });
         vm.OnActivated(null!);
         return new Panel

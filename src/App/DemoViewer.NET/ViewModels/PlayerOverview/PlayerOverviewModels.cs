@@ -59,6 +59,7 @@ public sealed record PlayerOverviewSession(string? SubjectSteamId64, bool Pinned
 /// <param name="OpenSettings">Opens Settings scrolled to a section anchor, or the top when null.</param>
 /// <param name="Facts">The library's analysis outputs, read for highlights; null where nothing reads them.</param>
 /// <param name="AddClips">Opens the Reels tab's Add-clips picker filtered to an account; null where there is no Reels tab.</param>
+/// <param name="Ranks">The rank rows of the accounts shown; null where nothing reads them.</param>
 public sealed record PlayerOverviewServices(
     PlayerDirectory Directory,
     IdentityService Identity,
@@ -68,7 +69,8 @@ public sealed record PlayerOverviewServices(
     Action<string, ulong> FocusPlayerInStats,
     Action<string?> OpenSettings,
     IAnalysisFacts? Facts = null,
-    Action<ulong>? AddClips = null)
+    Action<ulong>? AddClips = null,
+    PlayerRankCache? Ranks = null)
 {
     /// <summary>The kills of each demo, from its <c>player_event</c> facet; null where nothing reads them.</summary>
     public PlayerEventCache? Events { get; init; }
@@ -76,7 +78,8 @@ public sealed record PlayerOverviewServices(
 
 /// <summary>
 ///     What a section renders from: the subject, the demos they are in and the one filtered set every panel
-///     recomputes from. The demos come from the index once per refresh; their stats from <see cref="PlayerRowCache" />.
+///     recomputes from. The demos come from the index once per refresh; their stats from <see cref="PlayerRowCache" />
+///     and their rank rows from <see cref="PlayerRankCache" />.
 /// </summary>
 /// <param name="SteamId64">The subject, or null when nobody is open.</param>
 /// <param name="Player">The subject's directory entry; null when nobody is open or no demo holds them.</param>
@@ -91,6 +94,8 @@ public sealed record PlayerOverviewServices(
 /// <param name="Filter">The filter bar's selection.</param>
 /// <param name="Window">The demos of <paramref name="Demos" /> that pass <paramref name="Filter" />, in order.</param>
 /// <param name="IsReadingStats">True while the subject's facets are being read off the UI thread.</param>
+/// <param name="Ranks">The subject's rank row in each demo, from <see cref="PlayerRankCache" />; null until read.</param>
+/// <param name="IsReadingRanks">True while the subject's records are being read off the UI thread.</param>
 public sealed record PlayerOverviewContext(
     ulong? SteamId64,
     PlayerEntry? Player,
@@ -101,7 +106,9 @@ public sealed record PlayerOverviewContext(
     IReadOnlyList<PlayerDemo> Demos,
     PlayerFilter Filter,
     IReadOnlyList<PlayerDemo> Window,
-    bool IsReadingStats)
+    bool IsReadingStats,
+    PlayerRanks? Ranks,
+    bool IsReadingRanks)
 {
     /// <summary>True when the filter leaves out any demo: the panels show the window beside the all-time figure.</summary>
     public bool IsFiltered => Filter != PlayerFilter.All;

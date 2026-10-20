@@ -23,6 +23,9 @@
             <Setter Property="TextAlignment" Value="Right" />
             <Setter Property="Margin" Value="0 0 8 0" />
         </Style>
+        <Style Selector="Grid.historyRow > TextBlock.rank">
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+        </Style>
         <Style Selector="Grid.historyRow > TextBlock.win">
             <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
         </Style>
@@ -103,8 +106,9 @@
                             <TextBlock Grid.Column="10" Classes="num" Text="{Binding HltvText}" IsVisible="{Binding HasStats}" />
                             <TextBlock Grid.Column="6" Grid.ColumnSpan="5" Classes="note" TextAlignment="Center" Text="{Binding StatsNote}"
                                        IsVisible="{Binding !HasStats}" />
-                            <TextBlock Grid.Column="11" Classes="num" Text="{Binding RankChangeText}"
-                                       Foreground="{DynamicResource TextDim}" />
+                            <TextBlock Grid.Column="11" Classes="num rank" Text="{Binding RankChangeText}"
+                                       Classes.win="{Binding IsRankUp}" Classes.loss="{Binding IsRankDown}"
+                                       ToolTip.Tip="{Binding RankTip}" />
                             <StackPanel Grid.Column="12" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
                                 <TextBlock Text="file missing" FontSize="11" VerticalAlignment="Center"
                                            Foreground="{DynamicResource StatNegative}" IsVisible="{Binding IsFileMissing}" />
