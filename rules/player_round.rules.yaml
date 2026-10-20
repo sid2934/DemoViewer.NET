@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+#
+# Player Round: one row per player per round, stored by the facts pass as the player_round facet
+# (docs/player-round-format.md) and read by the Player Overview for its CT and T splits. App-owned like
+# player_match, and stamped on its own, so adding or editing it re-walks only its own backlog and leaves
+# the player_match stamps current.
+#
+# Every count is its player_match column's definition at per: round, so a player's rows add up to that
+# column: kills to TotalK, deaths to TotalD, assists to TotalA, damage to EnemyDmg, survived to Survived.
+# kast is kast's has_kast over the same two counters, so the rounds it holds add up to KASTRounds.
+# Keep them word for word; PlayerMatchParityRealDemoTests fails on any that drift.
+#
+# side is the player's team at the round's freeze end, 3 for CT and 2 for T; 0 when the player was not on
+# a side then (connected later, or spectating). A per-player row carries only the final roster team.
+ruleset: player_round
+title: Player Round
+summary: Per-player round lines with the side played, for CT and T splits across demos.
+for: each_player
+
+stats:
+  side:
+    capture: player.team
+    on: raw.round_freeze_end
+    per: round
+
+  kills:
+    count: kill
+    match: { enemy: true }
+    per: round
+
+  deaths:
+    count: death
+    while: match.live
+    per: round
+
+  assists:
+    count: assist
+    match: { enemy: true }
+    where: "event.AssistedFlash == false"
+    per: round
+
+  damage:
+    sum: enrich.hurt.capped_damage
+    on: damage_dealt
+    match: { enemy: true }
+    per: round
+
+  survived:
+    count: round_ended
+    while: player.alive
+    per: round
+
+  # kast's team_assists_round: an assist on any enemy kill, looser than assists above.
+  kast_assists:
+    count: assist
+    where: "enrich.kill.was_enemy_kill == true"
+    per: round
+
+  kast:
+    flag:
+      when: "kills > 0 or kast_assists > 0 or player.survived or player.traded"
+    per: round
+
+show:
+  tables:
+    player_round:
+      per: player_round
+      columns:
+        - { stat: side,     label: side }
+        - { stat: kills,    label: kills }
+        - { stat: deaths,   label: deaths }
+        - { stat: assists,  label: assists }
+        - { stat: damage,   label: damage }
+        - { stat: survived, label: survived }
+        - { stat: kast,     label: kast }
