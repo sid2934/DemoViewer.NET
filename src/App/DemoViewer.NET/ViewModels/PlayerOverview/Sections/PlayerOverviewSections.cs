@@ -14,8 +14,9 @@ public static class PlayerOverviewSections
 
         // Per-map and trends go here.
         new RankSectionViewModel(),
+        new CategoriesSectionViewModel(),
 
-        // Stat categories and personal bests go here.
+        // Personal bests go here.
         new HighlightsSectionViewModel(services),
 
         // Teammates goes here.
