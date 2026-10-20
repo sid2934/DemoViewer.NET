@@ -74,7 +74,7 @@ public sealed partial class SummarySectionViewModel : PlayerOverviewSection
     }
 
     // The window's tiles; with an all-time pool beside, each tile's caption carries the all-time value.
-    private static SummaryTileItem[] Build(PlayerAggregate window, PlayerAggregate? all) =>
+    internal static SummaryTileItem[] Build(PlayerAggregate window, PlayerAggregate? all) =>
     [
         new("Matches", "Matches", Count(window.Matches), window.Matches, null,
             all is null ? Record(window) : $"all time {Count(all.Matches)}",

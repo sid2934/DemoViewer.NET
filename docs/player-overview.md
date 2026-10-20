@@ -124,6 +124,20 @@ each way, the K/D between them and the headshot share of the subject's kills com
 `player_event` facet ([`player-event-format.md`](player-event-format.md)). A demo whose `player_event` facet
 is not written yet is listed as pending and adds nothing to the counts.
 
+## Compare
+
+The compare section puts a second player beside the subject: the summary tiles and the stat categories of
+both, in two value columns. The second player is picked from the section's own search, which lists the same
+candidates as the tab's search box less the subject; a SteamID picks at once. Each player is pooled over
+their own demos that pass the tab's filter, by the rules above, so with a map filter each column is that
+player's matches on that map, and the line over each column says how many matches have stats. The second
+player's rows come from `PlayerRowCache`, read off the UI thread.
+
+A dot marks the better of two values only where the two compare across samples of different sizes: a banded
+tile (every banded tile is a ratio), a category column with a rate beside it, judged by the rate in the
+catalogue's direction, or a banded category ratio. Counts, and columns the catalogue gives no direction, are
+not judged. Opening the subject being compared drops the pick.
+
 ## Library benchmarks
 
 The benchmarks section places the subject's win rate, rating, K/D, ADR, KAST, KPR, HS% and opening-duel win
