@@ -1134,7 +1134,8 @@ public class App : Application
         // Every account in the library, projected from the index on read; the Player Overview's source.
         services.AddSingleton(sp => new PlayerDirectory(sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(sp => new PlayerRowCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>(),
-            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerMatchFacet.Key)));
+            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerMatchFacet.Key),
+            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerRoundFacet.Key)));
         services.AddSingleton(sp => new PlayerRankCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>()));
 
         // Who the user is, from settings; the directory feeds its "this is you" suggestion.

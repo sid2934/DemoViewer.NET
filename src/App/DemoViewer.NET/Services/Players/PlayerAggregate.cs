@@ -3,6 +3,7 @@
 using System.Globalization;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.ViewModels.Stats;
 
 #endregion
@@ -37,6 +38,12 @@ public sealed record PlayerDemo(PlayerMatch Match, bool HasFacet, IReadOnlyDicti
     ///     <see cref="OtherColumns" />; null when the facet is not read.
     /// </summary>
     public IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Others { get; init; }
+
+    /// <summary>
+    ///     The account's rounds summed by side (<see cref="PlayerRoundFacet.Sides" />), by <see cref="PlayerRoundFacet.Column" />;
+    ///     null when the demo's <c>player_round</c> facet is not written or holds no round of the account on a side.
+    /// </summary>
+    public IReadOnlyDictionary<string, double>? Sides { get; init; }
 }
 
 /// <summary>
@@ -48,7 +55,11 @@ public sealed record PlayerDemo(PlayerMatch Match, bool HasFacet, IReadOnlyDicti
 /// <param name="Wins">Demos won.</param>
 /// <param name="Losses">Demos lost.</param>
 /// <param name="Ties">Demos tied.</param>
-/// <param name="Values">The pooled value by catalogue key; empty when no demo has stats, never a column of zeros.</param>
+/// <param name="Values">
+///     The pooled value by catalogue key; empty when no demo has stats, never a column of zeros. Beside them, for each
+///     side the demos with stats played, its summed rounds and counts and its ADR, KAST% and KD under
+///     <see cref="PlayerRoundFacet.Column" /> (<c>CT:ADR</c>), pooled over the <see cref="WithSides" /> demos alone.
+/// </param>
 public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int Losses, int Ties, IReadOnlyDictionary<string, double> Values)
 {
     // HLTV 2.0's constant terms (rules/player_stats.rules.yaml, HLTV): 0.1587 and the impact term's -0.41 x 0.2372.
@@ -57,6 +68,9 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
     private const double HltvPerKastPercent = 0.73 / 100;
 
     private static readonly string[] Activity = ["Shots", "TotalD", "EnemyDmg"];
+
+    /// <summary>The demos with stats whose rounds by side are pooled; fewer than <see cref="WithStats" /> while the library computes the rest.</summary>
+    public int WithSides { get; init; }
 
     /// <summary>The pooled value of a catalogue column, or null when it does not pool or no demo has stats.</summary>
     /// <param name="key">A catalogue key.</param>
@@ -68,7 +82,8 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
     {
         ArgumentNullException.ThrowIfNull(demos);
         List<IReadOnlyDictionary<string, double>> rows = new(demos.Count);
-        int wins = 0, losses = 0, ties = 0;
+        Dictionary<string, double> sides = new(StringComparer.Ordinal);
+        int wins = 0, losses = 0, ties = 0, withSides = 0;
         foreach (PlayerDemo demo in demos)
         {
             if (demo.Stats is not { } stats)
@@ -77,6 +92,15 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
             }
 
             rows.Add(stats);
+            if (demo.Sides is { } split)
+            {
+                withSides++;
+                foreach ((string key, double value) in split)
+                {
+                    sides[key] = sides.GetValueOrDefault(key) + value;
+                }
+            }
+
             switch (OutcomeOf(stats))
             {
                 case MatchOutcome.Win:
@@ -103,7 +127,27 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
             }
         }
 
-        return new PlayerAggregate(demos.Count, rows.Count, wins, losses, ties, values);
+        foreach (int side in (int[]) [PlayerRoundFacet.Ct, PlayerRoundFacet.T])
+        {
+            if (sides.GetValueOrDefault(PlayerRoundFacet.Column(side, "rounds")) is not (> 0 and var rounds))
+            {
+                continue;
+            }
+
+            double Sum(string count) => sides.GetValueOrDefault(PlayerRoundFacet.Column(side, count));
+            values[PlayerRoundFacet.Column(side, "rounds")] = rounds;
+            foreach (string count in PlayerRoundFacet.Counts)
+            {
+                values[PlayerRoundFacet.Column(side, count)] = Sum(count);
+            }
+
+            // A zero denominator reads 0, as the catalogue's ratios do.
+            values[PlayerRoundFacet.Column(side, "ADR")] = Sum("damage") / rounds;
+            values[PlayerRoundFacet.Column(side, "KAST%")] = Sum("kast") / rounds * 100;
+            values[PlayerRoundFacet.Column(side, "KD")] = Sum("deaths") == 0 ? 0 : Sum("kills") / Sum("deaths");
+        }
+
+        return new PlayerAggregate(demos.Count, rows.Count, wins, losses, ties, values) { WithSides = withSides };
     }
 
     /// <summary>The demos of <paramref name="demos" /> that pass <paramref name="filter" />, in their order; <see cref="PlayerFilter.Last" /> applies last.</summary>
