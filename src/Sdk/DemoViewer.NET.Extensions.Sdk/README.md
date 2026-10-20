@@ -157,7 +157,8 @@ For a map in your own tab, use `MapView` from the UI kit (`DemoViewer.NET.Extens
 
 `services.GetExtensionContext(Id)` returns the extension's `IExtensionContext`:
 
-- `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files. `CurrentDemo` is the open
+- `Shell`: the open demo, opening demos, seeking, selecting tabs, revealing files, and opening a player in the
+  Player Overview tab (`OpenPlayerOverview`, false when the tab is off or the host has none). `CurrentDemo` is the open
   demo's parse, shared with the shell, so read it and drop it on `CurrentDemoChanged`. `CurrentDemoHash` is the
   demo's content key (lowercase hex SHA-256 of the file), the one to key per-demo data on. `CurrentTick`,
   `IsPlaying` and `PlayheadChanged` follow playback; the event fires at most once per rendered frame.
@@ -343,6 +344,13 @@ library.Changed += change =>
     }
 };
 ```
+
+`Players` is every account in the library and the demos it is in, from the same index and safe on any thread.
+`Accounts` lists them with every name they played under (unsanitized), the one in the most demos first;
+`Account` and `Find` look one up by SteamID64 or by part of a name, and `Matches` lists an account's demos newest
+first, each the library's own `LibraryDemo` row with the side the account ended on. A player who left before
+the end has no side and `LeftEarly` set. A match's `Time` is the match's UTC start when the demo carries it,
+else the file's local write time. `Changed` fires on the UI thread after the library moves.
 
 A path the library matched to a known demo without a full read is not in `Locations` until a read confirms it.
 `Find` answers it with a row of that path alone and no `Sha256`, which `Demos` lists only when the demo has no
@@ -559,4 +567,6 @@ The SDK follows semantic versioning, and the app never makes a breaking change t
 version of the app. The assembly version is `Major.0.0.0`, so an extension built against any 1.x SDK binds to
 every 1.x host. The SDK starts at 1.1 because 1.0.0 is what the app reported for its earlier, internal
 extension contract; `^1.1` keeps those builds from loading SDK extensions. 1.2 adds `IExtensionContext.Identity`:
-an extension that reads it states `^1.2`, since a 1.1 host has no such member.
+an extension that reads it states `^1.2`, since a 1.1 host has no such member. 1.2 also adds
+`IExtensionLibrary.Players` and `IExtensionShell.OpenPlayerOverview` with default bodies, so a host or a test
+double written before them answers no accounts and opens nothing.

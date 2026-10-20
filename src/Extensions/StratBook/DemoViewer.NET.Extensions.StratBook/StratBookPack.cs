@@ -346,7 +346,8 @@ public sealed class StratBookPack : IExtension
             async path => await Host(sp).Shell.OpenDemoAsync(path),
             command: (what, change) => Job(sp, "Teams: " + what.TrimEnd('…'), change,
                 new JobOptions(StratBookJobKinds.Teams, JobPriority.UserRequested, Serial: TeamIdentityService.QueueSerial)),
-            post: Host(sp).Post));
+            post: Host(sp).Post,
+            openPlayerOverview: id => Host(sp).Shell.OpenPlayerOverview(id)));
 
         // SituationIndex, TeamIdentityService and TagFactsRefresher were registered by the composition root,
         // so their factories are wrapped rather than rewritten. The wrap changes nothing

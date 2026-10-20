@@ -124,7 +124,7 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
         {
             yield return new WorkspaceTabDescriptor
             {
-                TabId = "builtin.playeroverview",
+                TabId = HostIds.PlayerOverviewTab,
                 Header = "Player Overview",
                 Order = 2,
                 ViewModelFactory = () => _playerOverviewViewModel,

@@ -13,6 +13,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Identity;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
@@ -139,7 +140,8 @@ internal sealed class ExtensionContext : IExtensionContext
             : UnavailableDemoData.Instance);
         _library = new Lazy<IExtensionLibrary>(() => new ExtensionLibraryView(
             HostLibrary.For(services.GetRequiredService<DemoCacheStore>(), services.GetService<IDemoProcessingQueue>(),
-                () => services.GetService<AnalysisFacts>() ?? (IAnalysisFacts)NoFacts.Instance), _guard));
+                () => services.GetService<AnalysisFacts>() ?? (IAnalysisFacts)NoFacts.Instance), _guard,
+            () => services.GetService<PlayerDirectory>()));
     }
 
     public string ExtensionId { get; }
@@ -290,6 +292,8 @@ internal sealed class ExtensionContext : IExtensionContext
         public void SeekToTick(int tick) => _hub.Shell?.Playback.SeekToTick(tick);
 
         public bool SelectTab(string tabId) => _hub.Shell?.TrySelectTab(tabId) ?? false;
+
+        public bool OpenPlayerOverview(ulong steamId64) => _hub.Shell?.OpenPlayerOverview(steamId64) ?? false;
 
         public void RevealInFileManager(string path)
         {

@@ -41,9 +41,6 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview;
 /// </summary>
 public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspaceTabViewModel, IDisposable
 {
-    /// <summary>The tab's shell id. App-side until the SDK's <c>HostIds</c> carries it.</summary>
-    public const string TabId = "builtin.playeroverview";
-
     /// <summary>The tab's feature id.</summary>
     public const string FeatureId = "tab.playeroverview";
 
