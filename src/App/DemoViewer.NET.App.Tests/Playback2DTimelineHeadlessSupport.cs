@@ -24,8 +24,10 @@ internal static class Playback2DTimelineHarness
     /// <param name="totalFrames">The fake demo's length.</param>
     /// <param name="contributions">The packs' contributions to attach on activation, or none.</param>
     /// <param name="configure">Runs on the context before activation: services, the demo path.</param>
+    /// <param name="playerOverview">The tab's Player Overview opener, or none.</param>
     public static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx) Tab(int totalFrames = 1000,
-        PlaybackContributionHost? contributions = null, Action<Playback2DFakeContext>? configure = null)
+        PlaybackContributionHost? contributions = null, Action<Playback2DFakeContext>? configure = null,
+        Action<ulong, string?>? playerOverview = null)
     {
         Playback2DFakeContext ctx = new()
         {
@@ -44,7 +46,7 @@ internal static class Playback2DTimelineHarness
         ctx.Timelines["bomb_planted"] = [Bomb("bomb_planted", 700)];
         configure?.Invoke(ctx);
 
-        Playback2DTabViewModel vm = new() { Contributions = contributions };
+        Playback2DTabViewModel vm = new() { Contributions = contributions, PlayerOverviewOpener = playerOverview };
         vm.OnActivated(ctx);
         return (vm, ctx);
     }
