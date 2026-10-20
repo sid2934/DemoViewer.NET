@@ -11,8 +11,9 @@ public static class PlayerOverviewSections
         new HeaderSectionViewModel(services),
         new SummarySectionViewModel(filter),
         new HistorySectionViewModel(services),
+        new TrendsSectionViewModel(),
 
-        // Per-map and trends go here.
+        // Per-map goes here.
         new RankSectionViewModel(),
 
         // Stat categories and personal bests go here.

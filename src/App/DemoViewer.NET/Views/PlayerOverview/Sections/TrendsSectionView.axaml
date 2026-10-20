@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.TrendsSectionView"
+             x:DataType="sections:TrendsSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Trends and form" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" />
+                <TextBlock Text="{Binding FormText}" IsVisible="{Binding HasForm}" FontSize="12"
+                           Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <ItemsControl x:Name="TrendList" ItemsSource="{Binding Trends}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="12" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:TrendItem">
+                        <Grid ColumnDefinitions="96,*,168" ColumnSpacing="12">
+                            <StackPanel Spacing="1">
+                                <TextBlock Text="{Binding Label}" FontSize="11.5" Foreground="{DynamicResource TextMid}" />
+                                <TextBlock Text="{Binding LatestText}" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextValue}" />
+                                <TextBlock Text="{Binding AverageText}" FontSize="11" Foreground="{DynamicResource TextDim}" />
+                            </StackPanel>
+                            <statsCtl:Sparkline Grid.Column="1" Height="40" Mode="Line"
+                                                Values="{Binding Values}" PointTooltips="{Binding PointTips}" />
+                            <StackPanel Grid.Column="2" Spacing="3" IsVisible="{Binding HasForm}" VerticalAlignment="Center">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding ChangeText}" FontSize="12"
+                                               FontFamily="Consolas,Menlo,monospace" Foreground="{DynamicResource TextValue}" />
+                                    <TextBlock Text="{Binding FormDetail}" FontSize="11" Foreground="{DynamicResource TextDim}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                                <statsCtl:DivergingBar Negative="{Binding FallPercent}" Positive="{Binding RisePercent}"
+                                                       Extent="{Binding Extent}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>
