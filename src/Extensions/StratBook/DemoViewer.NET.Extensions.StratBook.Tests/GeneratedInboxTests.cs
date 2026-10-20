@@ -6,6 +6,7 @@ using Avalonia.Media.Imaging;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.SuggestedTags;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 using DemoViewer.NET.Extensions.StratBook.Views.SuggestedTags;
@@ -52,14 +53,15 @@ public class GeneratedInboxTests
     }
 
     /// <summary>A trio in matchmaking with you (id 0), and a scrim team whose fifth changed from 7 to 9.</summary>
-    internal static async Task<(TeamIdentityService Service, DemoCacheStore Cache)> Teams(bool setMe = true)
+    internal static async Task<(TeamIdentityService Service, DemoCacheStore Cache)> Teams()
     {
         DemoCacheStore cache = new(null);
+        FakeExtensionIdentity identity = new();
         TeamIdentityService service = new(null, cache.Library(), run: a =>
         {
             a();
             return Task.CompletedTask;
-        });
+        }, identity: identity);
         await service.StartAsync();
         using (cache.BeginBatch())
         {
@@ -81,10 +83,7 @@ public class GeneratedInboxTests
         }
 
         await service.Idle;
-        if (setMe)
-        {
-            service.SetMyAccounts(Ids(0));
-        }
+        identity.Set(Ids(0));
 
         return (service, cache);
     }
@@ -274,28 +273,6 @@ public class GeneratedInboxTests
         service.RestoreSuggestion(squad.Id);
         await Assert.That(service.DismissedSuggestions).IsEmpty()
             .Because("only the dismissed set was stored; nothing was carried as a new anchor");
-    }
-
-    [Test]
-    public async Task IsThisYou_CanBeDismissed_AndRestoredFromSettled()
-    {
-        (TeamIdentityService service, DemoCacheStore cache) = await Teams(setMe: false);
-        await Assert.That(service.MeSuggestion?.SteamId64).IsEqualTo(Ids(0)[0]);
-        using TeamsTabViewModel vm = new(service, cache.Library(), isBrowser: false);
-
-        vm.DismissMeSuggestionCommand.Execute(null);
-        using (Assert.Multiple())
-        {
-            await Assert.That(vm.HasMeSuggestion).IsFalse();
-            await Assert.That(service.DismissedMeSuggestion?.SteamId64).IsEqualTo(Ids(0)[0]);
-            await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (1)");
-        }
-
-        vm.ShowSettled = true;
-        SuggestionRow me = vm.Suggestions.Single(s => s.Id.StartsWith("me:", StringComparison.Ordinal));
-        vm.RestoreSuggestionCommand.Execute(me);
-        await Assert.That(vm.HasMeSuggestion).IsTrue();
-        await Assert.That(service.DismissedMeSuggestion).IsNull();
     }
 
     [Test]

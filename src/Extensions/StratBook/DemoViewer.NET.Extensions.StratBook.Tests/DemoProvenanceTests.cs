@@ -6,6 +6,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.ViewModels.Library;
 
 #endregion
@@ -72,10 +73,11 @@ public class DemoProvenanceTests
         return record;
     }
 
-    private static (DemoCacheStore Cache, TeamIdentityService Teams, DemoProvenanceSource Source) Fresh(string? root = null)
+    private static (DemoCacheStore Cache, TeamIdentityService Teams, DemoProvenanceSource Source) Fresh(string? root = null,
+        FakeExtensionIdentity? identity = null)
     {
         DemoCacheStore cache = new(root is null ? null : Path.Combine(root, "cache"));
-        TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), run: _inline);
+        TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), run: _inline, identity: identity);
         return (cache, teams, new DemoProvenanceSource(cache.Library(), teams));
     }
 
@@ -177,7 +179,8 @@ public class DemoProvenanceTests
     [Test]
     public async Task TheSource_LabelsEveryBranch_FromTheCacheRowAndTheAssignment()
     {
-        (DemoCacheStore cache, TeamIdentityService teams, DemoProvenanceSource source) = Fresh();
+        FakeExtensionIdentity me = new();
+        (DemoCacheStore cache, TeamIdentityService teams, DemoProvenanceSource source) = Fresh(identity: me);
         using (teams)
         using (source)
         {
@@ -195,7 +198,7 @@ public class DemoProvenanceTests
 
             Guid usId = teams.TeamOnSide("/d/us1.dem", 2)!.Id;
             teams.SetUs(usId);
-            teams.SetMyAccounts([Ids(1)[0]]);
+            me.Set([Ids(1)[0]]);
 
             using (Assert.Multiple())
             {
@@ -277,9 +280,10 @@ public class DemoProvenanceTests
         string root = TempRoot();
         try
         {
-            (DemoCacheStore cache, TeamIdentityService teams, DemoProvenanceSource source) = Fresh(root);
+            FakeExtensionIdentity me = new();
+            (DemoCacheStore cache, TeamIdentityService teams, DemoProvenanceSource source) = Fresh(root, me);
             await Seed(cache, teams, Record("/d/mm.dem", 1, Ids(1, 41, 42, 43, 44), Strangers(), sourceKind: "GotvMatchmaking", sha: "ab12"));
-            teams.SetMyAccounts([Ids(1)[0]]);
+            me.Set([Ids(1)[0]]);
             await Assert.That(source.Resolve("/d/mm.dem")!.Label).IsEqualTo("matchmaking");
 
             int raised = 0;
@@ -307,7 +311,7 @@ public class DemoProvenanceTests
             cache.SaveIndex();
             teams.Dispose();
             source.Dispose();
-            (DemoCacheStore cache2, TeamIdentityService teams2, DemoProvenanceSource source2) = Fresh(root);
+            (DemoCacheStore cache2, TeamIdentityService teams2, DemoProvenanceSource source2) = Fresh(root, me);
             using (teams2)
             using (source2)
             {
@@ -386,7 +390,8 @@ public class DemoProvenanceTests
     [Test]
     public async Task LabelFor_AndTheBatch_AnswerByHash_AndKeepAPinAfterTheDemoLeaves()
     {
-        (DemoCacheStore cache, TeamIdentityService teams, DemoProvenanceSource source) = Fresh();
+        FakeExtensionIdentity me = new();
+        (DemoCacheStore cache, TeamIdentityService teams, DemoProvenanceSource source) = Fresh(identity: me);
         using (teams)
         using (source)
         {
@@ -394,7 +399,7 @@ public class DemoProvenanceTests
                 Record("/d/a.dem", 1, Ids(1, 41, 42, 43, 44), Strangers(), sourceKind: "GotvMatchmaking", sha: "aaaa"),
                 Record("/d/b.dem", 2, Strangers(), Strangers(), sourceKind: "GotvMatchmaking", sha: "bbbb"),
                 Record("/d/c.dem", 3, Ids(21, 22, 23, 24, 25), Ids(31, 32, 33, 34, 35), server: "hltv", sourceKind: "HltvPro", tClan: "NaVi", ctClan: "G2", sha: "cccc"));
-            teams.SetMyAccounts([Ids(1)[0]]);
+            me.Set([Ids(1)[0]]);
             teams.SetProvenanceOverride("/d/b.dem", "scrim");
 
             IReadOnlyDictionary<string, string?> batch = source.LabelsFor(["aaaa", "bbbb", "cccc", "dddd", "aaaa", ""]);
@@ -428,7 +433,8 @@ public class DemoProvenanceTests
     [Test]
     public async Task TheLibraryCard_ShowsTheLabel_AndPinsThroughTheChip()
     {
-        (DemoCacheStore cache, TeamIdentityService teams, DemoProvenanceSource source) = Fresh();
+        FakeExtensionIdentity me = new();
+        (DemoCacheStore cache, TeamIdentityService teams, DemoProvenanceSource source) = Fresh(identity: me);
         using DemoLibraryService library = new(a => a(), Path.Combine(Path.GetTempPath(), "dvlibprov_" + Guid.NewGuid().ToString("N") + ".json"));
         using (teams)
         using (source)
@@ -436,7 +442,7 @@ public class DemoProvenanceTests
             await Seed(cache, teams,
                 Record("/d/mm.dem", 1, Ids(1, 41, 42, 43, 44), Strangers(), sourceKind: "GotvMatchmaking", sha: "ab12"),
                 Record("/d/nobody.dem", 2, Strangers(), Strangers(), sourceKind: "GotvMatchmaking"));
-            teams.SetMyAccounts([Ids(1)[0]]);
+            me.Set([Ids(1)[0]]);
             foreach (string path in (string[]) ["/d/mm.dem", "/d/nobody.dem", "/d/unknown.dem"])
             {
                 library.Entries.Add(new DemoEntry

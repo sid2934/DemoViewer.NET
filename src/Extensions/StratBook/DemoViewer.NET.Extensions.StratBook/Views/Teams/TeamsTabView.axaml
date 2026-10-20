@@ -108,22 +108,8 @@
                            Foreground="{DynamicResource TextMid}" IsVisible="{Binding IsBrowser}" />
                 <TextBlock Text="{Binding TeamsFileProblem}" FontSize="11" TextWrapping="Wrap"
                            Foreground="{DynamicResource TextMid}" IsVisible="{Binding HasTeamsFileProblem}" />
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                    <TextBlock Grid.Column="0" Text="My accounts (SteamID64, comma separated)" FontSize="12"
-                               Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
-                    <TextBox Grid.Column="1" Text="{Binding MyAccountsText}" FontSize="12" Watermark="76561198…" />
-                    <Button Grid.Column="2" Content="Save" Classes="ghost" FontSize="11" Padding="10 5"
-                            Command="{Binding SaveMyAccountsCommand}" />
-                </Grid>
-                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" IsVisible="{Binding HasMeSuggestion}">
-                    <TextBlock Grid.Column="0" Text="{Binding MeSuggestionLine}" FontSize="12" TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextValue}" VerticalAlignment="Center" />
-                    <Button Grid.Column="1" Content="Yes, that is me" Classes="ghost" FontSize="11" Padding="10 5"
-                            Command="{Binding ConfirmMeSuggestionCommand}" />
-                    <Button Grid.Column="2" Content="Dismiss" Classes="ghost" FontSize="11" Padding="10 5"
-                            Command="{Binding DismissMeSuggestionCommand}"
-                            ToolTip.Tip="Stop asking; Show settled in Suggestions brings it back" />
-                </Grid>
+                <TextBlock Text="{Binding MyAccountsLine}" FontSize="12" TextWrapping="Wrap"
+                           Foreground="{DynamicResource TextValue}" />
             </StackPanel>
         </Border>
 

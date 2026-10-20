@@ -131,7 +131,7 @@ public class FeaturePacksTests
     [Test]
     public async Task AnIncompatiblePack_IsDeclaredButNotCompatible_AndNothingBuiltFromCompatibleSeesIt()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.1.0"), null, SemVersion.Parse("0.14.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0-beta0001"));
         IncompatibleFakePack incompatible = new();
         StratBookPack stratBook = new();
 
@@ -144,7 +144,7 @@ public class FeaturePacksTests
             await Assert.That(declared.Select(p => p.Id)).IsEquivalentTo([incompatible.Id, stratBook.Id]);
             await Assert.That(compatible.Select(p => p.Id)).IsEquivalentTo([stratBook.Id]);
             await Assert.That(statuses[0].Compatibility is PackCompatibility.HostContractMismatch).IsTrue();
-            await Assert.That(statuses[0].Problem).IsEqualTo("Incompatible 2.0.0 needs app contract ^2.0; this app provides 1.1.0");
+            await Assert.That(statuses[0].Problem).IsEqualTo("Incompatible 2.0.0 needs app contract ^2.0; this app provides 1.2.0");
 
             FeatureDescriptor[] catalog = FeatureCatalog.Build(compatible);
             await Assert.That(catalog.Any(d => d.Id == IncompatibleFakePack.PackFeatureId)).IsFalse()
@@ -166,7 +166,7 @@ public class FeaturePacksTests
     [Test]
     public async Task TheDerivedViews_AgreeInEitherReadOrder_AndFreezeOnFirstRead()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.1.0"), null, SemVersion.Parse("0.14.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0-beta0001"));
         IncompatibleFakePack incompatible = new();
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
 

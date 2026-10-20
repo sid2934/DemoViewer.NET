@@ -316,7 +316,8 @@ public sealed class StratBookPack : IExtension
                 run: work => Job(sp, "Teams: update", work,
                     new JobOptions(StratBookJobKinds.Teams, Serial: TeamIdentityService.QueueSerial)),
                 scheduleLoad: StartupLoad(sp, "Load: teams"),
-                loadAtStart: false);
+                loadAtStart: false,
+                identity: Host(sp).Identity);
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();

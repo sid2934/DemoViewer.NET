@@ -5,6 +5,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
@@ -60,10 +61,11 @@ public class TeamIdentityTests
         return record;
     }
 
-    private static (DemoCacheStore Cache, TeamIdentityService Teams) Fresh(string? root = null, IRoundFactsSource? facts = null)
+    private static (DemoCacheStore Cache, TeamIdentityService Teams) Fresh(string? root = null, IRoundFactsSource? facts = null,
+        FakeExtensionIdentity? identity = null)
     {
         DemoCacheStore cache = new(root is null ? null : Path.Combine(root, "cache"));
-        TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), facts, run: _inline);
+        TeamIdentityService teams = new(TestFiles.Teams(root), cache.Library(), facts, run: _inline, identity: identity);
         return (cache, teams);
     }
 
@@ -345,7 +347,8 @@ public class TeamIdentityTests
     [Test]
     public async Task OurSide_ResolvesOverrideThenTeamThenMe_AndSetUsClearsThePrevious()
     {
-        (DemoCacheStore cache, TeamIdentityService teams) = Fresh();
+        FakeExtensionIdentity identity = new();
+        (DemoCacheStore cache, TeamIdentityService teams) = Fresh(identity: identity);
         await Seed(cache, teams,
             Record("/d/a.dem", 1, Ids(1, 2, 3, 4, 5), Ids(11, 12, 13, 14, 15)),
             Record("/d/b.dem", 2, Ids(1, 2, 3, 4, 5), Ids(11, 12, 13, 14, 15)),
@@ -357,7 +360,7 @@ public class TeamIdentityTests
         await Assert.That(teams.GetAssignment("/d/a.dem")!.OurSide).IsNull().Because("nothing is us yet");
 
         teams.SetUs(us);
-        teams.SetMyAccounts(Ids(13));
+        identity.Set(Ids(13));
         TeamAssignment a = teams.GetAssignment("/d/a.dem")!;
         TeamAssignment me = teams.GetAssignment("/d/me.dem")!;
         using (Assert.Multiple())
@@ -388,37 +391,50 @@ public class TeamIdentityTests
     }
 
     [Test]
-    public async Task TheMeSuggestion_NamesTheMajorityAccount_AndWritesOnlyOnConfirmation()
+    public async Task TheHostsAccounts_AreMe_MirroredIntoTeamsJson_AndAnEditReResolvesOurSide()
     {
-        (DemoCacheStore cache, TeamIdentityService teams) = Fresh();
-        List<DemoCacheRecord> records = [];
-        for (int i = 0; i < 20; i++)
+        string root = TempRoot();
+        Directory.CreateDirectory(root);
+        try
         {
-            // The user (1) with a different four every time, against strangers: no roster, one account.
-            records.Add(Record($"/d/q{i:D2}.dem", i + 1, [.. Ids(1), .. Ids(200 + i * 4, 201 + i * 4, 202 + i * 4, 203 + i * 4)], Strangers()));
+            // A teams.json from before the host kept the accounts, naming someone else.
+            File.WriteAllText(Path.Combine(root, "teams.json"), $$"""{ "schemaVersion": 1, "me": { "steamIds": ["{{Ids(99)[0]}}"] } }""");
+            FakeExtensionIdentity identity = new(Ids(1)[0]);
+            (DemoCacheStore cache, TeamIdentityService teams) = Fresh(root, identity: identity);
+            await Seed(cache, teams,
+                Record("/d/a1.dem", 1, Ids(1, 41, 42, 43, 44), Strangers()),
+                Record("/d/a2.dem", 2, Ids(1, 45, 46, 47, 48), Strangers()),
+                Record("/d/b.dem", 3, Strangers(), Ids(2, 51, 52, 53, 54)));
+
+            TeamsFile Stored() => JsonSerializer.Deserialize<TeamsFile>(File.ReadAllText(Path.Combine(root, "teams.json")), TeamsFile.JsonOptions)!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(1));
+                await Assert.That(Stored().Me.SteamIds).IsEquivalentTo(Ids(1)).Because("the host's list replaces the file's own on save");
+                await Assert.That(teams.GetAssignment("/d/a1.dem")!.Source).IsEqualTo(OurSideSource.Me);
+                await Assert.That(teams.GetAssignment("/d/b.dem")!.OurSide).IsNull();
+                await Assert.That(teams.CoPlayers().MainAccount).IsEqualTo(Ids(1)[0]);
+            }
+
+            // A Settings edit: a second account, made active, which played fewer demos than the first.
+            identity.Set([.. Ids(1), .. Ids(2)], Ids(2)[0]);
+            using (Assert.Multiple())
+            {
+                await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(1, 2));
+                await Assert.That(Stored().Me.SteamIds).IsEquivalentTo(Ids(1, 2));
+                await Assert.That(teams.GetAssignment("/d/b.dem")!.OurSide).IsEqualTo(3).Because("the edit re-resolves our side");
+                await Assert.That(teams.ActiveAccount).IsEqualTo(Ids(2)[0]);
+                await Assert.That(teams.CoPlayers().MainAccount).IsEqualTo(Ids(2)[0]).Because("the active account leads when it played");
+            }
+
+            teams.Dispose();
+            await Assert.That(identity.HandlerCount).IsEqualTo(0).Because("a released service lets go of the host's event");
         }
-
-        await Seed(cache, teams, [.. records]);
-
-        using (Assert.Multiple())
+        finally
         {
-            await Assert.That(teams.MeSuggestion).IsNotNull();
-            await Assert.That(teams.MeSuggestion!.SteamId64).IsEqualTo(Ids(1)[0]);
-            await Assert.That(teams.MeSuggestion.Share).IsEqualTo(1.0);
-            await Assert.That(teams.MyAccounts).IsEmpty().Because("nothing is written without confirmation");
-            await Assert.That(teams.OurDemos()).IsEmpty();
-        }
-
-        teams.ConfirmMeSuggestion();
-        using (Assert.Multiple())
-        {
-            await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(1));
-            await Assert.That(teams.MeSuggestion).IsNull();
-            await Assert.That(teams.OurDemos().Count).IsEqualTo(20);
+            Directory.Delete(root, true);
         }
     }
-
-    // ── 7. Merge ─────────────────────────────────────────────────────────────────────────────────
 
     [Test]
     public async Task Merge_ReassignsSides_KeepsBothAnchors_AndARebuildNeverRecreatesTheTombstone()
@@ -629,9 +645,10 @@ public class TeamIdentityTests
             teams.Dispose();
             const string junk = "{ \"schemaVersion\": 1, \"teams\": [ oops";
             File.WriteAllText(Path.Combine(root, "teams.json"), junk);
-            (_, TeamIdentityService refused) = Fresh(root);
+            FakeExtensionIdentity identity = new();
+            (_, TeamIdentityService refused) = Fresh(root, identity: identity);
             await refused.StartAsync();
-            refused.SetMyAccounts(Ids(1));
+            identity.Set(Ids(1));
             using (Assert.Multiple())
             {
                 await Assert.That(refused.TeamsFileProblem).IsNotNull();

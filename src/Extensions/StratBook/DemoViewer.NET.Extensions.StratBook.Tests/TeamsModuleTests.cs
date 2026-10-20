@@ -8,6 +8,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Extensions.StratBook.Modules.Teams;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 
@@ -17,7 +18,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     The Teams module's persisted ids, its feature-catalog row, the tab VM over a synthetic library
-///     (the list, the actions, the me suggestion, the footer, the browser note) and the Library's Team
+///     (the list, the actions, the read-only accounts line, the footer, the browser note) and the Library's Team
 ///     filter.
 /// </summary>
 [NotInParallel]
@@ -56,10 +57,10 @@ public class TeamsModuleTests
     }
 
     // Two rosters that met twice, and a demo nobody recurs on.
-    private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> Library()
+    private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> Library(FakeExtensionIdentity? identity = null)
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline, identity: identity);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -113,7 +114,8 @@ public class TeamsModuleTests
     [Test]
     public async Task TheTab_ListsTeams_ProjectsTheSelection_AndRunsTheActions()
     {
-        (DemoCacheStore cache, TeamIdentityService teams) = await Library();
+        FakeExtensionIdentity identity = new();
+        (DemoCacheStore cache, TeamIdentityService teams) = await Library(identity);
         using TeamsTabViewModel vm = new(teams, cache.Library(), isBrowser: false);
 
         using (Assert.Multiple())
@@ -122,7 +124,7 @@ public class TeamsModuleTests
             await Assert.That(vm.HasTeams).IsTrue();
             await Assert.That(vm.Teams.All(t => t.DemoCount == 2)).IsTrue();
             await Assert.That(vm.FooterLine).Contains("no recurring opponent").Because("nothing is us yet, so no demo has an opponent");
-            await Assert.That(vm.HasMeSuggestion).IsFalse().Because("three demos are below the twenty the suggestion needs");
+            await Assert.That(vm.MyAccountsLine).IsEqualTo("No accounts yet. Open Settings > Identity to add yours.");
             await Assert.That(vm.IsBrowser).IsFalse();
         }
 
@@ -151,10 +153,15 @@ public class TeamsModuleTests
             await Assert.That(vm.FooterLine).DoesNotContain("no recurring opponent");
         }
 
-        vm.MyAccountsText = $"{Ids(21)[0]}, {Ids(99)[0]}";
-        vm.SaveMyAccountsCommand.Execute(null);
-        await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(21, 99));
-        await Assert.That(teams.OurDemos().Count).IsEqualTo(3).Because("the me account resolves the third demo");
+        identity.Set(Ids(21, 99), Ids(99)[0]);
+        using (Assert.Multiple())
+        {
+            await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(21, 99));
+            await Assert.That(teams.OurDemos().Count).IsEqualTo(3).Because("the me account resolves the third demo");
+            await Assert.That(vm.MyAccountsLine)
+                .IsEqualTo($"Your accounts: {Ids(21)[0]}, {Ids(99)[0]} (active). Open Settings > Identity to change them.")
+                .Because("the card reads the host's accounts and edits nothing");
+        }
 
         vm.MergeTarget = vm.MergeTargets[0];
         vm.MergeCommand.Execute(null);

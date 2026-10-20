@@ -1875,3 +1875,9 @@ virtual DemoViewer.NET.Extensions.Sdk.RecordInput.EqualityContract.get -> System
 virtual DemoViewer.NET.Extensions.Sdk.RecordInput.PrintMembers(System.Text.StringBuilder! builder) -> bool
 abstract DemoViewer.NET.Extensions.Sdk.RecordInput.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.RecordInput!
 override sealed DemoViewer.NET.Extensions.Sdk.DemoDataKey.Equals(DemoViewer.NET.Extensions.Sdk.RecordInput? other) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Identity.get -> DemoViewer.NET.Extensions.Sdk.IExtensionIdentity!
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity.Accounts.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity.ActiveAccount.get -> string?
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity.IsMine(string? steamId64) -> bool

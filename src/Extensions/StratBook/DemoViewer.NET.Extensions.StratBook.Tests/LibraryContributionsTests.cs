@@ -5,6 +5,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.Testing;
 
 #endregion
 
@@ -60,10 +61,10 @@ public class LibraryContributionsTests
         new(path, Path.GetFileName(path), map, new DateTime(2026, 3, 1), 1000);
 
     // Two rosters that met twice (clusters into one team each), and a demo nobody recurs on.
-    private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> Library()
+    private static async Task<(DemoCacheStore Cache, TeamIdentityService Teams)> Library(FakeExtensionIdentity? identity = null)
     {
         DemoCacheStore cache = new(null);
-        TeamIdentityService teams = new(null, cache.Library(), run: _inline);
+        TeamIdentityService teams = new(null, cache.Library(), run: _inline, identity: identity);
         await teams.StartAsync();
         using (cache.BeginBatch())
         {
@@ -275,7 +276,8 @@ public class LibraryContributionsTests
     [Test]
     public async Task ProvenanceContribution_BadgeFor_ReflectsTheHeuristicAndThenAnOverride()
     {
-        (DemoCacheStore cache, TeamIdentityService teams) = await Library();
+        FakeExtensionIdentity me = new();
+        (DemoCacheStore cache, TeamIdentityService teams) = await Library(me);
         using (teams)
         {
             // A matchmaking source kind, so the heuristic resolves "matchmaking" below; Library() leaves
@@ -286,7 +288,7 @@ public class LibraryContributionsTests
             }
 
             await teams.Idle;
-            teams.SetMyAccounts([Ids(1)[0]]);
+            me.Set([Ids(1)[0]]);
             DemoProvenanceSource source = new(cache.Library(), teams);
             ProvenanceLibraryContribution contribution = new(() => source, () => teams);
             LibraryDemo a = Entry("/d/a.dem");

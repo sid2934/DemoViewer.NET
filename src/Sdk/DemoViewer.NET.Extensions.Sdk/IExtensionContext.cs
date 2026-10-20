@@ -52,6 +52,9 @@ public interface IExtensionContext
     /// <summary>The keymap with the user's rebinds applied, read only.</summary>
     IExtensionKeymap Keymap { get; }
 
+    /// <summary>The user's own accounts, read only.</summary>
+    IExtensionIdentity Identity { get; }
+
     /// <summary>A logger whose lines land in the app's diagnostics log, tagged with the extension.</summary>
     ILogger CreateLogger(string category);
 

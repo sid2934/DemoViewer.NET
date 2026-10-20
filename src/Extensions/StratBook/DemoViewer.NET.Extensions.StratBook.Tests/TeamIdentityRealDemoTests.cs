@@ -106,8 +106,7 @@ public class TeamIdentityRealDemoTests
         await teams.Idle;
 
         Console.WriteLine($"team identity over {paths.Count} of {Directory.GetFiles(folder, "*.dem").Length} demos in {folder}: " +
-                          $"{teams.Teams.Count} teams, {teams.UnaffiliatedCount} unaffiliated sides, {teams.UnclusterableCount} unclusterable demos" +
-                          (teams.MeSuggestion is { } me ? $", me suggestion {me.SteamId64} at {me.Share:P0}" : ", no me suggestion"));
+                          $"{teams.Teams.Count} teams, {teams.UnaffiliatedCount} unaffiliated sides, {teams.UnclusterableCount} unclusterable demos");
         foreach (Team team in teams.Teams)
         {
             Console.WriteLine($"  {team.Name} ({team.NameSource}): {team.Rosters.Count} roster(s), {teams.DemosOf(team.Id).Count} demos");

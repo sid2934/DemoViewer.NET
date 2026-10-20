@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
+using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
 using DemoViewer.NET.Extensions.StratBook.Views.Teams;
 
@@ -64,11 +65,12 @@ public class TeamsViewRevisionRenderTests
         await HeadlessSession.RunOnUi(async () =>
         {
             DemoCacheStore cache = new(null);
+            FakeExtensionIdentity identity = new();
             TeamIdentityService service = new(null, cache.Library(), run: a =>
             {
                 a();
                 return Task.CompletedTask;
-            });
+            }, identity: identity);
             await service.StartAsync();
             using (cache.BeginBatch())
             {
@@ -97,7 +99,7 @@ public class TeamsViewRevisionRenderTests
             }
 
             await service.Idle;
-            service.SetMyAccounts(Ids(0));
+            identity.Set(Ids(0));
 
             using TeamsTabViewModel vm = new(service, cache.Library(), isBrowser: false);
             vm.SelectedTeam = vm.Teams.FirstOrDefault();
