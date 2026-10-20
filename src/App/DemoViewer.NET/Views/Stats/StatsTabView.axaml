@@ -17,7 +17,8 @@
              stat column — width/alignment/emphasis all driven by the cell's ColumnCatalogue meta.
              Serves scoreboard section rows, per-team totals rows, and the flat Rounds rows. -->
         <DataTemplate x:Key="StatsRowTemplate" x:DataType="stats:StatsRow">
-            <!-- Double-tap / context-menu "Details" open the player-details overlay.
+            <!-- Double-tap / context-menu "Details" open the player-details overlay; "Open player overview"
+                 is greyed out with its reason on a row with no SteamID, a bot or a coach.
                  Both go through code-behind — Avalonia exposes DoubleTapped as a routed event, not
                  a bindable command, and pulling in Behaviors for it is a forbidden new dependency.
                  Totals rows are guarded in the command (no slot). -->
@@ -30,6 +31,12 @@
                         <MenuItem Header="Details"
                                   IsEnabled="{Binding !IsTotals}"
                                   Click="OnRowDetailsClick" />
+                        <MenuItem Header="Open player overview"
+                                  IsVisible="{Binding ShowsPlayerOverview}"
+                                  IsEnabled="{Binding CanOpenPlayerOverview}"
+                                  ToolTip.Tip="{Binding PlayerOverviewTip}"
+                                  ToolTip.ShowOnDisabled="True"
+                                  Click="OnRowPlayerOverviewClick" />
                     </ContextMenu>
                 </Border.ContextMenu>
                 <StackPanel Orientation="Horizontal">
