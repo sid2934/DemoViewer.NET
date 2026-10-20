@@ -557,6 +557,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     The library's facts: Match Overview's cached scoreboard is the demo's <c>player_match</c> facet. Null
     ///     (the browser, most tests) renders the scoreboard a record stored, if any.
     /// </param>
+    /// <param name="playerRanks">The rank rows the Player Overview's rank sections read; null where none is wired.</param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -572,7 +573,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         PlayerDirectory? players = null,
         IdentityService? identity = null,
         PlayerRowCache? playerRows = null,
-        IAnalysisFacts? facts = null)
+        IAnalysisFacts? facts = null,
+        PlayerRankCache? playerRanks = null)
     {
         _hubTabs = hubTabs ?? [];
         _demoCache = demoCache;
@@ -668,7 +670,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     SelectTabById,
                     // Until Stats can focus a player by SteamID, this opens the demo on the Stats tab.
                     (path, steamId64) => _ = OpenDemoOnStatsAsync(path),
-                    OpenSettingsCore),
+                    OpenSettingsCore,
+                    playerRanks),
                 processingQueue,
                 action => Dispatcher.UIThread.Post(action));
         }

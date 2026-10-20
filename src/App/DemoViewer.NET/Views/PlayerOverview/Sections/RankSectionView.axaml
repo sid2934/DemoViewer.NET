@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.RankSectionView"
+             x:DataType="sections:RankSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- Badges are drawn untinted: Premier's emblem is pre-washed for its tier and the Skill Groups are artwork. -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.up">
+            <Setter Property="Foreground" Value="{DynamicResource StatPositive}" />
+        </Style>
+        <Style Selector="TextBlock.down">
+            <Setter Property="Foreground" Value="{DynamicResource StatNegative}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="10">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding LoadText}" IsVisible="{Binding IsLoading}"
+                           FontSize="11.5" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                <TextBlock Text="Rank history" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" />
+            </DockPanel>
+
+            <ItemsControl x:Name="TrackList" ItemsSource="{Binding Tracks}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="12" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:RankTrackItem">
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                            <ui:GameIcon Grid.RowSpan="2" Key="{Binding BadgeKey}" IconHeight="34" VerticalAlignment="Top" />
+                            <StackPanel Grid.Column="1" Spacing="1">
+                                <TextBlock Text="{Binding Title}" FontSize="11.5" Foreground="{DynamicResource TextMid}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding LatestText}" FontSize="16" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextValue}" />
+                                    <TextBlock Text="{Binding LatestChangeText}" FontSize="12" VerticalAlignment="Center"
+                                               FontFamily="Consolas,Menlo,monospace"
+                                               Classes.up="{Binding IsUp}" Classes.down="{Binding IsDown}"
+                                               ToolTip.Tip="The latest match's change" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding SummaryText}" FontSize="11" Foreground="{DynamicResource TextDim}" />
+                            </StackPanel>
+                            <statsCtl:Sparkline Grid.Row="1" Grid.Column="1" Mode="Line" IsVisible="{Binding HasLine}"
+                                                Values="{Binding Values}" PointTooltips="{Binding PointTips}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

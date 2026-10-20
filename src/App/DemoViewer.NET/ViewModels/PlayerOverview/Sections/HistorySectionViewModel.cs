@@ -19,7 +19,8 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 ///     Every demo of the subject, newest match first, one row each: when, where, how it ended and the subject's
 ///     line from its <c>player_match</c> facet. The rows come from the index at once; the stats arrive when
 ///     <see cref="PlayerRowCache" /> has read the facets, off the UI thread. A demo whose facet is not written
-///     says so in its stat cells and never shows zeros.
+///     says so in its stat cells and never shows zeros. The rank change comes from the demo's record through
+///     <see cref="PlayerRankCache" />, read the same way.
 /// </summary>
 public sealed partial class HistorySectionViewModel : PlayerOverviewSection
 {
@@ -27,6 +28,8 @@ public sealed partial class HistorySectionViewModel : PlayerOverviewSection
 
     private readonly PlayerOverviewServices _services;
     private int _load;
+    private PlayerRanks? _ranks;
+    private bool _shownLoading;
     private PlayerRows? _stats;
 
     [ObservableProperty]
@@ -65,6 +68,7 @@ public sealed partial class HistorySectionViewModel : PlayerOverviewSection
             IsVisible = false;
             Rows = [];
             _stats = null;
+            _ranks = null;
             LoadText = "";
             return;
         }
@@ -72,6 +76,24 @@ public sealed partial class HistorySectionViewModel : PlayerOverviewSection
         if (_stats?.SteamId64 != player.SteamId64)
         {
             _stats = null;
+        }
+
+        if (_ranks?.SteamId64 != player.SteamId64)
+        {
+            _ranks = null;
+        }
+
+        Task ranking = Task.CompletedTask;
+        if (_services.Ranks is { } ranks)
+        {
+            if (ranks.TryGet(player.SteamId64) is { } held)
+            {
+                _ranks = held;
+            }
+            else
+            {
+                ranking = LoadRanksAsync(ranks, context, load);
+            }
         }
 
         PlayerRowCache? cache = _services.Rows;
@@ -86,11 +108,30 @@ public sealed partial class HistorySectionViewModel : PlayerOverviewSection
         IsVisible = true;
         if (cache is not null && !current)
         {
-            Loading = LoadAsync(cache, context, load);
+            Loading = Task.WhenAll(LoadAsync(cache, context, load), ranking);
         }
         else
         {
             LoadText = "";
+            Loading = ranking;
+        }
+    }
+
+    private async Task LoadRanksAsync(PlayerRankCache cache, PlayerOverviewContext context, int load)
+    {
+        ulong id = context.Player!.SteamId64;
+        try
+        {
+            PlayerRanks ranks = await cache.LoadAsync(id);
+            if (_load == load)
+            {
+                _ranks = ranks;
+                Show(context.Matches, id, _shownLoading);
+            }
+        }
+        catch (Exception)
+        {
+            // A record that will not read leaves its rank cell empty; the next refresh tries again.
         }
     }
 
@@ -165,9 +206,10 @@ public sealed partial class HistorySectionViewModel : PlayerOverviewSection
                 state = loading ? HistoryStats.Loading : HistoryStats.Unread;
             }
 
-            rows.Add(new HistoryRowItem(match, steamId64, state, values));
+            rows.Add(new HistoryRowItem(match, steamId64, state, values, _ranks?.For(match.Row)));
         }
 
+        _shownLoading = loading;
         Rows = rows;
         CountText = matches.Count == 1 ? "1 match" : string.Create(CultureInfo.InvariantCulture, $"{matches.Count} matches");
     }
@@ -235,7 +277,9 @@ public sealed partial class HistoryRowItem : ObservableObject
     /// <param name="steamId64">The subject.</param>
     /// <param name="stats">What the stat cells can show.</param>
     /// <param name="values">The subject's merged facet row when <paramref name="stats" /> is <see cref="HistoryStats.Ready" />.</param>
-    public HistoryRowItem(PlayerMatch match, ulong steamId64, HistoryStats stats, IReadOnlyDictionary<string, double>? values)
+    /// <param name="rank">The subject's rank row in the demo, when the demo carries one and it is read.</param>
+    public HistoryRowItem(PlayerMatch match, ulong steamId64, HistoryStats stats, IReadOnlyDictionary<string, double>? values,
+        MatchRankRow? rank = null)
     {
         Match = match ?? throw new ArgumentNullException(nameof(match));
         SteamId64 = steamId64;
@@ -255,7 +299,10 @@ public sealed partial class HistoryRowItem : ObservableObject
         MapText = DemoEntry.PrettifyMap(row.Map);
         ModeText = ModeOf(row);
         SideText = match.Side switch { 3 => "CT", 2 => "T", _ => None };
-        RankChangeText = None;
+        RankChangeText = RankDisplay.Change(rank) ?? None;
+        RankTip = rank is null ? null : RankDisplay.Describe(rank);
+        IsRankUp = rank?.RankChange > 0;
+        IsRankDown = rank?.RankChange < 0;
 
         if (stats != HistoryStats.Ready || values is null)
         {
@@ -358,8 +405,17 @@ public sealed partial class HistoryRowItem : ObservableObject
     /// <summary>HLTV 2.0-style rating.</summary>
     public string HltvText { get; }
 
-    /// <summary>The rank change in the match; an en dash until rank capture lands.</summary>
+    /// <summary>The subject's rank change in the match ("+189"), or an en dash when the demo has none or it is not known.</summary>
     public string RankChangeText { get; }
+
+    /// <summary>The rank before and after the match ("Premier 14,213 → 14,402 (+189)"), or null.</summary>
+    public string? RankTip { get; }
+
+    /// <summary>True when the match raised the subject's rank.</summary>
+    public bool IsRankUp { get; }
+
+    /// <summary>True when it lowered it.</summary>
+    public bool IsRankDown { get; }
 
     // The match time is UTC; a row the match-time pass has not reached carries the file's local write time.
     private static string DateOf(PlayerMatch match)

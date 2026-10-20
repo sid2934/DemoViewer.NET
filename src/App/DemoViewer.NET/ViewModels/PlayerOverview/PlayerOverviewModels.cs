@@ -56,6 +56,7 @@ public sealed record PlayerOverviewSession(string? SubjectSteamId64, bool Pinned
 /// <param name="SelectTab">Selects a shell tab by its TabId.</param>
 /// <param name="FocusPlayerInStats">Opens a demo by path and shows the account in Stats.</param>
 /// <param name="OpenSettings">Opens Settings scrolled to a section anchor, or the top when null.</param>
+/// <param name="Ranks">The rank rows of the accounts shown; null where nothing reads them.</param>
 public sealed record PlayerOverviewServices(
     PlayerDirectory Directory,
     IdentityService Identity,
@@ -63,7 +64,8 @@ public sealed record PlayerOverviewServices(
     Action<string> OpenDemo,
     Action<string> SelectTab,
     Action<string, ulong> FocusPlayerInStats,
-    Action<string?> OpenSettings);
+    Action<string?> OpenSettings,
+    PlayerRankCache? Ranks = null);
 
 /// <summary>What a section renders from: the subject and the demos they are in, read once per refresh.</summary>
 /// <param name="SteamId64">The subject, or null when nobody is open.</param>
