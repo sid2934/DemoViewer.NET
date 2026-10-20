@@ -39,7 +39,10 @@ using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Services.Update;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
@@ -54,6 +57,7 @@ using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.LiveSync;
 using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Playback;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
@@ -66,6 +70,7 @@ using DemoViewer.NET.Views.Highlights;
 using DemoViewer.NET.Views.Library;
 using DemoViewer.NET.Views.LiveSync;
 using DemoViewer.NET.Views.MatchOverview;
+using DemoViewer.NET.Views.PlayerOverview;
 using DemoViewer.NET.Views.RuleWorkbench;
 using DemoViewer.NET.Views.Settings;
 using DemoViewer.NET.Views.Diagnostics;
@@ -286,6 +291,10 @@ public static partial class Variants
             ["match-overview-cached-nosplit"] = () => MatchOverviewCached(DemoCacheTier.Parse, teamSplit: false),
             ["match-overview-cached-failed"] = () =>
                 MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed),
+            // Player Overview: nobody open (no Me account set), and a Me account whose demos have no player stats
+            // while background processing is off.
+            ["player-overview-empty"] = () => PlayerOverview(false),
+            ["player-overview-processing-off"] = () => PlayerOverview(true),
             ["strat-editor"] = () => StratEditor(false, false),
             ["strat-editor-collapsed"] = () => StratEditor(true, true),
             ["strat-editor-bare"] = () => StratEditor(false, false, true),
@@ -4475,6 +4484,62 @@ public static partial class Variants
                         ["TW"] = r.Team == 3 ? 7 : 3
                     }))
                 .ToList());
+    }
+
+    // The real Player Overview tab over an in-memory library of three demos, one with its player stats.
+    private static Panel PlayerOverview(bool withMe)
+    {
+        const string me = "76561198000000001";
+        DemoCacheStore store = new(null);
+        for (int i = 0; i < 3; i++)
+        {
+            DemoCacheRecord r = new()
+            {
+                Path = $"/demos/match730_{i}.dem",
+                Size = 148_000_000,
+                ModifiedTicks = 638_000_000_000_000_000 + i,
+                Map = "de_nuke",
+                Players =
+                [
+                    new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = me, Team = 3 },
+                    new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "76561198000000002", Team = 2 }
+                ]
+            };
+            DemoCacheStore.StampHeader(r);
+            DemoCacheStore.StampParse(r);
+            if (i == 0)
+            {
+                r.PackStamps.Add(new PackStamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId), StampedFacts.Schema, "fp")
+                {
+                    ComputedAtTicks = 1
+                });
+            }
+
+            store.Upsert(r);
+        }
+
+        PlayerDirectory directory = new(store);
+        IdentityService identity = new(new SettingsService((string?)null), directory);
+        if (withMe)
+        {
+            identity.SetAccounts([new IdentityAccount(me, "main", DateTime.UtcNow)]);
+        }
+
+        PlayerOverviewTabViewModel vm = new(
+            new PlayerOverviewServices(directory, identity, null, _ => { }, _ => { }, (_, _) => { }, _ => { }),
+            new FakeProcessingQueue { BackgroundEnabled = false });
+        vm.OnActivated(null!);
+        return new Panel
+        {
+            Background = Tok("ShellBg"),
+            Children =
+            {
+                new PlayerOverviewTabView
+                {
+                    DataContext = vm
+                }
+            }
+        };
     }
 
     private static Panel OverviewPanel(MatchOverviewTabViewModel vm) =>

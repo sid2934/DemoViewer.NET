@@ -64,7 +64,11 @@ public sealed class ShellModuleFeatureGate : IModuleFeatureGate, IDisposable
         "playback2d.export",
 
         // Strat Export: the same job and the same file, so the same reason.
-        "stratbook.export"
+        "stratbook.export",
+
+        // The Player Overview reads the demo cache's index, which the browser keeps in memory for one session,
+        // so there is no library across demos to show. The shell also builds no view model there.
+        "tab.playeroverview"
     };
 
     /// <inheritdoc />

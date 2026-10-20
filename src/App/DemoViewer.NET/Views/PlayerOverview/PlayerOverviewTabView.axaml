@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.PlayerOverview"
+             mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="760"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.PlayerOverviewTabView"
+             x:DataType="vm:PlayerOverviewTabViewModel">
+
+    <!--
+        Player Overview: one player across the library. This view is the frame only: the Me switcher, the
+        page-wide empty states and the "some demos have no stats yet" line. Every panel is a section view model
+        rendered by the view locator from Views/PlayerOverview/Sections, in the order the tab lists them.
+
+        Two columns at >= 1000px, stacked below: ONE Grid whose side column binds Grid.Row / Grid.Column /
+        Grid.ColumnSpan to view-model ints (the Match Overview precedent), so there is no second subtree.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.eyebrow">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.slotMessage">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBright}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style Selector="Rectangle.heroAccent">
+            <Setter Property="Fill" Value="{DynamicResource AccentInteractive}" />
+            <Setter Property="Height" Value="3" />
+            <Setter Property="Width" Value="52" />
+            <Setter Property="RadiusX" Value="1.5" />
+            <Setter Property="RadiusY" Value="1.5" />
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel>
+
+        <!-- ── Me bar: which of the user's accounts is active, one click to switch. ─────────────────── -->
+        <Border DockPanel.Dock="Top" Background="{DynamicResource PanelHeaderBg}"
+                BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="28 8">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Left" Classes="eyebrow" Text="ME" Margin="0 0 12 0" />
+                <Button DockPanel.Dock="Right" Classes="ghost chip" Content="Manage accounts"
+                        Command="{Binding OpenIdentitySettingsCommand}" />
+                <Panel>
+                    <ItemsControl ItemsSource="{Binding MeAccounts}" IsVisible="{Binding HasMeAccounts}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:MeAccountItem">
+                                <RadioButton GroupName="playerOverviewActive" Margin="0 0 14 0" FontSize="12"
+                                             Content="{Binding Title}"
+                                             IsChecked="{Binding IsActive, Mode=OneWay}"
+                                             AutomationProperties.Name="Active account"
+                                             ToolTip.Tip="{Binding SteamId64}"
+                                             Command="{Binding $parent[ItemsControl].((vm:PlayerOverviewTabViewModel)DataContext).SwitchAccountCommand}"
+                                             CommandParameter="{Binding}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock IsVisible="{Binding !HasMeAccounts}" VerticalAlignment="Center" FontSize="12"
+                               Foreground="{DynamicResource TextMid}"
+                               Text="You have not said which accounts are yours." />
+                </Panel>
+            </DockPanel>
+        </Border>
+
+        <Panel>
+
+            <!-- ── Empty state: nobody open, nobody in the library, or the subject is in no demo. ─────── -->
+            <StackPanel IsVisible="{Binding ShowEmpty}" x:Name="EmptyState"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="420">
+                <Rectangle Classes="heroAccent" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding Title}" Foreground="{DynamicResource TextCardHeader}"
+                           FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource TextMid}" TextAlignment="Center"
+                           FontSize="13" TextWrapping="Wrap" HorizontalAlignment="Center" />
+                <Button Classes="primary" HorizontalAlignment="Center" Content="Set who you are"
+                        IsVisible="{Binding CanOpenIdentity}" Command="{Binding OpenIdentitySettingsCommand}" />
+            </StackPanel>
+
+            <ScrollViewer IsVisible="{Binding ShowSections}" Padding="28 20" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="14" MaxWidth="1180">
+
+                    <!-- ── Coverage: some of the subject's demos have no player stats yet. ──────────────── -->
+                    <Border Classes="card" Padding="14 10" IsVisible="{Binding ShowBanner}" x:Name="CoverageBanner">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Classes="primary" VerticalAlignment="Center"
+                                    Content="Open Settings" IsVisible="{Binding CanOpenProcessing}"
+                                    Command="{Binding OpenProcessingSettingsCommand}" />
+                            <Border DockPanel.Dock="Right" Classes="badge" VerticalAlignment="Center" Margin="12 0 0 0"
+                                    IsVisible="{Binding ShowQueueChip}">
+                                <TextBlock Text="{Binding QueueText}" FontSize="11" />
+                            </Border>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextCardHeader}" />
+                                <TextBlock Classes="slotMessage" Text="{Binding Detail}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </Border>
+
+                    <Grid ColumnDefinitions="1.3*,20,*" RowDefinitions="Auto,Auto" RowSpacing="14">
+                        <ItemsControl Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="{Binding MainColumnSpan}"
+                                      ItemsSource="{Binding MainSections}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="14" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                        <ItemsControl Grid.Row="{Binding SideRow}" Grid.Column="{Binding SideColumn}"
+                                      Grid.ColumnSpan="{Binding SideColumnSpan}"
+                                      ItemsSource="{Binding SideSections}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Spacing="14" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                        </ItemsControl>
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Panel>
+    </DockPanel>
+</UserControl>

@@ -58,6 +58,10 @@ public static class FeatureCatalog
             "tab.stats", FeatureScope.Tab, "Stats",
             "Player-facing scoreboard and per-round stats. Core viewing surface.",
             null, null, false, Defaults(true, true, true)),
+        new(
+            "tab.playeroverview", FeatureScope.Tab, "Player Overview",
+            "One player across the whole library: match history, stats over time, maps. Desktop only.",
+            null, null, false, Defaults(true, true, true)),
         // The Reels dashboard. Was a library-wide highlights
         // BROWSER; it is an authoring surface now. Per-game exploration moved to Match Overview. Still
         // default-visible to every category: gating reel generation to power-users would hide the feature's
