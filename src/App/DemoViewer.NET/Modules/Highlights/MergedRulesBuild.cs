@@ -330,6 +330,64 @@ public sealed class MergedRulesBuild
         return identity;
     }
 
+    /// <summary>
+    ///     The identity of an enabled ruleset whose <c>use:</c> reaches one that is not enabled, or null when its
+    ///     closure is whole or it is not enabled itself. <see cref="RulesetIdentity" /> has nothing to answer for
+    ///     such a ruleset, but its outputs still want a stamp: the build leaves it out, and it should read as
+    ///     failed until the dependency comes back. Covers its own source, the missing ids and the engine version.
+    /// </summary>
+    public string? MissingDependencyIdentity(string rulesetId)
+    {
+        IReadOnlyList<RulesetDoc> docs = Docs;
+        if (Enabled(docs, rulesetId) is not { } doc)
+        {
+            return null;
+        }
+
+        List<string> missing = [];
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        Visit(doc);
+        if (missing.Count == 0)
+        {
+            return null;
+        }
+
+        string source;
+        lock (_gate)
+        {
+            if (!_sources.TryGetValue(doc.Id, out string? known))
+            {
+                known = SourceIdentity(doc);
+                _sources[doc.Id] = known;
+            }
+
+            source = known;
+        }
+
+        string engine = typeof(DemoAnalysis).Assembly.GetName().Version?.ToString() ?? "";
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"missing:{string.Join(",", missing)}\n{source}\n{engine}")));
+
+        void Visit(RulesetDoc current)
+        {
+            if (!seen.Add(current.Id))
+            {
+                return;
+            }
+
+            foreach (string id in current.Use)
+            {
+                if (Enabled(docs, id) is { } dependency)
+                {
+                    Visit(dependency);
+                }
+                else if (seen.Add(id))
+                {
+                    missing.Add(id);
+                }
+            }
+        }
+    }
+
     private static RulesetDoc? Enabled(IReadOnlyList<RulesetDoc> docs, string rulesetId) => docs.FirstOrDefault(r =>
         r.Enabled && string.Equals(r.Id, rulesetId, StringComparison.Ordinal));
 

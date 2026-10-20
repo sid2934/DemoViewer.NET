@@ -896,7 +896,8 @@ public class App : Application
         // The one rules read highlights and round facts share, and the queue's forward pass over it. An entry
         // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
         // round_facts is a core stamped ruleset: always on, it rides every merged run, and it stays out of
-        // the highlights fingerprint because its rows are stamped under its own identity.
+        // the highlights fingerprint because its rows are stamped under its own identity. player_match is one
+        // too, and the facts pass stores its table like an extension's.
         // An extension's ruleset is a stamped ruleset gated by its feature, read between the shipped rules and the
         // user's. A ruleset an extension's manifest claims but this launch did not contribute (safe mode, a failed
         // load) stays stamped and off, so a user override of it never joins the highlights set.
@@ -908,6 +909,7 @@ public class App : Application
             MergedRulesBuild rules = new(() => MergedRulesBuild.LoadShippedExtensionsUser(contributed.Value), () =>
             [
                 StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
+                StampedRuleset.Core(PlayerMatchFacet.RulesetId),
                 .. LibraryTeamTables.RulesetIds.Select(StampedRuleset.Core),
                 .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true) { ReadBy = c.ReadBy }),
                 .. FeaturePacks.ClaimedRulesets.Select(id => new StampedRuleset(id, StampedRuleset.ClaimedOwner, static () => false))

@@ -1,0 +1,484 @@
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+#
+# Player Match: one row per player per demo, stored by the facts pass as the player_match facet
+# (docs/player-match-format.md) and summed across demos by the Player Overview. App-owned like the
+# library rulesets: it is not in the package, so re-extracting rules/ on an engine bump leaves it be.
+#
+# Every column is a count, a raw numerator or denominator, or one of the two rates whose cross-demo
+# rule is a rounds-weighted mean (KAST%, HLTV). Ratios are never stored: the Player Overview divides
+# summed components, so one demo reproduces the Stats tab and many demos pool correctly. Labels are
+# the ColumnCatalogue keys wherever one exists; ColumnRules names the rest.
+#
+# The counts and sums are copies of their player_stats and aim_rating definitions, not computes that
+# read them. A per: match compute is evaluated at match end, and the last round's round_won and
+# round_lost fire after it, so a compute reading player_stats.TWins stores one win fewer than the
+# Stats tab shows. A copy is the same node as the original and keeps its final value. Keep the copies
+# word for word; PlayerMatchParityRealDemoTests fails on any that drift.
+#
+# KAST% and HLTV are match-end computes in their own rulesets too, so they are read across with a
+# compute, and rounds is the round.number those computes divide by. They carry format: R: a
+# compute's format rounds the stored value, and the default F1 would store 1.6 for an HLTV of 1.56.
+#
+# Highlight .counts do not resolve across rulesets, and a highlight here would join the highlights
+# fingerprint of any build that does not stamp this ruleset. The four highlight-count columns are
+# re-authored as per-round counts and a tally: the rounds a count reached its threshold is the
+# number of rounds the player_stats highlight fired in.
+#
+# No sight: true column is here. A forward run has no line-of-sight geometry, so they would store a
+# permanent 0.
+ruleset: player_match
+title: Player Match
+summary: Per-player match totals and the components of every rate, for cross-demo player stats.
+for: each_player
+use: [ player_stats, kast ]
+
+stats:
+  # ── Rate denominator, and the two rates pooled as a rounds-weighted mean ──
+  rounds:
+    compute: "round.number"
+    per: match
+    format: R
+
+  kast_pct:
+    compute: "kast.kast_pct"
+    per: match
+    format: R
+
+  hltv:
+    compute: "player_stats.HLTV"
+    per: match
+    format: R
+
+  # ── Copies of player_stats ──
+  TotalEnemyKills:
+    count: kill
+    match: { enemy: true }
+    per: match
+
+  TeamKills:
+    count: kill
+    match: { teamkill: true }
+    per: match
+
+  total_deaths:
+    count: death
+    while: match.live
+    per: match
+
+  TotalTeamAssists:
+    count: assist
+    match: { enemy: true }
+    where: "event.AssistedFlash == false"
+    per: match
+
+  total_headshot_kills:
+    count: kill
+    match: { headshot: true }
+    per: match
+
+  total_flash_assists:
+    count: assist
+    match: { flash: true }
+    while: round.active
+    per: match
+
+  total_noscope_kills:
+    count: kill
+    match: { no_scope: true }
+    while: round.active
+    per: match
+
+  total_wallbang_kills:
+    count: kill
+    where: "event.Penetrated > 0"
+    while: round.active
+    per: match
+
+  total_smoke_kills:
+    count: kill
+    match: { through_smoke: true }
+    while: round.active
+    per: match
+
+  total_blind_kills:
+    count: kill
+    where: "event.AttackerBlind == true"
+    while: round.active
+    per: match
+
+  total_revenge_kills:
+    count: kill
+    where: "event.Revenge > 0"
+    while: round.active
+    per: match
+
+  awp_kills:
+    count: kill
+    where: 'event.Weapon == "awp"'
+    while: round.active
+    per: match
+
+  pistol_kills:
+    count: kill
+    where: 'event.Weapon == "glock" || event.Weapon == "hkp2000" || event.Weapon == "usp_silencer" || event.Weapon == "p250" || event.Weapon == "deagle" || event.Weapon == "fiveseven" || event.Weapon == "tec9" || event.Weapon == "cz75a" || event.Weapon == "elite" || event.Weapon == "revolver"'
+    while: round.active
+    per: match
+
+  rifle_kills:
+    count: kill
+    where: 'event.Weapon == "ak47" || event.Weapon == "m4a1" || event.Weapon == "m4a1_silencer" || event.Weapon == "aug" || event.Weapon == "sg556" || event.Weapon == "famas" || event.Weapon == "galilar" || event.Weapon == "ssg08"'
+    while: round.active
+    per: match
+
+  smg_kills:
+    count: kill
+    where: 'event.Weapon == "mp9" || event.Weapon == "mac10" || event.Weapon == "mp7" || event.Weapon == "mp5sd" || event.Weapon == "ump45" || event.Weapon == "bizon" || event.Weapon == "p90"'
+    while: round.active
+    per: match
+
+  knife_kills:
+    count: kill
+    where: 'event.Weapon == "knife" || event.Weapon == "knife_t" || event.Weapon == "knife_kukri"'
+    while: round.active
+    per: match
+
+  TradeKills:
+    count: kill
+    match: { trade: true }
+    per: match
+
+  FlashKills:
+    count: kill
+    match: { actor: any, flash_assisted: true }
+    where: "enrich.kill.flash_attacker_slot == player.slot"
+    per: match
+
+  TotalEnemyDmg:
+    sum: enrich.hurt.capped_damage
+    on: damage_dealt
+    match: { enemy: true }
+    per: match
+
+  TeamDmg:
+    sum: event.DmgHealth
+    on: damage_dealt
+    match: { teamdamage: true }
+    per: match
+
+  SelfDmg:
+    sum: event.DmgHealth
+    on: damage_dealt
+    where: "event.Attacker == event.UserId"
+    per: match
+
+  ShotsHitFoe:
+    count: damage_dealt
+    match: { enemy: true, bullet: true }
+    per: match
+
+  ShotsHitFriend:
+    count: damage_dealt
+    match: { teamdamage: true }
+    per: match
+
+  HealthWhileDamagingSum:
+    sum: player.health
+    on: damage_dealt
+    match: { enemy: true }
+    per: match
+
+  EnemyDamageInstances:
+    count: damage_dealt
+    match: { enemy: true }
+    per: match
+
+  EquipmentValueSum:
+    sum: player.equipment_value
+    on: raw.round_freeze_end
+    while: player.alive
+    per: match
+
+  EquipmentValueRounds:
+    count: raw.round_freeze_end
+    while: player.alive
+    per: match
+
+  RoundsWithArmor:
+    count: raw.round_freeze_end
+    while: player.alive
+    where: "player.armor > 0"
+    per: match
+
+  total_shots_fired:
+    count: shot
+    match: { bullet: true }
+    while: round.active
+    per: match
+
+  he_used:
+    count: he_grenade
+    while: round.active
+    per: match
+
+  flash_used:
+    count: flash_grenade
+    while: round.active
+    per: match
+
+  smoke_used:
+    count: smoke_grenade
+    while: round.active
+    per: match
+
+  molotov_used:
+    count: molotov
+    while: round.active
+    per: match
+
+  bomb_plants:
+    count: bomb_planted
+    where: "event.UserId == player.slot"
+    per: match
+
+  bomb_defuses:
+    count: bomb_defused
+    where: "event.UserId == player.slot"
+    per: match
+
+  rounds_survived:
+    count: round_ended
+    while: player.alive
+    per: match
+
+  TotalEnemyFlashes:
+    count: blinded_enemy
+    match: { enemy: true }
+    per: match
+
+  TotalBlindDuration:
+    sum: floor(enrich.blind.duration)
+    on: blinded_enemy
+    match: { enemy: true }
+    per: match
+
+  clutch_won:
+    count: round_ended
+    where: "enrich.clutch.was_clutch_won && enrich.clutch.winner_slot == player.slot"
+    per: match
+
+  CTWins:
+    count: round_won
+    where: "enrich.round.has_winner && enrich.round.winner_team == player.team && enrich.round.winner_side == 3"
+    per: match
+
+  CTLosses:
+    count: round_lost
+    where: "enrich.round.has_winner && enrich.round.winner_team != player.team && enrich.round.winner_side == 2"
+    per: match
+
+  TWins:
+    count: round_won
+    where: "enrich.round.has_winner && enrich.round.winner_team == player.team && enrich.round.winner_side == 2"
+    per: match
+
+  TLosses:
+    count: round_lost
+    where: "enrich.round.has_winner && enrich.round.winner_team != player.team && enrich.round.winner_side == 3"
+    per: match
+
+  CTFK:
+    count: kill
+    while: round.no_deaths_yet
+    where: "player.team == 3"
+    per: match
+
+  CTFD:
+    count: death
+    while: round.no_deaths_yet
+    where: "event.Attacker != event.UserId && player.team == 3"
+    per: match
+
+  TFK:
+    count: kill
+    while: round.no_deaths_yet
+    where: "player.team == 2"
+    per: match
+
+  TFD:
+    count: death
+    while: round.no_deaths_yet
+    where: "event.Attacker != event.UserId && player.team == 2"
+    per: match
+
+  rapid_kill_sequences:
+    streak: kill
+    window: 640
+    min_streak: 2
+    per: match
+
+  # ── Copies of aim_rating: the hit-rate half (every sight: true column is left out) ──
+  enemy_head_hits:
+    count: damage_dealt
+    match: { enemy: true, bullet: true, hitgroup: 1 }
+    per: match
+
+  enemy_head_damage:
+    sum: enrich.hurt.capped_damage
+    on: damage_dealt
+    match: { enemy: true, bullet: true, hitgroup: 1 }
+    per: match
+
+  cs_attempts:
+    count: shot
+    match: { bullet: true, counter_strafe_admitted: true }
+    while: round.active
+    per: match
+
+  cs_clean:
+    count: shot
+    match: { bullet: true, counter_strafe_admitted: true, counter_strafe_good: true }
+    while: round.active
+    per: match
+
+  moving_shots:
+    count: shot
+    match: { bullet: true, counter_strafe_admitted: true, counter_strafe_good: false }
+    while: round.active
+    per: match
+
+  spray_error_sum:
+    sum: abs(enrich.shot.spray_residual_deg)
+    on: shot_landed
+    match: { spray_residual_measured: true }
+    while: round.active
+    per: match
+
+  spray_residual_shots:
+    count: shot_landed
+    match: { spray_residual_measured: true }
+    while: round.active
+    per: match
+
+  # ── Multi-kill rounds: kast's tally, re-authored because its targets are not exported ──
+  kills_round:
+    count: kill
+    per: round
+    while: round.active
+  multi_kill:
+    tally: kills_round
+    thresholds:
+      - { min: 5, target: rounds_5k }
+      - { min: 4, target: rounds_4k }
+      - { min: 3, target: rounds_3k }
+      - { min: 2, target: rounds_2k }
+    per: match
+
+  # ── player_stats' four highlight counts (see the header) ──
+  opening_kills_round:
+    count: kill
+    while: round.no_deaths_yet
+    per: round
+  opening_kill_tally:
+    tally: opening_kills_round
+    thresholds:
+      - { min: 1, target: opening_kills }
+    per: match
+
+  opening_deaths_round:
+    count: death
+    while: round.no_deaths_yet
+    per: round
+  opening_death_tally:
+    tally: opening_deaths_round
+    thresholds:
+      - { min: 1, target: opening_deaths }
+    per: match
+
+  deagle_hs_kills_round:
+    count: kill
+    match: { headshot: true }
+    where: 'event.Weapon == "deagle"'
+    while: round.active
+    per: round
+  deagle_hs_tally:
+    tally: deagle_hs_kills_round
+    thresholds:
+      - { min: 2, target: deagle_hs_rounds }
+    per: match
+
+  traded_deaths:
+    count: round_ended
+    while: player.traded
+    per: match
+
+show:
+  tables:
+    player_match:
+      per: player_match
+      columns:
+        - { stat: rounds,               label: rounds }
+        - { stat: TotalEnemyKills,      label: TotalK }
+        - { stat: TeamKills,            label: TeamKills }
+        - { stat: total_deaths,         label: TotalD }
+        - { stat: TotalTeamAssists,     label: TotalA }
+        - { stat: total_headshot_kills, label: TotalHS }
+        - { stat: total_flash_assists,  label: FlashAst }
+        - { stat: TradeKills,           label: TrdK }
+        - { stat: traded_deaths,        label: TradedD }
+        - { stat: clutch_won,           label: Clutch }
+        - { stat: rapid_kill_sequences, label: RapidKills }
+        - { stat: total_noscope_kills,  label: NoScope }
+        - { stat: total_wallbang_kills, label: WB }
+        - { stat: total_smoke_kills,    label: Smoke }
+        - { stat: total_blind_kills,    label: Blind }
+        - { stat: total_revenge_kills,  label: Revenge }
+        - { stat: FlashKills,           label: FlashK }
+        - { stat: awp_kills,            label: AWP }
+        - { stat: pistol_kills,         label: Pistol }
+        - { stat: rifle_kills,          label: Rifle }
+        - { stat: smg_kills,            label: SMG }
+        - { stat: knife_kills,          label: Knife }
+        - { stat: deagle_hs_rounds,     label: DeagleHSRnds }
+        - { stat: TotalEnemyDmg,        label: EnemyDmg }
+        - { stat: TeamDmg,              label: TeamDmg }
+        - { stat: SelfDmg,              label: SelfDmg }
+        - { stat: ShotsHitFoe,          label: HitFoe }
+        - { stat: ShotsHitFriend,       label: HitTeam }
+        - { stat: total_shots_fired,    label: Shots }
+        - { stat: HealthWhileDamagingSum, label: health_at_damage_sum }
+        - { stat: EnemyDamageInstances, label: damage_instances }
+        - { stat: rounds_survived,      label: Survived }
+        - { stat: EquipmentValueSum,    label: equipment_sum }
+        - { stat: EquipmentValueRounds, label: equipment_rounds }
+        - { stat: RoundsWithArmor,      label: Armor }
+        - { stat: he_used,              label: HE }
+        - { stat: flash_used,           label: Flash }
+        - { stat: smoke_used,           label: Smokes }
+        - { stat: molotov_used,         label: Molly }
+        - { stat: TotalEnemyFlashes,    label: EFlash }
+        - { stat: TotalBlindDuration,   label: blind_duration_sum }
+        - { stat: bomb_plants,          label: Plants }
+        - { stat: bomb_defuses,         label: Defuses }
+        - { stat: CTWins,               label: CTW }
+        - { stat: CTLosses,             label: CTL }
+        - { stat: TWins,                label: TW }
+        - { stat: TLosses,              label: TL }
+        - { stat: opening_kills,        label: TotalFK }
+        - { stat: opening_deaths,       label: TotalFD }
+        - { stat: CTFK,                 label: CTFK }
+        - { stat: CTFD,                 label: CTFD }
+        - { stat: TFK,                  label: TFK }
+        - { stat: TFD,                  label: TFD }
+        - { stat: rounds_2k,            label: "2K" }
+        - { stat: rounds_3k,            label: "3K" }
+        - { stat: rounds_4k,            label: "4K" }
+        - { stat: rounds_5k,            label: "5K" }
+        - { stat: kast_pct,             label: "KAST%" }
+        - { stat: hltv,                 label: HLTV }
+        - { stat: enemy_head_hits,      label: head_hits }
+        - { stat: enemy_head_damage,    label: head_damage }
+        - { stat: cs_attempts,          label: CSAtt }
+        - { stat: cs_clean,             label: cs_clean }
+        - { stat: moving_shots,         label: moving_shots }
+        - { stat: spray_error_sum,      label: spray_error_sum }
+        - { stat: spray_residual_shots, label: SprayN }
