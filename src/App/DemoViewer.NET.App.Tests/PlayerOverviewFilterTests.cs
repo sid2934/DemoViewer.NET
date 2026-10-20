@@ -131,11 +131,11 @@ public class PlayerOverviewFilterTests
     private static string Tile(SummarySectionViewModel summary, string key) => summary.Tiles.Single(t => t.Key == key).Text;
 
     [Test]
-    public async Task SummarySitsBetweenTheHeaderAndTheHistory()
+    public async Task SummaryOpensTheOverview_UnderTheHeader()
     {
         using Shell shell = new(Library(3));
-        await Assert.That(shell.Tab.Sections.Select(s => s.Id).Take(4)).IsEquivalentTo(["header", "summary", "history", "maps"],
-            TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(shell.Tab.Persistent.Select(s => s.Id)).IsEquivalentTo(["header"]);
+        await Assert.That(shell.Tab.Pages[0].Top.Select(s => s.Id)).IsEquivalentTo(["summary"]);
     }
 
     [Test]

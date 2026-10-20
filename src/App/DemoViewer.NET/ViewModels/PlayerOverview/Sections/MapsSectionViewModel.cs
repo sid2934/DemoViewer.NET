@@ -36,6 +36,12 @@ public sealed partial class MapsSectionViewModel : PlayerOverviewSection
     public override string Id => "maps";
 
     /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.History;
+
+    /// <inheritdoc />
+    public override SectionSlot Slot => SectionSlot.Top;
+
+    /// <inheritdoc />
     public override void Update(PlayerOverviewContext context)
     {
         ArgumentNullException.ThrowIfNull(context);

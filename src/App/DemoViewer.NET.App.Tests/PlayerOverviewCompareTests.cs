@@ -236,6 +236,8 @@ public class PlayerOverviewCompareRenderTests
             section.Pick(PlayerOverviewCompareTests.Rival);
             await section.Loading;
 
+            vm.ShowPage(PlayerOverviewPageKind.Stats);
+
             Window window = new() { Width = 1300, Height = 6000, Content = new PlayerOverviewTabView { DataContext = vm } };
             window.Show();
             Dispatcher.UIThread.RunJobs();

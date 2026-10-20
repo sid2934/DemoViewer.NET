@@ -73,6 +73,12 @@ public sealed partial class CompareSectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "compare";
 
+    /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.Stats;
+
+    /// <inheritdoc />
+    public override SectionSlot Slot => SectionSlot.Rail;
+
     /// <summary>The players the search text matches, the subject left out.</summary>
     public ObservableCollection<PlayerCandidateItem> Candidates { get; } = [];
 

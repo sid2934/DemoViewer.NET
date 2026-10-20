@@ -282,6 +282,8 @@ public class PlayerOverviewHighlightsRenderTests
             Dispatcher.UIThread.RunJobs();
             await Assert.That(section.Rows.Count).IsEqualTo(3);
 
+            vm.ShowPage(PlayerOverviewPageKind.Achievements);
+
             Window window = new() { Width = 1300, Height = 1400, Content = new PlayerOverviewTabView { DataContext = vm } };
             window.Show();
             Dispatcher.UIThread.RunJobs();

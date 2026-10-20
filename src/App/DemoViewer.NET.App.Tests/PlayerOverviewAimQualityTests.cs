@@ -243,6 +243,7 @@ public class PlayerOverviewAimQualityRenderTests
             await vm.Loading;
 
             // Tall enough to realise the last section under everything above it.
+            vm.ShowPage(PlayerOverviewPageKind.Stats);
             Window window = new() { Width = 1300, Height = 6000, Content = new PlayerOverviewTabView { DataContext = vm } };
             window.Show();
             Dispatcher.UIThread.RunJobs();

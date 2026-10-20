@@ -1,6 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:po="using:DemoViewer.NET.ViewModels.PlayerOverview"
+             xmlns:poViews="using:DemoViewer.NET.Views.PlayerOverview"
              x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.HistorySectionView"
              x:DataType="sections:HistorySectionViewModel"
              IsVisible="{Binding IsVisible}">
@@ -8,7 +10,8 @@
     <!--
         Match history, newest first. The page scrolls in an outer ScrollViewer, which measures its content at
         infinite height; the list's MaxHeight is what bounds it, so the VirtualizingStackPanel realises only the
-        rows in view however long the history is. The header row and every item spell out the same columns.
+        rows in view however long the history is. The page sets that height from its own, so the list fills the
+        History tab. The header row and every item spell out the same columns.
     -->
 
     <UserControl.Styles>
@@ -70,7 +73,8 @@
                 <TextBlock Grid.Column="11" Classes="col-label num" Text="RANK" ToolTip.Tip="Rank change in the match" />
             </Grid>
 
-            <ListBox x:Name="HistoryList" Classes="data-list" MaxHeight="520" ItemsSource="{Binding Rows}"
+            <ListBox x:Name="HistoryList" Classes="data-list" ItemsSource="{Binding Rows}"
+                     MaxHeight="{Binding $parent[poViews:PlayerOverviewPageView].((po:PlayerOverviewPage)DataContext).ListMaxHeight, FallbackValue=520}"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                 <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>

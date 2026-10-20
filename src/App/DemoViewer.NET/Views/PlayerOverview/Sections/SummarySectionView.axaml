@@ -1,85 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:po="using:DemoViewer.NET.ViewModels.PlayerOverview"
              xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
              xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
              x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.SummarySectionView"
              x:DataType="sections:SummarySectionViewModel"
              IsVisible="{Binding IsVisible}">
 
-    <!--
-        The filter bar sits on the summary because the summary is the first panel it narrows; every panel below
-        reads the same window. The date pickers show only for the date-range window.
-    -->
-
-    <UserControl.Styles>
-        <Style Selector="TextBlock.filterLabel">
-            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Margin" Value="0 0 6 0" />
-        </Style>
-        <Style Selector="ComboBox.filter">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="MinWidth" Value="104" />
-            <Setter Property="Margin" Value="0 0 14 6" />
-        </Style>
-        <Style Selector="CalendarDatePicker.filter">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Width" Value="128" />
-            <Setter Property="Margin" Value="0 0 8 6" />
-        </Style>
-    </UserControl.Styles>
-
+    <!-- The headline tiles over the filter bar's window; the bar itself sits above the inner tabs. -->
     <Border Classes="card" Padding="14 12">
         <StackPanel Spacing="10">
-            <WrapPanel Orientation="Horizontal" x:Name="FilterBar">
-                <TextBlock Classes="filterLabel" Text="WINDOW" />
-                <ComboBox Classes="filter" x:Name="WindowBox" ItemsSource="{Binding Filter.Windows}"
-                          SelectedItem="{Binding Filter.Window, Mode=TwoWay}" AutomationProperties.Name="Window">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="po:PlayerFilterChoice">
-                            <TextBlock Text="{Binding Label}" />
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <CalendarDatePicker Classes="filter" IsVisible="{Binding Filter.IsDateRange}" Watermark="From"
-                                    SelectedDate="{Binding Filter.From, Mode=TwoWay}" AutomationProperties.Name="From" />
-                <CalendarDatePicker Classes="filter" IsVisible="{Binding Filter.IsDateRange}" Watermark="To"
-                                    SelectedDate="{Binding Filter.To, Mode=TwoWay}" AutomationProperties.Name="To" />
-                <TextBlock Classes="filterLabel" Text="MAP" />
-                <ComboBox Classes="filter" ItemsSource="{Binding Filter.Maps}"
-                          SelectedItem="{Binding Filter.Map, Mode=TwoWay}" AutomationProperties.Name="Map">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="po:PlayerFilterChoice">
-                            <TextBlock Text="{Binding Label}" />
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <TextBlock Classes="filterLabel" Text="MODE" />
-                <ComboBox Classes="filter" ItemsSource="{Binding Filter.Modes}"
-                          SelectedItem="{Binding Filter.Mode, Mode=TwoWay}" AutomationProperties.Name="Mode or source">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="po:PlayerFilterChoice">
-                            <TextBlock Text="{Binding Label}" />
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <TextBlock Classes="filterLabel" Text="SIDE" ToolTip.Tip="The side at the end of the match" />
-                <ComboBox Classes="filter" ItemsSource="{Binding Filter.Sides}"
-                          SelectedItem="{Binding Filter.Side, Mode=TwoWay}" AutomationProperties.Name="Side at the end">
-                    <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="po:PlayerFilterChoice">
-                            <TextBlock Text="{Binding Label}" />
-                        </DataTemplate>
-                    </ComboBox.ItemTemplate>
-                </ComboBox>
-                <Button Classes="ghost chip" Content="Clear filters" Margin="0 0 0 6" VerticalAlignment="Center"
-                        IsVisible="{Binding Filter.IsFiltered}" Command="{Binding Filter.ResetCommand}" />
-            </WrapPanel>
-
             <ItemsControl x:Name="Tiles" ItemsSource="{Binding Tiles}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>

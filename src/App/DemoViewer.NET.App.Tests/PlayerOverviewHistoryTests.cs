@@ -345,6 +345,8 @@ public class PlayerOverviewHistoryRenderTests
             HistorySectionViewModel history = vm.Sections.OfType<HistorySectionViewModel>().Single();
             await Assert.That(history.Rows.Count).IsEqualTo(1000);
 
+            vm.ShowPage(PlayerOverviewPageKind.History);
+
             Window window = new() { Width = 1300, Height = 900, Content = new PlayerOverviewTabView { DataContext = vm } };
             window.Show();
             Dispatcher.UIThread.RunJobs();

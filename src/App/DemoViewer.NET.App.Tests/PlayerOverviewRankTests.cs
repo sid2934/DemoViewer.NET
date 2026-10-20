@@ -127,7 +127,7 @@ public class PlayerOverviewRankTests
         using (Assert.Multiple())
         {
             await Assert.That(rank.IsVisible).IsTrue();
-            await Assert.That(rank.Column).IsEqualTo(SectionColumn.Side);
+            await Assert.That(rank.Slot).IsEqualTo(SectionSlot.Rail);
             await Assert.That(rank.Tracks.Select(t => t.Title))
                 .IsEquivalentTo(["Premier", "Competitive · Nuke", "Competitive · Mirage"], CollectionOrdering.Matching)
                 .Because("Premier first, then the per-map tracks played most recently first");

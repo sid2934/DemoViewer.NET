@@ -79,6 +79,12 @@ public sealed partial class BenchmarksSectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "benchmarks";
 
+    /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.Stats;
+
+    /// <inheritdoc />
+    public override SectionSlot Slot => SectionSlot.Rail;
+
     /// <summary>The minimum match counts the user can pick.</summary>
     public IReadOnlyList<int> Minimums { get; } = [1, 3, 5, 10, 20];
 

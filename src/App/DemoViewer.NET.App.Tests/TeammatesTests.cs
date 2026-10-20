@@ -279,6 +279,7 @@ public class TeammatesRenderTests
             vm.OpenPlayer(TeammatesTests.Grim);
             await vm.Loading;
 
+            vm.ShowPage(PlayerOverviewPageKind.History);
             Window window = new() { Width = 1300, Height = 4000, Content = new PlayerOverviewTabView { DataContext = vm } };
             window.Show();
             Dispatcher.UIThread.RunJobs();

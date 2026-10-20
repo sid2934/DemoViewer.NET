@@ -54,6 +54,9 @@ public sealed partial class HighlightsSectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "highlights";
 
+    /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.Achievements;
+
     /// <summary>True while the demos' highlights are being read.</summary>
     public bool IsLoading => LoadText.Length > 0;
 

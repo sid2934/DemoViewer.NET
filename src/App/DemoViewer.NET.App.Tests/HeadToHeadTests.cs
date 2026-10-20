@@ -319,6 +319,8 @@ public class HeadToHeadRenderTests
             HeadToHeadSectionViewModel section = vm.Sections.OfType<HeadToHeadSectionViewModel>().Single();
             await section.Loading;
 
+            vm.ShowPage(PlayerOverviewPageKind.History);
+
             Window window = new() { Width = 1300, Height = 4000, Content = new PlayerOverviewTabView { DataContext = vm } };
             window.Show();
             Dispatcher.UIThread.RunJobs();

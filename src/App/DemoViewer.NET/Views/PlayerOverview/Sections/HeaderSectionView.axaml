@@ -5,10 +5,13 @@
              x:DataType="sections:HeaderSectionViewModel"
              IsVisible="{Binding IsVisible}">
 
-    <!-- The profile address is plain text to copy: the app is offline and opens nothing on the web. -->
-    <Border Classes="card" Padding="18 14">
+    <!--
+        A compact strip above the inner tabs, so it costs every page little height. The profile address is plain
+        text to copy: the app is offline and opens nothing on the web.
+    -->
+    <Border Classes="card" Padding="16 10">
         <DockPanel>
-            <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top" Orientation="Horizontal" Spacing="8">
+            <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Orientation="Horizontal" Spacing="8">
                 <Button Classes="ghost chip" Content="Set as me" x:Name="SetAsMeButton"
                         IsVisible="{Binding CanSetAsMe}" Command="{Binding SetAsMeCommand}"
                         ToolTip.Tip="Add this account to the accounts that are yours" />
@@ -16,28 +19,28 @@
                         IsVisible="{Binding CanSetActive}" Command="{Binding SetActiveCommand}"
                         ToolTip.Tip="Use this account for your own stats" />
             </StackPanel>
-            <StackPanel Spacing="4">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="{Binding Name}" FontSize="22" FontWeight="SemiBold"
+            <StackPanel Spacing="3">
+                <WrapPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Name}" FontSize="19" FontWeight="SemiBold" Margin="0 0 10 0"
                                Foreground="{DynamicResource TextCardHeader}" TextTrimming="CharacterEllipsis" />
-                    <Border Classes="badge" IsVisible="{Binding IsMine}" VerticalAlignment="Center">
+                    <Border Classes="badge" IsVisible="{Binding IsMine}" VerticalAlignment="Center" Margin="0 0 14 0">
                         <TextBlock Text="YOU" FontSize="10" FontWeight="SemiBold" FontFamily="Consolas,Menlo,monospace" />
                     </Border>
-                </StackPanel>
-                <TextBlock Text="{Binding Aliases}" IsVisible="{Binding HasAliases}" FontSize="12"
-                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
-                <WrapPanel Orientation="Horizontal">
                     <SelectableTextBlock Classes="mono" Text="{Binding SteamId64}" FontSize="12" VerticalAlignment="Center"
                                          Foreground="{DynamicResource TextMid}" />
                     <Button Classes="ghost chip" Content="Copy" Margin="6 0 16 0" Click="OnCopySteamIdClick"
-                            AutomationProperties.Name="Copy SteamID64" />
-                    <SelectableTextBlock Classes="mono" Text="{Binding ProfileUrl}" FontSize="12" VerticalAlignment="Center"
-                                         Foreground="{DynamicResource TextMid}" />
+                            VerticalAlignment="Center" AutomationProperties.Name="Copy SteamID64" />
+                    <TextBlock Text="{Binding DemoCountText}" FontSize="12" Margin="0 0 14 0" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextMid}" />
+                    <TextBlock Text="{Binding SeenText}" FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextMid}" />
                 </WrapPanel>
-                <StackPanel Orientation="Horizontal" Spacing="14">
-                    <TextBlock Text="{Binding DemoCountText}" FontSize="12" Foreground="{DynamicResource TextMid}" />
-                    <TextBlock Text="{Binding SeenText}" FontSize="12" Foreground="{DynamicResource TextMid}" />
-                </StackPanel>
+                <WrapPanel Orientation="Horizontal">
+                    <SelectableTextBlock Classes="mono" Text="{Binding ProfileUrl}" FontSize="11.5" Margin="0 0 16 0"
+                                         Foreground="{DynamicResource TextDim}" />
+                    <TextBlock Text="{Binding Aliases}" IsVisible="{Binding HasAliases}" FontSize="11.5"
+                               Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+                </WrapPanel>
             </StackPanel>
         </DockPanel>
     </Border>

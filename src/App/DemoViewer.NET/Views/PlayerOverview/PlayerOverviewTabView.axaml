@@ -3,17 +3,16 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:DemoViewer.NET.ViewModels.PlayerOverview"
+             xmlns:views="using:DemoViewer.NET.Views.PlayerOverview"
              mc:Ignorable="d" d:DesignWidth="1180" d:DesignHeight="760"
              x:Class="DemoViewer.NET.Views.PlayerOverview.PlayerOverviewTabView"
              x:DataType="vm:PlayerOverviewTabViewModel">
 
     <!--
-        Player Overview: one player across the library. This view is the frame only: the Me switcher, the
-        page-wide empty states and the "some demos have no stats yet" line. Every panel is a section view model
-        rendered by the view locator from Views/PlayerOverview/Sections, in the order the tab lists them.
-
-        Two columns at >= 1000px, stacked below: ONE Grid whose side column binds Grid.Row / Grid.Column /
-        Grid.ColumnSpan to view-model ints (the Match Overview precedent), so there is no second subtree.
+        Player Overview: one player across the library. This view is the frame only: the Me switcher, search, the
+        page-wide empty states, and above the inner tabs the header, the "some demos have no stats yet" line, the
+        tab strip and the filter bar. Every panel is a section view model rendered by the view locator from
+        Views/PlayerOverview/Sections; PlayerOverviewPageView lays out each inner tab's sections.
     -->
 
     <UserControl.Styles>
@@ -35,6 +34,13 @@
             <Setter Property="Width" Value="52" />
             <Setter Property="RadiusX" Value="1.5" />
             <Setter Property="RadiusY" Value="1.5" />
+        </Style>
+        <!-- The shell's tab header look (TabItem.shell-tab), on the strip's generated items. -->
+        <Style Selector="TabStrip#PageStrip > TabStripItem">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="18 6" />
+            <Setter Property="MinHeight" Value="0" />
         </Style>
     </UserControl.Styles>
 
@@ -75,7 +81,7 @@
 
         <!-- ── Search: a name, or a SteamID in any form; an ID opens at once, names list candidates. ─── -->
         <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1" Padding="28 8">
-            <StackPanel Spacing="6" MaxWidth="1180">
+            <StackPanel Spacing="6" MaxWidth="2400">
                 <TextBox x:Name="SearchBox" Text="{Binding SearchText}"
                          Watermark="Search a player by name, SteamID or profile URL"
                          AutomationProperties.Name="Search players">
@@ -127,8 +133,10 @@
                         IsVisible="{Binding CanOpenIdentity}" Command="{Binding OpenIdentitySettingsCommand}" />
             </StackPanel>
 
-            <ScrollViewer IsVisible="{Binding ShowSections}" Padding="28 20" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="14" MaxWidth="1180">
+            <DockPanel IsVisible="{Binding ShowSections}">
+                <!-- ── Above the inner tabs: who the page is about, the coverage line, the strip and filters. ── -->
+                <StackPanel DockPanel.Dock="Top" Spacing="10" Margin="28 14 28 0" MaxWidth="2400">
+                    <ItemsControl ItemsSource="{Binding Persistent}" />
 
                     <!-- ── Coverage: some of the subject's demos have no player stats yet. ──────────────── -->
                     <Border Classes="card" Padding="14 10" IsVisible="{Binding ShowBanner}" x:Name="CoverageBanner">
@@ -148,27 +156,38 @@
                         </DockPanel>
                     </Border>
 
-                    <Grid ColumnDefinitions="1.3*,20,*" RowDefinitions="Auto,Auto" RowSpacing="14">
-                        <ItemsControl Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="{Binding MainColumnSpan}"
-                                      ItemsSource="{Binding MainSections}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Spacing="14" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                        </ItemsControl>
-                        <ItemsControl Grid.Row="{Binding SideRow}" Grid.Column="{Binding SideColumn}"
-                                      Grid.ColumnSpan="{Binding SideColumnSpan}"
-                                      ItemsSource="{Binding SideSections}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel Spacing="14" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                        </ItemsControl>
-                    </Grid>
+                    <!-- The filters apply to every page, so they sit beside the strip rather than on a page. -->
+                    <Border BorderBrush="{DynamicResource BorderSubtle}" BorderThickness="0 0 0 1">
+                        <DockPanel>
+                            <TabStrip DockPanel.Dock="Left" x:Name="PageStrip" VerticalAlignment="Bottom"
+                                      ItemsSource="{Binding Pages}" SelectedItem="{Binding SelectedPage, Mode=TwoWay}"
+                                      AutomationProperties.Name="Player overview pages">
+                                <TabStrip.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:PlayerOverviewPage">
+                                        <TextBlock Text="{Binding Header}" />
+                                    </DataTemplate>
+                                </TabStrip.ItemTemplate>
+                            </TabStrip>
+                            <views:PlayerOverviewFilterBar DataContext="{Binding Filter}" HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center" Margin="16 6 0 0" />
+                        </DockPanel>
+                    </Border>
                 </StackPanel>
-            </ScrollViewer>
+
+                <!-- Every page stays built; only the active one shows, so each keeps its scroll and selection. -->
+                <ItemsControl ItemsSource="{Binding Pages}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Panel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PlayerOverviewPage">
+                            <views:PlayerOverviewPageView IsVisible="{Binding IsActive}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
         </Panel>
     </DockPanel>
 </UserControl>

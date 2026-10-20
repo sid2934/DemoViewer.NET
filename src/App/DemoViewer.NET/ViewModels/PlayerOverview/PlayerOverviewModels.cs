@@ -34,20 +34,40 @@ public enum PlayerOverviewState
     Ready
 }
 
-/// <summary>Where a section sits once the tab is wide enough for two columns.</summary>
-public enum SectionColumn
+/// <summary>The inner tabs of the Player Overview, in strip order.</summary>
+public enum PlayerOverviewPageKind
 {
-    /// <summary>The wide left column; the whole width below the breakpoint.</summary>
-    Main,
+    /// <summary>The headline tiles, trends and rank: where the tab opens.</summary>
+    Overview,
 
-    /// <summary>The narrow right column; stacked under the main column below the breakpoint.</summary>
-    Side
+    /// <summary>Match history, maps and sides, and the people the subject played with and against.</summary>
+    History,
+
+    /// <summary>The stat categories, aim, library benchmarks and the two-player compare.</summary>
+    Stats,
+
+    /// <summary>Personal bests and highlights.</summary>
+    Achievements
 }
 
-/// <summary>The tab's session blob: who was open and whether the user picked them.</summary>
+/// <summary>Where a section sits on its page.</summary>
+public enum SectionSlot
+{
+    /// <summary>Across the whole page, above the columns.</summary>
+    Top,
+
+    /// <summary>The wide left column; the whole width when the page stacks.</summary>
+    Primary,
+
+    /// <summary>The right rail; stacked under the primary column when the page is narrower than its rail needs.</summary>
+    Rail
+}
+
+/// <summary>The tab's session blob: who was open, whether the user picked them, and which inner tab was showing.</summary>
 /// <param name="SubjectSteamId64">The subject as a decimal SteamID64, or null.</param>
 /// <param name="Pinned">True when the user opened the subject rather than following the active Me account.</param>
-public sealed record PlayerOverviewSession(string? SubjectSteamId64, bool Pinned);
+/// <param name="Page">The inner tab's <see cref="PlayerOverviewPageKind" /> name; null opens Overview.</param>
+public sealed record PlayerOverviewSession(string? SubjectSteamId64, bool Pinned, string? Page = null);
 
 /// <summary>What the tab and its sections reach outside themselves. Every delegate is a no-op when unwired.</summary>
 /// <param name="Directory">Every account in the library.</param>

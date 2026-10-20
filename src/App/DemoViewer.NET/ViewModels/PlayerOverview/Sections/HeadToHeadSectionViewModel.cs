@@ -68,6 +68,12 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "headtohead";
 
+    /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.History;
+
+    /// <inheritdoc />
+    public override SectionSlot Slot => SectionSlot.Rail;
+
     /// <summary>True when there is a line under the counts.</summary>
     public bool HasNote => NoteText.Length > 0;
 

@@ -35,7 +35,10 @@ public sealed partial class PersonalBestsSectionViewModel : PlayerOverviewSectio
     public override string Id => "personal-bests";
 
     /// <inheritdoc />
-    public override SectionColumn Column => SectionColumn.Side;
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.Achievements;
+
+    /// <inheritdoc />
+    public override SectionSlot Slot => SectionSlot.Top;
 
     /// <inheritdoc />
     public override void Update(PlayerOverviewContext context)

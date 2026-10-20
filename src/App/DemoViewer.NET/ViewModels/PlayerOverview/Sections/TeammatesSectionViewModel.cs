@@ -37,6 +37,12 @@ public sealed partial class TeammatesSectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "teammates";
 
+    /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.History;
+
+    /// <inheritdoc />
+    public override SectionSlot Slot => SectionSlot.Rail;
+
     /// <summary>True when there is a line under the header.</summary>
     public bool HasNote => NoteText.Length > 0;
 

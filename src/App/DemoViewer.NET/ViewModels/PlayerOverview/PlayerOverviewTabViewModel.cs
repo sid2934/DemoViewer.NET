@@ -19,8 +19,9 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview;
 
 /// <summary>
 ///     The Player Overview tab: one player across the whole library. The tab owns who the page is about (the
-///     subject) and the page-wide empty states; everything else is a <see cref="PlayerOverviewSection" /> it hosts
-///     in <see cref="PlayerOverviewSections" /> order.
+///     subject), the page-wide empty states and the inner tabs; everything else is a
+///     <see cref="PlayerOverviewSection" /> it hosts on the <see cref="PlayerOverviewPage" /> the section names, or
+///     above the tabs when the section is persistent.
 ///     <para>
 ///         Subject rules. With no restored subject the tab opens on the active Me account. A change to the user's
 ///         accounts moves the tab to the new active account unless the user opened a player themselves (the
@@ -43,9 +44,6 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 {
     /// <summary>The tab's feature id.</summary>
     public const string FeatureId = "tab.playeroverview";
-
-    /// <summary>The width at and above which the sections take two columns.</summary>
-    public const double TwoColumnBreakpoint = 1000;
 
     private static readonly string FacetStamp = StampedFacts.StampId(PlayerMatchFacet.RulesetId);
 
@@ -72,10 +70,9 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     [ObservableProperty]
     private string _detail = "";
 
-    /// <summary>True below <see cref="TwoColumnBreakpoint" />: the side column stacks under the main one.</summary>
+    /// <summary>The inner tab on show.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MainColumnSpan), nameof(SideColumn), nameof(SideRow), nameof(SideColumnSpan))]
-    private bool _isNarrow;
+    private PlayerOverviewPage _selectedPage;
 
     /// <summary>The processing chip's caption while the queue is computing the subject's stats, else empty.</summary>
     [ObservableProperty]
@@ -115,8 +112,17 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         _search = new PlayerSearch(services.Directory);
         Filter = new PlayerOverviewFilterViewModel();
         Sections = PlayerOverviewSections.Create(services with { OpenPlayer = OpenPlayer }, Filter);
-        MainSections = [.. Sections.Where(s => s.Column == SectionColumn.Main)];
-        SideSections = [.. Sections.Where(s => s.Column == SectionColumn.Side)];
+        Persistent = [.. Sections.Where(s => s.IsPersistent)];
+        // History's table needs about 900px of its own before Teammates and Head-to-head can sit beside it.
+        Pages =
+        [
+            new PlayerOverviewPage(PlayerOverviewPageKind.Overview, Sections),
+            new PlayerOverviewPage(PlayerOverviewPageKind.History, Sections, 3, 2, 1700),
+            new PlayerOverviewPage(PlayerOverviewPageKind.Stats, Sections, 3, 2, 1300),
+            new PlayerOverviewPage(PlayerOverviewPageKind.Achievements, Sections)
+        ];
+        _selectedPage = Pages[0];
+        _selectedPage.IsActive = true;
 
         SetSubject(ParseId(services.Identity.ActiveSteamId64), false);
 
@@ -138,11 +144,11 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     /// <summary>Every section, in page order.</summary>
     public IReadOnlyList<PlayerOverviewSection> Sections { get; }
 
-    /// <summary>The sections of the main column, in page order.</summary>
-    public IReadOnlyList<PlayerOverviewSection> MainSections { get; }
+    /// <summary>The sections above the inner tabs, shown on every page.</summary>
+    public IReadOnlyList<PlayerOverviewSection> Persistent { get; }
 
-    /// <summary>The sections of the side column, in page order.</summary>
-    public IReadOnlyList<PlayerOverviewSection> SideSections { get; }
+    /// <summary>The inner tabs, in strip order.</summary>
+    public IReadOnlyList<PlayerOverviewPage> Pages { get; }
 
     /// <summary>The players the search text matches, most demos first.</summary>
     public ObservableCollection<PlayerCandidateItem> Candidates { get; } = [];
@@ -186,18 +192,6 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     /// <summary>True when the processing chip shows.</summary>
     public bool ShowQueueChip => State == PlayerOverviewState.Computing && QueueText.Length > 0;
 
-    /// <summary>The main column's span: the whole grid when narrow or when no section takes the side column.</summary>
-    public int MainColumnSpan => IsNarrow || SideSections.Count == 0 ? 3 : 1;
-
-    /// <summary>The side column's grid column.</summary>
-    public int SideColumn => IsNarrow ? 0 : 2;
-
-    /// <summary>The side column's grid row: under the main column when narrow.</summary>
-    public int SideRow => IsNarrow ? 1 : 0;
-
-    /// <summary>The side column's span.</summary>
-    public int SideColumnSpan => IsNarrow ? 3 : 1;
-
     /// <inheritdoc />
     public void Dispose()
     {
@@ -231,7 +225,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
     /// <inheritdoc />
     public object? SnapshotState() =>
-        new PlayerOverviewSession(_subject?.ToString(CultureInfo.InvariantCulture), _pinned);
+        new PlayerOverviewSession(_subject?.ToString(CultureInfo.InvariantCulture), _pinned, SelectedPage.Kind.ToString());
 
     /// <summary>
     ///     Reopens the player the user had open. A subject that only followed the active account is not restored:
@@ -254,6 +248,11 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
             return;
         }
 
+        if (Enum.TryParse(session?.Page, out PlayerOverviewPageKind page))
+        {
+            ShowPage(page);
+        }
+
         if (session is { Pinned: true } && ParseId(session.SubjectSteamId64) is { } id)
         {
             SetSubject(id, true);
@@ -274,8 +273,37 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         Invalidate();
     }
 
-    /// <summary>Called by the view with its measured width.</summary>
-    public void SetViewportWidth(double width) => IsNarrow = width > 0 && width < TwoColumnBreakpoint;
+    /// <summary>Called by the view with its measured width; each page decides whether its rail fits.</summary>
+    public void SetViewportWidth(double width)
+    {
+        foreach (PlayerOverviewPage page in Pages)
+        {
+            page.SetWidth(width);
+        }
+    }
+
+    /// <summary>Shows the inner tab <paramref name="kind" />.</summary>
+    public void ShowPage(PlayerOverviewPageKind kind) => SelectedPage = Pages.First(p => p.Kind == kind);
+
+    // A null from the strip (its items rebuilt) keeps the page that was showing; the subject never moves the page.
+    partial void OnSelectedPageChanging(PlayerOverviewPage? oldValue, PlayerOverviewPage newValue)
+    {
+        if (oldValue is not null)
+        {
+            oldValue.IsActive = false;
+        }
+    }
+
+    partial void OnSelectedPageChanged(PlayerOverviewPage value)
+    {
+        if (value is null)
+        {
+            SelectedPage = Pages[0];
+            return;
+        }
+
+        value.IsActive = true;
+    }
 
     /// <summary>Opens the only candidate, or the account the text names when it is not a bare account id.</summary>
     [RelayCommand]
@@ -499,6 +527,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         PlayerOverviewContext context = Compose(new PlayerOverviewContext(_subject, player, matches, withStats, _subjectWasMine,
             _services, [], Filter.Filter, [], firstRead, _ranks, ranking && _ranks is null));
         RebuildMeAccounts();
+        Pages.First(p => p.Kind == PlayerOverviewPageKind.History).Count = player is null ? null : matches.Count;
         ApplyState(context);
         Show(context);
         IsReadingStats = firstRead;

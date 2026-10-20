@@ -21,8 +21,14 @@ public abstract partial class PlayerOverviewSection : ViewModelBase
     /// <summary>A stable id for tests and captures.</summary>
     public abstract string Id { get; }
 
-    /// <summary>Which column the section takes on a wide tab.</summary>
-    public virtual SectionColumn Column => SectionColumn.Main;
+    /// <summary>The inner tab the section is on.</summary>
+    public virtual PlayerOverviewPageKind Page => PlayerOverviewPageKind.Overview;
+
+    /// <summary>Where the section sits on its page.</summary>
+    public virtual SectionSlot Slot => SectionSlot.Primary;
+
+    /// <summary>True for a section shown above the inner tabs on every page rather than on one of them.</summary>
+    public virtual bool IsPersistent => false;
 
     /// <summary>
     ///     Renders <paramref name="context" />. Called on the UI thread while the tab is shown, after any change to

@@ -114,7 +114,7 @@ public class PlayerOverviewCategoriesTests
         using (Assert.Multiple())
         {
             await Assert.That(shell.Categories.IsVisible).IsTrue();
-            await Assert.That(shell.Categories.Column).IsEqualTo(SectionColumn.Main);
+            await Assert.That(shell.Categories.Page).IsEqualTo(PlayerOverviewPageKind.Stats);
             await Assert.That(shell.Categories.Categories.Select(c => c.Title))
                 .IsEquivalentTo(["Opening duels", "Trades", "Clutches", "Utility", "Weapons", "Multi-kill", "Economy"], CollectionOrdering.Matching);
         }
@@ -277,6 +277,8 @@ public class PlayerOverviewCategoriesRenderTests
             vm.OnActivated(null!);
             vm.OpenPlayer(PlayerOverviewHistoryTests.Grim);
             await vm.Loading;
+
+            vm.ShowPage(PlayerOverviewPageKind.Stats);
 
             Window window = new() { Width = 1300, Height = 900, Content = new PlayerOverviewTabView { DataContext = vm } };
             window.Show();

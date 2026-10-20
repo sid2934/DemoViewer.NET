@@ -32,7 +32,7 @@ public sealed partial class RankSectionViewModel : PlayerOverviewSection
     public override string Id => "rank";
 
     /// <inheritdoc />
-    public override SectionColumn Column => SectionColumn.Side;
+    public override SectionSlot Slot => SectionSlot.Rail;
 
     /// <summary>True while the records are being read.</summary>
     public bool IsLoading => LoadText.Length > 0;

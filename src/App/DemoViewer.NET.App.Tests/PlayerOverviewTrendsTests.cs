@@ -85,12 +85,12 @@ public class PlayerOverviewTrendsTests
     private static TrendItem Item(TrendsSectionViewModel trends, string key) => trends.Trends.Single(t => t.Key == key);
 
     [Test]
-    public async Task TrendsFollowTheHistory_AndSitBeforeRank()
+    public async Task TrendsSitOnTheOverview_WithRankInTheRail()
     {
         using Shell shell = new(4);
-        string[] ids = [.. shell.Tab.Sections.Select(s => s.Id)];
-        await Assert.That(ids.ToList().IndexOf("trends")).IsGreaterThan(ids.ToList().IndexOf("history"));
-        await Assert.That(ids.ToList().IndexOf("trends")).IsLessThan(ids.ToList().IndexOf("rank"));
+        PlayerOverviewPage overview = shell.Tab.Pages.Single(p => p.Kind == PlayerOverviewPageKind.Overview);
+        await Assert.That(overview.Primary.Select(s => s.Id)).Contains("trends");
+        await Assert.That(overview.Rail.Select(s => s.Id)).Contains("rank");
     }
 
     [Test]

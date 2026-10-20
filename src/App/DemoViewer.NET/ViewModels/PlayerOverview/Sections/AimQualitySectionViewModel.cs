@@ -48,6 +48,9 @@ public sealed partial class AimQualitySectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "aim-quality";
 
+    /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.Stats;
+
     /// <summary>True when there is a line under the blocks.</summary>
     public bool HasNote => Note.Length > 0;
 

@@ -70,6 +70,9 @@ public sealed partial class CategoriesSectionViewModel : PlayerOverviewSection
     public override string Id => "categories";
 
     /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.Stats;
+
+    /// <inheritdoc />
     public override void Update(PlayerOverviewContext context)
     {
         ArgumentNullException.ThrowIfNull(context);

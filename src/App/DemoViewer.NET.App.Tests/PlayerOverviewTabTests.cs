@@ -25,6 +25,7 @@ using DemoViewer.NET.Views.PlayerOverview;
 using DemoViewer.NET.Views.PlayerOverview.Sections;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -443,13 +444,60 @@ public class PlayerOverviewTabTests
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
             Dispatcher.UIThread.RunJobs();
 
+            PlayerOverviewPage overview = vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.Overview);
+            PlayerOverviewPage history = vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History);
             await Assert.That(window.GetVisualDescendants().OfType<HeaderSectionView>().Count()).IsEqualTo(1);
-            await Assert.That(vm.IsNarrow).IsFalse();
+            await Assert.That(overview.IsStacked).IsFalse();
+            await Assert.That(history.IsStacked).IsTrue().Because("history's table needs the width before its rail sits beside it");
             window.Width = 700;
             Dispatcher.UIThread.RunJobs();
-            await Assert.That(vm.IsNarrow).IsTrue();
+            await Assert.That(overview.IsStacked).IsTrue();
             window.Close();
         });
+    }
+
+    [Test]
+    public async Task Pages_HoldEverySectionOnce_AndTheHeaderAboveThem()
+    {
+        using IdentityService identity = Identity(Me);
+        using PlayerOverviewTabViewModel vm = Shown(Library(2, 1), identity, new FakeQueue());
+        PlayerOverviewSection[] placed = [.. vm.Pages.SelectMany(p => p.Sections)];
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.Pages.Select(p => p.Kind)).IsEquivalentTo(
+                [PlayerOverviewPageKind.Overview, PlayerOverviewPageKind.History, PlayerOverviewPageKind.Stats, PlayerOverviewPageKind.Achievements],
+                CollectionOrdering.Matching);
+            await Assert.That(vm.Persistent.Select(s => s.Id)).IsEquivalentTo(["header"]);
+            await Assert.That(vm.Persistent.Concat(placed).Select(s => s.Id)).IsEquivalentTo(vm.Sections.Select(s => s.Id), CollectionOrdering.Matching)
+                .Because("the registry lists the sections in page order");
+            await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History).Sections.Select(s => s.Id))
+                .IsEquivalentTo(["maps", "history", "teammates", "headtohead"], CollectionOrdering.Matching);
+            await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.Achievements).Sections.Select(s => s.Id))
+                .IsEquivalentTo(["personal-bests", "highlights"], CollectionOrdering.Matching);
+            await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History).Header).IsEqualTo("History · 2");
+        }
+    }
+
+    [Test]
+    public async Task SelectedPage_SurvivesASubjectChange_AndRestoresFromTheSession()
+    {
+        using IdentityService identity = Identity(Me);
+        using PlayerOverviewTabViewModel vm = Shown(Library(2, 1), identity, new FakeQueue());
+        vm.ShowPage(PlayerOverviewPageKind.Achievements);
+        vm.OpenPlayer(Other);
+        object? blob = JsonSerializer.SerializeToElement(vm.SnapshotState());
+
+        using PlayerOverviewTabViewModel restored = Shown(Library(2, 1), identity, new FakeQueue());
+        restored.RestoreState(blob);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.SelectedPage.Kind).IsEqualTo(PlayerOverviewPageKind.Achievements);
+            await Assert.That(vm.Pages.Count(p => p.IsActive)).IsEqualTo(1);
+            await Assert.That(restored.SelectedPage.Kind).IsEqualTo(PlayerOverviewPageKind.Achievements);
+            await Assert.That(restored.Pages.Single(p => p.Kind == PlayerOverviewPageKind.Overview).IsActive).IsFalse();
+        }
     }
 
     // ── Search ───────────────────────────────────────────────────────────────────────────────────────────

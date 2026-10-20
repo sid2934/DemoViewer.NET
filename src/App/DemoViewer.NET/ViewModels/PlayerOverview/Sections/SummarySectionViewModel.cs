@@ -11,7 +11,7 @@ using DemoViewer.NET.ViewModels.Stats;
 namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 
 /// <summary>
-///     The filter bar and the headline tiles over the filter's window: matches, win rate, K/D, ADR, KAST%, HS%,
+///     The headline tiles over the filter's window: matches, win rate, K/D, ADR, KAST%, HS%,
 ///     HLTV, KPR, opening duel win rate, clutches and multi-kill rounds, each pooled by its
 ///     <see cref="ColumnRules" /> rule, then the two line-of-sight tiles, time to damage and preaim. A filtered tile
 ///     also shows the all-time value. Colour comes from the catalogue's fixed benchmarks (Absolute bands): there are
@@ -34,7 +34,7 @@ public sealed partial class SummarySectionViewModel : PlayerOverviewSection
     [ObservableProperty]
     private IReadOnlyList<SummaryTileItem> _tiles = [];
 
-    /// <param name="filter">The tab's filter bar, shown here.</param>
+    /// <param name="filter">The tab's filter bar, shown above the inner tabs.</param>
     public SummarySectionViewModel(PlayerOverviewFilterViewModel filter)
     {
         Filter = filter ?? throw new ArgumentNullException(nameof(filter));
@@ -43,7 +43,10 @@ public sealed partial class SummarySectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "summary";
 
-    /// <summary>The filter bar.</summary>
+    /// <inheritdoc />
+    public override SectionSlot Slot => SectionSlot.Top;
+
+    /// <summary>The tab's filter bar.</summary>
     public PlayerOverviewFilterViewModel Filter { get; }
 
     /// <summary>True when there is a line under the tiles.</summary>

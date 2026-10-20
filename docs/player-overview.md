@@ -4,6 +4,23 @@ The Player Overview tab reads one player across every demo in the library. Its n
 cached `player_match` facet of each demo ([`player-match-format.md`](player-match-format.md)); the tab
 never runs the engine.
 
+## Layout
+
+The player's header, the coverage line, the inner tab strip and the filter bar sit above four inner tabs; the
+filters apply to every tab. Each section names its tab and slot (`PlayerOverviewSection.Page` and `Slot`):
+
+| Tab | Across the top | Main column | Rail |
+|---|---|---|---|
+| Overview | Summary tiles | Trends | Rank |
+| History | Maps and sides | Match history | Teammates, Head-to-head |
+| Stats | | Stat categories, Aim quality | Compare, Benchmarks |
+| Achievements | Personal bests | Highlights | |
+
+The rail sits beside the main column from 1,100 px (Overview), 1,300 px (Stats) and 1,700 px (History,
+whose table needs the room) and stacks under it below. Content stops widening at 2,400 px. Match history
+fills the History tab's height and scrolls inside itself. The tab remembers which inner tab was open
+across sessions and keeps it when another player is opened.
+
 ## Aggregation rules
 
 Every Stats tab column (`ColumnCatalogue`) has exactly one rule in `ColumnRules`, and

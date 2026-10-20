@@ -59,6 +59,9 @@ public sealed partial class HeaderSectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "header";
 
+    /// <inheritdoc />
+    public override bool IsPersistent => true;
+
     /// <summary>True when there is an alias line.</summary>
     public bool HasAliases => Aliases.Length > 0;
 

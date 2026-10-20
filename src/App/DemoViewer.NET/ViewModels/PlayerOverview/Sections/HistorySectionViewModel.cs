@@ -44,6 +44,9 @@ public sealed partial class HistorySectionViewModel : PlayerOverviewSection
     public override string Id => "history";
 
     /// <inheritdoc />
+    public override PlayerOverviewPageKind Page => PlayerOverviewPageKind.History;
+
+    /// <inheritdoc />
     public override void Update(PlayerOverviewContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
