@@ -193,6 +193,32 @@ public class TeamsModuleTests
     }
 
     [Test]
+    public async Task AMemberRow_OpensThePlayerOverview_OnlyWhereTheHostHasIt()
+    {
+        (DemoCacheStore cache, TeamIdentityService teams) = await Library();
+        List<ulong> opened = [];
+        using TeamsTabViewModel vm = new(teams, cache.Library(), isBrowser: false, openPlayerOverview: id =>
+        {
+            opened.Add(id);
+            return true;
+        });
+        using TeamsTabViewModel browser = new(teams, cache.Library(), isBrowser: true, openPlayerOverview: _ => true);
+        using TeamsTabViewModel bare = new(teams, cache.Library(), isBrowser: false);
+
+        vm.SelectedTeam = vm.Teams[0];
+        MemberRow member = vm.Rosters[0].Members[0];
+        vm.OpenPlayerOverviewCommand.Execute(member);
+        vm.OpenPlayerOverviewCommand.Execute(new MemberRow("STEAM_1:0:1", new TeamIndexMember()));
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.OffersPlayerOverview).IsTrue();
+            await Assert.That(opened).IsEquivalentTo([member.SteamId64!.Value]).Because("an id that is not a decimal SteamID64 opens nothing");
+            await Assert.That(browser.OffersPlayerOverview).IsFalse().Because("the browser host has no Player Overview");
+            await Assert.That(bare.OffersPlayerOverview).IsFalse();
+        }
+    }
+
+    [Test]
     public async Task TheLibraryTeamFilter_ListsUsAndEveryTeam_AndKeepsTheirDemos()
     {
         (DemoCacheStore cache, TeamIdentityService teams) = await Library();

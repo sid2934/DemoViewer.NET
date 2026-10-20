@@ -28,6 +28,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
 {
     private readonly IExtensionLibrary _library;
     private readonly Func<string, Task>? _openDemo;
+    private readonly Func<ulong, bool>? _openPlayerOverview;
     private readonly TeamIdentityService _teams;
     private bool _disposed;
 
@@ -95,8 +96,9 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
     ///     tab shows it as busy until it lands.
     /// </param>
     /// <param name="post">Brings a finished command back to the UI thread; inline when null.</param>
+    /// <param name="openPlayerOverview">Opens an account in the host's Player Overview; null when the host has none.</param>
     public TeamsTabViewModel(TeamIdentityService teams, IExtensionLibrary library, Func<string, Task>? openDemo = null, bool? isBrowser = null,
-        Func<string, Action, Task>? command = null, Action<Action>? post = null)
+        Func<string, Action, Task>? command = null, Action<Action>? post = null, Func<ulong, bool>? openPlayerOverview = null)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(library);
@@ -110,6 +112,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
         _library = library;
         _openDemo = openDemo;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
+        _openPlayerOverview = IsBrowser ? null : openPlayerOverview;
         _teams.Changed += Refresh;
         _busyLine = LoadingLine;
         Refresh();
@@ -120,6 +123,9 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
 
     /// <summary>True on the WASM head.</summary>
     public bool IsBrowser { get; }
+
+    /// <summary>True when a member row offers "Open player overview": the desktop host has the tab.</summary>
+    public bool OffersPlayerOverview => _openPlayerOverview is not null;
 
     public ObservableCollection<TeamRow> Teams { get; } = [];
 
@@ -371,6 +377,15 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
 
     [RelayCommand]
     private Task OpenDemo(DemoRow? row) => row is not null && _openDemo is not null ? _openDemo(row.Path) : Task.CompletedTask;
+
+    [RelayCommand]
+    private void OpenPlayerOverview(MemberRow? row)
+    {
+        if (row?.SteamId64 is { } id && _openPlayerOverview is not null)
+        {
+            _openPlayerOverview(id);
+        }
+    }
 
     // ── Projection ───────────────────────────────────────────────────────────────────────────────
 
@@ -640,6 +655,9 @@ public sealed class RosterRow
 public sealed class MemberRow(string steamId, TeamIndexMember member)
 {
     public string SteamId { get; } = steamId;
+
+    /// <summary>The member's SteamID64, or null when the id is not a decimal one.</summary>
+    public ulong? SteamId64 { get; } = ulong.TryParse(steamId, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id) && id != 0 ? id : null;
 
     public string Name { get; } = DisplayText.Sanitize(member.LastName);
 
