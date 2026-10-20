@@ -1,10 +1,5 @@
-forced/cache/demos/{key}.json.gz#AnalysisRoundCount 4523540f1504cd17100c4835e85b7eefd49911580f8efff0599a8f283be6b9e3
-forced/cache/demos/{key}.json.gz#CtSideWins 19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7
-forced/cache/demos/{key}.json.gz#Scoreboard 950df288709c6567f2866531eaddab233860977b0bf74efa26d670193d458171
-forced/cache/demos/{key}.json.gz#TSideWins 2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3
-forced/cache/index.json#Entries 664f11df8aa16da05cfd35c4b9e0f8f6e838749bb3974f863fb5f20d224f516b
 open/cache/demos/{key}.json.gz#Analysis b1d1cacdbbf55c24b4f3fb656c8ce2ed1e81fa6928de07c6e3c241decc81f86a
-open/cache/demos/{key}.json.gz#AnalysisRoundCount 4523540f1504cd17100c4835e85b7eefd49911580f8efff0599a8f283be6b9e3
+open/cache/demos/{key}.json.gz#AnalysisRoundCount 5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9
 open/cache/demos/{key}.json.gz#AnalysisState 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 open/cache/demos/{key}.json.gz#ConfigFingerprint 91eae40b7dbe809cec951b799d7e990027c50c718636c5b2b4414d0e9cc94ad8
 open/cache/demos/{key}.json.gz#ContentFingerprint 38df2a14f486933d7de4941faa5fd9949d64254a48f1de3a10ffbdb090f33f78
@@ -30,7 +25,7 @@ open/cache/demos/{key}.json.gz#ProfileName f0da09831f0b4888d68fae24fd1bd477e4952
 open/cache/demos/{key}.json.gz#RoundCount 4523540f1504cd17100c4835e85b7eefd49911580f8efff0599a8f283be6b9e3
 open/cache/demos/{key}.json.gz#RoundFacts d8ade9fe837ad650aea243b2e5bc91fa6d9f3c60b05ea22b3e68b2c5a3be90f0
 open/cache/demos/{key}.json.gz#Rounds d231a105f980c4ec690de8e5533516c08802012e7e98a1454d2c4fd572544609
-open/cache/demos/{key}.json.gz#Scoreboard 950df288709c6567f2866531eaddab233860977b0bf74efa26d670193d458171
+open/cache/demos/{key}.json.gz#Scoreboard 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945
 open/cache/demos/{key}.json.gz#Server 29689db5a6e8f80be83c68bad9f8087e2f07ad387c55bc398d6819607678e4f3
 open/cache/demos/{key}.json.gz#ServerStartTick e1b9005b2bd9380bf2ad43494b6a0c3de7db20532a7297fde352214e9610e4b7
 open/cache/demos/{key}.json.gz#Sha256 c6064620f9eaa8900021616a9557614be56cc756c6fb75c8f208019963041e8b
@@ -132,7 +127,7 @@ open/cache/extension-data/net.demoviewer.pack.stratbook/team-index.json#members 
 open/cache/extension-data/net.demoviewer.pack.stratbook/team-index.json#schemaVersion d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35
 open/cache/extension-data/net.demoviewer.pack.stratbook/team-index.json#unaffiliated 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945
 open/cache/index.json#ContentKeyMigrationVersion 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
-open/cache/index.json#Entries db87dc70a4e37090e72821c6b5bfc706284151d808376a96c1f5418123d8a819
+open/cache/index.json#Entries 664f11df8aa16da05cfd35c4b9e0f8f6e838749bb3974f863fb5f20d224f516b
 open/cache/index.json#LegacyMigrationVersion 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 open/cache/index.json#Version e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683
 open/library.json#Cache 7ff64169ba6943eec391644125ebf5da4a15f55b21fcaec9bd37c03caca8d2d5
@@ -161,7 +156,7 @@ sweep/cache/demos/{key}.json.gz#ConfigFingerprint 91eae40b7dbe809cec951b799d7e99
 sweep/cache/demos/{key}.json.gz#ContentFingerprint 38df2a14f486933d7de4941faa5fd9949d64254a48f1de3a10ffbdb090f33f78
 sweep/cache/demos/{key}.json.gz#CtClan 74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b
 sweep/cache/demos/{key}.json.gz#CtScore 3fdba35f04dc8c462986c992bcf875546257113072a909c162f7e470e581e278
-sweep/cache/demos/{key}.json.gz#CtSideWins 74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b
+sweep/cache/demos/{key}.json.gz#CtSideWins 19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7
 sweep/cache/demos/{key}.json.gz#DemoVersion 74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b
 sweep/cache/demos/{key}.json.gz#DurationSeconds 1822563a5b1e74019ff34643be761328335f9216dc5c62e02d0339a084793721
 sweep/cache/demos/{key}.json.gz#FacetPlayers 2a235cbf4e191f5b29c48e9c25b0f01fcc44d374afe3e41ee4652eb9a49555d8
@@ -189,7 +184,7 @@ sweep/cache/demos/{key}.json.gz#Size bc84e8642824240e6e8ddbd9048918177c3f515f6b8
 sweep/cache/demos/{key}.json.gz#SourceKind a300f71a3b3b91837d7b1ec5e2ce6970036fd3ed2983948fb55cd62ee90ab50d
 sweep/cache/demos/{key}.json.gz#TClan 74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b
 sweep/cache/demos/{key}.json.gz#TScore 4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a
-sweep/cache/demos/{key}.json.gz#TSideWins 74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b
+sweep/cache/demos/{key}.json.gz#TSideWins 2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3
 sweep/cache/demos/{key}.json.gz#TickCount 5f392371f8395d1bdf6ad9bf1ac86aac887090b637aa628c28fb705307698beb
 sweep/cache/demos/{key}.json.gz#TickRate a68b412c4282555f15546cf6e1fc42893b7e07f271557ceb021821098dd66c1b
 sweep/cache/demos/{key}.player_match.facts.player_match.json.gz#clocks 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
@@ -283,7 +278,7 @@ sweep/cache/extension-data/net.demoviewer.pack.stratbook/team-index.json#members
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/team-index.json#schemaVersion d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35
 sweep/cache/extension-data/net.demoviewer.pack.stratbook/team-index.json#unaffiliated 4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945
 sweep/cache/index.json#ContentKeyMigrationVersion 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
-sweep/cache/index.json#Entries db87dc70a4e37090e72821c6b5bfc706284151d808376a96c1f5418123d8a819
+sweep/cache/index.json#Entries 664f11df8aa16da05cfd35c4b9e0f8f6e838749bb3974f863fb5f20d224f516b
 sweep/cache/index.json#LegacyMigrationVersion 6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b
 sweep/cache/index.json#Version e7f6c011776e8db7cd330b54174fd76f7d0216b612387a5ffcfb81e6f0919683
 sweep/library.json#Cache 7ff64169ba6943eec391644125ebf5da4a15f55b21fcaec9bd37c03caca8d2d5
