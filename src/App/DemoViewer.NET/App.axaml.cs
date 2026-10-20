@@ -1116,6 +1116,9 @@ public class App : Application
             sp.GetRequiredService<StampedFacts>(),
             sp.GetRequiredService<IRoundFactsSource>()));
 
+        // Game mode and rank: what the matchmeta record pass cannot see without reading the demo.
+        services.AddSingleton(sp => new MatchMetaEvaluator(sp.GetRequiredService<DemoCacheStore>()));
+
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
@@ -1141,6 +1144,7 @@ public class App : Application
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
             RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
             FactsEvaluator facts = sp.GetRequiredService<FactsEvaluator>();
+            MatchMetaEvaluator matchRank = sp.GetRequiredService<MatchMetaEvaluator>();
 
             PassRegistry registry = new();
             registry.AddCoreEvaluator(library.Id, () => library);
@@ -1149,6 +1153,7 @@ public class App : Application
             // joins late (its scan found the demo after another pass planned it) still runs it first.
             registry.AddCoreEvaluator(roundFacts.Id, () => roundFacts, library.Id, highlights.Id);
             registry.AddCoreEvaluator(facts.Id, () => facts, library.Id, highlights.Id);
+            registry.AddCoreEvaluator(matchRank.Id, () => matchRank, library.Id);
 
             // Each pack pass's extension, so a throw from any call into it counts against that extension.
             // Filled when the registry populates, before anything can fault.

@@ -8,6 +8,25 @@ using DemoViewer.NET.Services.DemoProcessing;
 
 namespace DemoViewer.NET.Modules.Library;
 
+/// <summary>A controller's six <c>m_iCompetitive*</c> fields at the end of a demo. Every value is the pre-match one.</summary>
+/// <param name="SteamId64">The controller's <c>m_steamID</c>.</param>
+/// <param name="Team">The controller's team at the read: 2 T, 3 CT.</param>
+/// <param name="Ranking">The rank; 0 for an unranked account.</param>
+/// <param name="Wins">Wins before the match.</param>
+/// <param name="RankType">The rank system: 11 premier, 12 competitive, 0 none.</param>
+/// <param name="PredictedWin">The rank a win would give; 0 when the server predicts none.</param>
+/// <param name="PredictedLoss">The rank a loss would give.</param>
+/// <param name="PredictedTie">The rank a tie would give.</param>
+public sealed record ControllerRank(
+    ulong SteamId64,
+    int Team,
+    int Ranking,
+    int Wins,
+    int RankType,
+    int PredictedWin,
+    int PredictedLoss,
+    int PredictedTie);
+
 /// <summary>
 ///     The library's read when its visit runs no rules: CCSTeam, the controllers and the game rules replayed to
 ///     the last frame through a tracker that stores only those three classes. A visit that runs rules reads
@@ -98,6 +117,60 @@ public static class LibraryFinalStateReplay
         }
 
         return LibraryTeamState.Of(ct, t, ctClan, tClan, coachSlots, matchEnded, overtime, LibraryFinalScore.IsSurrender(winReason));
+    }
+
+    /// <summary>
+    ///     A tracker at <paramref name="lastFullPacket" /> without replaying the demo to it: the signon frames, the
+    ///     instance baselines, then the full packet's entity snapshot. For a read whose tap replayed nothing.
+    /// </summary>
+    /// <param name="signonPrefix">The reader's signon frames.</param>
+    /// <param name="baseline">The full packet carrying the last instance baselines, or null.</param>
+    /// <param name="lastFullPacket">The demo's last <c>DEM_FullPacket</c>.</param>
+    public static EntityTracker Checkpoint(IReadOnlyList<DemoFrame> signonPrefix, DemoFrame? baseline, DemoFrame lastFullPacket)
+    {
+        ArgumentNullException.ThrowIfNull(signonPrefix);
+        ArgumentNullException.ThrowIfNull(lastFullPacket);
+        EntityTracker tracker = NewTracker();
+        foreach (DemoFrame frame in signonPrefix)
+        {
+            tracker.AdvanceOneFrame(frame);
+        }
+
+        if (baseline is not null)
+        {
+            tracker.LoadInstanceBaselineSnapshot(baseline);
+        }
+
+        tracker.ProcessFullPacketCheckpoint(lastFullPacket);
+        return tracker;
+    }
+
+    /// <summary>Every human controller's rank fields: one row per non-zero <c>m_steamID</c>.</summary>
+    /// <param name="tracker">A tracker that stored <c>CCSPlayerController</c>.</param>
+    public static IReadOnlyList<ControllerRank> ReadRanks(EntityTracker tracker)
+    {
+        ArgumentNullException.ThrowIfNull(tracker);
+        List<ControllerRank> rows = [];
+        foreach (EntityState controller in tracker.CurrentEntities.OfClass("CCSPlayerController"))
+        {
+            ulong steamId = controller["m_steamID"] switch
+            {
+                ulong u => u,
+                long l => (ulong)l,
+                _ => 0
+            };
+            if (steamId == 0)
+            {
+                continue;
+            }
+
+            rows.Add(new ControllerRank(steamId, CoerceInt(controller["m_iTeamNum"]),
+                CoerceInt(controller["m_iCompetitiveRanking"]), CoerceInt(controller["m_iCompetitiveWins"]),
+                CoerceInt(controller["m_iCompetitiveRankType"]), CoerceInt(controller["m_iCompetitiveRankingPredicted_Win"]),
+                CoerceInt(controller["m_iCompetitiveRankingPredicted_Loss"]), CoerceInt(controller["m_iCompetitiveRankingPredicted_Tie"])));
+        }
+
+        return rows;
     }
 
     private static int CoerceInt(object? v) => v switch

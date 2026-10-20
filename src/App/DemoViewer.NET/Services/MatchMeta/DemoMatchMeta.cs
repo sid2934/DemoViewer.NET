@@ -22,6 +22,54 @@ public enum MatchTimeSource
     Unknown
 }
 
+/// <summary>Where a rank row's post-match values came from.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<RankSource>))]
+public enum RankSource
+{
+    /// <summary>The server's end-of-match rank update (net message 352).</summary>
+    ServerRankUpdate,
+
+    /// <summary>The controller's prediction for the result the player got. Premier only.</summary>
+    Predicted,
+
+    /// <summary>The controller alone: the pre-match rank, nothing after it.</summary>
+    Controller
+}
+
+/// <summary>
+///     One player's rank in one demo. A null rank is unranked or unknown, never 0: an account still in
+///     placement has rank 0 in both the controller and the update.
+/// </summary>
+public sealed class MatchRankRow
+{
+    public string SteamId64 { get; set; } = "";
+
+    /// <summary>The rank system: 11 premier, 12 competitive.</summary>
+    public int RankType { get; set; }
+
+    /// <summary>The rank going into the match, or null when unranked.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RankOld { get; set; }
+
+    /// <summary>The rank coming out of it, or null when unranked or unknown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RankNew { get; set; }
+
+    /// <summary><see cref="RankNew" /> minus <see cref="RankOld" />, or null when either is.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? RankChange { get; set; }
+
+    /// <summary>Wins after the match, or null when the result is unknown.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? Wins { get; set; }
+
+    public RankSource RankSource { get; set; }
+
+    /// <summary>No rank on either side of the match.</summary>
+    [JsonIgnore]
+    public bool IsUnranked => RankOld is null && RankNew is null;
+}
+
 /// <summary>
 ///     When and which match a demo is: the <c>matchmeta</c> record pass's output, on
 ///     <see cref="DemoCache.DemoCacheRecord.MatchMeta" />. See <c>docs/match-meta-format.md</c>.
@@ -49,6 +97,21 @@ public sealed class DemoMatchMeta
     /// <summary>The third number of a Valve file name.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public long? Token { get; set; }
+
+    /// <summary>
+    ///     The server's game mode, <c>svc_ServerInfo</c>'s <c>gamemode</c> ("premier", "competitive", ...), else
+    ///     the players' rank system; null until the demo's visit has read it, or when it has neither.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GameMode { get; set; }
+
+    /// <summary>Where the demo came from: the engine's <c>DemoSourceKind</c> by name, a FACEIT server name read as <c>Faceit</c>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MatchSource { get; set; }
+
+    /// <summary>One row per ranked or placement human, by SteamID64; null when the demo carries no rank.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<MatchRankRow>? Players { get; set; }
 
     /// <summary>True when the time is a guess (the file's write time) rather than the match's own.</summary>
     [JsonIgnore]
