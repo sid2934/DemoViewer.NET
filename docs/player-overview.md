@@ -67,3 +67,12 @@ Peer scales are never used on a cross-demo board; a column keeps its absolute co
 * Within a demo, an account's rows are merged by `steam_id` before pooling, ghost slots dropped
   ([`player-match-format.md`](player-match-format.md#dimensions)).
 * Bots, coaches and SteamID 0 are never subjects.
+
+## Head-to-head
+
+The head-to-head section pits the subject against one opponent, picked from everyone who ended one of the
+subject's demos on the other side, the most often met first. It covers the demos the two ended on opposite
+sides: the record is the subject's wins, losses and ties there from the `player_match` facet, and the kills
+each way, the K/D between them and the headshot share of the subject's kills come from each demo's
+`player_event` facet ([`player-event-format.md`](player-event-format.md)). A demo whose `player_event` facet
+is not written yet is listed as pending and adds nothing to the counts.

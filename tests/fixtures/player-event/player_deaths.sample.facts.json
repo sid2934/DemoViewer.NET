@@ -1,0 +1,194 @@
+{
+  "format": 1,
+  "ruleset": "player_event",
+  "output": "player_deaths",
+  "fingerprint": "sample",
+  "schema": 1,
+  "grain": "player_event",
+  "dimensions": [
+    "match_id",
+    "map",
+    "round_number",
+    "tick",
+    "player_slot",
+    "player_name",
+    "steam_id",
+    "team"
+  ],
+  "values": [
+    "attacker_slot"
+  ],
+  "clocks": {
+    "tick": "frame"
+  },
+  "rows": [
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 9829,
+        "player_slot": 4,
+        "player_name": "player_4",
+        "steam_id": "76561190000000004",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 8
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10213,
+        "player_slot": 1,
+        "player_name": "player_1",
+        "steam_id": "76561190000000001",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 7
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10288,
+        "player_slot": 6,
+        "player_name": "player_6",
+        "steam_id": "76561190000000006",
+        "team": 2
+      },
+      "v": {
+        "attacker_slot": 0
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10367,
+        "player_slot": 2,
+        "player_name": "player_2",
+        "steam_id": "76561190000000002",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 8
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10520,
+        "player_slot": 0,
+        "player_name": "player_0",
+        "steam_id": "76561190000000000",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 8
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 1,
+        "tick": 10863,
+        "player_slot": 3,
+        "player_name": "player_3",
+        "steam_id": "76561190000000003",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 8
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 13221,
+        "player_slot": 3,
+        "player_name": "player_3",
+        "steam_id": "76561190000000003",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 6
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 13843,
+        "player_slot": 0,
+        "player_name": "player_0",
+        "steam_id": "76561190000000000",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 8
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 14198,
+        "player_slot": 2,
+        "player_name": "player_2",
+        "steam_id": "76561190000000002",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 8
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 15277,
+        "player_slot": 7,
+        "player_name": "player_7",
+        "steam_id": "76561190000000007",
+        "team": 2
+      },
+      "v": {
+        "attacker_slot": 1
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 15376,
+        "player_slot": 1,
+        "player_name": "player_1",
+        "steam_id": "76561190000000001",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 8
+      }
+    },
+    {
+      "d": {
+        "map": "de_dust2",
+        "round_number": 2,
+        "tick": 15845,
+        "player_slot": 4,
+        "player_name": "player_4",
+        "steam_id": "76561190000000004",
+        "team": 3
+      },
+      "v": {
+        "attacker_slot": 5
+      }
+    }
+  ]
+}

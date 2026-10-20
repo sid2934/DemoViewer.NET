@@ -555,8 +555,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <param name="identity">Who the user is: the Player Overview's default subject.</param>
     /// <param name="playerRows">The facet rows the Player Overview's stat sections read; null where none is wired.</param>
     /// <param name="facts">
-    ///     The library's facts: Match Overview's cached scoreboard is the demo's <c>player_match</c> facet. Null
-    ///     (the browser, most tests) renders the scoreboard a record stored, if any.
+    ///     The library's facts: Match Overview's cached scoreboard is the demo's <c>player_match</c> facet, and the
+    ///     Player Overview's head-to-head reads the <c>player_event</c> facets. Null (the browser, most tests)
+    ///     renders the scoreboard a record stored, if any.
     /// </param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
@@ -678,7 +679,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                         {
                             _ = reels.AddClipsForAsync(steamId64.ToString(CultureInfo.InvariantCulture));
                         }
-                    }),
+                    })
+                {
+                    Events = facts is null ? null : new PlayerEventCache(facts.TryGet)
+                },
                 processingQueue,
                 action => Dispatcher.UIThread.Post(action));
             StatsTab.PlayerOverviewOpener = (steamId64, name) => OpenPlayerOverview(steamId64, name);
