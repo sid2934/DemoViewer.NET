@@ -5,11 +5,11 @@ public static class PlayerOverviewSections
 {
     /// <summary>Builds one of each section, in page order.</summary>
     /// <param name="services">What the sections can reach.</param>
-    public static IReadOnlyList<PlayerOverviewSection> Create(PlayerOverviewServices services) =>
+    /// <param name="filter">The tab's filter bar, which the summary shows above the panels it filters.</param>
+    public static IReadOnlyList<PlayerOverviewSection> Create(PlayerOverviewServices services, PlayerOverviewFilterViewModel filter) =>
     [
         new HeaderSectionViewModel(services),
-
-        // Summary and filters go here, above the history they filter.
+        new SummarySectionViewModel(filter),
         new HistorySectionViewModel(services),
 
         // Later items, in this order: per-map, trends, rank history, stat categories, personal bests.

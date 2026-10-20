@@ -74,20 +74,38 @@ public sealed record PlayerOverviewServices(
     public PlayerEventCache? Events { get; init; }
 }
 
-/// <summary>What a section renders from: the subject and the demos they are in, read once per refresh.</summary>
+/// <summary>
+///     What a section renders from: the subject, the demos they are in and the one filtered set every panel
+///     recomputes from. The demos come from the index once per refresh; their stats from <see cref="PlayerRowCache" />.
+/// </summary>
 /// <param name="SteamId64">The subject, or null when nobody is open.</param>
 /// <param name="Player">The subject's directory entry; null when nobody is open or no demo holds them.</param>
 /// <param name="Matches">The subject's demos, newest match first; empty without a player.</param>
 /// <param name="WithStats">How many of <paramref name="Matches" /> have their player stats written.</param>
 /// <param name="IsMine">True when the subject is one of the user's Me accounts.</param>
 /// <param name="Services">What the sections can reach.</param>
+/// <param name="Demos">
+///     <paramref name="Matches" /> in order, each with the stats read for its current facet; a demo whose facet
+///     is not written, not read yet or written since the read has none.
+/// </param>
+/// <param name="Filter">The filter bar's selection.</param>
+/// <param name="Window">The demos of <paramref name="Demos" /> that pass <paramref name="Filter" />, in order.</param>
+/// <param name="IsReadingStats">True while the subject's facets are being read off the UI thread.</param>
 public sealed record PlayerOverviewContext(
     ulong? SteamId64,
     PlayerEntry? Player,
     IReadOnlyList<PlayerMatch> Matches,
     int WithStats,
     bool IsMine,
-    PlayerOverviewServices Services);
+    PlayerOverviewServices Services,
+    IReadOnlyList<PlayerDemo> Demos,
+    PlayerFilter Filter,
+    IReadOnlyList<PlayerDemo> Window,
+    bool IsReadingStats)
+{
+    /// <summary>True when the filter leaves out any demo: the panels show the window beside the all-time figure.</summary>
+    public bool IsFiltered => Filter != PlayerFilter.All;
+}
 
 /// <summary>One Me account in the tab's header switcher.</summary>
 /// <param name="steamId64">The account.</param>

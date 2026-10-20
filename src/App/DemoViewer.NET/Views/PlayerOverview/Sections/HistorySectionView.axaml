@@ -45,16 +45,12 @@
 
     <Border Classes="card" Padding="14 12">
         <StackPanel Spacing="8">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Right" Text="{Binding LoadText}" IsVisible="{Binding IsLoading}"
-                           FontSize="11.5" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <TextBlock Text="Match history" FontSize="15" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextCardHeader}" />
-                    <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextMid}"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-            </DockPanel>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Match history" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" />
+                <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
 
             <Grid Classes="historyRow" Margin="8 0" ColumnDefinitions="164,96,96,52,30,72,78,52,44,56,46,42,*">
                 <TextBlock Grid.Column="0" Classes="col-label" Text="DATE" />

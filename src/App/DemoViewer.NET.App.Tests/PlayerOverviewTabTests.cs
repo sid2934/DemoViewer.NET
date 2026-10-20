@@ -540,7 +540,8 @@ public class PlayerOverviewTabTests
     public async Task Sections_EachHaveAViewOfTheSameName()
     {
         using IdentityService identity = Identity(Me);
-        IReadOnlyList<PlayerOverviewSection> sections = PlayerOverviewSections.Create(Services(new PlayerDirectory(new DemoCacheStore(null)), identity));
+        IReadOnlyList<PlayerOverviewSection> sections = PlayerOverviewSections.Create(Services(new PlayerDirectory(new DemoCacheStore(null)), identity),
+            new PlayerOverviewFilterViewModel());
         await Assert.That(sections.Select(s => s.Id).Distinct().Count()).IsEqualTo(sections.Count);
         foreach (PlayerOverviewSection section in sections)
         {
