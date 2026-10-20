@@ -105,6 +105,7 @@ public class PlayerOverviewRankTests
 
         public RankSectionViewModel Rank => Tab.Sections.OfType<RankSectionViewModel>().Single();
         public HistorySectionViewModel History => Tab.Sections.OfType<HistorySectionViewModel>().Single();
+        public MapsSectionViewModel Maps => Tab.Sections.OfType<MapsSectionViewModel>().Single();
 
         public Task Settled() => Tab.Loading;
 
@@ -118,7 +119,7 @@ public class PlayerOverviewRankTests
     }
 
     [Test]
-    public async Task Tracks_SplitByRankSystem_CompetitivePerMap_PremierFirst()
+    public async Task Cards_ShowTheLatestPremierRating_AndTheHighestCompetitive()
     {
         using Shell shell = new(Library());
         await shell.Settled();
@@ -128,44 +129,58 @@ public class PlayerOverviewRankTests
         {
             await Assert.That(rank.IsVisible).IsTrue();
             await Assert.That(rank.Slot).IsEqualTo(SectionSlot.Rail);
-            await Assert.That(rank.Tracks.Select(t => t.Title))
-                .IsEquivalentTo(["Premier", "Competitive · Nuke", "Competitive · Mirage"], CollectionOrdering.Matching)
-                .Because("Premier first, then the per-map tracks played most recently first");
+            await Assert.That(rank.Cards.Select(c => c.Title))
+                .IsEquivalentTo(["Premier rating", "Highest Competitive"], CollectionOrdering.Matching);
         }
     }
 
     [Test]
-    public async Task PremierTrack_IsOldestFirst_WithTheLatestBadgeAndChange()
+    public async Task PremierCard_IsTheLatestMatch_WithItsBadgeAndChange()
     {
         using Shell shell = new(Library());
         await shell.Settled();
-        RankTrackItem premier = shell.Rank.Tracks[0];
+        RankCardItem premier = shell.Rank.Cards[0];
 
         using (Assert.Multiple())
         {
-            await Assert.That(premier.Values).IsEquivalentTo([14189.0, 14100.0, 14350.0], CollectionOrdering.Matching);
-            await Assert.That(premier.HasLine).IsTrue();
-            await Assert.That(premier.LatestText).IsEqualTo("14,350");
-            await Assert.That((premier.LatestChangeText, premier.IsUp, premier.IsDown)).IsEqualTo(("+250", true, false));
+            await Assert.That(premier.ValueText).IsEqualTo("14,350");
+            await Assert.That((premier.ChangeText, premier.IsUp, premier.IsDown)).IsEqualTo(("+250", true, false));
             await Assert.That(premier.BadgeKey).IsEqualTo(GameIcons.IconCatalogue.PremierEmblem(14350)!.Key);
-            await Assert.That(premier.SummaryText).IsEqualTo("3 matches · peak 14,350");
-            await Assert.That(premier.PointTips[0]).EndsWith("Nuke · Premier 14,000 → 14,189 (+189)");
+            await Assert.That(premier.CaptionText).EndsWith("Inferno");
+            await Assert.That(premier.Tooltip).IsEqualTo("Premier 14,100 → 14,350 (+250)");
         }
     }
 
     [Test]
-    public async Task CompetitiveTrack_NamesTheSkillGroup_AndShowsItsBadge()
+    public async Task CompetitiveCard_IsTheBestSkillGroupOnAnyMap_WithoutAChange()
     {
         using Shell shell = new(Library());
         await shell.Settled();
-        RankTrackItem nuke = shell.Rank.Tracks.Single(t => t.Title == "Competitive · Nuke");
+        RankCardItem best = shell.Rank.Cards[1];
 
         using (Assert.Multiple())
         {
-            await Assert.That(nuke.Values).IsEquivalentTo([10.0, 10.0], CollectionOrdering.Matching);
-            await Assert.That(nuke.LatestText).IsEqualTo(GameIcons.IconCatalogue.RankName(10));
-            await Assert.That(nuke.BadgeKey).IsEqualTo("rank/competitive/10");
-            await Assert.That((nuke.LatestChangeText, nuke.IsUp, nuke.IsDown)).IsEqualTo(("0", false, false));
+            await Assert.That(best.ValueText).IsEqualTo(GameIcons.IconCatalogue.RankName(11));
+            await Assert.That(best.BadgeKey).IsEqualTo("rank/competitive/11");
+            await Assert.That(best.CaptionText).EndsWith("Mirage").Because("Mirage's 11 beats Nuke's 10, though Nuke was played later");
+            await Assert.That((best.ChangeText, best.IsUp, best.IsDown)).IsEqualTo(("", false, false));
+        }
+    }
+
+    [Test]
+    public async Task MapRows_CarryTheLatestCompetitiveRankOnEachMap()
+    {
+        using Shell shell = new(Library());
+        await shell.Settled();
+        IReadOnlyList<MapRowItem> rows = shell.Maps.Rows;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(rows.Single(r => r.Map == "de_nuke").Rank!.BadgeKey).IsEqualTo("rank/competitive/10");
+            await Assert.That(rows.Single(r => r.Map == "de_mirage").Rank!.BadgeKey).IsEqualTo("rank/competitive/11");
+            await Assert.That(rows.Single(r => r.Map == "de_inferno").HasRank).IsFalse().Because("Inferno was only played in Premier");
+            await Assert.That(rows.Single(r => r.Map == "de_nuke").Rank!.Tooltip).StartsWith(
+                $"Latest Competitive rank on the map: {GameIcons.IconCatalogue.RankName(10)}");
         }
     }
 
@@ -177,15 +192,14 @@ public class PlayerOverviewRankTests
         store.Upsert(Ranked(1, "de_mirage", new MatchRankRow { RankType = 11, RankSource = RankSource.Controller }));
         using Shell shell = new(store);
         await shell.Settled();
-        RankTrackItem competitive = shell.Rank.Tracks.Single(t => t.RankType == 12);
-        RankTrackItem premier = shell.Rank.Tracks.Single(t => t.RankType == 11);
+        RankCardItem premier = shell.Rank.Cards.Single(c => c.Title == "Premier rating");
+        RankCardItem competitive = shell.Rank.Cards.Single(c => c.Title == "Competitive");
 
         using (Assert.Multiple())
         {
-            await Assert.That((competitive.LatestText, competitive.BadgeKey)).IsEqualTo(("Unranked", "rank/competitive/needwins"));
-            await Assert.That(competitive.Values).IsEmpty();
-            await Assert.That(competitive.HasLine).IsFalse();
-            await Assert.That((premier.LatestText, premier.BadgeKey)).IsEqualTo(("Unranked", "premier/unranked"));
+            await Assert.That((competitive.ValueText, competitive.BadgeKey)).IsEqualTo(("Unranked", "rank/competitive/needwins"));
+            await Assert.That((premier.ValueText, premier.BadgeKey)).IsEqualTo(("Unranked", "premier/unranked"));
+            await Assert.That(shell.Maps.Rows.Single(r => r.Map == "de_nuke").Rank!.BadgeKey).IsEqualTo("rank/competitive/needwins");
             HistoryRowItem row = shell.History.Rows.Single(r => r.Match.Row.Path == "/lib/0.dem");
             await Assert.That(row.RankChangeText).IsEqualTo("–");
             await Assert.That(row.RankTip).IsEqualTo("Competitive unranked");
@@ -202,7 +216,7 @@ public class PlayerOverviewRankTests
         await shell.Settled();
 
         await Assert.That(shell.Rank.IsVisible).IsFalse();
-        await Assert.That(shell.Rank.Tracks).IsEmpty();
+        await Assert.That(shell.Rank.Cards).IsEmpty();
         await Assert.That(shell.Reads.Count).IsEqualTo(1).Because("a demo without a matchrank stamp has nothing to read");
     }
 
@@ -225,7 +239,7 @@ public class PlayerOverviewRankTests
     }
 
     [Test]
-    public async Task AFilterSetWhileRanksAreRead_ShapesWhatTheyLandOn_AndAClearReadsNothing()
+    public async Task AFilterSetWhileRanksAreRead_NarrowsTheHistoryNotTheStanding_AndAClearReadsNothing()
     {
         using Shell shell = new(Library(), held: true);
         await Assert.That(shell.Rank.IsLoading).IsTrue();
@@ -237,16 +251,16 @@ public class PlayerOverviewRankTests
         using (Assert.Multiple())
         {
             await Assert.That(shell.Rank.IsLoading).IsFalse();
-            await Assert.That(shell.Rank.Tracks.Select(t => t.Title))
-                .IsEquivalentTo(["Premier", "Competitive · Mirage"], CollectionOrdering.Matching);
-            await Assert.That(shell.Rank.Tracks[0].Values).IsEquivalentTo([14100.0], CollectionOrdering.Matching);
+            await Assert.That(shell.Rank.Cards.Select(c => c.ValueText))
+                .IsEquivalentTo(["14,350", GameIcons.IconCatalogue.RankName(11)], CollectionOrdering.Matching)
+                .Because("a standing reads every demo, whatever the filter");
             await Assert.That(shell.History.Rows.Select(r => r.RankChangeText)).IsEquivalentTo(["-1", "-89"], CollectionOrdering.Matching);
         }
 
         filter.Map = filter.Maps[0];
         using (Assert.Multiple())
         {
-            await Assert.That(shell.Rank.Tracks.Count).IsEqualTo(3);
+            await Assert.That(shell.Rank.Cards.Count).IsEqualTo(2);
             await Assert.That(shell.History.Rows.Count).IsEqualTo(7);
             await Assert.That(shell.Reads.Count).IsEqualTo(7).Because("a filter change recomputes from the rows already read");
         }
@@ -271,18 +285,18 @@ public class PlayerOverviewRankTests
         {
             await Assert.That(shell.Reads.Count).IsEqualTo(8);
             await Assert.That(shell.Reads.Last()).IsEqualTo("/lib/5.dem");
-            await Assert.That(shell.Rank.Tracks[0].LatestText).IsEqualTo("14,400");
+            await Assert.That(shell.Rank.Cards[0].ValueText).IsEqualTo("14,400");
         }
     }
 }
 
-/// <summary>The rank history renders a badge and a line per track.</summary>
+/// <summary>The rank card renders a badge per standing.</summary>
 [NotInParallel]
 [Category("Render")]
 public class PlayerOverviewRankRenderTests
 {
     [Test]
-    public async Task EachTrack_RendersItsBadgeAndLine()
+    public async Task EachCard_RendersItsBadge()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -304,14 +318,12 @@ public class PlayerOverviewRankRenderTests
 
             RankSectionView view = window.GetVisualDescendants().OfType<RankSectionView>().Single();
             string?[] badges = [.. view.GetVisualDescendants().OfType<GameIcon>().Select(i => i.Key)];
-            Sparkline[] lines = [.. view.GetVisualDescendants().OfType<Sparkline>().Where(l => l.IsVisible)];
             using (Assert.Multiple())
             {
                 await Assert.That(view.IsVisible).IsTrue();
-                await Assert.That(badges).IsEquivalentTo(vm.Sections.OfType<RankSectionViewModel>().Single().Tracks.Select(t => t.BadgeKey),
+                await Assert.That(badges).IsEquivalentTo(vm.Sections.OfType<RankSectionViewModel>().Single().Cards.Select(c => c.BadgeKey),
                     CollectionOrdering.Matching);
-                await Assert.That(lines.Length).IsEqualTo(2).Because("Mirage has one ranked match, no line to draw");
-                await Assert.That(lines.All(l => l.Bounds.Width > 0)).IsTrue();
+                await Assert.That(view.GetVisualDescendants().OfType<GameIcon>().All(i => i.Bounds.Width > 0)).IsTrue();
             }
 
             window.Close();

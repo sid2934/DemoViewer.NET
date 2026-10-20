@@ -21,6 +21,10 @@ whose table needs the room) and stacks under it below. Content stops widening at
 fills the History tab's height and scrolls inside itself. The tab remembers which inner tab was open
 across sessions and keeps it when another player is opened.
 
+The Rank card shows the latest Premier rating and the highest Competitive Skill Group on any map, and the
+Maps and sides table shows the latest Competitive Skill Group beside each map. All three read every demo of
+the player rather than the filter's window, since a standing does not narrow with a filter.
+
 ## Aggregation rules
 
 Every Stats tab column (`ColumnCatalogue`) has exactly one rule in `ColumnRules`, and

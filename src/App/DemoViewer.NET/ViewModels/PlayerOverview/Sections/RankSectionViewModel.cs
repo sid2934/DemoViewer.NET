@@ -13,11 +13,11 @@ using DemoViewer.NET.Services.Players;
 namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 
 /// <summary>
-///     The subject's rank over its demos, one track per rank system: Premier as one CS Rating, and Competitive and
-///     Wingman per map, because CS2 keeps their Skill Groups per map. Each track shows the latest badge and a line
-///     of the rank after every match in the filter's window, oldest on the left. The rows live on the demos'
-///     records, which the tab reads off the UI thread through <see cref="PlayerRankCache" />; a window with no
-///     ranked demo has no section.
+///     Where the subject stands: their latest Premier CS Rating and the highest Competitive Skill Group they have
+///     held on any map. Both read every demo of the subject, not the filter's window, since a standing does not
+///     narrow with a filter. The rows live on the demos' records, which the tab reads off the UI thread through
+///     <see cref="PlayerRankCache" />; a subject with neither has no section. Each map's latest Skill Group sits on
+///     the Maps and sides table.
 /// </summary>
 public sealed partial class RankSectionViewModel : PlayerOverviewSection
 {
@@ -26,7 +26,7 @@ public sealed partial class RankSectionViewModel : PlayerOverviewSection
     private string _loadText = "";
 
     [ObservableProperty]
-    private IReadOnlyList<RankTrackItem> _tracks = [];
+    private IReadOnlyList<RankCardItem> _cards = [];
 
     /// <inheritdoc />
     public override string Id => "rank";
@@ -42,18 +42,18 @@ public sealed partial class RankSectionViewModel : PlayerOverviewSection
     {
         ArgumentNullException.ThrowIfNull(context);
         LoadText = context.IsReadingRanks ? "Reading ranks" : "";
-        Tracks = context.Player is not null && context.Ranks is { } ranks ? Build([.. context.Window.Select(d => d.Match)], ranks) : [];
-        IsVisible = Tracks.Count > 0;
+        Cards = context.Player is not null && context.Ranks is { } ranks ? Build([.. context.Demos.Select(d => d.Match)], ranks) : [];
+        IsVisible = Cards.Count > 0;
     }
 
-    /// <summary>The tracks of <paramref name="matches" />: Premier first, then the one played most recently first.</summary>
-    /// <param name="matches">The demos to chart, newest match first.</param>
+    /// <summary>The latest Premier rating and the best Competitive Skill Group of <paramref name="matches" />, each when there is one.</summary>
+    /// <param name="matches">The subject's demos, newest match first.</param>
     /// <param name="ranks">The subject's rank rows.</param>
-    internal static IReadOnlyList<RankTrackItem> Build(IReadOnlyList<PlayerMatch> matches, PlayerRanks ranks)
+    internal static IReadOnlyList<RankCardItem> Build(IReadOnlyList<PlayerMatch> matches, PlayerRanks ranks)
     {
-        // Newest first, so a track's first entry is its latest match.
-        Dictionary<(int Type, string Map), List<(PlayerMatch Match, MatchRankRow Rank)>> tracks = [];
-        List<(int Type, string Map)> order = [];
+        (PlayerMatch Match, MatchRankRow Rank)? premier = null;
+        (PlayerMatch Match, MatchRankRow Rank)? competitive = null;
+        (PlayerMatch Match, MatchRankRow Rank, int Value)? best = null;
         foreach (PlayerMatch match in matches)
         {
             if (ranks.For(match.Row) is not { } rank)
@@ -61,93 +61,126 @@ public sealed partial class RankSectionViewModel : PlayerOverviewSection
                 continue;
             }
 
-            (int, string) key = (rank.RankType, RankDisplay.IsPerMap(rank.RankType) ? match.Row.Map ?? "" : "");
-            if (!tracks.TryGetValue(key, out List<(PlayerMatch, MatchRankRow)>? list))
+            if (rank.RankType == RankDisplay.Premier)
             {
-                tracks[key] = list = [];
-                order.Add(key);
+                premier ??= (match, rank);
             }
-
-            list.Add((match, rank));
+            else if (rank.RankType == RankDisplay.Competitive)
+            {
+                competitive ??= (match, rank);
+                // Newest first, so a tie keeps the latest match that reached it.
+                if (RankDisplay.After(rank) is { } value && (best is null || value > best.Value.Value))
+                {
+                    best = (match, rank, value);
+                }
+            }
         }
 
-        return [.. order.OrderBy(k => k.Type == RankDisplay.Premier ? 0 : 1).Select(k => new RankTrackItem(k.Type, k.Map, tracks[k]))];
+        List<RankCardItem> cards = [];
+        if (premier is { } p)
+        {
+            cards.Add(RankCardItem.Latest(p.Match, p.Rank));
+        }
+
+        if (best is { } b)
+        {
+            cards.Add(RankCardItem.Highest(b.Match, b.Rank, b.Value));
+        }
+        else if (competitive is { } c)
+        {
+            // Only placement or unranked rows: say so rather than leave Competitive out.
+            cards.Add(RankCardItem.Latest(c.Match, c.Rank));
+        }
+
+        return cards;
+    }
+
+    /// <summary>
+    ///     Each map's latest Competitive Skill Group: the subject's newest Competitive row on the map, ranked or not.
+    ///     A map the subject never played Competitive on is absent.
+    /// </summary>
+    /// <param name="matches">The subject's demos, newest match first.</param>
+    /// <param name="ranks">The subject's rank rows.</param>
+    internal static Dictionary<string, MapRankItem> LatestByMap(IEnumerable<PlayerMatch> matches, PlayerRanks ranks)
+    {
+        Dictionary<string, MapRankItem> latest = new(StringComparer.OrdinalIgnoreCase);
+        foreach (PlayerMatch match in matches)
+        {
+            string map = match.Row.Map ?? "";
+            if (ranks.For(match.Row) is { RankType: RankDisplay.Competitive } rank && !latest.ContainsKey(map))
+            {
+                latest[map] = new MapRankItem(match, rank);
+            }
+        }
+
+        return latest;
     }
 }
 
-/// <summary>One rank system (and map, for a per-map one) over the subject's demos.</summary>
-public sealed class RankTrackItem
+/// <summary>One standing on the rank card: a badge, its value, and the match it comes from.</summary>
+public sealed class RankCardItem
 {
-    /// <param name="rankType">The rank system.</param>
-    /// <param name="map">The map for a per-map system, else empty.</param>
-    /// <param name="rows">The track's demos, newest match first.</param>
-    internal RankTrackItem(int rankType, string map, IReadOnlyList<(PlayerMatch Match, MatchRankRow Rank)> rows)
+    private RankCardItem(string title, int rankType, int? value, MatchRankRow rank, PlayerMatch match, bool showChange)
     {
-        RankType = rankType;
-        Title = map.Length > 0 ? $"{RankDisplay.SystemName(rankType)} · {DemoEntry.PrettifyMap(map)}" : RankDisplay.SystemName(rankType);
-
-        MatchRankRow latest = rows[0].Rank;
-        int? now = RankDisplay.After(latest);
-        BadgeKey = RankDisplay.BadgeKey(rankType, now, latest.Wins);
-        LatestText = now is { } n ? RankDisplay.Value(rankType, n) : "Unranked";
-        LatestChangeText = RankDisplay.Change(latest) ?? "";
-        IsUp = latest.RankChange > 0;
-        IsDown = latest.RankChange < 0;
-
-        List<double> values = [];
-        List<string> tips = [];
-        int? peak = null;
-        for (int i = rows.Count - 1; i >= 0; i--)
-        {
-            (PlayerMatch match, MatchRankRow rank) = rows[i];
-            if (RankDisplay.After(rank) is not { } value)
-            {
-                continue;
-            }
-
-            values.Add(value);
-            tips.Add($"{RankDisplay.DateOf(match)} · {DemoEntry.PrettifyMap(match.Row.Map)} · {RankDisplay.Describe(rank)}");
-            peak = peak is { } p ? Math.Max(p, value) : value;
-        }
-
-        Values = values;
-        PointTips = tips;
-        string count = rows.Count == 1 ? "1 match" : string.Create(CultureInfo.InvariantCulture, $"{rows.Count} matches");
-        SummaryText = peak is { } best ? $"{count} · peak {RankDisplay.Value(rankType, best)}" : count;
+        Title = title;
+        BadgeKey = RankDisplay.BadgeKey(rankType, value, rank.Wins);
+        ValueText = value is { } v ? RankDisplay.Value(rankType, v) : "Unranked";
+        ChangeText = showChange ? RankDisplay.Change(rank) ?? "" : "";
+        IsUp = showChange && rank.RankChange > 0;
+        IsDown = showChange && rank.RankChange < 0;
+        CaptionText = $"{RankDisplay.DateOf(match)} · {DemoEntry.PrettifyMap(match.Row.Map)}";
+        Tooltip = RankDisplay.Describe(rank);
     }
 
-    /// <summary>The rank system: 11 Premier, 12 Competitive, 7 Wingman.</summary>
-    public int RankType { get; }
+    /// <summary>The newest row of a system, with the change it brought.</summary>
+    internal static RankCardItem Latest(PlayerMatch match, MatchRankRow rank) =>
+        new(rank.RankType == RankDisplay.Premier ? "Premier rating" : "Competitive", rank.RankType, RankDisplay.After(rank), rank, match, true);
 
-    /// <summary>"Premier", or "Competitive · Mirage".</summary>
+    /// <summary>The best Competitive Skill Group, at the match that reached it.</summary>
+    internal static RankCardItem Highest(PlayerMatch match, MatchRankRow rank, int value) =>
+        new("Highest Competitive", RankDisplay.Competitive, value, rank, match, false);
+
+    /// <summary>"Premier rating", "Highest Competitive", or "Competitive" for an account still placing.</summary>
     public string Title { get; }
 
-    /// <summary>The latest badge's icon key; Premier's is pre-tinted for its tier.</summary>
+    /// <summary>The badge's icon key; Premier's is pre-tinted for its tier.</summary>
     public string? BadgeKey { get; }
 
-    /// <summary>The latest rank: a CS Rating ("14,402"), a Skill Group's name, or "Unranked".</summary>
-    public string LatestText { get; }
+    /// <summary>A CS Rating ("14,402"), a Skill Group's name, or "Unranked".</summary>
+    public string ValueText { get; }
 
-    /// <summary>The latest match's change ("+189"), or empty when it is not known.</summary>
-    public string LatestChangeText { get; }
+    /// <summary>The latest match's change ("+189"); empty for a peak or when it is not known.</summary>
+    public string ChangeText { get; }
 
-    /// <summary>True when the latest match raised the rank.</summary>
+    /// <summary>True when the change raised the rank.</summary>
     public bool IsUp { get; }
 
-    /// <summary>True when the latest match lowered it.</summary>
+    /// <summary>True when the change lowered it.</summary>
     public bool IsDown { get; }
 
-    /// <summary>The rank after each ranked match, oldest first.</summary>
-    public IReadOnlyList<double> Values { get; }
+    /// <summary>When and where: "2026-10-12 · Inferno".</summary>
+    public string CaptionText { get; }
 
-    /// <summary>One line per <see cref="Values" /> entry: when, where and what moved.</summary>
-    public IReadOnlyList<string> PointTips { get; }
+    /// <summary>The match's rank line, worded as the history's rank column words it.</summary>
+    public string Tooltip { get; }
+}
 
-    /// <summary>True when there are two points to draw a line through.</summary>
-    public bool HasLine => Values.Count > 1;
+/// <summary>A map's latest Competitive Skill Group, for the Maps and sides table.</summary>
+public sealed class MapRankItem
+{
+    internal MapRankItem(PlayerMatch match, MatchRankRow rank)
+    {
+        int? value = RankDisplay.After(rank);
+        BadgeKey = RankDisplay.BadgeKey(RankDisplay.Competitive, value, rank.Wins);
+        string name = value is { } v ? RankDisplay.Value(RankDisplay.Competitive, v) : "unranked";
+        Tooltip = $"Latest Competitive rank on the map: {name} ({RankDisplay.DateOf(match)})";
+    }
 
-    /// <summary>"12 matches · peak 15,010".</summary>
-    public string SummaryText { get; }
+    /// <summary>The Skill Group badge's icon key.</summary>
+    public string? BadgeKey { get; }
+
+    /// <summary>"Latest Competitive rank on the map: Gold Nova II (2026-10-12)".</summary>
+    public string Tooltip { get; }
 }
 
 /// <summary>How the Player Overview words a rank: numbers for Premier, Skill Group names for the rest.</summary>

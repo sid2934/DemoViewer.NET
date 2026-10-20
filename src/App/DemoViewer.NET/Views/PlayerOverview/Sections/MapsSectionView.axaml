@@ -1,12 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
              x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.MapsSectionView"
              x:DataType="sections:MapsSectionViewModel"
              IsVisible="{Binding IsVisible}">
 
     <!--
-        The window by map, then by side. A library holds a handful of maps, so the list is not virtualised and
+        The window by map, then by side. Beside each map name, the subject's latest Competitive Skill Group there. A library holds a handful of maps, so the list is not virtualised and
         sizes to its rows. The header row and every item spell out the same columns.
     -->
 
@@ -33,7 +34,7 @@
                            VerticalAlignment="Center" />
             </StackPanel>
 
-            <Grid Classes="mapRow" Margin="8 0" ColumnDefinitions="110,64,64,56,52,56,52,110,110,*">
+            <Grid Classes="mapRow" Margin="8 0" ColumnDefinitions="150,64,64,56,52,56,52,110,110,*">
                 <TextBlock Grid.Column="0" Classes="col-label" Text="MAP" />
                 <TextBlock Grid.Column="1" Classes="col-label num" Text="MATCHES" />
                 <TextBlock Grid.Column="2" Classes="col-label num" Text="W-L" ToolTip.Tip="Matches won and lost; ties after a second dash" />
@@ -50,8 +51,13 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="sections:MapRowItem">
                         <Grid Classes="mapRow" Height="26" Background="Transparent"
-                              ColumnDefinitions="110,64,64,56,52,56,52,110,110,*">
-                            <TextBlock Grid.Column="0" Text="{Binding MapText}" />
+                              ColumnDefinitions="150,64,64,56,52,56,52,110,110,*">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="{Binding MapText}" FontSize="12" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextValue}" />
+                                <ui:GameIcon Key="{Binding Rank.BadgeKey}" IconHeight="18" VerticalAlignment="Center"
+                                             IsVisible="{Binding HasRank}" ToolTip.Tip="{Binding Rank.Tooltip}" />
+                            </StackPanel>
                             <TextBlock Grid.Column="1" Classes="num" Text="{Binding MatchesText}" />
                             <TextBlock Grid.Column="2" Classes="num" Text="{Binding RecordText}" />
                             <TextBlock Grid.Column="3" Classes="num" Text="{Binding WinRateText}" />

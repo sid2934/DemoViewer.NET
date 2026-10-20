@@ -14,7 +14,8 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 /// <summary>
 ///     The filter's window by map and by side. One row per map the window holds, most played first, each pooled by
 ///     <see cref="PlayerAggregate" /> over that map's demos alone, so the rows add up to the summary; a map with no
-///     demo in the window has no row. Under the table, the window on each side: rounds and opening duels from the
+///     demo in the window has no row. Beside each map name, the subject's latest Competitive Skill Group there,
+///     taken over all their demos (<see cref="RankSectionViewModel.LatestByMap" />). Under the table, the window on each side: rounds and opening duels from the
 ///     <c>player_match</c> facet's side counts (<c>CTW/CTL/TW/TL</c>, <c>CTFK/CTFD/TFK/TFD</c>), and K/D, ADR and
 ///     KAST from the <c>player_round</c> facet's rounds summed by side, over the demos that have it.
 /// </summary>
@@ -55,7 +56,8 @@ public sealed partial class MapsSectionViewModel : PlayerOverviewSection
             return;
         }
 
-        Rows = Build(context.Window);
+        Rows = Build(context.Window,
+            context.Ranks is { } ranks ? RankSectionViewModel.LatestByMap(context.Demos.Select(d => d.Match), ranks) : null);
         PlayerAggregate window = PlayerAggregate.Of(context.Window);
         Sides = [new SideSplitItem("CT", window, "CTW", "CTL", "CTFK", "CTFD"), new SideSplitItem("T", window, "TW", "TL", "TFK", "TFD")];
         SideNote = NoteOf(window);
@@ -65,10 +67,11 @@ public sealed partial class MapsSectionViewModel : PlayerOverviewSection
 
     /// <summary>One row per map of <paramref name="demos" />, most demos first, then by name.</summary>
     /// <param name="demos">The window's demos.</param>
-    internal static IReadOnlyList<MapRowItem> Build(IReadOnlyList<PlayerDemo> demos) =>
+    /// <param name="ranks">Each map's latest Competitive rank over all the subject's demos; null before the records are read.</param>
+    internal static IReadOnlyList<MapRowItem> Build(IReadOnlyList<PlayerDemo> demos, IReadOnlyDictionary<string, MapRankItem>? ranks = null) =>
     [
         .. demos.GroupBy(d => d.Match.Row.Map ?? "", StringComparer.OrdinalIgnoreCase)
-            .Select(g => new MapRowItem(g.Key, PlayerAggregate.Of([.. g])))
+            .Select(g => new MapRowItem(g.Key, PlayerAggregate.Of([.. g]), ranks?.GetValueOrDefault(g.Key)))
             .OrderByDescending(r => r.Pool.Matches)
             .ThenBy(r => r.MapText, StringComparer.OrdinalIgnoreCase)
     ];
@@ -103,9 +106,11 @@ public sealed class MapRowItem
 {
     /// <param name="map">The map's name as the index holds it; empty when the demo has none.</param>
     /// <param name="pool">The subject's demos on the map, pooled.</param>
-    public MapRowItem(string map, PlayerAggregate pool)
+    /// <param name="rank">The subject's latest Competitive rank on the map, or null when they have none.</param>
+    public MapRowItem(string map, PlayerAggregate pool, MapRankItem? rank = null)
     {
         Map = map;
+        Rank = rank;
         Pool = pool ?? throw new ArgumentNullException(nameof(pool));
         MapText = map.Length == 0 ? "Unknown map" : DemoEntry.PrettifyMap(map);
         MatchesText = pool.Matches.ToString(CultureInfo.InvariantCulture);
@@ -130,6 +135,12 @@ public sealed class MapRowItem
 
     /// <summary>The map's display name.</summary>
     public string MapText { get; }
+
+    /// <summary>The subject's latest Competitive rank on the map, or null.</summary>
+    public MapRankItem? Rank { get; }
+
+    /// <summary>True when the map shows a rank badge.</summary>
+    public bool HasRank => Rank is not null;
 
     /// <summary>Demos on the map, with stats or not.</summary>
     public string MatchesText { get; }
