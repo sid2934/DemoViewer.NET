@@ -1,6 +1,7 @@
 #region
 
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
@@ -16,6 +17,8 @@ using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Identity;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.ViewModels.Setup;
@@ -59,6 +62,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [
         ("UserCategory", "user category consumer power-user developer tier show hide"),
         ("Theme", "theme dark light high contrast egirl colors appearance reload drop-in"),
+        ("Identity", "identity me my accounts steam steamid steamid64 profile who am i active account smurf suggestion"),
         ("Updates", "updates version check release notes update restart beta prerelease subscribe channel"),
         ("Folders", "library folders scan demos dem watch add remove folder"),
         ("Processing", "background processing queue max demos concurrency parse ram"),
@@ -380,6 +384,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _showSectionHighlights = true;
+
+    [ObservableProperty]
+    private bool _showSectionIdentity;
 
     [ObservableProperty]
     private bool _showSectionIdle = true;
@@ -831,6 +838,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         {
             _faults.Changed -= RefreshFaultNotices;
         }
+        if (_identity is not null)
+        {
+            _identity.Changed -= RefreshIdentity;
+        }
         _onChange?.Dispose();
         _extensionUpdatesCts.Cancel();
         _extensionUpdatesCts.Dispose();
@@ -893,6 +904,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         ShowSectionUserCategory = SectionMatches("UserCategory", filter);
         ShowSectionTheme = SectionMatches("Theme", filter);
+        ShowSectionIdentity = CanManageIdentity && SectionMatches("Identity", filter);
         ShowSectionUpdates = SectionMatches("Updates", filter);
         ShowSectionFolders = SectionMatches("Folders", filter);
         ShowSectionProcessing = CanManageProcessingQueue && SectionMatches("Processing", filter);
@@ -908,7 +920,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         ShowSectionExtensions = ExtensionsSectionMatches(filter);
         bool anyPageVisible = RefreshContributedPageVisibility(filter);
 
-        ShowGroupGeneral = ShowSectionUserCategory || ShowSectionTheme || ShowSectionUpdates
+        ShowGroupGeneral = ShowSectionUserCategory || ShowSectionTheme || ShowSectionIdentity || ShowSectionUpdates
                            || ShowSectionPlayback2DKeys;
         ShowGroupLibrary = ShowSectionFolders || ShowSectionProcessing || ShowSectionIdle;
         ShowGroupFeatures = ShowSectionFeatures;
@@ -1853,6 +1865,139 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
 
         Persist(s => s.Features.Overrides[featureId] = enabled);
+    }
+
+    // ── Identity ──
+
+    private IdentityService? _identity;
+    private PlayerDirectory? _identityDirectory;
+    private IdentitySuggestion? _identitySuggestion;
+
+    /// <summary>What the user typed into the Identity section's add box.</summary>
+    [ObservableProperty]
+    private string _identityInput = "";
+
+    /// <summary>The outcome of the last add: what was added, or why nothing was. Null before the first.</summary>
+    [ObservableProperty]
+    private string? _identityInputNote;
+
+    /// <summary>The "this is you" line, or null when the library suggests nobody.</summary>
+    [ObservableProperty]
+    private string? _identitySuggestionText;
+
+    /// <summary>The user's accounts, the active one marked.</summary>
+    public ObservableCollection<IdentityAccountRow> IdentityAccounts { get; } = [];
+
+    /// <summary>Whether the Identity section is shown: desktop, with the identity service attached.</summary>
+    public bool CanManageIdentity => _identity is not null && !_isBrowser();
+
+    /// <summary>
+    ///     Shows Settings > Identity over <paramref name="identity" />: the accounts with the active one, the add box
+    ///     and the suggestion line. <paramref name="directory" /> names each account.
+    /// </summary>
+    /// <param name="identity">The app's identity.</param>
+    /// <param name="directory">The library's accounts, or null.</param>
+    internal void AttachIdentity(IdentityService identity, PlayerDirectory? directory)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        if (_identity is not null)
+        {
+            return;
+        }
+
+        _identity = identity;
+        _identityDirectory = directory;
+        identity.Changed += RefreshIdentity;
+        RefreshIdentity();
+        OnPropertyChanged(nameof(CanManageIdentity));
+        ApplySectionFilter();
+    }
+
+    [RelayCommand]
+    private void AddIdentityAccount()
+    {
+        if (_identity is not { } identity)
+        {
+            return;
+        }
+
+        AccountInput input = IdentityService.ParseAccount(IdentityInput);
+        if (input.SteamId64 is not { } id)
+        {
+            IdentityInputNote = input.Problem;
+            return;
+        }
+
+        if (identity.IsMine(id))
+        {
+            IdentityInputNote = $"{id} is already one of your accounts.";
+            return;
+        }
+
+        identity.SetAccounts([.. identity.Accounts, new IdentityAccount(id, null, DateTime.UtcNow)]);
+        IdentityInput = "";
+        IdentityInputNote = input.FromAccountId ? $"Added {id}, read as a Steam account id." : $"Added {id}.";
+    }
+
+    [RelayCommand]
+    private void RemoveIdentityAccount(IdentityAccountRow? row)
+    {
+        if (_identity is { } identity && row is not null)
+        {
+            identity.SetAccounts(identity.Accounts.Where(a => !string.Equals(a.SteamId64, row.SteamId64, StringComparison.Ordinal)));
+        }
+    }
+
+    [RelayCommand]
+    private void SetActiveIdentityAccount(IdentityAccountRow? row)
+    {
+        if (row is not null)
+        {
+            _identity?.SetActive(row.SteamId64);
+        }
+    }
+
+    [RelayCommand]
+    private void AcceptIdentitySuggestion()
+    {
+        if (_identitySuggestion is { } suggestion)
+        {
+            _identity?.AcceptSuggestion(suggestion);
+        }
+    }
+
+    [RelayCommand]
+    private void DismissIdentitySuggestion()
+    {
+        if (_identitySuggestion is { } suggestion)
+        {
+            _identity?.DismissSuggestion(suggestion);
+        }
+    }
+
+    private void RefreshIdentity()
+    {
+        if (_identity is not { } identity || _disposed)
+        {
+            return;
+        }
+
+        string? active = identity.ActiveSteamId64;
+        IdentityAccount[] accounts = [.. identity.Accounts];
+        IdentityAccounts.Clear();
+        foreach (IdentityAccount account in accounts)
+        {
+            PlayerEntry? entry = ulong.TryParse(account.SteamId64, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id)
+                ? _identityDirectory?.Get(id)
+                : null;
+            IdentityAccounts.Add(new IdentityAccountRow(account.SteamId64, account.Label, entry?.Name, entry?.DemoCount ?? 0,
+                string.Equals(account.SteamId64, active, StringComparison.Ordinal)));
+        }
+
+        _identitySuggestion = identity.Suggest();
+        IdentitySuggestionText = _identitySuggestion is { } s
+            ? $"{DisplayText.Sanitize(s.Name)} ({s.SteamId64}) is in {s.DemoCount} of your demos ({Math.Round(s.Share * 100).ToString(CultureInfo.InvariantCulture)}%). Is this you?"
+            : null;
     }
 
     // ── Extension faults ──

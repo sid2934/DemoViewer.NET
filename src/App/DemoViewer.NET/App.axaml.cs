@@ -32,6 +32,7 @@ using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
 using DemoViewer.NET.Services.MatchMeta;
+using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Facts;
@@ -802,6 +803,8 @@ public class App : Application
         services.AddSingleton(settings);
         // Before anything can write settings.json: its writes drop the keys a first-party extension moved out.
         LegacyExtensionSettings.Import(settings, AppPaths.ConfigRoot);
+        // Before any extension attaches: the Strat Book's teams.json Me becomes the core identity once.
+        IdentityService.ImportTeamsJson(settings, AppPaths.ConfigRoot is { } identityRoot ? Path.Combine(identityRoot, "teams.json") : null);
         services.Configure<AppSettings>(settings.Configuration);
 
         // The feature gate resolves per-category show/hide from FeatureCatalog + the live
@@ -854,6 +857,7 @@ public class App : Application
                 FeaturePacks.Statuses,
                 // The extension updater; absent where there is no config root to stage into.
                 sp.GetService<ExtensionUpdateService>());
+            settingsVm.AttachIdentity(sp.GetRequiredService<IdentityService>(), sp.GetRequiredService<PlayerDirectory>());
             // Says which extensions were switched off this session after errors.
             settingsVm.AttachExtensionFaults(sp.GetRequiredService<ExtensionFaults>(),
                 AppPaths.LogsDir is { } logs ? () => Services?.GetService<MainViewModel>()?.OpenOutputFolder(logs) : null);
@@ -1126,6 +1130,10 @@ public class App : Application
         services.AddSingleton(sp => new PlayerDirectory(sp.GetRequiredService<DemoCacheStore>()));
         services.AddSingleton(sp => new PlayerRowCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>(),
             path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerMatchFacet.Key)));
+
+        // Who the user is, from settings; the directory feeds its "this is you" suggestion.
+        services.AddSingleton(sp => new IdentityService(sp.GetRequiredService<SettingsService>(), sp.GetRequiredService<PlayerDirectory>(),
+            action => Dispatcher.UIThread.Post(action)));
 
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must

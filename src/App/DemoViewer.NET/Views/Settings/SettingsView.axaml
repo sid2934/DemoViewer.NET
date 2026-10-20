@@ -155,6 +155,9 @@
                             Tag="SectionUserCategory" Click="OnJumpChipClick" />
                     <Button Classes="chip" Content="Theme" Margin="0,2,6,2" FontSize="11" Padding="8,3"
                             Tag="SectionTheme" Click="OnJumpChipClick" />
+                    <Button Classes="chip" Content="Identity" Margin="0,2,6,2" FontSize="11" Padding="8,3"
+                            Tag="SectionIdentity" Click="OnJumpChipClick"
+                            IsVisible="{Binding CanManageIdentity}" />
                     <Button Classes="chip" Content="Folders" Margin="0,2,6,2" FontSize="11" Padding="8,3"
                             Tag="SectionLibraryFolders" Click="OnJumpChipClick" />
                     <Button Classes="chip" Content="Updates" Margin="0,2,6,2" FontSize="11" Padding="8,3"
@@ -228,6 +231,82 @@
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Spacing="0" IsVisible="{Binding ShowSectionIdentity}">
+                            <!-- Identity (docs/identity-format.md): the Folders list editor, plus the active radio
+                                 and the library's "is this you" line. Named for the Player Overview's deep link. -->
+                            <Border Classes="sectionHeader" x:Name="SectionIdentity">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <TextBlock Grid.Column="0" Classes="sectionLabel" Text="IDENTITY"
+                                               VerticalAlignment="Center" />
+                                    <Border Grid.Column="2" Classes="badge" VerticalAlignment="Center">
+                                        <TextBlock Classes="mono" Foreground="{DynamicResource TextChainBadge}"
+                                                   FontSize="10" Text="{Binding IdentityAccounts.Count}" />
+                                    </Border>
+                                </Grid>
+                            </Border>
+                            <Border Classes="card" Margin="12,10">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="Your Steam accounts. The Player Overview opens on the active one; the Strat Book counts every one as you." />
+                                    <ListBox Classes="data-list" MaxHeight="220"
+                                             ItemsSource="{Binding IdentityAccounts}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="settings:IdentityAccountRow">
+                                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                                    <RadioButton Grid.Column="0" GroupName="identityActive"
+                                                                 VerticalAlignment="Center"
+                                                                 IsChecked="{Binding IsActive, Mode=OneWay}"
+                                                                 AutomationProperties.Name="Active account"
+                                                                 ToolTip.Tip="Make this the active account"
+                                                                 Command="{Binding $parent[ListBox].((settings:SettingsViewModel)DataContext).SetActiveIdentityAccountCommand}"
+                                                                 CommandParameter="{Binding}" />
+                                                    <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   Foreground="{DynamicResource TextValue}" FontSize="12"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Detail}" Classes="mono"
+                                                                   Foreground="{DynamicResource TextDim}" FontSize="10"
+                                                                   TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                    <Button Grid.Column="2" Classes="icon-btn" Content="✕"
+                                                            AutomationProperties.Name="Remove account"
+                                                            ToolTip.Tip="Remove account"
+                                                            Command="{Binding $parent[ListBox].((settings:SettingsViewModel)DataContext).RemoveIdentityAccountCommand}"
+                                                            CommandParameter="{Binding}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                        <TextBox Grid.Column="0" Classes="field" FontSize="12"
+                                                 Watermark="SteamID64, profile link, [U:1:n] or STEAM_X:Y:Z"
+                                                 Text="{Binding IdentityInput, Mode=TwoWay}">
+                                            <TextBox.KeyBindings>
+                                                <KeyBinding Gesture="Enter" Command="{Binding AddIdentityAccountCommand}" />
+                                            </TextBox.KeyBindings>
+                                        </TextBox>
+                                        <Button Grid.Column="1" Content="Add Account" Classes="primary" Padding="14,4"
+                                                Command="{Binding AddIdentityAccountCommand}" />
+                                    </Grid>
+                                    <TextBlock Foreground="{DynamicResource TextDim}" FontSize="11" TextWrapping="Wrap"
+                                               Text="{Binding IdentityInputNote}"
+                                               IsVisible="{Binding IdentityInputNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    <Border Classes="card" Padding="10,8"
+                                            IsVisible="{Binding IdentitySuggestionText, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                            <TextBlock Grid.Column="0" Text="{Binding IdentitySuggestionText}"
+                                                       Foreground="{DynamicResource TextValue}" FontSize="11"
+                                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                                            <Button Grid.Column="1" Classes="ghost" Padding="8,2" FontSize="10" Content="That's me"
+                                                    Command="{Binding AcceptIdentitySuggestionCommand}" />
+                                            <Button Grid.Column="2" Classes="ghost" Padding="8,2" FontSize="10" Content="Not me"
+                                                    Command="{Binding DismissIdentitySuggestionCommand}" />
+                                        </Grid>
+                                    </Border>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

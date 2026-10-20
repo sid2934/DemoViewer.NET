@@ -43,6 +43,9 @@ public sealed class PlayerDirectory
     /// <summary>Every account, the one in the most demos first. The same instance until the index moves.</summary>
     public IReadOnlyList<PlayerEntry> Players => Current().Players;
 
+    /// <summary>How many demos hold any account, a demo with two copies once.</summary>
+    public int DemoCount => Current().Demos;
+
     /// <summary>The account, or null when no demo holds it.</summary>
     /// <param name="steamId64">The account.</param>
     public PlayerEntry? Get(ulong steamId64) =>
@@ -147,9 +150,15 @@ public sealed class PlayerDirectory
     {
         Dictionary<ulong, Builder> builders = [];
         InDemo.Set inDemo = new();
+        int demoCount = 0;
         foreach (DemoCacheIndexEntry row in rows.Order(NewestMatchFirst.Instance))
         {
             inDemo.Collect(row, null);
+            if (inDemo.Accounts.Count > 0)
+            {
+                demoCount++;
+            }
+
             long time = TimeOf(row);
             foreach ((ulong id, InDemo here) in inDemo.Accounts)
             {
@@ -182,7 +191,7 @@ public sealed class PlayerDirectory
             .OrderByDescending(p => p.DemoCount)
             .ThenByDescending(p => p.LastSeenTicks)
             .ThenBy(p => p.SteamId64)];
-        return new Projection(accounts, players);
+        return new Projection(accounts, players, demoCount);
     }
 
     private static long TimeOf(DemoCacheIndexEntry row) => row.MatchTimeUtcTicks ?? row.ModifiedTicks;
@@ -226,9 +235,9 @@ public sealed class PlayerDirectory
         }
     }
 
-    internal sealed record Projection(Dictionary<ulong, Account> Accounts, List<PlayerEntry> Players)
+    internal sealed record Projection(Dictionary<ulong, Account> Accounts, List<PlayerEntry> Players, int Demos)
     {
-        public static readonly Projection Empty = new([], []);
+        public static readonly Projection Empty = new([], [], 0);
     }
 
     // One account in one demo: the side it ended on (null when only the facet has it), its names and slots.

@@ -1,0 +1,16 @@
+{
+  "Identity": {
+    "Accounts": [
+      {
+        "SteamId64": "76561198000000001",
+        "Label": "main",
+        "AddedUtc": "2026-10-19T00:00:00Z"
+      }
+    ],
+    "ActiveSteamId64": "76561198000000001",
+    "DismissedSuggestions": [
+      "76561198000000009"
+    ],
+    "MigratedFromTeamsJson": true
+  }
+}

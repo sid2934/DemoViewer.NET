@@ -59,6 +59,8 @@ Both files are written whole and atomically (temp file plus replace).
 }
 ```
 
+* **`me.steamIds`**: a mirror of Settings > Identity ([`identity-format.md`](identity-format.md)); edits
+  here are overwritten. The app reads it once, into the core identity, the first time it starts with one.
 * **`rosters[].coreLineup`**: the fixed five, established the first time the same five is seen on
   two sides of the roster, and then fixed: a rebuild re-matches against the same five.
 * **`rosters[].extendedCore`**: the up-to-seven most frequent members, rewritten as counts change so
