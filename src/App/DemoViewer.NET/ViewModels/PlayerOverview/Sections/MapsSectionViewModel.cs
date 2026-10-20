@@ -2,6 +2,7 @@
 
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using DemoViewer.NET.Controls.Stats;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Services.Players;
@@ -14,7 +15,7 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 /// <summary>
 ///     The filter's window by map and by side. One row per map the window holds, most played first, each pooled by
 ///     <see cref="PlayerAggregate" /> over that map's demos alone, so the rows add up to the summary; a map with no
-///     demo in the window has no row. The RANK column holds the subject's latest Competitive Skill Group on each map,
+///     demo in the window has no row. Each map's card carries the subject's latest Competitive Skill Group there,
 ///     taken over all their demos (<see cref="RankSectionViewModel.LatestByMap" />). Under the table, the window on
 ///     each side: rounds and opening duels from the <c>player_match</c> facet's side counts (<c>CTW/CTL/TW/TL</c>,
 ///     <c>CTFK/CTFD/TFK/TFD</c>), and K/D, ADR and KAST from the <c>player_round</c> facet's rounds summed by side,
@@ -102,7 +103,7 @@ public sealed partial class MapsSectionViewModel : PlayerOverviewSection
     }
 }
 
-/// <summary>One map in the window, every cell formatted.</summary>
+/// <summary>One map in the window, every value formatted for its card.</summary>
 public sealed class MapRowItem
 {
     /// <param name="map">The map's name as the index holds it; empty when the demo has none.</param>
@@ -126,7 +127,17 @@ public sealed class MapRowItem
         HltvText = MapsSectionViewModel.Format(pool["HLTV"], "0.00");
         CtText = MapsSectionViewModel.Split(pool, "CTW", "CTL");
         TText = MapsSectionViewModel.Split(pool, "TW", "TL");
+        MatchesWord = pool.Matches == 1 ? "match" : "matches";
+        ResultBar = pool.WithStats == 0 ? [] : [new StatSegment(pool.Wins, Slot: 0), new StatSegment(pool.Losses, Slot: 1), new StatSegment(pool.Ties, Slot: 2)];
+        (CtBar, CtShareText) = Bar(pool, "CTW", "CTL");
+        (TBar, TShareText) = Bar(pool, "TW", "TL");
     }
+
+    // Rounds won (slot 0) against lost (slot 1), and the share won; empty and a dash with neither.
+    private static (IReadOnlyList<StatSegment> Bar, string Share) Bar(PlayerAggregate pool, string won, string lost) =>
+        pool[won] is { } w && pool[lost] is { } l && w + l > 0
+            ? ([new StatSegment(w, Slot: 0), new StatSegment(l, Slot: 1)], string.Create(CultureInfo.InvariantCulture, $"{100 * w / (w + l):0}%"))
+            : ([], "–");
 
     /// <summary>The map as the index holds it.</summary>
     public string Map { get; }
@@ -166,6 +177,24 @@ public sealed class MapRowItem
 
     /// <summary>Rounds won and lost on T, with the share won.</summary>
     public string TText { get; }
+
+    /// <summary>"match" or "matches", for the card's count.</summary>
+    public string MatchesWord { get; }
+
+    /// <summary>The card's result bar: wins (slot 0), losses (slot 1) and ties (slot 2); empty without stats.</summary>
+    public IReadOnlyList<StatSegment> ResultBar { get; }
+
+    /// <summary>The card's CT bar: rounds won (slot 0) and lost (slot 1).</summary>
+    public IReadOnlyList<StatSegment> CtBar { get; }
+
+    /// <summary>The share of CT rounds won, or a dash.</summary>
+    public string CtShareText { get; }
+
+    /// <summary>The card's T bar: rounds won (slot 0) and lost (slot 1).</summary>
+    public IReadOnlyList<StatSegment> TBar { get; }
+
+    /// <summary>The share of T rounds won, or a dash.</summary>
+    public string TShareText { get; }
 }
 
 /// <summary>One side's rounds and opening duels over the window, formatted.</summary>

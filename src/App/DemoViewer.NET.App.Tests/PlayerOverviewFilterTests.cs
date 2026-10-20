@@ -429,6 +429,10 @@ public class PlayerOverviewFilterTests
                 TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("equal counts sort by name");
             await Assert.That((nuke.MatchesText, nuke.RecordText, nuke.WinRateText)).IsEqualTo(("2", "1-1", "50%"));
             await Assert.That((nuke.CtText, nuke.TText)).IsEqualTo(("22-22 (50%)", "6-5 (55%)"));
+            await Assert.That(nuke.ResultBar.Select(b => (b.Value, b.Slot))).IsEquivalentTo([(1.0, 0), (1.0, 1), (0.0, 2)],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            await Assert.That(nuke.CtBar.Select(b => b.Value)).IsEquivalentTo([22.0, 22.0]);
+            await Assert.That((nuke.CtShareText, nuke.TShareText, nuke.MatchesWord)).IsEqualTo(("50%", "55%", "matches"));
             await Assert.That(nuke.KdText).IsEqualTo(nuke.Pool["KD"]!.Value.ToString("0.00", CultureInfo.InvariantCulture));
             await Assert.That(nuke.AdrText).IsEqualTo("85.0");
             await Assert.That(nuke.HltvText).IsEqualTo("1.17");

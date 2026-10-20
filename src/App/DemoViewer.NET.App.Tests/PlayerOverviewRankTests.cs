@@ -359,7 +359,7 @@ public class PlayerOverviewRankRenderTests
     }
 
     [Test]
-    public async Task HistoryPage_PutsMapsBesideTheHistory_ScrollingSidewaysUntilBothFit()
+    public async Task HistoryPage_PutsMapsBesideTheHistory_WhichScrollsSidewaysUntilItFits()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -379,7 +379,6 @@ public class PlayerOverviewRankRenderTests
             Settle();
             HistorySectionView history = window.GetVisualDescendants().OfType<HistorySectionView>().Single();
             MapsSectionView maps = window.GetVisualDescendants().OfType<MapsSectionView>().Single();
-            ScrollViewer mapsScroll = maps.FindControl<ScrollViewer>("MapsScroll")!;
             ScrollViewer historyScroll = history.FindControl<ScrollViewer>("HistoryScroll")!;
             double mapsLeft = maps.TranslatePoint(new Point(0, 0), window)!.Value.X;
             double historyRight = history.TranslatePoint(new Point(history.Bounds.Width, 0), window)!.Value.X;
@@ -388,14 +387,13 @@ public class PlayerOverviewRankRenderTests
             {
                 await Assert.That(mapsLeft).IsGreaterThan(historyRight).Because("maps sits to the right of the history");
                 await Assert.That(tops).IsLessThan(1.0).Because("both start at the top of the page");
-                await Assert.That(mapsScroll.Extent.Width).IsGreaterThan(mapsScroll.Viewport.Width).Because("at 1,600 px the maps table scrolls");
+                await Assert.That(historyScroll.Extent.Width).IsGreaterThan(historyScroll.Viewport.Width).Because("at 1,600 px the history table scrolls");
             }
 
             window.Width = 2560;
             Settle();
             using (Assert.Multiple())
             {
-                await Assert.That(mapsScroll.Extent.Width).IsLessThanOrEqualTo(mapsScroll.Viewport.Width + 0.5);
                 await Assert.That(historyScroll.Extent.Width).IsLessThanOrEqualTo(historyScroll.Viewport.Width + 0.5);
                 await Assert.That(historyScroll.Viewport.Width).IsGreaterThan(940.0).Because("with room, the table stretches rather than sitting at its minimum");
             }
@@ -418,7 +416,7 @@ public class PlayerOverviewRankRenderTests
     }
 
     [Test]
-    public async Task MapRankBadges_LineUpInTheirOwnColumn()
+    public async Task MapRankBadges_SitInTheSameCornerOfEveryCard()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -440,12 +438,14 @@ public class PlayerOverviewRankRenderTests
             Dispatcher.UIThread.RunJobs();
 
             MapsSectionView view = window.GetVisualDescendants().OfType<MapsSectionView>().Single();
-            double[] lefts = [.. view.GetVisualDescendants().OfType<GameIcon>().Where(i => i.Name == "MapRankBadge" && i.IsVisible)
-                .Select(i => i.TranslatePoint(new Point(0, 0), view)!.Value.X)];
+            Point[] corners = [.. view.GetVisualDescendants().OfType<GameIcon>().Where(i => i.Name == "MapRankBadge" && i.IsVisible)
+                .Select(i => i.TranslatePoint(new Point(i.Bounds.Width, 0), i.FindAncestorOfType<Border>()!)!.Value)];
+            Border[] cards = [.. view.GetVisualDescendants().OfType<Border>().Where(b => b.Name == "MapCard")];
             using (Assert.Multiple())
             {
-                await Assert.That(lefts.Length).IsEqualTo(2).Because("Nuke and Mirage have a Competitive rank; Inferno does not");
-                await Assert.That(lefts.Distinct().Count()).IsEqualTo(1).Because("the badges sit in one column whatever the map name's width");
+                await Assert.That(cards.Length).IsEqualTo(3);
+                await Assert.That(corners.Length).IsEqualTo(2).Because("Nuke and Mirage have a Competitive rank; Inferno does not");
+                await Assert.That(corners.Distinct().Count()).IsEqualTo(1).Because("each badge sits in its card's top-right corner, whatever the map name");
             }
 
             window.Close();
