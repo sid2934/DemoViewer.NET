@@ -15,26 +15,18 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 /// <summary>
 ///     The subject's rank over its demos, one track per rank system: Premier as one CS Rating, and Competitive and
 ///     Wingman per map, because CS2 keeps their Skill Groups per map. Each track shows the latest badge and a line
-///     of the rank after every match, oldest on the left. The rows live on the demos' records, so they are read
-///     off the UI thread through <see cref="PlayerRankCache" />; a subject with no ranked demo has no section.
+///     of the rank after every match in the filter's window, oldest on the left. The rows live on the demos'
+///     records, which the tab reads off the UI thread through <see cref="PlayerRankCache" />; a window with no
+///     ranked demo has no section.
 /// </summary>
 public sealed partial class RankSectionViewModel : PlayerOverviewSection
 {
-    private readonly PlayerOverviewServices _services;
-    private int _load;
-
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLoading))]
     private string _loadText = "";
 
     [ObservableProperty]
     private IReadOnlyList<RankTrackItem> _tracks = [];
-
-    /// <param name="services">The rank cache.</param>
-    public RankSectionViewModel(PlayerOverviewServices services)
-    {
-        _services = services ?? throw new ArgumentNullException(nameof(services));
-    }
 
     /// <inheritdoc />
     public override string Id => "rank";
@@ -45,62 +37,12 @@ public sealed partial class RankSectionViewModel : PlayerOverviewSection
     /// <summary>True while the records are being read.</summary>
     public bool IsLoading => LoadText.Length > 0;
 
-    /// <summary>The latest read of the records; completed when nothing is being read.</summary>
-    internal Task Loading { get; private set; } = Task.CompletedTask;
-
     /// <inheritdoc />
     public override void Update(PlayerOverviewContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        int load = ++_load;
-        if (context.Player is not { } player || _services.Ranks is not { } cache)
-        {
-            IsVisible = false;
-            Tracks = [];
-            LoadText = "";
-            return;
-        }
-
-        if (cache.TryGet(player.SteamId64) is { } ranks)
-        {
-            LoadText = "";
-            Show(context.Matches, ranks);
-            return;
-        }
-
-        LoadText = "Reading ranks";
-        IsVisible = Tracks.Count > 0;
-        Loading = LoadAsync(cache, context, load);
-    }
-
-    private async Task LoadAsync(PlayerRankCache cache, PlayerOverviewContext context, int load)
-    {
-        try
-        {
-            PlayerRanks ranks = await cache.LoadAsync(context.Player!.SteamId64);
-            if (_load == load)
-            {
-                Show(context.Matches, ranks);
-            }
-        }
-        catch (Exception)
-        {
-            // A record that will not read is retried on the next refresh.
-            if (_load == load)
-            {
-                IsVisible = Tracks.Count > 0;
-            }
-        }
-
-        if (_load == load)
-        {
-            LoadText = "";
-        }
-    }
-
-    private void Show(IReadOnlyList<PlayerMatch> matches, PlayerRanks ranks)
-    {
-        Tracks = Build(matches, ranks);
+        LoadText = context.IsReadingRanks ? "Reading ranks" : "";
+        Tracks = context.Player is not null && context.Ranks is { } ranks ? Build([.. context.Window.Select(d => d.Match)], ranks) : [];
         IsVisible = Tracks.Count > 0;
     }
 

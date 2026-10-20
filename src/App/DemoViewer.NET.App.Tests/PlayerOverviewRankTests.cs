@@ -72,14 +72,20 @@ public class PlayerOverviewRankTests
 
     private sealed class Shell : IDisposable
     {
-        public Shell(DemoCacheStore store)
+        public Shell(DemoCacheStore store, bool held = false)
         {
+            if (held)
+            {
+                Gate.Reset();
+            }
+
             Store = store;
             PlayerDirectory directory = new(store, _ => true);
             Identity = new IdentityService(new SettingsService((string?)null));
             Identity.SetAccounts([new IdentityAccount(Id(Grim), null, DateTime.UtcNow)]);
             Ranks = new PlayerRankCache(store, directory, path =>
             {
+                Gate.Wait();
                 Reads.Enqueue(path);
                 return store.TryLoadRecord(path, false)?.MatchMeta;
             });
@@ -94,19 +100,20 @@ public class PlayerOverviewRankTests
         public PlayerOverviewTabViewModel Tab { get; }
         public ConcurrentQueue<string> Reads { get; } = new();
 
+        // Holds every record read until set, for a test that acts while the read is running.
+        public ManualResetEventSlim Gate { get; } = new(true);
+
         public RankSectionViewModel Rank => Tab.Sections.OfType<RankSectionViewModel>().Single();
         public HistorySectionViewModel History => Tab.Sections.OfType<HistorySectionViewModel>().Single();
 
-        public async Task Settled()
-        {
-            await Rank.Loading;
-            await History.Loading;
-        }
+        public Task Settled() => Tab.Loading;
 
         public void Dispose()
         {
+            Gate.Set();
             Tab.Dispose();
             Identity.Dispose();
+            Gate.Dispose();
         }
     }
 
@@ -214,6 +221,34 @@ public class PlayerOverviewRankTests
             await Assert.That(up.RankTip).IsEqualTo("Premier 14,100 → 14,350 (+250)");
             await Assert.That((down.RankChangeText, down.IsRankUp, down.IsRankDown)).IsEqualTo(("-89", false, true));
             await Assert.That((none.RankChangeText, none.RankTip)).IsEqualTo(("–", (string?) null));
+        }
+    }
+
+    [Test]
+    public async Task AFilterSetWhileRanksAreRead_ShapesWhatTheyLandOn_AndAClearReadsNothing()
+    {
+        using Shell shell = new(Library(), held: true);
+        await Assert.That(shell.Rank.IsLoading).IsTrue();
+        PlayerOverviewFilterViewModel filter = shell.Tab.Filter;
+        filter.Map = filter.Maps.Single(c => c.Label == "Mirage");
+        shell.Gate.Set();
+        await shell.Settled();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Rank.IsLoading).IsFalse();
+            await Assert.That(shell.Rank.Tracks.Select(t => t.Title))
+                .IsEquivalentTo(["Premier", "Competitive · Mirage"], CollectionOrdering.Matching);
+            await Assert.That(shell.Rank.Tracks[0].Values).IsEquivalentTo([14100.0], CollectionOrdering.Matching);
+            await Assert.That(shell.History.Rows.Select(r => r.RankChangeText)).IsEquivalentTo(["-1", "-89"], CollectionOrdering.Matching);
+        }
+
+        filter.Map = filter.Maps[0];
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Rank.Tracks.Count).IsEqualTo(3);
+            await Assert.That(shell.History.Rows.Count).IsEqualTo(7);
+            await Assert.That(shell.Reads.Count).IsEqualTo(7).Because("a filter change recomputes from the rows already read");
         }
     }
 

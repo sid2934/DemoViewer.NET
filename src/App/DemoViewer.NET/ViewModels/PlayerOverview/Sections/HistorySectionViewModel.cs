@@ -16,33 +16,25 @@ using DemoViewer.NET.ViewModels.Stats;
 namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 
 /// <summary>
-///     Every demo of the subject, newest match first, one row each: when, where, how it ended and the subject's
-///     line from its <c>player_match</c> facet. The rows come from the index at once; the stats arrive when
-///     <see cref="PlayerRowCache" /> has read the facets, off the UI thread. A demo whose facet is not written
-///     says so in its stat cells and never shows zeros. The rank change comes from the demo's record through
-///     <see cref="PlayerRankCache" />, read the same way.
+///     The subject's demos in the filter's window, newest match first, one row each: when, where, how it ended
+///     and the subject's line from its <c>player_match</c> facet. The rows come from the index at once; the stats
+///     arrive when the tab has read the facets through <see cref="PlayerRowCache" />, off the UI thread. A demo
+///     whose facet is not written says so in its stat cells and never shows zeros. The rank change comes from the
+///     demo's record, which the tab reads the same way through <see cref="PlayerRankCache" />.
 /// </summary>
 public sealed partial class HistorySectionViewModel : PlayerOverviewSection
 {
     private static readonly string FacetStamp = StampedFacts.StampId(PlayerMatchFacet.RulesetId);
 
     private readonly PlayerOverviewServices _services;
-    private int _load;
-    private PlayerRanks? _ranks;
-    private bool _shownLoading;
-    private PlayerRows? _stats;
 
     [ObservableProperty]
     private string _countText = "";
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading))]
-    private string _loadText = "";
-
-    [ObservableProperty]
     private IReadOnlyList<HistoryRowItem> _rows = [];
 
-    /// <param name="services">The directory that opens demos, the row cache and the shell's open and focus actions.</param>
+    /// <param name="services">The directory that opens demos and the shell's open and focus actions.</param>
     public HistorySectionViewModel(PlayerOverviewServices services)
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
@@ -51,170 +43,45 @@ public sealed partial class HistorySectionViewModel : PlayerOverviewSection
     /// <inheritdoc />
     public override string Id => "history";
 
-    /// <summary>True while the facets are being read.</summary>
-    public bool IsLoading => LoadText.Length > 0;
-
-    /// <summary>The latest read of the facets; completed when nothing is being read.</summary>
-    internal Task Loading { get; private set; } = Task.CompletedTask;
-
     /// <inheritdoc />
     public override void Update(PlayerOverviewContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        // A read still running for an earlier refresh finishes into the cache and is not shown.
-        int load = ++_load;
         if (context.Player is not { } player)
         {
             IsVisible = false;
             Rows = [];
-            _stats = null;
-            _ranks = null;
-            LoadText = "";
             return;
         }
 
-        if (_stats?.SteamId64 != player.SteamId64)
+        bool reading = context.IsReadingStats;
+        List<HistoryRowItem> rows = new(context.Window.Count);
+        foreach (PlayerDemo demo in context.Window)
         {
-            _stats = null;
-        }
-
-        if (_ranks?.SteamId64 != player.SteamId64)
-        {
-            _ranks = null;
-        }
-
-        Task ranking = Task.CompletedTask;
-        if (_services.Ranks is { } ranks)
-        {
-            if (ranks.TryGet(player.SteamId64) is { } held)
-            {
-                _ranks = held;
-            }
-            else
-            {
-                ranking = LoadRanksAsync(ranks, context, load);
-            }
-        }
-
-        PlayerRowCache? cache = _services.Rows;
-        bool current = false;
-        if (cache?.TryGet(player.SteamId64) is { } rows)
-        {
-            _stats = rows;
-            current = true;
-        }
-
-        Show(context.Matches, player.SteamId64, loading: cache is not null && !current);
-        IsVisible = true;
-        if (cache is not null && !current)
-        {
-            Loading = Task.WhenAll(LoadAsync(cache, context, load), ranking);
-        }
-        else
-        {
-            LoadText = "";
-            Loading = ranking;
-        }
-    }
-
-    private async Task LoadRanksAsync(PlayerRankCache cache, PlayerOverviewContext context, int load)
-    {
-        ulong id = context.Player!.SteamId64;
-        try
-        {
-            PlayerRanks ranks = await cache.LoadAsync(id);
-            if (_load == load)
-            {
-                _ranks = ranks;
-                Show(context.Matches, id, _shownLoading);
-            }
-        }
-        catch (Exception)
-        {
-            // A record that will not read leaves its rank cell empty; the next refresh tries again.
-        }
-    }
-
-    private async Task LoadAsync(PlayerRowCache cache, PlayerOverviewContext context, int load)
-    {
-        ulong id = context.Player!.SteamId64;
-        Progress<PlayerRowsProgress> progress = new(p =>
-        {
-            if (_load == load && p.Total > 0)
-            {
-                LoadText = string.Create(CultureInfo.InvariantCulture, $"Reading stats {p.Done} of {p.Total}");
-            }
-        });
-        LoadText = "Reading stats";
-        try
-        {
-            PlayerRows rows = await cache.LoadAsync(id, progress);
-            if (_load != load)
-            {
-                return;
-            }
-
-            _stats = rows;
-            Show(context.Matches, id, loading: false);
-        }
-        catch (Exception)
-        {
-            // A sidecar that will not read leaves its row "stats not read"; the next refresh tries again.
-            if (_load == load)
-            {
-                Show(context.Matches, id, loading: false);
-            }
-        }
-
-        if (_load == load)
-        {
-            LoadText = "";
-        }
-    }
-
-    // Rows from the directory's current list, with the stats last read for each demo whose facet has not moved.
-    private void Show(IReadOnlyList<PlayerMatch> matches, ulong steamId64, bool loading)
-    {
-        Dictionary<string, PlayerDemo>? read = null;
-        if (_stats is { } stats)
-        {
-            read = new Dictionary<string, PlayerDemo>(stats.Demos.Count, StringComparer.Ordinal);
-            foreach (PlayerDemo demo in stats.Demos)
-            {
-                read[ContentIdOf(demo.Match.Row)] = demo;
-            }
-        }
-
-        List<HistoryRowItem> rows = new(matches.Count);
-        foreach (PlayerMatch match in matches)
-        {
-            PackStamp? stamp = match.Row.Stamp(FacetStamp);
             HistoryStats state;
-            IReadOnlyDictionary<string, double>? values = null;
-            if (stamp is not { State: DemoAnalysisState.Indexed })
+            if (demo.Match.Row.Stamp(FacetStamp) is not { State: DemoAnalysisState.Indexed })
             {
                 state = HistoryStats.Pending;
             }
-            else if (read is not null && read.TryGetValue(ContentIdOf(match.Row), out PlayerDemo? demo)
-                                      && demo.HasFacet && demo.Match.Row.Stamp(FacetStamp) == stamp)
+            else if (demo.HasFacet)
             {
-                values = demo.Stats;
-                state = values is null ? HistoryStats.NoRow : HistoryStats.Ready;
+                state = demo.Stats is null ? HistoryStats.NoRow : HistoryStats.Ready;
             }
             else
             {
-                state = loading ? HistoryStats.Loading : HistoryStats.Unread;
+                state = reading ? HistoryStats.Loading : HistoryStats.Unread;
             }
 
-            rows.Add(new HistoryRowItem(match, steamId64, state, values, _ranks?.For(match.Row)));
+            rows.Add(new HistoryRowItem(demo.Match, player.SteamId64, state, demo.Stats, context.Ranks?.For(demo.Match.Row)));
         }
 
-        _shownLoading = loading;
         Rows = rows;
-        CountText = matches.Count == 1 ? "1 match" : string.Create(CultureInfo.InvariantCulture, $"{matches.Count} matches");
+        int all = context.Matches.Count;
+        CountText = rows.Count != all
+            ? string.Create(CultureInfo.InvariantCulture, $"{rows.Count} of {all} matches")
+            : all == 1 ? "1 match" : string.Create(CultureInfo.InvariantCulture, $"{all} matches");
+        IsVisible = true;
     }
-
-    private static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
 
     /// <summary>Opens the row's demo from the first of its paths on disk, or marks the file missing.</summary>
     [RelayCommand]
@@ -254,7 +121,7 @@ public enum HistoryStats
     /// <summary>The facet is written and being read.</summary>
     Loading,
 
-    /// <summary>The facet is written but nothing reads it here.</summary>
+    /// <summary>The facet is written but nothing reads it here, or the read failed.</summary>
     Unread,
 
     /// <summary>The facet holds no row the account was active in.</summary>
@@ -432,7 +299,7 @@ public sealed partial class HistoryRowItem : ObservableObject
         return time.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
     }
 
-    private static string ModeOf(DemoCacheIndexEntry row)
+    internal static string ModeOf(DemoCacheIndexEntry row)
     {
         if (!string.IsNullOrEmpty(row.GameMode))
         {
