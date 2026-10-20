@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Shell;
 
@@ -980,7 +981,8 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     }
 
     // The account the chosen player filter stands for, joined through the index's side lists. A name that more
-    // than one account played under offers nothing: opening the wrong one is worse than a greyed-out entry.
+    // than one account played under offers nothing: opening the wrong one is worse than a greyed-out entry. A bot's
+    // or an unresolved slot's id is no account, so it neither opens nor makes the name ambiguous.
     private void RefreshPlayerOverview()
     {
         PlayerOverviewEntry next = PlayerOverviewEntry.None;
@@ -997,8 +999,9 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
                 LibraryDemo demo = DemoOf(entry);
                 foreach (LibrarySidePlayer p in (demo.CtPlayers ?? []).Concat(demo.TPlayers ?? []))
                 {
-                    if (string.Equals(p.Name, SelectedPlayer, StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(DisplayText.Sanitize(p.Name), SelectedPlayer, StringComparison.OrdinalIgnoreCase))
+                    if (SteamIdParser.IsIndividual(p.SteamId64)
+                        && (string.Equals(p.Name, SelectedPlayer, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(DisplayText.Sanitize(p.Name), SelectedPlayer, StringComparison.OrdinalIgnoreCase)))
                     {
                         accounts.Add(p.SteamId64);
                     }
@@ -1010,6 +1013,15 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
                 : new PlayerOverviewEntry(0, SelectedPlayer, PlayerOverviewOpener, accounts.Count > 1
                     ? $"{accounts.Count} accounts played under this name; open one from a demo"
                     : null);
+        }
+
+        // A library tick that leaves the answer as it was keeps the bound entry, so the flyout is not rebuilt.
+        PlayerOverviewEntry current = SelectedPlayerOverview;
+        if (next.SteamId64 == current.SteamId64 && next.Offers == current.Offers
+            && string.Equals(next.Name, current.Name, StringComparison.Ordinal)
+            && string.Equals(next.Tip, current.Tip, StringComparison.Ordinal))
+        {
+            return;
         }
 
         SelectedPlayerOverview = next;

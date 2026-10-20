@@ -289,4 +289,61 @@ public class PlayerOverviewEntryPointTests
             await Assert.That(ambiguous.Tip).Contains("2 accounts");
         }
     }
+
+    [Test]
+    public async Task Library_PlayerFilter_IgnoresANonAccountId()
+    {
+        using DemoLibraryService svc = NewService();
+        List<(ulong, string?)> opened = [];
+        DemoEntry a = LibraryEntry("a.dem", "Neo", "Kirk");
+        DemoEntry b = LibraryEntry("b.dem", "Neo");
+        Dictionary<string, LibraryDemo> index = new()
+        {
+            [a.FilePath] = Indexed(a, new LibrarySidePlayer(Neo, "Neo"), new LibrarySidePlayer(0, "Kirk")),
+            [b.FilePath] = Indexed(b, new LibrarySidePlayer(0, "Neo"))
+        };
+        LibraryTabViewModel vm = new(svc, _ => Task.CompletedTask, () => Task.FromResult<IReadOnlyList<string>>([]),
+            findDemo: path => index.GetValueOrDefault(path))
+        {
+            PlayerOverviewOpener = (id, name) => opened.Add((id, name))
+        };
+        svc.Entries.Add(a);
+        svc.Entries.Add(b);
+
+        vm.SelectedPlayer = "Neo";
+        PlayerOverviewEntry neo = vm.SelectedPlayerOverview;
+        neo.Open();
+        vm.SelectedPlayer = "Kirk";
+        PlayerOverviewEntry kirk = vm.SelectedPlayerOverview;
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(opened).IsEquivalentTo(new (ulong, string?)[] { (Neo, "Neo") })
+                .Because("a slot with no SteamID does not make the name a second account");
+            await Assert.That(kirk.CanOpen).IsFalse();
+            await Assert.That(kirk.Tip).IsEqualTo(PlayerOverviewLink.NoSteamIdTip);
+        }
+    }
+
+    [Test]
+    public async Task Library_ATickThatChangesNoAccount_KeepsTheEntry()
+    {
+        using DemoLibraryService svc = NewService();
+        LibraryTabViewModel vm = Library(svc, []);
+        PlayerOverviewEntry none = vm.SelectedPlayerOverview;
+        svc.Entries.Add(LibraryEntry("e.dem", "Neo"));
+        await Assert.That(vm.SelectedPlayerOverview).IsSameReferenceAs(none);
+
+        vm.SelectedPlayer = "Neo";
+        PlayerOverviewEntry neo = vm.SelectedPlayerOverview;
+        int raised = 0;
+        vm.PropertyChanged += (_, e) => raised += e.PropertyName == nameof(LibraryTabViewModel.SelectedPlayerOverview) ? 1 : 0;
+        svc.Entries.Add(LibraryEntry("f.dem", "Neo", "Smith"));
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(vm.SelectedPlayerOverview).IsSameReferenceAs(neo);
+            await Assert.That(raised).IsEqualTo(0);
+        }
+    }
 }
