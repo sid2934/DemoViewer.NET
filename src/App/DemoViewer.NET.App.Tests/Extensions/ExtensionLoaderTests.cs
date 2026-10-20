@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 public class ExtensionLoaderTests
 {
     private const string FakeId = "net.demoviewer.pack.fake";
-    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.1.0"), null, SemVersion.Parse("0.14.0-beta0001"));
+    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0-beta0001"));
     private static readonly ITrustPolicy TrustAll = new AllTrust();
 
     // ── Discover ─────────────────────────────────────────────────────────────────────────────────
@@ -178,7 +178,7 @@ public class ExtensionLoaderTests
         {
             await Assert.That(selection.Chosen?.Manifest.Version.ToString()).IsEqualTo("1.2.0");
             await Assert.That(selection.Rejected.Select(o => (o.Version!.ToString(), o.Failure))).IsEquivalentTo([("1.3.0", LoadFailure.Incompatible)]);
-            await Assert.That(selection.Rejected[0].UserMessage).IsEqualTo("Update 1.3.0 was not loaded: Fake 1.3.0 needs app contract ^2.0; this app provides 1.1.0");
+            await Assert.That(selection.Rejected[0].UserMessage).IsEqualTo("Update 1.3.0 was not loaded: Fake 1.3.0 needs app contract ^2.0; this app provides 1.2.0");
         }
     }
 
