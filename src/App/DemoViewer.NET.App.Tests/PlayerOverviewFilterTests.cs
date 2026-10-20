@@ -289,7 +289,9 @@ public class PlayerOverviewFilterTests
             await Assert.That(shell.Summary.Tiles.Single(t => t.Key == "ADR").Scale).IsEqualTo(StatScale.Absolute(40, 120, 70, 82));
             await Assert.That(shell.Summary.Tiles.Single(t => t.Key == "Matches").Scale).IsNull();
             await Assert.That(shell.Summary.Tiles.Select(t => t.Key)).IsEquivalentTo(
-                ["Matches", "Win%", "KD", "ADR", "KAST%", "HS%", "HLTV", "KPR", "Duel%", "Clutch", "MultiKills"]);
+                ["Matches", "Win%", "KD", "ADR", "KAST%", "HS%", "HLTV", "KPR", "Duel%", "Clutch", "MultiKills", "TTD", "Preaim"]);
+            await Assert.That(shell.Summary.Tiles.Single(t => t.Key == "TTD").Text).IsEqualTo(AimQualitySectionViewModel.NoData)
+                .Because("no demo here was written with line-of-sight geometry");
         }
 
         PlayerAggregate thin = PlayerAggregate.Of([]);

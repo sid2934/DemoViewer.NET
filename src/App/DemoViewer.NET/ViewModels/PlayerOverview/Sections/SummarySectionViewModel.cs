@@ -13,9 +13,10 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 /// <summary>
 ///     The filter bar and the headline tiles over the filter's window: matches, win rate, K/D, ADR, KAST%, HS%,
 ///     HLTV, KPR, opening duel win rate, clutches and multi-kill rounds, each pooled by its
-///     <see cref="ColumnRules" /> rule. A filtered tile also shows the all-time value. Colour comes from the
-///     catalogue's fixed benchmarks (Absolute bands): there are no peers across a career. No sight tile: the facet
-///     carries no line-of-sight column.
+///     <see cref="ColumnRules" /> rule, then the two line-of-sight tiles, time to damage and preaim. A filtered tile
+///     also shows the all-time value. Colour comes from the catalogue's fixed benchmarks (Absolute bands): there are
+///     no peers across a career. A sight tile pools only the demos written with geometry and reads "no data" when
+///     none is, never 0.
 /// </summary>
 public sealed partial class SummarySectionViewModel : PlayerOverviewSection
 {
@@ -89,8 +90,17 @@ public sealed partial class SummarySectionViewModel : PlayerOverviewSection
         Catalogued("Duel%", "Opening duels", window, all, "0'%'"),
         Tile("Clutch", "Clutches won", window["Clutch"], all?["Clutch"], "0", null, ColumnCatalogue.Resolve("Clutch").Tooltip),
         Tile("MultiKills", "Multi-kills", MultiKills(window), MultiKills(all), "0", null,
-            "Rounds with two or more kills: 2K, 3K, 4K and aces")
+            "Rounds with two or more kills: 2K, 3K, 4K and aces"),
+        Sight("TTD", "Time to damage", window, all, "0' ms'"),
+        Sight("Preaim", "Preaim", window, all, "0.0'°'")
     ];
+
+    // A line-of-sight tile: "no data" rather than a dash once the window has stats but none written with geometry.
+    private static SummaryTileItem Sight(string key, string label, PlayerAggregate window, PlayerAggregate? all, string format)
+    {
+        SummaryTileItem tile = Catalogued(key, label, window, all, format);
+        return tile.Value is null && window.WithStats > 0 ? tile with { Text = AimQualitySectionViewModel.NoData } : tile;
+    }
 
     private static SummaryTileItem Catalogued(string key, string label, PlayerAggregate window, PlayerAggregate? all, string format) =>
         Tile(key, label, window[key], all?[key], format, AbsoluteScale(key, window), ColumnCatalogue.Resolve(key).Tooltip);

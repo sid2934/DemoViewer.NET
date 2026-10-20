@@ -14,16 +14,16 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 ///     The catalogue's stat groups over the filter's window: opening duels, trades, clutches, utility, weapons,
 ///     multi-kills and economy, each column pooled by its <see cref="ColumnRules" /> rule, with a rate beside a
 ///     count where one reads better across a career (per round, per match, or a share). Labels, tooltips and
-///     colour bands come from <see cref="ColumnCatalogue" />, Absolute bands only. Aim quality is left out: its
-///     columns need line-of-sight geometry the background run does not have, and the footer says so.
+///     colour bands come from <see cref="ColumnCatalogue" />, Absolute bands only. Aim quality is left out: it
+///     has a section of its own (<see cref="AimQualitySectionViewModel" />), and the footer says so.
 /// </summary>
 public sealed partial class CategoriesSectionViewModel : PlayerOverviewSection
 {
     private const string None = "–";
 
-    /// <summary>Why aim quality is missing, under the categories.</summary>
+    /// <summary>Where aim quality is, under the categories.</summary>
     public const string SightNote =
-        "Aim quality (crosshair placement, time to damage and the rest) is on the Stats tab only: it needs line-of-sight geometry, which the background run that computes these stats does not have.";
+        "Aim quality (accuracy, crosshair placement, time to damage and the rest) has a section of its own.";
 
     private static readonly Rate PerRound = new([ColumnRules.Rounds], 1, "0.00", "per round");
     private static readonly Rate PerMatch = new([], 1, "0.00", "per match");
