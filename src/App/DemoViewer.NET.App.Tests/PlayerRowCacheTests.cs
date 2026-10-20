@@ -193,6 +193,47 @@ public class PlayerRowCacheTests
     }
 
     [Test]
+    public async Task ASidecarThatThrows_LeavesItsDemoUnread_AndTheRestFill()
+    {
+        DemoCacheStore store = new(null);
+        using (store.BeginBatch())
+        {
+            for (int i = 0; i < 5; i++)
+            {
+                store.Upsert(Demo(i));
+            }
+        }
+
+        bool broken = true;
+        ConcurrentQueue<string> reads = new();
+        PlayerRowCache cache = new(store, new PlayerDirectory(store), path =>
+        {
+            reads.Enqueue(path);
+            int i = int.Parse(Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture);
+            return broken && i == 3 ? throw new IOException("torn sidecar") : Facet(i, 10);
+        });
+
+        PlayerRows rows = await cache.LoadAsync(Grim);
+        LibraryRows library = await cache.LoadLibraryAsync();
+        PlayerDemo unread = rows.Demos.Single(d => d.Match.Row.Path == "/lib/3.dem");
+        PlayerDemo inLibrary = library.Accounts[Grim].Single(d => d.Match.Row.Path == "/lib/3.dem");
+        broken = false;
+        reads.Clear();
+        store.Upsert(Demo(0, writtenAt: 2));
+        PlayerRows after = await cache.LoadAsync(Grim);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That((unread.HasFacet, unread.Stats)).IsEqualTo((false, (IReadOnlyDictionary<string, double>?)null));
+            await Assert.That(rows.Aggregate().WithStats).IsEqualTo(4);
+            await Assert.That((inLibrary.HasFacet, inLibrary.Stats)).IsEqualTo((false, (IReadOnlyDictionary<string, double>?)null));
+            await Assert.That(library.Accounts[Grim].Count(d => d.Stats is not null)).IsEqualTo(4);
+            await Assert.That(reads.Order(StringComparer.Ordinal).ToArray()).IsEquivalentTo(["/lib/0.dem", "/lib/3.dem"]).Because("the failed demo is read again, the rest are held");
+            await Assert.That(after.Aggregate().WithStats).IsEqualTo(5);
+        }
+    }
+
+    [Test]
     public async Task ACancelledFill_KeepsWhatItRead()
     {
         (_, PlayerRowCache cache, ConcurrentQueue<string> reads) = Library(50);

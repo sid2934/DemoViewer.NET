@@ -194,10 +194,13 @@ public sealed class PlayerRowCache
                 }
 
                 (PlayerMatch match, Stamps key) = toRead[i];
-                Held held = Read(match.Row, key);
-                entries[key.Id] = new Entry(key, held.HasFacet, held.HasSight, held.Stats?.GetValueOrDefault(steamId64),
-                    held.Stats is null ? null : PlayerAggregate.Others(held.Stats, steamId64, PlayerDemo.OtherColumns),
-                    held.Sides?.GetValueOrDefault(steamId64));
+                if (TryRead(match.Row, key) is { } held)
+                {
+                    entries[key.Id] = new Entry(key, held.HasFacet, held.HasSight, held.Stats?.GetValueOrDefault(steamId64),
+                        held.Stats is null ? null : PlayerAggregate.Others(held.Stats, steamId64, PlayerDemo.OtherColumns),
+                        held.Sides?.GetValueOrDefault(steamId64));
+                }
+
                 progress?.Report(new PlayerRowsProgress(i + 1, toRead.Count));
             }
 
@@ -205,8 +208,10 @@ public sealed class PlayerRowCache
             List<PlayerDemo> demos = new(matches.Count);
             foreach (PlayerMatch match in matches)
             {
-                Entry entry = entries[match.Row.ContentId()];
-                demos.Add(new PlayerDemo(match, entry.HasFacet, entry.Stats) { Others = entry.Others, HasSight = entry.HasSight, Sides = entry.Sides });
+                // A demo whose read threw has no entry: its stats read as unread, and the next fill tries it again.
+                demos.Add(entries.TryGetValue(match.Row.ContentId(), out Entry? entry)
+                    ? new PlayerDemo(match, entry.HasFacet, entry.Stats) { Others = entry.Others, HasSight = entry.HasSight, Sides = entry.Sides }
+                    : new PlayerDemo(match, false, null));
             }
 
             return subject.Rows = new PlayerRows(steamId64, version, demos);
@@ -265,10 +270,10 @@ public sealed class PlayerRowCache
             progress?.Report(new PlayerRowsProgress(0, toRead.Count));
             for (int i = 0; i < toRead.Count; i++)
             {
-                // What was read stays held: the next fill reads only the rest.
+                // What was read stays held: the next fill reads only the rest, and a read that threw stays unread.
                 cancellationToken.ThrowIfCancellationRequested();
                 (DemoCacheIndexEntry row, Stamps key) = toRead[i];
-                entries[key.Id] = Read(row, key);
+                entries[key.Id] = TryRead(row, key) ?? Held.None;
                 progress?.Report(new PlayerRowsProgress(i + 1, toRead.Count));
             }
 
@@ -304,6 +309,19 @@ public sealed class PlayerRowCache
             }
 
             return library;
+        }
+    }
+
+    // As Read, null when the read threw: one unreadable sidecar leaves its demo unread rather than failing the fill.
+    private Held? TryRead(DemoCacheIndexEntry row, Stamps key)
+    {
+        try
+        {
+            return Read(row, key);
+        }
+        catch (Exception)
+        {
+            return null;
         }
     }
 
