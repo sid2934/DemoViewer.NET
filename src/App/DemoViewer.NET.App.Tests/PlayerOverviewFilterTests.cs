@@ -17,9 +17,10 @@ using DemoViewer.NET.ViewModels.PlayerOverview.Sections;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The Player Overview's filter bar and summary tiles over an in-memory store: every panel windows the same
-///     rows, a filter change reads no file, the tiles equal <see cref="PlayerAggregate" /> over the window, the
-///     cold read runs off the calling thread with progress, and a window with no stats shows dashes, never zeros.
+///     The Player Overview's filter bar, summary tiles and per-map table over an in-memory store: every panel
+///     windows the same rows, a filter change reads no file, the tiles equal <see cref="PlayerAggregate" /> over the
+///     window, the map rows add up to the tiles, the cold read runs off the calling thread with progress, and a
+///     window with no stats shows dashes, never zeros.
 /// </summary>
 public class PlayerOverviewFilterTests
 {
@@ -42,6 +43,21 @@ public class PlayerOverviewFilterTests
         }
 
         return store;
+    }
+
+    // Facet(i) with T-side rounds and both sides' opening duels: T 3-2 on even demos and 3-3 on odd ones, CT opening
+    // duels 2-1 everywhere, T opening duels 1-1 on even demos and 1-2 on odd ones. The outcome is Facet(i)'s.
+    private static FactTable SidedFacet(string path)
+    {
+        int i = int.Parse(Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture);
+        FactTable facet = PlayerOverviewHistoryTests.Facet(i);
+        FactRow row = facet.Rows[0];
+        Dictionary<string, FactValue> values = new(row.Values)
+        {
+            ["TW"] = FactValue.Of(3L), ["TL"] = FactValue.Of(2L + (i % 2)),
+            ["CTFK"] = FactValue.Of(2L), ["CTFD"] = FactValue.Of(1L), ["TFK"] = FactValue.Of(1L), ["TFD"] = FactValue.Of(1L + (i % 2))
+        };
+        return facet with { Rows = [new FactRow(row.Dimensions, values)] };
     }
 
     private sealed class Shell : IDisposable
@@ -71,6 +87,7 @@ public class PlayerOverviewFilterTests
         public PlayerOverviewFilterViewModel Filter => Tab.Filter;
         public SummarySectionViewModel Summary => Tab.Sections.OfType<SummarySectionViewModel>().Single();
         public HistorySectionViewModel History => Tab.Sections.OfType<HistorySectionViewModel>().Single();
+        public MapsSectionViewModel Maps => Tab.Sections.OfType<MapsSectionViewModel>().Single();
 
         public void Dispose()
         {
@@ -87,7 +104,8 @@ public class PlayerOverviewFilterTests
     public async Task SummarySitsBetweenTheHeaderAndTheHistory()
     {
         using Shell shell = new(Library(3));
-        await Assert.That(shell.Tab.Sections.Select(s => s.Id).Take(3)).IsEquivalentTo(["header", "summary", "history"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(shell.Tab.Sections.Select(s => s.Id).Take(4)).IsEquivalentTo(["header", "summary", "history", "maps"],
+            TUnit.Assertions.Enums.CollectionOrdering.Matching);
     }
 
     [Test]
@@ -276,5 +294,103 @@ public class PlayerOverviewFilterTests
 
         PlayerAggregate thin = PlayerAggregate.Of([]);
         await Assert.That(SummarySectionViewModel.AbsoluteScale("Duel%", thin)).IsNull().Because("fewer than 8 opening duels is not judged");
+    }
+
+    [Test]
+    public async Task MapRows_AddUpToTheSummary_ForEveryFilter()
+    {
+        using Shell shell = new(Library(12), SidedFacet);
+        await shell.Tab.Loading;
+        string[] sums = ["TotalK", "TotalD", "EnemyDmg", "CTW", "CTL", "TW", "TL", "CTFK", "CTFD", "TFK", "TFD"];
+
+        List<Action> selections =
+        [
+            () => { },
+            () => shell.Filter.Window = Choice(shell.Filter.Windows, "Last 10"),
+            () => shell.Filter.Side = Choice(shell.Filter.Sides, "T"),
+            () => shell.Filter.Mode = Choice(shell.Filter.Modes, "Premier"),
+            () => shell.Filter.Map = Choice(shell.Filter.Maps, "Mirage")
+        ];
+        foreach (Action select in selections)
+        {
+            select();
+            PlayerAggregate summary = shell.Summary.InWindow!;
+            IReadOnlyList<MapRowItem> rows = shell.Maps.Rows;
+            using (Assert.Multiple())
+            {
+                await Assert.That(rows.All(r => r.Pool.Matches > 0)).IsTrue().Because("a map with no demo in the window has no row");
+                await Assert.That(rows.Select(r => r.Map).Distinct(StringComparer.OrdinalIgnoreCase).Count()).IsEqualTo(rows.Count);
+                await Assert.That((rows.Sum(r => r.Pool.Matches), rows.Sum(r => r.Pool.WithStats), rows.Sum(r => r.Pool.Wins),
+                        rows.Sum(r => r.Pool.Losses), rows.Sum(r => r.Pool.Ties)))
+                    .IsEqualTo((summary.Matches, summary.WithStats, summary.Wins, summary.Losses, summary.Ties));
+                foreach (string column in sums)
+                {
+                    await Assert.That(rows.Sum(r => r.Pool[column] ?? 0)).IsEqualTo(summary[column]!.Value).Within(1e-9).Because(column);
+                }
+            }
+        }
+
+        await Assert.That(shell.Maps.Rows.Select(r => r.Map)).IsEquivalentTo(["de_mirage"]);
+    }
+
+    [Test]
+    public async Task AMapWithNoDemoInTheWindow_HasNoRow()
+    {
+        using Shell shell = new(Library(2), SidedFacet);
+        await shell.Tab.Loading;
+        await Assert.That(shell.Maps.Rows.Select(r => r.MapText)).IsEquivalentTo(["Inferno", "Nuke"], TUnit.Assertions.Enums.CollectionOrdering.Matching)
+            .Because("Mirage is in no demo of the subject");
+
+        shell.Filter.Map = Choice(shell.Filter.Maps, "Inferno");
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Maps.Rows.Select(r => r.MapText)).IsEquivalentTo(["Inferno"]);
+            await Assert.That(shell.Maps.CountText).IsEqualTo("1 map");
+        }
+
+        shell.Filter.Map = Choice(shell.Filter.Maps, "Nuke");
+        shell.Filter.Side = Choice(shell.Filter.Sides, "T");
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Maps.Rows).IsEmpty();
+            await Assert.That(shell.Maps.IsVisible).IsFalse();
+        }
+    }
+
+    [Test]
+    public async Task MapRows_AndSideSplits_Format()
+    {
+        using Shell shell = new(Library(6), SidedFacet);
+        await shell.Tab.Loading;
+        MapRowItem nuke = shell.Maps.Rows.Single(r => r.Map == "de_nuke");
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Maps.Rows.Select(r => r.MapText)).IsEquivalentTo(["Inferno", "Mirage", "Nuke"],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("equal counts sort by name");
+            await Assert.That((nuke.MatchesText, nuke.RecordText, nuke.WinRateText)).IsEqualTo(("2", "1-1", "50%"));
+            await Assert.That((nuke.CtText, nuke.TText)).IsEqualTo(("22-22 (50%)", "6-5 (55%)"));
+            await Assert.That(nuke.KdText).IsEqualTo(nuke.Pool["KD"]!.Value.ToString("0.00", CultureInfo.InvariantCulture));
+            await Assert.That(nuke.AdrText).IsEqualTo("85.0");
+            await Assert.That(nuke.HltvText).IsEqualTo("1.17");
+            await Assert.That(shell.Maps.Sides.Select(s => (s.Side, s.RoundsText, s.OpeningText))).IsEquivalentTo(
+                [("CT", "66-66 (50%)", "12-6 (67%)"), ("T", "18-15 (55%)", "6-9 (40%)")],
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        }
+    }
+
+    [Test]
+    public async Task AMapWithoutStats_KeepsItsMatchCount_AndShowsDashes()
+    {
+        using Shell shell = new(Library(4, i => i != 1), SidedFacet);
+        await shell.Tab.Loading;
+        shell.Filter.Map = Choice(shell.Filter.Maps, "Inferno");
+        MapRowItem inferno = shell.Maps.Rows.Single();
+        string[] cells = [inferno.RecordText, inferno.WinRateText, inferno.KdText, inferno.AdrText, inferno.HltvText, inferno.CtText, inferno.TText];
+        using (Assert.Multiple())
+        {
+            await Assert.That(inferno.MatchesText).IsEqualTo("1");
+            await Assert.That(cells.All(c => c == "–")).IsTrue();
+            await Assert.That(shell.Maps.Sides.All(s => s.RoundsText == "–" && s.OpeningText == "–")).IsTrue();
+        }
     }
 }
