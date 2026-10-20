@@ -26,7 +26,8 @@ public static partial class PlayerMatchFacet
 
     /// <summary>
     ///     The accounts in the table: one entry per SteamID, with every slot its rows sit on, sorted ordinally by
-    ///     SteamID. A row with no SteamID (a bot, a slot the roster never named) is left out.
+    ///     SteamID. A row with no SteamID (a bot, a slot the roster never named) is left out, and so is an account
+    ///     the roster has only as a coach or a bot: the directory reads this list as the demo's players.
     ///     <para>
     ///         Names come from the parse's roster by slot. The forward run's <c>player_name</c> can carry an
     ///         earlier occupant of the slot or the engine's <c>Player N</c> placeholder, so it is used only when the
@@ -60,6 +61,12 @@ public static partial class PlayerMatchFacet
         List<FacetPlayer> players = [];
         foreach ((string steamId, List<(int Slot, string? Name)> slots) in bySteamId)
         {
+            List<CachedPlayerInfo> entries = [.. roster.Where(p => string.Equals(p.SteamId64, steamId, StringComparison.Ordinal))];
+            if (entries.Count > 0 && entries.All(p => p.IsCoach || p.IsBot))
+            {
+                continue;
+            }
+
             slots.Sort((a, b) => a.Slot.CompareTo(b.Slot));
             List<string> names = [];
             foreach ((int slot, _) in slots)
