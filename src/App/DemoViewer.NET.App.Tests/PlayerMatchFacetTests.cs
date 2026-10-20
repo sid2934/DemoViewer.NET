@@ -47,7 +47,7 @@ public class PlayerMatchFacetTests
         return Encoding.UTF8.GetString(output.ToArray()).Replace("\r\n", "\n", StringComparison.Ordinal) + "\n";
     }
 
-    private static byte[] Gzip(string json)
+    internal static byte[] Gzip(string json)
     {
         using MemoryStream buffer = new();
         using (GZipStream gzip = new(buffer, CompressionLevel.Fastest, true))
