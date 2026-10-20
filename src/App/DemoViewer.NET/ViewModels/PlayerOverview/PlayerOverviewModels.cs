@@ -74,6 +74,9 @@ public sealed record PlayerOverviewServices(
 {
     /// <summary>The kills of each demo, from its <c>player_event</c> facet; null where nothing reads them.</summary>
     public PlayerEventCache? Events { get; init; }
+
+    /// <summary>Shows another account in the tab; the tab sets it for its sections, and it is a no-op when unset.</summary>
+    public Action<ulong>? OpenPlayer { get; init; }
 }
 
 /// <summary>

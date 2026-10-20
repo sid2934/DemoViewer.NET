@@ -115,7 +115,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         _post = post ?? (action => action());
         _search = new PlayerSearch(services.Directory);
         Filter = new PlayerOverviewFilterViewModel();
-        Sections = PlayerOverviewSections.Create(services, Filter);
+        Sections = PlayerOverviewSections.Create(services with { OpenPlayer = OpenPlayer }, Filter);
         MainSections = [.. Sections.Where(s => s.Column == SectionColumn.Main)];
         SideSections = [.. Sections.Where(s => s.Column == SectionColumn.Side)];
 
@@ -596,7 +596,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
                       && held.HasFacet
                       && match.Row.Stamp(FacetStamp) is { State: DemoAnalysisState.Indexed } stamp
                       && held.Match.Row.Stamp(FacetStamp) == stamp
-                ? new PlayerDemo(match, true, held.Stats)
+                ? held with { Match = match }
                 : new PlayerDemo(match, false, null));
         }
 
