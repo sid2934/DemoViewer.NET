@@ -7,9 +7,12 @@ public static class PlayerOverviewSections
     /// <param name="services">What the sections can reach.</param>
     public static IReadOnlyList<PlayerOverviewSection> Create(PlayerOverviewServices services) =>
     [
-        new HeaderSectionViewModel(services)
+        new HeaderSectionViewModel(services),
 
-        // Later items, in this order: summary and filters, per-map, trends, rank history, stat categories,
-        // personal bests, highlights, teammates, head-to-head, compare, benchmarks, aim quality.
+        // Summary and filters go here, above the history they filter.
+        new HistorySectionViewModel(services)
+
+        // Later items, in this order: per-map, trends, rank history, stat categories, personal bests, highlights,
+        // teammates, head-to-head, compare, benchmarks, aim quality.
     ];
 }

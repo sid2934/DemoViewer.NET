@@ -5,20 +5,40 @@
              x:DataType="sections:HeaderSectionViewModel"
              IsVisible="{Binding IsVisible}">
 
+    <!-- The profile address is plain text to copy: the app is offline and opens nothing on the web. -->
     <Border Classes="card" Padding="18 14">
-        <StackPanel Spacing="4">
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <TextBlock Text="{Binding Name}" FontSize="22" FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextCardHeader}" TextTrimming="CharacterEllipsis" />
-                <Border Classes="badge" IsVisible="{Binding IsMine}">
-                    <TextBlock Text="YOU" FontSize="10" FontWeight="SemiBold" FontFamily="Consolas,Menlo,monospace" />
-                </Border>
+        <DockPanel>
+            <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top" Orientation="Horizontal" Spacing="8">
+                <Button Classes="ghost chip" Content="Set as me" x:Name="SetAsMeButton"
+                        IsVisible="{Binding CanSetAsMe}" Command="{Binding SetAsMeCommand}"
+                        ToolTip.Tip="Add this account to the accounts that are yours" />
+                <Button Classes="ghost chip" Content="Set active" x:Name="SetActiveButton"
+                        IsVisible="{Binding CanSetActive}" Command="{Binding SetActiveCommand}"
+                        ToolTip.Tip="Use this account for your own stats" />
             </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="14">
-                <SelectableTextBlock Classes="mono" Text="{Binding SteamId64}" FontSize="12"
-                                     Foreground="{DynamicResource TextMid}" />
-                <TextBlock Text="{Binding DemoCountText}" FontSize="12" Foreground="{DynamicResource TextMid}" />
+            <StackPanel Spacing="4">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Text="{Binding Name}" FontSize="22" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextCardHeader}" TextTrimming="CharacterEllipsis" />
+                    <Border Classes="badge" IsVisible="{Binding IsMine}" VerticalAlignment="Center">
+                        <TextBlock Text="YOU" FontSize="10" FontWeight="SemiBold" FontFamily="Consolas,Menlo,monospace" />
+                    </Border>
+                </StackPanel>
+                <TextBlock Text="{Binding Aliases}" IsVisible="{Binding HasAliases}" FontSize="12"
+                           Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+                <WrapPanel Orientation="Horizontal">
+                    <SelectableTextBlock Classes="mono" Text="{Binding SteamId64}" FontSize="12" VerticalAlignment="Center"
+                                         Foreground="{DynamicResource TextMid}" />
+                    <Button Classes="ghost chip" Content="Copy" Margin="6 0 16 0" Click="OnCopySteamIdClick"
+                            AutomationProperties.Name="Copy SteamID64" />
+                    <SelectableTextBlock Classes="mono" Text="{Binding ProfileUrl}" FontSize="12" VerticalAlignment="Center"
+                                         Foreground="{DynamicResource TextMid}" />
+                </WrapPanel>
+                <StackPanel Orientation="Horizontal" Spacing="14">
+                    <TextBlock Text="{Binding DemoCountText}" FontSize="12" Foreground="{DynamicResource TextMid}" />
+                    <TextBlock Text="{Binding SeenText}" FontSize="12" Foreground="{DynamicResource TextMid}" />
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
+        </DockPanel>
     </Border>
 </UserControl>
