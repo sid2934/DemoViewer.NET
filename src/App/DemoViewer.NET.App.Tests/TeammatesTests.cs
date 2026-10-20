@@ -279,7 +279,7 @@ public class TeammatesRenderTests
             vm.OpenPlayer(TeammatesTests.Grim);
             await vm.Loading;
 
-            Window window = new() { Width = 1300, Height = 1600, Content = new PlayerOverviewTabView { DataContext = vm } };
+            Window window = new() { Width = 1300, Height = 4000, Content = new PlayerOverviewTabView { DataContext = vm } };
             window.Show();
             Dispatcher.UIThread.RunJobs();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick();
