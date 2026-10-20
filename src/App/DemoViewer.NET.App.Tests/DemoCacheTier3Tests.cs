@@ -2,7 +2,6 @@
 
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
-using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Services.DemoCache;
@@ -22,10 +21,9 @@ namespace DemoViewer.NET.AppTests;
 ///         and Match Overview is the page whose whole job is showing them.
 ///     </para>
 ///     <para>
-///         Tier 3 has TWO producers because it has two halves with different costs: the scanner supplies
-///         highlights from a snapshot-free run (what makes a library sweep affordable), and a real open
-///         supplies the scoreboard from its snapshot-bearing run (the only mode that can produce per-player
-///         stats at all). Both are asserted here, along with the invariant that neither may forge the other.
+///         Tier 3 has two halves with two producers: the scanner supplies highlights, and the facts pass the
+///         <c>player_match</c> facet Match Overview projects its scoreboard from
+///         (<see cref="MatchOverviewFacetScoreboardTests" />).
 ///     </para>
 /// </summary>
 public class DemoCacheTier3Tests
@@ -214,113 +212,9 @@ public class DemoCacheTier3Tests
     }
 
     /// <summary>
-    ///     The scoreboard producer: a real open's table becomes tier 3's stats half.
-    /// </summary>
-    [Test]
-    public async Task TheScoreboardProjection_KeepsTheAnalysisEnginesOwnNumbers()
-    {
-        MetricTable table = new(
-            "player_game_stats",
-            ["match_id", "map", "player_slot", "player_name", "team"],
-            ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"],
-            [
-                new MetricRow(
-                    new Dictionary<string, object?>
-                    {
-                        ["player_slot"] = 1,
-                        ["player_name"] = "s1mple",
-                        ["team"] = 3
-                    },
-                    new Dictionary<string, object?>
-                    {
-                        ["TotalK"] = 24,
-                        ["TotalD"] = 14,
-                        ["TotalA"] = 5,
-                        ["ADR"] = 92.47,
-                        ["HLTV"] = 1.34,
-                        ["CTW"] = 7,
-                        ["TW"] = 6
-                    }),
-                // A totals row carries no slot and must be dropped rather than rendered as a blank name.
-                new MetricRow(
-                    new Dictionary<string, object?>
-                    {
-                        ["player_name"] = "TOTAL"
-                    },
-                    new Dictionary<string, object?>
-                    {
-                        ["TotalK"] = 100
-                    })
-            ]);
-
-        List<CachedStatRow> rows = DemoCacheAnalysisProjector.ProjectScoreboard(table);
-        (int? ct, int? t) = DemoCacheAnalysisProjector.ComputeSideWins(table);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(rows.Count).IsEqualTo(1).Because("the slot-less totals row is not a player");
-            await Assert.That(rows[0].Slot).IsEqualTo(1);
-            await Assert.That(rows[0].Kills).IsEqualTo(24);
-            await Assert.That(rows[0].Adr).IsEqualTo(92.47);
-            await Assert.That(rows[0].Rating).IsEqualTo(1.34);
-            await Assert.That(ct).IsEqualTo(7);
-            await Assert.That(t).IsEqualTo(6);
-        }
-    }
-
-    /// <summary>
-    ///     "Compute full stats" has to actually compute stats. The scoreboard is projected from snapshot
-    ///     vectors, which the bare run does not produce at all, so a forced scan that stayed bare would
-    ///     deliver highlights and leave the stats half of the page reading "needs a full analysis pass" with
-    ///     the very button that fixes it having just run. The background sweep must stay bare, because being
-    ///     snapshot-free is what makes a library-wide scan affordable.
-    /// </summary>
-    [Test]
-    public async Task AUserRequestRunsTheExpensiveMode_TheBackgroundSweepDoesNot()
-    {
-        string root = TempRoot();
-        try
-        {
-            const string forcedDemo = "/demos/asked-for.dem";
-            const string sweptDemo = "/demos/swept.dem";
-
-            DemoCacheStore cache = new(root);
-            ModeRecordingHarvester harvester = new();
-            using HighlightScanService scanner =
-                new(cache, harvester, () => [forcedDemo, sweptDemo], () => true, a => a());
-
-            // RequestScan is what the completeness chip's action calls. It marks the demo forced.
-            scanner.RequestScan(forcedDemo);
-            scanner.Evaluate(forcedDemo, SyntheticDemo());
-
-            // A demo the sweep picked up on its own was never forced.
-            scanner.Evaluate(sweptDemo, SyntheticDemo());
-
-            using (Assert.Multiple())
-            {
-                await Assert.That(harvester.Calls.Count).IsEqualTo(2);
-                await Assert.That(harvester.Calls[0]).IsEqualTo("full")
-                    .Because("the user asked about this demo specifically");
-                await Assert.That(harvester.Calls[1]).IsEqualTo("bare")
-                    .Because("snapshot-free is what makes a library-wide sweep affordable");
-            }
-        }
-        finally
-        {
-            Directory.Delete(root, true);
-        }
-    }
-
-    /// <summary>
-    ///     A user's "Compute full stats" survives another channel beating it to the row.
-    ///     <para>
-    ///         Both owners coalesce onto ONE parse, and the shell's own harvest of the open demo is a BARE
-    ///         run that upserts <c>Indexed</c>. The "row is no
-    ///         longer Pending, don't waste the slot" skip was sound while every run was equivalent and became
-    ///         wrong the moment bare and full stopped being the same thing: the press would be silently
-    ///         consumed, the forced flag cleared, and the user left with highlights, no scoreboard, and no
-    ///         sign anything was skipped.
-    ///     </para>
+    ///     A user's "Compute full stats" survives another channel beating it to the row. Both owners coalesce
+    ///     onto ONE parse, and the shell's own harvest of the open demo upserts <c>Indexed</c>; the "row is no
+    ///     longer Pending, don't waste the slot" skip must not consume the press.
     /// </summary>
     [Test]
     public async Task AUserRequest_SurvivesThePiggybackWinningTheRace()
@@ -330,7 +224,7 @@ public class DemoCacheTier3Tests
         {
             const string demo = "/demos/raced-press.dem";
             DemoCacheStore cache = new(root);
-            ModeRecordingHarvester harvester = new();
+            RunRecordingHarvester harvester = new();
             using HighlightScanService scanner =
                 new(cache, harvester, () => [demo], () => true, a => a());
 
@@ -352,8 +246,7 @@ public class DemoCacheTier3Tests
             scanner.Evaluate(demo, SyntheticDemo());
 
             await Assert.That(harvester.Calls.Count).IsEqualTo(1)
-                .Because("the press must still run — being skipped is how the scoreboard silently never arrives");
-            await Assert.That(harvester.Calls[0]).IsEqualTo("full");
+                .Because("the press must still run, not be skipped as already current");
         }
         finally
         {
@@ -441,52 +334,6 @@ public class DemoCacheTier3Tests
         }
     }
 
-    /// <summary>
-    ///     Per-side wins are refused rather than guessed when one team's rows disagree: the columns are
-    ///     supposed to be team-wide totals, and a demo where they are not is a demo whose split we cannot
-    ///     derive. A missing number beats a wrong one on a page that shows a score.
-    /// </summary>
-    [Test]
-    public async Task DisagreeingSideWins_YieldNothingRatherThanAGuess()
-    {
-        MetricTable table = new(
-            "player_game_stats",
-            ["player_slot", "team"],
-            ["CTW", "TW"],
-            [
-                new MetricRow(
-                    new Dictionary<string, object?>
-                    {
-                        ["player_slot"] = 1,
-                        ["team"] = 3
-                    },
-                    new Dictionary<string, object?>
-                    {
-                        ["CTW"] = 7,
-                        ["TW"] = 6
-                    }),
-                new MetricRow(
-                    new Dictionary<string, object?>
-                    {
-                        ["player_slot"] = 2,
-                        ["team"] = 3
-                    },
-                    new Dictionary<string, object?>
-                    {
-                        ["CTW"] = 5,
-                        ["TW"] = 6
-                    })
-            ]);
-
-        (int? ct, int? t) = DemoCacheAnalysisProjector.ComputeSideWins(table);
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(ct).IsNull();
-            await Assert.That(t).IsNull();
-        }
-    }
-
     private sealed class NoopHarvester : IHighlightHarvester
     {
         public (string Fingerprint, IReadOnlyDictionary<string, string> Hashes) ComputeFingerprint(int tickRate)
@@ -503,8 +350,8 @@ public class DemoCacheTier3Tests
         }
     }
 
-    // Records WHICH mode the scanner asked for. Both throw: the point is the choice, not the run.
-    private sealed class ModeRecordingHarvester : IHighlightHarvester
+    // Records each run the scanner asked for. It throws: the point is that the run was asked for.
+    private sealed class RunRecordingHarvester : IHighlightHarvester
     {
         public List<string> Calls { get; } = [];
 
@@ -514,13 +361,7 @@ public class DemoCacheTier3Tests
         public AnalysisRun RunBareAnalysis(ParsedDemo demo)
         {
             Calls.Add("bare");
-            throw new NotSupportedException("stop here — the mode is what is under test");
-        }
-
-        public AnalysisRun RunFullAnalysis(ParsedDemo demo)
-        {
-            Calls.Add("full");
-            throw new NotSupportedException("stop here — the mode is what is under test");
+            throw new NotSupportedException("stop here: the request is what is under test");
         }
 
         public void InvalidateRules()

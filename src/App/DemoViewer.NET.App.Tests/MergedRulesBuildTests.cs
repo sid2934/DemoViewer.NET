@@ -46,8 +46,6 @@ public class MergedRulesBuildTests
     private static readonly string Shipped = RuleSetLocator.ResolveShippedRulesDirectory();
 
     // The columns DemoCacheAnalysisProjector persists into the tier-3 scoreboard.
-    private static readonly string[] PersistedScoreboardColumns = ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"];
-
     private static string? _fixture;
 
     private static bool ReadsEnemySpotted(string yaml) => yaml.Split('\n')
@@ -522,9 +520,9 @@ public class MergedRulesBuildTests
         }
     }
 
-    // FullRun and the forced scan's scoreboard run without the visibility bake and the open runs with it.
-    // That is sound only while nothing persisted reads enemy_spotted. When this fails, the same change
-    // loads the bake in FullRun and adds a visibility term to the analysis stamp.
+    // A background visit runs without the visibility bake and the open runs with it. That is sound only while
+    // nothing persisted reads enemy_spotted. When this fails, the same change loads the bake in the background
+    // run and adds a visibility term to the stamps.
     [Test]
     public async Task NoStampedRulesetReferencesEnemySpotted()
     {
@@ -540,17 +538,15 @@ public class MergedRulesBuildTests
                 .Select(RulesetIdOf).Order(StringComparer.Ordinal)
         ];
         RulesetDoc aim = ShippedRules().Rulesets.Single(r => r.Id == "aim_rating");
-        string[] persisted = [.. (aim.Show?.Scoreboard ?? []).Select(c => c.Label ?? c.Stat).Intersect(PersistedScoreboardColumns)];
 
         using (Assert.Multiple())
         {
             await Assert.That(files.Length).IsGreaterThan(1);
             await Assert.That(Joined(readers)).IsEqualTo("aim_rating")
-                .Because("a new enemy_spotted reader needs the FullRun bake load and a visibility stamp term");
+                .Because("a new enemy_spotted reader needs the bake in the background run and a visibility stamp term");
             await Assert.That(aim.Highlights ?? []).IsEmpty().Because("highlights are persisted from the bake-free runs");
             await Assert.That(aim.Show?.Tables ?? []).IsEmpty().Because("stamped tables are persisted from the bake-free runs");
             await Assert.That(aim.Exports ?? []).IsEmpty().Because("an export could feed a persisted column");
-            await Assert.That(persisted).IsEmpty().Because("the persisted scoreboard is projected from the bake-free forced scan");
         }
     }
 
