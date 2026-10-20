@@ -1,0 +1,89 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.MapsSectionView"
+             x:DataType="sections:MapsSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!--
+        The window by map, then by side. A library holds a handful of maps, so the list is not virtualised and
+        sizes to its rows. The header row and every item spell out the same columns.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="Grid.mapRow > TextBlock:not(.col-label)">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Grid.mapRow > TextBlock.num">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0 0 8 0" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Maps and sides" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" />
+                <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+
+            <Grid Classes="mapRow" Margin="8 0" ColumnDefinitions="110,64,64,56,52,56,52,110,110,*">
+                <TextBlock Grid.Column="0" Classes="col-label" Text="MAP" />
+                <TextBlock Grid.Column="1" Classes="col-label num" Text="MATCHES" />
+                <TextBlock Grid.Column="2" Classes="col-label num" Text="W-L" ToolTip.Tip="Matches won and lost; ties after a second dash" />
+                <TextBlock Grid.Column="3" Classes="col-label num" Text="WIN%" />
+                <TextBlock Grid.Column="4" Classes="col-label num" Text="K/D" />
+                <TextBlock Grid.Column="5" Classes="col-label num" Text="ADR" />
+                <TextBlock Grid.Column="6" Classes="col-label num" Text="HLTV" />
+                <TextBlock Grid.Column="7" Classes="col-label num" Text="CT ROUNDS" ToolTip.Tip="Rounds won and lost on CT" />
+                <TextBlock Grid.Column="8" Classes="col-label num" Text="T ROUNDS" ToolTip.Tip="Rounds won and lost on T" />
+            </Grid>
+
+            <ListBox x:Name="MapList" Classes="data-list" ItemsSource="{Binding Rows}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="sections:MapRowItem">
+                        <Grid Classes="mapRow" Height="26" Background="Transparent"
+                              ColumnDefinitions="110,64,64,56,52,56,52,110,110,*">
+                            <TextBlock Grid.Column="0" Text="{Binding MapText}" />
+                            <TextBlock Grid.Column="1" Classes="num" Text="{Binding MatchesText}" />
+                            <TextBlock Grid.Column="2" Classes="num" Text="{Binding RecordText}" />
+                            <TextBlock Grid.Column="3" Classes="num" Text="{Binding WinRateText}" />
+                            <TextBlock Grid.Column="4" Classes="num" Text="{Binding KdText}" />
+                            <TextBlock Grid.Column="5" Classes="num" Text="{Binding AdrText}" />
+                            <TextBlock Grid.Column="6" Classes="num" Text="{Binding HltvText}" />
+                            <TextBlock Grid.Column="7" Classes="num" Text="{Binding CtText}" />
+                            <TextBlock Grid.Column="8" Classes="num" Text="{Binding TText}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <Grid Classes="mapRow" Margin="8 6 8 0" ColumnDefinitions="110,150,150,*">
+                <TextBlock Grid.Column="0" Classes="col-label" Text="SIDE" />
+                <TextBlock Grid.Column="1" Classes="col-label num" Text="ROUNDS" ToolTip.Tip="Rounds won and lost on the side" />
+                <TextBlock Grid.Column="2" Classes="col-label num" Text="OPENING DUELS"
+                           ToolTip.Tip="Opening kills and deaths on the side: the first kill of the round" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Sides}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:SideSplitItem">
+                        <Grid Classes="mapRow" Margin="8 0" Height="24" ColumnDefinitions="110,150,150,*">
+                            <TextBlock Grid.Column="0" Text="{Binding Side}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Classes="num" Text="{Binding RoundsText}" />
+                            <TextBlock Grid.Column="2" Classes="num" Text="{Binding OpeningText}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Margin="8 0" FontSize="11" Foreground="{DynamicResource TextDim}" TextWrapping="Wrap"
+                       Text="{x:Static sections:MapsSectionViewModel.SideNote}" />
+        </StackPanel>
+    </Border>
+</UserControl>

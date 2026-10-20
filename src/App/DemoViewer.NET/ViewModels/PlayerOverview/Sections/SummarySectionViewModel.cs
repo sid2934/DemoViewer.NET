@@ -122,7 +122,7 @@ public sealed partial class SummarySectionViewModel : PlayerOverviewSection
                 : null;
     }
 
-    private static double? WinRate(PlayerAggregate? pool) =>
+    internal static double? WinRate(PlayerAggregate? pool) =>
         pool is { } p && p.Wins + p.Losses + p.Ties is var decided and > 0 ? 100.0 * p.Wins / decided : null;
 
     private static double? MultiKills(PlayerAggregate? pool)
