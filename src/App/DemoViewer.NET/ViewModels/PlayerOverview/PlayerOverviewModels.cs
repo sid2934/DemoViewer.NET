@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Players;
 
@@ -56,6 +57,8 @@ public sealed record PlayerOverviewSession(string? SubjectSteamId64, bool Pinned
 /// <param name="SelectTab">Selects a shell tab by its TabId.</param>
 /// <param name="FocusPlayerInStats">Opens a demo by path and shows the account in Stats.</param>
 /// <param name="OpenSettings">Opens Settings scrolled to a section anchor, or the top when null.</param>
+/// <param name="Facts">The library's analysis outputs, read for highlights; null where nothing reads them.</param>
+/// <param name="AddClips">Opens the Reels tab's Add-clips picker filtered to an account; null where there is no Reels tab.</param>
 public sealed record PlayerOverviewServices(
     PlayerDirectory Directory,
     IdentityService Identity,
@@ -63,7 +66,9 @@ public sealed record PlayerOverviewServices(
     Action<string> OpenDemo,
     Action<string> SelectTab,
     Action<string, ulong> FocusPlayerInStats,
-    Action<string?> OpenSettings);
+    Action<string?> OpenSettings,
+    IAnalysisFacts? Facts = null,
+    Action<ulong>? AddClips = null);
 
 /// <summary>
 ///     What a section renders from: the subject, the demos they are in and the one filtered set every panel

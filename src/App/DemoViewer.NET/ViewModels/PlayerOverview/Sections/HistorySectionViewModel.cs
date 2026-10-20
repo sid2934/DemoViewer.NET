@@ -270,7 +270,7 @@ public sealed partial class HistoryRowItem : ObservableObject
     public string RankChangeText { get; }
 
     // The match time is UTC; a row the match-time pass has not reached carries the file's local write time.
-    private static string DateOf(PlayerMatch match)
+    internal static string DateOf(PlayerMatch match)
     {
         long ticks = match.TimeTicks;
         if (ticks <= 0 || ticks > DateTime.MaxValue.Ticks)
