@@ -295,6 +295,7 @@
                                 </MenuItem>
                                 <Separator />
                                 <MenuItem x:Name="FollowMenuItem" Header="Follow Player" />
+                                <MenuItem x:Name="PlayerOverviewMenuItem" Header="Open player overview" IsVisible="False" />
                                 <!-- The contributions' toolbar items (Surface.ToolbarItems), e.g. "Rounds like
                                      this": rebuilt in code-behind on every open (OnModeMenuOpened), after this
                                      separator; none while the owning pack is off. IsVisible is set there too,
@@ -667,6 +668,16 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:PlayerAttributes">
                             <Panel IsVisible="{Binding InMatch}">
+                            <Panel.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Open player overview"
+                                              Command="{Binding PlayerOverview.OpenCommand}"
+                                              IsVisible="{Binding PlayerOverview.Offers}"
+                                              IsEnabled="{Binding PlayerOverview.CanOpen}"
+                                              ToolTip.Tip="{Binding PlayerOverview.Tip}"
+                                              ToolTip.ShowOnDisabled="True" />
+                                </ContextMenu>
+                            </Panel.ContextMenu>
                             <!-- The strip: one line per player, the same selection surface as the card. -->
                             <Border Margin="0,0,0,2" Padding="6,2" CornerRadius="3"
                                     Background="{DynamicResource Pb2dCardBg}"
