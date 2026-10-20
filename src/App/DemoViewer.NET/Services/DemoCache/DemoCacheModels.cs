@@ -616,7 +616,9 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         TSideWins = TSideWins,
         MatchTimeUtcTicks = MatchMeta?.MatchTimeUtcTicks,
         MatchTimeSource = MatchMeta?.MatchTimeSource,
-        ReservationId = MatchMeta?.ReservationId
+        ReservationId = MatchMeta?.ReservationId,
+        GameMode = MatchMeta?.GameMode,
+        MatchSource = MatchMeta?.MatchSource
     };
 
     /// <summary>
@@ -778,6 +780,14 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     /// <summary>The record's <see cref="DemoMatchMeta.ReservationId" />: the tie-break between matches with one time.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? ReservationId { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.GameMode" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GameMode { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.MatchSource" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MatchSource { get; set; }
 
     /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
     [JsonExtensionData]
