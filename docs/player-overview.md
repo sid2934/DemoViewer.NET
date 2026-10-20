@@ -68,6 +68,15 @@ Peer scales are never used on a cross-demo board; a column keeps its absolute co
   ([`player-match-format.md`](player-match-format.md#dimensions)).
 * Bots, coaches and SteamID 0 are never subjects.
 
+## Stat categories
+
+The categories section lists the catalogue's groups over the filter's window: opening duels, trades, clutches,
+utility, weapons, multi-kills and economy. Each value is the column's pool by the rules above, labelled and
+banded as on the Stats tab (absolute bands only). Beside a count sits a rate that reads across a career: per
+round over the summed `rounds`, per match over the demos with stats, or a share (weapon kills of all kills,
+traded deaths of all deaths, armor rounds of all rounds). Aim quality is not a category: its columns are
+`sight: true` and the facet does not carry them, which the section's footer says.
+
 ## Head-to-head
 
 The head-to-head section pits the subject against one opponent, picked from everyone who ended one of the

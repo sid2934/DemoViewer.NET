@@ -14,8 +14,7 @@ public static class PlayerOverviewSections
         new MapsSectionViewModel(),
         new TrendsSectionViewModel(),
         new RankSectionViewModel(),
-
-        // Stat categories go here.
+        new CategoriesSectionViewModel(),
         new PersonalBestsSectionViewModel(services),
         new HighlightsSectionViewModel(services),
 
