@@ -96,7 +96,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["builtin.parser"] = "tab.parser",
         ["builtin.entity"] = "tab.entity",
         ["builtin.stats"] = "tab.stats",
-        ["builtin.playeroverview"] = "tab.playeroverview",
+        [HostIds.PlayerOverviewTab] = "tab.playeroverview",
         ["highlights.browser"] = "tab.highlights",
         ["builtin.analysis"] = "tab.analysis",
         ["builtin.diagnostics"] = "tab.diagnostics",
@@ -4534,7 +4534,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return false;
         }
 
-        if (!TrySelectTab(PlayerOverviewTabViewModel.TabId))
+        if (!TrySelectTab(HostIds.PlayerOverviewTab))
         {
             StatusText = name is { Length: > 0 }
                 ? $"Player Overview is turned off, so {DisplayText.Sanitize(name)} was not opened."

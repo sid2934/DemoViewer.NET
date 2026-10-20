@@ -326,6 +326,12 @@ public interface IExtensionLibrary
     /// <summary>The analysis outputs the library holds for its demos: highlights, Round Facts and ruleset tables.</summary>
     IAnalysisFacts Facts { get; }
 
+    /// <summary>
+    ///     Every account in the library and the demos it is in, read from the same index. A host without one
+    ///     answers no accounts.
+    /// </summary>
+    IPlayerDirectory Players => NoPlayerDirectory.Instance;
+
     /// <summary>Raised on the UI thread after the library changed. Many changes at once arrive as one, with a null path.</summary>
     event Action<LibraryChange>? Changed;
 }

@@ -9,6 +9,7 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Identity;
@@ -142,7 +143,7 @@ public class FocusPlayerRenderTests
                 vm.StatsTab.OpenPlayerOverviewCommand.Execute(vm.StatsTab.GameRows.First(r => r.PlayerName == "Alice"));
                 await Assert.That(vm.PlayerOverviewTab.SubjectSteamId64).IsEqualTo(FocusPlayerTests.Alice);
                 await Assert.That(vm.PlayerOverviewTab.IsPinned).IsTrue();
-                await Assert.That(vm.SelectedTab?.TabId).IsEqualTo(PlayerOverviewTabViewModel.TabId);
+                await Assert.That(vm.SelectedTab?.TabId).IsEqualTo(HostIds.PlayerOverviewTab);
             }
             finally
             {

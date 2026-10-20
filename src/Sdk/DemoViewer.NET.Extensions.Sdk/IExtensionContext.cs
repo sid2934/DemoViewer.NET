@@ -127,6 +127,13 @@ public interface IExtensionShell
     /// <summary>Selects a tab or a section by its id. False when no such tab is showing.</summary>
     bool SelectTab(string tabId);
 
+    /// <summary>
+    ///     Opens the Player Overview tab on <paramref name="steamId64" />. False when the host has no such tab, it is
+    ///     switched off, or the id is 0.
+    /// </summary>
+    /// <param name="steamId64">The account's SteamID64.</param>
+    bool OpenPlayerOverview(ulong steamId64) => false;
+
     /// <summary>Shows <paramref name="path" /> in the system file manager.</summary>
     void RevealInFileManager(string path);
 }

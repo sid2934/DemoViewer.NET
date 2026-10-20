@@ -9,6 +9,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Services.DemoCache;
@@ -133,7 +134,7 @@ public class PlayerOverviewTabTests
             {
                 List<string> ids = [.. vm.Tabs.Select(t => t.TabId)];
                 await Assert.That(vm.PlayerOverviewTab).IsNotNull();
-                await Assert.That(ids.IndexOf(PlayerOverviewTabViewModel.TabId)).IsEqualTo(ids.IndexOf("builtin.stats") + 1);
+                await Assert.That(ids.IndexOf(HostIds.PlayerOverviewTab)).IsEqualTo(ids.IndexOf("builtin.stats") + 1);
             }
             finally
             {
@@ -151,7 +152,7 @@ public class PlayerOverviewTabTests
             try
             {
                 await Assert.That(vm.PlayerOverviewTab).IsNull();
-                await Assert.That(vm.Tabs.Any(t => t.TabId == PlayerOverviewTabViewModel.TabId)).IsFalse();
+                await Assert.That(vm.Tabs.Any(t => t.TabId == HostIds.PlayerOverviewTab)).IsFalse();
             }
             finally
             {
@@ -179,10 +180,10 @@ public class PlayerOverviewTabTests
                     players: new PlayerDirectory(Library(1, 0)), identity: identity);
                 try
                 {
-                    await Assert.That(vm.Tabs.Any(t => t.TabId == PlayerOverviewTabViewModel.TabId)).IsTrue()
+                    await Assert.That(vm.Tabs.Any(t => t.TabId == HostIds.PlayerOverviewTab)).IsTrue()
                         .Because("the tab is on by default for every category");
                     svc.Write(s => s.Features.Overrides[PlayerOverviewTabViewModel.FeatureId] = false);
-                    await Assert.That(vm.Tabs.Any(t => t.TabId == PlayerOverviewTabViewModel.TabId)).IsFalse();
+                    await Assert.That(vm.Tabs.Any(t => t.TabId == HostIds.PlayerOverviewTab)).IsFalse();
                 }
                 finally
                 {
