@@ -60,8 +60,23 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
 
     public IEnumerable<WorkspaceTabDescriptor> CreateTabs(IModuleHost host)
     {
-        // Library is the landing tab: Order -1 sorts it before Parser so it's selected on startup.
-        // Uses ViewModelFactory (not DataContext) so the VM receives OnActivated → its first folder scan.
+        // Player Overview is the landing tab: Order -2 sorts it first, so it is selected on startup and is where
+        // a session without a remembered tab lands. A factory, not a DataContext, so the tab gets OnActivated and
+        // its session blob.
+        if (_playerOverviewViewModel is not null)
+        {
+            yield return new WorkspaceTabDescriptor
+            {
+                TabId = HostIds.PlayerOverviewTab,
+                Header = "Player Overview",
+                Order = -2,
+                ViewModelFactory = () => _playerOverviewViewModel,
+                ViewFactory = () => new PlayerOverviewTabView()
+            };
+        }
+
+        // Library: Order -1, right after Player Overview. Uses ViewModelFactory (not DataContext) so the VM
+        // receives OnActivated; the shell also starts its first folder scan at launch, whichever tab opens.
         yield return new WorkspaceTabDescriptor
         {
             TabId = "builtin.library",
@@ -115,20 +130,6 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
                 Order = 2,
                 DataContext = _statsViewModel,
                 ViewFactory = () => new StatsTabView()
-            };
-        }
-
-        // Player Overview: one player across the library. Same Order as Stats and yielded after it, so it sits
-        // right after Stats. A factory, not a DataContext, so the tab gets OnActivated and its session blob.
-        if (_playerOverviewViewModel is not null)
-        {
-            yield return new WorkspaceTabDescriptor
-            {
-                TabId = HostIds.PlayerOverviewTab,
-                Header = "Player Overview",
-                Order = 2,
-                ViewModelFactory = () => _playerOverviewViewModel,
-                ViewFactory = () => new PlayerOverviewTabView()
             };
         }
 

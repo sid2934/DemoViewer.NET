@@ -4852,6 +4852,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     public void RestoreSession()
     {
+        // Every tab reads the library index, so its folders are scanned at launch whichever tab opens.
+        LibraryTab.StartFirstScan();
         SessionPayload? p = _sessionStore.Load();
         if (p is null)
         {
@@ -4880,8 +4882,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     // Re-selects the persisted tab by its durable TabId: the ONLY key, because the tab
     // set is dynamic (feature gating, new built-ins landing mid-strip) and a position means a different tab
-    // from one build to the next. A stale, gated-out, or absent id falls back to Library by id, never a
-    // position. Called after BuildWorkspaceTabs, so Tabs is already populated.
+    // from one build to the next. A stale, gated-out, or absent id falls back to the landing tab by id (Player
+    // Overview, or Library where it is gated off), never a position. Called after BuildWorkspaceTabs, so Tabs is
+    // already populated.
     private void RestoreActiveTab(SessionPayload p)
     {
         if (Tabs.Count == 0)
@@ -4893,7 +4896,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         // section/hub id from a session where the pack was on and is now off.
         if (!TrySelectTab(p.ActiveTabId))
         {
-            SelectedTab = Tabs.FirstOrDefault(t => t.TabId == LibraryTabViewModel.HostId) ?? Tabs[0];
+            SelectedTab = Tabs.FirstOrDefault(t => t.TabId == HostIds.PlayerOverviewTab)
+                          ?? Tabs.FirstOrDefault(t => t.TabId == LibraryTabViewModel.HostId)
+                          ?? Tabs[0];
         }
     }
 

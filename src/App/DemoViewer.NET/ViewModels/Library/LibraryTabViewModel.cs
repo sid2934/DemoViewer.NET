@@ -429,14 +429,21 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     public void OnActivated(IModuleContext context)
     {
-        // Kick the first scan when the tab is first seen (it's the default tab, so this runs at startup).
+        StartFirstScan();
+        Sections.OnHostActivated(context);
+    }
+
+    /// <summary>
+    ///     Scans the library folders once per session: the shell calls this at launch, since the library feeds
+    ///     every tab and the landing tab is not this one, and the first activation calls it again harmlessly.
+    /// </summary>
+    public void StartFirstScan()
+    {
         if (!_scannedOnce && Folders.Count > 0)
         {
             _scannedOnce = true;
             _ = _library.RescanAsync();
         }
-
-        Sections.OnHostActivated(context);
     }
 
     public void OnDeactivated() => Sections.OnHostDeactivated();

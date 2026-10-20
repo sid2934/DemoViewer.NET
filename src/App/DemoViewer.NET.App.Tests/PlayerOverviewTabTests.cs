@@ -12,6 +12,7 @@ using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
+using DemoViewer.NET.Models;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
@@ -124,7 +125,40 @@ public class PlayerOverviewTabTests
     // ── Strip, gating and the browser ────────────────────────────────────────────────────────────────────
 
     [Test]
-    public async Task Tab_SitsRightAfterStats_WhenTheShellHasADirectory()
+    public async Task ASessionWithAStaleTab_LandsOnThePlayerOverview_AndARememberedTabStillWins()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "dvpo-landing-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                using IdentityService identity = Identity(Me);
+                SettingsService settings = new(dir);
+
+                settings.SaveSession(new SessionPayload(null, null, null, false, false, "does.not.exist"));
+                MainViewModel stale = new(null, new ModuleRegistry(), TestLibraries.Empty(), settingsService: settings,
+                    players: new PlayerDirectory(Library(1, 0)), identity: identity);
+                stale.RestoreSession();
+                await Assert.That(stale.SelectedTab!.TabId).IsEqualTo(HostIds.PlayerOverviewTab);
+                stale.Dispose();
+
+                settings.SaveSession(new SessionPayload(null, null, null, false, false, "builtin.library"));
+                MainViewModel remembered = new(null, new ModuleRegistry(), TestLibraries.Empty(), settingsService: settings,
+                    players: new PlayerDirectory(Library(1, 0)), identity: identity);
+                remembered.RestoreSession();
+                await Assert.That(remembered.SelectedTab!.TabId).IsEqualTo("builtin.library");
+                remembered.Dispose();
+            });
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Test]
+    public async Task Tab_IsFirst_AndTheLandingTab_WhenTheShellHasADirectory()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
@@ -135,7 +169,8 @@ public class PlayerOverviewTabTests
             {
                 List<string> ids = [.. vm.Tabs.Select(t => t.TabId)];
                 await Assert.That(vm.PlayerOverviewTab).IsNotNull();
-                await Assert.That(ids.IndexOf(HostIds.PlayerOverviewTab)).IsEqualTo(ids.IndexOf("builtin.stats") + 1);
+                await Assert.That(ids.Take(2)).IsEquivalentTo([HostIds.PlayerOverviewTab, "builtin.library"], CollectionOrdering.Matching);
+                await Assert.That(vm.SelectedTab!.TabId).IsEqualTo(HostIds.PlayerOverviewTab);
             }
             finally
             {

@@ -291,8 +291,11 @@ public class PlayerDirectoryTests
         }
     }
 
+    // Alone, so the suite's parallel tests do not share the cores it times: measured at 132 ms under a full
+    // run and about 65 ms on its own (Release).
     [Test]
     [Category("Budget")]
+    [NotInParallel]
     public async Task TenThousandRows_ProjectUnder100Ms()
     {
         Random random = new(7);
