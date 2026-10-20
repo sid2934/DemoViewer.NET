@@ -201,6 +201,46 @@ public class PlayerMatchFacetTests
     }
 
     [Test]
+    public async Task AnOpenWithGeometry_WantsAFacetWithoutSight_Once()
+    {
+        MergedRulesBuild rules = PlayerMatchParityRealDemoTests.AppRules();
+        StampedFacts stamped = new(rules);
+        DemoCacheStore cache = new(null);
+        const string path = "/demos/a.dem";
+        cache.Upsert(new DemoCacheRecord { Path = path, Size = 1, Parse = new TierStamp { Schema = DemoCacheRecord.ParseSchema, ComputedAtTicks = 1 } });
+        FactsEvaluator evaluator = new(cache, stamped);
+        string stampId = StampedFacts.StampId(PlayerMatchFacet.RulesetId);
+        evaluator.Evaluate(path, MergedRulesBuildTests.TwoFrameDemo());
+        PackStamp background = cache.TryGetIndex(path)!.Stamp(stampId)!;
+        bool wantedBefore = evaluator.Wants(path);
+
+        evaluator.OpenWithSight(path);
+        bool wantedByOpen = evaluator.Wants(path);
+        bool recordsMatch = evaluator.Records(path, PlayerMatchFacet.RulesetId);
+        bool recordsEvents = evaluator.Records(path, PlayerEventFacet.RulesetId);
+        // This run had no geometry, so the open's visit measures nothing and leaves the facet as it was.
+        evaluator.Evaluate(path, MergedRulesBuildTests.TwoFrameDemo());
+        PackStamp afterOpen = cache.TryGetIndex(path)!.Stamp(stampId)!;
+        bool wantedAfter = evaluator.Wants(path);
+
+        cache.UpdateExisting(path, r => r.SetStamp(afterOpen with { HasVisibility = true }));
+        evaluator.OpenWithSight(path);
+        bool wantedWithSight = evaluator.Wants(path);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(background.HasVisibility).IsFalse().Because("the background visit has no geometry");
+            await Assert.That(wantedBefore).IsFalse();
+            await Assert.That(wantedByOpen).IsTrue();
+            await Assert.That(recordsMatch).IsTrue().Because("the open's run must record the table to seed the visit");
+            await Assert.That(recordsEvents).IsFalse();
+            await Assert.That(afterOpen).IsEqualTo(background).Because("a run with no contact rewrites nothing");
+            await Assert.That(wantedAfter).IsFalse().Because("one write consumes the open");
+            await Assert.That(wantedWithSight).IsFalse().Because("a facet with sight has nothing to gain");
+        }
+    }
+
+    [Test]
     public async Task EditingAPlayerStatsCompute_MovesTheFingerprint()
     {
         DirectoryInfo user = Directory.CreateTempSubdirectory("dv-pm-edit-");

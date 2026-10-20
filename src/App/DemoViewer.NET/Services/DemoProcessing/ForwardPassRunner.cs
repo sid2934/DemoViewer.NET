@@ -47,7 +47,7 @@ public sealed class ForwardPassRunner
         bool rules = (needs & ForwardNeeds.Rules) != 0;
         ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs, rules ? _rules.Docs : null, progress,
             rules ? OutputsFor?.Invoke(path) : null,
-            rules ? collectors : CollectorSet.Empty, ranks, cancellationToken);
+            rules ? collectors : CollectorSet.Empty, ranks, null, cancellationToken);
         if (pass.Run is { } run)
         {
             _rules.ReportExclusions(run.Build);

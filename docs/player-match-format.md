@@ -30,7 +30,8 @@ The record carries a `facts:player_match` stamp (mirrored on the index row) at s
 ruleset's fingerprint: `MergedRulesBuild.RulesetIdentity` over the ruleset and its `use:` closure
 (`player_stats`, `kast`), their sources and the engine version, folded with `StampedFacts.Schema`. Any edit
 to those three rulesets, or an engine bump (which re-extracts `player_stats` and `kast` from the package),
-makes every demo stale, and the background queue re-walks the library: about ten seconds a demo.
+makes every demo stale, and the background queue re-walks the library: about ten seconds a demo. The stamp
+also carries `HasVisibility` when the sight columns hold data ([Line of sight](#line-of-sight)).
 
 * **Indexed**: the sidecar is current.
 * **Failed**: the build left the ruleset out. A user-tier file that disables `kast` or `player_stats` does
@@ -85,6 +86,16 @@ marked *double*.
 | `head_hits`, `head_damage`, `cs_clean`, `moving_shots` | aim_rating numerators of `HSAcc%`, `HSDmg%`, `CS%`/`CSAll%` and `Linear%`. |
 | `CSAtt`, `SprayN` | Counter-strafe attempts and spray-measured shots: the `CS%` and `Spray` denominators. |
 | `spray_error_sum` *double* | Sum of the spray residual in degrees: the `Spray` numerator. |
+| `Spots` | First enemy contacts: the `Preaim` denominator. Above zero on some row is what marks a facet with sight. |
+| `preaim_angle_sum` *double* | Sum of degrees off the enemy's chest at first contact: the `Preaim` numerator. |
+| `contact_shots`, `contact_hits` | Bullets and enemy hits after the round's first contact: `SAcc%`. |
+| `first_bullet_shots`, `first_bullet_hits` | First bullets out of the barrel after first contact, and those that landed: `FB%`. |
+| `spray_shots`, `spray_hits` | The rest of the bullets after first contact, and those that landed: `SprayAcc%`. |
+| `XShots`, `travel_sum`, `flick_error_sum` *double* | Landed bullets paired to a contact, their crosshair travel and their signed flick error in degrees: `XPlace` and `FlickErr`. |
+| `TTSn`, `tts_ticks` | Contacts answered by a shot, and the ticks to that shot: `TTS`. |
+| `TTDn`, `ttd_ticks` | Contacts answered by a landed bullet, and the ticks to it: `TTD`. |
+| `AimRxn`, `aimrx_ticks` | Acquisitions answered by a shot, and the ticks from the crosshair arriving to the shot: `AimRx`. |
+| `TTKn`, `ttk_ticks` | Contacts that ended in a kill, and the ticks to the kill: `TTK`. A tick is 15.625 ms. |
 
 How they are produced, and why that matters to a reader:
 
@@ -101,16 +112,39 @@ How they are produced, and why that matters to a reader:
   A compute's format rounds the stored value, and the default `F1` stores 1.6 for an HLTV of 1.56.
 * **One demo equals its Stats tab.** `PlayerMatchParityRealDemoTests` rebuilds every pooling column from one
   row and compares it with the Stats tab's game table, row for row: counts exactly, rates to the column's
-  display precision. It passes on the five benchmark demos and on a reconnect demo with ghost slots.
+  display precision. It passes on the five benchmark demos and on a reconnect demo with ghost slots. The
+  sight columns are compared the same way after an open upgrades the facet, by
+  `AnOpenWithGeometry_GivesTheFacetTheStatsTabsSightColumns`.
 
 Not in the facet:
 
-* **Sight columns.** The 17 `sight: true` columns need line-of-sight geometry; the background run has none
-  and would store a permanent 0.
+* **`Spot`**, the round board's per-round contact flag. Every other `sight: true` column is pooled from the
+  components above.
 * **Rounds played.** A count of round ends since a slot appeared counts every round for a bot, a ghost and a
   spectator alike; it measures time connected, not time on a team, so nothing could use it.
 * **Ratios.** ADR, KPR, HS% and the rest are divided at read time from the columns above.
 * **Weapon buckets** (`weapon_stats`) have no projection off a forward run.
+
+## Line of sight
+
+The sight columns (`Spots` through `ttk_ticks`) are copies of `aim_rating`'s Tier 3 components. They need the
+run to have been handed the map's collision bake, which synthesizes `enemy_spotted`; without one they are all
+0, and that 0 is no data, not a measurement.
+
+* **The background visit stores zeros.** The forward visit has no `VisibilityEngine`, so it writes the facet
+  with zeros in every sight column and stamps it without `HasVisibility`. Handing the forward visit the bake
+  was measured and rejected: on the five benchmark demos, interleaved over three rounds, it took 14 to 23%
+  longer per demo, allocated 27% more and peaked 280 MB higher.
+* **An open upgrades it.** An interactive open with the map's bake calls `FactsEvaluator.OpenWithSight` before
+  it plans its run. The facts pass then counts a current facet without `HasVisibility` as stale for that open
+  only: the open's run records the table with geometry, seeds the visit, and the visit rewrites the sidecar
+  and stamps it with `HasVisibility` under the same fingerprint. A background visit never does this, so
+  nothing re-walks for sight. A run that measured no contact at all writes nothing.
+* **`HasVisibility`** is set when some row has `Spots` above zero, the same test the Stats tab uses to blank
+  its sight columns. It is omitted from the JSON when false and is not part of the stamp's currency: a facet
+  without sight is current. A reader pools sight columns over the demos that have it and shows "no data"
+  when none does (`PlayerAggregate.WithSight`).
+* A demo on a map with no bake keeps a facet without sight.
 
 ## The record and the index row
 

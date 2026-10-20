@@ -22,8 +22,7 @@ public static class PlayerOverviewSections
         new HeadToHeadSectionViewModel(services),
 
         new CompareSectionViewModel(services),
-        new BenchmarksSectionViewModel(services)
-
-        // Then aim quality.
+        new BenchmarksSectionViewModel(services),
+        new AimQualitySectionViewModel()
     ];
 }

@@ -101,7 +101,8 @@ public static class ColumnRules
     /// <summary>The facet column holding the match's round count: the denominator of every per-round rate.</summary>
     public const string Rounds = "rounds";
 
-    private const string Sight = "needs line-of-sight geometry, which the background run that writes the facet does not have";
+    // The engine's tick, in milliseconds: aim_rating's time-to-x columns scale their tick sums by it.
+    private const double MillisecondsPerTick = 15.625;
     private const string RoundBoard = "a per-round cell of the round board, not a match total";
 
     private static readonly Dictionary<string, ColumnRule> _byKey = Build();
@@ -148,7 +149,19 @@ public static class ColumnRules
 
             // ── Opening duels ──
             ["FK±"] = new DifferenceOfSums("TotalFK", "TotalFD"),
-            ["Duel%"] = new RatioOfSums(["TotalFK"], ["TotalFK", "TotalFD"], 100)
+            ["Duel%"] = new RatioOfSums(["TotalFK"], ["TotalFK", "TotalFD"], 100),
+
+            // ── Line of sight: pooled only over demos whose run had the map's geometry (PlayerAggregate.Of) ──
+            ["FB%"] = Percent("first_bullet_hits", "first_bullet_shots"),
+            ["SAcc%"] = Percent("contact_hits", "contact_shots"),
+            ["SprayAcc%"] = Percent("spray_hits", "spray_shots"),
+            ["Preaim"] = new RatioOfSums(["preaim_angle_sum"], ["Spots"]),
+            ["XPlace"] = new RatioOfSums(["travel_sum"], ["XShots"]),
+            ["FlickErr"] = new RatioOfSums(["flick_error_sum"], ["XShots"]),
+            ["TTS"] = new RatioOfSums(["tts_ticks"], ["TTSn"], MillisecondsPerTick),
+            ["TTD"] = new RatioOfSums(["ttd_ticks"], ["TTDn"], MillisecondsPerTick),
+            ["AimRx"] = new RatioOfSums(["aimrx_ticks"], ["AimRxn"], MillisecondsPerTick),
+            ["TTK"] = new RatioOfSums(["ttk_ticks"], ["TTKn"], MillisecondsPerTick)
         };
 
         foreach (string key in (string[])
@@ -159,20 +172,16 @@ public static class ColumnRules
                      "AWP", "Pistol", "Rifle", "SMG", "Knife", "DeagleHSRnds",
                      "NoScope", "WB", "Smoke", "Blind", "Revenge", "FlashK",
                      "HE", "Flash", "Smokes", "Molly", "EFlash", "Plants", "Defuses", "Armor",
-                     "2K", "3K", "4K", "5K", "CTW", "CTL", "TW", "TL", "Survived"
+                     "2K", "3K", "4K", "5K", "CTW", "CTL", "TW", "TL", "Survived",
+                     "Spots", "XShots", "TTSn", "TTDn", "AimRxn", "TTKn"
                  ])
         {
             rules.Add(key, new Sum(key));
         }
 
-        foreach (string key in (string[]) ["Kills", "Deaths", "Assists", "Damage", "UtilDmg", "Traded", "HasKAST", "HSKills", "EKills", "Flashed", "FK", "FD", "DeagleHS"])
+        foreach (string key in (string[]) ["Kills", "Deaths", "Assists", "Damage", "UtilDmg", "Traded", "HasKAST", "HSKills", "EKills", "Flashed", "FK", "FD", "DeagleHS", "Spot"])
         {
             rules.Add(key, new NotAggregable(RoundBoard));
-        }
-
-        foreach (ColumnMeta meta in ColumnCatalogue.All.Where(m => m.RequiresVisibility))
-        {
-            rules.Add(meta.Key, new NotAggregable(Sight));
         }
 
         return rules;

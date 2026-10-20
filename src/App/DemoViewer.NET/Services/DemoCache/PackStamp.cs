@@ -41,6 +41,14 @@ public sealed record PackStamp(
     public int Count { get; init; }
 
     /// <summary>
+    ///     True when the facet was written by a run that had the map's line-of-sight geometry and it measured
+    ///     something. Only the <c>player_match</c> stamp sets it: its sight columns are no data without it. Not part
+    ///     of <see cref="IsCurrent" />: a facet without sight is current, and an open with geometry upgrades it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool HasVisibility { get; init; }
+
+    /// <summary>
     ///     Is this stamp current at <paramref name="schema" /> under <paramref name="fingerprint" />? A write
     ///     that failed is never current, whatever it carries.
     /// </summary>

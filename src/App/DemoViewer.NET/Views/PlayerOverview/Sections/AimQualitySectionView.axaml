@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.AimQualitySectionView"
+             x:DataType="sections:AimQualitySectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- Laid out as the stat categories are: fixed-width blocks that wrap into columns on a wide tab. -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.categoryTitle">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="Margin" Value="0 0 0 4" />
+        </Style>
+        <Style Selector="TextBlock.statLabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.statDetail">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="8 0" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="10">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding ScopeText}" FontSize="11.5"
+                           Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                <TextBlock Text="Aim quality" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" />
+            </DockPanel>
+
+            <ItemsControl x:Name="BlockList" ItemsSource="{Binding Blocks}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="20" LineSpacing="14" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:CategoryItem">
+                        <StackPanel Width="260">
+                            <TextBlock Classes="categoryTitle" Text="{Binding Title}" />
+                            <ItemsControl ItemsSource="{Binding Stats}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="sections:CategoryStatItem">
+                                        <Grid ColumnDefinitions="*,Auto,64" Margin="0 2" Background="Transparent"
+                                              ToolTip.Tip="{Binding Tooltip}">
+                                            <TextBlock Classes="statLabel" Text="{Binding Label}" />
+                                            <TextBlock Grid.Column="1" Classes="statDetail" Text="{Binding Detail}"
+                                                       IsVisible="{Binding HasDetail}" />
+                                            <statsCtl:StatValue Grid.Column="2" Mode="Plain" Height="18"
+                                                                Text="{Binding Text}" Value="{Binding Value}"
+                                                                Scale="{Binding Scale}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock x:Name="NoteText" Text="{Binding Note}" IsVisible="{Binding HasNote}" FontSize="11.5"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>

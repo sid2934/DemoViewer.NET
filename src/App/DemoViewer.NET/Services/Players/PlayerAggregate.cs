@@ -37,6 +37,13 @@ public sealed record PlayerDemo(PlayerMatch Match, bool HasFacet, IReadOnlyDicti
     ///     <see cref="OtherColumns" />; null when the facet is not read.
     /// </summary>
     public IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Others { get; init; }
+
+    /// <summary>
+    ///     Whether the demo's facet carries line-of-sight data: its stamp's <see cref="PackStamp.HasVisibility" />.
+    ///     Without it the sight columns of <see cref="Stats" /> are zeros that measured nothing, and the pool leaves
+    ///     them out.
+    /// </summary>
+    public bool HasSight { get; init; }
 }
 
 /// <summary>
@@ -48,7 +55,10 @@ public sealed record PlayerDemo(PlayerMatch Match, bool HasFacet, IReadOnlyDicti
 /// <param name="Wins">Demos won.</param>
 /// <param name="Losses">Demos lost.</param>
 /// <param name="Ties">Demos tied.</param>
-/// <param name="Values">The pooled value by catalogue key; empty when no demo has stats, never a column of zeros.</param>
+/// <param name="Values">
+///     The pooled value by catalogue key; empty when no demo has stats, never a column of zeros. A line-of-sight column
+///     is pooled over the demos with sight data only, and is absent when there is none: "no data", not 0.
+/// </param>
 public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int Losses, int Ties, IReadOnlyDictionary<string, double> Values)
 {
     // HLTV 2.0's constant terms (rules/player_stats.rules.yaml, HLTV): 0.1587 and the impact term's -0.41 x 0.2372.
@@ -57,6 +67,9 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
     private const double HltvPerKastPercent = 0.73 / 100;
 
     private static readonly string[] Activity = ["Shots", "TotalD", "EnemyDmg"];
+
+    /// <summary>The demos with stats whose facet carries line-of-sight data: the population of every sight column.</summary>
+    public int WithSight { get; init; }
 
     /// <summary>The pooled value of a catalogue column, or null when it does not pool or no demo has stats.</summary>
     /// <param name="key">A catalogue key.</param>
@@ -68,6 +81,7 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
     {
         ArgumentNullException.ThrowIfNull(demos);
         List<IReadOnlyDictionary<string, double>> rows = new(demos.Count);
+        List<IReadOnlyDictionary<string, double>> sighted = [];
         int wins = 0, losses = 0, ties = 0;
         foreach (PlayerDemo demo in demos)
         {
@@ -77,6 +91,11 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
             }
 
             rows.Add(stats);
+            if (demo.HasSight)
+            {
+                sighted.Add(stats);
+            }
+
             switch (OutcomeOf(stats))
             {
                 case MatchOutcome.Win:
@@ -96,14 +115,15 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
         {
             foreach ((string key, ColumnRule rule) in ColumnRules.All)
             {
-                if (rule.Pool(rows) is { } value)
+                List<IReadOnlyDictionary<string, double>> over = ColumnCatalogue.RequiresVisibility(key) ? sighted : rows;
+                if (over.Count > 0 && rule.Pool(over) is { } value)
                 {
                     values[key] = value;
                 }
             }
         }
 
-        return new PlayerAggregate(demos.Count, rows.Count, wins, losses, ties, values);
+        return new PlayerAggregate(demos.Count, rows.Count, wins, losses, ties, values) { WithSight = sighted.Count };
     }
 
     /// <summary>The demos of <paramref name="demos" /> that pass <paramref name="filter" />, in their order; <see cref="PlayerFilter.Last" /> applies last.</summary>

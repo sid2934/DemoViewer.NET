@@ -25,6 +25,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Diagnostics;
+using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.ViewModels.Diagnostics;
 using DemoViewer.NET.Visualization;
 using Microsoft.Extensions.DependencyInjection;
@@ -790,6 +791,13 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
             // the builder then simply does not emit enemy_spotted and the visibility-gated aim
             // columns read zero, which is the same degraded shape as an unsupported demo source.
             VisibilityEngine? visibility = await LoadVisibilityEngineAsync(demo, runToken);
+            // With geometry this run can give the demo's player_match facet its sight columns, which the
+            // background visit cannot; the facts pass then counts that table as stale for this open.
+            if (visibility is not null && path is not null)
+            {
+                FactsPass()?.OpenWithSight(path);
+            }
+
             // Asks passes, which answer no on the UI thread.
             IReadOnlySet<string>? stale = path is not null && MergedRules() is { } planning
                 ? await Task.Run(() => planning.StaleOutputs(path), runToken)
@@ -1327,6 +1335,19 @@ public sealed partial class AnalysisViewModel : ViewModelBase, IDisposable
 
         OpenRunPlan plan = merged.PlanOpen(rules.Rulesets, path, stale);
         return (plan.Cuts(DemoAnalysis.Build(demo, plan.Docs, plan.Collectors.DeclareReads(options))), rules, plan);
+    }
+
+    // The facts pass, resolved like the merged build below; null in the designer and in tests.
+    private static FactsEvaluator? FactsPass()
+    {
+        try
+        {
+            return App.Services?.GetService<FactsEvaluator>();
+        }
+        catch (ObjectDisposedException)
+        {
+            return null;
+        }
     }
 
     // The composition root's merged build knows which rulesets are stamped. In production there is

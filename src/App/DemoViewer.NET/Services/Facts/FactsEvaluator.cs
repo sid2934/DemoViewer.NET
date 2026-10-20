@@ -1,5 +1,6 @@
 #region
 
+using System.Collections.Concurrent;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Diagnostics;
 using CS2DemoKit.Analysis.Output;
@@ -26,6 +27,12 @@ namespace DemoViewer.NET.Services.Facts;
 ///         Writing the <see cref="PlayerMatchFacet" /> also sets the record's <see cref="DemoCacheRecord.FacetPlayers" />
 ///         and its side wins, in the same update as the stamp.
 ///     </para>
+///     <para>
+///         The background visit has no line-of-sight geometry, so it stamps <c>player_match</c> without
+///         <see cref="PackStamp.HasVisibility" /> and the facet's sight columns are no data. An open with the map's
+///         collision bake (<see cref="OpenWithSight" />) wants that demo once more: its run records the table with
+///         geometry and seeds the visit, which rewrites the facet with sight. Nothing else re-walks for it.
+///     </para>
 /// </summary>
 public sealed class FactsEvaluator : IDemoEvaluator
 {
@@ -40,6 +47,7 @@ public sealed class FactsEvaluator : IDemoEvaluator
     private readonly DemoCacheStore _cache;
     private readonly StampedFacts _facts;
     private readonly Action<Action> _post;
+    private readonly ConcurrentDictionary<string, byte> _sightOpens = new(StringComparer.OrdinalIgnoreCase);
 
     /// <param name="cache">The demo cache the facts and their stamps live in.</param>
     /// <param name="facts">The stamped rulesets and their storage.</param>
@@ -62,11 +70,29 @@ public sealed class FactsEvaluator : IDemoEvaluator
     /// <inheritdoc />
     public bool ReadsUserCommands => false;
 
-    /// <summary>A demo the library has parsed with a facet whose facts are missing or stale.</summary>
+    /// <summary>A demo the library has parsed with a facet whose facts are missing or stale, or one an open can give sight.</summary>
     public bool Wants(string path) =>
         _cache.TryGetIndex(path) is { ParseSchema: > 0 } entry
-        && _facts.Facets().Any(f => _facts.Fingerprint(f.RulesetId, BacklogTickRate) is { } fp
-                                    && StampedFacts.NeedsWrite(entry, f.RulesetId, fp));
+        && (_facts.Facets().Any(f => _facts.Fingerprint(f.RulesetId, BacklogTickRate) is { } fp
+                                     && StampedFacts.NeedsWrite(entry, f.RulesetId, fp))
+            || UpgradesSight(path, entry));
+
+    /// <summary>
+    ///     The demo at <paramref name="path" /> is being opened with its map's line-of-sight geometry. Until the next
+    ///     write of its facts, a <c>player_match</c> facet stamped without sight is wanted and recorded again, so the
+    ///     open's run records it and its visit rewrites it with the sight columns. Call it before the open plans its
+    ///     run. One write consumes it, whether or not that write had geometry.
+    /// </summary>
+    /// <param name="path">The open demo's path.</param>
+    public void OpenWithSight(string path) => _sightOpens[path] = 0;
+
+    // A current player_match facet with no sight, on a demo an open holds geometry for.
+    private bool UpgradesSight(string path, DemoCacheIndexEntry entry) =>
+        _sightOpens.ContainsKey(path)
+        && _facts.Facet(PlayerMatchFacet.RulesetId) is not null
+        && _facts.Fingerprint(PlayerMatchFacet.RulesetId, BacklogTickRate) is { } fingerprint
+        && !StampedFacts.NeedsWrite(entry, PlayerMatchFacet.RulesetId, fingerprint)
+        && entry.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId)) is { State: DemoAnalysisState.Indexed, HasVisibility: false };
 
     /// <summary>A demo the library has not parsed yet, while any facet is on: its facts follow the library's write.</summary>
     public bool WantsAfterUpstream(string path) =>
@@ -103,13 +129,17 @@ public sealed class FactsEvaluator : IDemoEvaluator
             return false;
         }
 
-        return _cache.TryGetIndex(path) is not { ParseSchema: > 0 } entry || StampedFacts.NeedsWrite(entry, rulesetId, fingerprint);
+        return _cache.TryGetIndex(path) is not { ParseSchema: > 0 } entry
+               || StampedFacts.NeedsWrite(entry, rulesetId, fingerprint)
+               || (string.Equals(rulesetId, PlayerMatchFacet.RulesetId, StringComparison.Ordinal) && UpgradesSight(path, entry));
     }
 
     private void Record(string path, AnalysisRun run, int tickRate)
     {
         string fileName = Path.GetFileName(path);
         DemoCacheIndexEntry? entry = _cache.TryGetIndex(path);
+        bool sightOpen = entry is not null && UpgradesSight(path, entry);
+        _sightOpens.TryRemove(path, out _);
         HashSet<string> recorded = new((run.Build.Outputs ?? []).Select(o => o.Id), StringComparer.Ordinal);
         Dictionary<string, MetricTable>? projected = null;
         List<PackStamp> stamps = [];
@@ -117,7 +147,14 @@ public sealed class FactsEvaluator : IDemoEvaluator
         foreach (StampedFacet facet in _facts.Facets())
         {
             string? fingerprint = _facts.Fingerprint(facet.RulesetId, tickRate);
-            if (fingerprint is null || (entry is not null && !StampedFacts.NeedsWrite(entry, facet.RulesetId, fingerprint)))
+            if (fingerprint is null)
+            {
+                continue;
+            }
+
+            // A current facet is written again only to give player_match the sight an open brings.
+            bool upgrade = entry is not null && !StampedFacts.NeedsWrite(entry, facet.RulesetId, fingerprint);
+            if (upgrade && !(sightOpen && string.Equals(facet.RulesetId, PlayerMatchFacet.RulesetId, StringComparison.Ordinal)))
             {
                 continue;
             }
@@ -126,6 +163,11 @@ public sealed class FactsEvaluator : IDemoEvaluator
             {
                 if (run.Build.ExcludedRulesets.FirstOrDefault(r => string.Equals(r.Id, facet.RulesetId, StringComparison.Ordinal)) is { } excluded)
                 {
+                    if (upgrade)
+                    {
+                        continue;
+                    }
+
                     string detail = string.Join("; ", excluded.Diagnostics.Take(5).Select(d => $"[{d.Code}] {d.Message}"));
                     FactsLog.Excluded(Log, facet.RulesetId, fileName, detail);
 
@@ -144,25 +186,35 @@ public sealed class FactsEvaluator : IDemoEvaluator
                 }
 
                 projected ??= run.ProjectConfiguredOutputs().ToDictionary(t => t.Name, StringComparer.Ordinal);
-                int rows = 0;
+                List<FactTable> tables = [];
                 foreach (TableDef table in facet.Tables)
                 {
                     FactKey key = new(facet.RulesetId, table.Name);
-                    FactTable facts = projected.TryGetValue(table.Name, out MetricTable? metric)
+                    tables.Add(projected.TryGetValue(table.Name, out MetricTable? metric)
                         ? FactsCodec.FromMetric(metric, key, fingerprint, StampedFacts.Schema, table.Per ?? "")
-                        : new FactTable(key, fingerprint, StampedFacts.Schema, table.Per ?? "", [], [], new Dictionary<string, string>(), []);
-                    _cache.WriteSiblingBytes(path, StampedFacts.Suffix(key), FactsCodec.Encode(facts));
-                    rows += facts.Rows.Count;
-                    if (key == PlayerMatchFacet.Key)
-                    {
-                        playerMatch = facts;
-                    }
+                        : new FactTable(key, fingerprint, StampedFacts.Schema, table.Per ?? "", [], [], new Dictionary<string, string>(), []));
                 }
 
+                FactTable? match = tables.FirstOrDefault(t => t.Key == PlayerMatchFacet.Key);
+                bool sight = match is not null && PlayerMatchFacet.HasSight(match.Rows);
+
+                // An upgrade whose run measured no contact would only rewrite the same zeros.
+                if (upgrade && !sight)
+                {
+                    continue;
+                }
+
+                foreach (FactTable facts in tables)
+                {
+                    _cache.WriteSiblingBytes(path, StampedFacts.Suffix(facts.Key), FactsCodec.Encode(facts));
+                }
+
+                playerMatch = match ?? playerMatch;
                 stamps.Add(new PackStamp(StampedFacts.StampId(facet.RulesetId), StampedFacts.Schema, fingerprint)
                 {
-                    Count = rows,
-                    ComputedAtTicks = DateTime.UtcNow.Ticks
+                    Count = tables.Sum(t => t.Rows.Count),
+                    ComputedAtTicks = DateTime.UtcNow.Ticks,
+                    HasVisibility = sight
                 });
             }
             catch (Exception ex) when (ex is not OutOfMemoryException)
