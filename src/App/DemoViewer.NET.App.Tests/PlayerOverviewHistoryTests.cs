@@ -128,8 +128,8 @@ public class PlayerOverviewHistoryTests
         public List<string> Opened { get; } = [];
         public List<(string Path, ulong Id)> Focused { get; } = [];
 
-        public HeaderSectionViewModel Header => Tab.Sections.OfType<HeaderSectionViewModel>().Single();
-        public HistorySectionViewModel History => Tab.Sections.OfType<HistorySectionViewModel>().Single();
+        public HeaderSectionViewModel Header => Tab.Reveal<HeaderSectionViewModel>();
+        public HistorySectionViewModel History => Tab.Reveal<HistorySectionViewModel>();
 
         public void Dispose()
         {
@@ -342,7 +342,7 @@ public class PlayerOverviewHistoryRenderTests
                 _ => { }, _ => { }, (_, _) => { }, _ => { }));
             vm.OnActivated(null!);
             vm.OpenPlayer(PlayerOverviewHistoryTests.Grim);
-            HistorySectionViewModel history = vm.Sections.OfType<HistorySectionViewModel>().Single();
+            HistorySectionViewModel history = vm.Reveal<HistorySectionViewModel>();
             await Assert.That(history.Rows.Count).IsEqualTo(1000);
 
             vm.ShowPage(PlayerOverviewPageKind.History);

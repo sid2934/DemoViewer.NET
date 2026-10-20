@@ -467,7 +467,7 @@ public class PlayerOverviewTabTests
         {
             using IdentityService identity = Identity(Me);
             using PlayerOverviewTabViewModel vm = Shown(Library(2, 1), identity, new FakeQueue());
-            HeaderSectionViewModel header = vm.Sections.OfType<HeaderSectionViewModel>().Single();
+            HeaderSectionViewModel header = vm.Reveal<HeaderSectionViewModel>();
             await Assert.That(header.IsVisible).IsTrue();
             await Assert.That(header.Name).IsEqualTo("me");
             await Assert.That(header.IsMine).IsTrue();
@@ -528,6 +528,33 @@ public class PlayerOverviewTabTests
                 .IsEquivalentTo(["personal-bests", "highlights"], CollectionOrdering.Matching);
             await Assert.That(vm.Pages.Single(p => p.Kind == PlayerOverviewPageKind.History).Header).IsEqualTo("History · 2");
         }
+    }
+
+    [Test]
+    public async Task OnlyThePageOnShow_Renders_AndAnotherCatchesUpWhenOpened()
+    {
+        using IdentityService identity = Identity(Me);
+        using PlayerOverviewTabViewModel vm = Shown(Library(2, 1), identity, new FakeQueue());
+        HeaderSectionViewModel header = vm.Sections.OfType<HeaderSectionViewModel>().Single();
+        HistorySectionViewModel history = vm.Sections.OfType<HistorySectionViewModel>().Single();
+        SummarySectionViewModel summary = vm.Sections.OfType<SummarySectionViewModel>().Single();
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(header.IsVisible).IsTrue().Because("the name card is above the tabs, on every page");
+            await Assert.That(summary.IsVisible).IsTrue();
+            await Assert.That(history.IsVisible).IsFalse().Because("History is not on show, so it has not rendered");
+            await Assert.That(history.Rows).IsEmpty();
+        }
+
+        vm.ShowPage(PlayerOverviewPageKind.History);
+        await Assert.That(history.Rows.Count).IsEqualTo(2);
+
+        // A filter set on History leaves the Overview behind until it is opened again.
+        vm.Filter.Window = vm.Filter.Windows.First(w => w != vm.Filter.Window);
+        PlayerAggregate? before = summary.InWindow;
+        vm.ShowPage(PlayerOverviewPageKind.Overview);
+        await Assert.That(summary.InWindow).IsNotSameReferenceAs(before).Because("the Overview catches up on the filter when shown");
     }
 
     [Test]

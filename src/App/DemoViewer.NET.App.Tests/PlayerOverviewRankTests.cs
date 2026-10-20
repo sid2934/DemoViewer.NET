@@ -104,10 +104,10 @@ public class PlayerOverviewRankTests
         // Holds every record read until set, for a test that acts while the read is running.
         public ManualResetEventSlim Gate { get; } = new(true);
 
-        public RankSectionViewModel Rank => Tab.Sections.OfType<RankSectionViewModel>().Single();
-        public HistorySectionViewModel History => Tab.Sections.OfType<HistorySectionViewModel>().Single();
-        public MapsSectionViewModel Maps => Tab.Sections.OfType<MapsSectionViewModel>().Single();
-        public HeaderSectionViewModel Header => Tab.Sections.OfType<HeaderSectionViewModel>().Single();
+        public RankSectionViewModel Rank => Tab.Reveal<RankSectionViewModel>();
+        public HistorySectionViewModel History => Tab.Reveal<HistorySectionViewModel>();
+        public MapsSectionViewModel Maps => Tab.Reveal<MapsSectionViewModel>();
+        public HeaderSectionViewModel Header => Tab.Reveal<HeaderSectionViewModel>();
 
         public Task Settled() => Tab.Loading;
 
@@ -349,7 +349,7 @@ public class PlayerOverviewRankRenderTests
                 await Assert.That(bars.Length).IsEqualTo(2);
                 await Assert.That(bars.All(b => b.Mode == SparklineMode.Bars && b.Bounds.Width > 0)).IsTrue();
                 await Assert.That(badges.Select(b => b.Key)).IsEquivalentTo(
-                    vm.Sections.OfType<HeaderSectionViewModel>().Single().Ranks.Select(r => r.BadgeKey), CollectionOrdering.Matching);
+                    vm.Reveal<HeaderSectionViewModel>().Ranks.Select(r => r.BadgeKey), CollectionOrdering.Matching);
                 await Assert.That(badges.All(b => b.Bounds.Width > 0)).IsTrue();
                 await Assert.That(header.FindControl<Border>("AvatarPlaceholder")!.Bounds.Width).IsEqualTo(64.0);
             }

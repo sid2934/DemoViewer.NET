@@ -115,9 +115,9 @@ public class PlayerOverviewFilterTests
         public PlayerOverviewTabViewModel Tab { get; }
         public ConcurrentQueue<string> Reads { get; } = new();
         public PlayerOverviewFilterViewModel Filter => Tab.Filter;
-        public SummarySectionViewModel Summary => Tab.Sections.OfType<SummarySectionViewModel>().Single();
-        public HistorySectionViewModel History => Tab.Sections.OfType<HistorySectionViewModel>().Single();
-        public MapsSectionViewModel Maps => Tab.Sections.OfType<MapsSectionViewModel>().Single();
+        public SummarySectionViewModel Summary => Tab.Reveal<SummarySectionViewModel>();
+        public HistorySectionViewModel History => Tab.Reveal<HistorySectionViewModel>();
+        public MapsSectionViewModel Maps => Tab.Reveal<MapsSectionViewModel>();
 
         public void Dispose()
         {

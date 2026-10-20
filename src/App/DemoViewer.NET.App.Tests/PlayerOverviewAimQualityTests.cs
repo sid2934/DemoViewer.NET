@@ -105,7 +105,7 @@ public class PlayerOverviewAimQualityTests
         public IdentityService Identity { get; }
         public PlayerRowCache Rows { get; }
         public PlayerOverviewTabViewModel Tab { get; }
-        public AimQualitySectionViewModel Aim => Tab.Sections.OfType<AimQualitySectionViewModel>().Single();
+        public AimQualitySectionViewModel Aim => Tab.Reveal<AimQualitySectionViewModel>();
 
         public void Dispose()
         {
@@ -186,7 +186,7 @@ public class PlayerOverviewAimQualityTests
             await Assert.That(stats.Where(s => !ColumnCatalogue.RequiresVisibility(s.Key)).Select(s => s.Value)).DoesNotContain((double?)null);
             await Assert.That(aim.ScopeText).IsEqualTo("no line-of-sight data");
             await Assert.That(aim.Note).StartsWith("None of these matches has line-of-sight data");
-            await Assert.That(shell.Tab.Sections.OfType<SummarySectionViewModel>().Single().Tiles.Single(t => t.Key == "Preaim").Text)
+            await Assert.That(shell.Tab.Reveal<SummarySectionViewModel>().Tiles.Single(t => t.Key == "Preaim").Text)
                 .IsEqualTo(AimQualitySectionViewModel.NoData);
         }
     }
@@ -202,7 +202,7 @@ public class PlayerOverviewAimQualityTests
             await Assert.That(shell.Aim.Aggregate!.WithSight).IsEqualTo(3);
             await Assert.That(shell.Aim.Note).IsEmpty();
             await Assert.That(shell.Aim.HasNote).IsFalse();
-            await Assert.That(shell.Tab.Sections.OfType<SummarySectionViewModel>().Single().Tiles.Single(t => t.Key == "TTD").Value)
+            await Assert.That(shell.Tab.Reveal<SummarySectionViewModel>().Tiles.Single(t => t.Key == "TTD").Value)
                 .IsEqualTo(shell.Aim.Aggregate["TTD"]);
         }
     }

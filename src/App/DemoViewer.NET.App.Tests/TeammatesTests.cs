@@ -123,7 +123,7 @@ public class TeammatesTests
         public IdentityService Identity { get; }
         public PlayerRowCache Cache { get; }
         public PlayerOverviewTabViewModel Tab { get; }
-        public TeammatesSectionViewModel Section => Tab.Sections.OfType<TeammatesSectionViewModel>().Single();
+        public TeammatesSectionViewModel Section => Tab.Reveal<TeammatesSectionViewModel>();
         public ConcurrentQueue<string> Reads { get; } = new();
 
         public void Dispose()

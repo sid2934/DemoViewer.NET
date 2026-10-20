@@ -67,6 +67,9 @@ public sealed partial class PlayerOverviewPage : ObservableObject
     /// <summary>Which page.</summary>
     public PlayerOverviewPageKind Kind { get; }
 
+    /// <summary>The tab's render its sections last took; behind the tab's, the page is out of date.</summary>
+    internal int RenderedFor { get; set; } = -1;
+
     /// <summary>The strip caption, with the count when there is one.</summary>
     public string Header => Count is { } count
         ? string.Create(CultureInfo.InvariantCulture, $"{_title} · {count}")

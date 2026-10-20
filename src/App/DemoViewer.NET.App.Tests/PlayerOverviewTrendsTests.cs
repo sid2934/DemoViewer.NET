@@ -73,7 +73,7 @@ public class PlayerOverviewTrendsTests
 
         public IdentityService Identity { get; }
         public PlayerOverviewTabViewModel Tab { get; }
-        public TrendsSectionViewModel Trends => Tab.Sections.OfType<TrendsSectionViewModel>().Single();
+        public TrendsSectionViewModel Trends => Tab.Reveal<TrendsSectionViewModel>();
 
         public void Dispose()
         {

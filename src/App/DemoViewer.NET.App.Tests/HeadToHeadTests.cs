@@ -316,7 +316,7 @@ public class HeadToHeadRenderTests
             });
             vm.OnActivated(null!);
             vm.OpenPlayer(HeadToHeadTests.Grim);
-            HeadToHeadSectionViewModel section = vm.Sections.OfType<HeadToHeadSectionViewModel>().Single();
+            HeadToHeadSectionViewModel section = vm.Reveal<HeadToHeadSectionViewModel>();
             await section.Loading;
 
             vm.ShowPage(PlayerOverviewPageKind.History);

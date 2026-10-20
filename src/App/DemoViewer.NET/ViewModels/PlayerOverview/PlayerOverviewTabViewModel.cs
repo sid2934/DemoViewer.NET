@@ -31,7 +31,8 @@ namespace DemoViewer.NET.ViewModels.PlayerOverview;
 ///     <para>
 ///         The tab reads only the index: who is in which demo comes from <see cref="PlayerDirectory" />, and whether a
 ///         demo has its player stats from the row's <c>facts:player_match</c> stamp. It never runs the engine. Work is
-///         deferred while the tab is hidden and done once when it is shown again.
+///         deferred while the tab is hidden and done once when it is shown again, and likewise for an inner page:
+///         only the page on show renders, and another catches up when it is opened.
 ///     </para>
 ///     <para>
 ///         The tab also reads the subject's stats and rank rows, through <see cref="PlayerRowCache" /> and
@@ -63,6 +64,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     private PlayerRanks? _ranks;
     private PlayerRows? _rows;
     private bool _stale = true;
+    private int _shown;
     private ulong? _subject;
     private bool _subjectWasMine;
 
@@ -304,6 +306,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         }
 
         value.IsActive = true;
+        Render(value);
     }
 
     /// <summary>Opens the only candidate, or the account the text names when it is not a bare account id.</summary>
@@ -610,10 +613,29 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         return context with { Demos = demos, Window = PlayerAggregate.Window(demos, context.Filter) };
     }
 
+    // Renders the sections above the tabs and those of the page on show. The other pages are out of date until
+    // they are shown, so a section that reads files (highlights, head-to-head, benchmarks) reads none while hidden.
     private void Show(PlayerOverviewContext context)
     {
         _context = context;
-        foreach (PlayerOverviewSection section in Sections)
+        _shown++;
+        foreach (PlayerOverviewSection section in Persistent)
+        {
+            section.Update(context);
+        }
+
+        Render(SelectedPage);
+    }
+
+    private void Render(PlayerOverviewPage page)
+    {
+        if (_context is not { } context || page.RenderedFor == _shown)
+        {
+            return;
+        }
+
+        page.RenderedFor = _shown;
+        foreach (PlayerOverviewSection section in page.Sections)
         {
             section.Update(context);
         }

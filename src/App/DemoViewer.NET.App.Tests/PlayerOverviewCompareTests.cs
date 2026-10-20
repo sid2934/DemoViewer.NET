@@ -232,7 +232,7 @@ public class PlayerOverviewCompareRenderTests
             vm.OnActivated(null!);
             vm.OpenPlayer(PlayerOverviewCompareTests.Grim);
             await vm.Loading;
-            CompareSectionViewModel section = vm.Sections.OfType<CompareSectionViewModel>().Single();
+            CompareSectionViewModel section = vm.Reveal<CompareSectionViewModel>();
             section.Pick(PlayerOverviewCompareTests.Rival);
             await section.Loading;
 

@@ -93,7 +93,7 @@ public class PlayerOverviewCategoriesTests
         public IdentityService Identity { get; }
         public PlayerRowCache Rows { get; }
         public PlayerOverviewTabViewModel Tab { get; }
-        public CategoriesSectionViewModel Categories => Tab.Sections.OfType<CategoriesSectionViewModel>().Single();
+        public CategoriesSectionViewModel Categories => Tab.Reveal<CategoriesSectionViewModel>();
 
         public void Dispose()
         {
@@ -229,7 +229,7 @@ public class PlayerOverviewCategoriesTests
         using PlayerOverviewTabViewModel tab = new(new PlayerOverviewServices(directory, identity, rows, _ => { }, _ => { }, (_, _) => { }, _ => { }));
         tab.OnActivated(null!);
         await tab.Loading;
-        CategoryStatItem blind = Stat(tab.Sections.OfType<CategoriesSectionViewModel>().Single(), "AvgBlind");
+        CategoryStatItem blind = Stat(tab.Reveal<CategoriesSectionViewModel>(), "AvgBlind");
 
         using (Assert.Multiple())
         {

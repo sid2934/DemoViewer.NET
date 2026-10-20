@@ -108,7 +108,7 @@ public class PlayerOverviewHighlightsTests
         public List<string> Opened { get; } = [];
         public List<ulong> AddedFor { get; } = [];
 
-        public HighlightsSectionViewModel Highlights => Tab.Sections.OfType<HighlightsSectionViewModel>().Single();
+        public HighlightsSectionViewModel Highlights => Tab.Reveal<HighlightsSectionViewModel>();
 
         public void Dispose()
         {
@@ -277,7 +277,7 @@ public class PlayerOverviewHighlightsRenderTests
                 _ => { }, _ => { }, (_, _) => { }, _ => { }, new AnalysisFacts(store, null, new NoRoundFacts()), _ => { }));
             vm.OnActivated(null!);
             vm.OpenPlayer(PlayerOverviewHistoryTests.Grim);
-            HighlightsSectionViewModel section = vm.Sections.OfType<HighlightsSectionViewModel>().Single();
+            HighlightsSectionViewModel section = vm.Reveal<HighlightsSectionViewModel>();
             await section.Loading;
             Dispatcher.UIThread.RunJobs();
             await Assert.That(section.Rows.Count).IsEqualTo(3);
