@@ -1,0 +1,54 @@
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+#
+# Player Event: every kill and every death of every player, stored by the facts pass as the
+# player_event facet (docs/player-event-format.md) and read by the Player Overview's head-to-head.
+# App-owned like player_match, and stamped on its own, so adding or editing it re-walks only its own
+# backlog and leaves the player_match stamps current.
+#
+# A row's steam_id is the subject's: the killer's in player_kills, the victim's in player_deaths. The
+# rules language has no SteamID for the other side of an event, only its slot, so each table carries
+# that slot and the reader joins a kill to its death on tick, killer slot and victim slot. Both rows
+# come from the one player_death, so the pair is exact and names both accounts.
+#
+# A death with no killer (the world, a fall, the bomb) has no kill row. A suicide is a death whose
+# attacker_slot is the victim's own slot.
+ruleset: player_event
+title: Player Event
+summary: Every kill and death by slot and account, for head-to-head records across demos.
+for: each_player
+
+stats:
+  victim_slot:
+    capture: event.UserId
+    on: kill
+    per: match
+
+  weapon:
+    capture: event.Weapon
+    on: kill
+    per: match
+
+  headshot:
+    capture: event.Headshot
+    on: kill
+    per: match
+
+  attacker_slot:
+    capture: event.Attacker
+    on: death
+    per: match
+
+show:
+  tables:
+    player_kills:
+      per: player_event
+      on: kill
+      columns:
+        - { stat: victim_slot, label: victim_slot }
+        - { stat: weapon,      label: weapon }
+        - { stat: headshot,    label: headshot }
+    player_deaths:
+      per: player_event
+      on: death
+      columns:
+        - { stat: attacker_slot, label: attacker_slot }
