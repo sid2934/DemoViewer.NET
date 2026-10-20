@@ -89,6 +89,8 @@ public sealed partial class HighlightsSectionViewModel : PlayerOverviewSection
             return;
         }
 
+        // Only a subject's first read says so; a demo the queue finishes later is read in behind what is shown.
+        bool quiet = _subject == player.SteamId64;
         _subject = player.SteamId64;
         int unscanned = context.Matches.Count(m => string.IsNullOrEmpty(m.Row.ConfigFingerprint));
         UnscannedText = unscanned == 0
@@ -106,19 +108,24 @@ public sealed partial class HighlightsSectionViewModel : PlayerOverviewSection
             return;
         }
 
-        Loading = LoadAsync(facts, context.Matches, unread, load);
+        Loading = LoadAsync(facts, context.Matches, unread, load, quiet);
     }
 
-    private async Task LoadAsync(IAnalysisFacts facts, IReadOnlyList<PlayerMatch> matches, List<PlayerMatch> unread, int load)
+    private async Task LoadAsync(IAnalysisFacts facts, IReadOnlyList<PlayerMatch> matches, List<PlayerMatch> unread, int load,
+        bool quiet)
     {
         IProgress<int> progress = new Progress<int>(done =>
         {
-            if (_load == load)
+            if (_load == load && !quiet)
             {
                 LoadText = string.Create(CultureInfo.InvariantCulture, $"Reading highlights {done} of {unread.Count}");
             }
         });
-        LoadText = "Reading highlights";
+        if (!quiet)
+        {
+            LoadText = "Reading highlights";
+        }
+
         try
         {
             await Task.Run(() =>

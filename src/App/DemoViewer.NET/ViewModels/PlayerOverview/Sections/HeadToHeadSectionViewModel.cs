@@ -23,6 +23,9 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
     private readonly PlayerOverviewServices _services;
     private PlayerOverviewContext? _context;
     private int _load;
+    // The kills last read and the pair they were read for: a re-read for the same pair shows them meanwhile.
+    private (ulong Subject, ulong Opponent)? _pair;
+    private IReadOnlyDictionary<string, IReadOnlyList<PlayerKill>> _kills = new Dictionary<string, IReadOnlyList<PlayerKill>>();
     private bool _updating;
 
     [ObservableProperty]
@@ -123,7 +126,13 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
 
         IReadOnlyList<PlayerMatch> against = HeadToHead.Against(context.Matches, _services.Directory.Matches(opponent.SteamId64));
         PlayerRows? stats = _services.Rows?.TryGet(player.SteamId64);
-        Show(player.SteamId64, opponent.SteamId64, against, stats, new Dictionary<string, IReadOnlyList<PlayerKill>>(), reading: true);
+        if (_pair != (player.SteamId64, opponent.SteamId64))
+        {
+            _pair = null;
+            _kills = new Dictionary<string, IReadOnlyList<PlayerKill>>();
+        }
+
+        Show(player.SteamId64, opponent.SteamId64, against, stats, _kills, reading: _pair is null);
         Loading = LoadAsync(player.SteamId64, opponent.SteamId64, against, stats, load);
     }
 
@@ -150,6 +159,8 @@ public sealed partial class HeadToHeadSectionViewModel : PlayerOverviewSection
 
         if (_load == load)
         {
+            _pair = (subject, opponent);
+            _kills = kills;
             Show(subject, opponent, against, stats, kills, reading: false);
         }
     }

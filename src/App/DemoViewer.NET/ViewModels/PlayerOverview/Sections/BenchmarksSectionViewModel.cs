@@ -152,8 +152,10 @@ public sealed partial class BenchmarksSectionViewModel : PlayerOverviewSection
         LibraryRows? library = rows.TryGetLibrary();
         PlayerRankCache? rankCache = request.Band is null ? null : _services.Ranks;
         LibraryRanks? ranks = rankCache?.TryGetLibrary();
+        // Rows already on show stay while a demo the queue finished is pooled in; only a first read says so.
+        bool quiet = Rows.Count > 0;
         object gate = new();
-        bool reading = true;
+        bool reading = !quiet;
         Progress<PlayerRowsProgress> progress = new(p =>
         {
             lock (gate)
@@ -164,7 +166,7 @@ public sealed partial class BenchmarksSectionViewModel : PlayerOverviewSection
                 }
             }
         });
-        if (library is null || (rankCache is not null && ranks is null))
+        if (!quiet && (library is null || (rankCache is not null && ranks is null)))
         {
             LoadText = library is null ? "Reading library stats" : "Reading ranks";
         }

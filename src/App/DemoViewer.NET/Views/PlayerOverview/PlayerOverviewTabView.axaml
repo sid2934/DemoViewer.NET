@@ -148,10 +148,6 @@
                         </DockPanel>
                     </Border>
 
-                    <!-- ── The subject's facets are being read off the UI thread; the panels fill in after. ── -->
-                    <TextBlock Text="{Binding ReadText}" IsVisible="{Binding IsReadingStats}" x:Name="ReadProgress"
-                               FontSize="11.5" Foreground="{DynamicResource TextMid}" />
-
                     <Grid ColumnDefinitions="1.3*,20,*" RowDefinitions="Auto,Auto" RowSpacing="14">
                         <ItemsControl Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="{Binding MainColumnSpan}"
                                       ItemsSource="{Binding MainSections}">

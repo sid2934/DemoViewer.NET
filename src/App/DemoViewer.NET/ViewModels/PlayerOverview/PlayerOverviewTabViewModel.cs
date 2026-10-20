@@ -90,10 +90,9 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
     [NotifyPropertyChangedFor(nameof(HasSearchMessage))]
     private string _searchMessage = "";
 
-    /// <summary>"Reading stats 12 of 340" while the subject's facets are being read, else empty.</summary>
+    /// <summary>True while the subject's facets are read for the first time; a later re-read refreshes in place.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsReadingStats))]
-    private string _readText = "";
+    private bool _isReadingStats;
 
     /// <summary>What the page can show for its subject.</summary>
     [ObservableProperty]
@@ -132,9 +131,6 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
     /// <summary>The filter bar every section's window follows.</summary>
     public PlayerOverviewFilterViewModel Filter { get; }
-
-    /// <summary>True while the subject's facets are being read.</summary>
-    public bool IsReadingStats => ReadText.Length > 0;
 
     /// <summary>The latest read of the subject's facets and records; completed when nothing is being read.</summary>
     internal Task Loading { get; private set; } = Task.CompletedTask;
@@ -497,15 +493,15 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
             }
         }
 
+        // A demo finishing in the background drops the subject from the caches; the stats read before stay on
+        // show while the re-read runs, so the page does not flash a loading state for every demo the queue does.
+        bool firstRead = reading && _rows is null;
         PlayerOverviewContext context = Compose(new PlayerOverviewContext(_subject, player, matches, withStats, _subjectWasMine,
-            _services, [], Filter.Filter, [], reading, _ranks, ranking));
+            _services, [], Filter.Filter, [], firstRead, _ranks, ranking && _ranks is null));
         RebuildMeAccounts();
         ApplyState(context);
         Show(context);
-        if (!reading)
-        {
-            ReadText = "";
-        }
+        IsReadingStats = firstRead;
 
         Task stats = reading ? LoadAsync(cache!, player!.SteamId64, load) : Task.CompletedTask;
         Task records = ranking ? LoadRanksAsync(ranks!, player!.SteamId64, load) : Task.CompletedTask;
@@ -514,33 +510,14 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
     private async Task LoadAsync(PlayerRowCache cache, ulong steamId64, int load)
     {
-        // Without a synchronization context a report is posted to the pool and can land after the read ends.
-        object gate = new();
-        bool reading = true;
-        Progress<PlayerRowsProgress> progress = new(p =>
-        {
-            lock (gate)
-            {
-                if (reading && _load == load && p.Total > 0)
-                {
-                    ReadText = string.Create(CultureInfo.InvariantCulture, $"Reading stats {p.Done} of {p.Total}");
-                }
-            }
-        });
-        ReadText = "Reading stats";
         PlayerRows? rows = null;
         try
         {
-            rows = await cache.LoadAsync(steamId64, progress);
+            rows = await cache.LoadAsync(steamId64);
         }
         catch (Exception)
         {
             // A sidecar that will not read leaves its demo "stats not read"; the next refresh tries again.
-        }
-
-        lock (gate)
-        {
-            reading = false;
         }
 
         if (_load != load || _disposed || _context is not { } context)
@@ -549,7 +526,7 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         }
 
         _rows = rows ?? _rows;
-        ReadText = "";
+        IsReadingStats = false;
         Show(Compose(context with { IsReadingStats = false }));
     }
 
@@ -654,13 +631,13 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
         else if (_queue is { IsPaused: true })
         {
             state = PlayerOverviewState.Paused;
-            Title = string.Create(CultureInfo.InvariantCulture, $"Stats for {context.WithStats} of {Demos(total)}");
+            Title = StatsFor(context.WithStats, total, pending);
             Detail = "Background processing is paused; the rest are computed when it resumes.";
         }
         else
         {
             state = PlayerOverviewState.Computing;
-            Title = string.Create(CultureInfo.InvariantCulture, $"Stats for {context.WithStats} of {Demos(total)}");
+            Title = StatsFor(context.WithStats, total, pending);
             Detail = "The library is computing the rest.";
             int inQueue = _queue is null ? 0 : _queue.QueuedCount + _queue.RunningCount;
             if (inQueue > 0)
@@ -685,6 +662,9 @@ public sealed partial class PlayerOverviewTabViewModel : ViewModelBase, IWorkspa
 
         OnPropertyChanged(nameof(HasMeAccounts));
     }
+
+    private static string StatsFor(int withStats, int total, int pending) =>
+        string.Create(CultureInfo.InvariantCulture, $"Stats for {withStats} of {Demos(total)} · {pending} remaining");
 
     private static string Demos(int count) => count == 1 ? "1 demo" : string.Create(CultureInfo.InvariantCulture, $"{count} demos");
 

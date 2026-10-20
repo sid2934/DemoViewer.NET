@@ -251,7 +251,6 @@ public class PlayerOverviewFilterTests
         using (Assert.Multiple())
         {
             await Assert.That(shell.Tab.IsReadingStats).IsTrue();
-            await Assert.That(shell.Tab.ReadText).StartsWith("Reading stats");
             await Assert.That(shell.History.Rows.All(r => r.Stats == HistoryStats.Loading)).IsTrue();
             await Assert.That(Tile(shell.Summary, "HLTV")).IsEqualTo("–");
             await Assert.That(Tile(shell.Summary, "Matches")).IsEqualTo("4");
@@ -269,6 +268,35 @@ public class PlayerOverviewFilterTests
             await Assert.That(Tile(shell.Summary, "HLTV")).IsEqualTo("1.17");
             await Assert.That(shell.History.Rows.All(r => r.HasStats)).IsTrue();
         }
+    }
+
+    [Test]
+    public async Task ADemoFinishedInTheBackground_RereadsBehindTheStatsOnShow()
+    {
+        using ManualResetEventSlim gate = new(true);
+        using Shell shell = new(Library(4), path =>
+        {
+            gate.Wait(TimeSpan.FromSeconds(10));
+            return PlayerOverviewHistoryTests.Facet(int.Parse(Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture));
+        });
+        await shell.Tab.Loading;
+        string hltv = Tile(shell.Summary, "HLTV");
+
+        // The queue finishing a demo drops the subject's rows; the re-read is held open to look at the page mid-read.
+        gate.Reset();
+        shell.Store.Upsert(PlayerOverviewHistoryTests.Demo(4, true));
+        using (Assert.Multiple())
+        {
+            await Assert.That(shell.Tab.Loading.IsCompleted).IsFalse();
+            await Assert.That(shell.Tab.IsReadingStats).IsFalse();
+            await Assert.That(shell.History.Rows.Count(r => r.HasStats)).IsEqualTo(4).Because("the stats read before stay on show");
+            await Assert.That(shell.History.Rows.Any(r => r.Stats == HistoryStats.Loading)).IsFalse();
+            await Assert.That(Tile(shell.Summary, "HLTV")).IsEqualTo(hltv);
+        }
+
+        gate.Set();
+        await shell.Tab.Loading;
+        await Assert.That(shell.History.Rows.Count(r => r.HasStats)).IsEqualTo(5);
     }
 
     [Test]

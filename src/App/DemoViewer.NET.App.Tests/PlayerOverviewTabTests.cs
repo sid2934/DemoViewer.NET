@@ -376,7 +376,7 @@ public class PlayerOverviewTabTests
             using PlayerOverviewTabViewModel vm = Shown(Library(5, 2), identity, queue, opened);
 
             await Assert.That(vm.State).IsEqualTo(PlayerOverviewState.Computing);
-            await Assert.That(vm.Title).IsEqualTo("Stats for 2 of 5 demos");
+            await Assert.That(vm.Title).IsEqualTo("Stats for 2 of 5 demos · 3 remaining");
             await Assert.That(vm.Detail).IsEqualTo("The library is computing the rest.");
             await Assert.That(vm.ShowQueueChip).IsTrue();
             await Assert.That(vm.QueueText).IsEqualTo("Processing · 3 in queue");
