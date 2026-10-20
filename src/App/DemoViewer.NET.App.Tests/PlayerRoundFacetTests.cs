@@ -158,6 +158,7 @@ public class PlayerRoundFacetTests
             await Assert.That(a["CT:rounds"]).IsEqualTo(1);
             await Assert.That(a["CT:kills"]).IsEqualTo(2);
             await Assert.That(a["CT:kast"]).IsEqualTo(1);
+            await Assert.That(a["CT:survived"]).IsEqualTo(1).Because("one round survived on two slots is still one");
         }
     }
 

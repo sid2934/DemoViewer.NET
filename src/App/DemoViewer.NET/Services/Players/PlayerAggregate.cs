@@ -77,6 +77,10 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
 
     private static readonly string[] Activity = ["Shots", "TotalD", "EnemyDmg"];
 
+    // The rounds a slot's team won and lost on each side. A slot tallies every round its team finishes, not only
+    // the rounds the account held it, so two slots of one account can tally the same round.
+    private static readonly string[] TeamTally = ["CTW", "CTL", "TW", "TL"];
+
     /// <summary>The demos with stats whose facet carries line-of-sight data: the population of every sight column.</summary>
     public int WithSight { get; init; }
 
@@ -249,8 +253,10 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
     ///     The account's rows of one demo's facet as one row (<c>docs/player-match-format.md</c>). A reconnect leaves a
     ///     ghost row on the old slot, so a row counts only when it ended on a side (team 2 or 3) or shows activity
     ///     (shots, deaths or damage). Counts and sums add up; <c>rounds</c> is the match's on every row; KAST rounds
-    ///     add up to at most the match's rounds; HLTV adds up less the constant terms of each extra slot. Null when
-    ///     no row of the account counts.
+    ///     and rounds survived add up to at most the match's rounds; HLTV adds up less the constant terms of each
+    ///     extra slot. The side round tallies (<see cref="TeamTally" />) add up only while they fit in the match's
+    ///     rounds; past that two slots tallied the same rounds, and the slot with the most shots keeps its four.
+    ///     Null when no row of the account counts.
     /// </summary>
     /// <param name="rows">The facet table's rows.</param>
     /// <param name="steamId64">The account.</param>
@@ -261,6 +267,7 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
         Dictionary<string, double>? merged = null;
         int slots = 0;
         double kastRounds = 0, kastPercents = 0;
+        FactRow? busiest = null;
         foreach (FactRow row in rows)
         {
             if (!string.Equals(row.Dimensions.GetValueOrDefault("steam_id")?.AsText(), id, StringComparison.Ordinal)
@@ -280,6 +287,11 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
                     : merged.GetValueOrDefault(column) + value;
             }
 
+            if (busiest is null || Number(row, "Shots") > Number(busiest, "Shots"))
+            {
+                busiest = row;
+            }
+
             double kast = row.Values.GetValueOrDefault("KAST%")?.AsNumber() ?? 0;
             kastPercents += kast;
             kastRounds += kast * (row.Values.GetValueOrDefault(ColumnRules.Rounds)?.AsNumber() ?? 0) / 100;
@@ -291,9 +303,24 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
         }
 
         double rounds = merged.GetValueOrDefault(ColumnRules.Rounds);
-        double kastPercent = rounds == 0 ? 0 : Math.Min(kastRounds, rounds) / rounds * 100;
+        if (TeamTally.Sum(c => merged.GetValueOrDefault(c)) > rounds)
+        {
+            foreach (string column in TeamTally)
+            {
+                merged[column] = Number(busiest!, column);
+            }
+        }
+
+        if (merged.TryGetValue("Survived", out double survived))
+        {
+            merged["Survived"] = Math.Min(survived, rounds);
+        }
+
+        double kastPercent =rounds == 0 ? 0 : Math.Min(kastRounds, rounds) / rounds * 100;
         merged["KAST%"] = kastPercent;
         merged["HLTV"] = merged.GetValueOrDefault("HLTV") - ((slots - 1) * HltvConstant) - ((kastPercents - kastPercent) * HltvPerKastPercent);
         return merged;
     }
+
+    private static double Number(FactRow row, string column) => row.Values.GetValueOrDefault(column)?.AsNumber() ?? 0;
 }

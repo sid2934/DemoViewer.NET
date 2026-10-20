@@ -193,6 +193,34 @@ public class PlayerAggregateTests
     }
 
     [Test]
+    public async Task TwoSlotsOfOneAccount_TallyTheirTeamsRoundsOnce()
+    {
+        // Both slots tallied all 24 rounds: the team's 9 + 4 wins and 2 + 9 losses each.
+        Dictionary<string, double> first = Cells(24, 13, 13, 2, 1400, 16, 9, 9);
+        Dictionary<string, double> second = Cells(24, 3, 22, 1, 400, 22, 9, 9);
+        foreach (Dictionary<string, double> slot in (Dictionary<string, double>[]) [first, second])
+        {
+            slot["CTL"] = 2;
+            slot["TW"] = 4;
+        }
+
+        first["Survived"] = 13;
+        second["Survived"] = 17;
+
+        IReadOnlyDictionary<string, double> both = PlayerAggregate.Merge([Facet(7, Grim, 2, first), Facet(8, Grim, 2, second)], Grim)!;
+        IReadOnlyDictionary<string, double> halves = PlayerAggregate.Merge(
+            [Facet(7, Grim, 2, Cells(24, 5, 5, 0, 500, 5, 3, 4)), Facet(8, Grim, 2, Cells(24, 9, 9, 0, 900, 9, 9, 8))], Grim)!;
+        using (Assert.Multiple())
+        {
+            await Assert.That((both["CTW"], both["CTL"], both["TW"], both["TL"])).IsEqualTo((9d, 2d, 4d, 9d))
+                .Because("a round is won or lost once however many slots tallied it");
+            await Assert.That(both["TotalK"]).IsEqualTo(16).Because("kills are the slot's own and still add up");
+            await Assert.That(both["Survived"]).IsEqualTo(24).Because("no account survives more rounds than the match has");
+            await Assert.That((halves["CTW"], halves["TL"])).IsEqualTo((12d, 12d)).Because("slots that split the rounds add up");
+        }
+    }
+
+    [Test]
     public async Task Outcome_IsTheAccountsRoundWinsAgainstItsLosses()
     {
         Dictionary<string, double> won = Cells(24, 1, 1, 0, 1, 1, 13, 11);

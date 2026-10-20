@@ -41,7 +41,7 @@ public static class PlayerRoundFacet
     ///     Every account's rounds summed by side: <c>rounds</c> and each of <see cref="Counts" /> under
     ///     <see cref="Column" />. A round counts on the side the account's slot was on at its freeze end; a row on
     ///     no side (the slot was empty or spectating) counts nowhere. A reconnect splits an account over slots, so
-    ///     its rows are summed, a round counts once per side, and KAST holds when any slot had it.
+    ///     its rows are summed, a round counts once per side, and survival and KAST hold when any slot had them.
     /// </summary>
     /// <param name="rows">The table's rows.</param>
     public static Dictionary<ulong, Dictionary<string, double>> Sides(IReadOnlyList<FactRow> rows)
@@ -72,7 +72,7 @@ public static class PlayerRoundFacet
             foreach (string count in Counts)
             {
                 double value = Number(row.Values.GetValueOrDefault(count));
-                line[count] = count == "kast" ? Math.Max(line.GetValueOrDefault(count), value > 0 ? 1 : 0) : line.GetValueOrDefault(count) + value;
+                line[count] = count is "kast" or "survived" ? Math.Max(line.GetValueOrDefault(count), value > 0 ? 1 : 0) : line.GetValueOrDefault(count) + value;
             }
         }
 

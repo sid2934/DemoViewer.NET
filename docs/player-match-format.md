@@ -55,9 +55,11 @@ re-extracting `rules/` leaves it alone; `PlayerMatchParityRealDemoTests` must pa
 A reconnecting account leaves a ghost row on its old slot: its real `steam_id`, zero kills, deaths, damage
 and shots, and junk survival and KAST (a ghost is alive every round). Merge rows per `steam_id` only when
 `team` is 2 or 3 or the row shows activity (`Shots`, `TotalD` or `EnemyDmg` above zero); drop the rest.
-`PlayerAggregate.Merge` does this: counts and sums add, `rounds` is the same on every row, KAST rounds add
-up to at most `rounds`, and HLTV adds up less HLTV 2.0's constant terms once per extra slot (every other
-term is linear in a per-round count).
+`PlayerAggregate.Merge` does this: counts and sums add, `rounds` is the same on every row, KAST rounds and
+`Survived` add up to at most `rounds`, and HLTV adds up less HLTV 2.0's constant terms once per extra slot
+(every other term is linear in a per-round count). `CTW`, `CTL`, `TW` and `TL` are the slot's team's
+tallies, so two slots can both tally a round: they add up while they fit in `rounds`, and past that the
+slot with the most `Shots` keeps its four.
 
 ## Columns
 
