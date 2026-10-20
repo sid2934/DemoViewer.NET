@@ -139,7 +139,7 @@ public sealed class NewestMatchFirst : IComparer<DemoCacheIndexEntry>
             return x is null ? 1 : -1;
         }
 
-        int byTime = TimeOf(y).CompareTo(TimeOf(x));
+        int byTime = UtcTicksOf(y).CompareTo(UtcTicksOf(x));
         if (byTime != 0)
         {
             return byTime;
@@ -149,7 +149,22 @@ public sealed class NewestMatchFirst : IComparer<DemoCacheIndexEntry>
         return byReservation != 0 ? byReservation : StringComparer.Ordinal.Compare(x.Path, y.Path);
     }
 
-    private static long TimeOf(DemoCacheIndexEntry entry) => entry.MatchTimeUtcTicks ?? entry.ModifiedTicks;
+    /// <summary>
+    ///     A row's match time, else its file's write time, as UTC ticks. The write time is in the library's local
+    ///     convention, so it is converted: a filter, a sort or a date mixing the two would be off by the UTC offset.
+    /// </summary>
+    /// <param name="entry">An index row.</param>
+    public static long UtcTicksOf(DemoCacheIndexEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        if (entry.MatchTimeUtcTicks is { } utc)
+        {
+            return utc;
+        }
+
+        long local = entry.ModifiedTicks;
+        return local <= 0 || local > DateTime.MaxValue.Ticks ? local : new DateTime(local, DateTimeKind.Local).ToUniversalTime().Ticks;
+    }
 
     private static ulong ReservationOf(DemoCacheIndexEntry entry) =>
         ulong.TryParse(entry.ReservationId, out ulong id) ? id : 0;

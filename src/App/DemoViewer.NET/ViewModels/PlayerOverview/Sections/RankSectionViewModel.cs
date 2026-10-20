@@ -350,9 +350,7 @@ internal static class RankDisplay
             return "unknown date";
         }
 
-        DateTime time = match.Row.MatchTimeUtcTicks is null
-            ? new DateTime(ticks, DateTimeKind.Local)
-            : new DateTime(ticks, DateTimeKind.Utc).ToLocalTime();
+        DateTime time = new DateTime(ticks, DateTimeKind.Utc).ToLocalTime();
         return time.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     }
 }

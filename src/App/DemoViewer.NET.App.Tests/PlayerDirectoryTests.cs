@@ -248,6 +248,31 @@ public class PlayerDirectoryTests
     }
 
     [Test]
+    public async Task ADemoWithNoMatchTime_IsTimedByItsWriteTimeInUtc()
+    {
+        // The write time is stored in local ticks; an hour after the other demo's UTC match time is newer in any zone.
+        long played = 100 * Day;
+        long written = played + TimeSpan.TicksPerHour;
+        DemoCacheStore store = new(null);
+        store.Upsert(Demo("/d/played.dem", played, players: Player(1, "grim", Grim, 3)));
+        DemoCacheRecord unread = Demo("/d/written.dem", 0, players: Player(1, "grim", Grim, 3));
+        unread.MatchMeta = null;
+        unread.ModifiedTicks = new DateTime(written, DateTimeKind.Utc).ToLocalTime().Ticks;
+        store.Upsert(unread);
+        PlayerDirectory directory = new(store);
+
+        IReadOnlyList<PlayerMatch> matches = directory.Matches(Grim);
+        using (Assert.Multiple())
+        {
+            await Assert.That(matches.Select(m => m.Row.Path)).IsEquivalentTo(["/d/written.dem", "/d/played.dem"], CollectionOrdering.Matching);
+            await Assert.That(matches[0].TimeTicks).IsEqualTo(written).Because("every match time is UTC, the write time converted");
+            await Assert.That(directory.Get(Grim)!.LastSeenTicks).IsEqualTo(written);
+            await Assert.That(directory.Matches(Grim, new PlayerFilter { FromTicks = played + 1 }).Select(m => m.Row.Path))
+                .IsEquivalentTo(["/d/written.dem"]);
+        }
+    }
+
+    [Test]
     public async Task Find_TakesASteamIdOrAPartOfAName()
     {
         DemoCacheStore store = new(null);

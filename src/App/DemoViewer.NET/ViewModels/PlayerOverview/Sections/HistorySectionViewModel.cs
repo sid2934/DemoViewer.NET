@@ -287,7 +287,7 @@ public sealed partial class HistoryRowItem : ObservableObject
     /// <summary>True when it lowered it.</summary>
     public bool IsRankDown { get; }
 
-    // The match time is UTC; a row the match-time pass has not reached carries the file's local write time.
+    // The match time, shown local; TimeTicks is UTC whether it is the match time or the file's write time.
     internal static string DateOf(PlayerMatch match)
     {
         long ticks = match.TimeTicks;
@@ -296,9 +296,7 @@ public sealed partial class HistoryRowItem : ObservableObject
             return None;
         }
 
-        DateTime time = match.Row.MatchTimeUtcTicks is null
-            ? new DateTime(ticks, DateTimeKind.Local)
-            : new DateTime(ticks, DateTimeKind.Utc).ToLocalTime();
+        DateTime time = new DateTime(ticks, DateTimeKind.Utc).ToLocalTime();
         return time.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
     }
 

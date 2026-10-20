@@ -194,7 +194,7 @@ public sealed class PlayerDirectory
         return new Projection(accounts, players, demoCount);
     }
 
-    private static long TimeOf(DemoCacheIndexEntry row) => row.MatchTimeUtcTicks ?? row.ModifiedTicks;
+    private static long TimeOf(DemoCacheIndexEntry row) => NewestMatchFirst.UtcTicksOf(row);
 
     // An id the row cannot carry as a number is not a SteamID64, and 0 is no account.
     private static ulong? IdOf(string steamId64) =>

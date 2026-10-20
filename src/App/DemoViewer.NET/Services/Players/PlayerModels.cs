@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.MatchMeta;
 
 #endregion
 
@@ -36,8 +37,8 @@ public sealed record PlayerEntry(ulong SteamId64, IReadOnlyList<PlayerAlias> Ali
 /// </param>
 public sealed record PlayerMatch(DemoCacheIndexEntry Row, int? Side, IReadOnlyList<string> Names, IReadOnlyList<int> Slots, bool LeftEarly)
 {
-    /// <summary>What history sorts by: the match time, else the file's write time (<see cref="MatchMeta.NewestMatchFirst" />).</summary>
-    public long TimeTicks => Row.MatchTimeUtcTicks ?? Row.ModifiedTicks;
+    /// <summary>What history sorts by, as UTC ticks: the match time, else the file's write time (<see cref="NewestMatchFirst.UtcTicksOf" />).</summary>
+    public long TimeTicks => NewestMatchFirst.UtcTicksOf(Row);
 }
 
 /// <summary>Which of an account's demos <see cref="PlayerDirectory.Matches" /> returns. Every member left null passes all.</summary>
