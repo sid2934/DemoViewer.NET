@@ -159,7 +159,7 @@ public static class CachedRoundExtensions
     }
 }
 
-/// <summary>One scoreboard row, from the analysis engine's own per-player table.</summary>
+/// <summary>One scoreboard row: Match Overview's projection of a <c>player_match</c> row.</summary>
 public sealed class CachedStatRow
 {
     public int Slot { get; set; }
@@ -312,10 +312,17 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
 
     public DemoAnalysisState AnalysisState { get; set; } = DemoAnalysisState.Pending;
 
+    /// <summary>
+    ///     The scoreboard earlier versions stored from an open or a forced scan. Nothing writes it now: Match Overview
+    ///     projects the <c>player_match</c> facet and reads this only for a demo that has none.
+    /// </summary>
     public List<CachedStatRow> Scoreboard { get; set; } = [];
     public List<CachedHighlightEvent> Highlights { get; set; } = [];
 
-    /// <summary>Rounds won by the CT SIDE across the match, or null when the run could not resolve it.</summary>
+    /// <summary>
+    ///     Rounds won by the CT SIDE across the match, or null when the run could not resolve it. The facts pass sets
+    ///     it from the <c>player_match</c> facet.
+    /// </summary>
     public int? CtSideWins { get; set; }
 
     /// <summary>Rounds won by the T SIDE across the match, or null when the run could not resolve it.</summary>

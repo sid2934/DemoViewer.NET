@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
@@ -476,7 +477,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     <para>
     ///         Never offered on a LIVE page: the open is already harvesting this demo's highlights, so the
     ///         button would sit under "Harvesting highlights…" contradicting it, and pressing it would queue a
-    ///         second full pass: a whole redundant parse plus snapshot analysis, through a gate that allows
+    ///         second full pass: a whole redundant parse plus analysis, through a gate that allows
     ///         one heavy job machine-wide. Once the harvest lands the section speaks for itself; if the demo
     ///         genuinely fired nothing, re-running would produce the same nothing.
     ///     </para>
@@ -789,7 +790,8 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// </summary>
     /// <param name="subjectKey">The open's identity; a mismatch means this seed is for a previous open.</param>
     /// <param name="record">The demo's cache record, at whatever tier it has reached.</param>
-    public void SeedFromCache(string? subjectKey, DemoCacheRecord record)
+    /// <param name="facet">The demo's <c>player_match</c> table, or null when none is written.</param>
+    public void SeedFromCache(string? subjectKey, DemoCacheRecord record, FactTable? facet = null)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -870,13 +872,14 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         }
 
         bool scannerRan = record.Analysis.IsPresent && record.AnalysisState == DemoAnalysisState.Indexed;
-        if (record.Scoreboard.Count > 0)
+        CachedScoreboard scoreboard = CachedScoreboard.Of(record, facet);
+        if (scoreboard.Rows.Count > 0)
         {
-            _analysisSideCt = record.CtSideWins;
-            _analysisSideT = record.TSideWins;
-            _analysisRounds = record.AnalysisRoundCount;
+            _analysisSideCt = scoreboard.CtSideWins;
+            _analysisSideT = scoreboard.TSideWins;
+            _analysisRounds = scoreboard.Rounds;
             PlayerStats.Clear();
-            FillCachedScoreboard(record);
+            FillCachedScoreboard(record, scoreboard.Rows);
             PlayerStatsMessage = string.Empty;
             HasAnalysis = PlayerStats.Count > 0;
         }
@@ -1258,7 +1261,8 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     </para>
     /// </summary>
     /// <param name="record">The demo's cache record, at whatever tier it has reached.</param>
-    public void SetCachedRecord(DemoCacheRecord record)
+    /// <param name="facet">The demo's <c>player_match</c> table, or null when none is written.</param>
+    public void SetCachedRecord(DemoCacheRecord record, FactTable? facet = null)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -1336,12 +1340,10 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
         // TIER 3 IS TWO FACTS, NOT ONE. Conflating them made the page contradict itself.
         //
-        // Highlights and the scoreboard have different producers. The highlights scan runs the rules engine in
-        // BARE mode (AnalysisOptions.CaptureSnapshots = false) because that is what makes a library-wide sweep
-        // affordable; the scoreboard is projected from the final snapshot vector, which bare mode does not
-        // produce at all. So "this demo has been scanned" and "this demo has stats" are genuinely independent,
-        // and a demo can legitimately sit with real highlights and no scoreboard for as long as the user never
-        // asks for stats.
+        // Highlights and the scoreboard have different producers. The highlights scan stamps the record; the
+        // scoreboard is projected from the player_match facet, which the facts pass writes under its own stamp.
+        // So "this demo has been scanned" and "this demo has stats" are genuinely independent, and a demo can
+        // legitimately sit with real highlights and no scoreboard until the facts pass reaches it.
         //
         // Reading both off one flag meant a scanned demo rendered a FULL chip directly above "Analysis produced
         // no per-player stats for this demo." That's on the same screen, about the same demo. A page whose whole job
@@ -1349,18 +1351,19 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         // Each half is read off ITS OWN evidence, not off a shared flag. AnalysisState belongs to the
         // highlights scan's lifecycle (the scanner owns it); the scoreboard's evidence is simply that rows
         // exist, because its producer is a different pass that never touches that field. Deriving the
-        // scoreboard from AnalysisState would hide a real scoreboard on a demo that has only ever been
-        // opened, and deriving highlights from row count would call a scan "done" before it had run.
+        // scoreboard from AnalysisState would hide a real scoreboard on a demo whose scan has not run, and
+        // deriving highlights from row count would call a scan "done" before it had run.
         bool scannerRan = record.Analysis.IsPresent && record.AnalysisState == DemoAnalysisState.Indexed;
-        bool hasScoreboard = record.Scoreboard.Count > 0;
+        CachedScoreboard scoreboard = CachedScoreboard.Of(record, facet);
+        bool hasScoreboard = scoreboard.Rows.Count > 0;
         HasAnalysis = hasScoreboard;
 
         if (hasScoreboard)
         {
-            _analysisSideCt = record.CtSideWins;
-            _analysisSideT = record.TSideWins;
-            _analysisRounds = record.AnalysisRoundCount;
-            FillCachedScoreboard(record);
+            _analysisSideCt = scoreboard.CtSideWins;
+            _analysisSideT = scoreboard.TSideWins;
+            _analysisRounds = scoreboard.Rounds;
+            FillCachedScoreboard(record, scoreboard.Rows);
         }
 
         // Runs in BOTH branches: it is what derives RoundCountDisplay from the score when the analysis round
@@ -1382,14 +1385,14 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                 ? "The last analysis pass failed for this demo."
                 : "Player stats need a full analysis pass.";
 
-        Completeness = ClassifyCached(record);
+        Completeness = ClassifyCached(record, hasScoreboard);
         RaiseCompletenessChanged();
         RaiseCtaChanged();
     }
 
     // The scoreboard, joined against the roster by SLOT: the unified record stores stat rows by slot rather
     // than repeating a name on every row, so the name comes from the one place that owns it.
-    private void FillCachedScoreboard(DemoCacheRecord record)
+    private void FillCachedScoreboard(DemoCacheRecord record, IReadOnlyList<CachedStatRow> scoreboard)
     {
         Dictionary<int, CachedPlayerInfo> bySlot = [];
         foreach (CachedPlayerInfo p in record.Players)
@@ -1397,7 +1400,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
             bySlot.TryAdd(p.Slot, p);
         }
 
-        IEnumerable<OverviewStatRow> rows = record.Scoreboard
+        IEnumerable<OverviewStatRow> rows = scoreboard
             .Select(r => new OverviewStatRow(
                 bySlot.TryGetValue(r.Slot, out CachedPlayerInfo? p) ? DisplayText.Sanitize(p.Name) : string.Empty,
                 r.Team,
@@ -1470,16 +1473,33 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     // stats half would still be reading "needs a full analysis pass" on a highlights-only record, and the
     // chip's own action IS "Compute full stats". Claiming Full there would both contradict the section
     // beneath it and retire the one button that fixes it. See the two-facts note in SetCachedRecord.
-    private static OverviewCompleteness ClassifyCached(DemoCacheRecord record) =>
+    private static OverviewCompleteness ClassifyCached(DemoCacheRecord record, bool hasScoreboard) =>
         record.AnalysisState == DemoAnalysisState.Failed
             ? OverviewCompleteness.Failed
             : record.Analysis.IsPresent
               && record.AnalysisState == DemoAnalysisState.Indexed
-              && record.Scoreboard.Count > 0
+              && hasScoreboard
                 ? OverviewCompleteness.Full
                 : record.Parse.IsPresent
                     ? OverviewCompleteness.Indexed
                     : OverviewCompleteness.NotIndexed;
+
+    // The scoreboard a cached render shows: the facet's when the demo has one, else the rows an earlier version
+    // stored on the record, with the side split and round count from the same source so the reconcile never
+    // mixes the two.
+    private readonly record struct CachedScoreboard(IReadOnlyList<CachedStatRow> Rows, int? CtSideWins, int? TSideWins, int Rounds)
+    {
+        public static CachedScoreboard Of(DemoCacheRecord record, FactTable? facet)
+        {
+            if (facet is not null && DemoCacheAnalysisProjector.ProjectScoreboard(facet) is { Count: > 0 } rows)
+            {
+                (int? ct, int? t) = DemoCacheAnalysisProjector.ComputeSideWins(rows);
+                return new CachedScoreboard(rows, ct, t, DemoCacheAnalysisProjector.Rounds(facet));
+            }
+
+            return new CachedScoreboard(record.Scoreboard, record.CtSideWins, record.TSideWins, record.AnalysisRoundCount);
+        }
+    }
 
     // [ + ] / [ ✓ ]: the Match Overview end of the cross-demo clip tray. A single toggle rather than two
     // buttons: the row already renders its staged state, so the second press is unmistakably "undo that".

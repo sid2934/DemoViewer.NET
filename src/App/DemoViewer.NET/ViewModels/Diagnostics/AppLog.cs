@@ -93,10 +93,6 @@ internal static partial class AppLog
         Message = "Closed demo — released parse state and compacted the heap")]
     public static partial void DemoClosed(ILogger logger);
 
-    [LoggerMessage(EventId = 5, Level = LogLevel.Warning,
-        Message = "Could not write the analysis cache for '{path}'")]
-    public static partial void CacheWriteFailed(ILogger logger, string path, Exception exception);
-
     // v0.6.0: the four user-relevant events that used to go to Console.WriteLine (invisible in a
     // windowed Release build) now land in the Diagnostics tab + rolling file like everything else.
 

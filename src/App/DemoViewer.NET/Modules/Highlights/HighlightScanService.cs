@@ -188,24 +188,15 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
         bool processed = false;
         try
         {
-            // A demo the user explicitly asked about runs the EXPENSIVE mode; the background sweep never
-            // does. That split is what lets "Compute full stats" mean what it says: the scoreboard is
-            // projected from snapshot vectors, which the bare run does not produce at all, so a forced scan
-            // that stayed bare would deliver highlights and quietly leave the stats half of the page reading
-            // "needs a full analysis pass", with the button that supposedly fixes it having just run.
             bool forced;
             lock (_lifecycle)
             {
                 forced = _forcedPaths.Contains(path);
             }
 
-            // A FORCED request runs even when the row is no longer Pending.
-            //
-            // The skip below exists so a demo another channel already refreshed does not burn a queue slot
-            // being re-scanned: sound while every run was equivalent, and WRONG the moment bare and full
-            // stopped being the same thing. The user's press would then be silently consumed: the row reads
-            // Indexed, this returns early, `finally` clears the forced flag, and they get highlights with no
-            // scoreboard and no indication anything was skipped.
+            // A FORCED request runs even when the row is no longer Pending: the user asked for this demo, and a
+            // press silently consumed because another channel refreshed the row first reads as a button that
+            // does nothing.
             if (!forced && !NeedsScan(path))
             {
                 return;
@@ -213,28 +204,13 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
 
             processed = true;
 
-            AnalysisRun? run = null;
-            IReadOnlyList<HighlightFired>? harvested;
-            if (_processorOverride is not null)
-            {
-                harvested = _processorOverride(path, parsed);
-            }
-            else
-            {
-                run = forced ? _harvester.RunFullAnalysis(parsed) : _harvester.RunBareAnalysis(parsed, path);
-                harvested = run.Highlights;
-            }
+            IReadOnlyList<HighlightFired>? harvested = _processorOverride is not null
+                ? _processorOverride(path, parsed)
+                : _harvester.RunBareAnalysis(parsed, path).Highlights;
 
             if (harvested is not null)
             {
                 WriteHarvest(path, HarvestFacts.From(parsed), harvested);
-
-                // Only when the run actually carried snapshots: a harvester that does not implement the full
-                // mode falls back to the bare run, which never produces snapshots, so having no scoreboard there is correct.
-                if (run?.Snapshots is not null)
-                {
-                    WriteScoreboardFromRun(path, run, parsed);
-                }
             }
             else
             {
@@ -266,7 +242,7 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     {
         lock (_lifecycle)
         {
-            // A forced scan runs with snapshots, which only the retained parse can feed.
+            // A forced scan runs on the retained parse, where Evaluate honours the force.
             return _forcedPaths.Contains(path) ? null : ForwardNeeds.Rules;
         }
     }
@@ -615,50 +591,8 @@ public sealed class HighlightScanService : IDisposable, IDemoEvaluator
     }
 
     /// <summary>
-    ///     Stores the SCOREBOARD half of tier 3 from a snapshot-bearing run, the other producer being a real
-    ///     interactive open, which gets its table for free. Same projection either way, so a demo's stats do
-    ///     not depend on which route computed them.
-    /// </summary>
-    private void WriteScoreboardFromRun(string path, AnalysisRun run, ParsedDemo parsed)
-    {
-        if (_demoCache is null || run.Snapshots is null)
-        {
-            return;
-        }
-
-        MetricTable table = new PlayerGameStatsProjector
-        {
-            MatchId = Path.GetFileName(path)
-        }.Project(run.Snapshots, parsed).Single();
-
-        List<CachedStatRow> rows = DemoCacheAnalysisProjector.ProjectScoreboard(table);
-        if (rows.Count == 0)
-        {
-            // Not a scoreboard. Writing an empty list would stamp the tier and let the page read FULL off a
-            // record with nothing in it.
-            return;
-        }
-
-        (int? ctSide, int? tSide) = DemoCacheAnalysisProjector.ComputeSideWins(table);
-        int rounds = _demoCache.TryLoadRecord(path)?.Rounds.Count ?? 0;
-
-        _demoCache.UpdateExisting(path, record =>
-        {
-            record.Scoreboard = rows;
-            record.CtSideWins = ctSide;
-            record.TSideWins = tSide;
-            if (rounds > 0)
-            {
-                record.AnalysisRoundCount = rounds;
-            }
-
-            DemoCacheStore.StampAnalysis(record);
-        });
-    }
-
-    /// <summary>
-    ///     Writes a completed harvest into the demo's tier 3: the highlights half. The scoreboard half comes
-    ///     from a snapshot-bearing run (<see cref="WriteScoreboardFromRun" />) or from a real interactive open.
+    ///     Writes a completed harvest into the demo's tier 3: the highlights half. The scoreboard half is the
+    ///     <c>player_match</c> facet, which the facts pass writes on the same visit.
     ///     <para>
     ///         This is step 4's absorption finished: the scanner used to write <c>highlights.json</c> and
     ///         mirror into the unified record, which meant two sources of truth for one fact and a whole class
