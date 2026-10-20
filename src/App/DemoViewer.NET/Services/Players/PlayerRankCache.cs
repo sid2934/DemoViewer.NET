@@ -34,6 +34,14 @@ public sealed record PlayerRanks(ulong SteamId64, long IndexVersion, IReadOnlyLi
     }
 }
 
+/// <summary>Every account's latest rank, as <see cref="PlayerRankCache.LoadLibraryAsync" /> last filled them.</summary>
+/// <param name="IndexVersion">The index version the ranks were filled at.</param>
+/// <param name="Premier">
+///     Each account's CS Rating after its newest Premier demo that carries one; an account with no rated Premier
+///     demo is absent.
+/// </param>
+public sealed record LibraryRanks(long IndexVersion, IReadOnlyDictionary<ulong, int> Premier);
+
 /// <summary>One demo of an account with the account's rank row in it.</summary>
 /// <param name="Match">The demo.</param>
 /// <param name="Rank">The account's row from <see cref="DemoMatchMeta.Players" />; null when the demo carries no rank for it.</param>
@@ -43,17 +51,24 @@ public sealed record PlayerRank(PlayerMatch Match, MatchRankRow? Rank);
 ///     The rank rows of the accounts the Player Overview shows. The rows stay on each demo's record, not its index
 ///     row, so a fill reads one sidecar per demo; a demo's row is kept under its content id and its
 ///     <c>matchrank</c> stamp, so after the index moves only the demos whose rank was written since, or that are
-///     new to the account, are read again. The last few accounts are kept.
+///     new to the account, are read again. The last few accounts are kept. The library read
+///     (<see cref="LoadLibraryAsync" />) reads each demo once for every account in it, kept the same way.
 /// </summary>
 public sealed class PlayerRankCache
 {
+    /// <summary><see cref="MatchRankRow.RankType" /> of a Premier row.</summary>
+    public const int PremierRankType = 11;
+
     private const int Capacity = 4;
 
     private readonly PlayerDirectory _directory;
     private readonly object _gate = new();
+    private readonly object _libraryGate = new();
     private readonly Func<string, DemoMatchMeta?> _read;
     private readonly DemoCacheStore _store;
     private readonly LinkedList<Subject> _subjects = [];
+    private LibraryRanks? _library;
+    private Dictionary<string, LibraryEntry> _libraryEntries = new(StringComparer.Ordinal);
 
     /// <param name="store">The demo cache.</param>
     /// <param name="directory">The player directory over <paramref name="store" />.</param>
@@ -80,6 +95,20 @@ public sealed class PlayerRankCache
     /// <param name="steamId64">The account.</param>
     public Task<PlayerRanks> LoadAsync(ulong steamId64) =>
         TryGet(steamId64) is { } current ? Task.FromResult(current) : Task.Run(() => Fill(steamId64));
+
+    /// <summary>Every account's latest rank when filled at the index's current version, else null: call <see cref="LoadLibraryAsync" />.</summary>
+    public LibraryRanks? TryGetLibrary()
+    {
+        long version = _store.IndexVersion;
+        lock (_gate)
+        {
+            return _library is { } library && library.IndexVersion == version ? library : null;
+        }
+    }
+
+    /// <summary>Fills every account's latest rank off the calling thread. Returns at once when it is current.</summary>
+    public Task<LibraryRanks> LoadLibraryAsync() =>
+        TryGetLibrary() is { } current ? Task.FromResult(current) : Task.Run(FillLibrary);
 
     private Subject? Find(ulong steamId64)
     {
@@ -153,10 +182,94 @@ public sealed class PlayerRankCache
         }
     }
 
+    private LibraryRanks FillLibrary()
+    {
+        lock (_libraryGate)
+        {
+            long version = _store.IndexVersion;
+            if (TryGetLibrary() is { } current)
+            {
+                return current;
+            }
+
+            Dictionary<string, LibraryEntry> entries = new(StringComparer.Ordinal);
+            Dictionary<ulong, int> premier = [];
+            foreach (PlayerEntry player in _directory.Players)
+            {
+                // Newest first: the first rated Premier demo is the account's latest rating.
+                foreach (PlayerMatch match in _directory.Matches(player.SteamId64))
+                {
+                    string id = ContentIdOf(match.Row);
+                    if (!entries.TryGetValue(id, out LibraryEntry? entry))
+                    {
+                        PackStamp? stamp = match.Row.Stamp(MatchMetaEvaluator.StampId);
+                        if (stamp is not { State: DemoAnalysisState.Indexed })
+                        {
+                            entry = new LibraryEntry(stamp, null);
+                        }
+                        else if (!_libraryEntries.TryGetValue(id, out entry) || entry.Stamp != stamp)
+                        {
+                            entry = new LibraryEntry(stamp, PremierOf(_read(match.Row.Path)?.Players));
+                        }
+
+                        entries[id] = entry;
+                    }
+
+                    if (entry.Premier?.GetValueOrDefault(player.SteamId64) is { } rating)
+                    {
+                        premier[player.SteamId64] = rating;
+                        break;
+                    }
+                }
+            }
+
+            // A demo an earlier fill read is kept even when no account reached it this time.
+            foreach ((string id, LibraryEntry entry) in _libraryEntries)
+            {
+                entries.TryAdd(id, entry);
+            }
+
+            _libraryEntries = entries;
+            LibraryRanks library = new(version, premier);
+            lock (_gate)
+            {
+                _library = library;
+            }
+
+            return library;
+        }
+    }
+
+    // The CS Rating each account in a demo came out with, else went in with; an unranked account is absent.
+    private static Dictionary<ulong, int>? PremierOf(List<MatchRankRow>? rows)
+    {
+        if (rows is null)
+        {
+            return null;
+        }
+
+        Dictionary<ulong, int> ratings = [];
+        foreach (MatchRankRow row in rows)
+        {
+            if (row.RankType == PremierRankType
+                && RankAfter(row) is { } rating
+                && ulong.TryParse(row.SteamId64, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id))
+            {
+                ratings[id] = rating;
+            }
+        }
+
+        return ratings;
+    }
+
+    private static int? RankAfter(MatchRankRow row) => row.RankNew ?? row.RankOld;
+
     // What a demo is across copies and renames: its content hash, or its one path before it is hashed.
     internal static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
 
     private sealed record Entry(PackStamp? Stamp, MatchRankRow? Rank);
+
+    private sealed record LibraryEntry(PackStamp? Stamp, Dictionary<ulong, int>? Premier);
 
     private sealed class Subject(ulong steamId64)
     {

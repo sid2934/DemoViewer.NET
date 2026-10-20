@@ -149,24 +149,21 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
     }
 
     /// <summary>
-    ///     Every account but <paramref name="except" /> in one demo's facet, each merged by <see cref="Merge" />
-    ///     and cut to <paramref name="columns" />. An account none of whose rows counts is absent.
+    ///     Every account but <paramref name="except" /> of one demo's accounts, each merged by <see cref="Merge" />,
+    ///     cut to <paramref name="columns" />.
     /// </summary>
-    /// <param name="rows">The facet table's rows.</param>
+    /// <param name="accounts">The demo's accounts, each merged by <see cref="Merge" />.</param>
     /// <param name="except">The account left out.</param>
     /// <param name="columns">The columns kept.</param>
-    public static IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>> MergeOthers(IReadOnlyList<FactRow> rows, ulong except,
-        IReadOnlyList<string> columns)
+    public static IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>> Others(
+        IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>> accounts, ulong except, IReadOnlyList<string> columns)
     {
-        ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(accounts);
         ArgumentNullException.ThrowIfNull(columns);
-        Dictionary<ulong, IReadOnlyDictionary<string, double>> others = [];
-        HashSet<ulong> tried = [except, 0];
-        foreach (FactRow row in rows)
+        Dictionary<ulong, IReadOnlyDictionary<string, double>> others = new(accounts.Count);
+        foreach ((ulong id, IReadOnlyDictionary<string, double> merged) in accounts)
         {
-            if (!ulong.TryParse(row.Dimensions.GetValueOrDefault("steam_id")?.AsText(), NumberStyles.None, CultureInfo.InvariantCulture, out ulong id)
-                || !tried.Add(id)
-                || Merge(rows, id) is not { } merged)
+            if (id == except)
             {
                 continue;
             }

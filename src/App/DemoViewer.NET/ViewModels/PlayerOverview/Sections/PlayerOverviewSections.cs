@@ -19,8 +19,11 @@ public static class PlayerOverviewSections
         new HighlightsSectionViewModel(services),
 
         new TeammatesSectionViewModel(services),
-        new HeadToHeadSectionViewModel(services)
+        new HeadToHeadSectionViewModel(services),
 
-        // Then compare, benchmarks, aim quality.
+        // Compare goes here.
+        new BenchmarksSectionViewModel(services)
+
+        // Then aim quality.
     ];
 }

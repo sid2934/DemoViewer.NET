@@ -94,3 +94,24 @@ sides: the record is the subject's wins, losses and ties there from the `player_
 each way, the K/D between them and the headshot share of the subject's kills come from each demo's
 `player_event` facet ([`player-event-format.md`](player-event-format.md)). A demo whose `player_event` facet
 is not written yet is listed as pending and adds nothing to the counts.
+
+## Library benchmarks
+
+The benchmarks section places the subject's win rate, rating, K/D, ADR, KAST, KPR, HS% and opening-duel win
+rate among the other players in the library. The population is every account other than the subject with at
+least the chosen number of demos with stats (5 by default) among the demos that pass the subject's filter;
+each account is pooled over those demos by the rules above. With "only my Premier tier" ticked, the
+population keeps only accounts whose latest CS Rating in the library is in the subject's 5,000-wide Premier
+tier; the option shows only when the subject has a rated Premier demo. Competitive and Wingman Skill Groups
+are per map and are not used for bands.
+
+A percentile is the share of the population below the subject, a tie counting half; it is not flipped for a
+lower-is-better column, only its colour is. A key whose catalogue gate leaves an account too few attempts
+(opening duels) counts only the accounts that pass it. Fewer than 5 players give no percentiles. The line
+above the rows always names the population: "vs 214 players in your library · 5+ matches each", with the
+tier and "same filter" added when they apply.
+
+Every account's rows come from one library-wide fill of `PlayerRowCache` that reads each demo's
+`player_match` facet once, merges every account in it, and shares that read with the subject's own fill; the
+ratings come from `PlayerRankCache`'s library read of each demo's record. Both run off the UI thread, and so
+does pooling the population.
