@@ -27,7 +27,8 @@ public readonly record struct PlayerRowsProgress(int Done, int Total);
 ///     A demo's row is kept under its content id and its <c>facts:player_match</c> stamp (fingerprint, state and
 ///     write time), so after the index moves a fill reads back only the demos whose facet was written since or
 ///     that are new to the account; a facts write moves the stamp, and a re-walk under a new ruleset moves the
-///     fingerprint. The last few accounts are kept.
+///     fingerprint. Each demo also keeps the rating inputs of every other account in it, which the teammates
+///     section reads, so a teammate costs no read of their own. The last few accounts are kept.
 /// </summary>
 public sealed class PlayerRowCache
 {
@@ -124,7 +125,7 @@ public sealed class PlayerRowCache
                 PackStamp? stamp = match.Row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId));
                 if (stamp is not { State: DemoAnalysisState.Indexed })
                 {
-                    entries[id] = new Entry(stamp, false, null);
+                    entries[id] = new Entry(stamp, false, null, null);
                 }
                 else if (subject.Entries.TryGetValue(id, out Entry? held) && held.Stamp == stamp)
                 {
@@ -152,7 +153,10 @@ public sealed class PlayerRowCache
 
                 (PlayerMatch match, string id, PackStamp stamp) = toRead[i];
                 FactTable? table = _read(match.Row.Path);
-                entries[id] = new Entry(stamp, table is not null, table is null ? null : PlayerAggregate.Merge(table.Rows, steamId64));
+                entries[id] = table is null
+                    ? new Entry(stamp, false, null, null)
+                    : new Entry(stamp, true, PlayerAggregate.Merge(table.Rows, steamId64),
+                        PlayerAggregate.MergeOthers(table.Rows, steamId64, PlayerDemo.OtherColumns));
                 progress?.Report(new PlayerRowsProgress(i + 1, toRead.Count));
             }
 
@@ -161,7 +165,7 @@ public sealed class PlayerRowCache
             foreach (PlayerMatch match in matches)
             {
                 Entry entry = entries[ContentIdOf(match.Row)];
-                demos.Add(new PlayerDemo(match, entry.HasFacet, entry.Stats));
+                demos.Add(new PlayerDemo(match, entry.HasFacet, entry.Stats) { Others = entry.Others });
             }
 
             return subject.Rows = new PlayerRows(steamId64, version, demos);
@@ -171,7 +175,8 @@ public sealed class PlayerRowCache
     // What a demo is across copies and renames: its content hash, or its one path before it is hashed.
     private static string ContentIdOf(DemoCacheIndexEntry row) => string.IsNullOrEmpty(row.Sha256) ? row.Path : row.Sha256;
 
-    private sealed record Entry(PackStamp? Stamp, bool HasFacet, IReadOnlyDictionary<string, double>? Stats);
+    private sealed record Entry(PackStamp? Stamp, bool HasFacet, IReadOnlyDictionary<string, double>? Stats,
+        IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Others);
 
     private sealed class Subject(ulong steamId64)
     {

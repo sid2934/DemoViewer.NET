@@ -26,8 +26,17 @@ public enum MatchOutcome
 /// </param>
 public sealed record PlayerDemo(PlayerMatch Match, bool HasFacet, IReadOnlyDictionary<string, double>? Stats)
 {
+    /// <summary>The columns <see cref="Others" /> keeps of each account: the inputs of the pooled HLTV rating.</summary>
+    public static IReadOnlyList<string> OtherColumns { get; } = ColumnRules.For("HLTV")!.Inputs;
+
     /// <summary>Win, loss or tie by the account's own round counts; null without stats or rounds.</summary>
     public MatchOutcome? Outcome => PlayerAggregate.OutcomeOf(Stats);
+
+    /// <summary>
+    ///     Every other account of the demo's facet, its rows merged as the account's own are, by
+    ///     <see cref="OtherColumns" />; null when the facet is not read.
+    /// </summary>
+    public IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>>? Others { get; init; }
 }
 
 /// <summary>
@@ -137,6 +146,44 @@ public sealed record PlayerAggregate(int Matches, int WithStats, int Wins, int L
         double won = stats.GetValueOrDefault("CTW") + stats.GetValueOrDefault("TW");
         double lost = stats.GetValueOrDefault("CTL") + stats.GetValueOrDefault("TL");
         return won + lost == 0 ? null : won > lost ? MatchOutcome.Win : won < lost ? MatchOutcome.Loss : MatchOutcome.Tie;
+    }
+
+    /// <summary>
+    ///     Every account but <paramref name="except" /> in one demo's facet, each merged by <see cref="Merge" />
+    ///     and cut to <paramref name="columns" />. An account none of whose rows counts is absent.
+    /// </summary>
+    /// <param name="rows">The facet table's rows.</param>
+    /// <param name="except">The account left out.</param>
+    /// <param name="columns">The columns kept.</param>
+    public static IReadOnlyDictionary<ulong, IReadOnlyDictionary<string, double>> MergeOthers(IReadOnlyList<FactRow> rows, ulong except,
+        IReadOnlyList<string> columns)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        ArgumentNullException.ThrowIfNull(columns);
+        Dictionary<ulong, IReadOnlyDictionary<string, double>> others = [];
+        HashSet<ulong> tried = [except, 0];
+        foreach (FactRow row in rows)
+        {
+            if (!ulong.TryParse(row.Dimensions.GetValueOrDefault("steam_id")?.AsText(), NumberStyles.None, CultureInfo.InvariantCulture, out ulong id)
+                || !tried.Add(id)
+                || Merge(rows, id) is not { } merged)
+            {
+                continue;
+            }
+
+            Dictionary<string, double> kept = new(columns.Count, StringComparer.Ordinal);
+            foreach (string column in columns)
+            {
+                if (merged.TryGetValue(column, out double value))
+                {
+                    kept[column] = value;
+                }
+            }
+
+            others[id] = kept;
+        }
+
+        return others;
     }
 
     /// <summary>
