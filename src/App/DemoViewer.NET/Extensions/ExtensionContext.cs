@@ -12,6 +12,7 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
@@ -123,6 +124,7 @@ internal sealed class ExtensionContext : IExtensionContext
                         ?? new NotificationCenter(Post).For(_guard, CreateLogger("Notifications"));
         _keymap = new HostKeymap(() => CommandRegistry.Default.EffectiveBindings,
             () => services.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? []);
+        Identity = new HostIdentity(() => services.GetService<IdentityService>(), _guard);
         // The settings watcher raises on a thread-pool thread for an edit of the file.
         services.GetService<IOptionsMonitor<AppSettings>>()?.OnChange(_ => Post(_keymap.Refresh));
         string? version = extension.GetType().Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
@@ -168,6 +170,8 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionNotifications Notifications { get; }
 
     public IExtensionKeymap Keymap => _keymap;
+
+    public IExtensionIdentity Identity { get; }
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 

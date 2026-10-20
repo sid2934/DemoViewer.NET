@@ -19,7 +19,7 @@ namespace HelloExtension;
 ///     a pass that counts the open demo's frames and keeps the count as the demo's own data, a ruleset whose
 ///     kills table the host keeps as library facts and the tab reads back, a settings page the host renders, a
 ///     Match Overview action that greets a demo from a job on its parse and posts a notification when it is
-///     done, and a 2D Playback toolbar button and map layer.
+///     done, a 2D Playback toolbar button and map layer, and the user's active account read from the host.
 /// </summary>
 public sealed class HelloExtension : IExtension
 {
@@ -158,6 +158,8 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
         };
         _context.Settings.Changed += _ => Changed?.Invoke();
         _context.Data.Changed += _ => Changed?.Invoke();
+        // The user's accounts are the host's, edited under Settings, Identity; an extension only reads them.
+        _context.Identity.Changed += () => Changed?.Invoke();
     }
 
     /// <summary>The open demo, kept in memory so a pass can read it off the UI thread.</summary>
@@ -183,7 +185,7 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
                 ? $" ({count} frames)"
                 : "";
             string kills = _kills is { } total ? $" {total} kills." : "";
-            return $"Open demo: {open ?? "none"}{frames}.{kills} Last greeted: {Greeted ?? "nobody"}.";
+            return $"Open demo: {open ?? "none"}{frames}.{kills} Last greeted: {Greeted ?? "nobody"}. You: {_context.Identity.ActiveAccount ?? "not set"}.";
         }
     }
 
