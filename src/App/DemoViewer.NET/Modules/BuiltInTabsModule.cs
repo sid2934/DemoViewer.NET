@@ -7,6 +7,7 @@ using DemoViewer.NET.Views.EntityTracking;
 using DemoViewer.NET.Views.Library;
 using DemoViewer.NET.Views.MatchOverview;
 using DemoViewer.NET.Views.Parser;
+using DemoViewer.NET.Views.PlayerOverview;
 using DemoViewer.NET.Views.Stats;
 
 #endregion
@@ -31,6 +32,7 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
     private readonly object _diagnosticsViewModel;
     private readonly object _libraryViewModel;
     private readonly object? _matchOverviewViewModel;
+    private readonly IWorkspaceTabViewModel? _playerOverviewViewModel;
     private readonly object _shell;
     private readonly object? _statsViewModel;
 
@@ -39,14 +41,17 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
     /// <param name="libraryViewModel">The Library VM: DataContext for the demo-browser landing tab.</param>
     /// <param name="statsViewModel">The Stats VM: DataContext for the scoreboard tab; null omits the tab.</param>
     /// <param name="matchOverviewViewModel">The Match Overview VM: DataContext for the landing tab; null omits it.</param>
+    /// <param name="playerOverviewViewModel">The Player Overview VM; null omits the tab (the browser, most tests).</param>
     public BuiltInTabsModule(object shell, object diagnosticsViewModel, object libraryViewModel,
-        object? statsViewModel = null, object? matchOverviewViewModel = null)
+        object? statsViewModel = null, object? matchOverviewViewModel = null,
+        IWorkspaceTabViewModel? playerOverviewViewModel = null)
     {
         _shell = shell;
         _diagnosticsViewModel = diagnosticsViewModel;
         _libraryViewModel = libraryViewModel;
         _statsViewModel = statsViewModel;
         _matchOverviewViewModel = matchOverviewViewModel;
+        _playerOverviewViewModel = playerOverviewViewModel;
     }
 
     public string Id => "net.demoviewer.builtin";
@@ -110,6 +115,20 @@ public sealed class BuiltInTabsModule : IWorkspaceModule
                 Order = 2,
                 DataContext = _statsViewModel,
                 ViewFactory = () => new StatsTabView()
+            };
+        }
+
+        // Player Overview: one player across the library. Same Order as Stats and yielded after it, so it sits
+        // right after Stats. A factory, not a DataContext, so the tab gets OnActivated and its session blob.
+        if (_playerOverviewViewModel is not null)
+        {
+            yield return new WorkspaceTabDescriptor
+            {
+                TabId = "builtin.playeroverview",
+                Header = "Player Overview",
+                Order = 2,
+                ViewModelFactory = () => _playerOverviewViewModel,
+                ViewFactory = () => new PlayerOverviewTabView()
             };
         }
 

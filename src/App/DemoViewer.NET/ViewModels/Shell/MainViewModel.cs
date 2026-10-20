@@ -36,8 +36,10 @@ using DemoViewer.NET.Services.Startup;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Diagnostics;
+using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.Idle;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Services.Tutorial;
 using DemoViewer.NET.Services.Update;
 using DemoViewer.NET.ViewModels.Analysis;
@@ -54,6 +56,7 @@ using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Parser;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Replay;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
@@ -90,6 +93,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ["builtin.parser"] = "tab.parser",
         ["builtin.entity"] = "tab.entity",
         ["builtin.stats"] = "tab.stats",
+        ["builtin.playeroverview"] = "tab.playeroverview",
         ["highlights.browser"] = "tab.highlights",
         ["builtin.analysis"] = "tab.analysis",
         ["builtin.diagnostics"] = "tab.diagnostics",
@@ -540,6 +544,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     ///     The hub tabs the packs contribute (the Strat Book hub). Null (most tests) hosts nothing beyond
     ///     the Library, so a section naming another host is dropped with a module log line.
     /// </param>
+    /// <param name="players">
+    ///     Every account in the library. With <paramref name="identity" />, builds the Player Overview tab on a
+    ///     desktop host; null (the browser, most tests) omits the tab.
+    /// </param>
+    /// <param name="identity">Who the user is: the Player Overview's default subject.</param>
+    /// <param name="playerRows">The facet rows the Player Overview's stat sections read; null where none is wired.</param>
     public MainViewModel(
         IWindowService? windowService = null, ModuleRegistry? moduleRegistry = null,
         DemoLibraryService? library = null, IOptionsMonitor<AppSettings>? settings = null,
@@ -551,7 +561,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         Func<string?>? tourSampleLocator = null,
         DemoCacheStore? demoCache = null,
         IReadOnlyList<ILibraryContribution>? libraryContributions = null,
-        IReadOnlyList<ContributedHub>? hubTabs = null)
+        IReadOnlyList<ContributedHub>? hubTabs = null,
+        PlayerDirectory? players = null,
+        IdentityService? identity = null,
+        PlayerRowCache? playerRows = null)
     {
         _hubTabs = hubTabs ?? [];
         _demoCache = demoCache;
@@ -631,6 +644,25 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 ReelTrayLocator?.Invoke()?.Unstage(new HighlightKey(demo, ruleset, id, tick, slot)),
             (demo, ruleset, id, tick, slot) =>
                 ReelTrayLocator?.Invoke()?.IsStaged(new HighlightKey(demo, ruleset, id, tick, slot)) ?? false);
+
+        // Player Overview: one player across the library, from the index and the cached facets; it never runs the
+        // engine. Desktop only: the browser keeps its cache in memory for one session, so there is no library of
+        // players to show there.
+        if (!OperatingSystem.IsBrowser() && players is not null && identity is not null)
+        {
+            PlayerOverviewTab = new PlayerOverviewTabViewModel(
+                new PlayerOverviewServices(
+                    players,
+                    identity,
+                    playerRows,
+                    path => _ = LoadDemoFromPathAsync(path),
+                    SelectTabById,
+                    // Until Stats can focus a player by SteamID, this opens the demo on the Stats tab.
+                    (path, steamId64) => _ = OpenDemoOnStatsAsync(path),
+                    OpenSettingsCore),
+                processingQueue,
+                action => Dispatcher.UIThread.Post(action));
+        }
 
         // 3.3b + 3.5a forwarder: re-raise ParserTab scalar property changes on the
         // shell for every name that still has a legacy pass-through shim. Subscribed
@@ -1215,6 +1247,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// <summary>Match Overview tab: the demo landing page (identity + load progress + summary).</summary>
     public MatchOverviewTabViewModel MatchOverviewTab { get; }
 
+    /// <summary>The Player Overview tab; null on the browser and wherever no player directory is wired.</summary>
+    public PlayerOverviewTabViewModel? PlayerOverviewTab { get; }
+
     /// <summary>Bookmarks panel. In-memory + best-effort desktop persistence.</summary>
     public BookmarksViewModel Bookmarks { get; }
 
@@ -1700,6 +1735,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         _processingQueueStatus?.Dispose();
+        PlayerOverviewTab?.Dispose();
         _ownedQueue?.Dispose();
         _ownedGate?.Dispose();
         _idle?.Dispose();
@@ -2480,7 +2516,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         // Ensure the built-in tabs are registered (idempotent by Id) even if the composition root
         // passed a registry without them, so the shell always has its four tabs.
-        _moduleRegistry.Register(new BuiltInTabsModule(this, Diagnostics, LibraryTab, StatsTab, MatchOverviewTab));
+        _moduleRegistry.Register(new BuiltInTabsModule(this, Diagnostics, LibraryTab, StatsTab, MatchOverviewTab, PlayerOverviewTab));
 
         List<WorkspaceTabDescriptor> descriptors = new();
         foreach (IWorkspaceModule module in _moduleRegistry.Modules)
@@ -4494,6 +4530,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     /// </summary>
     [RelayCommand]
     private void OpenSettingsAtCategory() => OpenSettingsCore("SectionUserCategory");
+
+    private async Task OpenDemoOnStatsAsync(string path)
+    {
+        await LoadDemoFromPathAsync(path);
+        SelectTabById("builtin.stats");
+    }
 
     private void OpenSettingsCore(string? scrollTargetSection)
     {

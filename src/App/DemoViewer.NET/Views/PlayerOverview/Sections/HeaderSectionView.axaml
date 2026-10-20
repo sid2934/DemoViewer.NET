@@ -1,0 +1,24 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.HeaderSectionView"
+             x:DataType="sections:HeaderSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <Border Classes="card" Padding="18 14">
+        <StackPanel Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="{Binding Name}" FontSize="22" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" TextTrimming="CharacterEllipsis" />
+                <Border Classes="badge" IsVisible="{Binding IsMine}">
+                    <TextBlock Text="YOU" FontSize="10" FontWeight="SemiBold" FontFamily="Consolas,Menlo,monospace" />
+                </Border>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="14">
+                <SelectableTextBlock Classes="mono" Text="{Binding SteamId64}" FontSize="12"
+                                     Foreground="{DynamicResource TextMid}" />
+                <TextBlock Text="{Binding DemoCountText}" FontSize="12" Foreground="{DynamicResource TextMid}" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>
