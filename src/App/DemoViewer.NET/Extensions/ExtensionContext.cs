@@ -12,6 +12,8 @@ using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Services.Identity;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.ViewModels.Shell;
@@ -123,6 +125,7 @@ internal sealed class ExtensionContext : IExtensionContext
                         ?? new NotificationCenter(Post).For(_guard, CreateLogger("Notifications"));
         _keymap = new HostKeymap(() => CommandRegistry.Default.EffectiveBindings,
             () => services.GetService<SettingsService>()?.Current.Playback2D.KeybindOverrides ?? []);
+        Identity = new HostIdentity(() => services.GetService<IdentityService>(), _guard);
         // The settings watcher raises on a thread-pool thread for an edit of the file.
         services.GetService<IOptionsMonitor<AppSettings>>()?.OnChange(_ => Post(_keymap.Refresh));
         string? version = extension.GetType().Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
@@ -137,7 +140,8 @@ internal sealed class ExtensionContext : IExtensionContext
             : UnavailableDemoData.Instance);
         _library = new Lazy<IExtensionLibrary>(() => new ExtensionLibraryView(
             HostLibrary.For(services.GetRequiredService<DemoCacheStore>(), services.GetService<IDemoProcessingQueue>(),
-                () => services.GetService<AnalysisFacts>() ?? (IAnalysisFacts)NoFacts.Instance), _guard));
+                () => services.GetService<AnalysisFacts>() ?? (IAnalysisFacts)NoFacts.Instance), _guard,
+            () => services.GetService<PlayerDirectory>()));
     }
 
     public string ExtensionId { get; }
@@ -168,6 +172,8 @@ internal sealed class ExtensionContext : IExtensionContext
     public IExtensionNotifications Notifications { get; }
 
     public IExtensionKeymap Keymap => _keymap;
+
+    public IExtensionIdentity Identity { get; }
 
     public ILogger CreateLogger(string category) => DiagnosticsLog.CreateLogger(_logPrefix + "." + category);
 
@@ -286,6 +292,8 @@ internal sealed class ExtensionContext : IExtensionContext
         public void SeekToTick(int tick) => _hub.Shell?.Playback.SeekToTick(tick);
 
         public bool SelectTab(string tabId) => _hub.Shell?.TrySelectTab(tabId) ?? false;
+
+        public bool OpenPlayerOverview(ulong steamId64) => _hub.Shell?.OpenPlayerOverview(steamId64) ?? false;
 
         public void RevealInFileManager(string path)
         {

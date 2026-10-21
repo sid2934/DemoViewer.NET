@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows.Input;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -19,7 +20,8 @@ namespace HelloExtension;
 ///     a pass that counts the open demo's frames and keeps the count as the demo's own data, a ruleset whose
 ///     kills table the host keeps as library facts and the tab reads back, a settings page the host renders, a
 ///     Match Overview action that greets a demo from a job on its parse and posts a notification when it is
-///     done, and a 2D Playback toolbar button and map layer.
+///     done, a 2D Playback toolbar button and map layer, and the user's active account read from the host with
+///     the demos the library holds it in, opened in the host's Player Overview from the tab.
 /// </summary>
 public sealed class HelloExtension : IExtension
 {
@@ -158,6 +160,9 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
         };
         _context.Settings.Changed += _ => Changed?.Invoke();
         _context.Data.Changed += _ => Changed?.Invoke();
+        // The user's accounts are the host's, edited under Settings, Identity; an extension only reads them.
+        _context.Identity.Changed += () => Changed?.Invoke();
+        _context.Library.Players.Changed += () => Changed?.Invoke();
     }
 
     /// <summary>The open demo, kept in memory so a pass can read it off the UI thread.</summary>
@@ -183,9 +188,17 @@ public sealed class HelloTabViewModel : IWorkspaceTabViewModel
                 ? $" ({count} frames)"
                 : "";
             string kills = _kills is { } total ? $" {total} kills." : "";
-            return $"Open demo: {open ?? "none"}{frames}.{kills} Last greeted: {Greeted ?? "nobody"}.";
+            string demos = You is { } you && _context.Library.Players.Account(you) is { } account
+                ? $" ({account.DemoCount} demos)"
+                : "";
+            return $"Open demo: {open ?? "none"}{frames}.{kills} Last greeted: {Greeted ?? "nobody"}. You: {_context.Identity.ActiveAccount ?? "not set"}{demos}.";
         }
     }
+
+    private ulong? You => ulong.TryParse(_context.Identity.ActiveAccount, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id) ? id : null;
+
+    /// <summary>Opens the user's active account in the host's Player Overview. False when the host could not.</summary>
+    public bool OpenYou() => You is { } you && _context.Shell.OpenPlayerOverview(you);
 
     // The table is a file read, so it runs as a job; the status check before it reads only the index.
     private void ReadKills()
@@ -308,7 +321,9 @@ internal sealed class HelloModule(Func<HelloTabViewModel> viewModel) : IWorkspac
                 HelloTabViewModel vm = viewModel();
                 TextBlock text = new() { Text = vm.Text, Margin = new Avalonia.Thickness(16) };
                 vm.Changed += () => text.Text = vm.Text;
-                return new StackPanel { Orientation = Orientation.Vertical, Children = { text } };
+                Button you = new() { Content = "Open me in Player Overview", Margin = new Avalonia.Thickness(16, 0) };
+                you.Click += (_, _) => vm.OpenYou();
+                return new StackPanel { Orientation = Orientation.Vertical, Children = { text, you } };
             }
         };
 

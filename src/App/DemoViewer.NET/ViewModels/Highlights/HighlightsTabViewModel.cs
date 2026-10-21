@@ -724,7 +724,23 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
     ///     </para>
     /// </summary>
     [RelayCommand]
-    private async Task AddClipsAsync()
+    private Task AddClipsAsync() => OpenPickerAsync(null);
+
+    /// <summary>
+    ///     Opens an account in the Player Overview tab, given its SteamID64 and the name the picker shows. Null where
+    ///     there is no such tab, which hides the picker's entry.
+    /// </summary>
+    public Action<ulong, string?>? PlayerOverviewOpener { get; init; }
+
+    /// <summary>Opens the <c>Add clips…</c> picker with its player filter set to one account.</summary>
+    /// <param name="steamId64">The account, as a decimal SteamID64.</param>
+    public Task AddClipsForAsync(string steamId64)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(steamId64);
+        return OpenPickerAsync([steamId64]);
+    }
+
+    private async Task OpenPickerAsync(IReadOnlyCollection<string>? players)
     {
         // OFF-THREAD, because this is the one cross-demo read in the app: the unified cache keeps the fat
         // per-demo payloads in lazy sidecars, so building the picker means opening every sidecar that has
@@ -748,7 +764,9 @@ public partial class HighlightsTabViewModel : ObservableObject, IWorkspaceTabVie
             ReelConfig.LeadOutSeconds,
             ReelConfig.DontCrossRoundStart,
             CanScan ? _scanner.RescanAll : null,
-            _scanner.QueueLength);
+            _scanner.QueueLength,
+            players,
+            PlayerOverviewOpener);
     }
 
     /// <summary>Dismisses the picker: the scrim click, the ✕, and Escape all land here.</summary>

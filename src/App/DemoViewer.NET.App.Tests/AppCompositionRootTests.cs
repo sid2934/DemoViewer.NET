@@ -7,11 +7,13 @@ using Avalonia.Reactive;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using DemoViewer.NET.Configuration;
+using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules;
 using DemoViewer.NET.Modules.Highlights;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
@@ -69,6 +71,55 @@ public class AppCompositionRootTests
                 finally
                 {
                     provider.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, prev);
+            try
+            {
+                Directory.Delete(dir, true);
+            }
+            catch
+            {
+                /* best-effort cleanup */
+            }
+        }
+    }
+
+    // The teams.json Me import runs while the services are composed, so it is in settings before the provider
+    // exists and therefore before any pack's lifecycle can queue the Strat Book's teams load.
+    [Test]
+    public async Task TheTeamsJsonMe_IsImported_BeforeAnyPackStarts()
+    {
+        const string teamsJson = """{ "schemaVersion": 1, "me": { "steamIds": ["76561198000000002", "76561198000000001"] }, "teams": [] }""";
+        string dir = Path.Combine(Path.GetTempPath(), "dvcomproot_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(Path.Combine(dir, "teams.json"), teamsJson);
+        string? prev = Environment.GetEnvironmentVariable(AppPaths.ConfigDirEnvVar);
+        Environment.SetEnvironmentVariable(AppPaths.ConfigDirEnvVar, dir);
+        try
+        {
+            ServiceCollection composed = App.ComposeServices(new DesktopWindowService(() => null), FeaturePacks.Compatible);
+            SettingsService settings = (SettingsService) composed.Single(d => d.ServiceType == typeof(SettingsService)).ImplementationInstance!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(settings.Current.Identity.Accounts.Select(a => a.SteamId64))
+                    .IsEquivalentTo(["76561198000000002", "76561198000000001"], TUnit.Assertions.Enums.CollectionOrdering.Matching);
+                await Assert.That(settings.Current.Identity.ActiveSteamId64).IsEqualTo("76561198000000002");
+                await Assert.That(settings.Current.Identity.MigratedFromTeamsJson).IsTrue();
+            }
+
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                using ServiceProvider provider = App.BuildServices(new DesktopWindowService(() => null));
+                IdentityService identity = provider.GetRequiredService<IdentityService>();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(identity.ActiveSteamId64).IsEqualTo("76561198000000002");
+                    await Assert.That(identity.IsMine("76561198000000001")).IsTrue();
+                    await Assert.That(File.ReadAllText(Path.Combine(dir, "teams.json"))).IsEqualTo(teamsJson).Because("the import only reads");
                 }
             });
         }

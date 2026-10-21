@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Playback2D.Core.Input;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 
 #endregion
 
@@ -26,6 +27,7 @@ namespace DemoViewer.NET.Views.Playback2D;
 public partial class Playback2DView : UserControl
 {
     private readonly MenuItem? _followMenuItem;
+    private readonly MenuItem? _playerOverviewMenuItem;
     private readonly ILevelSurface? _levelSurface;
     private readonly TextBlock? _mapApproxNote;
     private readonly TextBlock? _modeLabel;
@@ -84,6 +86,7 @@ public partial class Playback2DView : UserControl
         }
 
         _followMenuItem = this.FindControl<MenuItem>("FollowMenuItem");
+        _playerOverviewMenuItem = this.FindControl<MenuItem>("PlayerOverviewMenuItem");
         _toolbarItemsSeparator = this.FindControl<Separator>("ToolbarItemsSeparator");
         _modeLabel = this.FindControl<TextBlock>("ModeLabel");
         _mapApproxNote = this.FindControl<TextBlock>("MapApproxNote");
@@ -566,6 +569,37 @@ public partial class Playback2DView : UserControl
         }
 
         _followMenuItem.ItemsSource = items;
+        RebuildPlayerOverviewMenu(vm);
+    }
+
+    // The same roster as the Follow submenu, each entry opening that player in the Player Overview tab. A player
+    // with no SteamID is greyed out with the reason; the whole item is hidden where the shell has no such tab.
+    private void RebuildPlayerOverviewMenu(Playback2DTabViewModel vm)
+    {
+        if (_playerOverviewMenuItem is null)
+        {
+            return;
+        }
+
+        bool offers = false;
+        List<MenuItem> items = new();
+        foreach (FollowablePlayer p in vm.FollowablePlayers)
+        {
+            PlayerOverviewEntry entry = p.PlayerOverview;
+            offers |= entry.Offers;
+            MenuItem item = new()
+            {
+                Header = p.Display,
+                IsEnabled = entry.CanOpen
+            };
+            ToolTip.SetTip(item, entry.Tip);
+            ToolTip.SetShowOnDisabled(item, true);
+            item.Click += (_, _) => entry.Open();
+            items.Add(item);
+        }
+
+        _playerOverviewMenuItem.IsVisible = offers;
+        _playerOverviewMenuItem.ItemsSource = items;
     }
 
     // Surface.ToolbarItems as overflow entries: a pack toggled live or a rebound gesture changes the set

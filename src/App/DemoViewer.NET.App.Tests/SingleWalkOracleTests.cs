@@ -21,7 +21,7 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     The byte oracle for the single-walk work: every output a benchmark demo's visits write, as one
 ///     SHA256 line per output, against <c>tests/fixtures/single-walk/&lt;demo&gt;.digest.txt</c>. Three
-///     visits per demo: the sweep import, a forced scan after it (the scoreboard), and an open with every
+///     visits per demo: the sweep import, a forced scan after it, and an open with every
 ///     sweep off in a second config. With no fixture the test fails, unless <c>SINGLE_WALK_RECORD=1</c>
 ///     asks it to write one. <c>SINGLE_WALK_DUMP_DIR</c>
 ///     keeps the canonical text each line hashes.
@@ -63,8 +63,7 @@ public partial class SingleWalkOracleTests
                         dump["sweep/" + key] = value;
                     }
 
-                    // The forced scan's snapshot run is the scoreboard writer a background visit never reaches.
-                    // It runs only on a row that still needs analysis, which the bare sweep stamped current.
+                    // The forced scan, the Compute full stats press, on a row the sweep already stamped current.
                     provider.GetRequiredService<DemoCacheStore>().UpdateExisting(demo, r => r.AnalysisState = DemoAnalysisState.Pending);
                     provider.GetRequiredService<HighlightScanService>().RequestScan(demo);
                     await SingleWalkSession.SettleAsync(provider.GetRequiredService<DemoProcessingQueue>());

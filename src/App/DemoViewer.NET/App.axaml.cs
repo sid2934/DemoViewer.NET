@@ -31,6 +31,9 @@ using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Dependencies;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.MatchMeta;
+using DemoViewer.NET.Services.Identity;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
@@ -800,6 +803,8 @@ public class App : Application
         services.AddSingleton(settings);
         // Before anything can write settings.json: its writes drop the keys a first-party extension moved out.
         LegacyExtensionSettings.Import(settings, AppPaths.ConfigRoot);
+        // Before any extension attaches: the Strat Book's teams.json Me becomes the core identity once.
+        IdentityService.ImportTeamsJson(settings, AppPaths.ConfigRoot is { } identityRoot ? Path.Combine(identityRoot, "teams.json") : null);
         services.Configure<AppSettings>(settings.Configuration);
 
         // The feature gate resolves per-category show/hide from FeatureCatalog + the live
@@ -852,6 +857,7 @@ public class App : Application
                 FeaturePacks.Statuses,
                 // The extension updater; absent where there is no config root to stage into.
                 sp.GetService<ExtensionUpdateService>());
+            settingsVm.AttachIdentity(sp.GetRequiredService<IdentityService>(), sp.GetRequiredService<PlayerDirectory>());
             // Says which extensions were switched off this session after errors.
             settingsVm.AttachExtensionFaults(sp.GetRequiredService<ExtensionFaults>(),
                 AppPaths.LogsDir is { } logs ? () => Services?.GetService<MainViewModel>()?.OpenOutputFolder(logs) : null);
@@ -895,7 +901,8 @@ public class App : Application
         // The one rules read highlights and round facts share, and the queue's forward pass over it. An entry
         // is read forward when every owner on it can take a forward pass; Browser keeps the retained parse.
         // round_facts is a core stamped ruleset: always on, it rides every merged run, and it stays out of
-        // the highlights fingerprint because its rows are stamped under its own identity.
+        // the highlights fingerprint because its rows are stamped under its own identity. player_match,
+        // player_event and player_round are too, and the facts pass stores their tables like an extension's.
         // An extension's ruleset is a stamped ruleset gated by its feature, read between the shipped rules and the
         // user's. A ruleset an extension's manifest claims but this launch did not contribute (safe mode, a failed
         // load) stays stamped and off, so a user override of it never joins the highlights set.
@@ -907,6 +914,9 @@ public class App : Application
             MergedRulesBuild rules = new(() => MergedRulesBuild.LoadShippedExtensionsUser(contributed.Value), () =>
             [
                 StampedRuleset.Core(RoundFactsFingerprint.RulesetId),
+                StampedRuleset.Core(PlayerMatchFacet.RulesetId),
+                StampedRuleset.Core(PlayerEventFacet.RulesetId),
+                StampedRuleset.Core(PlayerRoundFacet.RulesetId),
                 .. LibraryTeamTables.RulesetIds.Select(StampedRuleset.Core),
                 .. contributed.Value.Select(c => new StampedRuleset(c.RulesetId, c.Owner, () => gate?.IsEnabled(c.FeatureId) ?? true) { ReadBy = c.ReadBy }),
                 .. FeaturePacks.ClaimedRulesets.Select(id => new StampedRuleset(id, StampedRuleset.ClaimedOwner, static () => false))
@@ -1066,6 +1076,9 @@ public class App : Application
             {
                 // The same reel job instance the status-strip chip is bound to.
                 JobStatus = Shell().ReelJobStatus,
+                PlayerOverviewOpener = OperatingSystem.IsBrowser()
+                    ? null
+                    : (steamId64, name) => Shell().OpenPlayerOverview(steamId64, name),
                 Backlog = sp.GetRequiredService<HighlightBacklogViewModel>()
             };
         });
@@ -1115,6 +1128,20 @@ public class App : Application
             sp.GetRequiredService<StampedFacts>(),
             sp.GetRequiredService<IRoundFactsSource>()));
 
+        // Game mode and rank: what the matchmeta record pass cannot see without reading the demo.
+        services.AddSingleton(sp => new MatchMetaEvaluator(sp.GetRequiredService<DemoCacheStore>()));
+
+        // Every account in the library, projected from the index on read; the Player Overview's source.
+        services.AddSingleton(sp => new PlayerDirectory(sp.GetRequiredService<DemoCacheStore>()));
+        services.AddSingleton(sp => new PlayerRowCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>(),
+            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerMatchFacet.Key),
+            path => sp.GetRequiredService<AnalysisFacts>().TryGet(path, PlayerRoundFacet.Key)));
+        services.AddSingleton(sp => new PlayerRankCache(sp.GetRequiredService<DemoCacheStore>(), sp.GetRequiredService<PlayerDirectory>()));
+
+        // Who the user is, from settings; the directory feeds its "this is you" suggestion.
+        services.AddSingleton(sp => new IdentityService(sp.GetRequiredService<SettingsService>(), sp.GetRequiredService<PlayerDirectory>(),
+            action => Dispatcher.UIThread.Post(action)));
+
         // The Review Queue: every surface's clips in one ordered list, review-queue.json beside
         // teams.json. One per process, because the Reels tray, the Result Cards and the Review tab must
         // all mutate the same list. Null config root (the browser) keeps it for the session.
@@ -1140,6 +1167,7 @@ public class App : Application
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
             RoundFactsEvaluator roundFacts = sp.GetRequiredService<RoundFactsEvaluator>();
             FactsEvaluator facts = sp.GetRequiredService<FactsEvaluator>();
+            MatchMetaEvaluator matchRank = sp.GetRequiredService<MatchMetaEvaluator>();
 
             PassRegistry registry = new();
             registry.AddCoreEvaluator(library.Id, () => library);
@@ -1148,6 +1176,7 @@ public class App : Application
             // joins late (its scan found the demo after another pass planned it) still runs it first.
             registry.AddCoreEvaluator(roundFacts.Id, () => roundFacts, library.Id, highlights.Id);
             registry.AddCoreEvaluator(facts.Id, () => facts, library.Id, highlights.Id);
+            registry.AddCoreEvaluator(matchRank.Id, () => matchRank, library.Id);
 
             // Each pack pass's extension, so a throw from any call into it counts against that extension.
             // Filled when the registry populates, before anything can fault.
@@ -1221,7 +1250,7 @@ public class App : Application
 
         // The record passes: work over what the cache holds, no demo read. Fed by the cache's own change
         // events; a pack's passes are read from its contributions on the first run, and asked only while
-        // the pack is on.
+        // the pack is on. The core match-meta pass is always asked.
         services.AddSingleton(sp =>
         {
             DemoCacheStore cache = sp.GetRequiredService<DemoCacheStore>();
@@ -1257,9 +1286,10 @@ public class App : Application
                     HostLibrary.For(cache, queue, sp.GetRequiredService<AnalysisFacts>).RecheckFacts());
             }
 
+            MatchMetaPass matchMeta = new(cache);
             runner = new RecordPassRunner(() =>
             {
-                List<IRecordPass> passes = [];
+                List<IRecordPass> passes = [matchMeta];
                 foreach ((IExtension pack, Func<IRecordPass> factory) in contributed.Value)
                 {
                     if (!(features?.IsEnabled(pack.FeatureId) ?? true))
@@ -1444,7 +1474,15 @@ public class App : Application
                 // The Library's filter/badge contributions (the Team filter, the provenance chip).
                 sp.GetRequiredService<PackContributionSet>().LibraryContributions,
                 // The hub tabs the packs contribute (the Strat Book hub); the shell builds its strip from them.
-                sp.GetRequiredService<PackContributionSet>().HubTabs);
+                sp.GetRequiredService<PackContributionSet>().HubTabs,
+                // The Player Overview: every account in the library, who the user is, and the facet rows.
+                sp.GetRequiredService<PlayerDirectory>(),
+                sp.GetRequiredService<IdentityService>(),
+                sp.GetRequiredService<PlayerRowCache>(),
+                // Match Overview's cached scoreboard: the demo's player_match facet.
+                sp.GetRequiredService<AnalysisFacts>(),
+                // The Player Overview's rank rows, read from the records.
+                sp.GetRequiredService<PlayerRankCache>());
 
             // GetService<T> falls back to this container for a pack's by-type registrations. Wired here,
             // not in OnFrameworkInitializationCompleted, so a caller that never runs that path still gets it.
@@ -1495,7 +1533,11 @@ public class App : Application
         // use this path. The packs' playback contributions (band menus, panes) attach to each tab
         // view-model through the host, gated live by the pack's umbrella id.
         registry.Register(new Playback2DModule(() => PlaybackContributionHost.From(
-            sp.GetRequiredService<PackContributionSet>(), sp.GetService<IFeatureGate>()), sp.GetRequiredService<IRoundFactsSource>));
+            sp.GetRequiredService<PackContributionSet>(), sp.GetService<IFeatureGate>()), sp.GetRequiredService<IRoundFactsSource>,
+            // Resolved when the tab is built, long after the shell exists; the browser has no such tab.
+            () => OperatingSystem.IsBrowser()
+                ? null
+                : (steamId64, name) => sp.GetRequiredService<MainViewModel>().OpenPlayerOverview(steamId64, name)));
         // The Rulesets v2 authoring Workbench.
         // Registered on both hosts; desktop-only features (editor save, FileSystemWatcher, code --goto)
         // gate at runtime via OperatingSystem.IsBrowser() as they land, so the WASM build compiles

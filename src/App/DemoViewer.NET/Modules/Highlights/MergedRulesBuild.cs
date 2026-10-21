@@ -46,8 +46,8 @@ public sealed class MergedRulesBuild
     private readonly Dictionary<int, HighlightConfigFingerprint.Result> _fingerprints = [];
     private readonly Dictionary<string, string> _sources = new(StringComparer.Ordinal);
 
-    // Keyed by the doc instance it was composed from: a reload or a gate change hands out a new one.
-    private readonly Dictionary<(string Id, int TickRate), (RulesetDoc Doc, string Identity)> _identities = [];
+    // Keyed by the doc instances it was composed from: a reload hands out new ones, and a gate change can drop a dependency.
+    private readonly Dictionary<(string Id, int TickRate), (IReadOnlyList<RulesetDoc> Closure, string Identity)> _identities = [];
     private readonly HashSet<string> _reportedExclusions = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private readonly Func<RuleConfigLoadResult> _load;
@@ -251,8 +251,7 @@ public sealed class MergedRulesBuild
     ///     The enabled ruleset with this id in the merged set (a user's same-id override wins), or null
     ///     when there is none: not in the directories, disabled by an override, or stamped and off.
     /// </summary>
-    public RulesetDoc? EnabledDoc(string rulesetId) => Docs.FirstOrDefault(r =>
-        r.Enabled && string.Equals(r.Id, rulesetId, StringComparison.Ordinal));
+    public RulesetDoc? EnabledDoc(string rulesetId) => Enabled(Docs, rulesetId);
 
     /// <summary>
     ///     The core set's identity at a tick rate: what highlights are stamped with. Throws when the set
@@ -283,43 +282,143 @@ public sealed class MergedRulesBuild
     }
 
     /// <summary>
-    ///     One ruleset's own identity, for the outputs stamped under it. Composes the ruleset alone, so a
-    ///     broken highlight file never blocks it, and throws when it does not compose or is not enabled.
-    ///     The engine's fingerprint hashes highlight definitions only, which a ruleset without highlights
-    ///     has none of, so the source and the engine version carry the identity.
+    ///     One ruleset's own identity, for the outputs stamped under it. Composes the ruleset with the rulesets
+    ///     its <c>use:</c> reads and nothing else, so a broken highlight file never blocks it, and throws when
+    ///     that does not compose or any of it is not enabled. The engine's fingerprint hashes highlight
+    ///     definitions only, which a ruleset without highlights has none of, so the sources and the engine
+    ///     version carry the identity. A ruleset without <c>use:</c> is its own closure, so its stamps never move
+    ///     when another ruleset gains one.
     /// </summary>
     public string RulesetIdentity(string rulesetId, int tickRate)
     {
-        RulesetDoc doc = EnabledDoc(rulesetId) ?? throw new InvalidOperationException($"no enabled {rulesetId} ruleset");
+        IReadOnlyList<RulesetDoc> docs = Docs;
+        RulesetDoc doc = Enabled(docs, rulesetId) ?? throw new InvalidOperationException($"no enabled {rulesetId} ruleset");
+        List<RulesetDoc> closure = UseClosure(docs, doc);
         lock (_gate)
         {
-            if (_identities.TryGetValue((rulesetId, tickRate), out (RulesetDoc Doc, string Identity) hit) && ReferenceEquals(hit.Doc, doc))
+            if (_identities.TryGetValue((rulesetId, tickRate), out (IReadOnlyList<RulesetDoc> Closure, string Identity) hit)
+                && hit.Closure.SequenceEqual(closure, ReferenceEqualityComparer.Instance))
             {
                 return hit.Identity;
             }
         }
 
-        string composed = HighlightConfigFingerprint.Compute([doc], tickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint;
+        string composed = HighlightConfigFingerprint.Compute(closure, tickRate, RulesHighlightHarvester.GotvProfileId).Fingerprint;
+        List<string> sources = new(closure.Count);
+        lock (_gate)
+        {
+            foreach (RulesetDoc member in closure)
+            {
+                if (!_sources.TryGetValue(member.Id, out string? known))
+                {
+                    known = SourceIdentity(member);
+                    _sources[member.Id] = known;
+                }
+
+                sources.Add(known);
+            }
+        }
+
+        string source = string.Join("\n", sources);
+        string engine = typeof(DemoAnalysis).Assembly.GetName().Version?.ToString() ?? "";
+        string identity = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{composed}\n{source}\n{engine}")));
+        lock (_gate)
+        {
+            _identities[(rulesetId, tickRate)] = (closure, identity);
+        }
+
+        return identity;
+    }
+
+    /// <summary>
+    ///     The identity of an enabled ruleset whose <c>use:</c> reaches one that is not enabled, or null when its
+    ///     closure is whole or it is not enabled itself. <see cref="RulesetIdentity" /> has nothing to answer for
+    ///     such a ruleset, but its outputs still want a stamp: the build leaves it out, and it should read as
+    ///     failed until the dependency comes back. Covers its own source, the missing ids and the engine version.
+    /// </summary>
+    public string? MissingDependencyIdentity(string rulesetId)
+    {
+        IReadOnlyList<RulesetDoc> docs = Docs;
+        if (Enabled(docs, rulesetId) is not { } doc)
+        {
+            return null;
+        }
+
+        List<string> missing = [];
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        Visit(doc);
+        if (missing.Count == 0)
+        {
+            return null;
+        }
+
         string source;
         lock (_gate)
         {
-            if (!_sources.TryGetValue(rulesetId, out string? known))
+            if (!_sources.TryGetValue(doc.Id, out string? known))
             {
                 known = SourceIdentity(doc);
-                _sources[rulesetId] = known;
+                _sources[doc.Id] = known;
             }
 
             source = known;
         }
 
         string engine = typeof(DemoAnalysis).Assembly.GetName().Version?.ToString() ?? "";
-        string identity = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"{composed}\n{source}\n{engine}")));
-        lock (_gate)
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes($"missing:{string.Join(",", missing)}\n{source}\n{engine}")));
+
+        void Visit(RulesetDoc current)
         {
-            _identities[(rulesetId, tickRate)] = (doc, identity);
+            if (!seen.Add(current.Id))
+            {
+                return;
+            }
+
+            foreach (string id in current.Use)
+            {
+                if (Enabled(docs, id) is { } dependency)
+                {
+                    Visit(dependency);
+                }
+                else if (seen.Add(id))
+                {
+                    missing.Add(id);
+                }
+            }
+        }
+    }
+
+    private static RulesetDoc? Enabled(IReadOnlyList<RulesetDoc> docs, string rulesetId) => docs.FirstOrDefault(r =>
+        r.Enabled && string.Equals(r.Id, rulesetId, StringComparison.Ordinal));
+
+    // The doc after every ruleset its use: reaches, each dependency before its readers: the set the engine
+    // compiles it with. A dependency that is not enabled leaves the doc nothing to compose against.
+    private static List<RulesetDoc> UseClosure(IReadOnlyList<RulesetDoc> docs, RulesetDoc doc)
+    {
+        if (doc.Use.Count == 0)
+        {
+            return [doc];
         }
 
-        return identity;
+        List<RulesetDoc> order = [];
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        Visit(doc);
+        return order;
+
+        void Visit(RulesetDoc current)
+        {
+            if (!seen.Add(current.Id))
+            {
+                return;
+            }
+
+            foreach (string id in current.Use)
+            {
+                Visit(Enabled(docs, id) ?? throw new InvalidOperationException($"{current.Id} uses {id}, which is not enabled"));
+            }
+
+            order.Add(current);
+        }
     }
 
     /// <summary>
@@ -587,17 +686,6 @@ public sealed class MergedRulesBuild
         {
             _runs.Remove(parsed);
         }
-    }
-
-    /// <summary>
-    ///     The snapshot run a forced scan asks for, over <see cref="CoreDocs" /> only: the scoreboard is
-    ///     projected from these snapshots, and a stamped ruleset would add nodes and memory to both.
-    /// </summary>
-    public AnalysisRun FullRun(ParsedDemo parsed)
-    {
-        BuildResult build = DemoAnalysis.Build(parsed, CoreDocs);
-        ReportExclusions(build);
-        return DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = true });
     }
 
     /// <summary>

@@ -107,7 +107,8 @@ public sealed class StampedFacts
 
     /// <summary>
     ///     The ruleset's identity folded with <see cref="Schema" />, or null when it is not on or does not compose
-    ///     alone. Null means "nothing to run", never "stale".
+    ///     alone. Null means "nothing to run", never "stale". A ruleset that does not compose only because a
+    ///     ruleset its <c>use:</c> reads is off answers <see cref="MergedRulesBuild.MissingDependencyIdentity" />.
     /// </summary>
     /// <param name="rulesetId">The ruleset's id.</param>
     /// <param name="tickRate">The demo's tick rate; the engine folds durations to ticks.</param>
@@ -134,7 +135,9 @@ public sealed class StampedFacts
         }
         catch (Exception)
         {
-            fingerprint = null;
+            // A dependency that is off still leaves a fingerprint, so the build that drops the ruleset stamps it
+            // failed. Any other failure to compose has nothing to run.
+            fingerprint = Rules.MissingDependencyIdentity(rulesetId) is { } missing ? Combine(rulesetId, missing) : null;
         }
 
         lock (byRate)

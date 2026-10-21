@@ -90,6 +90,12 @@ public class StratBookPackTests
         "DemoViewer.NET.Services.Facts.StampedFacts",
         "DemoViewer.NET.Services.Facts.FactsEvaluator",
         "DemoViewer.NET.Services.Facts.AnalysisFacts",
+        // The core match-meta pass and the Player Overview's services; none of them is the pack's.
+        "DemoViewer.NET.Services.MatchMeta.MatchMetaEvaluator",
+        "DemoViewer.NET.Services.Players.PlayerDirectory",
+        "DemoViewer.NET.Services.Players.PlayerRowCache",
+        "DemoViewer.NET.Services.Players.PlayerRankCache",
+        "DemoViewer.NET.Services.Identity.IdentityService",
         "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.IZonePlaceResolverSource",
         "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexPlaceSources",
         "DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexStore",

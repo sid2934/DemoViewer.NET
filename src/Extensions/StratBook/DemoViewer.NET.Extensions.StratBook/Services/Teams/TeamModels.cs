@@ -105,7 +105,10 @@ public sealed class Team
     public bool IsAuto => NameSource != TeamNameSource.User && !IsUs && MergedFrom.Count == 0;
 }
 
-/// <summary>The user's own accounts: what makes "our side" resolvable when no roster matches.</summary>
+/// <summary>
+///     The user's own accounts: what makes "our side" resolvable when no roster matches. A copy of the host's
+///     Settings, Identity, rewritten on every save; an edit here does not last.
+/// </summary>
 public sealed class MeAccounts
 {
     public List<string> SteamIds { get; set; } = [];
@@ -344,10 +347,3 @@ public sealed record TeamAssignment(
 /// <param name="DemoPath">The demo.</param>
 /// <param name="Side">2 = T, 3 = CT, the end-of-demo side.</param>
 public sealed record DemoSideRef(string DemoPath, int Side);
-
-/// <summary>The account the share heuristic proposes as "me", never written without confirmation.</summary>
-/// <param name="SteamId64">The account.</param>
-/// <param name="LastName">Its raw last-seen name.</param>
-/// <param name="DemoCount">Clusterable demos it appears in.</param>
-/// <param name="Share">Its share of the clusterable demos, above one half by construction.</param>
-public sealed record MeSuggestion(string SteamId64, string LastName, int DemoCount, double Share);

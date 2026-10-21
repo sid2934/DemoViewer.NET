@@ -1,0 +1,50 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DemoViewer.NET.ViewModels.PlayerOverview"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.PlayerOverviewPageView"
+             x:DataType="vm:PlayerOverviewPage">
+
+    <!--
+        One inner tab: the top sections across the page, then the primary column and the rail, then the bottom
+        sections two abreast. Each page has its own ScrollViewer so switching tabs keeps where each was scrolled.
+        The rail binds Grid.Row / Grid.Column / Grid.ColumnSpan to the page's ints; the star weights are set from the
+        page in code-behind, since a ColumnDefinition is not in the tree a binding reaches.
+    -->
+
+    <ScrollViewer x:Name="PageScroll" Padding="28 16 28 20" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="14" MaxWidth="2400">
+            <ItemsControl ItemsSource="{Binding Top}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Spacing="14" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+            <Grid x:Name="Columns" ColumnDefinitions="2*,20,*" RowDefinitions="Auto,Auto" RowSpacing="14">
+                <ItemsControl Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="{Binding PrimarySpan}"
+                              ItemsSource="{Binding Primary}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="14" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <ItemsControl Grid.Row="{Binding RailRow}" Grid.Column="{Binding RailColumn}"
+                              Grid.ColumnSpan="{Binding RailSpan}" ItemsSource="{Binding Rail}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="14" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Bottom}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Columns="{Binding BottomColumns}" ColumnSpacing="20" RowSpacing="14" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

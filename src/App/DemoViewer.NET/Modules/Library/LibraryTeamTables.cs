@@ -254,7 +254,7 @@ public static class LibraryTeamTables
     }
 
     // A coach row joins its player by SteamID64 and name; a row with no SteamID64 joins by slot.
-    private static HashSet<int> CoachSlots(MetricTable? coaches, IEnumerable<PlayerInfo> players)
+    internal static HashSet<int> CoachSlots(MetricTable? coaches, IEnumerable<PlayerInfo> players)
     {
         HashSet<int> slots = [];
         if (coaches is null)

@@ -147,11 +147,15 @@ public class StratBookLiveToggleTests
             }
 
             // Subscriptions gone: a cache change the attached index would act on changes nothing.
+            // The core record pass (matchmeta) runs with the pack off and reacts to every row change; its run is the
+            // host's, and the pack's own record passes are gated out of it.
             DemoCacheStore cache = provider.GetRequiredService<DemoCacheStore>();
+            int beforeRemove = queue.Owners.Count;
             cache.Remove("/d/0.dem");
             Dispatcher.UIThread.RunJobs();
             await Assert.That(situations.IndexedDemoCount).IsEqualTo(0);
-            await Assert.That(queue.Titles.Count).IsEqualTo(before + 1).Because("nothing of the pack reacted to the cache");
+            await Assert.That(queue.Owners.Skip(beforeRemove).Where(o => o != RecordPassRunner.Owner)).IsEmpty()
+                .Because("nothing of the pack reacted to the cache");
         });
     }
 
@@ -670,6 +674,9 @@ public class StratBookLiveToggleTests
         private readonly List<(QueueJobKind Kind, Func<IQueueJobContext, Task> Run, TaskCompletionSource Done)> _deferred = [];
 
         public List<string> Titles { get; } = [];
+
+        /// <summary>Each job's owner, beside <see cref="Titles" />.</summary>
+        public List<string> Owners { get; } = [];
         public List<string> CancelledOwners { get; } = [];
         public List<(string Owner, string Path)> Parses { get; } = [];
         public bool Defer { get; set; }
@@ -726,6 +733,7 @@ public class StratBookLiveToggleTests
             lock (Titles)
             {
                 Titles.Add(request.Title);
+                Owners.Add(request.OwnerTag);
             }
 
             Changed?.Invoke();

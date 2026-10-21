@@ -1,0 +1,166 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             xmlns:ui="using:DemoViewer.NET.Extensions.Sdk.Ui.Controls"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.MapsSectionView"
+             x:DataType="sections:MapsSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!--
+        The window by map, as a card per map that wraps to the width it has, then by side as a table. Each card
+        keeps the subject's latest Competitive Skill Group in its top-right corner, so the badges line up from card
+        to card. The bars name their colours by slot and the slots are set here, so the view model holds no brush.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="Grid.mapRow > TextBlock:not(.col-label)">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Grid.mapRow > TextBlock.num">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0 0 8 0" />
+        </Style>
+        <Style Selector="TextBlock.cardLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="9.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+        </Style>
+        <Style Selector="TextBlock.cardValue">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="statsCtl|SegmentedBar.cardBar">
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Compact" Value="True" />
+            <Setter Property="ShowLabels" Value="False" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Maps and sides" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" />
+                <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+
+            <ItemsControl x:Name="MapCards" ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="10" LineSpacing="10" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:MapRowItem">
+                        <Border x:Name="MapCard" Width="236" Padding="12 10" CornerRadius="8" BorderThickness="1"
+                                Background="{DynamicResource PanelHeaderBg}" BorderBrush="{DynamicResource BorderSubtle}">
+                            <StackPanel Spacing="7">
+                                <Grid ColumnDefinitions="*,Auto" Height="24">
+                                    <TextBlock Text="{Binding MapText}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextCardHeader}" TextTrimming="CharacterEllipsis" />
+                                    <ui:GameIcon Grid.Column="1" x:Name="MapRankBadge" Key="{Binding Rank.BadgeKey}" IconHeight="22"
+                                                 VerticalAlignment="Center" IsVisible="{Binding HasRank}"
+                                                 ToolTip.Tip="{Binding Rank.Tooltip}" />
+                                </Grid>
+
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding WinRateText}" FontSize="13" FontWeight="SemiBold"
+                                               FontFamily="Consolas,Menlo,monospace" Foreground="{DynamicResource TextValue}"
+                                               ToolTip.Tip="Matches won of the matches with stats" />
+                                    <TextBlock FontSize="11.5" Foreground="{DynamicResource TextMid}" VerticalAlignment="Center">
+                                        <Run Text="{Binding MatchesText}" />
+                                        <Run Text="{Binding MatchesWord}" />
+                                        <Run Text="·" />
+                                        <Run Text="{Binding RecordText}" />
+                                    </TextBlock>
+                                </DockPanel>
+                                <statsCtl:SegmentedBar Classes="cardBar" Segments="{Binding ResultBar}"
+                                                       Slot0Brush="{DynamicResource StatPositive}"
+                                                       Slot1Brush="{DynamicResource StatNegative}"
+                                                       Slot2Brush="{DynamicResource StatBarTrack}"
+                                                       ToolTip.Tip="Wins, losses and ties" />
+
+                                <Grid ColumnDefinitions="*,*,*">
+                                    <StackPanel>
+                                        <TextBlock Classes="cardLabel" Text="K/D" />
+                                        <TextBlock Classes="cardValue" Text="{Binding KdText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Classes="cardLabel" Text="ADR" />
+                                        <TextBlock Classes="cardValue" Text="{Binding AdrText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Classes="cardLabel" Text="HLTV" />
+                                        <TextBlock Classes="cardValue" Text="{Binding HltvText}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid ColumnDefinitions="*,12,*">
+                                    <StackPanel Spacing="3" ToolTip.Tip="Rounds won and lost on CT">
+                                        <DockPanel>
+                                            <TextBlock Classes="cardLabel" Text="CT" Foreground="{DynamicResource LibraryCardScoreCt}" />
+                                            <TextBlock Classes="cardLabel" Text="{Binding CtShareText}" HorizontalAlignment="Right" />
+                                        </DockPanel>
+                                        <statsCtl:SegmentedBar Classes="cardBar" Segments="{Binding CtBar}"
+                                                               Slot0Brush="{DynamicResource LibraryCardScoreCt}"
+                                                               Slot1Brush="{DynamicResource StatBarTrack}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Spacing="3" ToolTip.Tip="Rounds won and lost on T">
+                                        <DockPanel>
+                                            <TextBlock Classes="cardLabel" Text="T" Foreground="{DynamicResource LibraryCardScoreT}" />
+                                            <TextBlock Classes="cardLabel" Text="{Binding TShareText}" HorizontalAlignment="Right" />
+                                        </DockPanel>
+                                        <statsCtl:SegmentedBar Classes="cardBar" Segments="{Binding TBar}"
+                                                               Slot0Brush="{DynamicResource LibraryCardScoreT}"
+                                                               Slot1Brush="{DynamicResource StatBarTrack}" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- The side table keeps its column widths and scrolls when the card is narrower. -->
+            <ScrollViewer x:Name="SidesScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="2" MinWidth="600">
+                    <Grid Classes="mapRow" Margin="8 4 8 0" ColumnDefinitions="110,150,150,52,56,64,*">
+                        <TextBlock Grid.Column="0" Classes="col-label" Text="SIDE" />
+                        <TextBlock Grid.Column="1" Classes="col-label num" Text="ROUNDS" ToolTip.Tip="Rounds won and lost on the side" />
+                        <TextBlock Grid.Column="2" Classes="col-label num" Text="OPENING DUELS"
+                                   ToolTip.Tip="Opening kills and deaths on the side: the first kill of the round" />
+                        <TextBlock Grid.Column="3" Classes="col-label num" Text="K/D" ToolTip.Tip="Kills over deaths on the side" />
+                        <TextBlock Grid.Column="4" Classes="col-label num" Text="ADR" ToolTip.Tip="Damage per round played on the side" />
+                        <TextBlock Grid.Column="5" Classes="col-label num" Text="KAST"
+                                   ToolTip.Tip="Rounds on the side with a kill, an assist, survival or a trade" />
+                    </Grid>
+                    <ItemsControl ItemsSource="{Binding Sides}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="sections:SideSplitItem">
+                                <Grid Classes="mapRow" Margin="8 0" Height="24" ColumnDefinitions="110,150,150,52,56,64,*">
+                                    <TextBlock Grid.Column="0" Text="{Binding Side}" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1" Classes="num" Text="{Binding RoundsText}" />
+                                    <TextBlock Grid.Column="2" Classes="num" Text="{Binding OpeningText}" />
+                                    <TextBlock Grid.Column="3" Classes="num" Text="{Binding KdText}" />
+                                    <TextBlock Grid.Column="4" Classes="num" Text="{Binding AdrText}" />
+                                    <TextBlock Grid.Column="5" Classes="num" Text="{Binding KastText}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+            <TextBlock Margin="8 0" FontSize="11" Foreground="{DynamicResource TextDim}" TextWrapping="Wrap"
+                       Text="{Binding SideNote}" IsVisible="{Binding SideNote, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+    </Border>
+</UserControl>

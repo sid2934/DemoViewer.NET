@@ -33,23 +33,6 @@ public interface IHighlightHarvester
     /// </summary>
     AnalysisRun RunBareAnalysis(ParsedDemo demo, string path) => RunBareAnalysis(demo);
 
-    /// <summary>
-    ///     Build + evaluate WITH snapshots: everything <see cref="RunBareAnalysis(ParsedDemo)" /> produces, plus the
-    ///     per-message state vectors the per-player stat projectors read.
-    ///     <para>
-    ///         Reserved for demos the user explicitly asked about (<c>Compute full stats</c>), never the
-    ///         background sweep: snapshot mode is the expensive mode, and being snapshot-free is exactly what
-    ///         makes a library-wide scan affordable. It costs what opening the demo costs, which is what the
-    ///         user just asked for.
-    ///     </para>
-    ///     <para>
-    ///         Defaulted to the bare run so existing implementations, and every test fake, stay valid. A
-    ///         harvester that does not override it simply yields no scoreboard, which the caller handles as
-    ///         "this run produced no stats" rather than as an error.
-    ///     </para>
-    /// </summary>
-    AnalysisRun RunFullAnalysis(ParsedDemo demo) => RunBareAnalysis(demo);
-
     /// <summary>Drops the cached rule config (Authoring Workbench save trigger).</summary>
     void InvalidateRules();
 
@@ -98,9 +81,6 @@ public sealed class RulesHighlightHarvester : IHighlightHarvester
 
     /// <inheritdoc />
     public AnalysisRun RunBareAnalysis(ParsedDemo demo, string path) => _rules.BareRun(demo, path);
-
-    /// <inheritdoc />
-    public AnalysisRun RunFullAnalysis(ParsedDemo demo) => _rules.FullRun(demo);
 
     /// <inheritdoc />
     public void InvalidateRules() => _rules.Invalidate();

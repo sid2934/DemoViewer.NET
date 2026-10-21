@@ -113,6 +113,7 @@ public class StratBookCompositionRootTests
                 .IsEquivalentTo(new[]
                 {
                     "library", "highlights", DemoViewer.NET.Services.Facts.RoundFactsEvaluator.EvaluatorId, DemoViewer.NET.Extensions.Sdk.HostIds.FactsPass,
+                    DemoViewer.NET.Services.MatchMeta.MatchMetaEvaluator.StampId,
                     DemoViewer.NET.Extensions.StratBook.Services.RoundIndex.RoundIndexEvaluator.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
@@ -121,10 +122,12 @@ public class StratBookCompositionRootTests
             await Assert.That(coordinator.PassIds[2]).IsEqualTo("roundfacts");
             // The rulesets' tables, a core pass beside Round Facts.
             await Assert.That(coordinator.PassIds[3]).IsEqualTo("facts");
-            // Both wait on the Library's parse stamp, so a visit the Library joins late still runs it first.
+            // Game mode and rank, the last core pass; the pack's passes all follow it.
+            await Assert.That(coordinator.PassIds[4]).IsEqualTo("matchrank");
+            // All three wait on the Library's parse stamp, so a visit the Library joins late still runs it first.
             using (Assert.Multiple())
             {
-                foreach (string waiting in (string[])["roundfacts", "facts"])
+                foreach (string waiting in (string[])["roundfacts", "facts", "matchrank"])
                 {
                     await Assert.That(coordinator.Passes.Single(p => p.Id == waiting).After).Contains("library")
                         .Because($"{waiting} runs after the Library");
@@ -132,14 +135,14 @@ public class StratBookCompositionRootTests
             }
 
             // The index reads the rows Round Facts wrote in the same pass, so it must come after it.
-            await Assert.That(coordinator.PassIds[4]).IsEqualTo("roundindex");
+            await Assert.That(coordinator.PassIds[5]).IsEqualTo("roundindex");
             // The grenade walk reads nothing the others write. It runs before Suggested Tags so the shared
             // projectile walk streams and keeps only the Removed samples for it.
-            await Assert.That(coordinator.PassIds[5]).IsEqualTo("grenades");
+            await Assert.That(coordinator.PassIds[6]).IsEqualTo("grenades");
             // Suggested Tags reads the index written in the same pass.
-            await Assert.That(coordinator.PassIds[6]).IsEqualTo("suggestedtags");
+            await Assert.That(coordinator.PassIds[7]).IsEqualTo("suggestedtags");
             // Clips render from the grenades the walk just put in the index, on the same parse.
-            await Assert.That(coordinator.PassIds[7]).IsEqualTo("lineupclips");
+            await Assert.That(coordinator.PassIds[8]).IsEqualTo("lineupclips");
 
             // The order came from the registry's resolve: confirm it actually built the three pack
             // evaluators, not merely listed their ids.
@@ -177,7 +180,7 @@ public class StratBookCompositionRootTests
             Services.DemoProcessing.DemoScheduler coordinator =
                 provider.GetRequiredService<Services.DemoProcessing.DemoScheduler>();
 
-            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts"])
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts", "matchrank"])
                 .Because("the pack is off: its three evaluators are never in the fan-out");
 
             StratBookPackInstances instances =

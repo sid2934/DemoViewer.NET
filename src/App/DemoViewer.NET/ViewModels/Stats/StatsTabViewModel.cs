@@ -11,9 +11,11 @@ using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Controls.Stats;
+using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.Diagnostics;
 using DemoViewer.NET.ViewModels.Diagnostics;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 using Microsoft.Extensions.Logging;
 
 #endregion
@@ -139,6 +141,15 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     // Retained from the last Update: the compute call needs the frames + players + map name.
     private ParsedDemo? _visibilityDemo;
 
+    // The account each slot opens in the Player Overview, per PlayerOverviewLink; a slot with none is absent.
+    private Dictionary<int, ulong> _steamIdBySlot = [];
+
+    /// <summary>The account each slot of the shown demo opens in the Player Overview; a slot with none is absent.</summary>
+    internal IReadOnlyDictionary<int, ulong> AccountsBySlot => _steamIdBySlot;
+
+    // A FocusPlayer that arrived before the tables did; the next evaluation takes it, a demo unload drops it.
+    private ulong? _pendingFocus;
+
     private List<string> _visibleGameColumnOrder = [];
     private List<string> _visibleRoundColumnOrder = [];
 
@@ -171,6 +182,12 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     }
 
     private ILogger DiagLog => _diagLog ??= DiagnosticsLog.CreateLogger("App.Stats");
+
+    /// <summary>
+    ///     Opens an account in the Player Overview tab, given its SteamID64 and the name this demo shows. Null where
+    ///     there is no such tab (the browser, tests), which hides the entry on every row.
+    /// </summary>
+    public Action<ulong, string?>? PlayerOverviewOpener { get; set; }
 
     /// <summary>Match-scoreboard column headers, in catalogue display order.</summary>
     public IReadOnlyList<StatColumn> Columns { get; private set; } = [];
@@ -421,6 +438,8 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         ClosePlayerDetails();
 
         _visibilityDemo = null;
+        _steamIdBySlot = [];
+        _pendingFocus = null;
         _sprays.Clear();
         _collisionTrisPath = null;
         SightUnavailable = false;
@@ -700,6 +719,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
 
         ResetVisibilityForNewEvaluation(demo);
         SetExtraTables(extraTables ?? []);
+        _steamIdBySlot = SteamIdsBySlot(demo, extraTables);
 
         GameTable = new PlayerGameStatsProjector
         {
@@ -719,7 +739,10 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 Convert.ToInt32(r.Dimensions.GetValueOrDefault("round_number") ?? 0, CultureInfo.InvariantCulture),
                 Convert.ToInt32(r.Dimensions.GetValueOrDefault("tick") ?? 0, CultureInfo.InvariantCulture),
                 r.Dimensions.GetValueOrDefault("chain")?.ToString() ?? "?",
-                r.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? ""))
+                r.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "")
+            {
+                PlayerOverview = EntryFor(r)
+            })
             .OrderBy(h => h.Tick)
             .ToList();
         OnPropertyChanged(nameof(Highlights));
@@ -761,6 +784,11 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Rounds));
         SelectedRound = Rounds.Count > 0 ? Rounds[0] : 0;
         RebuildRoundRows();
+
+        if (_pendingFocus is { } focus)
+        {
+            FocusPlayer(focus);
+        }
 
         HasStats = GameRows.Count > 0;
         // The old message here named the visibility REPLAY, which is the button beside it, and so read
@@ -897,7 +925,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             BuildColumnScales(GameTable.Rows, _visibleGameColumnOrder);
 
         List<StatsRow> rows = GameTable.Rows
-            .Select(r => BuildRow(r, _visibleGameColumnOrder, scales, SightUnavailable))
+            .Select(r => WithAccount(BuildRow(r, _visibleGameColumnOrder, scales, SightUnavailable)))
             .ToList();
 
         rows.Sort((a, b) =>
@@ -1247,7 +1275,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             BuildColumnScales(roundRows, _visibleRoundColumnOrder);
 
         RoundRows = roundRows
-            .Select(r => BuildRow(r, _visibleRoundColumnOrder, roundScales, SightUnavailable))
+            .Select(r => WithAccount(BuildRow(r, _visibleRoundColumnOrder, roundScales, SightUnavailable)))
             .OrderBy(r => r.TeamSort)
             .ThenBy(r => r.PlayerName, StringComparer.OrdinalIgnoreCase)
             .Select((r, i) => r with
@@ -1272,7 +1300,7 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
     ///         metric and without it there is nothing to rank.
     ///     </para>
     /// </summary>
-    private static List<PodiumEntry> BuildPodium(IReadOnlyList<MetricRow> rows)
+    private List<PodiumEntry> BuildPodium(IReadOnlyList<MetricRow> rows)
     {
         const string ratingColumn = "HLTV";
         StatScale? scale = ColumnCatalogue.Resolve(ratingColumn).Scale?.Resolve(
@@ -1295,7 +1323,10 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
                 ? Convert.ToInt32(t, CultureInfo.InvariantCulture)
                 : 0;
             podium.Add(new PodiumEntry(rank++,
-                row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?", team, rating, scale));
+                row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?", team, rating, scale)
+            {
+                PlayerOverview = EntryFor(row)
+            });
         }
 
         return podium;
@@ -1556,9 +1587,136 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
             return;
         }
 
+        OpenDetails(row.PlayerSlot);
+    }
+
+    private void OpenDetails(int slot)
+    {
         PlayerDetails?.Detach();
-        PlayerDetails = new PlayerDetailsViewModel(this, row.PlayerSlot);
+        PlayerDetails = new PlayerDetailsViewModel(this, slot);
         IsPlayerDetailsOpen = true;
+    }
+
+    /// <summary>Opens a row's player in the Player Overview tab. A row with no account to open does nothing.</summary>
+    [RelayCommand]
+    private void OpenPlayerOverview(StatsRow? row)
+    {
+        if (row is null || row.IsTotals || row.SteamId64 == 0)
+        {
+            return;
+        }
+
+        PlayerOverviewOpener?.Invoke(row.SteamId64, row.PlayerName);
+    }
+
+    /// <summary>Opens a details-switcher player in the Player Overview tab, as a row's entry does.</summary>
+    internal void OpenPlayerOverview(PlayerRef? player)
+    {
+        if (player is null || player.SteamId64 == 0)
+        {
+            return;
+        }
+
+        PlayerOverviewOpener?.Invoke(player.SteamId64, player.Name);
+    }
+
+    /// <summary>
+    ///     Opens the details of the player with <paramref name="steamId64" />. A player who reconnected holds more
+    ///     than one slot, and the slot with the most rounds on a side wins. Before any tables exist the focus waits
+    ///     for the next evaluation; a demo unload drops it.
+    /// </summary>
+    /// <param name="steamId64">The account.</param>
+    /// <returns>True when the details opened now.</returns>
+    public bool FocusPlayer(ulong steamId64)
+    {
+        _pendingFocus = null;
+        if (steamId64 == 0)
+        {
+            return false;
+        }
+
+        if (GameTable is null)
+        {
+            _pendingFocus = steamId64;
+            return false;
+        }
+
+        if (SlotOf(steamId64) is not { } slot)
+        {
+            return false;
+        }
+
+        OpenDetails(slot);
+        return true;
+    }
+
+    /// <summary>The game-table slot <paramref name="steamId64" /> played the most rounds on a side in, or null.</summary>
+    internal int? SlotOf(ulong steamId64)
+    {
+        if (GameTable is null || steamId64 == 0)
+        {
+            return null;
+        }
+
+        int? best = null;
+        double bestRounds = -1;
+        foreach (MetricRow row in GameTable.Rows)
+        {
+            int slot = RowSlot(row);
+            if (slot < 0 || _steamIdBySlot.GetValueOrDefault(slot) != steamId64)
+            {
+                continue;
+            }
+
+            double rounds = 0;
+            foreach (string column in _sideRoundColumns)
+            {
+                rounds += new StatCell(row.Values.GetValueOrDefault(column)).Numeric ?? 0;
+            }
+
+            if (rounds > bestRounds)
+            {
+                best = slot;
+                bestRounds = rounds;
+            }
+        }
+
+        return best;
+    }
+
+    // The round wins and losses per side: every round a slot ended on a side.
+    private static readonly string[] _sideRoundColumns = ["CTW", "CTL", "TW", "TL"];
+
+    // The entry for a row naming a player; a game-scoped row names nobody and offers nothing.
+    private PlayerOverviewEntry EntryFor(MetricRow row) =>
+        row.Dimensions.GetValueOrDefault("player_name")?.ToString() is { Length: > 0 } name
+            ? new PlayerOverviewEntry(_steamIdBySlot.GetValueOrDefault(RowSlot(row)), name, PlayerOverviewOpener)
+            : PlayerOverviewEntry.None;
+
+    private StatsRow WithAccount(StatsRow row) => row with
+    {
+        SteamId64 = _steamIdBySlot.GetValueOrDefault(row.PlayerSlot),
+        OffersPlayerOverview = PlayerOverviewOpener is not null
+    };
+
+    // Every slot's account from the final userinfo table, less the GOTV proxy, bots and the coaches the run's
+    // library_coaches table names. A run without that table marks no coach, the matchmaking truth.
+    private static Dictionary<int, ulong> SteamIdsBySlot(ParsedDemo demo, IReadOnlyList<MetricTable>? extraTables)
+    {
+        MetricTable? coaches = extraTables?.FirstOrDefault(t =>
+            string.Equals(t.Name, LibraryTeamTables.CoachesTable, StringComparison.Ordinal));
+        HashSet<int> coachSlots = LibraryTeamTables.CoachSlots(coaches, demo.Players.Values);
+        Dictionary<int, ulong> bySlot = [];
+        foreach (PlayerInfo p in demo.Players.Values)
+        {
+            ulong id = p.IsHltv ? 0 : PlayerOverviewLink.Of(p.SteamId64, p.IsBot, coachSlots.Contains(p.Slot));
+            if (id != 0)
+            {
+                bySlot[p.Slot] = id;
+            }
+        }
+
+        return bySlot;
     }
 
     /// <summary>Closes the details overlay and releases its VM.</summary>
@@ -1570,14 +1728,18 @@ public sealed partial class StatsTabViewModel : ObservableObject, IDisposable
         PlayerDetails = null;
     }
 
-    private static List<PlayerRef> BuildDetailPlayers(MetricTable gameTable) =>
+    private List<PlayerRef> BuildDetailPlayers(MetricTable gameTable) =>
         gameTable.Rows
             .Select(r => new PlayerRef(
                 RowSlot(r),
                 r.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? "?",
                 r.Dimensions.GetValueOrDefault("team") is { } t
                     ? Convert.ToInt32(t, CultureInfo.InvariantCulture)
-                    : 0))
+                    : 0)
+            {
+                SteamId64 = _steamIdBySlot.GetValueOrDefault(RowSlot(r)),
+                OffersPlayerOverview = PlayerOverviewOpener is not null
+            })
             .Where(p => p.Slot >= 0)
             .OrderBy(p => p.TeamSort)
             .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
@@ -1797,6 +1959,9 @@ public sealed record StatColumn(string Label, int Index, ColumnMeta Meta, bool I
 /// </summary>
 public sealed record HighlightRow(int Round, int Tick, string Chain, string Player)
 {
+    /// <summary>The row's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
+
     /// <summary>"round 7" / "warmup" locator text.</summary>
     public string RoundLabel => Round > 0
         ? $"round {Round}"
@@ -1830,6 +1995,21 @@ public sealed record StatsRow(string PlayerName, int Team, IReadOnlyList<StatCel
     ///     player-details. <c>-1</c> sentinel on totals rows (guarded from opening details).
     /// </summary>
     public int PlayerSlot { get; init; } = -1;
+
+    /// <summary>The account "Open player overview" opens, or 0 when the row offers no action (<see cref="PlayerOverviewLink" />).</summary>
+    public ulong SteamId64 { get; init; }
+
+    /// <summary>True when the shell has a Player Overview tab to open.</summary>
+    public bool OffersPlayerOverview { get; init; }
+
+    /// <summary>Shows the "Open player overview" entry: a player row in a shell that has the tab.</summary>
+    public bool ShowsPlayerOverview => OffersPlayerOverview && !IsTotals;
+
+    /// <summary>True when the entry is live: the row has an account to open.</summary>
+    public bool CanOpenPlayerOverview => SteamId64 != 0;
+
+    /// <summary>Why the entry is off, or null when it is live.</summary>
+    public string? PlayerOverviewTip => CanOpenPlayerOverview ? null : PlayerOverviewLink.NoSteamIdTip;
 
     /// <summary>Team tag shown next to the player (CS2 wire values: 2 = T, 3 = CT).</summary>
     public string TeamLabel => Team switch
@@ -1865,6 +2045,18 @@ public sealed record StatsRow(string PlayerName, int Team, IReadOnlyList<StatCel
 /// </summary>
 public sealed record PlayerRef(int Slot, string Name, int Team)
 {
+    /// <summary>The account "Open player overview" opens, or 0 when the player offers no action.</summary>
+    public ulong SteamId64 { get; init; }
+
+    /// <summary>True when the shell has a Player Overview tab to open.</summary>
+    public bool OffersPlayerOverview { get; init; }
+
+    /// <summary>True when the entry is live: the player has an account to open.</summary>
+    public bool CanOpenPlayerOverview => SteamId64 != 0;
+
+    /// <summary>Why the entry is off, or null when it is live.</summary>
+    public string? PlayerOverviewTip => CanOpenPlayerOverview ? null : PlayerOverviewLink.NoSteamIdTip;
+
     /// <summary>Team tag (CS2 wire values: 2 = T, 3 = CT).</summary>
     public string TeamLabel => Team switch
     {
@@ -1940,6 +2132,9 @@ public sealed record TeamSection(
 /// </summary>
 public sealed record PodiumEntry(int Rank, string Name, int Team, double Rating, StatScale? Scale)
 {
+    /// <summary>The entry's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
+
     /// <summary>"1ST" / "2ND" / "3RD".</summary>
     public string RankLabel => Rank switch
     {

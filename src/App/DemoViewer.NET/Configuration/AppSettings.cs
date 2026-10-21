@@ -72,6 +72,9 @@ public sealed class AppSettings
     /// <summary>The app updater's settings.</summary>
     public UpdateSettings Updates { get; set; } = new();
 
+    /// <summary>Who the user is: their Steam accounts and which one is active.</summary>
+    public IdentitySettings Identity { get; set; } = new();
+
     /// <summary>
     ///     The app version (x.y.z) whose release notes the user has been shown, the post-update
     ///     "What's new" gate. Null until a launch records it. Compared against the running version at
@@ -380,6 +383,42 @@ public sealed class ExtensionsSettings
     ///     at launch, before the app's own settings load, so a change takes effect at the next start.
     /// </summary>
     public bool AllowUnverified { get; set; }
+}
+
+/// <summary>
+///     The user's own Steam accounts (<c>docs/identity-format.md</c>). <see cref="Services.Identity.IdentityService" />
+///     is the only writer and keeps <see cref="ActiveSteamId64" /> a member of <see cref="Accounts" />. SteamIDs are
+///     decimal SteamID64 strings.
+/// </summary>
+public sealed class IdentitySettings
+{
+    /// <summary>Every account that is the user, in the order they were added.</summary>
+    public IdentityAccountSettings[] Accounts { get; set; } = [];
+
+    /// <summary>The account the Player Overview opens on; null only when <see cref="Accounts" /> is empty.</summary>
+    public string? ActiveSteamId64 { get; set; }
+
+    /// <summary>Accounts the user turned down as a "this is you" suggestion.</summary>
+    public string[] DismissedSuggestions { get; set; } = [];
+
+    /// <summary>
+    ///     True once the Strat Book's <c>teams.json</c> <c>me.steamIds</c> has been read in, whether or not it held
+    ///     any. The import runs once per install.
+    /// </summary>
+    public bool MigratedFromTeamsJson { get; set; }
+}
+
+/// <summary>One of the user's accounts.</summary>
+public sealed class IdentityAccountSettings
+{
+    /// <summary>The account's SteamID64.</summary>
+    public string SteamId64 { get; set; } = "";
+
+    /// <summary>The user's own name for it ("main", "smurf"), or null.</summary>
+    public string? Label { get; set; }
+
+    /// <summary>When it was added, UTC.</summary>
+    public DateTime AddedUtc { get; set; }
 }
 
 /// <summary>Demo-library settings.</summary>

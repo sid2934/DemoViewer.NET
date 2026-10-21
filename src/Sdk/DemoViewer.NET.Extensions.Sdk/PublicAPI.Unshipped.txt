@@ -1875,3 +1875,79 @@ virtual DemoViewer.NET.Extensions.Sdk.RecordInput.EqualityContract.get -> System
 virtual DemoViewer.NET.Extensions.Sdk.RecordInput.PrintMembers(System.Text.StringBuilder! builder) -> bool
 abstract DemoViewer.NET.Extensions.Sdk.RecordInput.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.RecordInput!
 override sealed DemoViewer.NET.Extensions.Sdk.DemoDataKey.Equals(DemoViewer.NET.Extensions.Sdk.RecordInput? other) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Identity.get -> DemoViewer.NET.Extensions.Sdk.IExtensionIdentity!
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity.Accounts.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity.ActiveAccount.get -> string?
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.IExtensionIdentity.IsMine(string? steamId64) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionLibrary.Players.get -> DemoViewer.NET.Extensions.Sdk.IPlayerDirectory!
+DemoViewer.NET.Extensions.Sdk.IExtensionShell.OpenPlayerOverview(ulong steamId64) -> bool
+DemoViewer.NET.Extensions.Sdk.IPlayerDirectory
+DemoViewer.NET.Extensions.Sdk.IPlayerDirectory.Account(ulong steamId64) -> DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount?
+DemoViewer.NET.Extensions.Sdk.IPlayerDirectory.Accounts.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount!>!
+DemoViewer.NET.Extensions.Sdk.IPlayerDirectory.Changed -> System.Action?
+DemoViewer.NET.Extensions.Sdk.IPlayerDirectory.Find(string! text) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount!>!
+DemoViewer.NET.Extensions.Sdk.IPlayerDirectory.Matches(ulong steamId64) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch!>!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.Aliases.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias!>!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.Aliases.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.Deconstruct(out ulong SteamId64, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias!>! Aliases, out int DemoCount, out System.DateTime FirstSeen, out System.DateTime LastSeen) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.DemoCount.get -> int
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.DemoCount.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.Equals(DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount? other) -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.FirstSeen.get -> System.DateTime
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.FirstSeen.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.LastSeen.get -> System.DateTime
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.LastSeen.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.LibraryPlayerAccount(ulong SteamId64, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias!>! Aliases, int DemoCount, System.DateTime FirstSeen, System.DateTime LastSeen) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.Name.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.SteamId64.get -> ulong
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.SteamId64.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.Deconstruct(out string! Name, out System.DateTime FirstSeen, out System.DateTime LastSeen, out int Demos) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.Demos.get -> int
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.Demos.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.Equals(DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias? other) -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.FirstSeen.get -> System.DateTime
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.FirstSeen.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.LastSeen.get -> System.DateTime
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.LastSeen.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.LibraryPlayerAlias(string! Name, System.DateTime FirstSeen, System.DateTime LastSeen, int Demos) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.Name.get -> string!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.Name.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.<Clone>$() -> DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Deconstruct(out DemoViewer.NET.Extensions.Sdk.LibraryDemo! Demo, out int? Side, out System.Collections.Generic.IReadOnlyList<string!>! Names, out System.Collections.Generic.IReadOnlyList<int>! Slots, out bool LeftEarly, out System.DateTime Time) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Demo.get -> DemoViewer.NET.Extensions.Sdk.LibraryDemo!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Demo.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Equals(DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? other) -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.LeftEarly.get -> bool
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.LeftEarly.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.LibraryPlayerMatch(DemoViewer.NET.Extensions.Sdk.LibraryDemo! Demo, int? Side, System.Collections.Generic.IReadOnlyList<string!>! Names, System.Collections.Generic.IReadOnlyList<int>! Slots, bool LeftEarly, System.DateTime Time) -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Names.get -> System.Collections.Generic.IReadOnlyList<string!>!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Names.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Side.get -> int?
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Side.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Slots.get -> System.Collections.Generic.IReadOnlyList<int>!
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Slots.init -> void
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Time.get -> System.DateTime
+DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Time.init -> void
+const DemoViewer.NET.Extensions.Sdk.HostIds.PlayerOverviewTab = "builtin.playeroverview" -> string!
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.ToString() -> string!
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.Equals(object? obj) -> bool
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.GetHashCode() -> int
+override DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.ToString() -> string!
+static DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerAccount? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? right) -> bool
+static DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? right) -> bool

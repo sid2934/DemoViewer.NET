@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.BenchmarksSectionView"
+             x:DataType="sections:BenchmarksSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!--
+        The subject's rates as percentiles among the library's other players. The population line stays above
+        the rows whatever they show, so a percentile is never read without who it was taken against.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="Grid.benchRow > TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Grid.benchRow > TextBlock.num">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0 0 10 0" />
+        </Style>
+        <Style Selector="Grid.benchRow > TextBlock.dim">
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="FontSize" Value="11.5" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="12">
+                    <CheckBox x:Name="RankBand" Content="{Binding RankBandText}" FontSize="12"
+                              IsVisible="{Binding CanUseRankBand}" IsChecked="{Binding UseRankBand}"
+                              ToolTip.Tip="Compare only with players whose latest CS Rating in this library is in your Premier tier" />
+                    <TextBlock Text="MIN MATCHES" FontFamily="Consolas,Menlo,monospace" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextMid}" VerticalAlignment="Center" />
+                    <ComboBox x:Name="MinimumPicker" FontSize="12" MinWidth="64"
+                              ItemsSource="{Binding Minimums}" SelectedItem="{Binding SelectedMinimum}"
+                              AutomationProperties.Name="Minimum matches"
+                              ToolTip.Tip="The fewest matches with stats a player needs, under the same filter, to be compared" />
+                </StackPanel>
+                <TextBlock Text="Library benchmarks" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextCardHeader}" />
+            </DockPanel>
+
+            <TextBlock x:Name="Population" Text="{Binding PopulationText}" FontSize="11.5" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" />
+            <TextBlock Text="{Binding LoadText}" IsVisible="{Binding IsLoading}" FontSize="11.5" FontStyle="Italic"
+                       Foreground="{DynamicResource TextDim}" />
+
+            <ItemsControl x:Name="Rows" ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:BenchmarkRowItem">
+                        <Grid Classes="benchRow" ColumnDefinitions="110,64,*,52,96" Margin="0 3" ToolTip.Tip="{Binding Tooltip}">
+                            <TextBlock Grid.Column="0" Text="{Binding Label}" Foreground="{DynamicResource TextMid}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="1" Classes="num" Text="{Binding ValueText}" />
+                            <statsCtl:StatValue Grid.Column="2" Value="{Binding Percentile}" Scale="{Binding Scale}" Text=""
+                                                Height="12" Padding="0" CornerRadius="2" TintBar="True"
+                                                VerticalAlignment="Center" BarTrackBrush="{DynamicResource PanelHeaderBg}" />
+                            <TextBlock Grid.Column="3" Classes="num" Text="{Binding PercentileText}" />
+                            <TextBlock Grid.Column="4" Classes="dim" Text="{Binding MedianText}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="{Binding NoteText}" IsVisible="{Binding HasNote}" FontSize="11.5" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextMid}" />
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -25,10 +25,12 @@
         <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/Collectors/ICollectorFaultReporter.cs" Link="Collectors/ICollectorFaultReporter.cs"/>
         <Compile Include="../../src/Sdk/DemoViewer.NET.Extensions.Sdk/Collectors.cs" Link="Sdk/Collectors.cs"/>
         <!-- ForwardDemoPass.FinalState is LibraryTeamState, read through LibraryFinalStateReplay;
-             DecodeSites is its one decode-count hook. All three are Avalonia-free. -->
+             DecodeSites is its one decode-count hook; ServerRankCapture is how it reads the rank update.
+             All four are Avalonia-free. -->
         <Compile Include="../../src/App/DemoViewer.NET/Modules/Library/LibraryTeamTables.cs" Link="Library/LibraryTeamTables.cs"/>
         <Compile Include="../../src/App/DemoViewer.NET/Modules/Library/LibraryFinalStateReplay.cs" Link="Library/LibraryFinalStateReplay.cs"/>
         <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/DecodeSites.cs" Link="DecodeSites.cs"/>
+        <Compile Include="../../src/App/DemoViewer.NET/Services/DemoProcessing/ServerRankCapture.cs" Link="ServerRankCapture.cs"/>
         <PackageReference Include="CS2DemoKit.Parser"/>
         <PackageReference Include="CS2DemoKit.Analysis"/>
     </ItemGroup>

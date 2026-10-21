@@ -193,6 +193,13 @@
                                       MaxWidth="180"
                                       IsVisible="{Binding ShowDemoChrome}"
                                       VerticalAlignment="Center" Margin="0 0 8 0" ToolTip.Tip="Filter by player" />
+                            <Button Content="Player overview" Classes="chip" FontSize="12" Padding="10 4"
+                                    Command="{Binding SelectedPlayerOverview.OpenCommand}"
+                                    IsVisible="{Binding SelectedPlayerOverview.Offers}"
+                                    IsEnabled="{Binding SelectedPlayerOverview.CanOpen}"
+                                    ToolTip.Tip="{Binding SelectedPlayerOverview.Tip}"
+                                    ToolTip.ShowOnDisabled="True"
+                                    VerticalAlignment="Center" Margin="0 0 8 0" />
 
                             <!-- Contributed filters: one ComboBox per currently-on filter contribution (e.g. Team). -->
                             <ItemsControl ItemsSource="{Binding Filters}" VerticalAlignment="Center">

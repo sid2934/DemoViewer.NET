@@ -316,7 +316,8 @@ public sealed class StratBookPack : IExtension
                 run: work => Job(sp, "Teams: update", work,
                     new JobOptions(StratBookJobKinds.Teams, Serial: TeamIdentityService.QueueSerial)),
                 scheduleLoad: StartupLoad(sp, "Load: teams"),
-                loadAtStart: false);
+                loadAtStart: false,
+                identity: Host(sp).Identity);
             // Teams other stores point at survive a rebuild that gives them no side. The stores raise on the
             // UI thread and mutate there, so reading them in their own Changed is safe.
             StratStore strats = sp.GetRequiredService<StratStore>();
@@ -345,7 +346,8 @@ public sealed class StratBookPack : IExtension
             async path => await Host(sp).Shell.OpenDemoAsync(path),
             command: (what, change) => Job(sp, "Teams: " + what.TrimEnd('…'), change,
                 new JobOptions(StratBookJobKinds.Teams, JobPriority.UserRequested, Serial: TeamIdentityService.QueueSerial)),
-            post: Host(sp).Post));
+            post: Host(sp).Post,
+            openPlayerOverview: id => Host(sp).Shell.OpenPlayerOverview(id)));
 
         // SituationIndex, TeamIdentityService and TagFactsRefresher were registered by the composition root,
         // so their factories are wrapped rather than rewritten. The wrap changes nothing

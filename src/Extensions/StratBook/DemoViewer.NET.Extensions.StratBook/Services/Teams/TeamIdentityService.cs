@@ -20,7 +20,8 @@ public sealed record TeamIdentityFiles(string? Teams, StoredFile? Index);
 ///     <para>
 ///         <b>Two files, one rule.</b> What the user authored is truth and lives in
 ///         <c>&lt;config&gt;/teams.json</c> beside <c>settings.json</c>: names, the us mark, rosters with
-///         their fixed five and extended-core snapshot, merges, tombstones, overrides, the me accounts.
+///         their fixed five and extended-core snapshot, merges, tombstones, overrides, and a copy of the
+///         user's accounts from the host's <see cref="IExtensionIdentity" />, rewritten on every save.
 ///         What clustering derived is a cache and lives in the extension's own cache folder as
 ///         <c>team-index.json</c>: every side key, its assignment, the members table. The index is rebuilt from the sidecars when
 ///         it is missing or behind; the user file is refused, never overwritten, when it cannot be read.
@@ -43,9 +44,6 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     /// <summary>The words the Teams panel shows on the browser host, the annotations panel's shape.</summary>
     public const string BrowserNote = "session only: this browser tab forgets teams when it reloads";
 
-    /// <summary>The library size from which the me suggestion is offered.</summary>
-    public const int MeSuggestionMinDemos = 20;
-
     /// <summary>The user's file.</summary>
     public const string TeamsFileName = "teams.json";
 
@@ -56,6 +54,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     public const string IndexFileName = "team-index.json";
 
     private readonly IExtensionLibrary _library;
+    private readonly IExtensionIdentity? _identity;
     private readonly object _gate = new();
     private readonly StoredFile? _indexFile;
 
@@ -99,6 +98,10 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     ///     False leaves the service detached and unread until <see cref="Attach" />: the owning pack is off, so
     ///     nothing of its index belongs in memory. A mutator still reads the files first.
     /// </param>
+    /// <param name="identity">
+    ///     The user's accounts, which resolve our side and seed the squad. Null keeps the accounts
+    ///     <c>teams.json</c> holds and never writes them.
+    /// </param>
     public TeamIdentityService(
         TeamIdentityFiles? files,
         IExtensionLibrary library,
@@ -106,10 +109,12 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         Action<Action>? post = null,
         Func<Action, Task>? run = null,
         Func<Action, Task>? scheduleLoad = null,
-        bool loadAtStart = true)
+        bool loadAtStart = true,
+        IExtensionIdentity? identity = null)
     {
         ArgumentNullException.ThrowIfNull(library);
         _library = library;
+        _identity = identity;
         _roundFacts = roundFacts;
         _post = post ?? (action => action());
         _run = run ?? (action => Task.Run(action));
@@ -174,53 +179,6 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     /// <summary>The index was missing, corrupt or behind at load: <see cref="StartAsync" /> rebuilds from the sidecars.</summary>
     public bool NeedsRebuild { get; private set; }
 
-    /// <summary>The account the share heuristic proposes as me, or null. Written only by confirmation.</summary>
-    public MeSuggestion? MeSuggestion { get; private set; }
-
-    /// <summary>The "is this you?" suggestion the user dismissed, while it still holds; null otherwise.</summary>
-    public MeSuggestion? DismissedMeSuggestion { get; private set; }
-
-    /// <summary>The dismissal id of an account suggestion, kept with the other dismissed suggestions.</summary>
-    public static string MeSuggestionId(string steamId64) => "me:" + steamId64;
-
-    /// <summary>Dismisses "is this you?" for the account it names; it is not asked again until restored.</summary>
-    public void DismissMeSuggestion()
-    {
-        _load.Ensure();
-        lock (_gate)
-        {
-            if (MeSuggestion is not { } suggestion)
-            {
-                return;
-            }
-
-            _teams.DismissedSuggestions.Add(MeSuggestionId(suggestion.SteamId64));
-            SuggestMe();
-            SaveTeams();
-        }
-
-        RaiseChanged();
-    }
-
-    /// <summary>Asks "is this you?" again.</summary>
-    public void RestoreMeSuggestion()
-    {
-        _load.Ensure();
-        lock (_gate)
-        {
-            if (DismissedMeSuggestion is not { } suggestion)
-            {
-                return;
-            }
-
-            _teams.DismissedSuggestions.RemoveAll(id => id == MeSuggestionId(suggestion.SteamId64));
-            SuggestMe();
-            SaveTeams();
-        }
-
-        RaiseChanged();
-    }
-
     /// <summary>Pending suggestions (squad, roster change, merge by tag). None is ever applied without the user.</summary>
     public IReadOnlyList<TeamSuggestion> Suggestions { get; private set; } = [];
 
@@ -258,7 +216,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     {
         lock (_gate)
         {
-            return TeamSuggestions.CoPlayers(_teams, _index);
+            return TeamSuggestions.CoPlayers(_teams, _index, _identity?.ActiveAccount);
         }
     }
 
@@ -385,8 +343,9 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     // so drift cannot walk a dismissal away from every player it named.
     private void ComputeSuggestions()
     {
-        Suggestions = TeamSuggestions.Compute(_teams, _index);
-        DismissedSuggestions = TeamSuggestions.Dismissed(_teams, _index);
+        string? active = _identity?.ActiveAccount;
+        Suggestions = TeamSuggestions.Compute(_teams, _index, active);
+        DismissedSuggestions = TeamSuggestions.Dismissed(_teams, _index, active);
     }
 
     /// <summary>Visible teams, in file order.</summary>
@@ -425,17 +384,25 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
     }
 
-    /// <summary>The user's accounts.</summary>
+    /// <summary>The user's accounts: the host's, or what <c>teams.json</c> holds when there is no host identity.</summary>
     public IReadOnlyList<string> MyAccounts
     {
         get
         {
+            if (_identity is not null)
+            {
+                return _identity.Accounts;
+            }
+
             lock (_gate)
             {
                 return [.. _teams.Me.SteamIds];
             }
         }
     }
+
+    /// <summary>The account the user's own stats are about, one of <see cref="MyAccounts" />; null without a host identity.</summary>
+    public string? ActiveAccount => _identity?.ActiveAccount;
 
     /// <summary>Demos in the index that carry no side key on either side: no <c>player_team</c> reached the parse.</summary>
     public int UnclusterableCount
@@ -494,6 +461,11 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
 
         _library.Changed += OnLibraryChanged;
+        if (_identity is not null)
+        {
+            _identity.Changed += OnIdentityChanged;
+        }
+
         bool schedule;
         lock (_gate)
         {
@@ -544,8 +516,6 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
             _teamsRefused = false;
             TeamsFileProblem = null;
             NeedsRebuild = false;
-            MeSuggestion = null;
-            DismissedMeSuggestion = null;
             Suggestions = [];
             DismissedSuggestions = [];
             _load = NewLoad();
@@ -573,6 +543,11 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
 
         _library.Changed -= OnLibraryChanged;
+        if (_identity is not null)
+        {
+            _identity.Changed -= OnIdentityChanged;
+        }
+
         return true;
     }
 
@@ -1131,18 +1106,12 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
     }
 
-    /// <summary>Replaces the me accounts. Re-derives our side everywhere.</summary>
-    public void SetMyAccounts(IReadOnlyList<string> steamIds)
+    // The user edited their accounts in the host's Settings: our side moves wherever a me account decided it,
+    // and the squad suggestion follows the accounts. Queued like a replay, so it lands after one in flight.
+    private void OnIdentityChanged() => _ = Schedule(() =>
     {
-        _load.Ensure();
-        ArgumentNullException.ThrowIfNull(steamIds);
         lock (_gate)
         {
-            _teams.Me.SteamIds =
-            [
-                .. steamIds.Select(s => s.Trim()).Where(s => s.Length > 0).Distinct(StringComparer.Ordinal)
-            ];
-            MeSuggestion = null;
             ResolveOurSides();
             ComputeSuggestions();
             SaveTeams();
@@ -1150,17 +1119,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
 
         RaiseChanged();
-    }
-
-    /// <summary>Writes the suggested account as me. The one path by which the suggestion reaches the file.</summary>
-    public void ConfirmMeSuggestion()
-    {
-        _load.Ensure();
-        if (MeSuggestion is { } suggestion)
-        {
-            SetMyAccounts([suggestion.SteamId64]);
-        }
-    }
+    });
 
     /// <summary>Folds <paramref name="from" /> into <paramref name="into" />: rosters concatenate, the id is tombstoned.</summary>
     public Guid Merge(Guid into, Guid from)
@@ -1445,7 +1404,6 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         _index = index;
         UpgradeOverrides();
         ResolveOurSides();
-        SuggestMe();
         ComputeSuggestions();
         SaveTeams();
         SaveIndex();
@@ -1507,9 +1465,10 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     }
 
     // The order of precedence: an override naming us, a roster of the us team, a me account on a side. A
-    // pure pass over the index; the opponent is whatever team sits on the other side.
+    // pass over the index after taking the host's accounts; the opponent is whatever team sits on the other side.
     private void ResolveOurSides()
     {
+        MirrorMe();
         Team? us = _teams.Teams.FirstOrDefault(t => t.IsUs);
         HashSet<string> me = new(_teams.Me.SteamIds, StringComparer.Ordinal);
         foreach (TeamIndexDemo row in _index.Demos.Values)
@@ -1556,61 +1515,13 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         }
     }
 
-    // The account with the highest demo share, offered when me is empty, the library has twenty or
-    // more clusterable demos and the share is above one half. Nothing is written here.
-    private void SuggestMe()
+    // Under _gate. teams.json keeps a copy of the host's accounts, so the file reads the same to anything
+    // that opens it without the host; the host's list always wins.
+    private void MirrorMe()
     {
-        MeSuggestion = null;
-        DismissedMeSuggestion = null;
-        if (_teams.Me.SteamIds.Count > 0)
+        if (_identity is not null)
         {
-            return;
-        }
-
-        Dictionary<string, (int Count, string Name)> counts = new(StringComparer.Ordinal);
-        int clusterable = 0;
-        foreach (TeamIndexDemo row in _index.Demos.Values)
-        {
-            bool any = false;
-            foreach (int side in (int[]) [2, 3])
-            {
-                if (row.Side(side) is not { IsClusterable: true } s)
-                {
-                    continue;
-                }
-
-                any = true;
-                for (int i = 0; i < s.Key.Count; i++)
-                {
-                    (int seen, string _) = counts.GetValueOrDefault(s.Key[i]);
-                    counts[s.Key[i]] = (seen + 1, i < s.Names.Count ? s.Names[i] : s.Key[i]);
-                }
-            }
-
-            if (any)
-            {
-                clusterable++;
-            }
-        }
-
-        if (clusterable < MeSuggestionMinDemos)
-        {
-            return;
-        }
-
-        (string id, (int count, string name)) = counts.OrderByDescending(c => c.Value.Count).ThenBy(c => c.Key, StringComparer.Ordinal).First();
-        double share = (double) count / clusterable;
-        if (share > 0.5)
-        {
-            MeSuggestion suggestion = new(id, name, count, share);
-            if (_teams.DismissedSuggestions.Contains(MeSuggestionId(id), StringComparer.Ordinal))
-            {
-                DismissedMeSuggestion = suggestion;
-            }
-            else
-            {
-                MeSuggestion = suggestion;
-            }
+            _teams.Me.SteamIds = [.. _identity.Accounts];
         }
     }
 
@@ -1657,7 +1568,8 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
                         _inputs[key] = SideKeys.From(key, row);
                     }
 
-                    SuggestMe();
+                    // The accounts may have changed in the host's Settings while this service was not looking.
+                    ResolveOurSides();
                     ComputeSuggestions();
                     return;
                 }
@@ -1680,6 +1592,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
     private void SaveTeams()
     {
+        MirrorMe();
         // Detached, the service read nothing, so nothing it holds may reach the user's file.
         if (_teamsPath is null || _teamsRefused || !_attached)
         {

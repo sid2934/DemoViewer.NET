@@ -8,10 +8,13 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
+using CS2DemoKit.Analysis.Visibility;
 using CS2DemoKit.Analysis.Yaml;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Modules.Library;
+using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.DemoProcessing.Collectors;
 
 #endregion
 
@@ -40,6 +43,11 @@ namespace AnalysisBench;
 ///         records only those of stamped rulesets whose stored outputs are stale, and omitting it keeps
 ///         <c>round_facts</c> alone.
 ///     </para>
+///     <para>
+///         <c>--vision</c> hands <c>app-forward</c> the map's collision bake, as an open does, so the read
+///         synthesizes <c>enemy_spotted</c>. Each map's engine is built once per process and its build is reported
+///         apart as <c>visionMs</c>, outside <c>parseMs</c>.
+///     </para>
 ///     Emits one <c>@BGJOB</c> JSON line per demo and one <c>@BGRUN</c> line at the end.
 /// </summary>
 internal static class BackgroundRunCommand
@@ -56,6 +64,7 @@ internal static class BackgroundRunCommand
         string? without = named.GetValueOrDefault("--without");
         string? with = named.GetValueOrDefault("--with");
         string? outputsArg = named.GetValueOrDefault("--outputs");
+        _vision = flags.Contains("--vision");
 
         RuleConfigLoadResult? rules = null;
         if (eval)
@@ -114,6 +123,7 @@ internal static class BackgroundRunCommand
                 demo = Path.GetFileName(demos[i]),
                 sizeMb = sizeBytes / Mb,
                 parseMs,
+                visionMs = _lastVisionMs,
                 highlights,
                 tableRows = _lastTableRows,
                 jobMs = Stopwatch.GetElapsedTime(tj).TotalMilliseconds,
@@ -148,6 +158,7 @@ internal static class BackgroundRunCommand
             without,
             with,
             outputs = outputsArg,
+            vision = _vision,
             demos = demos.Length,
             wallMs,
             peakWsMb = sampler.PeakWs / Mb,
@@ -166,6 +177,30 @@ internal static class BackgroundRunCommand
     // Rows of the tables the last app-forward job recorded; -1 on every other read.
     private static int _lastTableRows = -1;
 
+    private static bool _vision;
+    private static double _lastVisionMs;
+    private static readonly Dictionary<string, VisibilityEngine?> _engines = new(StringComparer.OrdinalIgnoreCase);
+
+    // The map's engine, built on first use; the build is timed apart because the app's cache pays it once a map.
+    private static VisibilityEngine? Vision(string path)
+    {
+        _lastVisionMs = 0;
+        if (!_vision || !DownstreamUtilities.TryReadQuickInfo(path, out DownstreamUtilities.DemoQuickInfo info))
+        {
+            return null;
+        }
+
+        if (!_engines.TryGetValue(info.MapName, out VisibilityEngine? engine))
+        {
+            long t = Stopwatch.GetTimestamp();
+            engine = CollisionSoup.Find(info.MapName) is { } tris ? CollisionSoup.Load(tris) : null;
+            _engines[info.MapName] = engine;
+            _lastVisionMs = Stopwatch.GetElapsedTime(t).TotalMilliseconds;
+        }
+
+        return engine;
+    }
+
     // NoInlining keeps the demo and the evaluation result out of the caller's frame, so they are
     // unreachable once the job returns, as they are when the queue moves on.
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -176,11 +211,13 @@ internal static class BackgroundRunCommand
         {
             CaptureSnapshots = false
         };
+        VisibilityEngine? visibility = read == "app-forward" ? Vision(path) : null;
         long t = Stopwatch.GetTimestamp();
         if (read == "app-forward")
         {
             using DemoReader reader = DemoReader.OpenFile(path, ForwardDemoPass.ReaderOptions(CancellationToken.None));
-            ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, rules!.Rulesets, outputs: outputs);
+            ForwardDemoResult pass = ForwardDemoPass.Run(reader, ForwardNeeds.FinalState | ForwardNeeds.Rules, rules!.Rulesets, null, outputs,
+                CollectorSet.Empty, visibility: visibility);
             // The recorded tables are projected as the facts and Round Facts passes do, so their cost lands in the job.
             _lastTableRows = pass.Run!.ProjectConfiguredOutputs().Sum(table => table.Rows.Count);
             return (Stopwatch.GetElapsedTime(t).TotalMilliseconds, pass.Run!.Highlights.Count);

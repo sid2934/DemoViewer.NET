@@ -8,9 +8,12 @@ using CommunityToolkit.Mvvm.Input;
 using CS2DemoKit.Analysis.Output;
 using CS2DemoKit.Parser;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Services.MatchMeta;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 
 #endregion
 
@@ -19,7 +22,14 @@ namespace DemoViewer.NET.ViewModels.MatchOverview;
 /// <summary>
 ///     One roster entry on the Match Overview landing page: a player's name + bot flag, grouped by side.
 /// </summary>
-public sealed record OverviewPlayer(string Name, bool IsBot);
+public sealed record OverviewPlayer(string Name, bool IsBot)
+{
+    /// <summary>The player slot of a live-parsed roster row, or -1 for a cached one.</summary>
+    public int Slot { get; init; } = -1;
+
+    /// <summary>The roster row's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
+}
 
 /// <summary>
 ///     One scoreboard line on the Match Overview landing page. Deliberately a handful of pre-formatted
@@ -37,6 +47,9 @@ public sealed record OverviewStatRow(
 {
     /// <summary>CT rows carry the blue side accent, T rows amber (the app-wide scoreboard convention).</summary>
     public bool IsCt => Team == 3;
+
+    /// <summary>The scoreboard row's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
 }
 
 /// <summary>
@@ -107,6 +120,11 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
     private readonly Func<bool>? _isVerifyPresent;
     private readonly Action<string>? _openDemo;
+    private readonly Action<string, DateTime?>? _setMatchTime;
+
+    // The account each live-parsed slot opens in the Player Overview, per PlayerOverviewLink; the analysis table
+    // joins its rows to it by slot.
+    private readonly Dictionary<int, ulong> _steamIdBySlot = [];
     private readonly Action? _returnToLive;
     private readonly Func<string, string, string, int, int, bool>? _stageClip;
     private readonly Action<string, string, string, int, int>? _unstageClip;
@@ -375,6 +393,10 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     Whether a clip is already in the tray. Called once per row build, so it must be cheap: the tray
     ///     backs it with a dictionary lookup.
     /// </param>
+    /// <param name="setMatchTime">
+    ///     Sets a demo's match time from the hero's "Set match date", or clears the override when the time is null.
+    ///     Null leaves the button off.
+    /// </param>
     public MatchOverviewTabViewModel(
         Action? viewStats = null,
         Action? viewPlayback = null,
@@ -385,7 +407,8 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         Func<bool>? isVerifyPresent = null,
         Func<string, string, string, int, int, bool>? stageClip = null,
         Action<string, string, string, int, int>? unstageClip = null,
-        Func<string, string, string, int, int, bool>? isClipStaged = null)
+        Func<string, string, string, int, int, bool>? isClipStaged = null,
+        Action<string, DateTime?>? setMatchTime = null)
     {
         _viewStats = viewStats;
         _viewPlayback = viewPlayback;
@@ -397,8 +420,16 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         _stageClip = stageClip;
         _unstageClip = unstageClip;
         _isClipStaged = isClipStaged;
+        _setMatchTime = setMatchTime;
         Stages = [ParseStage, EnrichStage, AnalyseStage];
     }
+
+    /// <summary>
+    ///     Opens an account in the Player Overview tab, given its SteamID64 and the name this page shows. Null where
+    ///     there is no such tab, which hides the entry on every row. Set before a demo is shown; rows built earlier
+    ///     keep what they were built with.
+    /// </summary>
+    public Action<ulong, string?>? PlayerOverviewOpener { get; set; }
 
     // ── Subject identity ──────────────────────────────────────────────────────
     //
@@ -476,7 +507,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     <para>
     ///         Never offered on a LIVE page: the open is already harvesting this demo's highlights, so the
     ///         button would sit under "Harvesting highlights…" contradicting it, and pressing it would queue a
-    ///         second full pass: a whole redundant parse plus snapshot analysis, through a gate that allows
+    ///         second full pass: a whole redundant parse plus analysis, through a gate that allows
     ///         one heavy job machine-wide. Once the harvest lands the section speaks for itself; if the demo
     ///         genuinely fired nothing, re-running would produce the same nothing.
     ///     </para>
@@ -609,6 +640,36 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     frame stream and does not wait for analysis.
     /// </summary>
     public bool CanExplorePlayback => Mode == OverviewMode.Live && HasSummary && _viewPlayback is not null;
+
+    /// <summary>When the match was played, local time, or empty while the demo has no time.</summary>
+    [ObservableProperty]
+    private string _matchDateText = string.Empty;
+
+    /// <summary>True when <see cref="MatchDateText" /> is a guess (the file's write time).</summary>
+    [ObservableProperty]
+    private bool _isMatchDateApproximate;
+
+    /// <summary>True when the user set the match time, which is what "Clear" undoes.</summary>
+    [ObservableProperty]
+    private bool _hasMatchDateOverride;
+
+    /// <summary>The "Set match date" field: local <see cref="MatchTimeOverrides.InputFormat" />.</summary>
+    [ObservableProperty]
+    private string _matchDateInput = string.Empty;
+
+    [ObservableProperty]
+    private string _matchDateError = string.Empty;
+
+    /// <summary>Gates the hero's "Set match date" button.</summary>
+    public bool CanSetMatchDate => _setMatchTime is not null && SubjectKey is not null;
+
+    /// <summary>The hero button's text: the time the page shows, else the prompt to set one.</summary>
+    public string MatchDateButtonText => MatchDateText.Length == 0 ? "Set match date"
+        : IsMatchDateApproximate ? $"~ {MatchDateText}" : MatchDateText;
+
+    partial void OnMatchDateTextChanged(string value) => OnPropertyChanged(nameof(MatchDateButtonText));
+
+    partial void OnIsMatchDateApproximateChanged(bool value) => OnPropertyChanged(nameof(MatchDateButtonText));
 
     /// <summary>Gates the cached render's primary CTA: the one that turns a preview into a real open.</summary>
     public bool CanOpenDemo =>
@@ -789,7 +850,8 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     /// </summary>
     /// <param name="subjectKey">The open's identity; a mismatch means this seed is for a previous open.</param>
     /// <param name="record">The demo's cache record, at whatever tier it has reached.</param>
-    public void SeedFromCache(string? subjectKey, DemoCacheRecord record)
+    /// <param name="facet">The demo's <c>player_match</c> table, or null when none is written.</param>
+    public void SeedFromCache(string? subjectKey, DemoCacheRecord record, FactTable? facet = null)
     {
         ArgumentNullException.ThrowIfNull(record);
 
@@ -800,6 +862,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
         // Identity, map and server are already set by BeginOpening from the cheap header read. The record
         // cannot improve on them and a stale record must not overwrite them.
+        SetMatchTime(record.MatchMeta);
         if (record.Parse.IsPresent)
         {
             if (record.DurationSeconds > 0)
@@ -818,7 +881,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                 CounterTerrorists.Clear();
                 foreach (CachedPlayerInfo p in record.Roster)
                 {
-                    OverviewPlayer entry = new(DisplayText.Sanitize(p.Name), p.IsBot);
+                    OverviewPlayer entry = CachedPlayer(p);
                     if (p.Team == 3)
                     {
                         CounterTerrorists.Add(entry);
@@ -870,13 +933,14 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         }
 
         bool scannerRan = record.Analysis.IsPresent && record.AnalysisState == DemoAnalysisState.Indexed;
-        if (record.Scoreboard.Count > 0)
+        CachedScoreboard scoreboard = CachedScoreboard.Of(record, facet);
+        if (scoreboard.Rows.Count > 0)
         {
-            _analysisSideCt = record.CtSideWins;
-            _analysisSideT = record.TSideWins;
-            _analysisRounds = record.AnalysisRoundCount;
+            _analysisSideCt = scoreboard.CtSideWins;
+            _analysisSideT = scoreboard.TSideWins;
+            _analysisRounds = scoreboard.Rounds;
             PlayerStats.Clear();
-            FillCachedScoreboard(record);
+            FillCachedScoreboard(record, scoreboard.Rows);
             PlayerStatsMessage = string.Empty;
             HasAnalysis = PlayerStats.Count > 0;
         }
@@ -975,6 +1039,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         CounterTerrorists.Clear();
         int players = 0;
         int spectators = 0;
+        _steamIdBySlot.Clear();
         foreach (PlayerInfo p in parsed.Players.Values)
         {
             // The GOTV proxy / demo recorder occupies a userinfo slot with a name, so counting
@@ -986,7 +1051,12 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                 continue;
             }
 
-            OverviewPlayer entry = new(p.Name, p.IsBot);
+            OverviewPlayer entry = new(p.Name, p.IsBot)
+            {
+                Slot = p.Slot,
+                PlayerOverview = Entry(PlayerOverviewLink.Of(p.SteamId64, p.IsBot, false), p.Name)
+            };
+            _steamIdBySlot[p.Slot] = entry.PlayerOverview.SteamId64;
 
             // Team 2 = T, 3 = CT (parser convention). ONLY these count as players.
             //
@@ -1062,15 +1132,32 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     that finished T). Not per-side totals; see the SideWins fields.
     /// </param>
     /// <param name="roundCount">Rounds the analysis resolved, or 0 when unknown.</param>
+    /// <param name="accounts">
+    ///     The account each slot opens in the Player Overview, coaches already left out. The roster was filled before
+    ///     the analysis could say who coached, so a live page takes this over from the one it built; null keeps it.
+    /// </param>
     public void SetAnalysis(
         string? subjectKey,
         MetricTable? gameTable,
         IReadOnlyDictionary<int, int?>? teamScoresBySort,
-        int roundCount)
+        int roundCount,
+        IReadOnlyDictionary<int, ulong>? accounts = null)
     {
         if (!Accepts(subjectKey))
         {
             return;
+        }
+
+        if (accounts is not null)
+        {
+            _steamIdBySlot.Clear();
+            foreach ((int slot, ulong id) in accounts)
+            {
+                _steamIdBySlot[slot] = id;
+            }
+
+            RefreshRosterEntries(CounterTerrorists);
+            RefreshRosterEntries(Terrorists);
         }
 
         // EVERY analysis-stage value is keyed off the one fact "did this run produce a table", not off the
@@ -1258,13 +1345,15 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     ///     </para>
     /// </summary>
     /// <param name="record">The demo's cache record, at whatever tier it has reached.</param>
-    public void SetCachedRecord(DemoCacheRecord record)
+    /// <param name="facet">The demo's <c>player_match</c> table, or null when none is written.</param>
+    public void SetCachedRecord(DemoCacheRecord record, FactTable? facet = null)
     {
         ArgumentNullException.ThrowIfNull(record);
 
         ResetValues();
         Mode = OverviewMode.Cached;
         SubjectKey = record.Path;
+        SetMatchTime(record.MatchMeta);
         HasContent = true;
         FileName = Path.GetFileName(record.Path);
         MapDisplay = string.IsNullOrEmpty(record.Map) ? string.Empty : DemoEntry.PrettifyMap(record.Map);
@@ -1291,7 +1380,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         {
             foreach (CachedPlayerInfo p in record.Roster)
             {
-                OverviewPlayer entry = new(DisplayText.Sanitize(p.Name), p.IsBot);
+                OverviewPlayer entry = CachedPlayer(p);
                 if (p.Team == 3)
                 {
                     CounterTerrorists.Add(entry);
@@ -1336,12 +1425,10 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
 
         // TIER 3 IS TWO FACTS, NOT ONE. Conflating them made the page contradict itself.
         //
-        // Highlights and the scoreboard have different producers. The highlights scan runs the rules engine in
-        // BARE mode (AnalysisOptions.CaptureSnapshots = false) because that is what makes a library-wide sweep
-        // affordable; the scoreboard is projected from the final snapshot vector, which bare mode does not
-        // produce at all. So "this demo has been scanned" and "this demo has stats" are genuinely independent,
-        // and a demo can legitimately sit with real highlights and no scoreboard for as long as the user never
-        // asks for stats.
+        // Highlights and the scoreboard have different producers. The highlights scan stamps the record; the
+        // scoreboard is projected from the player_match facet, which the facts pass writes under its own stamp.
+        // So "this demo has been scanned" and "this demo has stats" are independent, and a demo can sit with
+        // highlights and no scoreboard until the facts pass reaches it.
         //
         // Reading both off one flag meant a scanned demo rendered a FULL chip directly above "Analysis produced
         // no per-player stats for this demo." That's on the same screen, about the same demo. A page whose whole job
@@ -1349,18 +1436,19 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         // Each half is read off ITS OWN evidence, not off a shared flag. AnalysisState belongs to the
         // highlights scan's lifecycle (the scanner owns it); the scoreboard's evidence is simply that rows
         // exist, because its producer is a different pass that never touches that field. Deriving the
-        // scoreboard from AnalysisState would hide a real scoreboard on a demo that has only ever been
-        // opened, and deriving highlights from row count would call a scan "done" before it had run.
+        // scoreboard from AnalysisState would hide a real scoreboard on a demo whose scan has not run, and
+        // deriving highlights from row count would call a scan "done" before it had run.
         bool scannerRan = record.Analysis.IsPresent && record.AnalysisState == DemoAnalysisState.Indexed;
-        bool hasScoreboard = record.Scoreboard.Count > 0;
+        CachedScoreboard scoreboard = CachedScoreboard.Of(record, facet);
+        bool hasScoreboard = scoreboard.Rows.Count > 0;
         HasAnalysis = hasScoreboard;
 
         if (hasScoreboard)
         {
-            _analysisSideCt = record.CtSideWins;
-            _analysisSideT = record.TSideWins;
-            _analysisRounds = record.AnalysisRoundCount;
-            FillCachedScoreboard(record);
+            _analysisSideCt = scoreboard.CtSideWins;
+            _analysisSideT = scoreboard.TSideWins;
+            _analysisRounds = scoreboard.Rounds;
+            FillCachedScoreboard(record, scoreboard.Rows);
         }
 
         // Runs in BOTH branches: it is what derives RoundCountDisplay from the score when the analysis round
@@ -1382,14 +1470,14 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                 ? "The last analysis pass failed for this demo."
                 : "Player stats need a full analysis pass.";
 
-        Completeness = ClassifyCached(record);
+        Completeness = ClassifyCached(record, hasScoreboard);
         RaiseCompletenessChanged();
         RaiseCtaChanged();
     }
 
     // The scoreboard, joined against the roster by SLOT: the unified record stores stat rows by slot rather
     // than repeating a name on every row, so the name comes from the one place that owns it.
-    private void FillCachedScoreboard(DemoCacheRecord record)
+    private void FillCachedScoreboard(DemoCacheRecord record, IReadOnlyList<CachedStatRow> scoreboard)
     {
         Dictionary<int, CachedPlayerInfo> bySlot = [];
         foreach (CachedPlayerInfo p in record.Players)
@@ -1397,7 +1485,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
             bySlot.TryAdd(p.Slot, p);
         }
 
-        IEnumerable<OverviewStatRow> rows = record.Scoreboard
+        IEnumerable<OverviewStatRow> rows = scoreboard
             .Select(r => new OverviewStatRow(
                 bySlot.TryGetValue(r.Slot, out CachedPlayerInfo? p) ? DisplayText.Sanitize(p.Name) : string.Empty,
                 r.Team,
@@ -1405,7 +1493,12 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
                 r.Deaths.ToString(CultureInfo.InvariantCulture),
                 r.Assists.ToString(CultureInfo.InvariantCulture),
                 r.Adr.ToString("0.##", CultureInfo.InvariantCulture),
-                r.Rating.ToString("0.##", CultureInfo.InvariantCulture)))
+                r.Rating.ToString("0.##", CultureInfo.InvariantCulture))
+            {
+                PlayerOverview = bySlot.TryGetValue(r.Slot, out CachedPlayerInfo? owner)
+                    ? CachedPlayer(owner).PlayerOverview
+                    : PlayerOverviewEntry.None
+            })
             .Where(r => r.Name.Length > 0)
             .OrderBy(r => r.IsCt ? 0 : 1)
             .ThenByDescending(r => ParseSortable(r.Rating))
@@ -1470,16 +1563,33 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     // stats half would still be reading "needs a full analysis pass" on a highlights-only record, and the
     // chip's own action IS "Compute full stats". Claiming Full there would both contradict the section
     // beneath it and retire the one button that fixes it. See the two-facts note in SetCachedRecord.
-    private static OverviewCompleteness ClassifyCached(DemoCacheRecord record) =>
+    private static OverviewCompleteness ClassifyCached(DemoCacheRecord record, bool hasScoreboard) =>
         record.AnalysisState == DemoAnalysisState.Failed
             ? OverviewCompleteness.Failed
             : record.Analysis.IsPresent
               && record.AnalysisState == DemoAnalysisState.Indexed
-              && record.Scoreboard.Count > 0
+              && hasScoreboard
                 ? OverviewCompleteness.Full
                 : record.Parse.IsPresent
                     ? OverviewCompleteness.Indexed
                     : OverviewCompleteness.NotIndexed;
+
+    // The scoreboard a cached render shows: the facet's when the demo has one, else the rows an earlier version
+    // stored on the record, with the side split and round count from the same source so the reconcile never
+    // mixes the two.
+    private readonly record struct CachedScoreboard(IReadOnlyList<CachedStatRow> Rows, int? CtSideWins, int? TSideWins, int Rounds)
+    {
+        public static CachedScoreboard Of(DemoCacheRecord record, FactTable? facet)
+        {
+            if (facet is not null && DemoCacheAnalysisProjector.ProjectScoreboard(facet) is { Count: > 0 } rows)
+            {
+                (int? ct, int? t) = DemoCacheAnalysisProjector.ComputeSideWins(rows);
+                return new CachedScoreboard(rows, ct, t, DemoCacheAnalysisProjector.Rounds(facet));
+            }
+
+            return new CachedScoreboard(record.Scoreboard, record.CtSideWins, record.TSideWins, record.AnalysisRoundCount);
+        }
+    }
 
     // [ + ] / [ ✓ ]: the Match Overview end of the cross-demo clip tray. A single toggle rather than two
     // buttons: the row already renders its staged state, so the second press is unmistakably "undo that".
@@ -1570,6 +1680,46 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         OnPropertyChanged(nameof(CanReturnToLive));
     }
 
+    /// <summary>Shows the time <paramref name="meta" /> carries, or none. The shell calls it whenever the subject's record changes.</summary>
+    /// <param name="meta">The subject's match meta, or null.</param>
+    public void SetMatchTime(DemoMatchMeta? meta)
+    {
+        bool known = meta is { MatchTimeUtcTicks: not null };
+        MatchDateText = known ? MatchTimeOverrides.Format(meta!.MatchTimeUtcTicks!.Value) : string.Empty;
+        IsMatchDateApproximate = known && meta!.IsApproximate;
+        HasMatchDateOverride = meta?.MatchTimeSource == MatchTimeSource.UserOverride;
+        MatchDateInput = MatchDateText;
+        MatchDateError = string.Empty;
+        OnPropertyChanged(nameof(CanSetMatchDate));
+    }
+
+    [RelayCommand]
+    private void SetMatchDate()
+    {
+        if (SubjectKey is not { } key || _setMatchTime is null)
+        {
+            return;
+        }
+
+        if (!MatchTimeOverrides.TryParse(MatchDateInput, out DateTime utc))
+        {
+            MatchDateError = "Use yyyy-MM-dd HH:mm";
+            return;
+        }
+
+        MatchDateError = string.Empty;
+        _setMatchTime(key, utc);
+    }
+
+    [RelayCommand]
+    private void ClearMatchDate()
+    {
+        if (SubjectKey is { } key)
+        {
+            _setMatchTime?.Invoke(key, null);
+        }
+    }
+
     [RelayCommand]
     private void ViewStats() => _viewStats?.Invoke();
 
@@ -1613,6 +1763,7 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
         ErrorText = string.Empty;
         IsSampleClip = false;
         IsDamaged = false;
+        SetMatchTime(null);
         DamageSummary = string.Empty;
         HasSummary = false;
         HasRoster = false;
@@ -1697,9 +1848,10 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
     {
         OnPropertyChanged(nameof(CanExploreStats));
         OnPropertyChanged(nameof(CanExplorePlayback));
+        OnPropertyChanged(nameof(CanSetMatchDate));
     }
 
-    private static OverviewStatRow BuildStatRow(MetricRow row) =>
+    private OverviewStatRow BuildStatRow(MetricRow row) =>
         new(
             row.Dimensions.GetValueOrDefault("player_name")?.ToString() ?? string.Empty,
             row.Dimensions.GetValueOrDefault("team") is { } t
@@ -1709,7 +1861,36 @@ public sealed partial class MatchOverviewTabViewModel : ViewModelBase, IWorkspac
             Format(row.Values.GetValueOrDefault("TotalD")),
             Format(row.Values.GetValueOrDefault("TotalA")),
             Format(row.Values.GetValueOrDefault("ADR")),
-            Format(row.Values.GetValueOrDefault("HLTV")));
+            Format(row.Values.GetValueOrDefault("HLTV")))
+        {
+            PlayerOverview = Entry(
+                row.Dimensions.GetValueOrDefault("player_slot") is { } slot
+                    ? _steamIdBySlot.GetValueOrDefault(Convert.ToInt32(slot, CultureInfo.InvariantCulture))
+                    : 0,
+                row.Dimensions.GetValueOrDefault("player_name")?.ToString())
+        };
+
+    private void RefreshRosterEntries(ObservableCollection<OverviewPlayer> side)
+    {
+        for (int i = 0; i < side.Count; i++)
+        {
+            OverviewPlayer player = side[i];
+            ulong id = player.Slot >= 0 ? _steamIdBySlot.GetValueOrDefault(player.Slot) : player.PlayerOverview.SteamId64;
+            if (id != player.PlayerOverview.SteamId64)
+            {
+                side[i] = player with { PlayerOverview = Entry(id, player.PlayerOverview.Name) };
+            }
+        }
+    }
+
+    // An entry opening `steamId64` through the shell; with no opener wired the entry is hidden.
+    private PlayerOverviewEntry Entry(ulong steamId64, string? name) => new(steamId64, name, PlayerOverviewOpener);
+
+    private OverviewPlayer CachedPlayer(CachedPlayerInfo p) =>
+        new(DisplayText.Sanitize(p.Name), p.IsBot)
+        {
+            PlayerOverview = Entry(PlayerOverviewLink.Of(p.SteamId64, p.IsBot, p.IsCoach), p.Name)
+        };
 
     // Same rendering contract as the Stats tab's StatCell.Display (invariant, doubles to 2 decimals), with
     // the page-wide placeholder standing in for a missing value instead of a blank cell.

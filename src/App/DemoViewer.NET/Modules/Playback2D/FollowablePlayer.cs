@@ -1,3 +1,5 @@
+using DemoViewer.NET.ViewModels.PlayerOverview;
+
 namespace DemoViewer.NET.Modules.Playback2D;
 
 /// <summary>
@@ -7,6 +9,9 @@ namespace DemoViewer.NET.Modules.Playback2D;
 /// </summary>
 public readonly record struct FollowablePlayer(int Slot, string Name, int Team)
 {
+    /// <summary>The player's "Open player overview" entry.</summary>
+    public PlayerOverviewEntry PlayerOverview { get; init; } = PlayerOverviewEntry.None;
+
     /// <summary>Menu label, e.g. "CT  s1mple" / "T  ZywOo".</summary>
     public string Display => $"{TeamTag}  {Name}";
 

@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=./cs2demokit-rules.schema.json
+#
+# Player Round: one row per player per round, stored by the facts pass as the player_round facet
+# (docs/player-round-format.md) and read by the Player Overview for its CT and T splits. App-owned like
+# player_match, and stamped on its own, so adding or editing it re-walks only its own backlog and leaves
+# the player_match stamps current.
+#
+# Every count is its player_match column's definition at per: round, so a player's rows add up to that
+# column: kills to TotalK, deaths to TotalD, assists to TotalA, damage to EnemyDmg, survived to Survived.
+# kast is kast's has_kast over the same two counters, so the rounds it holds add up to KASTRounds.
+# Keep them word for word; PlayerMatchParityRealDemoTests fails on any that drift.
+#
+# side is the player's team at the round's freeze end, 3 for CT and 2 for T; 0 when the player was not on
+# a side then (connected later, or spectating). A per-player row carries only the final roster team.
+#
+# The stat ids carry round_ as player_match's carry total_: the workbench trace keys stats on the bare id
+# across every loaded ruleset, so a bare kills here would merge with kast's. The facet's names are the labels.
+ruleset: player_round
+title: Player Round
+summary: Per-player round lines with the side played, for CT and T splits across demos.
+for: each_player
+
+stats:
+  round_side:
+    capture: player.team
+    on: raw.round_freeze_end
+    per: round
+
+  round_kills:
+    count: kill
+    match: { enemy: true }
+    per: round
+
+  round_deaths:
+    count: death
+    while: match.live
+    per: round
+
+  round_assists:
+    count: assist
+    match: { enemy: true }
+    where: "event.AssistedFlash == false"
+    per: round
+
+  round_damage:
+    sum: enrich.hurt.capped_damage
+    on: damage_dealt
+    match: { enemy: true }
+    per: round
+
+  round_survived:
+    count: round_ended
+    while: player.alive
+    per: round
+
+  # kast's team_assists_round: an assist on any enemy kill, looser than assists above.
+  round_kast_assists:
+    count: assist
+    where: "enrich.kill.was_enemy_kill == true"
+    per: round
+
+  round_kast:
+    flag:
+      when: "round_kills > 0 or round_kast_assists > 0 or player.survived or player.traded"
+    per: round
+
+show:
+  tables:
+    player_round:
+      per: player_round
+      columns:
+        - { stat: round_side,     label: side }
+        - { stat: round_kills,    label: kills }
+        - { stat: round_deaths,   label: deaths }
+        - { stat: round_assists,  label: assists }
+        - { stat: round_damage,   label: damage }
+        - { stat: round_survived, label: survived }
+        - { stat: round_kast,     label: kast }

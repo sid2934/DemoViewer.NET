@@ -1,94 +1,91 @@
 #region
 
 using System.Globalization;
-using CS2DemoKit.Analysis.Output;
+using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
 
 namespace DemoViewer.NET.Services.DemoCache;
 
 /// <summary>
-///     Projects an analysis run's per-player match table into the unified cache's tier-3 scoreboard.
+///     Projects a demo's <c>player_match</c> facet into the scoreboard Match Overview renders from the cache and the
+///     side wins the index carries.
 ///     <para>
-///         Lives here rather than in either caller because there are two producers and they must agree byte
-///         for byte: the interactive open (which has a snapshot-bearing run in hand and pays nothing extra to
-///         store it) and any future explicit stats pass. A scoreboard that differed depending on which one
-///         happened to run last would be the same class of bug as the two-scores-for-one-match problem the
-///         Match Overview page is built to avoid.
+///         The facts pass writes the facet on every visit, opens included. A record's legacy
+///         <see cref="DemoCacheRecord.Scoreboard" /> is read only while the demo has no facet.
 ///     </para>
 ///     <para>
-///         The column names are the analysis engine's own (<c>TotalK</c>, <c>ADR</c>, <c>HLTV</c>, …): the
-///         same keys the Stats tab and Match Overview's live scoreboard read, so the cached render shows the
-///         numbers the interactive run produced rather than a second projection that can drift from them.
+///         The values are the Stats tab's: the facet's counts are copies of its scoreboard columns, and ADR and
+///         HLTV are rounded to that scoreboard's <c>F1</c> and <c>F2</c>, which is what its game table holds.
 ///     </para>
 /// </summary>
 public static class DemoCacheAnalysisProjector
 {
     /// <summary>
-    ///     One <see cref="CachedStatRow" /> per player row of <paramref name="gameTable" />, keyed by slot.
-    ///     <para>
-    ///         Rows without a resolvable <c>player_slot</c> are dropped: the record stores players once and
-    ///         references them by slot, so a row that cannot be joined back to the roster would render as a
-    ///         blank name, worse than not being there. Totals rows are excluded the same way (they carry no
-    ///         slot).
-    ///     </para>
+    ///     One <see cref="CachedStatRow" /> per row of <paramref name="facet" />, keyed by slot. A row without a
+    ///     <c>player_slot</c> is dropped: the page joins rows to the roster by slot, and a row that cannot be
+    ///     joined would render as a blank name.
     /// </summary>
-    public static List<CachedStatRow> ProjectScoreboard(MetricTable gameTable)
+    /// <param name="facet">The demo's <c>player_match</c> table.</param>
+    public static List<CachedStatRow> ProjectScoreboard(FactTable facet)
     {
-        ArgumentNullException.ThrowIfNull(gameTable);
+        ArgumentNullException.ThrowIfNull(facet);
 
         List<CachedStatRow> rows = [];
-        foreach (MetricRow row in gameTable.Rows)
+        foreach (FactRow row in facet.Rows)
         {
-            if (row.Dimensions.GetValueOrDefault("player_slot") is not { } slotValue)
+            if (row.Dimensions.GetValueOrDefault("player_slot")?.AsInteger() is not { } slot)
             {
                 continue;
             }
 
+            double rounds = Number(row, "rounds");
             rows.Add(new CachedStatRow
             {
-                Slot = ToInt(slotValue),
-                Team = ToInt(row.Dimensions.GetValueOrDefault("team")),
-                Kills = ToInt(row.Values.GetValueOrDefault("TotalK")),
-                Deaths = ToInt(row.Values.GetValueOrDefault("TotalD")),
-                Assists = ToInt(row.Values.GetValueOrDefault("TotalA")),
-                Adr = ToDouble(row.Values.GetValueOrDefault("ADR")),
-                Rating = ToDouble(row.Values.GetValueOrDefault("HLTV")),
-                CtWins = ToInt(row.Values.GetValueOrDefault("CTW")),
-                TWins = ToInt(row.Values.GetValueOrDefault("TW"))
+                Slot = (int)slot,
+                Team = (int)(row.Dimensions.GetValueOrDefault("team")?.AsInteger() ?? 0),
+                Kills = Whole(row, "TotalK"),
+                Deaths = Whole(row, "TotalD"),
+                Assists = Whole(row, "TotalA"),
+                Adr = rounds > 0 ? Formatted(Number(row, "EnemyDmg") / rounds, "F1") : 0,
+                Rating = Formatted(Number(row, "HLTV"), "F2"),
+                CtWins = Whole(row, "CTW"),
+                TWins = Whole(row, "TW")
             });
         }
 
         return rows;
     }
 
+    /// <summary>The match's round count: the facet's <c>rounds</c>, the same on every row, or 0 when it has no rows.</summary>
+    /// <param name="facet">The demo's <c>player_match</c> table.</param>
+    public static int Rounds(FactTable facet)
+    {
+        ArgumentNullException.ThrowIfNull(facet);
+        return facet.Rows.Count == 0 ? 0 : facet.Rows.Max(r => Whole(r, "rounds"));
+    }
+
     /// <summary>
     ///     Rounds won by each SIDE across the match. Every row of a team carries that team's own
-    ///     <c>CTW</c>/<c>TW</c>, so one row per team gives the match-wide split; teams whose rows disagree, or
-    ///     a table missing the columns entirely, yield nulls: a missing number beats a wrong one.
+    ///     <see cref="CachedStatRow.CtWins" />/<see cref="CachedStatRow.TWins" />, so one row per team gives the
+    ///     match-wide split; teams whose rows disagree, or no row on either team, yield nulls: a missing number
+    ///     beats a wrong one.
     /// </summary>
-    public static (int? Ct, int? T) ComputeSideWins(MetricTable gameTable)
+    /// <param name="rows">The scoreboard rows.</param>
+    public static (int? Ct, int? T) ComputeSideWins(IReadOnlyList<CachedStatRow> rows)
     {
-        ArgumentNullException.ThrowIfNull(gameTable);
+        ArgumentNullException.ThrowIfNull(rows);
 
         Dictionary<int, (int Ct, int T)> perTeam = [];
-        foreach (MetricRow row in gameTable.Rows)
+        foreach (CachedStatRow row in rows)
         {
-            if (row.Values.GetValueOrDefault("CTW") is not { } ctw
-                || row.Values.GetValueOrDefault("TW") is not { } tw
-                || row.Dimensions.GetValueOrDefault("team") is not { } teamValue)
+            if (row.Team is not (2 or 3))
             {
                 continue;
             }
 
-            int team = ToInt(teamValue);
-            if (team is not (2 or 3))
-            {
-                continue;
-            }
-
-            (int Ct, int T) pair = (ToInt(ctw), ToInt(tw));
-            if (perTeam.TryGetValue(team, out (int Ct, int T) seen))
+            (int Ct, int T) pair = (row.CtWins, row.TWins);
+            if (perTeam.TryGetValue(row.Team, out (int Ct, int T) seen))
             {
                 // Rows of one team disagreeing means the per-side columns are not team-wide totals on this
                 // demo; refuse the whole derivation rather than pick one row's version of the match.
@@ -100,7 +97,7 @@ public static class DemoCacheAnalysisProjector
                 continue;
             }
 
-            perTeam[team] = pair;
+            perTeam[row.Team] = pair;
         }
 
         if (perTeam.Count == 0)
@@ -119,10 +116,12 @@ public static class DemoCacheAnalysisProjector
         return (ctSide, tSide);
     }
 
-    private static int ToInt(object? raw) => raw is null
-        ? 0
-        : Convert.ToInt32(Convert.ToDouble(raw, CultureInfo.InvariantCulture));
+    private static double Number(FactRow row, string column) => row.Values.GetValueOrDefault(column)?.AsNumber() ?? 0;
 
-    private static double ToDouble(object? raw) =>
-        raw is null ? 0 : Convert.ToDouble(raw, CultureInfo.InvariantCulture);
+    private static int Whole(FactRow row, string column) => (int)Math.Round(Number(row, column));
+
+    // Rounded the way a stat's format: rounds it, on the exact binary value: 1697 / 20 is 84.8 under F1, where
+    // Math.Round scales first and reads 84.85 as a tie.
+    private static double Formatted(double value, string format) =>
+        double.Parse(value.ToString(format, CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
 }

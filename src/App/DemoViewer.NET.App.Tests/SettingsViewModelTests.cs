@@ -17,6 +17,7 @@ using DemoViewer.NET.Extensions.Updates;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Theming;
 using DemoViewer.NET.ViewModels;
 using DemoViewer.NET.ViewModels.Settings;
@@ -24,6 +25,7 @@ using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Views.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -1868,6 +1870,158 @@ public class SettingsViewModelTests
                         await Assert.That(scroll.Extent.Width).IsLessThanOrEqualTo(scroll.Viewport.Width);
                         await Assert.That(update).IsNotNull().Because("the offered version has its button");
                         await Assert.That(message).IsNotNull();
+                    }
+
+                    vm.Dispose();
+                }
+            });
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task TheIdentitySection_AddsEveryForm_MarksTheActiveOne_AndAnswersTheSuggestion()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir, isBrowser: () => false);
+            using (sp)
+            using (IdentityService identity = new(svc, IdentityServiceTests.Library(20, 15)))
+            {
+                await Assert.That(vm.CanManageIdentity).IsFalse().Because("nothing is attached yet");
+                vm.AttachIdentity(identity, null);
+                await Assert.That(vm.ShowSectionIdentity).IsTrue();
+
+                vm.IdentityInput = "[U:1:1]";
+                vm.AddIdentityAccountCommand.Execute(null);
+                vm.IdentityInput = "https://steamcommunity.com/profiles/76561197960265730/";
+                vm.AddIdentityAccountCommand.Execute(null);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.IdentityAccounts.Select(r => r.SteamId64))
+                        .IsEquivalentTo(["76561197960265729", "76561197960265730"], CollectionOrdering.Matching);
+                    await Assert.That(vm.IdentityAccounts.Select(r => r.IsActive)).IsEquivalentTo([true, false], CollectionOrdering.Matching);
+                    await Assert.That(vm.IdentityInput).IsEmpty();
+                    await Assert.That(svc.Current.Identity.ActiveSteamId64).IsEqualTo("76561197960265729");
+                }
+
+                vm.IdentityInput = "STEAM_1:1:0";
+                vm.AddIdentityAccountCommand.Execute(null);
+                await Assert.That(vm.IdentityInputNote).Contains("already");
+                vm.IdentityInput = "https://steamcommunity.com/id/grimnir";
+                vm.AddIdentityAccountCommand.Execute(null);
+                await Assert.That(vm.IdentityInputNote).Contains("Online Connectivity");
+                vm.IdentityInput = "3";
+                vm.AddIdentityAccountCommand.Execute(null);
+                await Assert.That(vm.IdentityInputNote).Contains("account id").Because("a bare account id is flagged");
+
+                vm.SetActiveIdentityAccountCommand.Execute(vm.IdentityAccounts[1]);
+                await Assert.That(identity.ActiveSteamId64).IsEqualTo("76561197960265730");
+                vm.RemoveIdentityAccountCommand.Execute(vm.IdentityAccounts[1]);
+                await Assert.That(identity.ActiveSteamId64).IsEqualTo("76561197960265729").Because("the first becomes active");
+
+                await Assert.That(vm.IdentitySuggestionText).Contains("Is this you?");
+                vm.AcceptIdentitySuggestionCommand.Execute(null);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(identity.IsMine("76561198000000009")).IsTrue();
+                    await Assert.That(identity.ActiveSteamId64).IsEqualTo("76561197960265729").Because("the list was not empty");
+                    await Assert.That(vm.IdentitySuggestionText).IsNull();
+                }
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    [Test]
+    public async Task TheIdentitySection_IsHiddenInTheBrowser()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir, isBrowser: () => true);
+            using (sp)
+            using (IdentityService identity = new(svc))
+            {
+                vm.AttachIdentity(identity, null);
+                using (Assert.Multiple())
+                {
+                    await Assert.That(vm.CanManageIdentity).IsFalse();
+                    await Assert.That(vm.ShowSectionIdentity).IsFalse();
+                }
+
+                vm.Dispose();
+            }
+        }
+        finally
+        {
+            Cleanup(dir);
+        }
+    }
+
+    // Render: the Identity section with an active account, a second one and the suggestion line draws, checks the
+    // active radio, and fits the real settings host width.
+    [Test]
+    public async Task TheIdentitySection_Renders_AtTheRealHostWidth()
+    {
+        string dir = NewTempDir();
+        try
+        {
+            await HeadlessSession.RunOnUi(async () =>
+            {
+                (SettingsViewModel vm, SettingsService svc, IFeatureGate _, ServiceProvider sp) = NewVm(dir, isBrowser: () => false);
+                using (sp)
+                using (IdentityService identity = new(svc, IdentityServiceTests.Library(20, 15)))
+                {
+                    identity.SetAccounts([
+                        new IdentityAccount("76561197960265729", "main", DateTime.UtcNow),
+                        new IdentityAccount("76561197960265730", null, DateTime.UtcNow)
+                    ]);
+                    vm.AttachIdentity(identity, null);
+                    vm.SettingsFilterText = "identity";
+
+                    SettingsView view = new()
+                    {
+                        DataContext = vm
+                    };
+                    Window window = new()
+                    {
+                        Width = 560,
+                        Height = 720,
+                        Content = view
+                    };
+                    window.Show();
+                    Dispatcher.UIThread.RunJobs();
+                    AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+                    Dispatcher.UIThread.RunJobs();
+
+                    WriteableBitmap? frame = window.CaptureRenderedFrame();
+                    await Assert.That(frame).IsNotNull();
+                    string outPath = Path.Combine(HeadlessSession.ArtifactDir, "settings-identity.png");
+                    frame!.Save(outPath, new PngBitmapEncoderOptions());
+                    int nonBg = ScanNonBackground(frame);
+                    Console.WriteLine($"[settings-identity] {outPath} nonBg={nonBg}");
+
+                    ScrollViewer scroll = view.FindControl<ScrollViewer>("SectionsScroll")
+                                          ?? throw new InvalidOperationException("SectionsScroll is gone from the view.");
+                    RadioButton[] radios = [.. view.GetVisualDescendants().OfType<RadioButton>().Where(r => r.GroupName == "identityActive")];
+                    using (Assert.Multiple())
+                    {
+                        await Assert.That(nonBg).IsGreaterThan(200);
+                        await Assert.That(view.FindControl<Border>("SectionIdentity")!.IsEffectivelyVisible).IsTrue();
+                        await Assert.That(radios.Select(r => r.IsChecked)).IsEquivalentTo(new bool?[] { true, false }, CollectionOrdering.Matching);
+                        await Assert.That(vm.IdentitySuggestionText).IsNotNull();
+                        await Assert.That(scroll.Extent.Width).IsLessThanOrEqualTo(scroll.Viewport.Width)
+                            .Because("wider content than the viewport would silently clip at the real host width");
                     }
 
                     vm.Dispose();

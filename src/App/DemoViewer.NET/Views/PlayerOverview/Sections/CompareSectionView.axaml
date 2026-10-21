@@ -1,0 +1,153 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:po="using:DemoViewer.NET.ViewModels.PlayerOverview"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.CompareSectionView"
+             x:DataType="sections:CompareSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- The subject in the left value column, the picked player in the right; a dot marks the better of the two. -->
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.categoryTitle">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="Margin" Value="0 8 0 4" />
+        </Style>
+        <Style Selector="TextBlock.statLabel">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style Selector="TextBlock.statDetail">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextDim}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0 0 8 0" />
+        </Style>
+        <Style Selector="TextBlock.playerName">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="TextAlignment" Value="Right" />
+        </Style>
+        <Style Selector="Ellipse.lead">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Fill" Value="{DynamicResource AccentInteractive}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasOther}">
+                    <Button Classes="ghost" Content="Open" Command="{Binding OpenOtherCommand}"
+                            ToolTip.Tip="Open their own overview" />
+                    <Button Classes="ghost" Content="Clear" Command="{Binding ClearOtherCommand}" />
+                </StackPanel>
+                <TextBlock Text="Compare" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" VerticalAlignment="Center" />
+            </DockPanel>
+
+            <TextBox x:Name="CompareSearchBox" Text="{Binding SearchText}"
+                     Watermark="Search a player to compare by name, SteamID or profile URL"
+                     AutomationProperties.Name="Search a player to compare">
+                <TextBox.KeyBindings>
+                    <KeyBinding Gesture="Enter" Command="{Binding SubmitSearchCommand}" />
+                </TextBox.KeyBindings>
+            </TextBox>
+            <TextBlock FontSize="12" Foreground="{DynamicResource TextMid}" TextWrapping="Wrap"
+                       Text="{Binding SearchMessage}" IsVisible="{Binding HasSearchMessage}" />
+            <ItemsControl x:Name="CompareCandidateList" ItemsSource="{Binding Candidates}" IsVisible="{Binding HasCandidates}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="po:PlayerCandidateItem">
+                        <Button Classes="ghost" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                Command="{Binding $parent[ItemsControl].((sections:CompareSectionViewModel)DataContext).PickCandidateCommand}"
+                                CommandParameter="{Binding}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" FontSize="11.5" Foreground="{DynamicResource TextMid}"
+                                           VerticalAlignment="Center" Text="{Binding Demos}" />
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                                    <TextBlock FontFamily="Consolas,Menlo,monospace" FontSize="11.5"
+                                               Foreground="{DynamicResource TextMid}" VerticalAlignment="Center"
+                                               Text="{Binding SteamIdText}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="{Binding NoteText}" IsVisible="{Binding HasNote}" FontSize="11.5"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+
+            <Grid ColumnDefinitions="*,96,64,12,96,64,12" Margin="0 4 0 0" IsVisible="{Binding HasOther}">
+                <StackPanel Grid.Column="1" Grid.ColumnSpan="2">
+                    <TextBlock Classes="playerName" Text="{Binding SubjectName}" />
+                    <TextBlock Classes="statDetail" Margin="0" Text="{Binding SubjectScope}" />
+                </StackPanel>
+                <StackPanel Grid.Column="4" Grid.ColumnSpan="2">
+                    <TextBlock Classes="playerName" Text="{Binding OtherName}" />
+                    <TextBlock Classes="statDetail" Margin="0" Text="{Binding OtherScope}" />
+                </StackPanel>
+            </Grid>
+
+            <ItemsControl x:Name="CompareTiles" ItemsSource="{Binding Tiles}" IsVisible="{Binding HasOther}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:CompareStatItem">
+                        <Grid ColumnDefinitions="*,96,64,12,96,64,12" Margin="0 2" Background="Transparent"
+                              ToolTip.Tip="{Binding Tooltip}">
+                            <TextBlock Classes="statLabel" Text="{Binding Label}" />
+                            <TextBlock Grid.Column="1" Classes="statDetail" Text="{Binding Subject.Detail}" />
+                            <statsCtl:StatValue Grid.Column="2" Mode="Plain" Height="18" Text="{Binding Subject.Text}"
+                                                Value="{Binding Subject.Value}" Scale="{Binding Subject.Scale}" />
+                            <Ellipse Grid.Column="3" Classes="lead" IsVisible="{Binding SubjectLeads}" />
+                            <TextBlock Grid.Column="4" Classes="statDetail" Text="{Binding Other.Detail}" />
+                            <statsCtl:StatValue Grid.Column="5" Mode="Plain" Height="18" Text="{Binding Other.Text}"
+                                                Value="{Binding Other.Value}" Scale="{Binding Other.Scale}" />
+                            <Ellipse Grid.Column="6" Classes="lead" IsVisible="{Binding OtherLeads}" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <ItemsControl x:Name="CompareCategories" ItemsSource="{Binding Categories}" IsVisible="{Binding HasOther}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:CompareCategoryItem">
+                        <StackPanel>
+                            <TextBlock Classes="categoryTitle" Text="{Binding Title}" />
+                            <ItemsControl ItemsSource="{Binding Stats}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="sections:CompareStatItem">
+                                        <Grid ColumnDefinitions="*,96,64,12,96,64,12" Margin="0 2" Background="Transparent"
+                                              ToolTip.Tip="{Binding Tooltip}">
+                                            <TextBlock Classes="statLabel" Text="{Binding Label}" />
+                                            <TextBlock Grid.Column="1" Classes="statDetail" Text="{Binding Subject.Detail}" />
+                                            <statsCtl:StatValue Grid.Column="2" Mode="Plain" Height="18" Text="{Binding Subject.Text}"
+                                                                Value="{Binding Subject.Value}" Scale="{Binding Subject.Scale}" />
+                                            <Ellipse Grid.Column="3" Classes="lead" IsVisible="{Binding SubjectLeads}" />
+                                            <TextBlock Grid.Column="4" Classes="statDetail" Text="{Binding Other.Detail}" />
+                                            <statsCtl:StatValue Grid.Column="5" Mode="Plain" Height="18" Text="{Binding Other.Text}"
+                                                                Value="{Binding Other.Value}" Scale="{Binding Other.Scale}" />
+                                            <Ellipse Grid.Column="6" Classes="lead" IsVisible="{Binding OtherLeads}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

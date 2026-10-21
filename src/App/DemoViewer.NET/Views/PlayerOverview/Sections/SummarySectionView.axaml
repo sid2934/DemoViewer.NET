@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             xmlns:statsCtl="using:DemoViewer.NET.Controls.Stats"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.SummarySectionView"
+             x:DataType="sections:SummarySectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- The headline tiles over the filter bar's window; the bar itself sits above the inner tabs. -->
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="10">
+            <ItemsControl x:Name="Tiles" ItemsSource="{Binding Tiles}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:SummaryTileItem">
+                        <statsCtl:StatTile Text="{Binding Text}" Value="{Binding Value}" Scale="{Binding Scale}"
+                                           Label="{Binding Label}" Caption="{Binding Caption}" MinWidth="96"
+                                           ToolTip.Tip="{Binding Tooltip}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="{Binding Note}" IsVisible="{Binding HasNote}" FontSize="11.5"
+                       Foreground="{DynamicResource TextMid}" TextWrapping="Wrap" />
+        </StackPanel>
+    </Border>
+</UserControl>

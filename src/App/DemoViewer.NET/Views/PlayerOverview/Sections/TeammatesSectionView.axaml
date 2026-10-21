@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.TeammatesSectionView"
+             x:DataType="sections:TeammatesSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <UserControl.Styles>
+        <Style Selector="Grid.mateRow > TextBlock:not(.col-label)">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Foreground" Value="{DynamicResource TextValue}" />
+        </Style>
+        <Style Selector="Grid.mateRow > TextBlock.num">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="Margin" Value="0 0 8 0" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="10">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Teammates" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextCardHeader}" />
+                <TextBlock Text="{Binding CountText}" FontSize="12" Foreground="{DynamicResource TextMid}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+
+            <TextBlock Text="{Binding NoteText}" IsVisible="{Binding HasNote}" FontSize="11.5"
+                       Foreground="{DynamicResource TextMid}" />
+
+            <Grid Classes="mateRow" Margin="8 0" ColumnDefinitions="*,64,72,56,56,64">
+                <TextBlock Grid.Column="0" Classes="col-label" Text="PLAYER" />
+                <TextBlock Grid.Column="1" Classes="col-label num" Text="MATCHES" ToolTip.Tip="Matches both ended on the same side" />
+                <TextBlock Grid.Column="2" Classes="col-label num" Text="W-L" ToolTip.Tip="Matches won and lost together" />
+                <TextBlock Grid.Column="3" Classes="col-label num" Text="WIN%" ToolTip.Tip="Matches won together of those with stats" />
+                <TextBlock Grid.Column="4" Classes="col-label num" Text="HLTV" ToolTip.Tip="Their HLTV rating in the matches together" />
+            </Grid>
+
+            <ListBox x:Name="TeammatesList" Classes="data-list" MaxHeight="300" ItemsSource="{Binding Rows}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="sections:TeammateRowItem">
+                        <Grid Classes="mateRow" Height="26" Background="Transparent" ColumnDefinitions="*,64,72,56,56,64">
+                            <TextBlock Grid.Column="0" Text="{Binding Name}" />
+                            <TextBlock Grid.Column="1" Classes="num" Text="{Binding MatchesText}" />
+                            <TextBlock Grid.Column="2" Classes="num" Text="{Binding RecordText}" />
+                            <TextBlock Grid.Column="3" Classes="num" Text="{Binding WinRateText}" />
+                            <TextBlock Grid.Column="4" Classes="num" Text="{Binding HltvText}" />
+                            <Button Grid.Column="5" Classes="ghost chip" Content="Open" HorizontalAlignment="Right"
+                                    ToolTip.Tip="Open this player's overview"
+                                    Command="{Binding $parent[ListBox].((sections:TeammatesSectionViewModel)DataContext).OpenTeammateCommand}"
+                                    CommandParameter="{Binding}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+    </Border>
+</UserControl>

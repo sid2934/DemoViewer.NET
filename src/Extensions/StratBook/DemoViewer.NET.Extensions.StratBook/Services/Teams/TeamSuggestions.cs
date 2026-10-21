@@ -99,24 +99,27 @@ public static class TeamSuggestions
     /// <summary>Every pending suggestion, dismissed ones left out.</summary>
     /// <param name="teams">The user file.</param>
     /// <param name="index">The derived index.</param>
-    public static IReadOnlyList<TeamSuggestion> Compute(TeamsFile teams, TeamIndexFile index) =>
-        [.. ComputeAll(teams, index).Where(s => !IsDismissed(s, teams))];
+    /// <param name="activeAccount">The user's active account, which leads a squad it played in; null for the most played.</param>
+    public static IReadOnlyList<TeamSuggestion> Compute(TeamsFile teams, TeamIndexFile index, string? activeAccount = null) =>
+        [.. ComputeAll(teams, index, activeAccount).Where(s => !IsDismissed(s, teams))];
 
     /// <summary>The suggestions the user dismissed that still hold: what "Show settled" lists, with Restore.</summary>
     /// <param name="teams">The user file.</param>
     /// <param name="index">The derived index.</param>
-    public static IReadOnlyList<TeamSuggestion> Dismissed(TeamsFile teams, TeamIndexFile index) =>
-        [.. ComputeAll(teams, index).Where(s => IsDismissed(s, teams))];
+    /// <param name="activeAccount">The user's active account, or null.</param>
+    public static IReadOnlyList<TeamSuggestion> Dismissed(TeamsFile teams, TeamIndexFile index, string? activeAccount = null) =>
+        [.. ComputeAll(teams, index, activeAccount).Where(s => IsDismissed(s, teams))];
 
     /// <summary>Every suggestion the files support, dismissed or not.</summary>
     /// <param name="teams">The user file.</param>
     /// <param name="index">The derived index.</param>
-    public static IReadOnlyList<TeamSuggestion> ComputeAll(TeamsFile teams, TeamIndexFile index)
+    /// <param name="activeAccount">The user's active account, or null.</param>
+    public static IReadOnlyList<TeamSuggestion> ComputeAll(TeamsFile teams, TeamIndexFile index, string? activeAccount = null)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(index);
         List<TeamSuggestion> all = [];
-        if (Squad(teams, index) is { } squad)
+        if (Squad(teams, index, activeAccount) is { } squad)
         {
             all.Add(squad);
         }
@@ -186,11 +189,14 @@ public static class TeamSuggestions
 
     /// <summary>
     ///     The players on your side of each demo you played, with their counts, you excluded. What the
-    ///     squad editor lists and the squad suggestion reads.
+    ///     squad editor lists and the squad suggestion reads. The main account is the active one when it played
+    ///     any of those demos, else the one that played the most.
     /// </summary>
     /// <param name="teams">The user file (for the me accounts).</param>
     /// <param name="index">The derived index.</param>
-    public static (IReadOnlyList<SuggestedPlayer> CoPlayers, int MyGames, string? MainAccount) CoPlayers(TeamsFile teams, TeamIndexFile index)
+    /// <param name="activeAccount">The user's active account, or null.</param>
+    public static (IReadOnlyList<SuggestedPlayer> CoPlayers, int MyGames, string? MainAccount) CoPlayers(TeamsFile teams, TeamIndexFile index,
+        string? activeAccount = null)
     {
         HashSet<string> me = new(teams.Me.SteamIds, StringComparer.Ordinal);
         Dictionary<string, int> counts = new(StringComparer.Ordinal);
@@ -225,7 +231,9 @@ public static class TeamSuggestions
             }
         }
 
-        string? main = mine.OrderByDescending(m => m.Value).ThenBy(m => m.Key, StringComparer.Ordinal).Select(m => m.Key).FirstOrDefault();
+        string? main = activeAccount is not null && mine.ContainsKey(activeAccount)
+            ? activeAccount
+            : mine.OrderByDescending(m => m.Value).ThenBy(m => m.Key, StringComparer.Ordinal).Select(m => m.Key).FirstOrDefault();
         List<SuggestedPlayer> players =
         [
             .. counts.OrderByDescending(c => c.Value).ThenBy(c => c.Key, StringComparer.Ordinal)
@@ -236,14 +244,14 @@ public static class TeamSuggestions
 
     // The group you queue with: your main account, then partners in count order, each kept only while
     // the whole group still played SquadMinGames together, so the core is people who actually play as one.
-    private static TeamSuggestion? Squad(TeamsFile teams, TeamIndexFile index)
+    private static TeamSuggestion? Squad(TeamsFile teams, TeamIndexFile index, string? activeAccount)
     {
         if (teams.Teams.Any(t => t.IsUs && t.Rosters.Any(r => r.IsSquad)))
         {
             return null;
         }
 
-        (IReadOnlyList<SuggestedPlayer> coPlayers, int myGames, string? main) = CoPlayers(teams, index);
+        (IReadOnlyList<SuggestedPlayer> coPlayers, int myGames, string? main) = CoPlayers(teams, index, activeAccount);
         if (main is null || myGames == 0)
         {
             return null;

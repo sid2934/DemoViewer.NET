@@ -9,6 +9,8 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
+using DemoViewer.NET.Services.Players;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Shell;
 
 #endregion
@@ -290,6 +292,16 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     /// <summary>Distinct player names across the library, for the player filter; index 0 is "All players".</summary>
     public ObservableCollection<string> AvailablePlayers { get; } = [AllPlayers];
 
+    /// <summary>
+    ///     Opens an account in the Player Overview tab, given its SteamID64 and the name the filter shows. Null where
+    ///     there is no such tab, which hides the entry.
+    /// </summary>
+    public Action<ulong, string?>? PlayerOverviewOpener { get; set; }
+
+    /// <summary>The player filter's "Open player overview" entry; hidden while the filter is on All players.</summary>
+    [ObservableProperty]
+    private PlayerOverviewEntry _selectedPlayerOverview = PlayerOverviewEntry.None;
+
     /// <summary>Two-way index binding for the sort ComboBox (its items mirror <see cref="LibrarySort" /> order).</summary>
     public int SortIndex
     {
@@ -418,14 +430,21 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
 
     public void OnActivated(IModuleContext context)
     {
-        // Kick the first scan when the tab is first seen (it's the default tab, so this runs at startup).
+        StartFirstScan();
+        Sections.OnHostActivated(context);
+    }
+
+    /// <summary>
+    ///     Scans the library folders once per session. The shell calls this at launch; the first activation's call
+    ///     then does nothing.
+    /// </summary>
+    public void StartFirstScan()
+    {
         if (!_scannedOnce && Folders.Count > 0)
         {
             _scannedOnce = true;
             _ = _library.RescanAsync();
         }
-
-        Sections.OnHostActivated(context);
     }
 
     public void OnDeactivated() => Sections.OnHostDeactivated();
@@ -666,7 +685,11 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
     // ── Filter / sort ─────────────────────────────────────────────────────────
 
     partial void OnSearchTextChanged(string value) => ApplyFilter();
-    partial void OnSelectedPlayerChanged(string value) => ApplyFilter();
+    partial void OnSelectedPlayerChanged(string value)
+    {
+        RefreshPlayerOverview();
+        ApplyFilter();
+    }
 
     private bool IsFeatureOn(int i)
     {
@@ -942,6 +965,7 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         // Unchanged set (excluding the "All players" sentinel) → leave the ComboBox alone.
         if (players.Count == AvailablePlayers.Count - 1 && players.All(AvailablePlayers.Contains))
         {
+            RefreshPlayerOverview();
             return;
         }
 
@@ -954,6 +978,53 @@ public partial class LibraryTabViewModel : ObservableObject, IWorkspaceTabViewMo
         }
 
         SelectedPlayer = AvailablePlayers.Contains(keep) ? keep : AllPlayers;
+    }
+
+    // The account the chosen player filter stands for, joined through the index's side lists. A name that more
+    // than one account played under offers nothing: opening the wrong one is worse than a greyed-out entry. A bot's
+    // or an unresolved slot's id is no account, so it neither opens nor makes the name ambiguous.
+    private void RefreshPlayerOverview()
+    {
+        PlayerOverviewEntry next = PlayerOverviewEntry.None;
+        if (SelectedPlayer != AllPlayers && PlayerOverviewOpener is not null)
+        {
+            HashSet<ulong> accounts = [];
+            foreach (DemoEntry entry in _library.Entries)
+            {
+                if (!entry.Players.Contains(SelectedPlayer, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                LibraryDemo demo = DemoOf(entry);
+                foreach (LibrarySidePlayer p in (demo.CtPlayers ?? []).Concat(demo.TPlayers ?? []))
+                {
+                    if (SteamIdParser.IsIndividual(p.SteamId64)
+                        && (string.Equals(p.Name, SelectedPlayer, StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(DisplayText.Sanitize(p.Name), SelectedPlayer, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        accounts.Add(p.SteamId64);
+                    }
+                }
+            }
+
+            next = accounts.Count == 1
+                ? new PlayerOverviewEntry(accounts.Single(), SelectedPlayer, PlayerOverviewOpener)
+                : new PlayerOverviewEntry(0, SelectedPlayer, PlayerOverviewOpener, accounts.Count > 1
+                    ? $"{accounts.Count} accounts played under this name; open one from a demo"
+                    : null);
+        }
+
+        // A library tick that leaves the answer as it was keeps the bound entry, so the flyout is not rebuilt.
+        PlayerOverviewEntry current = SelectedPlayerOverview;
+        if (next.SteamId64 == current.SteamId64 && next.Offers == current.Offers
+            && string.Equals(next.Name, current.Name, StringComparison.Ordinal)
+            && string.Equals(next.Tip, current.Tip, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        SelectedPlayerOverview = next;
     }
 
     private void ApplyFilter()

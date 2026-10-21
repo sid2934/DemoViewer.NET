@@ -1,0 +1,77 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:po="using:DemoViewer.NET.ViewModels.PlayerOverview"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.PlayerOverviewFilterBar"
+             x:DataType="po:PlayerOverviewFilterViewModel">
+
+    <!--
+        The filter bar above the inner tabs: every page reads the same window. The date pickers show only for the
+        date-range window.
+    -->
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.filterLabel">
+            <Setter Property="FontFamily" Value="Consolas,Menlo,monospace" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextMid}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0 0 6 0" />
+        </Style>
+        <Style Selector="ComboBox.filter">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="MinWidth" Value="104" />
+            <Setter Property="Margin" Value="0 0 14 6" />
+        </Style>
+        <Style Selector="CalendarDatePicker.filter">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Width" Value="128" />
+            <Setter Property="Margin" Value="0 0 8 6" />
+        </Style>
+    </UserControl.Styles>
+
+    <WrapPanel Orientation="Horizontal" x:Name="FilterBar" VerticalAlignment="Center">
+        <TextBlock Classes="filterLabel" Text="WINDOW" />
+        <ComboBox Classes="filter" x:Name="WindowBox" ItemsSource="{Binding Windows}"
+                  SelectedItem="{Binding Window, Mode=TwoWay}" AutomationProperties.Name="Window">
+            <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="po:PlayerFilterChoice">
+                    <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+        <CalendarDatePicker Classes="filter" IsVisible="{Binding IsDateRange}" Watermark="From"
+                            SelectedDate="{Binding From, Mode=TwoWay}" AutomationProperties.Name="From" />
+        <CalendarDatePicker Classes="filter" IsVisible="{Binding IsDateRange}" Watermark="To"
+                            SelectedDate="{Binding To, Mode=TwoWay}" AutomationProperties.Name="To" />
+        <TextBlock Classes="filterLabel" Text="MAP" />
+        <ComboBox Classes="filter" ItemsSource="{Binding Maps}"
+                  SelectedItem="{Binding Map, Mode=TwoWay}" AutomationProperties.Name="Map">
+            <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="po:PlayerFilterChoice">
+                    <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Classes="filterLabel" Text="MODE" />
+        <ComboBox Classes="filter" ItemsSource="{Binding Modes}"
+                  SelectedItem="{Binding Mode, Mode=TwoWay}" AutomationProperties.Name="Mode or source">
+            <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="po:PlayerFilterChoice">
+                    <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+        <TextBlock Classes="filterLabel" Text="SIDE" ToolTip.Tip="The side at the end of the match" />
+        <ComboBox Classes="filter" ItemsSource="{Binding Sides}"
+                  SelectedItem="{Binding Side, Mode=TwoWay}" AutomationProperties.Name="Side at the end">
+            <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="po:PlayerFilterChoice">
+                    <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+        <Button Classes="ghost chip" Content="Clear filters" Margin="0 0 0 6" VerticalAlignment="Center"
+                IsVisible="{Binding IsFiltered}" Command="{Binding ResetCommand}" />
+    </WrapPanel>
+</UserControl>

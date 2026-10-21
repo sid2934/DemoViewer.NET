@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Clips;
 using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.Extensions.Sdk;
 
 #endregion
@@ -103,6 +104,22 @@ public sealed class IndexSidePlayer
     public List<int> Slots { get; set; } = [];
 }
 
+/// <summary>
+///     One account in a demo's <c>player_match</c> facet (<c>docs/player-match-format.md</c>): every slot its
+///     rows sit on and every name it played under. Covers players who are in no side list, such as one who
+///     ended the demo as a spectator.
+/// </summary>
+public sealed class FacetPlayer
+{
+    public string SteamId64 { get; set; } = "";
+
+    /// <summary>RAW names, as <see cref="CachedPlayerInfo.Name" />, distinct, in slot order.</summary>
+    public List<string> Names { get; set; } = [];
+
+    /// <summary>Every slot with a facet row for the account, ascending.</summary>
+    public List<int> Slots { get; set; } = [];
+}
+
 /// <summary>A round boundary. Needed by clip lead-in flooring and by the round count.</summary>
 public sealed class CachedRound
 {
@@ -142,7 +159,7 @@ public static class CachedRoundExtensions
     }
 }
 
-/// <summary>One scoreboard row, from the analysis engine's own per-player table.</summary>
+/// <summary>One scoreboard row: Match Overview's projection of a <c>player_match</c> row.</summary>
 public sealed class CachedStatRow
 {
     public int Slot { get; set; }
@@ -295,10 +312,17 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
 
     public DemoAnalysisState AnalysisState { get; set; } = DemoAnalysisState.Pending;
 
+    /// <summary>
+    ///     Legacy scoreboard: Match Overview projects the <c>player_match</c> facet and reads this only for a demo that
+    ///     has none. Nothing writes it.
+    /// </summary>
     public List<CachedStatRow> Scoreboard { get; set; } = [];
     public List<CachedHighlightEvent> Highlights { get; set; } = [];
 
-    /// <summary>Rounds won by the CT SIDE across the match, or null when the run could not resolve it.</summary>
+    /// <summary>
+    ///     Rounds won by the CT SIDE across the match, or null when the run could not resolve it. The facts pass sets
+    ///     it from the <c>player_match</c> facet.
+    /// </summary>
     public int? CtSideWins { get; set; }
 
     /// <summary>Rounds won by the T SIDE across the match, or null when the run could not resolve it.</summary>
@@ -324,6 +348,24 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
     ///     older build kept in the Strat Book's payload are lifted here on read.
     /// </summary>
     public RoundFactsRows? RoundFacts { get; set; }
+
+    // ── Match meta ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     When and which match the demo is (<c>docs/match-meta-format.md</c>), or null until the
+    ///     <c>matchmeta</c> record pass has run. Stamped in <see cref="PackStamps" /> under <c>matchmeta</c>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public DemoMatchMeta? MatchMeta { get; set; }
+
+    // ── Player match ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    ///     The accounts in the demo's <c>player_match</c> facet, written beside its <c>facts:player_match</c>
+    ///     stamp, or null until the facet is first written.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<FacetPlayer>? FacetPlayers { get; set; }
 
     // ── Packs ────────────────────────────────────────────────────────────────
     // A pack's data rides the record as one opaque JSON object under its id, read and written typed by
@@ -415,6 +457,15 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         }
 
         RoundFacts ??= other.RoundFacts;
+        if (other.MatchMeta is { MatchTimeSource: MatchTimeSource.UserOverride } chosen && MatchMeta?.MatchTimeSource != MatchTimeSource.UserOverride)
+        {
+            MatchMeta ??= chosen;
+            MatchMeta.MatchTimeUtcTicks = chosen.MatchTimeUtcTicks;
+            MatchMeta.MatchTimeSource = MatchTimeSource.UserOverride;
+        }
+
+        MatchMeta ??= other.MatchMeta;
+        FacetPlayers ??= other.FacetPlayers;
         foreach ((string packId, JsonElement payload) in other.Packs)
         {
             Packs.TryAdd(packId, payload);
@@ -602,7 +653,13 @@ public sealed class DemoCacheRecord : IJsonOnDeserialized
         CtPlayers = Parse.IsPresent ? SidePlayers(3) : null,
         TPlayers = Parse.IsPresent ? SidePlayers(2) : null,
         CtSideWins = CtSideWins,
-        TSideWins = TSideWins
+        TSideWins = TSideWins,
+        MatchTimeUtcTicks = MatchMeta?.MatchTimeUtcTicks,
+        MatchTimeSource = MatchMeta?.MatchTimeSource,
+        ReservationId = MatchMeta?.ReservationId,
+        GameMode = MatchMeta?.GameMode,
+        MatchSource = MatchMeta?.MatchSource,
+        FacetPlayers = FacetPlayers
     };
 
     /// <summary>
@@ -752,6 +809,30 @@ public sealed class DemoCacheIndexEntry : IJsonOnDeserialized
     /// <summary>The record's <see cref="DemoCacheRecord.TSideWins" />.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? TSideWins { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.MatchTimeUtcTicks" />, so history sorts without a sidecar. See <see cref="NewestMatchFirst" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? MatchTimeUtcTicks { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.MatchTimeSource" />: whether <see cref="MatchTimeUtcTicks" /> is exact.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public MatchTimeSource? MatchTimeSource { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.ReservationId" />: the tie-break between matches with one time.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ReservationId { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.GameMode" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? GameMode { get; set; }
+
+    /// <summary>The record's <see cref="DemoMatchMeta.MatchSource" />.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? MatchSource { get; set; }
+
+    /// <summary>The record's <see cref="DemoCacheRecord.FacetPlayers" />, so the player directory reads no sidecar.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<FacetPlayer>? FacetPlayers { get; set; }
 
     /// <summary>See <see cref="DemoCacheRecord.UnknownMembers" />: a row written before <see cref="PackStamps" /> carries the flat fields.</summary>
     [JsonExtensionData]

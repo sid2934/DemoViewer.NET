@@ -20,8 +20,8 @@ namespace DemoViewer.NET.AppTests;
 /// <summary>
 ///     An open whose round facts and facts are stale hands the shell's run to its visit: snapshots on, the
 ///     map's bake loaded, every core ruleset beside the stamped ones. What the visit writes from it must be
-///     what a background retained visit and a forward visit write, and the scoreboard and Stats tables the
-///     open shows must be those of the core rulesets alone.
+///     what a background retained visit and a forward visit write, and the Stats tables the open shows must be
+///     those of the core rulesets alone.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -51,12 +51,6 @@ public class OpenVisitSidecarsRealDemoTests
     {
         HashSet<string> wanted = new(names, StringComparer.Ordinal);
         return JsonSerializer.Serialize(run.ProjectConfiguredOutputs().Where(t => wanted.Contains(t.Name)).OrderBy(t => t.Name, StringComparer.Ordinal), Fields);
-    }
-
-    private static string Scoreboard(AnalysisRun run, ParsedDemo parsed, string matchId)
-    {
-        MetricTable table = new PlayerGameStatsProjector { MatchId = matchId }.Project(run.Snapshots!, parsed).Single();
-        return JsonSerializer.Serialize((DemoCacheAnalysisProjector.ProjectScoreboard(table), DemoCacheAnalysisProjector.ComputeSideWins(table)), Fields);
     }
 
     [Test]
@@ -113,8 +107,6 @@ public class OpenVisitSidecarsRealDemoTests
                 await Assert.That(forwardRows).IsEqualTo(retainedRows).Because("round facts rows, forward vs retained");
                 await Assert.That(Tables(visitRun, stamped)).IsEqualTo(Tables(bareRun, stamped)).Because("stamped tables, open vs retained");
                 await Assert.That(Tables(forward.Run!, stamped)).IsEqualTo(Tables(bareRun, stamped)).Because("stamped tables, forward vs retained");
-                await Assert.That(Scoreboard(shellRun, parsed, matchId)).IsEqualTo(Scoreboard(coreRun, parsed, matchId))
-                    .Because("the scoreboard the open writes");
                 await Assert.That(JsonSerializer.Serialize(plan.Shown(shellRun).ProjectConfiguredOutputs(parsed, matchId), Fields))
                     .IsEqualTo(JsonSerializer.Serialize(coreRun.ProjectConfiguredOutputs(parsed, matchId), Fields))
                     .Because("the Stats tab's configured tables");

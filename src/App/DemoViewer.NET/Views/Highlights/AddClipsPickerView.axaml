@@ -265,6 +265,16 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:AddClipsRowViewModel">
                                 <Border Classes="pickRow" ToolTip.Tip="{Binding FilePath}">
+                                    <Border.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Open player overview"
+                                                      Command="{Binding PlayerOverview.OpenCommand}"
+                                                      IsVisible="{Binding PlayerOverview.Offers}"
+                                                      IsEnabled="{Binding PlayerOverview.CanOpen}"
+                                                      ToolTip.Tip="{Binding PlayerOverview.Tip}"
+                                                      ToolTip.ShowOnDisabled="True" />
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
                                     <!-- STAR-SIZED, not fixed-px, for the two text columns. With fixed
                                          110/150 columns the row overflowed its own bounds below ~700px and
                                          the title painted straight through the round, duration and [ + ] —

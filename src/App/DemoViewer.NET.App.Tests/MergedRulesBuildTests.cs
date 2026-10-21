@@ -13,6 +13,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.TestSupport;
+using DemoViewer.NET.ViewModels.Stats;
 
 #endregion
 
@@ -46,8 +47,6 @@ public class MergedRulesBuildTests
     private static readonly string Shipped = RuleSetLocator.ResolveShippedRulesDirectory();
 
     // The columns DemoCacheAnalysisProjector persists into the tier-3 scoreboard.
-    private static readonly string[] PersistedScoreboardColumns = ["TotalK", "TotalD", "TotalA", "ADR", "HLTV", "CTW", "TW"];
-
     private static string? _fixture;
 
     private static bool ReadsEnemySpotted(string yaml) => yaml.Split('\n')
@@ -522,9 +521,10 @@ public class MergedRulesBuildTests
         }
     }
 
-    // FullRun and the forced scan's scoreboard run without the visibility bake and the open runs with it.
-    // That is sound only while nothing persisted reads enemy_spotted. When this fails, the same change
-    // loads the bake in FullRun and adds a visibility term to the analysis stamp.
+    // A background visit runs without the visibility bake and the open runs with it. That is sound only while
+    // nothing persisted reads enemy_spotted, or what is persisted carries the visibility term: player_match's one
+    // table stamps HasVisibility off its Spots column. When this fails, the same change loads the bake in the
+    // background run or adds a visibility term to the new reader's stamp.
     [Test]
     public async Task NoStampedRulesetReferencesEnemySpotted()
     {
@@ -540,17 +540,22 @@ public class MergedRulesBuildTests
                 .Select(RulesetIdOf).Order(StringComparer.Ordinal)
         ];
         RulesetDoc aim = ShippedRules().Rulesets.Single(r => r.Id == "aim_rating");
-        string[] persisted = [.. (aim.Show?.Scoreboard ?? []).Select(c => c.Label ?? c.Stat).Intersect(PersistedScoreboardColumns)];
+        RulesetDoc match = ShippedRules().Rulesets.Single(r => r.Id == PlayerMatchFacet.RulesetId);
 
         using (Assert.Multiple())
         {
             await Assert.That(files.Length).IsGreaterThan(1);
-            await Assert.That(Joined(readers)).IsEqualTo("aim_rating")
-                .Because("a new enemy_spotted reader needs the FullRun bake load and a visibility stamp term");
+            await Assert.That(Joined(readers)).IsEqualTo(Joined(["aim_rating", PlayerMatchFacet.RulesetId]))
+                .Because("a new enemy_spotted reader needs the bake in the background run or a visibility stamp term");
             await Assert.That(aim.Highlights ?? []).IsEmpty().Because("highlights are persisted from the bake-free runs");
             await Assert.That(aim.Show?.Tables ?? []).IsEmpty().Because("stamped tables are persisted from the bake-free runs");
             await Assert.That(aim.Exports ?? []).IsEmpty().Because("an export could feed a persisted column");
-            await Assert.That(persisted).IsEmpty().Because("the persisted scoreboard is projected from the bake-free forced scan");
+            await Assert.That((match.Show?.Tables ?? []).Select(t => t.Name)).IsEquivalentTo([PlayerMatchFacet.Table])
+                .Because("HasVisibility speaks for the facet table alone");
+            await Assert.That(match.Show!.Tables.Single().Columns.Select(c => c.Label ?? c.Stat)).Contains(ColumnCatalogue.VisibilityAnchorColumn)
+                .Because("the stamp's HasVisibility is read off this column");
+            await Assert.That(match.Highlights ?? []).IsEmpty().Because("highlights are persisted from the bake-free runs");
+            await Assert.That(match.Exports ?? []).IsEmpty().Because("an export could feed a persisted column");
         }
     }
 

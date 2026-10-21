@@ -39,15 +39,15 @@ public sealed class ForwardPassRunner
     internal ForwardDemoResult Run(string path, ForwardNeeds needs, CollectorSet collectors, Action<double> progress,
         CancellationToken cancellationToken)
     {
-        ParseOptions options = ForwardDemoPass.ReaderOptions(cancellationToken);
-
         // Same rule as the retained parse: only a settled local file is mapped.
         byte[]? bytes = (FileRead ?? new DemoFileRead(_time, null, null)).Prepare(path, cancellationToken);
+        ServerRankCapture ranks = bytes is null ? ServerRankCapture.OverFile(path) : ServerRankCapture.Over(bytes);
+        ParseOptions options = ranks.Attach(ForwardDemoPass.ReaderOptions(cancellationToken));
         using DemoReader reader = bytes is null ? DemoReader.OpenFile(path, options) : DemoReader.Open(bytes, options);
         bool rules = (needs & ForwardNeeds.Rules) != 0;
         ForwardDemoResult pass = ForwardDemoPass.Run(reader, needs, rules ? _rules.Docs : null, progress,
             rules ? OutputsFor?.Invoke(path) : null,
-            rules ? collectors : CollectorSet.Empty, cancellationToken);
+            rules ? collectors : CollectorSet.Empty, ranks, null, cancellationToken);
         if (pass.Run is { } run)
         {
             _rules.ReportExclusions(run.Build);

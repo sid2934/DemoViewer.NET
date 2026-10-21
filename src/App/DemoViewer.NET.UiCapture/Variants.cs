@@ -39,7 +39,10 @@ using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Services.Identity;
 using DemoViewer.NET.Services.LiveSync;
+using DemoViewer.NET.Services.Players;
 using DemoViewer.NET.Services.Update;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
@@ -54,6 +57,7 @@ using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.ViewModels.LiveSync;
 using DemoViewer.NET.ViewModels.MatchOverview;
 using DemoViewer.NET.ViewModels.Playback;
+using DemoViewer.NET.ViewModels.PlayerOverview;
 using DemoViewer.NET.ViewModels.Settings;
 using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
@@ -66,6 +70,7 @@ using DemoViewer.NET.Views.Highlights;
 using DemoViewer.NET.Views.Library;
 using DemoViewer.NET.Views.LiveSync;
 using DemoViewer.NET.Views.MatchOverview;
+using DemoViewer.NET.Views.PlayerOverview;
 using DemoViewer.NET.Views.RuleWorkbench;
 using DemoViewer.NET.Views.Settings;
 using DemoViewer.NET.Views.Diagnostics;
@@ -286,6 +291,14 @@ public static partial class Variants
             ["match-overview-cached-nosplit"] = () => MatchOverviewCached(DemoCacheTier.Parse, teamSplit: false),
             ["match-overview-cached-failed"] = () =>
                 MatchOverviewCached(DemoCacheTier.Analysis, DemoAnalysisState.Failed),
+            // Player Overview: nobody open (no Me account set), and a Me account whose demos have no player stats
+            // while background processing is off.
+            ["player-overview-empty"] = () => PlayerOverview(false),
+            ["player-overview-processing-off"] = () => PlayerOverview(true),
+            ["player-overview-search"] = () => PlayerOverview(true, "zyw"),
+            // A Me account with a dozen demos: the header with aliases, and a history mixing read stats, a demo
+            // whose facet is not written ("stats pending"), an approximate time and a left-early row.
+            ["player-overview-populated"] = () => PlayerOverviewPopulated(),
             ["strat-editor"] = () => StratEditor(false, false),
             ["strat-editor-collapsed"] = () => StratEditor(true, true),
             ["strat-editor-bare"] = () => StratEditor(false, false, true),
@@ -4475,6 +4488,186 @@ public static partial class Variants
                         ["TW"] = r.Team == 3 ? 7 : 3
                     }))
                 .ToList());
+    }
+
+    // The real Player Overview tab over an in-memory library of three demos, one with its player stats.
+    private static Panel PlayerOverview(bool withMe, string? search = null)
+    {
+        const string me = "76561198000000001";
+        DemoCacheStore store = new(null);
+        for (int i = 0; i < 3; i++)
+        {
+            DemoCacheRecord r = new()
+            {
+                Path = $"/demos/match730_{i}.dem",
+                Size = 148_000_000,
+                ModifiedTicks = 638_000_000_000_000_000 + i,
+                Map = "de_nuke",
+                Players =
+                [
+                    new CachedPlayerInfo { Slot = 1, Name = "s1mple", SteamId64 = me, Team = 3 },
+                    new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "76561198000000002", Team = 2 },
+                    new CachedPlayerInfo { Slot = 3, Name = i == 0 ? "ZywOo" : "zywoo-alt", SteamId64 = "76561198000000003", Team = 2 }
+                ]
+            };
+            DemoCacheStore.StampHeader(r);
+            DemoCacheStore.StampParse(r);
+            if (i == 0)
+            {
+                r.PackStamps.Add(new PackStamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId), StampedFacts.Schema, "fp")
+                {
+                    ComputedAtTicks = 1
+                });
+            }
+
+            store.Upsert(r);
+        }
+
+        PlayerDirectory directory = new(store);
+        IdentityService identity = new(new SettingsService((string?)null), directory);
+        if (withMe)
+        {
+            identity.SetAccounts([new IdentityAccount(me, "main", DateTime.UtcNow)]);
+        }
+
+        PlayerOverviewTabViewModel vm = new(
+            new PlayerOverviewServices(directory, identity, null, _ => { }, _ => { }, (_, _) => { }, _ => { }),
+            new FakeProcessingQueue { BackgroundEnabled = false });
+        vm.OnActivated(null!);
+        if (search is not null)
+        {
+            vm.SearchText = search;
+        }
+
+        return new Panel
+        {
+            Background = Tok("ShellBg"),
+            Children =
+            {
+                new PlayerOverviewTabView
+                {
+                    DataContext = vm
+                }
+            }
+        };
+    }
+
+    private static Panel PlayerOverviewPopulated()
+    {
+        const string me = "76561198000000001";
+        string[] maps = ["de_nuke", "de_inferno", "de_mirage", "de_ancient", "de_anubis", "de_dust2"];
+        string stampId = StampedFacts.StampId(PlayerMatchFacet.RulesetId);
+        DemoCacheStore store = new(null);
+        for (int i = 0; i < 12; i++)
+        {
+            bool leftEarly = i == 4;
+            DemoCacheRecord r = new()
+            {
+                Path = $"/demos/match730_{i}.dem",
+                Size = 148_000_000,
+                ModifiedTicks = 638_000_000_000_000_000,
+                Sha256 = $"sha{i}",
+                Map = maps[i % maps.Length],
+                SourceKind = "GotvMatchmaking",
+                Players =
+                [
+                    new CachedPlayerInfo { Slot = 1, Name = i < 8 ? "s1mple" : "s1mple-old", SteamId64 = me, Team = leftEarly ? 0 : i % 2 == 0 ? 3 : 2 },
+                    new CachedPlayerInfo { Slot = 2, Name = "ZywOo", SteamId64 = "76561198000000002", Team = 2 }
+                ],
+                MatchMeta = new DemoViewer.NET.Services.MatchMeta.DemoMatchMeta
+                {
+                    MatchTimeUtcTicks = new DateTime(2026, 10, 18, 21, 30, 0, DateTimeKind.Utc).Ticks - (i * 26 * TimeSpan.TicksPerHour),
+                    MatchTimeSource = i == 7
+                        ? DemoViewer.NET.Services.MatchMeta.MatchTimeSource.FileWriteTime
+                        : DemoViewer.NET.Services.MatchMeta.MatchTimeSource.ValveMatchInfo,
+                    GameMode = i % 3 == 0 ? "competitive" : "premier",
+                    // Premier climbs from 13,640 by the oldest match; Competitive is one Skill Group per map.
+                    Players =
+                    [
+                        i % 3 == 0
+                            ? new DemoViewer.NET.Services.MatchMeta.MatchRankRow
+                            {
+                                SteamId64 = me, RankType = 12, RankOld = 11 + (i % 2), RankNew = 11 + ((i + 1) % 2), RankChange = (i + 1) % 2 - i % 2,
+                                RankSource = DemoViewer.NET.Services.MatchMeta.RankSource.ServerRankUpdate
+                            }
+                            : new DemoViewer.NET.Services.MatchMeta.MatchRankRow
+                            {
+                                SteamId64 = me, RankType = 11, RankOld = 15_100 - (i * 130), RankNew = 15_100 - (i * 130) + (i % 3 == 1 ? -110 : 240),
+                                RankChange = i % 3 == 1 ? -110 : 240, RankSource = DemoViewer.NET.Services.MatchMeta.RankSource.ServerRankUpdate
+                            }
+                    ]
+                }
+            };
+            r.SetStamp(new PackStamp(DemoViewer.NET.Services.MatchMeta.MatchMetaEvaluator.StampId,
+                DemoViewer.NET.Services.MatchMeta.DemoMatchMeta.CurrentSchema, DemoViewer.NET.Services.MatchMeta.MatchMetaEvaluator.Version) { ComputedAtTicks = 1 });
+            if (leftEarly)
+            {
+                r.FacetPlayers = [new FacetPlayer { SteamId64 = me, Names = ["s1mple"], Slots = [1] }];
+            }
+
+            DemoCacheStore.StampHeader(r);
+            DemoCacheStore.StampParse(r);
+            if (i != 2)
+            {
+                r.PackStamps.Add(new PackStamp(stampId, StampedFacts.Schema, "fp") { ComputedAtTicks = 1 });
+            }
+
+            store.Upsert(r);
+        }
+
+        PlayerDirectory directory = new(store, _ => true);
+        PlayerRowCache rows = new(store, directory, path =>
+        {
+            int i = int.Parse(path[(path.LastIndexOf('_') + 1)..^4], CultureInfo.InvariantCulture);
+            bool won = i % 3 != 1;
+            Dictionary<string, DemoViewer.NET.Extensions.Sdk.FactValue> values = new()
+            {
+                ["rounds"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(22L),
+                ["TotalK"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(14L + (i * 3 % 13)),
+                ["TotalD"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(12L + (i * 5 % 9)),
+                ["TotalA"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(2L + (i % 6)),
+                ["TotalHS"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(7L + (i % 5)),
+                ["TeamKills"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(0L),
+                ["EnemyDmg"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(1500L + (i * 97 % 900)),
+                ["KAST%"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(62.0 + (i * 7 % 25)),
+                ["HLTV"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(0.82 + (i * 13 % 60 / 100.0)),
+                ["Shots"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(300L),
+                ["CTW"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(won ? 13L : 8L),
+                ["CTL"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(won ? 9L : 13L)
+            };
+            return new DemoViewer.NET.Extensions.Sdk.FactTable(PlayerMatchFacet.Key, "fp", StampedFacts.Schema, "player_match",
+                ["player_slot", "steam_id"], [], new Dictionary<string, string>(),
+                [
+                    new DemoViewer.NET.Extensions.Sdk.FactRow(
+                        new Dictionary<string, DemoViewer.NET.Extensions.Sdk.FactValue>
+                        {
+                            ["player_slot"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(1L),
+                            ["steam_id"] = DemoViewer.NET.Extensions.Sdk.FactValue.Of(me)
+                        },
+                        values)
+                ]);
+        });
+        rows.LoadAsync(ulong.Parse(me, CultureInfo.InvariantCulture)).GetAwaiter().GetResult();
+        PlayerRankCache ranks = new(store, directory);
+        ranks.LoadAsync(ulong.Parse(me, CultureInfo.InvariantCulture)).GetAwaiter().GetResult();
+
+        IdentityService identity = new(new SettingsService((string?)null), directory);
+        identity.SetAccounts([new IdentityAccount(me, "main", DateTime.UtcNow)]);
+        PlayerOverviewTabViewModel vm = new(
+            new PlayerOverviewServices(directory, identity, rows, _ => { }, _ => { }, (_, _) => { }, _ => { }, Ranks: ranks),
+            new FakeProcessingQueue { QueuedCount = 1 });
+        vm.OnActivated(null!);
+        return new Panel
+        {
+            Background = Tok("ShellBg"),
+            Children =
+            {
+                new PlayerOverviewTabView
+                {
+                    DataContext = vm
+                }
+            }
+        };
     }
 
     private static Panel OverviewPanel(MatchOverviewTabViewModel vm) =>

@@ -52,6 +52,9 @@ public interface IExtensionContext
     /// <summary>The keymap with the user's rebinds applied, read only.</summary>
     IExtensionKeymap Keymap { get; }
 
+    /// <summary>The user's own accounts, read only.</summary>
+    IExtensionIdentity Identity { get; }
+
     /// <summary>A logger whose lines land in the app's diagnostics log, tagged with the extension.</summary>
     ILogger CreateLogger(string category);
 
@@ -123,6 +126,13 @@ public interface IExtensionShell
 
     /// <summary>Selects a tab or a section by its id. False when no such tab is showing.</summary>
     bool SelectTab(string tabId);
+
+    /// <summary>
+    ///     Opens the Player Overview tab on <paramref name="steamId64" />. False when the host has no such tab, it is
+    ///     switched off, or the id is 0.
+    /// </summary>
+    /// <param name="steamId64">The account's SteamID64.</param>
+    bool OpenPlayerOverview(ulong steamId64) => false;
 
     /// <summary>Shows <paramref name="path" /> in the system file manager.</summary>
     void RevealInFileManager(string path);

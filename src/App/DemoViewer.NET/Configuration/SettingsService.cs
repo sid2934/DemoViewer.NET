@@ -444,7 +444,8 @@ public sealed class SettingsService
     // here too or those writes are silently discarded on reload.
     //
     // ProcessingQueue IS flattened: the queue-management surface + Settings are WASM-reachable, so a
-    // browser write of these three scalars must survive a reload.
+    // browser write of these three scalars must survive a reload. Identity is flattened whole, so the
+    // service's invariants hold over the in-memory store as they do over the file.
     private void WriteInMemory(AppSettings settings)
     {
         List<KeyValuePair<string, string?>> data = new()
@@ -557,6 +558,24 @@ public sealed class SettingsService
         {
             data.Add(new KeyValuePair<string, string?>(
                 $"Features:Overrides:{kv.Key}", kv.Value ? "true" : "false"));
+        }
+
+        IdentitySettings identity = settings.Identity;
+        data.Add(new KeyValuePair<string, string?>("Identity:ActiveSteamId64", identity.ActiveSteamId64));
+        data.Add(new KeyValuePair<string, string?>("Identity:MigratedFromTeamsJson",
+            identity.MigratedFromTeamsJson ? "true" : "false"));
+        for (int i = 0; i < identity.Accounts.Length; i++)
+        {
+            IdentityAccountSettings account = identity.Accounts[i];
+            data.Add(new KeyValuePair<string, string?>($"Identity:Accounts:{i}:SteamId64", account.SteamId64));
+            data.Add(new KeyValuePair<string, string?>($"Identity:Accounts:{i}:Label", account.Label));
+            data.Add(new KeyValuePair<string, string?>($"Identity:Accounts:{i}:AddedUtc",
+                account.AddedUtc.ToString("O", CultureInfo.InvariantCulture)));
+        }
+
+        for (int i = 0; i < identity.DismissedSuggestions.Length; i++)
+        {
+            data.Add(new KeyValuePair<string, string?>($"Identity:DismissedSuggestions:{i}", identity.DismissedSuggestions[i]));
         }
 
         _mem!.ReplaceAll(data);

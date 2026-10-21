@@ -106,6 +106,13 @@
                     </ComboBox>
                     <Button Content="►" Command="{Binding NextPlayerCommand}"
                             Classes="statsexport" ToolTip.Tip="Next player" />
+                    <Button Content="Player overview"
+                            Command="{Binding OpenPlayerOverviewCommand}"
+                            IsVisible="{Binding SelectedPlayer.OffersPlayerOverview, FallbackValue=False}"
+                            IsEnabled="{Binding SelectedPlayer.CanOpenPlayerOverview, FallbackValue=False}"
+                            ToolTip.Tip="{Binding SelectedPlayer.PlayerOverviewTip, FallbackValue={x:Null}}"
+                            ToolTip.ShowOnDisabled="True"
+                            Classes="statsexport" />
                 </StackPanel>
 
                 <!-- left: back + identity -->

@@ -377,6 +377,32 @@
                                             Command="{Binding ComputeFullStatsCommand}"
                                             FontSize="11" Padding="12 4" Margin="0 2 8 2"
                                             ToolTip.Tip="Queue this demo for a full analysis pass — it runs in the background and never opens the demo" />
+                                    <Button Classes="chip" Content="{Binding MatchDateButtonText}"
+                                            IsVisible="{Binding CanSetMatchDate}"
+                                            FontSize="11" Padding="12 4" Margin="0 2 8 2"
+                                            ToolTip.Tip="When this match was played. A time from the file's write date is a guess; set the real one here.">
+                                        <Button.Flyout>
+                                            <Flyout Placement="BottomEdgeAlignedRight">
+                                                <StackPanel Spacing="8" Width="240">
+                                                    <TextBlock Text="Match date (local time)" Classes="eyebrow" />
+                                                    <TextBox Text="{Binding MatchDateInput, Mode=TwoWay}"
+                                                             Watermark="yyyy-MM-dd HH:mm" />
+                                                    <TextBlock Text="{Binding MatchDateError}"
+                                                               IsVisible="{Binding MatchDateError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                                               Foreground="{DynamicResource TextMid}" FontSize="11" />
+                                                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+                                                        <Button Classes="chip" Content="Clear"
+                                                                IsEnabled="{Binding HasMatchDateOverride}"
+                                                                Command="{Binding ClearMatchDateCommand}"
+                                                                FontSize="11" Padding="12 4" />
+                                                        <Button Classes="primary" Content="Set"
+                                                                Command="{Binding SetMatchDateCommand}"
+                                                                FontSize="12" Padding="14 5" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Flyout>
+                                        </Button.Flyout>
+                                    </Button>
                                     <ItemsControl ItemsSource="{Binding DemoActions}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -583,7 +609,17 @@
                                     <ItemsControl ItemsSource="{Binding CounterTerrorists}" Margin="14 10 14 12">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:OverviewPlayer">
-                                                <StackPanel Orientation="Horizontal" Margin="0 3">
+                                                <StackPanel Orientation="Horizontal" Margin="0 3" Background="Transparent">
+                                                    <StackPanel.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Open player overview"
+                                                                      Command="{Binding PlayerOverview.OpenCommand}"
+                                                                      IsVisible="{Binding PlayerOverview.Offers}"
+                                                                      IsEnabled="{Binding PlayerOverview.CanOpen}"
+                                                                      ToolTip.Tip="{Binding PlayerOverview.Tip}"
+                                                                      ToolTip.ShowOnDisabled="True" />
+                                                        </ContextMenu>
+                                                    </StackPanel.ContextMenu>
                                                     <TextBlock Text="{Binding Name}" Classes="rosterName" />
                                                     <Border Classes="botTag" IsVisible="{Binding IsBot}">
                                                         <TextBlock Text="BOT" Classes="botTagText" />
@@ -618,7 +654,17 @@
                                     <ItemsControl ItemsSource="{Binding Terrorists}" Margin="14 10 14 12">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:OverviewPlayer">
-                                                <StackPanel Orientation="Horizontal" Margin="0 3">
+                                                <StackPanel Orientation="Horizontal" Margin="0 3" Background="Transparent">
+                                                    <StackPanel.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Open player overview"
+                                                                      Command="{Binding PlayerOverview.OpenCommand}"
+                                                                      IsVisible="{Binding PlayerOverview.Offers}"
+                                                                      IsEnabled="{Binding PlayerOverview.CanOpen}"
+                                                                      ToolTip.Tip="{Binding PlayerOverview.Tip}"
+                                                                      ToolTip.ShowOnDisabled="True" />
+                                                        </ContextMenu>
+                                                    </StackPanel.ContextMenu>
                                                     <TextBlock Text="{Binding Name}" Classes="rosterName" />
                                                     <Border Classes="botTag" IsVisible="{Binding IsBot}">
                                                         <TextBlock Text="BOT" Classes="botTagText" />
@@ -664,7 +710,17 @@
                                     <ItemsControl ItemsSource="{Binding PlayerStats}" Margin="14 8 14 10">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate x:DataType="vm:OverviewStatRow">
-                                                <Grid ColumnDefinitions="3,9,*,50,50,50,60,60" Margin="0 3">
+                                                <Grid ColumnDefinitions="3,9,*,50,50,50,60,60" Margin="0 3" Background="Transparent">
+                                                    <Grid.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Open player overview"
+                                                                      Command="{Binding PlayerOverview.OpenCommand}"
+                                                                      IsVisible="{Binding PlayerOverview.Offers}"
+                                                                      IsEnabled="{Binding PlayerOverview.CanOpen}"
+                                                                      ToolTip.Tip="{Binding PlayerOverview.Tip}"
+                                                                      ToolTip.ShowOnDisabled="True" />
+                                                        </ContextMenu>
+                                                    </Grid.ContextMenu>
                                                     <Rectangle Grid.Column="0" Classes="sideBar"
                                                                Classes.ct="{Binding IsCt}" />
                                                     <TextBlock Grid.Column="2" Text="{Binding Name}"

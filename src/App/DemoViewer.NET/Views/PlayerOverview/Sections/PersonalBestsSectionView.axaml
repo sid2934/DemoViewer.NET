@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sections="using:DemoViewer.NET.ViewModels.PlayerOverview.Sections"
+             x:Class="DemoViewer.NET.Views.PlayerOverview.Sections.PersonalBestsSectionView"
+             x:DataType="sections:PersonalBestsSectionViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- The subject's best marks in the filter's window, as a grid of tiles; each opens its demo with the subject focused in Stats. -->
+
+    <Border Classes="card" Padding="14 12">
+        <StackPanel Spacing="8">
+            <TextBlock Text="Personal bests" FontSize="15" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextCardHeader}" />
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sections:PersonalBestItem">
+                        <Border Width="280" Padding="12 8" CornerRadius="6" BorderThickness="1"
+                                BorderBrush="{DynamicResource BorderSubtle}">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Spacing="1">
+                                    <TextBlock Text="{Binding Label}" FontSize="11.5" Foreground="{DynamicResource TextMid}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="{Binding ValueText}" FontSize="20" FontWeight="SemiBold"
+                                                   FontFamily="Consolas,Menlo,monospace" Foreground="{DynamicResource TextValue}" />
+                                        <TextBlock Text="{Binding UnitText}" FontSize="11.5" VerticalAlignment="Bottom"
+                                                   Foreground="{DynamicResource TextDim}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding WhereText}" FontSize="11.5" Foreground="{DynamicResource TextDim}"
+                                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding WhereText}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Text="file missing" FontSize="11" VerticalAlignment="Center"
+                                               Foreground="{DynamicResource StatNegative}" IsVisible="{Binding IsFileMissing}" />
+                                    <Button Classes="ghost chip" Content="Open" IsVisible="{Binding !IsFileMissing}"
+                                            ToolTip.Tip="Open this demo with the player focused in Stats"
+                                            Command="{Binding $parent[ItemsControl].((sections:PersonalBestsSectionViewModel)DataContext).OpenCommand}"
+                                            CommandParameter="{Binding}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </Border>
+</UserControl>

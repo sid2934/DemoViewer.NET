@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Facts;
+using DemoViewer.NET.Services.Players;
 
 #endregion
 
@@ -447,10 +448,14 @@ internal sealed class ExtensionLibraryView : IExtensionLibrary
     private Action<LibraryChange>? _changed;
     private bool _subscribed;
 
-    public ExtensionLibraryView(HostLibrary host, ExtensionGuard guard)
+    /// <param name="host">The shared library.</param>
+    /// <param name="guard">The extension's guard.</param>
+    /// <param name="players">Resolves the app's player directory on first use; null answers no accounts.</param>
+    public ExtensionLibraryView(HostLibrary host, ExtensionGuard guard, Func<PlayerDirectory?>? players = null)
     {
         _host = host ?? throw new ArgumentNullException(nameof(host));
         _guard = guard ?? throw new ArgumentNullException(nameof(guard));
+        Players = new HostPlayerDirectory(players ?? (static () => null), host, guard);
     }
 
     public IReadOnlyList<LibraryDemo> Demos => _host.Demos;
@@ -482,6 +487,8 @@ internal sealed class ExtensionLibraryView : IExtensionLibrary
     }
 
     private ExtensionFactsView? _facts;
+
+    public IPlayerDirectory Players { get; }
 
     public event Action<LibraryChange>? Changed
     {

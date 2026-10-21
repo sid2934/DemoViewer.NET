@@ -28,6 +28,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
 {
     private readonly IExtensionLibrary _library;
     private readonly Func<string, Task>? _openDemo;
+    private readonly Func<ulong, bool>? _openPlayerOverview;
     private readonly TeamIdentityService _teams;
     private bool _disposed;
 
@@ -72,10 +73,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
     private TeamRow? _mergeTarget;
 
     [ObservableProperty]
-    private string _meSuggestionLine = "";
-
-    [ObservableProperty]
-    private string _myAccountsText = "";
+    private string _myAccountsLine = "";
 
     [ObservableProperty]
     private string _renameText = "";
@@ -98,8 +96,9 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
     ///     tab shows it as busy until it lands.
     /// </param>
     /// <param name="post">Brings a finished command back to the UI thread; inline when null.</param>
+    /// <param name="openPlayerOverview">Opens an account in the host's Player Overview; null when the host has none.</param>
     public TeamsTabViewModel(TeamIdentityService teams, IExtensionLibrary library, Func<string, Task>? openDemo = null, bool? isBrowser = null,
-        Func<string, Action, Task>? command = null, Action<Action>? post = null)
+        Func<string, Action, Task>? command = null, Action<Action>? post = null, Func<ulong, bool>? openPlayerOverview = null)
     {
         ArgumentNullException.ThrowIfNull(teams);
         ArgumentNullException.ThrowIfNull(library);
@@ -113,6 +112,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
         _library = library;
         _openDemo = openDemo;
         IsBrowser = isBrowser ?? OperatingSystem.IsBrowser();
+        _openPlayerOverview = IsBrowser ? null : openPlayerOverview;
         _teams.Changed += Refresh;
         _busyLine = LoadingLine;
         Refresh();
@@ -123,6 +123,9 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
 
     /// <summary>True on the WASM head.</summary>
     public bool IsBrowser { get; }
+
+    /// <summary>True when a member row offers "Open player overview": the desktop host has the tab.</summary>
+    public bool OffersPlayerOverview => _openPlayerOverview is not null;
 
     public ObservableCollection<TeamRow> Teams { get; } = [];
 
@@ -145,7 +148,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
     /// <summary>The card shows while anything is pending or dismissed.</summary>
     public bool HasSuggestions => _teams.Suggestions.Count + SettledCount > 0;
 
-    private int SettledCount => _teams.DismissedSuggestions.Count + (_teams.DismissedMeSuggestion is null ? 0 : 1);
+    private int SettledCount => _teams.DismissedSuggestions.Count;
 
     /// <summary>Also list the dismissed suggestions that still hold, each with Restore.</summary>
     [ObservableProperty]
@@ -159,8 +162,6 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
     public bool CanEditSquad => _teams.MyAccounts.Count > 0;
 
     public bool HasSelection => SelectedTeam is not null;
-
-    public bool HasMeSuggestion => _teams.MeSuggestion is not null;
 
     public string? TeamsFileProblem => _teams.TeamsFileProblem;
 
@@ -338,14 +339,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
             return;
         }
 
-        if (row.Id.StartsWith("me:", StringComparison.Ordinal))
-        {
-            Apply("Restoring the suggestion…", _teams.RestoreMeSuggestion);
-        }
-        else
-        {
-            Apply("Restoring the suggestion…", () => _teams.RestoreSuggestion(row.Id));
-        }
+        Apply("Restoring the suggestion…", () => _teams.RestoreSuggestion(row.Id));
     }
 
     [RelayCommand]
@@ -382,20 +376,16 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
     }
 
     [RelayCommand]
-    private void SaveMyAccounts()
-    {
-        List<string> accounts = [.. MyAccountsText.Split([',', ';', ' ', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
-        Apply("Saving your accounts…", () => _teams.SetMyAccounts(accounts));
-    }
-
-    [RelayCommand]
-    private void ConfirmMeSuggestion() => Apply("Saving your account…", _teams.ConfirmMeSuggestion);
-
-    [RelayCommand]
-    private void DismissMeSuggestion() => Apply("Dismissing the suggestion…", _teams.DismissMeSuggestion);
-
-    [RelayCommand]
     private Task OpenDemo(DemoRow? row) => row is not null && _openDemo is not null ? _openDemo(row.Path) : Task.CompletedTask;
+
+    [RelayCommand]
+    private void OpenPlayerOverview(MemberRow? row)
+    {
+        if (row?.SteamId64 is { } id && _openPlayerOverview is not null)
+        {
+            _openPlayerOverview(id);
+        }
+    }
 
     // ── Projection ───────────────────────────────────────────────────────────────────────────────
 
@@ -413,13 +403,11 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
             Teams.Add(new TeamRow(team, _teams.DemosOf(team.Id).Count, _teams.LastSeenTicks(team.Id)));
         }
 
-        MyAccountsText = string.Join(", ", _teams.MyAccounts);
-        MeSuggestionLine = _teams.MeSuggestion is { } s ? MeLine(s) : "";
+        MyAccountsLine = AccountsLine(_teams.MyAccounts, _teams.ActiveAccount);
         FooterLine = Footer();
         ProjectMyTeam();
         ProjectSuggestions();
         OnPropertyChanged(nameof(CanEditSquad));
-        OnPropertyChanged(nameof(HasMeSuggestion));
         OnPropertyChanged(nameof(TeamsFileProblem));
         OnPropertyChanged(nameof(HasTeamsFileProblem));
         OnPropertyChanged(nameof(HasTeams));
@@ -494,7 +482,7 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
         if (_teams.Us is not { } us)
         {
             MyTeamLine = _teams.MyAccounts.Count == 0
-                ? "Set your accounts below, then pick the players you play with."
+                ? "Add your accounts in Settings > Identity, then pick the players you play with."
                 : "No team yet. Pick the players you play with, or accept a suggestion.";
             return;
         }
@@ -534,8 +522,15 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
         }
     }
 
-    private static string MeLine(MeSuggestion s) =>
-        $"{DisplayText.Sanitize(s.LastName)} ({s.SteamId64}) is on {s.DemoCount} of your demos ({s.Share:P0}). Is that you?";
+    /// <summary>The Me card's line: the host's accounts, the active one marked, and where to change them.</summary>
+    /// <param name="accounts">The user's accounts.</param>
+    /// <param name="active">The active one, or null.</param>
+    public static string AccountsLine(IReadOnlyList<string> accounts, string? active) =>
+        accounts.Count == 0
+            ? "No accounts yet. Open Settings > Identity to add yours."
+            : "Your accounts: "
+              + string.Join(", ", accounts.Select(a => accounts.Count > 1 && string.Equals(a, active, StringComparison.Ordinal) ? a + " (active)" : a))
+              + ". Open Settings > Identity to change them.";
 
     private void ProjectSuggestions()
     {
@@ -559,11 +554,6 @@ public sealed partial class TeamsTabViewModel : ExtensionViewModel, IWorkspaceTa
                 _ => $"Two teams are tagged {DisplayText.Sanitize(s.Subject)}. Merge them?"
             };
             Suggestions.Add(new SuggestionRow(s.Id, text) { IsDismissed = dismissed });
-        }
-
-        if (ShowSettled && _teams.DismissedMeSuggestion is { } me)
-        {
-            Suggestions.Add(new SuggestionRow(TeamIdentityService.MeSuggestionId(me.SteamId64), MeLine(me)) { IsDismissed = true });
         }
 
         OnPropertyChanged(nameof(HasSuggestions));
@@ -665,6 +655,9 @@ public sealed class RosterRow
 public sealed class MemberRow(string steamId, TeamIndexMember member)
 {
     public string SteamId { get; } = steamId;
+
+    /// <summary>The member's SteamID64, or null when the id is not a decimal one.</summary>
+    public ulong? SteamId64 { get; } = ulong.TryParse(steamId, NumberStyles.None, CultureInfo.InvariantCulture, out ulong id) && id != 0 ? id : null;
 
     public string Name { get; } = DisplayText.Sanitize(member.LastName);
 

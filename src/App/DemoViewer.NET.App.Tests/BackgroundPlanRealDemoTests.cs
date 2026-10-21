@@ -119,18 +119,6 @@ public class BackgroundPlanRealDemoTests
         AnalysisRun run = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = false });
         outputs["highlights"] = JsonSerializer.Serialize(run.Highlights, Json);
 
-        // A forced rescan runs with snapshots and writes the scoreboard from them.
-        AnalysisRun forced = DemoAnalysis.Evaluate(parsed, build, new AnalysisOptions { CaptureSnapshots = true });
-        outputs["forced highlights"] = JsonSerializer.Serialize(forced.Highlights, Json);
-        MetricTable table = new PlayerGameStatsProjector { MatchId = Path.GetFileName(path) }
-            .Project(forced.Snapshots!, parsed).Single();
-        outputs["forced scoreboard"] = JsonSerializer.Serialize(new
-        {
-            rows = DemoCacheAnalysisProjector.ProjectScoreboard(table),
-            sides = DemoCacheAnalysisProjector.ComputeSideWins(table)
-        }, Json);
-        forced = null!;
-
         List<string> players = [.. parsed.Players.Values
             .Where(p => !p.IsBot && !p.IsHltv && !string.IsNullOrWhiteSpace(p.Name)).Select(p => p.Name).Distinct()];
         (int? ct, int? t, string? ctClan, string? tClan, HashSet<int> coaches) = DemoLibraryService.ExtractFinalState(parsed);
