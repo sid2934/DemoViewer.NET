@@ -401,8 +401,7 @@ verifies it. The public key in this repo today has key id
 `dfe4ae3ebb28794fb79a03562ad36eaf252ebe1753292574e752bad4bc1c4cc0`, generated 2026-10-03.
 
 **The signing tool**, `tools/extension-signing` (out of the `.slnx`, a CI and command-line utility rather than an
-app component, following the `NavPathSpike` convention of a comment saying so plus relaxed analyzer
-settings):
+app component, with a comment saying so and relaxed analyzer settings):
 
 ```
 extension-signing keygen --out <private.pem>              generates an ECDSA P-256 key pair; the
