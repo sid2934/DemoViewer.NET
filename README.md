@@ -97,12 +97,13 @@ Needs the .NET 10 SDK. Restore pulls everything from nuget.org: no extra feeds, 
 Tests use [TUnit](https://tunit.dev), not xUnit or NUnit:
 
 ```sh
-scripts/test-app-suite.sh -n 6                        # app suite, batched; see below
+scripts/test-app-suite.sh                              # app suite, batched; see below
 dotnet run --project src/Testing/DemoViewer.NET.LiveSync.Tests
 ```
 
 The app suite must go through the batch runner. It is a single-process headless UI suite and runs
-out of memory on a 16 GB machine otherwise; `-n 6` is the batch count that holds. The Live Sync
+out of memory on a 16 GB machine otherwise. The batch count is `-n`: the script defaults to 3, CI
+passes 4, and the partition changes with it, so pass the same `-n` to compare runs. The Live Sync
 suite binds port 50051, which is machine-exclusive, so close other CS2 tooling first, and note those
 tests skip rather than fail if the port is busy.
 
