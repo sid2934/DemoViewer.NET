@@ -12,23 +12,27 @@
 #
 # ── Why this script exists ──────────────────────────────────────────────────────────────────────────
 #
-# Three runner behaviours make hand-typed invocations unsafe, and all three are encapsulated here.
+# Three runner behaviours shape every invocation here, and all three are encapsulated below.
 #
-#  1. `dotnet test --filter "Category=X"` is SILENTLY IGNORED by this runner. TUnit runs on
-#     Microsoft.Testing.Platform and registers no `--filter` option; in VSTest mode the argument is
-#     swallowed and the ENTIRE suite runs, reporting success. Everything must go through
-#     `-- --treenode-filter`, and this script is the only place that string is written.
+#  1. `--filter "Category=X"` is not an option this runner has. TUnit runs on
+#     Microsoft.Testing.Platform, which registers no `--filter` and rejects it with exit 5.
+#     Everything must go through `-- --treenode-filter`, and this script is the only place that
+#     string is written.
 #
 #  2. The tree-node filter parser CRASHES on the obvious spelling of a boolean. Inside `[...]`, `&`
 #     and `|` bind TIGHTER than `=`, so `[Category!=A&Category!=B]` throws InvalidOperationException
 #     out of `TreeNodeFilter.ProcessStackOperator`. Parenthesise every operand instead. Worse
 #     spellings fail SILENTLY: top-level `|` between two whole paths matches EVERYTHING, top-level `&`
 #     drops the second clause, and unary `!` is not a token, so `[!(Category=A)]` also matches all.
+#     All of that survived the TUnit 1.76 upgrade, because the parser is Microsoft.Testing.Platform's
+#     and 2.5.1 is the newest MTP there is. Do not relax the parenthesisation on the grounds that the
+#     runner has been updated.
 #
-#  3. `dotnet test` collapses every platform exit code to MSBuild's `1`, which loses the distinction
-#     between "tests failed" (2), "the filter matched nothing" (8) and "bad arguments" (5), exactly
-#     the distinctions a tier runner has to report. `dotnet run` preserves them, so `dotnet run` is
-#     what this script uses.
+#  3. `dotnet run` is what this script uses, for `--no-build` on the single-project inner loop and
+#     for the per-project timings printed below. Exit codes are no longer the reason: with the
+#     `test.runner` opt-in in global.json, `dotnet test --project` propagates 2 (tests failed) and
+#     8 (the filter matched nothing), though 5 still collapses to MSBuild's 1. Without that opt-in
+#     `dotnet test` does not run at all on the .NET 10 SDK.
 set -u
 
 TIER=standard
