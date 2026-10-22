@@ -41,7 +41,7 @@ namespace DemoViewer.NET.AppTests;
 ///         <c>dv2d golden verify</c>, is the entry's only gate.
 ///     </para>
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratGoldenCaptureTests))]
 public class StratGoldenCaptureTests
 {
     private const string UpdateEnvVar = "PB2D_GOLDEN_UPDATE";

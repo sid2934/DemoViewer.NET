@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Debug run leaves its rows behind the files. Revisions stay strictly increasing, a working copy stamped
 ///     from a stale row is moved onto the log's head or set aside with a note, never dropped.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratRevisionTests))]
 public class StratRevisionTests
 {
     private static readonly int[] ThreeRevisions = [1, 2, 3];

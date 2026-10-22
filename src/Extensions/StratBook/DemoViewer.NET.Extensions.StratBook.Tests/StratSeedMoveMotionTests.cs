@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests;
 ///     a line per player and the spawn positions still on it, a lurk on the same tick holding copies of every position,
 ///     a regroup, a lineup throw and a push by three of the five.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratSeedMoveMotionTests))]
 public class StratSeedMoveMotionTests
 {
     private const double Level = -99968;

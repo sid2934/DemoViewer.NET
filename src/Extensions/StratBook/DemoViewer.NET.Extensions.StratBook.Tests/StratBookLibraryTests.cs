@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     row equal the ones read off the record, and a row loaded from an index older than side players keeps the
 ///     team index as it was until the sides pass reads the record.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratBookLibraryTests))]
 public class StratBookLibraryTests
 {
     private static readonly Func<Action, Task> _inline = a =>

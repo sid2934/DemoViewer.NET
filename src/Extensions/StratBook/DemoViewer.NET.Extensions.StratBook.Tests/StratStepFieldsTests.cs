@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 ///     A step row shows the fields its verb uses (<see cref="StratStepFields" />) and a verb change clears the
 ///     rest in the same undo entry, so exports never print a value the row hides.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratStepFieldsTests))]
 public class StratStepFieldsTests
 {
     // Members every step row edits whatever the verb, or the canvas does; empty is the step itself.
