@@ -22,11 +22,11 @@ namespace DemoViewer.NET.TestSupport.Corpus;
 ///         repo does today, so an unconfigured checkout behaves exactly as before.
 ///     </para>
 ///     <para>
-///         <b>Eviction: none, by decision.</b> The corpus is 7.5 GB against 46 GB free, the cache
-///         only ever holds demos the manifest names, and a delete path next to the corpus is the
-///         exact shape of the incident that cost 2.8 GB. Reclaiming space is
-///         <c>rm -rf</c> on the cache root by hand, which is safe because the cache is content
-///         addressed: anything removed is re-fetchable and nothing original lives there.
+///         <b>Eviction: none, by decision.</b> The corpus is 7.5 GB against 46 GB free, and the
+///         cache holds only demos the manifest names, so every byte in it is re-fetchable and
+///         nothing original lives there. Reclaiming space is <c>rm -rf</c> on the cache root by
+///         hand. The layer itself has no delete path for a whole demo, which is the point: it owns
+///         no code that could remove a corpus file.
 ///     </para>
 ///     <para>
 ///         This type is constructed from explicit inputs and reads no environment. The process-wide
@@ -160,6 +160,15 @@ public sealed class DemoCorpus
 
     private Resolution Fetch(CorpusDemo demo, string cached)
     {
+        if (File.Exists(cached))
+        {
+            // The cache hit above already rejected this file on length, so it is corrupt. Refuse
+            // rather than overwrite: this layer owns no code that removes a cached demo.
+            return new Resolution(null,
+                $"demo '{demo.Name}' has a cached file of the wrong length at {cached}: " +
+                $"{new FileInfo(cached).Length} bytes, manifest says {demo.Bytes}. Remove it to re-fetch.");
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(cached)!);
 
         List<string> tried = [];
@@ -182,9 +191,11 @@ public sealed class DemoCorpus
                 {
                     File.Move(partial, cached);
                 }
-                catch (IOException)
+                catch (IOException) when (File.Exists(cached) && new FileInfo(cached).Length == demo.Bytes)
                 {
-                    // Another process won the race and its copy was verified the same way.
+                    // Another process won the race, and its copy passed the same verification.
+                    // The guard is load-bearing: without it any failed move would return an
+                    // unverified path. Any other IOException falls through and is recorded.
                     File.Delete(partial);
                 }
 

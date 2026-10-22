@@ -36,8 +36,7 @@ public sealed class DirectoryDemoSource : IDemoSource
             return false;
         }
 
-        // Copy, never link: an agent once made demos/ reachable by junction and a worktree
-        // removal followed it, destroying 2.8 GB.
+        // Copy, never link: removing a tree that links demos/ deletes the link's target.
         File.Copy(found, destination, true);
         return true;
     }

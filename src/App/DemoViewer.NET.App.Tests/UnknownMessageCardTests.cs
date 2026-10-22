@@ -256,9 +256,8 @@ public sealed class DemoCensus
 
     private static string ResolveDemo()
     {
-        // Prefer this pro demo (rich in unknown sound/decal events); fall back to the shared helper.
-        // The pinned lookup carries the corpus override and the fetch layer; the hand-rolled walk
-        // it replaces saw neither, so a worktree never found the demo.
+        // Prefer this pro demo (rich in unknown sound/decal events); fall back to the shared
+        // helper. Must go through the pinned lookup: only that path carries the corpus override.
         return DemoTestHelper.FindDemoPath("vitality-vs-fut-m1-mirage.dem") ?? DemoTestHelper.RequireDemo();
     }
 }

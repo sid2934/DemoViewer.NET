@@ -60,11 +60,10 @@ public static class DemoTestHelper
     ///     The corpus root, replacing <c>&lt;repo-root&gt;/demos</c> everywhere this class looks.
     ///     Unset means <c>&lt;repo-root&gt;/demos</c>, so the main checkout needs no configuration.
     ///     <para>
-    ///         This exists because a git worktree has its own empty <c>demos/</c> and
-    ///         <c>demos/**/*.dem</c> is gitignored, so every RealDemo test in a worktree skipped
-    ///         while the suite reported green. Configuration is the only supported fix: linking
-    ///         <c>demos/</c> into another tree once destroyed 2.8 GB when a worktree removal
-    ///         followed the link.
+    ///         <c>demos/**/*.dem</c> is gitignored, so a git worktree's own <c>demos/</c> is empty
+    ///         and every RealDemo test there skips. Configuration is the ONLY supported way to point
+    ///         a second tree at the corpus: removing a tree that links <c>demos/</c> deletes the
+    ///         link's target, not the link.
     ///     </para>
     /// </summary>
     public const string CorpusRootEnvVar = "DEMO_CORPUS";
@@ -416,20 +415,19 @@ public static class DemoTestHelper
     // ── The corpus root, and the override that lets a worktree reach it ───────
 
     /// <summary>
-    ///     The corpus root: <see cref="CorpusRootEnvVar" /> when set, else
-    ///     <c>&lt;repo-root&gt;/demos</c>. Returns null with <paramref name="problem" /> set when
-    ///     neither resolves.
+    ///     The corpus root, with the environment passed in rather than read, so the rules can be
+    ///     tested against temp folders without touching the variable every other test in the
+    ///     process reads. <paramref name="configured" /> wins when set, else
+    ///     <c>&lt;repoRoot&gt;/demos</c>.
     ///     <para>
-    ///         An override that is set but is not a directory resolves to NOTHING. It must not fall
-    ///         back to the repo's own <c>demos/</c>: falling back is how a misconfigured run looks
-    ///         like a configured one, which is the mistake that skipped 119 RealDemo tests while
-    ///         reporting green.
+    ///         A <paramref name="configured" /> root that is not a directory resolves to NOTHING and
+    ///         never falls back to <c>&lt;repoRoot&gt;/demos</c>. A fallback would let a
+    ///         misconfigured run resolve demos and report as though it were configured.
     ///     </para>
     /// </summary>
-    public static string? ResolveCorpusRoot(out string? problem)
+    public static string? ResolveCorpusRoot(string? configured, string? repoRoot, out string? problem)
     {
         problem = null;
-        string? configured = Environment.GetEnvironmentVariable(CorpusRootEnvVar);
         if (!string.IsNullOrWhiteSpace(configured))
         {
             if (Directory.Exists(configured))
@@ -441,7 +439,6 @@ public static class DemoTestHelper
             return null;
         }
 
-        string? repoRoot = FindRepoRoot();
         if (repoRoot is null)
         {
             problem = $"repo root not found above {AppContext.BaseDirectory} and {CorpusRootEnvVar} is unset";
@@ -457,6 +454,10 @@ public static class DemoTestHelper
         problem = $"no corpus: {demos} does not exist and {CorpusRootEnvVar} is unset";
         return null;
     }
+
+    /// <summary><see cref="ResolveCorpusRoot(string?,string?,out string?)" /> against the process environment.</summary>
+    public static string? ResolveCorpusRoot(out string? problem) =>
+        ResolveCorpusRoot(Environment.GetEnvironmentVariable(CorpusRootEnvVar), FindRepoRoot(), out problem);
 
     /// <summary>
     ///     A directory under the corpus root, or null when the corpus or the directory is absent.
@@ -500,9 +501,9 @@ public static class DemoTestHelper
     /// <summary>
     ///     Every <c>.dem</c> a folder-shaped <c>DEMO_PATH</c> names, in ordinal name order, with
     ///     the environment passed in rather than read. The folder counterpart of
-    ///     <see cref="ResolveDemoPathOverride" />, which resolves to ONE demo: tests that walk the
-    ///     whole replays folder need the list, and hand-rolling it in each test is how two of them
-    ///     ended up bypassing these rules entirely.
+    ///     <see cref="ResolveDemoPathOverride" />, which resolves to ONE demo. Tests that walk the
+    ///     whole replays folder need the list and must take it from here, or they get neither the
+    ///     ordinal order nor the sidecar guard below.
     ///     <para>
     ///         A file yields itself. A folder yields its top-level <c>.dem</c> files, no recursion.
     ///         Unset yields empty with no <paramref name="problem" />, which the caller reads as

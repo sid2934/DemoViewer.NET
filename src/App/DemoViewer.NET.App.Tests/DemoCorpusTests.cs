@@ -428,7 +428,148 @@ public class DemoCorpusTests
             .IsFalse();
     }
 
+    /// <summary>
+    ///     A cached file of the wrong length is corruption in a content-addressed cache. It must
+    ///     never be returned, and it must not be silently overwritten either: the message says
+    ///     which file to remove.
+    /// </summary>
+    [Test]
+    public async Task ACachedFileOfTheWrongLength_IsNeverReturned()
+    {
+        string root = TempRoot();
+        try
+        {
+            byte[] bytes = [6, 6, 6, 6, 6, 6, 6];
+            Write(Path.Combine(root, "source"), "subject.dem", bytes);
+            CorpusManifest manifest = ManifestFor("subject.dem", bytes, null);
+            string cache = Path.Combine(root, "cache");
+            DemoCorpus corpus = new(manifest, [], cache,
+                [new DirectoryDemoSource(Path.Combine(root, "source"))]);
+
+            string poisoned = corpus.CachePath(manifest.ByName("subject")!);
+            Write(Path.GetDirectoryName(poisoned)!, Path.GetFileName(poisoned), [1, 2]);
+
+            SkipTestException thrown = Assert.Throws<SkipTestException>(
+                () => corpus.Require("subject.dem"))!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(thrown.Message).Contains("wrong length");
+                await Assert.That(thrown.Message).Contains("manifest says 7");
+                // Untouched, not overwritten: the layer removes nothing.
+                await Assert.That(new FileInfo(poisoned).Length).IsEqualTo(2);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
     // ── The corpus root override (TQ-15) ──────────────────────────────────────
+
+    /// <summary>
+    ///     The override rules, with the environment passed in rather than read, so they are
+    ///     checked against temp folders without touching the variable every RealDemo test in this
+    ///     process reads.
+    /// </summary>
+    [Test]
+    public async Task CorpusRootOverride_WinsWhenItIsADirectory()
+    {
+        string root = TempRoot();
+        string configured = Path.Combine(root, "elsewhere");
+        Directory.CreateDirectory(configured);
+        Directory.CreateDirectory(Path.Combine(root, "repo", "demos"));
+        try
+        {
+            string? resolved = DemoTestHelper.ResolveCorpusRoot(
+                configured, Path.Combine(root, "repo"), out string? problem);
+            using (Assert.Multiple())
+            {
+                await Assert.That(resolved).IsEqualTo(configured);
+                await Assert.That(problem).IsNull();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    /// <summary>
+    ///     The load-bearing rule: a configured root that does not exist resolves to NOTHING even
+    ///     though the repo has a usable <c>demos/</c>. Falling back is what makes a misconfigured
+    ///     run look configured.
+    /// </summary>
+    [Test]
+    public async Task CorpusRootOverride_SetButMissing_DoesNotFallBackToTheRepo()
+    {
+        string root = TempRoot();
+        string repo = Path.Combine(root, "repo");
+        Directory.CreateDirectory(Path.Combine(repo, "demos"));
+        try
+        {
+            string missing = Path.Combine(root, "no-such-corpus");
+            string? resolved = DemoTestHelper.ResolveCorpusRoot(missing, repo, out string? problem);
+            using (Assert.Multiple())
+            {
+                await Assert.That(resolved).IsNull();
+                await Assert.That(problem).Contains(DemoTestHelper.CorpusRootEnvVar);
+                await Assert.That(problem).Contains(missing);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task CorpusRootOverride_Unset_IsTheRepoDemosDirectory()
+    {
+        string root = TempRoot();
+        string repo = Path.Combine(root, "repo");
+        string demos = Path.Combine(repo, "demos");
+        Directory.CreateDirectory(demos);
+        try
+        {
+            using (Assert.Multiple())
+            {
+                foreach (string? unset in new[] { null, "", "   " })
+                {
+                    await Assert.That(DemoTestHelper.ResolveCorpusRoot(unset, repo, out string? problem))
+                        .IsEqualTo(demos);
+                    await Assert.That(problem).IsNull();
+                }
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task CorpusRootOverride_Unset_WithNoDemosDirectory_SaysSo()
+    {
+        string root = TempRoot();
+        string repo = Path.Combine(root, "repo");
+        Directory.CreateDirectory(repo);
+        try
+        {
+            using (Assert.Multiple())
+            {
+                await Assert.That(DemoTestHelper.ResolveCorpusRoot(null, repo, out string? problem)).IsNull();
+                await Assert.That(problem).Contains("no corpus");
+
+                await Assert.That(DemoTestHelper.ResolveCorpusRoot(null, null, out string? noRepo)).IsNull();
+                await Assert.That(noRepo).Contains("repo root not found");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
 
     /// <summary>
     ///     The override is read from the environment, which this test must not mutate, so the rule
