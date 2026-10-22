@@ -33,70 +33,31 @@ public class Scene2DHostTests
     private const byte BgR = 0x15, BgG = 0x18, BgB = 0x1C;
 
     [Test]
-    public async Task Default_MountsTheSceneHost_AndLegacyIsStillReachable()
+    public async Task TheTab_MountsTheSceneHost()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
 
-            (Window sceneWindow, Playback2DView sceneView) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
-            await Assert.That(Playback2DTimelineHarness.Surface(sceneView)).IsTypeOf<Scene2DHost>();
-            sceneWindow.Close();
-
-            (Window legacyWindow, Playback2DView legacyView) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Legacy);
-            await Assert.That(Playback2DTimelineHarness.Surface(legacyView))
-                .IsTypeOf<Playback2DViewport>();
-            legacyWindow.Close();
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
+            await Assert.That(Playback2DTimelineHarness.Surface(view)).IsTypeOf<Scene2DHost>();
+            window.Close();
         });
     }
 
     /// <summary>
-    ///     The environment variable is the CI and bisecting path, and it outranks the setting. It is an
-    ///     env var rather than a <c>FeatureCatalog</c> id on purpose: catalog ids are permanent persisted
-    ///     keys, and this toggle goes away with the old control.
+    ///     The host satisfies <see cref="IPlayback2DSurface" />, which is what the mode menu, the follow
+    ///     funnel and the Fit button drive it through.
     /// </summary>
     [Test]
-    public async Task EnvironmentVariable_SelectsTheSurface_AndOutranksTheSetting()
-    {
-        string? original = Environment.GetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable);
-        try
-        {
-            Environment.SetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable, "legacy");
-            Playback2DRenderer.ResetForTest(null); // clear the pin so the variable is re-read
-            await Assert.That(Playback2DRenderer.Selected).IsEqualTo(Playback2DRendererKind.Legacy);
-
-            Environment.SetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable, "scene");
-            Playback2DRenderer.ResetForTest(null);
-            await Assert.That(Playback2DRenderer.Selected).IsEqualTo(Playback2DRendererKind.Scene);
-
-            Environment.SetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable, null);
-            Playback2DRenderer.ResetForTest(null);
-            await Assert.That(Playback2DRenderer.Selected).IsEqualTo(Playback2DRendererKind.Scene)
-                .Because("the v2 host is the default when nothing overrides it");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(Playback2DRenderer.EnvironmentVariable, original);
-            Playback2DRenderer.ResetForTest(null);
-        }
-    }
-
-    /// <summary>
-    ///     Both surfaces satisfy <see cref="IPlayback2DSurface" />, so the mode menu, the follow funnel
-    ///     and the Fit button drive either one. A failure here means the two surfaces have diverged.
-    /// </summary>
-    [Test]
-    public async Task BothSurfaces_SatisfyThePlayback2DSurfaceContract()
+    public async Task TheSceneHost_SatisfiesThePlayback2DSurfaceContract()
     {
         await HeadlessSession.RunOnUi(async () =>
         {
-            using Scene2DHost sceneHost = new();
-            Playback2DViewport legacyHost = new();
+            using Scene2DHost host = new();
+            IPlayback2DSurface surface = host;
 
-            await Assert.That(DriveThroughTheContract(sceneHost)).IsEqualTo(CameraMode.Fit);
-            await Assert.That(DriveThroughTheContract(legacyHost)).IsEqualTo(CameraMode.Fit);
+            await Assert.That(DriveThroughTheContract(surface)).IsEqualTo(CameraMode.Fit);
         });
     }
 
@@ -111,8 +72,7 @@ public class Scene2DHostTests
                 (1, 3, 900f, -500f, 64f, 270f),
                 (2, 3, 400f, 200f, 64f, 0f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
@@ -145,8 +105,7 @@ public class Scene2DHostTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
@@ -182,8 +141,7 @@ public class Scene2DHostTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
@@ -210,8 +168,7 @@ public class Scene2DHostTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window _, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
 
             // Alive mode with a moving roster: the camera is chasing, so the loop MUST be armed.
@@ -251,8 +208,7 @@ public class Scene2DHostTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             host.ForceLeaseUnavailableForTest();
             host.FitToExtent();
@@ -295,8 +251,7 @@ public class Scene2DHostTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window _, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
@@ -345,9 +300,9 @@ public class Scene2DHostTests
     ///         a tab activation builds a fresh view, and leaking a compositor's SKPaints, SKPaths and
     ///         recorded pictures per activation is a native-memory climb. But detach is not only
     ///         teardown: Avalonia detaches and re-attaches on a re-parent, a re-template, and a
-    ///         presenter recycling its content, and the pre-v2 <c>Playback2DViewport</c> survives all
-    ///         three. A host that releases on the first detach and never revives renders a blank surface
-    ///         for the rest of the session, with no exception to point at it.
+    ///         presenter recycling its content. A host that releases on the first detach and never
+    ///         revives renders a blank surface for the rest of the session, with no exception to point
+    ///         at it.
     ///     </para>
     /// </summary>
     [Test]
@@ -358,8 +313,7 @@ public class Scene2DHostTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
@@ -388,8 +342,8 @@ public class Scene2DHostTests
         });
     }
 
-    // Exercised only through the interface: the view drives whichever surface is mounted this way, so
-    // a member that quietly stopped being part of the contract would break the tab, not this test.
+    // Exercised only through the interface: the view drives the surface this way, so a member that
+    // quietly stopped being part of the contract would break the tab, not this test.
     private static CameraMode DriveThroughTheContract(IPlayback2DSurface surface)
     {
         surface.Mode = CameraMode.Alive;

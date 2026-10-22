@@ -62,8 +62,7 @@ public class Playback2DKeybindRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             vm.ApplyKeymapOverrides(["HoldPan=B"]);
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
 
             vm.Annotations.SelectTool(ToolKind.Draw);
@@ -102,8 +101,7 @@ public class Playback2DKeybindRoutingTests
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
             vm.ApplyKeymapOverrides(["HoldPan=B"]);
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
 
             vm.Annotations.SelectTool(ToolKind.Draw);
@@ -145,8 +143,7 @@ public class Playback2DKeybindRoutingTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
 
             vm.Annotations.SelectTool(ToolKind.Draw);

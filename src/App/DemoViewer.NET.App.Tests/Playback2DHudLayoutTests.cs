@@ -29,13 +29,8 @@ namespace DemoViewer.NET.AppTests;
 ///         passes on the broken tree, because everything is in the right container the whole time.
 ///     </para>
 ///     <para>
-///         <b>Every case pins the SCENE surface.</b> <c>Playback2DTimelineHarness.Show</c> defaults to the
-///         legacy escape hatch, written for the carried-forward parity suites; this suite's subject is the
-///         docked chrome, which belongs to v2. The annotation toolbar's visibility is now the feature gate
-///         AND the mounted surface's capability, so under the legacy viewport, which has no router, no ink
-///         layer and no gesture to cancel, <c>AnnotationToolbarHost</c> correctly is not there at all, and
-///         a layout suite measuring the default surface would have been measuring the escape hatch's
-///         chrome all along.
+///         The annotation toolbar's visibility is the feature gate AND the mounted surface's capability,
+///         so a case that measures <c>AnnotationToolbarHost</c> is measuring both.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -60,8 +55,7 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window _, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             // The widest state the chrome ever reaches: everything the user can reveal, revealed.
             vm.IsOverlayBarOpen = true;
@@ -106,8 +100,7 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             AnnotationToolbar toolbar = view.GetVisualDescendants().OfType<AnnotationToolbar>().Single();
             foreach (string name in _toolButtons)
@@ -154,8 +147,7 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, windowWidth, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm, windowWidth);
 
             vm.IsOverlayBarOpen = true;
             vm.Annotations.Visibility = EnvelopeMode.Custom; // realizes the envelope editor's second row
@@ -300,8 +292,7 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window _, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             vm.IsOverlayBarOpen = true;
             Playback2DTimelineHarness.Pump();
@@ -348,8 +339,7 @@ public class Playback2DHudLayoutTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
-            (Window _, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             vm.IsOverlayBarOpen = true;
             Playback2DTimelineHarness.Pump();

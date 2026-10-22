@@ -213,8 +213,7 @@ public class RoundEnvelopeTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView _) =
-                Playback2DTimelineHarness.Show(vm, 1400, 800, Playback2DRendererKind.Scene);
+            (Window window, Playback2DView _) = Playback2DTimelineHarness.Show(vm, 1400, 800);
 
             vm.Annotations.Visibility = EnvelopeMode.Round;
             Playback2DTimelineHarness.Pump();

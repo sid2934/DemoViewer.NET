@@ -258,8 +258,7 @@ public class TagPositionTests
             ctx.PushPlacedMarkers((0, 2, -800f, 600f, 64f, "Ramp"), (1, 3, 900f, -500f, 64f, "BombsiteA"));
             TagSession tags = review.Session!;
             await tags.AttachAsync(Demo, Clock, DemoPath);
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             host.FitToExtent();
             Playback2DTimelineHarness.Pump();
