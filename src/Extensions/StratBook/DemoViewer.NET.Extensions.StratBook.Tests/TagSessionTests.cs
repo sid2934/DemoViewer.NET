@@ -189,16 +189,20 @@ public class TagSessionTests
             TagStore store = new(root);
             using TagSession session = await Attached(store);
             session.AutoSaveDelay = TimeSpan.FromMilliseconds(40);
+            TaskCompletionSource autoSaved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            session.Changed += () =>
+            {
+                if (session.SaveCount > 0)
+                {
+                    autoSaved.TrySetResult();
+                }
+            };
             for (int i = 0; i < 5; i++)
             {
                 session.Apply(new TagDelta.Add(Instance("Default", i, i + 1)));
             }
 
-            DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-            while (session.SaveCount == 0 && DateTime.UtcNow < deadline)
-            {
-                await Task.Delay(20);
-            }
+            await autoSaved.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
             await Task.Delay(200);
             await session.FlushAsync(); // nothing new since the save: stands down

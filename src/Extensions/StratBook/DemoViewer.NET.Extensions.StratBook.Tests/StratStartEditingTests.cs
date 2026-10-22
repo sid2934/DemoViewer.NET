@@ -136,12 +136,14 @@ public class StratStartEditingTests
         }
 
         int loaded = 0;
-        canvas.PlacesLoaded += () => loaded++;
-        read.SetResult(Spawns);
-        for (int i = 0; i < 200 && canvas.SpawnsPending; i++)
+        TaskCompletionSource landed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        canvas.PlacesLoaded += () =>
         {
-            await Task.Delay(10);
-        }
+            loaded++;
+            landed.TrySetResult();
+        };
+        read.SetResult(Spawns);
+        await landed.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         editor.Project();
         editor.Start.Own[0].Value = [new PlaceRef { Place = "Ramp" }];

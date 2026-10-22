@@ -197,13 +197,17 @@ public class StratSessionTests
         using StratSession session = Session(store);
         session.IdleCommitDelay = TimeSpan.FromMilliseconds(30);
         session.Open(committed.Id);
+        TaskCompletionSource idleCommit = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.Changed += () =>
+        {
+            if (session.CommitCount > 0)
+            {
+                idleCommit.TrySetResult();
+            }
+        };
 
         session.Apply(PatchOp.ReplaceOp("/name", null, JsonValue.Create("idle")));
-        DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-        while (session.CommitCount == 0 && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
+        await idleCommit.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         using (Assert.Multiple())
         {

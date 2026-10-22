@@ -28,7 +28,7 @@ public class StratLineupPickerTests
 
     private sealed class Harness : IDisposable
     {
-        private readonly ConcurrentQueue<Action> _posted = new();
+        private readonly PostedActions _posted = new();
 
         public Harness(IDemoProcessingQueue? queue = null, bool defaultPicker = false)
         {
@@ -59,24 +59,15 @@ public class StratLineupPickerTests
 
         public void Dispose() => Tab.Dispose();
 
-        public void Pump()
-        {
-            while (_posted.TryDequeue(out Action? action))
-            {
-                action();
-            }
-        }
+        public void Pump() => _posted.Drain();
+
+        public Task PumpUntilAsync(Func<bool> until) => _posted.DrainUntilAsync(until);
 
         // The editor's catalog groups the map off the UI thread; wait for it and run what it posts back.
         public async Task WarmAsync()
         {
             _ = Editor.ResolveLineup(Lineup.Id);
-            for (int i = 0; i < 500 && Editor.ResolveLineup(Lineup.Id) is null; i++)
-            {
-                await Task.Delay(10);
-                Pump();
-            }
-
+            await PumpUntilAsync(() => Editor.ResolveLineup(Lineup.Id) is not null);
             Pump();
         }
 
@@ -380,11 +371,7 @@ public class StratLineupPickerTests
 
         h.Tab.OpenLineupPickerCommand.Execute(row);
         LineupPickerViewModel picker = h.Tab.LineupPicker!;
-        for (int i = 0; i < 500 && !picker.Map.HasGroups; i++)
-        {
-            await Task.Delay(10);
-            h.Pump();
-        }
+        await h.PumpUntilAsync(() => picker.Map.HasGroups);
 
         using (Assert.Multiple())
         {

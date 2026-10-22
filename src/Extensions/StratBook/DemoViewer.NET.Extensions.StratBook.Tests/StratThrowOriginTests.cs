@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Concurrent;
 using System.Numerics;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
@@ -71,7 +70,7 @@ public class StratThrowOriginTests
     public async Task ACanvasOpenedBeforeTheMapIsGrouped_MovesTheThrower_WhenTheGroupingLands()
     {
         (GrenadeIndex index, GrenadeLineup lineup) = Indexed();
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using LineupOriginSource origins = new(index, posted.Enqueue);
 
         StratDocument document = FiveSteps();
@@ -83,10 +82,7 @@ public class StratThrowOriginTests
             lineupOrigins: origins);
 
         TokenKeyframe before = BAt(canvas);
-        for (int i = 0; i < 500 && posted.IsEmpty; i++)
-        {
-            await Task.Delay(10);
-        }
+        await posted.WaitForPostAsync();
 
         while (posted.TryDequeue(out Action? action))
         {
@@ -136,7 +132,7 @@ public class StratThrowOriginTests
     public async Task OriginsThatLandMidDrag_AreDrawn_WhenTheDragIsCancelled()
     {
         (GrenadeIndex index, GrenadeLineup lineup) = Indexed();
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using LineupOriginSource origins = new(index, posted.Enqueue);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
         using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
@@ -144,10 +140,7 @@ public class StratThrowOriginTests
         canvas.Timeline.RequestSeek(330);
 
         canvas.BeginDrag("A", TokenGrip.Body);
-        for (int i = 0; i < 500 && posted.IsEmpty; i++)
-        {
-            await Task.Delay(10);
-        }
+        await posted.WaitForPostAsync();
 
         while (posted.TryDequeue(out Action? action))
         {

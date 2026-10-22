@@ -15,6 +15,7 @@ internal sealed class InlineJobs : IExtensionJobs
 {
     private readonly List<(string Title, JobOptions Options)> _submitted = [];
     private readonly List<string> _demoReads = [];
+    private readonly ChangeSignal _submissions = new();
 
     public IReadOnlyList<(string Title, JobOptions Options)> Submitted
     {
@@ -41,6 +42,9 @@ internal sealed class InlineJobs : IExtensionJobs
 
     public CancellationToken JobToken { get; set; }
 
+    /// <summary>Returns once <paramref name="until" /> holds, re-checking on each submission.</summary>
+    public Task WaitForSubmissionAsync(Func<bool> until) => _submissions.WaitUntilAsync(until, "the expected job to be submitted");
+
     /// <summary>The parse a job on a demo gets; a job on a demo is rejected when null.</summary>
     public Func<string, ParsedDemo>? ParseDemo { get; set; }
 
@@ -50,6 +54,8 @@ internal sealed class InlineJobs : IExtensionJobs
         {
             _submitted.Add((request.Title, request.Options));
         }
+
+        _submissions.Raise();
 
         if (request.DemoPath is { } path)
         {
@@ -75,6 +81,8 @@ internal sealed class InlineJobs : IExtensionJobs
         {
             _submitted.Add((title, options ?? new JobOptions()));
         }
+
+        _submissions.Raise();
 
         return work(new Context(JobToken));
     }

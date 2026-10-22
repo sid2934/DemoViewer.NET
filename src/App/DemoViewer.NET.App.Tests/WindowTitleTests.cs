@@ -23,12 +23,21 @@ public class WindowTitleTests
 
             // The readout is produced by a 1s DispatcherTimer tick, so wait for a real one rather than
             // asserting the initial value: this checks the string the user actually sees.
-            string title = "";
-            for (int i = 0; i < 40 && !title.Contains("PID", StringComparison.Ordinal); i++)
+            TaskCompletionSource ticked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            vm.PropertyChanged += (_, e) =>
             {
-                await Task.Delay(100);
-                title = vm.WindowTitle;
+                if (e.PropertyName == nameof(MainViewModel.WindowTitle) && vm.WindowTitle.Contains("PID", StringComparison.Ordinal))
+                {
+                    ticked.TrySetResult();
+                }
+            };
+            if (vm.WindowTitle.Contains("PID", StringComparison.Ordinal))
+            {
+                ticked.TrySetResult();
             }
+
+            await ticked.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            string title = vm.WindowTitle;
 
             using (Assert.Multiple())
             {
