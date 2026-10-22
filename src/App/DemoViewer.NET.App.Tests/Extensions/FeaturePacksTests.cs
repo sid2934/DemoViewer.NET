@@ -131,7 +131,7 @@ public class FeaturePacksTests
     [Test]
     public async Task AnIncompatiblePack_IsDeclaredButNotCompatible_AndNothingBuiltFromCompatibleSeesIt()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0"));
         IncompatibleFakePack incompatible = new();
         StratBookPack stratBook = new();
 
@@ -166,7 +166,7 @@ public class FeaturePacksTests
     [Test]
     public async Task TheDerivedViews_AgreeInEitherReadOrder_AndFreezeOnFirstRead()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0"));
         IncompatibleFakePack incompatible = new();
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
 
@@ -195,7 +195,7 @@ public class FeaturePacksTests
     [Test]
     public async Task AStatus_IsBundled_UnlessTheLoaderSaysOtherwise()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0"));
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
         PackStatus evaluated = PackStatus.Evaluate(fine, host);
         LoadOutcome refused = new("/extensions/net.demoviewer.pack.fine/1.1.0", FakeManifests.For(fine.Id, "Fine", "1.1.0"), LoadFailure.Untrusted, "unsigned");
@@ -220,7 +220,7 @@ public class FeaturePacksTests
     [Test]
     public async Task ConfiguringFromStatuses_KeepsTheSourcesTheLoaderAssigned()
     {
-        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0-beta0001"));
+        ExtensionHostInfo host = new(SemVersion.Parse("1.0.0"), null, SemVersion.Parse("0.14.0"));
         PackCompatibilityTests.ManifestPack fine = new("net.demoviewer.pack.fine", FakeManifests.For("net.demoviewer.pack.fine"));
         PackStatus staged = PackStatus.Evaluate(fine, host) with { Source = new PackSource.Staged("/extensions/x/1.2.0") };
 
