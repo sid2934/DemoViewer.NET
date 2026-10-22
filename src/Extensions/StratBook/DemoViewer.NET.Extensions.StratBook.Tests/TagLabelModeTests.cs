@@ -74,205 +74,223 @@ public class TagLabelModeTests
     [Test]
     public async Task AFirstPassTagSet_IsEnriched_WithoutDuplicatingAnything_AndUndoWorks()
     {
-        using TagSession session = await Attached();
-        int playhead = 12_000;
-        using TagPaletteViewModel palette = Palette(session, () => playhead);
-
-        // First pass: codes only. Esc writes the execute without waiting on its panels.
-        Hit(palette, Key.D1);
-        Hit(palette, Key.Escape);
-        playhead = 25_000;
-        Hit(palette, Key.D3);
-        List<TagInstance> tags = session.Document!.Instances;
-        await Assert.That(tags.Count).IsEqualTo(2);
-        await Assert.That(tags.All(t => t.Labels.Count == 0)).IsTrue();
-        Guid[] firstPassIds = [.. tags.Select(t => t.Id)];
-        int depthAfterFirstPass = session.UndoDepth;
-
-        // Second pass: Ctrl+L, back to the execute. Its code leads to outcome, so that panel shows first.
-        await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsTrue();
-        playhead = 12_500;
-        palette.RefreshLabelTarget();
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(palette.IsLabelMode).IsTrue();
-            await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
-            await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(OutcomeValues);
-            await Assert.That(palette.LabelTargetText).StartsWith("A execute");
-            await Assert.That(Hit(palette, Key.D1)).IsFalse().Because("the codes are not live in Label Mode");
-        }
+            using TagSession session = await Attached();
+            int playhead = 12_000;
+            using TagPaletteViewModel palette = Palette(session, () => playhead);
 
-        Hit(palette, Key.W);
-        await Assert.That(palette.PanelTitle).IsEqualTo("site").Because("the panel's then still leads on");
-        Hit(palette, Key.A);
-        await Assert.That(palette.PanelTitle).IsEqualTo("outcome").Because("the chain ended, so it starts again");
+            // First pass: codes only. Esc writes the execute without waiting on its panels.
+            Hit(palette, Key.D1);
+            Hit(palette, Key.Escape);
+            playhead = 25_000;
+            Hit(palette, Key.D3);
+            List<TagInstance> tags = session.Document!.Instances;
+            await Assert.That(tags.Count).IsEqualTo(2);
+            await Assert.That(tags.All(t => t.Labels.Count == 0)).IsTrue();
+            Guid[] firstPassIds = [.. tags.Select(t => t.Id)];
+            int depthAfterFirstPass = session.UndoDepth;
 
-        // The Default tag: its code leads nowhere, so the first labels panel.
-        playhead = 26_000;
-        palette.RefreshLabelTarget();
-        await Assert.That(palette.LabelTargetText).StartsWith("Default");
-        Hit(palette, Key.L);
+            // Second pass: Ctrl+L, back to the execute. Its code leads to outcome, so that panel shows first.
+            await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsTrue();
+            playhead = 12_500;
+            palette.RefreshLabelTarget();
+            using (Assert.Multiple())
+            {
+                await Assert.That(palette.IsLabelMode).IsTrue();
+                await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
+                await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(OutcomeValues);
+                await Assert.That(palette.LabelTargetText).StartsWith("A execute");
+                await Assert.That(Hit(palette, Key.D1)).IsFalse().Because("the codes are not live in Label Mode");
+            }
 
-        tags = session.Document!.Instances;
-        using (Assert.Multiple())
-        {
-            await Assert.That(tags.Count).IsEqualTo(2).Because("Label Mode never makes a tag");
-            await Assert.That(tags.Select(t => t.Id)).IsEquivalentTo(firstPassIds);
-            await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(WonAtA);
-            await Assert.That(tags[1].Labels.Single().Value).IsEqualTo("lost");
-            await Assert.That(session.UndoDepth).IsEqualTo(depthAfterFirstPass + 3).Because("one undo entry per label");
-        }
+            Hit(palette, Key.W);
+            await Assert.That(palette.PanelTitle).IsEqualTo("site").Because("the panel's then still leads on");
+            Hit(palette, Key.A);
+            await Assert.That(palette.PanelTitle).IsEqualTo("outcome").Because("the chain ended, so it starts again");
 
-        session.Undo();
-        await Assert.That(session.Document!.Instances[1].Labels).IsEmpty();
-        session.Undo();
-        session.Undo();
-        tags = session.Document!.Instances;
-        using (Assert.Multiple())
-        {
-            await Assert.That(tags.Count).IsEqualTo(2).Because("undoing a label never takes the tag with it");
-            await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(Unlabelled);
-            await Assert.That(session.UndoDepth).IsEqualTo(depthAfterFirstPass);
-        }
+            // The Default tag: its code leads nowhere, so the first labels panel.
+            playhead = 26_000;
+            palette.RefreshLabelTarget();
+            await Assert.That(palette.LabelTargetText).StartsWith("Default");
+            Hit(palette, Key.L);
 
-        session.Redo();
-        await Assert.That(LabelsOf(session.Document!.Instances[0])).IsEquivalentTo(Won);
+            tags = session.Document!.Instances;
+            using (Assert.Multiple())
+            {
+                await Assert.That(tags.Count).IsEqualTo(2).Because("Label Mode never makes a tag");
+                await Assert.That(tags.Select(t => t.Id)).IsEquivalentTo(firstPassIds);
+                await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(WonAtA);
+                await Assert.That(tags[1].Labels.Single().Value).IsEqualTo("lost");
+                await Assert.That(session.UndoDepth).IsEqualTo(depthAfterFirstPass + 3).Because("one undo entry per label");
+            }
+
+            session.Undo();
+            await Assert.That(session.Document!.Instances[1].Labels).IsEmpty();
+            session.Undo();
+            session.Undo();
+            tags = session.Document!.Instances;
+            using (Assert.Multiple())
+            {
+                await Assert.That(tags.Count).IsEqualTo(2).Because("undoing a label never takes the tag with it");
+                await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(Unlabelled);
+                await Assert.That(session.UndoDepth).IsEqualTo(depthAfterFirstPass);
+            }
+
+            session.Redo();
+            await Assert.That(LabelsOf(session.Document!.Instances[0])).IsEquivalentTo(Won);
+        });
     }
 
     [Test]
     public async Task ALabelTheTagAlreadyHas_WritesNothing_AndNoTagUnderThePlayheadTakesNoPress()
     {
-        using TagSession session = await Attached();
-        session.Apply(new TagDelta.Add(Instance("A execute", 11_000, 13_000, ("outcome", "won"))));
-        int playhead = 12_000;
-        using TagPaletteViewModel palette = Palette(session, () => playhead);
-        palette.SetLabelMode(true);
-        int depth = session.UndoDepth;
-
-        await Assert.That(Hit(palette, Key.W)).IsTrue();
-        await Assert.That(session.UndoDepth).IsEqualTo(depth).Because("an unchanged tag is not an undo entry");
-        await Assert.That(palette.PanelTitle).IsEqualTo("site");
-
-        playhead = 15_000;
-        palette.RefreshLabelTarget();
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(palette.LabelTargetText).IsEqualTo("no tag under the playhead");
-            await Assert.That(Hit(palette, Key.L)).IsFalse().Because("the outcome panel shows, with no tag to put it on");
-            await Assert.That(session.Document!.Instances.Single().Labels.Count).IsEqualTo(1);
-            await Assert.That(session.UndoDepth).IsEqualTo(depth);
-        }
+            using TagSession session = await Attached();
+            session.Apply(new TagDelta.Add(Instance("A execute", 11_000, 13_000, ("outcome", "won"))));
+            int playhead = 12_000;
+            using TagPaletteViewModel palette = Palette(session, () => playhead);
+            palette.SetLabelMode(true);
+            int depth = session.UndoDepth;
+
+            await Assert.That(Hit(palette, Key.W)).IsTrue();
+            await Assert.That(session.UndoDepth).IsEqualTo(depth).Because("an unchanged tag is not an undo entry");
+            await Assert.That(palette.PanelTitle).IsEqualTo("site");
+
+            playhead = 15_000;
+            palette.RefreshLabelTarget();
+            using (Assert.Multiple())
+            {
+                await Assert.That(palette.LabelTargetText).IsEqualTo("no tag under the playhead");
+                await Assert.That(Hit(palette, Key.L)).IsFalse().Because("the outcome panel shows, with no tag to put it on");
+                await Assert.That(session.Document!.Instances.Single().Labels.Count).IsEqualTo(1);
+                await Assert.That(session.UndoDepth).IsEqualTo(depth);
+            }
+        });
     }
 
     [Test]
     public async Task OverlappingTags_ThePlayheadLabelsTheLatestStart_AndATrackPickWinsUntilEsc()
     {
-        using TagSession session = await Attached();
-        TagInstance execute = Instance("A execute", 11_000, 14_000);
-        TagInstance retake = Instance("Retake", 12_000, 13_000);
-        session.Apply(new TagDelta.Add(execute));
-        session.Apply(new TagDelta.Add(retake));
-        using TagPaletteViewModel palette = Palette(session, () => 12_500);
-
-        await Assert.That(TagPaletteViewModel.InstanceAt(session.Document!, 12_500)!.Id).IsEqualTo(retake.Id);
-        await Assert.That(TagPaletteViewModel.InstanceAt(session.Document!, 11_500)!.Id).IsEqualTo(execute.Id);
-        await Assert.That(TagPaletteViewModel.InstanceAt(session.Document!, 20_000)).IsNull();
-
-        await Assert.That(palette.SelectForLabels([execute.Id, retake.Id])).IsFalse()
-            .Because("outside Label Mode a band click only seeks");
-        palette.SetLabelMode(true);
-        await Assert.That(palette.PanelTitle).IsEqualTo("site").Because("Retake leads to site");
-
-        // A pick walks the run: first click the execute, the next one the retake, then round again.
-        palette.SelectForLabels([execute.Id, retake.Id]);
-        await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
-        Hit(palette, Key.L);
-        palette.SelectForLabels([execute.Id, retake.Id]);
-        await Assert.That(palette.LabelTargetText).StartsWith("Retake");
-        palette.SelectForLabels([execute.Id, retake.Id]);
-        await Assert.That(palette.LabelTargetText).StartsWith("A execute");
-
-        // Esc drops the pick, back to the playhead's tag; the next Esc goes back to tagging.
-        await Assert.That(Hit(palette, Key.Escape)).IsTrue();
-        await Assert.That(palette.LabelTargetText).StartsWith("Retake");
-        Hit(palette, Key.B);
-        await Assert.That(Hit(palette, Key.Escape)).IsTrue();
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(palette.IsLabelMode).IsFalse();
-            await Assert.That(palette.IsFocused).IsTrue();
-            await Assert.That(palette.PanelTitle).IsEqualTo("codes");
-            await Assert.That(session.Document!.Instances.Count).IsEqualTo(2);
-            await Assert.That(session.Document.Instances[0].Id).IsEqualTo(execute.Id);
-            await Assert.That(LabelsOf(session.Document.Instances[0])).IsEquivalentTo(Lost);
-            await Assert.That(LabelsOf(session.Document.Instances[1])).IsEquivalentTo(SiteB);
-        }
+            using TagSession session = await Attached();
+            TagInstance execute = Instance("A execute", 11_000, 14_000);
+            TagInstance retake = Instance("Retake", 12_000, 13_000);
+            session.Apply(new TagDelta.Add(execute));
+            session.Apply(new TagDelta.Add(retake));
+            using TagPaletteViewModel palette = Palette(session, () => 12_500);
+
+            await Assert.That(TagPaletteViewModel.InstanceAt(session.Document!, 12_500)!.Id).IsEqualTo(retake.Id);
+            await Assert.That(TagPaletteViewModel.InstanceAt(session.Document!, 11_500)!.Id).IsEqualTo(execute.Id);
+            await Assert.That(TagPaletteViewModel.InstanceAt(session.Document!, 20_000)).IsNull();
+
+            await Assert.That(palette.SelectForLabels([execute.Id, retake.Id])).IsFalse()
+                .Because("outside Label Mode a band click only seeks");
+            palette.SetLabelMode(true);
+            await Assert.That(palette.PanelTitle).IsEqualTo("site").Because("Retake leads to site");
+
+            // A pick walks the run: first click the execute, the next one the retake, then round again.
+            palette.SelectForLabels([execute.Id, retake.Id]);
+            await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
+            Hit(palette, Key.L);
+            palette.SelectForLabels([execute.Id, retake.Id]);
+            await Assert.That(palette.LabelTargetText).StartsWith("Retake");
+            palette.SelectForLabels([execute.Id, retake.Id]);
+            await Assert.That(palette.LabelTargetText).StartsWith("A execute");
+
+            // Esc drops the pick, back to the playhead's tag; the next Esc goes back to tagging.
+            await Assert.That(Hit(palette, Key.Escape)).IsTrue();
+            await Assert.That(palette.LabelTargetText).StartsWith("Retake");
+            Hit(palette, Key.B);
+            await Assert.That(Hit(palette, Key.Escape)).IsTrue();
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(palette.IsLabelMode).IsFalse();
+                await Assert.That(palette.IsFocused).IsTrue();
+                await Assert.That(palette.PanelTitle).IsEqualTo("codes");
+                await Assert.That(session.Document!.Instances.Count).IsEqualTo(2);
+                await Assert.That(session.Document.Instances[0].Id).IsEqualTo(execute.Id);
+                await Assert.That(LabelsOf(session.Document.Instances[0])).IsEquivalentTo(Lost);
+                await Assert.That(LabelsOf(session.Document.Instances[1])).IsEquivalentTo(SiteB);
+            }
+        });
     }
 
     [Test]
     public async Task NextGroup_WalksEveryLabelsPanel_AndEnteringWritesAPendingTagFirst()
     {
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = Palette(session, () => 12_000);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = Palette(session, () => 12_000);
 
-        Hit(palette, Key.D1); // pending, waiting on outcome
-        await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsTrue();
-        await Assert.That(palette.HasPending).IsFalse();
-        await Assert.That(session.Document!.Instances.Count).IsEqualTo(1).Because("a press is never lost");
+            Hit(palette, Key.D1); // pending, waiting on outcome
+            await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsTrue();
+            await Assert.That(palette.HasPending).IsFalse();
+            await Assert.That(session.Document!.Instances.Count).IsEqualTo(1).Because("a press is never lost");
 
-        await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
-        await Assert.That(Hit(palette, Key.G, KeyModifiers.Control)).IsTrue();
-        await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(SiteValues);
-        Hit(palette, Key.G, KeyModifiers.Control);
-        await Assert.That(palette.PanelTitle).IsEqualTo("outcome").Because("the walk wraps");
-        await Assert.That(palette.HintText).Contains("Ctrl+L back to tagging");
+            await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
+            await Assert.That(Hit(palette, Key.G, KeyModifiers.Control)).IsTrue();
+            await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(SiteValues);
+            Hit(palette, Key.G, KeyModifiers.Control);
+            await Assert.That(palette.PanelTitle).IsEqualTo("outcome").Because("the walk wraps");
+            await Assert.That(palette.HintText).Contains("Ctrl+L back to tagging");
 
-        await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsTrue();
-        await Assert.That(palette.IsLabelMode).IsFalse();
-        await Assert.That(palette.NextLabelGroup()).IsFalse();
-        await Assert.That(palette.HintText).Contains("Ctrl+L label mode");
+            await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsTrue();
+            await Assert.That(palette.IsLabelMode).IsFalse();
+            await Assert.That(palette.NextLabelGroup()).IsFalse();
+            await Assert.That(palette.HintText).Contains("Ctrl+L label mode");
+        });
     }
 
     [Test]
     public async Task TheLabelModeKeys_ArePaletteScoped_AndRebindable()
     {
-        Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
-        await Assert.That(profile.TryResolveInScope(new Playback2DBindingScope(StratBookActions.PaletteScope), Key.L,
-            KeyModifiers.Control, out string? mode)).IsTrue();
-        await Assert.That(mode).IsEqualTo(StratBookActions.TagLabelMode);
-        await Assert.That(profile.TryResolve(Key.L, KeyModifiers.Control, false, out _)).IsFalse()
-            .Because("unfocused, the palette's chords are nobody's");
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
+            await Assert.That(profile.TryResolveInScope(new Playback2DBindingScope(StratBookActions.PaletteScope), Key.L,
+                KeyModifiers.Control, out string? mode)).IsTrue();
+            await Assert.That(mode).IsEqualTo(StratBookActions.TagLabelMode);
+            await Assert.That(profile.TryResolve(Key.L, KeyModifiers.Control, false, out _)).IsFalse()
+                .Because("unfocused, the palette's chords are nobody's");
 
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = Palette(session, () => 12_000);
-        palette.ApplyKeymap(PaletteKeymaps.From(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected)));
-        await Assert.That(rejected).IsEmpty();
-        await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsFalse();
-        await Assert.That(Hit(palette, Key.L, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();
-        await Assert.That(palette.IsLabelMode).IsTrue();
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = Palette(session, () => 12_000);
+            palette.ApplyKeymap(PaletteKeymaps.From(Playback2DKeymapProfile.FromOverrides(["TagLabelMode=Ctrl+Shift+L"], out IReadOnlyList<string> rejected)));
+            await Assert.That(rejected).IsEmpty();
+            await Assert.That(Hit(palette, Key.L, KeyModifiers.Control)).IsFalse();
+            await Assert.That(Hit(palette, Key.L, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();
+            await Assert.That(palette.IsLabelMode).IsTrue();
+        });
     }
 
     [Test]
     public async Task InstancesInRun_IsExactlyTheBandsTags_InTheTracksOrder()
     {
-        using TagSession session = await Attached();
-        TagInstance late = Instance("Retake", 300, 500);
-        TagInstance early = Instance("A execute", 100, 400);
-        TagInstance apart = Instance("Default", 900, 1_000);
-        session.Apply(new TagDelta.Add(late));
-        session.Apply(new TagDelta.Add(early));
-        session.Apply(new TagDelta.Add(apart));
-        using TagTrack track = new(session, static action => action());
-        SdkTimeline data = new(new FakeTimelineData(1_000));
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(track.InstancesInRun(data, 50)).IsEquivalentTo(new[] { early.Id, late.Id });
-            await Assert.That(track.InstancesInRun(data, 50)[0]).IsEqualTo(early.Id);
-            await Assert.That(track.InstancesInRun(data, 450)).IsEquivalentTo(new[] { apart.Id });
-            await Assert.That(track.InstancesInRun(data, 150)).IsEmpty().Because("no band starts inside a run");
-        }
+            using TagSession session = await Attached();
+            TagInstance late = Instance("Retake", 300, 500);
+            TagInstance early = Instance("A execute", 100, 400);
+            TagInstance apart = Instance("Default", 900, 1_000);
+            session.Apply(new TagDelta.Add(late));
+            session.Apply(new TagDelta.Add(early));
+            session.Apply(new TagDelta.Add(apart));
+            using TagTrack track = new(session, static action => action());
+            SdkTimeline data = new(new FakeTimelineData(1_000));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(track.InstancesInRun(data, 50)).IsEquivalentTo(new[] { early.Id, late.Id });
+                await Assert.That(track.InstancesInRun(data, 50)[0]).IsEqualTo(early.Id);
+                await Assert.That(track.InstancesInRun(data, 450)).IsEquivalentTo(new[] { apart.Id });
+                await Assert.That(track.InstancesInRun(data, 150)).IsEmpty().Because("no band starts inside a run");
+            }
+        });
     }
 
     /// <summary>

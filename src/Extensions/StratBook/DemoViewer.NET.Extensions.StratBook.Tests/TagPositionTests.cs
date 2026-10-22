@@ -70,176 +70,194 @@ public class TagPositionTests
     [Test]
     public async Task WithZones_TheClickResolvesOnTheClickedFloor_AndIsStampedWithTheEffectiveVersion()
     {
-        PlaceResolver zones = Zones();
-        TagPosition hut = TagPositionResolver.Resolve(50, 50, Upper, 4_000, zones, [Pawn(0, 150, 50, 0, "Ramp")]);
-        TagPosition nowhere = TagPositionResolver.Resolve(5_000, 5_000, Upper, 4_000, zones, [Pawn(0, 5_010, 5_000, 0, "Ramp")]);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(hut.Place).IsEqualTo("Hut").Because("the zones answer, not the pawn standing next door");
-            await Assert.That(hut.PlaceSource).IsEqualTo("zones:9f1c02aa");
-            await Assert.That(hut.LevelMinZ).IsEqualTo(-512).Because("the band floor quantized, the annotation anchor rule");
-            await Assert.That(hut.X).IsEqualTo(50);
-            await Assert.That(hut.Tick).IsEqualTo(4_000);
-            await Assert.That(nowhere.Place).IsNull().Because("a zones miss is unresolved, not guessed from a pawn");
-            await Assert.That(nowhere.PlaceSource).IsNull();
-        }
+            PlaceResolver zones = Zones();
+            TagPosition hut = TagPositionResolver.Resolve(50, 50, Upper, 4_000, zones, [Pawn(0, 150, 50, 0, "Ramp")]);
+            TagPosition nowhere = TagPositionResolver.Resolve(5_000, 5_000, Upper, 4_000, zones, [Pawn(0, 5_010, 5_000, 0, "Ramp")]);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(hut.Place).IsEqualTo("Hut").Because("the zones answer, not the pawn standing next door");
+                await Assert.That(hut.PlaceSource).IsEqualTo("zones:9f1c02aa");
+                await Assert.That(hut.LevelMinZ).IsEqualTo(-512).Because("the band floor quantized, the annotation anchor rule");
+                await Assert.That(hut.X).IsEqualTo(50);
+                await Assert.That(hut.Tick).IsEqualTo(4_000);
+                await Assert.That(nowhere.Place).IsNull().Because("a zones miss is unresolved, not guessed from a pawn");
+                await Assert.That(nowhere.PlaceSource).IsNull();
+            }
+        });
     }
 
     [Test]
     public async Task WithoutZones_TheNearestAlivePawnOnThatFloor_NamesTheClick()
     {
-        PlayerMarker[] markers =
-        [
-            Pawn(0, 10, 10, -1_000, "Tunnels"), // closest in XY, but on the floor below
-            Pawn(1, 20, 0, 0, "Ramp", alive: false), // dead: the held marker
-            Pawn(2, 300, 0, 0, "Outside"),
-            Pawn(3, 200, 0, 0, "Hut"),
-            Pawn(4, 50, 0, 0, null) // no named nav area
-        ];
-
-        TagPosition near = TagPositionResolver.Resolve(0, 0, Upper, 10, null, markers);
-        TagPosition below = TagPositionResolver.Resolve(0, 0, Lower, 10, null, markers);
-        TagPosition far = TagPositionResolver.Resolve(5_000, 0, Upper, 10, null, markers);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(near.Place).IsEqualTo("Hut");
-            await Assert.That(near.PlaceSource).IsEqualTo(TagPositionResolver.PawnSource);
-            await Assert.That(below.Place).IsEqualTo("Tunnels");
-            await Assert.That(below.LevelMinZ).IsEqualTo(MapSpace.QuantizeZ(-2000));
-            await Assert.That(far.Place).IsNull().Because("no pawn within the snap radius");
-            await Assert.That(far.PlaceSource).IsNull();
-            await Assert.That(far.X).IsEqualTo(5_000).Because("an unresolved click still keeps its coordinates");
-        }
+            PlayerMarker[] markers =
+            [
+                Pawn(0, 10, 10, -1_000, "Tunnels"), // closest in XY, but on the floor below
+                Pawn(1, 20, 0, 0, "Ramp", alive: false), // dead: the held marker
+                Pawn(2, 300, 0, 0, "Outside"),
+                Pawn(3, 200, 0, 0, "Hut"),
+                Pawn(4, 50, 0, 0, null) // no named nav area
+            ];
+
+            TagPosition near = TagPositionResolver.Resolve(0, 0, Upper, 10, null, markers);
+            TagPosition below = TagPositionResolver.Resolve(0, 0, Lower, 10, null, markers);
+            TagPosition far = TagPositionResolver.Resolve(5_000, 0, Upper, 10, null, markers);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(near.Place).IsEqualTo("Hut");
+                await Assert.That(near.PlaceSource).IsEqualTo(TagPositionResolver.PawnSource);
+                await Assert.That(below.Place).IsEqualTo("Tunnels");
+                await Assert.That(below.LevelMinZ).IsEqualTo(MapSpace.QuantizeZ(-2000));
+                await Assert.That(far.Place).IsNull().Because("no pawn within the snap radius");
+                await Assert.That(far.PlaceSource).IsNull();
+                await Assert.That(far.X).IsEqualTo(5_000).Because("an unresolved click still keeps its coordinates");
+            }
+        });
     }
 
     [Test]
     public async Task OneClick_IsAPosition_TwoClicksAreAMovement_OnThePendingTag_InItsOneBatch()
     {
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = new(session, null, () => 5_000);
-        palette.Focus();
-
-        await Assert.That(palette.AttachPosition(Point(0, 0, "Ramp"))).IsFalse().Because("no tag to put it on yet");
-
-        palette.TryHandleKey(Key.D1, KeyModifiers.None); // A execute, waiting on outcome
-        await Assert.That(palette.AttachPosition(Point(-220, 1610, "Ramp"))).IsTrue();
-        await Assert.That(palette.PendingText).Contains("@Ramp");
-        palette.AttachPosition(Point(-1180, 2044, "BombsiteA"));
-        palette.AttachPosition(Point(400, 400, null));
-        palette.TryHandleKey(Key.W, KeyModifiers.None);
-        palette.TryHandleKey(Key.A, KeyModifiers.None);
-
-        TagInstance tag = session.Document!.Instances.Single();
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(tag.Movements.Count).IsEqualTo(1);
-            await Assert.That(tag.Movements[0].From.Place).IsEqualTo("Ramp");
-            await Assert.That(tag.Movements[0].To.Place).IsEqualTo("BombsiteA");
-            await Assert.That(tag.Positions.Count).IsEqualTo(1).Because("the third click starts a new point");
-            await Assert.That(tag.Positions[0].X).IsEqualTo(400);
-            await Assert.That(session.UndoDepth).IsEqualTo(1).Because("the clicks ride the code press's batch");
-            await Assert.That(palette.LastText).Contains("Ramp→BombsiteA");
-            await Assert.That(palette.LastText).Contains("@400,400").Because("an unresolved point shows where it was clicked");
-        }
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = new(session, null, () => 5_000);
+            palette.Focus();
 
-        session.Undo();
-        await Assert.That(session.Document!.Instances).IsEmpty();
+            await Assert.That(palette.AttachPosition(Point(0, 0, "Ramp"))).IsFalse().Because("no tag to put it on yet");
+
+            palette.TryHandleKey(Key.D1, KeyModifiers.None); // A execute, waiting on outcome
+            await Assert.That(palette.AttachPosition(Point(-220, 1610, "Ramp"))).IsTrue();
+            await Assert.That(palette.PendingText).Contains("@Ramp");
+            palette.AttachPosition(Point(-1180, 2044, "BombsiteA"));
+            palette.AttachPosition(Point(400, 400, null));
+            palette.TryHandleKey(Key.W, KeyModifiers.None);
+            palette.TryHandleKey(Key.A, KeyModifiers.None);
+
+            TagInstance tag = session.Document!.Instances.Single();
+            using (Assert.Multiple())
+            {
+                await Assert.That(tag.Movements.Count).IsEqualTo(1);
+                await Assert.That(tag.Movements[0].From.Place).IsEqualTo("Ramp");
+                await Assert.That(tag.Movements[0].To.Place).IsEqualTo("BombsiteA");
+                await Assert.That(tag.Positions.Count).IsEqualTo(1).Because("the third click starts a new point");
+                await Assert.That(tag.Positions[0].X).IsEqualTo(400);
+                await Assert.That(session.UndoDepth).IsEqualTo(1).Because("the clicks ride the code press's batch");
+                await Assert.That(palette.LastText).Contains("Ramp→BombsiteA");
+                await Assert.That(palette.LastText).Contains("@400,400").Because("an unresolved point shows where it was clicked");
+            }
+
+            session.Undo();
+            await Assert.That(session.Document!.Instances).IsEmpty();
+        });
     }
 
     [Test]
     public async Task ClicksAfterTheTagIsWritten_EditTheLastTag_OneUndoEntryEach()
     {
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = new(session, null, () => 5_000);
-        palette.Focus();
-        palette.TryHandleKey(Key.D3, KeyModifiers.None); // Default: written at once
-
-        palette.AttachPosition(Point(10, 10, "Ramp"));
-        await Assert.That(session.Document!.Instances[0].Positions.Count).IsEqualTo(1);
-
-        palette.AttachPosition(Point(20, 20, "Hut"));
-        TagInstance moved = session.Document!.Instances[0];
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(moved.Positions).IsEmpty();
-            await Assert.That(moved.Movements.Single().From.Place).IsEqualTo("Ramp");
-            await Assert.That(moved.Movements.Single().To.Place).IsEqualTo("Hut");
-            await Assert.That(session.UndoDepth).IsEqualTo(3).Because("the code, then one entry per click");
-        }
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = new(session, null, () => 5_000);
+            palette.Focus();
+            palette.TryHandleKey(Key.D3, KeyModifiers.None); // Default: written at once
 
-        // Undo the movement: the lone point is back. Undo that too, and the tag has no point at all.
-        session.Undo();
-        await Assert.That(session.Document!.Instances[0].Positions.Single().Place).IsEqualTo("Ramp");
-        session.Undo();
-        await Assert.That(session.Document!.Instances[0].Positions).IsEmpty();
+            palette.AttachPosition(Point(10, 10, "Ramp"));
+            await Assert.That(session.Document!.Instances[0].Positions.Count).IsEqualTo(1);
 
-        // With the point undone there is nothing to pair with: the next click is a fresh position.
-        palette.AttachPosition(Point(30, 30, "Outside"));
-        TagInstance fresh = session.Document!.Instances[0];
-        await Assert.That(fresh.Movements).IsEmpty();
-        await Assert.That(fresh.Positions.Single().Place).IsEqualTo("Outside");
+            palette.AttachPosition(Point(20, 20, "Hut"));
+            TagInstance moved = session.Document!.Instances[0];
+            using (Assert.Multiple())
+            {
+                await Assert.That(moved.Positions).IsEmpty();
+                await Assert.That(moved.Movements.Single().From.Place).IsEqualTo("Ramp");
+                await Assert.That(moved.Movements.Single().To.Place).IsEqualTo("Hut");
+                await Assert.That(session.UndoDepth).IsEqualTo(3).Because("the code, then one entry per click");
+            }
+
+            // Undo the movement: the lone point is back. Undo that too, and the tag has no point at all.
+            session.Undo();
+            await Assert.That(session.Document!.Instances[0].Positions.Single().Place).IsEqualTo("Ramp");
+            session.Undo();
+            await Assert.That(session.Document!.Instances[0].Positions).IsEmpty();
+
+            // With the point undone there is nothing to pair with: the next click is a fresh position.
+            palette.AttachPosition(Point(30, 30, "Outside"));
+            TagInstance fresh = session.Document!.Instances[0];
+            await Assert.That(fresh.Movements).IsEmpty();
+            await Assert.That(fresh.Positions.Single().Place).IsEqualTo("Outside");
+        });
     }
 
     [Test]
     public async Task TheCoordinates_AreQueryable_ByPlace_ByArea_AndByFloor_ThroughTheStoredDocument()
     {
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = new(session, null, () => 5_000);
-        palette.Focus();
-        palette.TryHandleKey(Key.D3, KeyModifiers.None);
-        palette.AttachPosition(TagPositionResolver.Resolve(50, 50, Upper, 5_000, Zones(), null));
-        palette.TryHandleKey(Key.D3, KeyModifiers.None);
-        palette.AttachPosition(TagPositionResolver.Resolve(120, 50, Upper, 5_000, Zones(), null));
-        palette.AttachPosition(TagPositionResolver.Resolve(900, 900, Lower, 5_000, null, null));
-
-        // Through the stored shape, not the live objects: what a cross-demo reader gets off disk.
-        List<TagDocument> docs = [session.Document!.Clone()];
-        Guid hutTag = docs[0].Instances[0].Id;
-        Guid moveTag = docs[0].Instances[1].Id;
-
-        IReadOnlyList<TagInstanceRef> atHut = TagQuery.Find(docs,
-            TagSlice.Everything with { Positions = [new PositionPredicate(new HashSet<string>(HutOnly))] });
-        IReadOnlyList<TagInstanceRef> atRamp = TagQuery.Find(docs,
-            TagSlice.Everything with { Positions = [new PositionPredicate(new HashSet<string>(RampOnly))] });
-        IReadOnlyList<TagInstanceRef> inSquare = TagQuery.Find(docs,
-            TagSlice.Everything with { Positions = [new PositionPredicate(null, [(0, 0), (100, 0), (100, 100), (0, 100)])] });
-        IReadOnlyList<TagInstanceRef> belowAnywhere = TagQuery.Find(docs,
-            TagSlice.Everything with { Positions = [new PositionPredicate(null, LevelMinZ: MapSpace.QuantizeZ(-2000))] });
-        IReadOnlyList<TagInstanceRef> rampAndBelow = TagQuery.Find(docs, TagSlice.Everything with
+        await HeadlessSession.RunOnUi(async () =>
         {
-            Positions =
-            [
-                new PositionPredicate(new HashSet<string>(RampOnly)),
-                new PositionPredicate(null, LevelMinZ: MapSpace.QuantizeZ(-2000))
-            ]
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = new(session, null, () => 5_000);
+            palette.Focus();
+            palette.TryHandleKey(Key.D3, KeyModifiers.None);
+            palette.AttachPosition(TagPositionResolver.Resolve(50, 50, Upper, 5_000, Zones(), null));
+            palette.TryHandleKey(Key.D3, KeyModifiers.None);
+            palette.AttachPosition(TagPositionResolver.Resolve(120, 50, Upper, 5_000, Zones(), null));
+            palette.AttachPosition(TagPositionResolver.Resolve(900, 900, Lower, 5_000, null, null));
+
+            // Through the stored shape, not the live objects: what a cross-demo reader gets off disk.
+            List<TagDocument> docs = [session.Document!.Clone()];
+            Guid hutTag = docs[0].Instances[0].Id;
+            Guid moveTag = docs[0].Instances[1].Id;
+
+            IReadOnlyList<TagInstanceRef> atHut = TagQuery.Find(docs,
+                TagSlice.Everything with { Positions = [new PositionPredicate(new HashSet<string>(HutOnly))] });
+            IReadOnlyList<TagInstanceRef> atRamp = TagQuery.Find(docs,
+                TagSlice.Everything with { Positions = [new PositionPredicate(new HashSet<string>(RampOnly))] });
+            IReadOnlyList<TagInstanceRef> inSquare = TagQuery.Find(docs,
+                TagSlice.Everything with { Positions = [new PositionPredicate(null, [(0, 0), (100, 0), (100, 100), (0, 100)])] });
+            IReadOnlyList<TagInstanceRef> belowAnywhere = TagQuery.Find(docs,
+                TagSlice.Everything with { Positions = [new PositionPredicate(null, LevelMinZ: MapSpace.QuantizeZ(-2000))] });
+            IReadOnlyList<TagInstanceRef> rampAndBelow = TagQuery.Find(docs, TagSlice.Everything with
+            {
+                Positions =
+                [
+                    new PositionPredicate(new HashSet<string>(RampOnly)),
+                    new PositionPredicate(null, LevelMinZ: MapSpace.QuantizeZ(-2000))
+                ]
+            });
+            IReadOnlyList<TagInstanceRef> rampBelow = TagQuery.Find(docs, TagSlice.Everything with
+            {
+                Positions = [new PositionPredicate(new HashSet<string>(RampOnly), LevelMinZ: MapSpace.QuantizeZ(-2000))]
+            });
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(atHut.Select(r => r.Id)).IsEquivalentTo(new[] { hutTag });
+                await Assert.That(atRamp.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag })
+                    .Because("a movement's end counts as a point of the tag");
+                await Assert.That(inSquare.Select(r => r.Id)).IsEquivalentTo(new[] { hutTag });
+                await Assert.That(belowAnywhere.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag });
+                await Assert.That(rampAndBelow.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag })
+                    .Because("separate predicates may be met by separate points");
+                await Assert.That(rampBelow).IsEmpty().Because("one predicate's clauses must hold on the same point");
+                await Assert.That(TagQuery.Find(docs, TagSlice.Everything).Count).IsEqualTo(2)
+                    .Because("a slice with no position clause reads as it did before");
+            }
         });
-        IReadOnlyList<TagInstanceRef> rampBelow = TagQuery.Find(docs, TagSlice.Everything with
-        {
-            Positions = [new PositionPredicate(new HashSet<string>(RampOnly), LevelMinZ: MapSpace.QuantizeZ(-2000))]
-        });
-
-        using (Assert.Multiple())
-        {
-            await Assert.That(atHut.Select(r => r.Id)).IsEquivalentTo(new[] { hutTag });
-            await Assert.That(atRamp.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag })
-                .Because("a movement's end counts as a point of the tag");
-            await Assert.That(inSquare.Select(r => r.Id)).IsEquivalentTo(new[] { hutTag });
-            await Assert.That(belowAnywhere.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag });
-            await Assert.That(rampAndBelow.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag })
-                .Because("separate predicates may be met by separate points");
-            await Assert.That(rampBelow).IsEmpty().Because("one predicate's clauses must hold on the same point");
-            await Assert.That(TagQuery.Find(docs, TagSlice.Everything).Count).IsEqualTo(2)
-                .Because("a slice with no position clause reads as it did before");
-        }
     }
 
     [Test]
     public async Task APolygonOfFewerThanThreeVertices_EnclosesNothing()
     {
-        PositionPredicate line = new(null, [(0, 0), (100, 100)]);
-        await Assert.That(line.Matches(Point(50, 50, null))).IsFalse();
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            PositionPredicate line = new(null, [(0, 0), (100, 100)]);
+            await Assert.That(line.Matches(Point(50, 50, null))).IsFalse();
+        });
     }
 
     /// <summary>

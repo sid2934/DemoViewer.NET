@@ -27,8 +27,8 @@ internal static class ReviewPanelsHarness
     public static readonly Action<Action> DispatcherPost = static action => Dispatcher.UIThread.Post(action);
 
     /// <summary>
-    ///     Synchronous delivery, for a test body that runs off the UI thread (a plain test, no <c>RunOnUi</c>):
-    ///     nothing pumps the dispatcher there, so a posted change would never land.
+    ///     Synchronous delivery, for a body that asserts on a change in the statement after the one that caused
+    ///     it: a posted change needs a <see cref="Playback2DTimelineHarness.Pump" /> before it lands.
     /// </summary>
     public static readonly Action<Action> SynchronousPost = static action => action();
 

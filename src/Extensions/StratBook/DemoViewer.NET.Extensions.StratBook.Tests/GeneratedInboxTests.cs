@@ -97,43 +97,46 @@ public class GeneratedInboxTests
     [Test]
     public async Task TheSuggestedSection_ListsTheLibrary_Filters_AndAcceptsDismissesAndRestores()
     {
-        using SuggestedTagsReviewHarness h = new();
-        h.Build();
-        using SuggestedInboxService inbox = new(h.Service, h.Cache.Library(), run: _inline);
-        using SuggestedInboxViewModel vm = new(inbox);
-        await Assert.That(inbox.IsLoaded).IsFalse().Because("nothing is read until the section is first shown");
-        vm.OnActivated(null!);
-        await inbox.LoadAsync();
-
-        int pending = h.Service.Load(DemoPath).Pending.Count;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(vm.Rows.Count).IsEqualTo(pending);
-            await Assert.That(inbox.PendingCount).IsEqualTo(pending).Because("the badge reads the index");
-            await Assert.That(vm.Maps).Contains(SuggestedTagsTestData.Map);
-            await Assert.That(vm.StatusLine).StartsWith($"{pending} new suggestion");
-        }
+            using SuggestedTagsReviewHarness h = new();
+            h.Build();
+            using SuggestedInboxService inbox = new(h.Service, h.Cache.Library(), run: _inline);
+            using SuggestedInboxViewModel vm = new(inbox);
+            await Assert.That(inbox.IsLoaded).IsFalse().Because("nothing is read until the section is first shown");
+            vm.OnActivated(null!);
+            await inbox.LoadAsync();
 
-        vm.DetectorFilter = "execute";
-        await Assert.That(vm.Rows.All(r => r.DetectorText == "execute")).IsTrue();
-        vm.DetectorFilter = SuggestedInboxViewModel.AllDetectors;
+            int pending = h.Service.Load(DemoPath).Pending.Count;
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Rows.Count).IsEqualTo(pending);
+                await Assert.That(inbox.PendingCount).IsEqualTo(pending).Because("the badge reads the index");
+                await Assert.That(vm.Maps).Contains(SuggestedTagsTestData.Map);
+                await Assert.That(vm.StatusLine).StartsWith($"{pending} new suggestion");
+            }
 
-        SuggestedInboxRow execute = vm.Rows.Single(r => r.Item.Entry.Proposal.Id == ExecuteId);
-        vm.AcceptCommand.Execute(execute);
-        SuggestedInboxRow opener = vm.Rows.Single(r => r.Item.Entry.Proposal.Id == DefaultId);
-        vm.DismissCommand.Execute(opener);
-        using (Assert.Multiple())
-        {
-            await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Single().Code).IsEqualTo(execute.Item.Entry.Proposal.Code)
-                .Because("Accept writes into that demo's tag document");
-            await Assert.That(vm.Rows.Count).IsEqualTo(pending - 2).Because("settled suggestions leave the default view");
-            await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (2)");
-        }
+            vm.DetectorFilter = "execute";
+            await Assert.That(vm.Rows.All(r => r.DetectorText == "execute")).IsTrue();
+            vm.DetectorFilter = SuggestedInboxViewModel.AllDetectors;
 
-        vm.ShowSettled = true;
-        vm.RestoreCommand.Execute(vm.Rows.Single(r => r.Item.Entry.Proposal.Id == DefaultId));
-        vm.ShowSettled = false;
-        await Assert.That(vm.Rows.Any(r => r.Item.Entry.Proposal.Id == DefaultId)).IsTrue();
+            SuggestedInboxRow execute = vm.Rows.Single(r => r.Item.Entry.Proposal.Id == ExecuteId);
+            vm.AcceptCommand.Execute(execute);
+            SuggestedInboxRow opener = vm.Rows.Single(r => r.Item.Entry.Proposal.Id == DefaultId);
+            vm.DismissCommand.Execute(opener);
+            using (Assert.Multiple())
+            {
+                await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Single().Code).IsEqualTo(execute.Item.Entry.Proposal.Code)
+                    .Because("Accept writes into that demo's tag document");
+                await Assert.That(vm.Rows.Count).IsEqualTo(pending - 2).Because("settled suggestions leave the default view");
+                await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (2)");
+            }
+
+            vm.ShowSettled = true;
+            vm.RestoreCommand.Execute(vm.Rows.Single(r => r.Item.Entry.Proposal.Id == DefaultId));
+            vm.ShowSettled = false;
+            await Assert.That(vm.Rows.Any(r => r.Item.Entry.Proposal.Id == DefaultId)).IsTrue();
+        });
     }
 
     [Test]
@@ -161,60 +164,66 @@ public class GeneratedInboxTests
     [Test]
     public async Task TheSuggestedQueue_ShowsNewOnly_AndSettledBehindTheToggle()
     {
-        using SuggestedTagsReviewHarness h = new();
-        h.Build();
-        SuggestionQueueViewModel queue = new(h.Service, new ProposalTrack(), _ => { }, () => 64, static a => a());
-        queue.Attach(DemoPath, Sha);
-        int all = queue.Rows.Count;
-
-        await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsTrue();
-        await Assert.That(h.Service.Reject(DemoPath, DefaultId)).IsTrue();
-        queue.Reload();
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(queue.Rows.Count).IsEqualTo(all - 2);
-            await Assert.That(queue.Rows.All(r => r.IsNew)).IsTrue();
-            await Assert.That(queue.SettledLabel).IsEqualTo("Show settled (2)");
-        }
+            using SuggestedTagsReviewHarness h = new();
+            h.Build();
+            SuggestionQueueViewModel queue = new(h.Service, new ProposalTrack(), _ => { }, () => 64, static a => a());
+            queue.Attach(DemoPath, Sha);
+            int all = queue.Rows.Count;
 
-        queue.ShowSettled = true;
-        using (Assert.Multiple())
-        {
-            await Assert.That(queue.Rows.Single(r => r.Proposal.Id == ExecuteId).StateText).IsEqualTo("accepted");
-            await Assert.That(queue.Rows.Single(r => r.Proposal.Id == DefaultId).StateText).IsEqualTo("dismissed");
-        }
+            await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsTrue();
+            await Assert.That(h.Service.Reject(DemoPath, DefaultId)).IsTrue();
+            queue.Reload();
+            using (Assert.Multiple())
+            {
+                await Assert.That(queue.Rows.Count).IsEqualTo(all - 2);
+                await Assert.That(queue.Rows.All(r => r.IsNew)).IsTrue();
+                await Assert.That(queue.SettledLabel).IsEqualTo("Show settled (2)");
+            }
 
-        queue.Selected = queue.Rows.Single(r => r.Proposal.Id == ExecuteId);
-        await Assert.That(queue.Execute(StratBookActions.SuggestionAccept)).IsTrue();
-        await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Count).IsEqualTo(1).Because("a settled row takes no second verdict");
-        await Assert.That(queue.StatusText).IsEqualTo("This suggestion is already accepted.");
+            queue.ShowSettled = true;
+            using (Assert.Multiple())
+            {
+                await Assert.That(queue.Rows.Single(r => r.Proposal.Id == ExecuteId).StateText).IsEqualTo("accepted");
+                await Assert.That(queue.Rows.Single(r => r.Proposal.Id == DefaultId).StateText).IsEqualTo("dismissed");
+            }
+
+            queue.Selected = queue.Rows.Single(r => r.Proposal.Id == ExecuteId);
+            await Assert.That(queue.Execute(StratBookActions.SuggestionAccept)).IsTrue();
+            await Assert.That(h.Tags.TryLoad(Sha)!.Instances.Count).IsEqualTo(1).Because("a settled row takes no second verdict");
+            await Assert.That(queue.StatusText).IsEqualTo("This suggestion is already accepted.");
+        });
     }
 
     [Test]
     public async Task ARejectedSuggestion_Restored_IsPendingAgain_CountsAsPending_AndCanBeAccepted()
     {
-        using SuggestedTagsReviewHarness h = new();
-        h.Build();
-        SuggestionQueueViewModel queue = new(h.Service, new ProposalTrack(), _ => { }, () => 64, static a => a());
-        queue.Attach(DemoPath, Sha);
-        await Assert.That(h.Service.Reject(DemoPath, ExecuteId)).IsTrue();
-        queue.Reload();
-
-        queue.ShowSettled = true;
-        queue.RestoreRowCommand.Execute(queue.Rows.Single(r => r.Proposal.Id == ExecuteId));
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(h.Service.Load(DemoPath).Pending.Select(e => e.Proposal.Id)).Contains(ExecuteId);
-            await Assert.That(queue.Rows.Single(r => r.Proposal.Id == ExecuteId).IsNew).IsTrue();
-            await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[ExecuteId].Verdict).IsEqualTo("restored");
-            VerdictCounts counts = SuggestedTagsTuning.Aggregate(h.Service.Load(DemoPath).Entries)["execute"];
-            await Assert.That(counts.Rejected).IsEqualTo(0).Because("tuning treats a restored rejection as not rejected");
-            await Assert.That(counts.Pending).IsGreaterThanOrEqualTo(1);
-        }
+            using SuggestedTagsReviewHarness h = new();
+            h.Build();
+            SuggestionQueueViewModel queue = new(h.Service, new ProposalTrack(), _ => { }, () => 64, static a => a());
+            queue.Attach(DemoPath, Sha);
+            await Assert.That(h.Service.Reject(DemoPath, ExecuteId)).IsTrue();
+            queue.Reload();
 
-        await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsTrue().Because("the next verdict replaces a restored one");
-        await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[ExecuteId].Verdict).IsEqualTo("accepted");
-        await Assert.That(h.Service.Restore(DemoPath, ExecuteId)).IsFalse().Because("only a dismissal can be restored");
+            queue.ShowSettled = true;
+            queue.RestoreRowCommand.Execute(queue.Rows.Single(r => r.Proposal.Id == ExecuteId));
+            using (Assert.Multiple())
+            {
+                await Assert.That(h.Service.Load(DemoPath).Pending.Select(e => e.Proposal.Id)).Contains(ExecuteId);
+                await Assert.That(queue.Rows.Single(r => r.Proposal.Id == ExecuteId).IsNew).IsTrue();
+                await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[ExecuteId].Verdict).IsEqualTo("restored");
+                VerdictCounts counts = SuggestedTagsTuning.Aggregate(h.Service.Load(DemoPath).Entries)["execute"];
+                await Assert.That(counts.Rejected).IsEqualTo(0).Because("tuning treats a restored rejection as not rejected");
+                await Assert.That(counts.Pending).IsGreaterThanOrEqualTo(1);
+            }
+
+            await Assert.That(h.Service.Accept(DemoPath, ExecuteId)).IsTrue().Because("the next verdict replaces a restored one");
+            await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[ExecuteId].Verdict).IsEqualTo("accepted");
+            await Assert.That(h.Service.Restore(DemoPath, ExecuteId)).IsFalse().Because("only a dismissal can be restored");
+        });
     }
 
     [Test]
@@ -236,65 +245,74 @@ public class GeneratedInboxTests
     [Test]
     public async Task ASquadDismissal_FollowsTheSquad_WhenOnePlayerChanges()
     {
-        (TeamIdentityService service, _) = await Teams();
-        TeamSuggestion squad = service.Suggestions.Single(s => s.Kind == TeamSuggestionKind.Squad);
-        string drifted = squad.Id + "," + Ids(99)[0];
-
-        service.DismissSuggestion(drifted);
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(service.Suggestions.Any(s => s.Kind == TeamSuggestionKind.Squad)).IsFalse()
-                .Because("a dismissal of the squad with one more player still holds");
-            await Assert.That(service.DismissedSuggestions.Select(s => s.Id)).Contains(squad.Id);
-        }
+            (TeamIdentityService service, _) = await Teams();
+            TeamSuggestion squad = service.Suggestions.Single(s => s.Kind == TeamSuggestionKind.Squad);
+            string drifted = squad.Id + "," + Ids(99)[0];
 
-        service.RestoreSuggestion(squad.Id);
-        await Assert.That(service.Suggestions.Select(s => s.Id)).Contains(squad.Id)
-            .Because("Restore lifts the dismissal holding it");
+            service.DismissSuggestion(drifted);
+            using (Assert.Multiple())
+            {
+                await Assert.That(service.Suggestions.Any(s => s.Kind == TeamSuggestionKind.Squad)).IsFalse()
+                    .Because("a dismissal of the squad with one more player still holds");
+                await Assert.That(service.DismissedSuggestions.Select(s => s.Id)).Contains(squad.Id);
+            }
+
+            service.RestoreSuggestion(squad.Id);
+            await Assert.That(service.Suggestions.Select(s => s.Id)).Contains(squad.Id)
+                .Because("Restore lifts the dismissal holding it");
+        });
     }
 
     [Test]
     public async Task DriftDoesNotCompound_EachHopIsJudgedAgainstTheOriginalDismissal()
     {
-        TeamsFile teams = new() { Me = new MeAccounts { SteamIds = ["ME"] }, DismissedSuggestions = ["squad:ME,A,B"] };
-        TeamSuggestion Offer(string id) => new() { Id = id, Kind = TeamSuggestionKind.Squad };
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(TeamSuggestions.IsDismissed(Offer("squad:ME,A,C"), teams)).IsTrue().Because("one hop: A stays");
-            await Assert.That(TeamSuggestions.IsDismissed(Offer("squad:ME,C,D"), teams)).IsFalse()
-                .Because("two hops share no player with the squad that was dismissed");
-        }
+            TeamsFile teams = new() { Me = new MeAccounts { SteamIds = ["ME"] }, DismissedSuggestions = ["squad:ME,A,B"] };
+            TeamSuggestion Offer(string id) => new() { Id = id, Kind = TeamSuggestionKind.Squad };
 
-        (TeamIdentityService service, _) = await Teams();
-        TeamSuggestion squad = service.Suggestions.Single(s => s.Kind == TeamSuggestionKind.Squad);
-        service.DismissSuggestion(squad.Id + "," + Ids(99)[0]);
-        await Assert.That(service.DismissedSuggestions.Select(s => s.Id)).Contains(squad.Id);
-        service.RestoreSuggestion(squad.Id);
-        await Assert.That(service.DismissedSuggestions).IsEmpty()
-            .Because("only the dismissed set was stored; nothing was carried as a new anchor");
+            using (Assert.Multiple())
+            {
+                await Assert.That(TeamSuggestions.IsDismissed(Offer("squad:ME,A,C"), teams)).IsTrue().Because("one hop: A stays");
+                await Assert.That(TeamSuggestions.IsDismissed(Offer("squad:ME,C,D"), teams)).IsFalse()
+                    .Because("two hops share no player with the squad that was dismissed");
+            }
+
+            (TeamIdentityService service, _) = await Teams();
+            TeamSuggestion squad = service.Suggestions.Single(s => s.Kind == TeamSuggestionKind.Squad);
+            service.DismissSuggestion(squad.Id + "," + Ids(99)[0]);
+            await Assert.That(service.DismissedSuggestions.Select(s => s.Id)).Contains(squad.Id);
+            service.RestoreSuggestion(squad.Id);
+            await Assert.That(service.DismissedSuggestions).IsEmpty()
+                .Because("only the dismissed set was stored; nothing was carried as a new anchor");
+        });
     }
 
     [Test]
     public async Task TheTeamsInbox_ListsADismissal_UnderSettled_WithRestore()
     {
-        (TeamIdentityService service, DemoCacheStore cache) = await Teams();
-        using TeamsTabViewModel vm = new(service, cache.Library(), isBrowser: false);
-        SuggestionRow roster = vm.Suggestions.First(s => s.Id.StartsWith("roster:", StringComparison.Ordinal));
-
-        vm.DismissSuggestionCommand.Execute(roster);
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(vm.Suggestions.Select(s => s.Id)).DoesNotContain(roster.Id);
-            await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (1)");
-        }
+            (TeamIdentityService service, DemoCacheStore cache) = await Teams();
+            using TeamsTabViewModel vm = new(service, cache.Library(), isBrowser: false);
+            SuggestionRow roster = vm.Suggestions.First(s => s.Id.StartsWith("roster:", StringComparison.Ordinal));
 
-        vm.ShowSettled = true;
-        SuggestionRow settled = vm.Suggestions.Single(s => s.Id == roster.Id);
-        await Assert.That(settled.IsDismissed).IsTrue();
-        vm.RestoreSuggestionCommand.Execute(settled);
-        vm.ShowSettled = false;
-        await Assert.That(vm.Suggestions.Single(s => s.Id == roster.Id).IsDismissed).IsFalse();
-        await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (0)");
+            vm.DismissSuggestionCommand.Execute(roster);
+            using (Assert.Multiple())
+            {
+                await Assert.That(vm.Suggestions.Select(s => s.Id)).DoesNotContain(roster.Id);
+                await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (1)");
+            }
+
+            vm.ShowSettled = true;
+            SuggestionRow settled = vm.Suggestions.Single(s => s.Id == roster.Id);
+            await Assert.That(settled.IsDismissed).IsTrue();
+            vm.RestoreSuggestionCommand.Execute(settled);
+            vm.ShowSettled = false;
+            await Assert.That(vm.Suggestions.Single(s => s.Id == roster.Id).IsDismissed).IsFalse();
+            await Assert.That(vm.SettledLabel).IsEqualTo("Show settled (0)");
+        });
     }
 }

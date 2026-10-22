@@ -64,123 +64,135 @@ public class ReviewPanelTests
     [Test]
     public async Task TheLabelsTab_ListsMachineWrittenLabels_ApartFromHandMadeOnes()
     {
-        (TagSession session, ReviewPanelViewModel panel, _, _) = await Panel();
-        TagInstance hand = Tag("A execute", 11_000, 11_500);
-        TagInstance accepted = Tag("Retake", 12_000, 12_500);
-        accepted.Source = TagSources.Suggested;
-        accepted.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "retake" };
-        TagInstance run = Tag("Default", 1_000, 2_000);
-        run.Source = TagSources.Suggested;
-        run.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "strat-mining" };
-        session.Apply(new TagDelta.Add(hand));
-        session.Apply(new TagDelta.Add(accepted));
-        session.Apply(new TagDelta.Add(run));
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(panel.Labels.Count).IsEqualTo(3);
-            await Assert.That(panel.HandLabels.Select(r => r.Id)).IsEquivalentTo([hand.Id]);
-            await Assert.That(panel.MachineLabels.Select(r => r.Id)).IsEquivalentTo([run.Id, accepted.Id]);
-            await Assert.That(panel.MachineLabels.Select(r => r.SourceText)).IsEquivalentTo(["strat run", "suggested: retake"]);
-            await Assert.That(panel.HandHeader).IsEqualTo("Yours (1)");
-            await Assert.That(panel.MachineHeader).IsEqualTo("From suggestions (2)");
-        }
+            (TagSession session, ReviewPanelViewModel panel, _, _) = await Panel();
+            TagInstance hand = Tag("A execute", 11_000, 11_500);
+            TagInstance accepted = Tag("Retake", 12_000, 12_500);
+            accepted.Source = TagSources.Suggested;
+            accepted.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "retake" };
+            TagInstance run = Tag("Default", 1_000, 2_000);
+            run.Source = TagSources.Suggested;
+            run.Provenance = new System.Text.Json.Nodes.JsonObject { ["detector"] = "strat-mining" };
+            session.Apply(new TagDelta.Add(hand));
+            session.Apply(new TagDelta.Add(accepted));
+            session.Apply(new TagDelta.Add(run));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(panel.Labels.Count).IsEqualTo(3);
+                await Assert.That(panel.HandLabels.Select(r => r.Id)).IsEquivalentTo([hand.Id]);
+                await Assert.That(panel.MachineLabels.Select(r => r.Id)).IsEquivalentTo([run.Id, accepted.Id]);
+                await Assert.That(panel.MachineLabels.Select(r => r.SourceText)).IsEquivalentTo(["strat run", "suggested: retake"]);
+                await Assert.That(panel.HandHeader).IsEqualTo("Yours (1)");
+                await Assert.That(panel.MachineHeader).IsEqualTo("From suggestions (2)");
+            }
+        });
     }
 
     [Test]
     public async Task ALabel_IsListed_EditedInEveryField_Deleted_AndTheDeleteUndone()
     {
-        (TagSession session, ReviewPanelViewModel panel, List<int> seeks, _) = await Panel();
-        TagInstance tag = Tag("A execute", 11_000, 11_500);
-        session.Apply(new TagDelta.Add(tag));
-
-        await Assert.That(panel.LabelsHeader).IsEqualTo("Labels: 1");
-        panel.SelectLabelCommand.Execute(panel.Labels.Single());
-        TagEditorViewModel editor = panel.ActiveEditor!;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(seeks.Single()).IsEqualTo(11_000).Because("selecting a label seeks to its start");
-            await Assert.That(editor.FromText).IsEqualTo("15.63").Because("(11000 - 10000) / 64 = 15.625 seconds into round 2");
-            await Assert.That(editor.CanDelete).IsTrue();
-        }
+            (TagSession session, ReviewPanelViewModel panel, List<int> seeks, _) = await Panel();
+            TagInstance tag = Tag("A execute", 11_000, 11_500);
+            session.Apply(new TagDelta.Add(tag));
 
-        editor.SelectedCode = "Retake";
-        editor.FromText = "20";
-        editor.ToText = "25";
-        editor.RemoveLabelCommand.Execute(editor.Labels.Single());
-        editor.NewGroup = "outcome";
-        editor.NewValue = "won";
-        editor.AddLabelCommand.Execute(null);
-        editor.AddPosition(new TagPosition { X = 1, Y = 2, Place = "Ramp" });
-        editor.SaveCommand.Execute(null);
+            await Assert.That(panel.LabelsHeader).IsEqualTo("Labels: 1");
+            panel.SelectLabelCommand.Execute(panel.Labels.Single());
+            TagEditorViewModel editor = panel.ActiveEditor!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(seeks.Single()).IsEqualTo(11_000).Because("selecting a label seeks to its start");
+                await Assert.That(editor.FromText).IsEqualTo("15.63").Because("(11000 - 10000) / 64 = 15.625 seconds into round 2");
+                await Assert.That(editor.CanDelete).IsTrue();
+            }
 
-        TagInstance saved = session.Document!.Instances.Single();
-        using (Assert.Multiple())
-        {
-            await Assert.That(panel.HasEditor).IsFalse();
-            await Assert.That(saved.Id).IsEqualTo(tag.Id).Because("an edit replaces the tag, it does not add one");
-            await Assert.That(saved.Code).IsEqualTo("Retake");
-            await Assert.That(saved.FromTick).IsEqualTo(10_000 + 20 * 64);
-            await Assert.That(saved.ToTick).IsEqualTo(10_000 + 25 * 64);
-            await Assert.That(saved.Labels.Select(l => $"{l.Group}={l.Value}")).IsEquivalentTo(["outcome=won"]);
-            await Assert.That(saved.Positions.Single().Place).IsEqualTo("Ramp");
-            await Assert.That(saved.Round).IsEqualTo(2);
-        }
+            editor.SelectedCode = "Retake";
+            editor.FromText = "20";
+            editor.ToText = "25";
+            editor.RemoveLabelCommand.Execute(editor.Labels.Single());
+            editor.NewGroup = "outcome";
+            editor.NewValue = "won";
+            editor.AddLabelCommand.Execute(null);
+            editor.AddPosition(new TagPosition { X = 1, Y = 2, Place = "Ramp" });
+            editor.SaveCommand.Execute(null);
 
-        panel.SelectLabelCommand.Execute(panel.Labels.Single());
-        panel.ActiveEditor!.DeleteCommand.Execute(null);
-        await Assert.That(session.Document!.Instances).IsEmpty();
-        await Assert.That(panel.LabelsHeader).IsEqualTo("Labels: 0");
+            TagInstance saved = session.Document!.Instances.Single();
+            using (Assert.Multiple())
+            {
+                await Assert.That(panel.HasEditor).IsFalse();
+                await Assert.That(saved.Id).IsEqualTo(tag.Id).Because("an edit replaces the tag, it does not add one");
+                await Assert.That(saved.Code).IsEqualTo("Retake");
+                await Assert.That(saved.FromTick).IsEqualTo(10_000 + 20 * 64);
+                await Assert.That(saved.ToTick).IsEqualTo(10_000 + 25 * 64);
+                await Assert.That(saved.Labels.Select(l => $"{l.Group}={l.Value}")).IsEquivalentTo(["outcome=won"]);
+                await Assert.That(saved.Positions.Single().Place).IsEqualTo("Ramp");
+                await Assert.That(saved.Round).IsEqualTo(2);
+            }
 
-        await Assert.That(session.Undo()).IsTrue();
-        await Assert.That(session.Document!.Instances.Single().Code).IsEqualTo("Retake").Because("a delete undoes like any edit");
-        await Assert.That(session.Redo()).IsTrue();
-        await Assert.That(session.Document!.Instances).IsEmpty();
+            panel.SelectLabelCommand.Execute(panel.Labels.Single());
+            panel.ActiveEditor!.DeleteCommand.Execute(null);
+            await Assert.That(session.Document!.Instances).IsEmpty();
+            await Assert.That(panel.LabelsHeader).IsEqualTo("Labels: 0");
+
+            await Assert.That(session.Undo()).IsTrue();
+            await Assert.That(session.Document!.Instances.Single().Code).IsEqualTo("Retake").Because("a delete undoes like any edit");
+            await Assert.That(session.Redo()).IsTrue();
+            await Assert.That(session.Document!.Instances).IsEmpty();
+        });
     }
 
     [Test]
     public async Task LabelThisRound_SpansTheRound_NeedsACode_AndTheRoundClampHolds()
     {
-        (TagSession session, ReviewPanelViewModel panel, _, _) = await Panel(playhead: 12_000);
-        panel.LabelRoundCommand.Execute(null);
-        TagEditorViewModel editor = panel.ActiveEditor!;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(editor.SelectedCode).IsNull().Because("the user picks the code");
-            await Assert.That(editor.FromText).IsEqualTo("0");
-            await Assert.That(editor.ToText).IsEqualTo("156.23").Because("to the tick before round 3: 9999 / 64");
-            await Assert.That(editor.CanDelete).IsFalse();
-        }
+            (TagSession session, ReviewPanelViewModel panel, _, _) = await Panel(playhead: 12_000);
+            panel.LabelRoundCommand.Execute(null);
+            TagEditorViewModel editor = panel.ActiveEditor!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(editor.SelectedCode).IsNull().Because("the user picks the code");
+                await Assert.That(editor.FromText).IsEqualTo("0");
+                await Assert.That(editor.ToText).IsEqualTo("156.23").Because("to the tick before round 3: 9999 / 64");
+                await Assert.That(editor.CanDelete).IsFalse();
+            }
 
-        editor.SaveCommand.Execute(null);
-        await Assert.That(editor.Problem).IsEqualTo("Pick a code.");
-        await Assert.That(session.Document!.Instances).IsEmpty();
+            editor.SaveCommand.Execute(null);
+            await Assert.That(editor.Problem).IsEqualTo("Pick a code.");
+            await Assert.That(session.Document!.Instances).IsEmpty();
 
-        editor.SelectedCode = "Default";
-        editor.ToText = "400"; // past the round: the palette clamps to rounds by default
-        editor.SaveCommand.Execute(null);
-        TagInstance saved = session.Document!.Instances.Single();
-        using (Assert.Multiple())
-        {
-            await Assert.That(saved.FromTick).IsEqualTo(10_000);
-            await Assert.That(saved.ToTick).IsEqualTo(19_999).Because("clamped to the round the start falls in");
-            await Assert.That(saved.Source).IsEqualTo(TagSources.Human);
-        }
+            editor.SelectedCode = "Default";
+            editor.ToText = "400"; // past the round: the palette clamps to rounds by default
+            editor.SaveCommand.Execute(null);
+            TagInstance saved = session.Document!.Instances.Single();
+            using (Assert.Multiple())
+            {
+                await Assert.That(saved.FromTick).IsEqualTo(10_000);
+                await Assert.That(saved.ToTick).IsEqualTo(19_999).Because("clamped to the round the start falls in");
+                await Assert.That(saved.Source).IsEqualTo(TagSources.Human);
+            }
+        });
     }
 
     [Test]
     public async Task TheEnd_BeforeTheStart_IsRefused()
     {
-        (TagSession session, ReviewPanelViewModel panel, _, _) = await Panel();
-        panel.LabelHereCommand.Execute(null);
-        TagEditorViewModel editor = panel.ActiveEditor!;
-        editor.SelectedCode = "Default";
-        editor.FromText = "30";
-        editor.ToText = "10";
-        editor.SaveCommand.Execute(null);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            (TagSession session, ReviewPanelViewModel panel, _, _) = await Panel();
+            panel.LabelHereCommand.Execute(null);
+            TagEditorViewModel editor = panel.ActiveEditor!;
+            editor.SelectedCode = "Default";
+            editor.FromText = "30";
+            editor.ToText = "10";
+            editor.SaveCommand.Execute(null);
 
-        await Assert.That(editor.Problem).IsEqualTo("The end is before the start.");
-        await Assert.That(session.Document!.Instances).IsEmpty();
+            await Assert.That(editor.Problem).IsEqualTo("The end is before the start.");
+            await Assert.That(session.Document!.Instances).IsEmpty();
+        });
     }
 
     [Test]

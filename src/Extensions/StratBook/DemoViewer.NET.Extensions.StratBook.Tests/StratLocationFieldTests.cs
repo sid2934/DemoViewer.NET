@@ -80,46 +80,52 @@ public partial class StratLocationFieldTests
     [Test]
     public async Task APlaceRef_WritesThePointAfterThePlace_AndOneWithoutAPoint_WritesNone()
     {
-        string both = JsonSerializer.Serialize(new PlaceRef { Place = "Hut", X = 1.5, Y = -2, LevelMinZ = -512 }, StratJsonContext.Default.PlaceRef);
-        string place = JsonSerializer.Serialize(new PlaceRef { Place = "Hut" }, StratJsonContext.Default.PlaceRef);
-        string sample = StratStore.Serialize(SchemaSample());
-        StratDocument reloaded = JsonSerializer.Deserialize(sample, StratJsonContext.Default.StratDocument)!;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(both).IsEqualTo("{\n  \"place\": \"Hut\",\n  \"x\": 1.5,\n  \"y\": -2,\n  \"levelMinZ\": -512\n}");
-            await Assert.That(place).IsEqualTo("{\n  \"place\": \"Hut\"\n}");
-            await Assert.That(reloaded.Steps.All(s => s.From is { X: null, Y: null } or null && s.To is { X: null, Y: null } or null)).IsTrue();
-            await Assert.That(StratStore.Serialize(reloaded)).IsEqualTo(sample);
-        }
+            string both = JsonSerializer.Serialize(new PlaceRef { Place = "Hut", X = 1.5, Y = -2, LevelMinZ = -512 }, StratJsonContext.Default.PlaceRef);
+            string place = JsonSerializer.Serialize(new PlaceRef { Place = "Hut" }, StratJsonContext.Default.PlaceRef);
+            string sample = StratStore.Serialize(SchemaSample());
+            StratDocument reloaded = JsonSerializer.Deserialize(sample, StratJsonContext.Default.StratDocument)!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(both).IsEqualTo("{\n  \"place\": \"Hut\",\n  \"x\": 1.5,\n  \"y\": -2,\n  \"levelMinZ\": -512\n}");
+                await Assert.That(place).IsEqualTo("{\n  \"place\": \"Hut\"\n}");
+                await Assert.That(reloaded.Steps.All(s => s.From is { X: null, Y: null } or null && s.To is { X: null, Y: null } or null)).IsTrue();
+                await Assert.That(StratStore.Serialize(reloaded)).IsEqualTo(sample);
+            }
+        });
     }
 
     [Test]
     public async Task Locations_RoundTripThroughTheStore_MatchingTheCheckedInFixture()
     {
-        string? repo = DemoTestHelper.FindRepoRoot();
-        if (repo is null)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            throw new SkipTestException("repo root not found from the test output directory");
-        }
+            string? repo = DemoTestHelper.FindRepoRoot();
+            if (repo is null)
+            {
+                throw new SkipTestException("repo root not found from the test output directory");
+            }
 
-        string path = Path.Combine(repo, "tests", "fixtures", "strats", FixtureName);
-        if (Updating)
-        {
-            File.WriteAllText(path, StratStore.Serialize(LocationsSample()) + "\n");
-        }
+            string path = Path.Combine(repo, "tests", "fixtures", "strats", FixtureName);
+            if (Updating)
+            {
+                File.WriteAllText(path, StratStore.Serialize(LocationsSample()) + "\n");
+            }
 
-        string original = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
-        StratDocument loaded = JsonSerializer.Deserialize(original, StratJsonContext.Default.StratDocument)!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(StratStore.Serialize(loaded) + "\n").IsEqualTo(original);
-            await Assert.That(StratStore.Serialize(LocationsSample()) + "\n").IsEqualTo(original);
-            await Assert.That(loaded.Steps[2].Assignments![1].To!.Place).IsNull();
-            await Assert.That(loaded.Steps[2].Assignments![0].Watch!.Points!.Single().X).IsEqualTo(-900);
-            await Assert.That(loaded.Steps[3].Lurk!.AreaPoints!.Single().X).IsEqualTo(-500);
-            await Assert.That(StratStepPhrasing.LurkText(loaded.Steps[3].Lurk!, Mirage)).IsEqualTo("palace, (-500, -900); rotate to (-100, -200) at 0:40");
-            await Assert.That(StratValidator.Validate(loaded, Mirage).Where(i => i.Severity == StratIssueSeverity.Refusal)).IsEmpty();
-        }
+            string original = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
+            StratDocument loaded = JsonSerializer.Deserialize(original, StratJsonContext.Default.StratDocument)!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(StratStore.Serialize(loaded) + "\n").IsEqualTo(original);
+                await Assert.That(StratStore.Serialize(LocationsSample()) + "\n").IsEqualTo(original);
+                await Assert.That(loaded.Steps[2].Assignments![1].To!.Place).IsNull();
+                await Assert.That(loaded.Steps[2].Assignments![0].Watch!.Points!.Single().X).IsEqualTo(-900);
+                await Assert.That(loaded.Steps[3].Lurk!.AreaPoints!.Single().X).IsEqualTo(-500);
+                await Assert.That(StratStepPhrasing.LurkText(loaded.Steps[3].Lurk!, Mirage)).IsEqualTo("palace, (-500, -900); rotate to (-100, -200) at 0:40");
+                await Assert.That(StratValidator.Validate(loaded, Mirage).Where(i => i.Severity == StratIssueSeverity.Refusal)).IsEmpty();
+            }
+        });
     }
 
     // An older build's shapes: a place and a list of watched place names, with the extension bag every object has.
@@ -173,51 +179,57 @@ public partial class StratLocationFieldTests
     [Test]
     public async Task AnOlderBuild_LoadsAPointAndAWatchedPoint_AndWritesThemBack()
     {
-        PlaceRef to = new() { Place = "Hut", X = 10, Y = 20, LevelMinZ = -512 };
-        StepWatch watch = new() { Places = ["Hut"], Points = [Point(5, 6)], YawDegrees = 90 };
-        string toJson = JsonSerializer.Serialize(to, StratJsonContext.Default.PlaceRef);
-        string watchJson = JsonSerializer.Serialize(watch, StratJsonContext.Default.StepWatch);
-
-        OldPlaceRef oldTo = JsonSerializer.Deserialize<OldPlaceRef>(toJson, OldOptions)!;
-        OldWatch oldWatch = JsonSerializer.Deserialize<OldWatch>(watchJson, OldOptions)!;
-        PlaceRef back = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldTo, OldOptions), StratJsonContext.Default.PlaceRef)!;
-        StepWatch watchBack = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldWatch, OldOptions), StratJsonContext.Default.StepWatch)!;
-        StepLurk lurk = new() { Areas = ["Hut"], AreaPoints = [Point(7, 8)], Rotate = new LurkRotate { To = Point(1, 2) } };
-        OldLurk oldLurk = JsonSerializer.Deserialize<OldLurk>(JsonSerializer.Serialize(lurk, StratJsonContext.Default.StepLurk), OldOptions)!;
-        StepLurk lurkBack = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldLurk, OldOptions), StratJsonContext.Default.StepLurk)!;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(oldLurk.Areas).IsEquivalentTo(["Hut"]);
-            await Assert.That(oldLurk.Rotate!.To!.Place).IsNull();
-            await Assert.That(oldLurk.Rotate!.To!.Extra!.ContainsKey("x")).IsTrue().Because("the point rides in the old build's extension data");
-            await Assert.That(lurkBack.AreaPoints!.Single().X).IsEqualTo(7);
-            await Assert.That(lurkBack.Rotate!.To!.Y).IsEqualTo(2);
-            await Assert.That(oldTo.Place).IsEqualTo("Hut");
-            await Assert.That(oldWatch.Places).IsEquivalentTo(["Hut"]);
-            await Assert.That(StratLocations.Same(back, to)).IsTrue();
-            await Assert.That(watchBack.Points!.Single().X).IsEqualTo(5);
-            await Assert.That(watchBack.YawDegrees).IsEqualTo(90);
-        }
+            PlaceRef to = new() { Place = "Hut", X = 10, Y = 20, LevelMinZ = -512 };
+            StepWatch watch = new() { Places = ["Hut"], Points = [Point(5, 6)], YawDegrees = 90 };
+            string toJson = JsonSerializer.Serialize(to, StratJsonContext.Default.PlaceRef);
+            string watchJson = JsonSerializer.Serialize(watch, StratJsonContext.Default.StepWatch);
+
+            OldPlaceRef oldTo = JsonSerializer.Deserialize<OldPlaceRef>(toJson, OldOptions)!;
+            OldWatch oldWatch = JsonSerializer.Deserialize<OldWatch>(watchJson, OldOptions)!;
+            PlaceRef back = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldTo, OldOptions), StratJsonContext.Default.PlaceRef)!;
+            StepWatch watchBack = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldWatch, OldOptions), StratJsonContext.Default.StepWatch)!;
+            StepLurk lurk = new() { Areas = ["Hut"], AreaPoints = [Point(7, 8)], Rotate = new LurkRotate { To = Point(1, 2) } };
+            OldLurk oldLurk = JsonSerializer.Deserialize<OldLurk>(JsonSerializer.Serialize(lurk, StratJsonContext.Default.StepLurk), OldOptions)!;
+            StepLurk lurkBack = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldLurk, OldOptions), StratJsonContext.Default.StepLurk)!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(oldLurk.Areas).IsEquivalentTo(["Hut"]);
+                await Assert.That(oldLurk.Rotate!.To!.Place).IsNull();
+                await Assert.That(oldLurk.Rotate!.To!.Extra!.ContainsKey("x")).IsTrue().Because("the point rides in the old build's extension data");
+                await Assert.That(lurkBack.AreaPoints!.Single().X).IsEqualTo(7);
+                await Assert.That(lurkBack.Rotate!.To!.Y).IsEqualTo(2);
+                await Assert.That(oldTo.Place).IsEqualTo("Hut");
+                await Assert.That(oldWatch.Places).IsEquivalentTo(["Hut"]);
+                await Assert.That(StratLocations.Same(back, to)).IsTrue();
+                await Assert.That(watchBack.Points!.Single().X).IsEqualTo(5);
+                await Assert.That(watchBack.YawDegrees).IsEqualTo(90);
+            }
+        });
     }
 
     [Test]
     public async Task APointOnlyDestination_SatisfiesAMove_AndNeitherStillWarns()
     {
-        StratDocument document = Minimal();
-        document.Steps.Add(Step(3, 70, "D", "move"));
-        await Assert.That(StratValidator.Validate(document, Mirage).Any(i => i.Field == "/steps/2/to")).IsTrue();
-
-        document.Steps[2].To = Point(100, 200);
-        StratStep lines = Step(4, 60, "all", "move");
-        lines.Assignments = [new StepAssignment { Slot = "B", To = Point(1, 2) }, new StepAssignment { Slot = "C" }];
-        document.Steps.Add(lines);
-        IReadOnlyList<StratIssue> issues = StratValidator.Validate(document, Mirage);
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(issues.Any(i => i.Field.StartsWith("/steps/2/to", StringComparison.Ordinal))).IsFalse();
-            await Assert.That(issues.Any(i => i.Field == "/steps/3/assignments/0/to")).IsFalse();
-            await Assert.That(issues.Any(i => i.Field == "/steps/3/assignments/1/to")).IsTrue();
-        }
+            StratDocument document = Minimal();
+            document.Steps.Add(Step(3, 70, "D", "move"));
+            await Assert.That(StratValidator.Validate(document, Mirage).Any(i => i.Field == "/steps/2/to")).IsTrue();
+
+            document.Steps[2].To = Point(100, 200);
+            StratStep lines = Step(4, 60, "all", "move");
+            lines.Assignments = [new StepAssignment { Slot = "B", To = Point(1, 2) }, new StepAssignment { Slot = "C" }];
+            document.Steps.Add(lines);
+            IReadOnlyList<StratIssue> issues = StratValidator.Validate(document, Mirage);
+            using (Assert.Multiple())
+            {
+                await Assert.That(issues.Any(i => i.Field.StartsWith("/steps/2/to", StringComparison.Ordinal))).IsFalse();
+                await Assert.That(issues.Any(i => i.Field == "/steps/3/assignments/0/to")).IsFalse();
+                await Assert.That(issues.Any(i => i.Field == "/steps/3/assignments/1/to")).IsTrue();
+            }
+        });
     }
 
     // ── Picks ────────────────────────────────────────────────────────────────────────────────────
@@ -236,155 +248,167 @@ public partial class StratLocationFieldTests
     [Test]
     public async Task PickOnMap_ArmsTheExactField_SelectsItsStep_AndAClickWritesPlaceAndPoint_AsOneEntry()
     {
-        StratDocument document = FiveSteps();
-        (StratSession session, StratCanvasViewModel canvas, StratStepSelection selection) = Rig(document);
-        using (canvas)
-        using (selection)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            StratLocationField from = new(document.Steps[1].Id, null, StratLocationKind.From);
-            await Assert.That(selection.PickOnMap(from)).IsTrue();
-            using (Assert.Multiple())
+            StratDocument document = FiveSteps();
+            (StratSession session, StratCanvasViewModel canvas, StratStepSelection selection) = Rig(document);
+            using (canvas)
+            using (selection)
             {
+                StratLocationField from = new(document.Steps[1].Id, null, StratLocationKind.From);
+                await Assert.That(selection.PickOnMap(from)).IsTrue();
+                using (Assert.Multiple())
+                {
+                    await Assert.That(canvas.ArmedField).IsEqualTo(from);
+                    await Assert.That(selection.IsPicking(from)).IsTrue();
+                    await Assert.That(selection.SelectedStepId).IsEqualTo(document.Steps[1].Id);
+                    await Assert.That(canvas.SetPlaceText).IsEqualTo("Set “from” on map");
+                }
+
+                // A note edit keeps the pick armed; the click then writes the one field.
+                session.Apply(PatchOp.ReplaceOp("/steps/1/note", null, JsonValue.Create("go")));
                 await Assert.That(canvas.ArmedField).IsEqualTo(from);
-                await Assert.That(selection.IsPicking(from)).IsTrue();
-                await Assert.That(selection.SelectedStepId).IsEqualTo(document.Steps[1].Id);
-                await Assert.That(canvas.SetPlaceText).IsEqualTo("Set “from” on map");
-            }
+                int depth = session.UndoDepth;
+                canvas.TryTagPositionAt(Upper, 150, 50);
+                PlaceRef written = session.Document!.Steps[1].From!;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(written.Place).IsEqualTo("Ramp");
+                    await Assert.That(written.X).IsEqualTo(150);
+                    await Assert.That(written.Y).IsEqualTo(50);
+                    await Assert.That(written.LevelMinZ).IsEqualTo(-512);
+                    await Assert.That(session.Document!.Steps[1].To).IsNull().Because("only the armed field is written");
+                    await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
+                    await Assert.That(canvas.ArmedField).IsNull();
+                }
 
-            // A note edit keeps the pick armed; the click then writes the one field.
-            session.Apply(PatchOp.ReplaceOp("/steps/1/note", null, JsonValue.Create("go")));
-            await Assert.That(canvas.ArmedField).IsEqualTo(from);
-            int depth = session.UndoDepth;
-            canvas.TryTagPositionAt(Upper, 150, 50);
-            PlaceRef written = session.Document!.Steps[1].From!;
-            using (Assert.Multiple())
-            {
-                await Assert.That(written.Place).IsEqualTo("Ramp");
-                await Assert.That(written.X).IsEqualTo(150);
-                await Assert.That(written.Y).IsEqualTo(50);
-                await Assert.That(written.LevelMinZ).IsEqualTo(-512);
-                await Assert.That(session.Document!.Steps[1].To).IsNull().Because("only the armed field is written");
-                await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
-                await Assert.That(canvas.ArmedField).IsNull();
+                // Again on an armed field cancels it.
+                selection.PickOnMap(from);
+                await Assert.That(selection.PickOnMap(from)).IsFalse();
+                await Assert.That(canvas.IsSettingPlace).IsFalse();
             }
-
-            // Again on an armed field cancels it.
-            selection.PickOnMap(from);
-            await Assert.That(selection.PickOnMap(from)).IsFalse();
-            await Assert.That(canvas.IsSettingPlace).IsFalse();
-        }
+        });
     }
 
     [Test]
     public async Task AWatchPick_AddsThePlace_OrThePointOutsideEveryPlace_OneEntryEach()
     {
-        StratDocument document = FiveSteps();
-        document.Steps[1].Verb = "hold";
-        (StratSession session, StratCanvasViewModel canvas, StratStepSelection selection) = Rig(document);
-        using (canvas)
-        using (selection)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            StratLocationField watch = new(document.Steps[1].Id, "A", StratLocationKind.Watch);
-            selection.PickOnMap(watch);
-            canvas.TryTagPositionAt(Upper, 50, 50);
-            selection.PickOnMap(watch);
-            canvas.TryTagPositionAt(Upper, 900.4, -560);
-            selection.PickOnMap(watch);
-            canvas.TryTagPositionAt(Upper, 60, 60);
-
-            StepWatch stored = session.Document!.Steps[1].Assignments!.Single().Watch!;
-            using (Assert.Multiple())
+            StratDocument document = FiveSteps();
+            document.Steps[1].Verb = "hold";
+            (StratSession session, StratCanvasViewModel canvas, StratStepSelection selection) = Rig(document);
+            using (canvas)
+            using (selection)
             {
-                await Assert.That(stored.Places).IsEquivalentTo(["Hut"]);
-                await Assert.That(stored.Points!.Single().X).IsEqualTo(900.4);
-                await Assert.That(session.UndoDepth).IsEqualTo(2).Because("a second click on a watched place adds nothing");
-                await Assert.That(StratStepPhrasing.Watching(session.Document!.Steps[1].Assignments![0], null))
-                    .IsEqualTo("watching Hut, (900, -560)");
-            }
+                StratLocationField watch = new(document.Steps[1].Id, "A", StratLocationKind.Watch);
+                selection.PickOnMap(watch);
+                canvas.TryTagPositionAt(Upper, 50, 50);
+                selection.PickOnMap(watch);
+                canvas.TryTagPositionAt(Upper, 900.4, -560);
+                selection.PickOnMap(watch);
+                canvas.TryTagPositionAt(Upper, 60, 60);
 
-            // The point is what the token faces once no place comes first.
-            session.Apply(PatchOp.ReplaceOp("/steps/1/assignments/0/watch/places", null, new JsonArray()));
-            canvas.SelectStep(document.Steps[1].Id);
-            StratSceneProjection projection = canvas.Projection!;
-            TokenPlacement? a = StratSceneProjection.PlanOf(projection.Path, projection.Ticks, null, "A",
-                new StratSceneProjection.PlaceSet(null, null, null, 0, 115)).Placements[1];
-            await Assert.That(a!.Value.YawDegrees).IsEqualTo((float)Math.Round(Math.Atan2(-560 - 0, 900.4 - 600) * 180 / Math.PI + 360, 2));
-        }
+                StepWatch stored = session.Document!.Steps[1].Assignments!.Single().Watch!;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(stored.Places).IsEquivalentTo(["Hut"]);
+                    await Assert.That(stored.Points!.Single().X).IsEqualTo(900.4);
+                    await Assert.That(session.UndoDepth).IsEqualTo(2).Because("a second click on a watched place adds nothing");
+                    await Assert.That(StratStepPhrasing.Watching(session.Document!.Steps[1].Assignments![0], null))
+                        .IsEqualTo("watching Hut, (900, -560)");
+                }
+
+                // The point is what the token faces once no place comes first.
+                session.Apply(PatchOp.ReplaceOp("/steps/1/assignments/0/watch/places", null, new JsonArray()));
+                canvas.SelectStep(document.Steps[1].Id);
+                StratSceneProjection projection = canvas.Projection!;
+                TokenPlacement? a = StratSceneProjection.PlanOf(projection.Path, projection.Ticks, null, "A",
+                    new StratSceneProjection.PlaceSet(null, null, null, 0, 115)).Placements[1];
+                await Assert.That(a!.Value.YawDegrees).IsEqualTo((float)Math.Round(Math.Atan2(-560 - 0, 900.4 - 600) * 180 / Math.PI + 360, 2));
+            }
+        });
     }
 
     [Test]
     public async Task ALinePick_WritesThatLinesTo_AndTheToolbarPickOnLines_StillNamesTheLine()
     {
-        StratDocument document = FiveSteps();
-        document.Steps[1].Actor = StratVocabulary.ActorAll;
-        document.Steps[1].Assignments = [new StepAssignment { Slot = "B" }, new StepAssignment { Slot = "C" }];
-        (StratSession session, StratCanvasViewModel canvas, StratStepSelection selection) = Rig(document);
-        using (canvas)
-        using (selection)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            selection.PickOnMap(new StratLocationField(document.Steps[1].Id, "C", StratLocationKind.To));
-            await Assert.That(canvas.SelectedLineSlot).IsEqualTo("C");
-            await Assert.That(canvas.SetPlaceText).IsEqualTo("Set C's “to” on map");
-            canvas.TryTagPositionAt(Upper, 5_000, 5_000);
-            List<StepAssignment> lines = session.Document!.Steps[1].Assignments!;
-            using (Assert.Multiple())
+            StratDocument document = FiveSteps();
+            document.Steps[1].Actor = StratVocabulary.ActorAll;
+            document.Steps[1].Assignments = [new StepAssignment { Slot = "B" }, new StepAssignment { Slot = "C" }];
+            (StratSession session, StratCanvasViewModel canvas, StratStepSelection selection) = Rig(document);
+            using (canvas)
+            using (selection)
             {
-                await Assert.That(lines[1].To!.Place).IsNull();
-                await Assert.That(lines[1].To!.X).IsEqualTo(5_000);
-                await Assert.That(lines[0].To).IsNull();
+                selection.PickOnMap(new StratLocationField(document.Steps[1].Id, "C", StratLocationKind.To));
+                await Assert.That(canvas.SelectedLineSlot).IsEqualTo("C");
+                await Assert.That(canvas.SetPlaceText).IsEqualTo("Set C's “to” on map");
+                canvas.TryTagPositionAt(Upper, 5_000, 5_000);
+                List<StepAssignment> lines = session.Document!.Steps[1].Assignments!;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(lines[1].To!.Place).IsNull();
+                    await Assert.That(lines[1].To!.X).IsEqualTo(5_000);
+                    await Assert.That(lines[0].To).IsNull();
+                }
             }
-        }
+        });
     }
 
     [Test]
     public async Task APickThatNoLongerApplies_Ends_AndAClickWritesNothing()
     {
-        StratDocument document = FiveSteps();
-        document.Steps[1].Actor = StratVocabulary.ActorAll;
-        document.Steps[1].Verb = "hold";
-        document.Steps[1].Assignments = [new StepAssignment { Slot = "B" }, new StepAssignment { Slot = "C" }];
-        (StratSession session, StratCanvasViewModel canvas, StratStepSelection selection) = Rig(document);
-        using (canvas)
-        using (selection)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            // C leaves the step: a pick armed on C's place ends, and a click does not bring C back.
-            StratLocationField cTo = new(document.Steps[1].Id, "C", StratLocationKind.To);
-            await Assert.That(selection.PickOnMap(cTo)).IsTrue();
-            session.Apply(StratLinePatches.SetWho(session.Document!.Steps[1], "/steps/1", ["B"]));
-            int depth = session.UndoDepth;
-            using (Assert.Multiple())
+            StratDocument document = FiveSteps();
+            document.Steps[1].Actor = StratVocabulary.ActorAll;
+            document.Steps[1].Verb = "hold";
+            document.Steps[1].Assignments = [new StepAssignment { Slot = "B" }, new StepAssignment { Slot = "C" }];
+            (StratSession session, StratCanvasViewModel canvas, StratStepSelection selection) = Rig(document);
+            using (canvas)
+            using (selection)
             {
-                await Assert.That(canvas.ArmedField).IsNull();
-                await Assert.That(canvas.TryTagPositionAt(Upper, 50, 50)).IsFalse();
-                await Assert.That(session.UndoDepth).IsEqualTo(depth);
-                await Assert.That(StratStepLines.Involves(session.Document!.Steps[1], "C")).IsFalse();
-                await Assert.That(canvas.BeginSetPlace(cTo)).IsFalse();
+                // C leaves the step: a pick armed on C's place ends, and a click does not bring C back.
+                StratLocationField cTo = new(document.Steps[1].Id, "C", StratLocationKind.To);
+                await Assert.That(selection.PickOnMap(cTo)).IsTrue();
+                session.Apply(StratLinePatches.SetWho(session.Document!.Steps[1], "/steps/1", ["B"]));
+                int depth = session.UndoDepth;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(canvas.ArmedField).IsNull();
+                    await Assert.That(canvas.TryTagPositionAt(Upper, 50, 50)).IsFalse();
+                    await Assert.That(session.UndoDepth).IsEqualTo(depth);
+                    await Assert.That(StratStepLines.Involves(session.Document!.Steps[1], "C")).IsFalse();
+                    await Assert.That(canvas.BeginSetPlace(cTo)).IsFalse();
+                }
+
+                // A verb that does not watch ends a pick armed on C's watching.
+                session.Undo();
+                StratLocationField cWatch = new(document.Steps[1].Id, "C", StratLocationKind.Watch);
+                await Assert.That(selection.PickOnMap(cWatch)).IsTrue();
+                session.Apply(PatchOp.ReplaceOp("/steps/1/verb", null, JsonValue.Create("move")));
+                depth = session.UndoDepth;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(canvas.ArmedField).IsNull().Because("a move does not watch");
+                    await Assert.That(canvas.TryTagPositionAt(Upper, 50, 50)).IsFalse();
+                    await Assert.That(session.UndoDepth).IsEqualTo(depth);
+                    await Assert.That(session.Document!.Steps[1].Assignments!.All(l => l.Watch is null)).IsTrue();
+                }
+
+                StratLocationField from = new(document.Steps[1].Id, null, StratLocationKind.From);
+                selection.PickOnMap(from);
+                session.Apply(PatchOp.ReplaceOp("/steps/1/verb", null, JsonValue.Create("wait")));
+                await Assert.That(canvas.ArmedField).IsNull().Because("a wait has no from");
+                await Assert.That(canvas.BeginSetPlace(new StratLocationField(document.Steps[1].Id, null, StratLocationKind.Landing))).IsFalse();
             }
 
-            // A verb that does not watch ends a pick armed on C's watching.
-            session.Undo();
-            StratLocationField cWatch = new(document.Steps[1].Id, "C", StratLocationKind.Watch);
-            await Assert.That(selection.PickOnMap(cWatch)).IsTrue();
-            session.Apply(PatchOp.ReplaceOp("/steps/1/verb", null, JsonValue.Create("move")));
-            depth = session.UndoDepth;
-            using (Assert.Multiple())
-            {
-                await Assert.That(canvas.ArmedField).IsNull().Because("a move does not watch");
-                await Assert.That(canvas.TryTagPositionAt(Upper, 50, 50)).IsFalse();
-                await Assert.That(session.UndoDepth).IsEqualTo(depth);
-                await Assert.That(session.Document!.Steps[1].Assignments!.All(l => l.Watch is null)).IsTrue();
-            }
-
-            StratLocationField from = new(document.Steps[1].Id, null, StratLocationKind.From);
-            selection.PickOnMap(from);
-            session.Apply(PatchOp.ReplaceOp("/steps/1/verb", null, JsonValue.Create("wait")));
-            await Assert.That(canvas.ArmedField).IsNull().Because("a wait has no from");
-            await Assert.That(canvas.BeginSetPlace(new StratLocationField(document.Steps[1].Id, null, StratLocationKind.Landing))).IsFalse();
-        }
-
-        (StratStore _, StratSession readOnly) = Opened(FiveSteps());
-        using StratCanvasViewModel preview = new(readOnly, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped, readOnly: true);
-        await Assert.That(preview.BeginSetPlace(new StratLocationField(readOnly.Document!.Steps[1].Id, null, StratLocationKind.From))).IsFalse();
+            (StratStore _, StratSession readOnly) = Opened(FiveSteps());
+            using StratCanvasViewModel preview = new(readOnly, _ => null, new ManualTicker(), null, StratTestKeymap.Shipped, readOnly: true);
+            await Assert.That(preview.BeginSetPlace(new StratLocationField(readOnly.Document!.Steps[1].Id, null, StratLocationKind.From))).IsFalse();
+        });
     }
 
     // ── Readers ──────────────────────────────────────────────────────────────────────────────────
@@ -392,44 +416,50 @@ public partial class StratLocationFieldTests
     [Test]
     public async Task PointOnlyValues_PrintAsCoordinates_OnEverySurface()
     {
-        StratDocument document = LocationsSample();
-        StratStep throwStep = document.Steps[0], fromStep = document.Steps[1], lines = document.Steps[2];
-        string callSheet = StratTextExporter.CallSheet(document, Mirage);
-        StratStep pointMove = Step(9, 50, "C", "move");
-        pointMove.To = Point(-700.4, -1299.6);
-        IReadOnlyList<string> history = StratDiffPhrasing.Describe(
-            JsonSerializer.SerializeToNode(document, StratJsonContext.Default.StratDocument),
-            [
-                PatchOp.ReplaceOp("/steps/1/to", JsonNode.Parse("""{ "place": "BombsiteA" }"""), JsonNode.Parse("""{ "x": 5, "y": 6, "levelMinZ": 0 }""")),
-                PatchOp.AddOp("/steps/3", JsonSerializer.SerializeToNode(pointMove, StratJsonContext.Default.StratStep)),
-                PatchOp.AddOp("/steps/2/assignments/0/watch/points/1", JsonNode.Parse("""{ "x": 1, "y": -1, "levelMinZ": 0 }"""))
-            ], Mirage);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(StratStepPhrasing.Phrase(throwStep, Mirage)).IsEqualTo("B throws smoke T Ramp → Bombsite A (-1025, -1616)");
-            await Assert.That(StratStepPhrasing.Phrase(fromStep, Mirage)).IsEqualTo("C throws (1234, -561) → Bombsite A");
-            await Assert.That(StratStepPhrasing.PhraseLine(lines.Assignments![1], "move", Mirage)).IsEqualTo("C → (-700, -1300), watching Stairs");
-            await Assert.That(StratStepPhrasing.PhraseWithLines(lines, Mirage)).Contains("B → palace, watching Bombsite A, CT Spawn, (-900, -1500)");
-            await Assert.That(callSheet).Contains("  - C → (-700, -1300), watching Stairs");
-            await Assert.That(history[0]).IsEqualTo("C's throw: to Bombsite A → (5, 6)");
-            await Assert.That(history[1]).StartsWith("step added: C moves to (-700, -1300)");
-            await Assert.That(history[2]).IsEqualTo("B, C, D's move: B watching added: (1, -1)");
-        }
+            StratDocument document = LocationsSample();
+            StratStep throwStep = document.Steps[0], fromStep = document.Steps[1], lines = document.Steps[2];
+            string callSheet = StratTextExporter.CallSheet(document, Mirage);
+            StratStep pointMove = Step(9, 50, "C", "move");
+            pointMove.To = Point(-700.4, -1299.6);
+            IReadOnlyList<string> history = StratDiffPhrasing.Describe(
+                JsonSerializer.SerializeToNode(document, StratJsonContext.Default.StratDocument),
+                [
+                    PatchOp.ReplaceOp("/steps/1/to", JsonNode.Parse("""{ "place": "BombsiteA" }"""), JsonNode.Parse("""{ "x": 5, "y": 6, "levelMinZ": 0 }""")),
+                    PatchOp.AddOp("/steps/3", JsonSerializer.SerializeToNode(pointMove, StratJsonContext.Default.StratStep)),
+                    PatchOp.AddOp("/steps/2/assignments/0/watch/points/1", JsonNode.Parse("""{ "x": 1, "y": -1, "levelMinZ": 0 }"""))
+                ], Mirage);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(StratStepPhrasing.Phrase(throwStep, Mirage)).IsEqualTo("B throws smoke T Ramp → Bombsite A (-1025, -1616)");
+                await Assert.That(StratStepPhrasing.Phrase(fromStep, Mirage)).IsEqualTo("C throws (1234, -561) → Bombsite A");
+                await Assert.That(StratStepPhrasing.PhraseLine(lines.Assignments![1], "move", Mirage)).IsEqualTo("C → (-700, -1300), watching Stairs");
+                await Assert.That(StratStepPhrasing.PhraseWithLines(lines, Mirage)).Contains("B → palace, watching Bombsite A, CT Spawn, (-900, -1500)");
+                await Assert.That(callSheet).Contains("  - C → (-700, -1300), watching Stairs");
+                await Assert.That(history[0]).IsEqualTo("C's throw: to Bombsite A → (5, 6)");
+                await Assert.That(history[1]).StartsWith("step added: C moves to (-700, -1300)");
+                await Assert.That(history[2]).IsEqualTo("B, C, D's move: B watching added: (1, -1)");
+            }
+        });
     }
 
     [Test]
     public async Task ThePointWins_OverThePlaceCentre_WhereALocationIs()
     {
-        PlaceCentreResolver centres = (place, _) => place == "Hut" ? (50, 50) : null;
-        PlaceRef both = new() { Place = "Hut", X = 400, Y = 0, LevelMinZ = 0 };
-        StepWatch watchesPoint = new() { Points = [Point(0, 500, 0)] };
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(StratSceneProjection.Where(both, 0, centres)).IsEqualTo((400d, 0d));
-            await Assert.That(StratSceneProjection.Where(new PlaceRef { Place = "Hut" }, 0, centres)).IsEqualTo((50d, 50d));
-            await Assert.That(StratSceneProjection.FacingOf(watchesPoint, new TokenPlacement(0, 0, 0, null), null)).IsEqualTo(90f);
-        }
+            PlaceCentreResolver centres = (place, _) => place == "Hut" ? (50, 50) : null;
+            PlaceRef both = new() { Place = "Hut", X = 400, Y = 0, LevelMinZ = 0 };
+            StepWatch watchesPoint = new() { Points = [Point(0, 500, 0)] };
+            using (Assert.Multiple())
+            {
+                await Assert.That(StratSceneProjection.Where(both, 0, centres)).IsEqualTo((400d, 0d));
+                await Assert.That(StratSceneProjection.Where(new PlaceRef { Place = "Hut" }, 0, centres)).IsEqualTo((50d, 50d));
+                await Assert.That(StratSceneProjection.FacingOf(watchesPoint, new TokenPlacement(0, 0, 0, null), null)).IsEqualTo(90f);
+            }
+        });
     }
 
     // ── The control's logic ──────────────────────────────────────────────────────────────────────
@@ -437,93 +467,102 @@ public partial class StratLocationFieldTests
     [Test]
     public async Task TheList_IsTheMapsCallouts_ByTheOwnersWord_Cached_AndFiltersOnAliases()
     {
-        PlaceFieldOptions options = PlaceFieldOptions.For(Mirage);
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(PlaceFieldOptions.For(Mirage)).IsSameReferenceAs(options);
-            await Assert.That(options.All.Select(o => o.Place).Order(StringComparer.Ordinal)).IsEquivalentTo(Mirage.CanonicalNames.Order(StringComparer.Ordinal));
-            await Assert.That(options.All.Single(o => o.Place == "PalaceInterior").Display).IsEqualTo("palace");
-            await Assert.That(options.Filter("a ramp")[0].Place).IsEqualTo("TRamp").Because("an alias finds its place");
-            await Assert.That(options.Filter("bombsite").Select(o => o.Place)).IsEquivalentTo(["BombsiteA", "BombsiteB"]);
-            await Assert.That(options.Filter("site").Select(o => o.Place).Take(2)).IsEquivalentTo(["BombsiteA", "BombsiteB"])
-                .Because("a name containing the text still lists");
-            await Assert.That(options.Filter("").Count).IsEqualTo(options.All.Count);
-        }
+            PlaceFieldOptions options = PlaceFieldOptions.For(Mirage);
+            using (Assert.Multiple())
+            {
+                await Assert.That(PlaceFieldOptions.For(Mirage)).IsSameReferenceAs(options);
+                await Assert.That(options.All.Select(o => o.Place).Order(StringComparer.Ordinal)).IsEquivalentTo(Mirage.CanonicalNames.Order(StringComparer.Ordinal));
+                await Assert.That(options.All.Single(o => o.Place == "PalaceInterior").Display).IsEqualTo("palace");
+                await Assert.That(options.Filter("a ramp")[0].Place).IsEqualTo("TRamp").Because("an alias finds its place");
+                await Assert.That(options.Filter("bombsite").Select(o => o.Place)).IsEquivalentTo(["BombsiteA", "BombsiteB"]);
+                await Assert.That(options.Filter("site").Select(o => o.Place).Take(2)).IsEquivalentTo(["BombsiteA", "BombsiteB"])
+                    .Because("a name containing the text still lists");
+                await Assert.That(options.Filter("").Count).IsEqualTo(options.All.Count);
+            }
+        });
     }
 
     [Test]
     public async Task TheModel_MovesAcceptsAndDismisses_AndKeepsAStoredPointWhileItsTextStays()
     {
-        PlaceFieldModel single = new() { Options = PlaceFieldOptions.For(Mirage) };
-        single.Load([new PlaceRef { Place = "BombsiteA", X = 5, Y = 6, LevelMinZ = 0 }]);
-        single.Open();
-        await Assert.That(single.Items[single.Highlight].Place).IsEqualTo("BombsiteA").Because("the stored callout is highlighted");
-        await Assert.That(single.Commit()).IsNull().Because("the text still reads as the stored value, point and all");
-
-        single.Type("pal");
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(single.IsOpen).IsTrue();
-            await Assert.That(single.Items[0].Place).IsEqualTo("PalaceInterior");
-            await Assert.That(single.Highlight).IsEqualTo(0);
-        }
+            PlaceFieldModel single = new() { Options = PlaceFieldOptions.For(Mirage) };
+            single.Load([new PlaceRef { Place = "BombsiteA", X = 5, Y = 6, LevelMinZ = 0 }]);
+            single.Open();
+            await Assert.That(single.Items[single.Highlight].Place).IsEqualTo("BombsiteA").Because("the stored callout is highlighted");
+            await Assert.That(single.Commit()).IsNull().Because("the text still reads as the stored value, point and all");
 
-        single.Move(1);
-        single.Move(-1);
-        IReadOnlyList<PlaceRef>? picked = single.Accept();
-        using (Assert.Multiple())
-        {
-            await Assert.That(picked!.Single().Place).IsEqualTo("PalaceInterior");
-            await Assert.That(picked!.Single().X).IsNull().Because("another place drops the old point");
-            await Assert.That(single.Text).IsEqualTo("palace");
-            await Assert.That(single.IsOpen).IsFalse();
-            await Assert.That(single.Dismiss()).IsFalse().Because("a closed list does not take Esc");
-        }
+            single.Type("pal");
+            using (Assert.Multiple())
+            {
+                await Assert.That(single.IsOpen).IsTrue();
+                await Assert.That(single.Items[0].Place).IsEqualTo("PalaceInterior");
+                await Assert.That(single.Highlight).IsEqualTo(0);
+            }
 
-        PlaceFieldModel point = new() { Options = PlaceFieldOptions.For(Mirage) };
-        point.Load([Point(1234.4, -560.6)]);
-        using (Assert.Multiple())
-        {
-            await Assert.That(point.Text).IsEqualTo("(1234, -561)");
-            await Assert.That(point.HasPointOnly).IsTrue();
-            await Assert.That(point.Commit()).IsNull();
-            await Assert.That(point.Clear()).IsEmpty();
-        }
+            single.Move(1);
+            single.Move(-1);
+            IReadOnlyList<PlaceRef>? picked = single.Accept();
+            using (Assert.Multiple())
+            {
+                await Assert.That(picked!.Single().Place).IsEqualTo("PalaceInterior");
+                await Assert.That(picked!.Single().X).IsNull().Because("another place drops the old point");
+                await Assert.That(single.Text).IsEqualTo("palace");
+                await Assert.That(single.IsOpen).IsFalse();
+                await Assert.That(single.Dismiss()).IsFalse().Because("a closed list does not take Esc");
+            }
 
-        PlaceFieldModel multi = new(true) { Options = PlaceFieldOptions.For(Mirage) };
-        multi.Load([new PlaceRef { Place = "Stairs" }, Point(-900, -1500)]);
-        multi.Type("jun");
-        await Assert.That(multi.Items[0].Place).IsEqualTo("Jungle");
-        IReadOnlyList<PlaceRef> watched = multi.Accept()!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(multi.Text).IsEmpty().Because("a pick appends a chip and clears the add field");
-            await Assert.That(watched.Select(w => w.Place)).IsEquivalentTo(["Stairs", null, "Jungle"]);
-            await Assert.That(watched[1].X).IsEqualTo(-900).Because("the point chip is kept as stored");
-            await Assert.That(PlaceField.ChooseUp(500, 60, 200)).IsTrue();
-            await Assert.That(PlaceField.ChooseUp(50, 60, 200)).IsFalse();
-            await Assert.That(PlaceField.ChooseUp(500, 300, 200)).IsFalse();
-        }
+            PlaceFieldModel point = new() { Options = PlaceFieldOptions.For(Mirage) };
+            point.Load([Point(1234.4, -560.6)]);
+            using (Assert.Multiple())
+            {
+                await Assert.That(point.Text).IsEqualTo("(1234, -561)");
+                await Assert.That(point.HasPointOnly).IsTrue();
+                await Assert.That(point.Commit()).IsNull();
+                await Assert.That(point.Clear()).IsEmpty();
+            }
+
+            PlaceFieldModel multi = new(true) { Options = PlaceFieldOptions.For(Mirage) };
+            multi.Load([new PlaceRef { Place = "Stairs" }, Point(-900, -1500)]);
+            multi.Type("jun");
+            await Assert.That(multi.Items[0].Place).IsEqualTo("Jungle");
+            IReadOnlyList<PlaceRef> watched = multi.Accept()!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(multi.Text).IsEmpty().Because("a pick appends a chip and clears the add field");
+                await Assert.That(watched.Select(w => w.Place)).IsEquivalentTo(["Stairs", null, "Jungle"]);
+                await Assert.That(watched[1].X).IsEqualTo(-900).Because("the point chip is kept as stored");
+                await Assert.That(PlaceField.ChooseUp(500, 60, 200)).IsTrue();
+                await Assert.That(PlaceField.ChooseUp(50, 60, 200)).IsFalse();
+                await Assert.That(PlaceField.ChooseUp(500, 300, 200)).IsFalse();
+            }
+        });
     }
 
     [Test]
     public async Task AnExactNameOrAlias_TakesTheHighlight_SoEnterAndABlurStoreTheSamePlace()
     {
-        CalloutResolver aliased = new(CanonicalPlaces.Embedded("de_mirage"), new CalloutTable
+        await HeadlessSession.RunOnUi(async () =>
         {
-            Map = "de_mirage", Aliases = [new CalloutAlias { Alias = "a", Place = "Underpass" }]
-        });
-        PlaceFieldModel enter = new() { Options = PlaceFieldOptions.For(aliased) };
-        enter.Load([]);
-        enter.Type("a");
-        await Assert.That(enter.Items[enter.Highlight].Place).IsEqualTo("Underpass").Because("\"a\" is Underpass's alias, and a prefix of Apartments");
-        IReadOnlyList<PlaceRef> byEnter = enter.Accept()!;
+            CalloutResolver aliased = new(CanonicalPlaces.Embedded("de_mirage"), new CalloutTable
+            {
+                Map = "de_mirage", Aliases = [new CalloutAlias { Alias = "a", Place = "Underpass" }]
+            });
+            PlaceFieldModel enter = new() { Options = PlaceFieldOptions.For(aliased) };
+            enter.Load([]);
+            enter.Type("a");
+            await Assert.That(enter.Items[enter.Highlight].Place).IsEqualTo("Underpass").Because("\"a\" is Underpass's alias, and a prefix of Apartments");
+            IReadOnlyList<PlaceRef> byEnter = enter.Accept()!;
 
-        PlaceFieldModel blur = new() { Options = PlaceFieldOptions.For(aliased) };
-        blur.Load([]);
-        blur.Type("a");
-        IReadOnlyList<PlaceRef> byBlur = blur.Commit()!;
-        await Assert.That(byEnter.Single().Place).IsEqualTo(byBlur.Single().Place);
+            PlaceFieldModel blur = new() { Options = PlaceFieldOptions.For(aliased) };
+            blur.Load([]);
+            blur.Type("a");
+            IReadOnlyList<PlaceRef> byBlur = blur.Commit()!;
+            await Assert.That(byEnter.Single().Place).IsEqualTo(byBlur.Single().Place);
+        });
     }
 
     [Test]
@@ -791,47 +830,50 @@ public partial class StratLocationFieldTests
     [Test]
     public async Task InTheStepRow_APointOnlyValueReadsAsItsCoordinate_AndTypingAnotherPlaceDropsIt()
     {
-        using StratBookTabViewModel vm = StratStepEditingTests.OpenNew();
-        StratStep move = StratStepEditingTests.Step(100, "all", "move");
-        move.To = Point(1234.4, -560.6);
-        move.From = new PlaceRef { Place = "TRamp", X = 5, Y = 6, LevelMinZ = 0 };
-        move.Assignments = null;
-        StratStep hold = StratStepEditingTests.Step(90, "all", "hold");
-        hold.Assignments =
-        [
-            new StepAssignment { Slot = "A", Watch = new StepWatch { Places = ["Stairs"], Points = [Point(-900, -1500)] } },
-            new StepAssignment { Slot = "B", To = Point(1, 2) }
-        ];
-        hold.Actor = StratVocabulary.ActorAll;
-        StratStepEditingTests.Seed(vm, move, hold);
-        int m = vm.Editor.Steps.Count - 2, h = m + 1;
-        StratStepRow moveRow = vm.Editor.Steps[m];
-        StratLineRow a = vm.Editor.Steps[h].Lines.Single(l => l.Slot == "A");
-        StratLineRow b = vm.Editor.Steps[h].Lines.Single(l => l.Slot == "B");
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(moveRow.GroupPlaceText).IsEqualTo("(1234, -561)");
-            await Assert.That(moveRow.ShowGroupPlace).IsTrue();
-            await Assert.That(a.WatchText).IsEqualTo("Stairs, (-900, -1500)");
-            await Assert.That(b.PlaceText).IsEqualTo("(1, 2)");
-            await Assert.That(b.ShowPlace).IsTrue();
-        }
+            using StratBookTabViewModel vm = StratStepEditingTests.OpenNew();
+            StratStep move = StratStepEditingTests.Step(100, "all", "move");
+            move.To = Point(1234.4, -560.6);
+            move.From = new PlaceRef { Place = "TRamp", X = 5, Y = 6, LevelMinZ = 0 };
+            move.Assignments = null;
+            StratStep hold = StratStepEditingTests.Step(90, "all", "hold");
+            hold.Assignments =
+            [
+                new StepAssignment { Slot = "A", Watch = new StepWatch { Places = ["Stairs"], Points = [Point(-900, -1500)] } },
+                new StepAssignment { Slot = "B", To = Point(1, 2) }
+            ];
+            hold.Actor = StratVocabulary.ActorAll;
+            StratStepEditingTests.Seed(vm, move, hold);
+            int m = vm.Editor.Steps.Count - 2, h = m + 1;
+            StratStepRow moveRow = vm.Editor.Steps[m];
+            StratLineRow a = vm.Editor.Steps[h].Lines.Single(l => l.Slot == "A");
+            StratLineRow b = vm.Editor.Steps[h].Lines.Single(l => l.Slot == "B");
+            using (Assert.Multiple())
+            {
+                await Assert.That(moveRow.GroupPlaceText).IsEqualTo("(1234, -561)");
+                await Assert.That(moveRow.ShowGroupPlace).IsTrue();
+                await Assert.That(a.WatchText).IsEqualTo("Stairs, (-900, -1500)");
+                await Assert.That(b.PlaceText).IsEqualTo("(1, 2)");
+                await Assert.That(b.ShowPlace).IsTrue();
+            }
 
-        moveRow.FromText = "Connector";
-        a.WatchValue = [.. a.WatchValue, new PlaceRef { Place = "Jungle" }];
-        StratDocument document = vm.Session.Document!;
-        StepWatch watch = document.Steps[h].Assignments!.Single(l => l.Slot == "A").Watch!;
-        using (Assert.Multiple())
-        {
-            await Assert.That(document.Steps[m].From!.Place).IsEqualTo("Connector");
-            await Assert.That(document.Steps[m].From!.X).IsNull().Because("another place drops the point");
-            await Assert.That(watch.Places).IsEquivalentTo(["Stairs", "Jungle"]);
-            await Assert.That(watch.Points!.Single().X).IsEqualTo(-900).Because("editing the watching keeps its points");
-        }
+            moveRow.FromText = "Connector";
+            a.WatchValue = [.. a.WatchValue, new PlaceRef { Place = "Jungle" }];
+            StratDocument document = vm.Session.Document!;
+            StepWatch watch = document.Steps[h].Assignments!.Single(l => l.Slot == "A").Watch!;
+            using (Assert.Multiple())
+            {
+                await Assert.That(document.Steps[m].From!.Place).IsEqualTo("Connector");
+                await Assert.That(document.Steps[m].From!.X).IsNull().Because("another place drops the point");
+                await Assert.That(watch.Places).IsEquivalentTo(["Stairs", "Jungle"]);
+                await Assert.That(watch.Points!.Single().X).IsEqualTo(-900).Because("editing the watching keeps its points");
+            }
 
-        a.WatchValue = [new PlaceRef { Place = "Jungle" }];
-        watch = vm.Session.Document!.Steps[h].Assignments!.Single(l => l.Slot == "A").Watch!;
-        await Assert.That(watch.Points).IsNull().Because("a removed point chip goes");
+            a.WatchValue = [new PlaceRef { Place = "Jungle" }];
+            watch = vm.Session.Document!.Steps[h].Assignments!.Single(l => l.Slot == "A").Watch!;
+            await Assert.That(watch.Points).IsNull().Because("a removed point chip goes");
+        });
     }
 
     [Test]
