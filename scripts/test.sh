@@ -150,13 +150,13 @@ for entry in "${SELECTED[@]}"; do
   # cannot turn a red run green. The retry's own exit code is final.
   if { [ $EXIT -eq 139 ] || [ $EXIT -eq 134 ]; } \
      && ! echo "$OUT" | grep -qE '^  total: [0-9]+|^failed '; then
-    echo "[test] !!! $KEY: TEST HOST CRASHED (exit=$EXIT) BEFORE RUNNING ANY TESTS !!!" >&2
+    echo "[test] !!! $KEY: TEST HOST CRASHED (exit=$EXIT) WITH NO RESULTS REPORTED !!!" >&2
     echo "[test] !!! Known CoreCLR startup fault (thread-static init race), not a test result. Retrying once." >&2
     START=$(date +%s%N)
     OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)
     EXIT=$?
     if [ $EXIT -eq 139 ] || [ $EXIT -eq 134 ]; then
-      echo "[test] !!! $KEY: HOST CRASHED AGAIN (exit=$EXIT). No tests ran. Treating as FAILED. !!!" >&2
+      echo "[test] !!! $KEY: HOST CRASHED AGAIN (exit=$EXIT). No results. Treating as FAILED. !!!" >&2
     fi
   fi
   MS=$(( ( $(date +%s%N) - START ) / 1000000 ))
