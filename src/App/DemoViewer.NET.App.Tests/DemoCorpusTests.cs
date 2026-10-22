@@ -320,6 +320,7 @@ public class DemoCorpusTests
     public async Task NoSourceConfigured_Skips_AndSaysHowToConfigureOne()
     {
         string root = TempRoot();
+        Directory.CreateDirectory(root);
         try
         {
             DemoCorpus corpus = new(ManifestFor("subject.dem", [1, 2, 3], null), [],
