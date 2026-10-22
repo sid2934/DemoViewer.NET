@@ -3,6 +3,7 @@
 using System.Security.Cryptography;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.TestSupport.Corpus;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -34,6 +35,9 @@ public class DemoCorpusTests
 
     /// <summary>Ordinal order, so "B" sorts before "a". A field because CA1861 forbids the literal.</summary>
     private static readonly string[] OrdinalPair = ["B.dem", "a.dem"];
+
+    private static readonly string[] OrdinalTriple = ["B.dem", "a.dem", "c.dem"];
+    private static readonly string[] AThenB = ["a.dem", "b.dem"];
 
     private static string TempRoot() =>
         Path.Combine(Path.GetTempPath(), $"dv-corpus-{Guid.NewGuid():N}");
@@ -710,6 +714,247 @@ public class DemoCorpusTests
                 await Assert.That(demos.Length).IsEqualTo(1);
                 await Assert.That(demos[0]).IsEqualTo(demo);
                 await Assert.That(problem).IsNull();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    // ── Sets ──────────────────────────────────────────────────────────────────
+
+    private static CorpusManifest SetManifest(params (string File, byte[] Bytes, string? Dir)[] demos) =>
+        CorpusManifest.Parse("{ \"demos\": [" + string.Join(",", demos.Select(d =>
+            $$"""
+              { "name": "n-{{d.File}}", "file": "{{d.File}}", "bytes": {{d.Bytes.Length}},
+                "sha256": "{{Sha256Of(d.Bytes)}}", "dir": {{(d.Dir is null ? "null" : $"\"{d.Dir}\"")}},
+                "sets": ["s"] }
+              """)) + "] }");
+
+    [Test]
+    public async Task SetMembers_AreInOrdinalFileNameOrder_WhateverTheManifestOrder()
+    {
+        CorpusManifest manifest = SetManifest(("c.dem", [1], null), ("a.dem", [2], null), ("B.dem", [3], null));
+        DemoCorpus corpus = new(manifest, [], Path.Combine(TempRoot(), "cache"), []);
+
+        // Ordinal puts "B" before "a"; a culture-aware sort would not. Callers index by position.
+        await Assert.That(corpus.SetMembers("s").Select(d => d.File).ToArray())
+            .IsEquivalentTo(OrdinalTriple, CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task EmbeddedSets_MatchTheOrdinalOrderOfTheirDirectories()
+    {
+        DemoCorpus corpus = new(CorpusManifest.Embedded, [], Path.Combine(TempRoot(), "cache"), []);
+        foreach (string set in new[] { "benchmarks", "mm", "pro" })
+        {
+            string[] files = [.. corpus.SetMembers(set).Select(d => d.File)];
+            using (Assert.Multiple())
+            {
+                await Assert.That(files.Length).IsGreaterThan(0);
+                await Assert.That(files).IsEquivalentTo(files.Order(StringComparer.Ordinal), CollectionOrdering.Matching);
+            }
+        }
+    }
+
+    [Test]
+    public async Task Set_FetchesEachMemberFromASource_AndKeepsTheOrder_WithNoLocalCorpus()
+    {
+        string root = TempRoot();
+        try
+        {
+            byte[] one = [1, 1], two = [2, 2, 2];
+            Write(Path.Combine(root, "source"), "b.dem", two);
+            Write(Path.Combine(root, "source"), "a.dem", one);
+            CorpusManifest manifest = SetManifest(("b.dem", two, null), ("a.dem", one, null));
+            DemoCorpus corpus = new(manifest, [], Path.Combine(root, "cache"),
+                [new DirectoryDemoSource(Path.Combine(root, "source"))]);
+
+            string[] paths = corpus.RequireSet("s");
+            using (Assert.Multiple())
+            {
+                await Assert.That(paths.Select(p => Path.GetFileName(p)!).ToArray())
+                    .IsEquivalentTo(AThenB, CollectionOrdering.Matching);
+                await Assert.That(await File.ReadAllBytesAsync(paths[0])).IsEquivalentTo(one);
+                await Assert.That(corpus.RequireSetMember("s", 1)).IsEqualTo(paths[1]);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task SetMember_FetchesOnlyThatMember()
+    {
+        string root = TempRoot();
+        try
+        {
+            byte[] one = [1, 1], two = [2, 2, 2];
+            Write(Path.Combine(root, "source"), "a.dem", one);
+            Write(Path.Combine(root, "source"), "b.dem", two);
+            CorpusManifest manifest = SetManifest(("a.dem", one, null), ("b.dem", two, null));
+            DemoCorpus corpus = new(manifest, [], Path.Combine(root, "cache"),
+                [new DirectoryDemoSource(Path.Combine(root, "source"))]);
+
+            string path = corpus.RequireSetMember("s", 1);
+            using (Assert.Multiple())
+            {
+                await Assert.That(Path.GetFileName(path)).IsEqualTo("b.dem");
+                await Assert.That(File.Exists(corpus.CachePath(manifest.ByFile("a.dem")!))).IsFalse();
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task SetMember_ThatCannotBeObtained_SkipsNamingIt_AndNeverPasses()
+    {
+        string root = TempRoot();
+        try
+        {
+            byte[] one = [1, 1], two = [2, 2, 2];
+            Write(Path.Combine(root, "source"), "a.dem", one);
+            CorpusManifest manifest = SetManifest(("a.dem", one, null), ("b.dem", two, null));
+            DemoCorpus corpus = new(manifest, [], Path.Combine(root, "cache"),
+                [new DirectoryDemoSource(Path.Combine(root, "source"))]);
+
+            SkipTestException whole = Assert.Throws<SkipTestException>(() => corpus.RequireSet("s"));
+            SkipTestException member = Assert.Throws<SkipTestException>(() => corpus.RequireSetMember("s", 1));
+            using (Assert.Multiple())
+            {
+                await Assert.That(whole.Message).Contains("b.dem");
+                await Assert.That(whole.Message).Contains("'s'");
+                await Assert.That(member.Message).Contains("b.dem");
+                await Assert.That(corpus.TryResolveSet("s", out string? problem)).IsNull();
+                await Assert.That(problem).Contains("b.dem");
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task Set_WithNoSourceAndNoCorpus_SkipsNamingTheEnvironment()
+    {
+        CorpusManifest manifest = SetManifest(("a.dem", [1], null));
+        DemoCorpus corpus = new(manifest, [], Path.Combine(TempRoot(), "cache"), []);
+
+        SkipTestException thrown = Assert.Throws<SkipTestException>(() => corpus.RequireSet("s"));
+        using (Assert.Multiple())
+        {
+            await Assert.That(thrown.Message).Contains(DemoTestHelper.DemoSourcesEnvVar);
+            await Assert.That(thrown.Message).Contains("a.dem");
+        }
+    }
+
+    [Test]
+    public async Task Set_ShortOrUnknown_SkipsInsteadOfIndexingPastTheEnd()
+    {
+        CorpusManifest manifest = SetManifest(("a.dem", [1], null));
+        DemoCorpus corpus = new(manifest, [], Path.Combine(TempRoot(), "cache"), []);
+
+        SkipTestException shortSet = Assert.Throws<SkipTestException>(() => corpus.RequireSetMember("s", 3));
+        SkipTestException unknown = Assert.Throws<SkipTestException>(() => corpus.RequireSetMember("nope", 0));
+        using (Assert.Multiple())
+        {
+            await Assert.That(shortSet.Message).Contains("fewer than 4");
+            await Assert.That(unknown.Message).Contains("'nope'");
+        }
+    }
+
+    [Test]
+    public async Task SetMember_InASubdirectoryOfTheCorpusRoot_IsFoundWithoutAFetch()
+    {
+        string root = TempRoot();
+        try
+        {
+            byte[] bytes = [5, 5];
+            string home = Write(Path.Combine(root, "demos", "pro-demos"), "a.dem", bytes);
+            CorpusManifest manifest = SetManifest(("a.dem", bytes, "pro-demos"));
+            DemoCorpus corpus = new(manifest, [Path.Combine(root, "demos", "benchmarks"), Path.Combine(root, "demos")],
+                Path.Combine(root, "cache"), [], Path.Combine(root, "demos"));
+
+            await Assert.That(corpus.RequireSetMember("s", 0)).IsEqualTo(home);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    // ── A set-but-invalid DEMO_CORPUS fails; it does not skip ──────────────────
+
+    [Test]
+    public async Task RequireCorpusDir_WithAnInvalidConfiguredRoot_FailsAndDoesNotSkip()
+    {
+        string missing = Path.Combine(TempRoot(), "not-here");
+
+        DemoCorpusConfigurationException thrown = Assert.Throws<DemoCorpusConfigurationException>(
+            () => DemoTestHelper.RequireCorpusDir("benchmarks", missing, null));
+        using (Assert.Multiple())
+        {
+            await Assert.That(thrown.Message).Contains(DemoTestHelper.CorpusRootEnvVar);
+            await Assert.That(thrown.Message).Contains(missing);
+        }
+    }
+
+    [Test]
+    public async Task RequireCorpusDir_Unconfigured_StillSkipsWhenThereIsNoCorpus()
+    {
+        SkipTestException thrown = Assert.Throws<SkipTestException>(
+            () => DemoTestHelper.RequireCorpusDir("benchmarks", null, null));
+        await Assert.That(thrown.Message).Contains(DemoTestHelper.CorpusRootEnvVar);
+    }
+
+    [Test]
+    public async Task RequireCorpusDir_ReturnsTheDirectory_UnderAValidConfiguredRoot()
+    {
+        string root = TempRoot();
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "benchmarks"));
+            await Assert.That(DemoTestHelper.RequireCorpusDir("benchmarks", root, null))
+                .IsEqualTo(Path.Combine(root, "benchmarks"));
+            Assert.Throws<SkipTestException>(() => DemoTestHelper.RequireCorpusDir("absent", root, null));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Test]
+    public async Task ThrowIfCorpusRootMisconfigured_IgnoresUnsetAndBlank()
+    {
+        await Assert.That(() => DemoTestHelper.ThrowIfCorpusRootMisconfigured(null)).ThrowsNothing();
+        await Assert.That(() => DemoTestHelper.ThrowIfCorpusRootMisconfigured("  ")).ThrowsNothing();
+    }
+
+    // ── The replays folder ────────────────────────────────────────────────────
+
+    [Test]
+    public async Task ReplaysFolder_IsTheFolder_OrTheFolderOfTheFile_OrNothingWithAReason()
+    {
+        string root = TempRoot();
+        try
+        {
+            string demo = Write(root, "one.dem", [1]);
+            using (Assert.Multiple())
+            {
+                await Assert.That(DemoTestHelper.ResolveReplaysFolder(root, out _)).IsEqualTo(root);
+                await Assert.That(DemoTestHelper.ResolveReplaysFolder(demo, out _)).IsEqualTo(root);
+                await Assert.That(DemoTestHelper.ResolveReplaysFolder(null, out string? unset)).IsNull();
+                await Assert.That(unset).Contains(DemoTestHelper.DemoPathEnvVar);
+                await Assert.That(DemoTestHelper.ResolveReplaysFolder(Path.Combine(root, "gone"), out string? gone)).IsNull();
+                await Assert.That(gone).Contains("does not exist");
             }
         }
         finally

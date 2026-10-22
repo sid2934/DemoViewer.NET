@@ -105,7 +105,7 @@ public class MatchMetaRealDemoTests
             throw new SkipTestException(problem);
         }
 
-        string? folder = resolved is null ? DemoTestHelper.CorpusDir("benchmarks")
+        string? folder = resolved is null ? DemoTestHelper.RequireCorpusDir("benchmarks")
             : Path.GetDirectoryName(resolved)!;
         List<string> demos = Directory.Exists(folder)
             ? [.. Directory.EnumerateFiles(folder, "match730_*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]

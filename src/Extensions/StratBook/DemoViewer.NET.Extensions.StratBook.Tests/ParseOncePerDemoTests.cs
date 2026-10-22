@@ -304,8 +304,8 @@ public class ParseOncePerDemoTests
 
     private static string Corpus(string name)
     {
-        string? folder = DemoTestHelper.CorpusDir(name);
-        if (folder is null || Demos(folder).Count == 0)
+        string folder = DemoTestHelper.RequireCorpusDir(name);
+        if (Demos(folder).Count == 0)
         {
             throw new TUnit.Core.Exceptions.SkipTestException($"no demos under demos/{name}");
         }

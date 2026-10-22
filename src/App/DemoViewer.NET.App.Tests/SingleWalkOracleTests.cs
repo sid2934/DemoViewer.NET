@@ -135,14 +135,7 @@ public partial class SingleWalkOracleTests
     private static string Sites(SingleWalkSession.Visit visit) =>
         string.Join(",", visit.Sites.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}x{kv.Value}"));
 
-    private static string BenchmarkDemo(int which)
-    {
-        string? folder = DemoTestHelper.CorpusDir("benchmarks");
-        List<string> demos = Directory.Exists(folder)
-            ? [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
-            : [];
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} demos under demos/benchmarks");
-    }
+    private static string BenchmarkDemo(int which) => DemoTestHelper.RequireSetDemo("benchmarks", which);
 
     private static string FixtureDir() =>
         Path.Combine(DemoTestHelper.FindRepoRoot() ?? throw new SkipTestException("no repo root"), "tests", "fixtures", "single-walk");

@@ -39,6 +39,7 @@ public sealed class DemoCorpus
     private readonly Dictionary<string, Lazy<Resolution>> _resolved = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly Lock _resolvedLock = new();
+    private readonly string? _corpusRoot;
     private readonly IReadOnlyList<string> _searchDirs;
     private readonly IReadOnlyList<IDemoSource> _sources;
 
@@ -46,17 +47,24 @@ public sealed class DemoCorpus
     /// <param name="searchDirs">Existing locations, probed before the cache. Usually the repo's demo directories.</param>
     /// <param name="cacheRoot">Where fetched demos land. Never inside the corpus.</param>
     /// <param name="sources">Sources in priority order. Empty means fetching is off, which is the default.</param>
+    /// <param name="corpusRoot">
+    ///     The corpus root, when there is one. A manifest demo is also probed at its own
+    ///     <see cref="CorpusDemo.Dir" /> under it, which the flat search directories cannot reach
+    ///     (<c>pro-demos/</c>).
+    /// </param>
     public DemoCorpus(
         CorpusManifest manifest,
         IEnumerable<string> searchDirs,
         string cacheRoot,
-        IEnumerable<IDemoSource> sources)
+        IEnumerable<IDemoSource> sources,
+        string? corpusRoot = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheRoot);
         Manifest = manifest;
         _searchDirs = [.. searchDirs];
         CacheRoot = cacheRoot;
         _sources = [.. sources];
+        _corpusRoot = corpusRoot;
     }
 
     /// <summary>The manifest this corpus resolves against.</summary>
@@ -107,6 +115,79 @@ public sealed class DemoCorpus
         return path ?? throw new SkipTestException(problem ?? $"demo '{fileName}' is not available");
     }
 
+    /// <summary>
+    ///     The members of a manifest set in ordinal file-name order. Several callers index into the
+    ///     result by position, so this order must not change: it is the order
+    ///     <c>Directory.EnumerateFiles(..).Order(StringComparer.Ordinal)</c> gave them. An unknown
+    ///     set is empty.
+    /// </summary>
+    public IReadOnlyList<CorpusDemo> SetMembers(string set) =>
+        [.. Manifest.Set(set).OrderBy(d => d.File, StringComparer.Ordinal)];
+
+    /// <summary>
+    ///     The local path of the <paramref name="index" />th member of a set, fetching only that
+    ///     member. Null with <paramref name="problem" /> when the set has no such member or the
+    ///     member cannot be obtained.
+    /// </summary>
+    public string? TryResolveSetMember(string set, int index, out string? problem)
+    {
+        IReadOnlyList<CorpusDemo> members = SetMembers(set);
+        if (members.Count == 0)
+        {
+            problem = $"corpus set '{set}' is unknown or empty in the manifest";
+            return null;
+        }
+
+        if (index < 0 || index >= members.Count)
+        {
+            problem = $"fewer than {index + 1} demos in corpus set '{set}' (the manifest lists {members.Count})";
+            return null;
+        }
+
+        string? path = TryResolve(members[index].File, out string? why);
+        problem = path is null ? $"corpus set '{set}' member {index}: {why}" : null;
+        return path;
+    }
+
+    /// <summary>
+    ///     Every member of a set, in <see cref="SetMembers" /> order, fetching each as needed.
+    ///     Null with <paramref name="problem" /> naming the first member that cannot be obtained.
+    /// </summary>
+    public string[]? TryResolveSet(string set, out string? problem)
+    {
+        IReadOnlyList<CorpusDemo> members = SetMembers(set);
+        if (members.Count == 0)
+        {
+            problem = $"corpus set '{set}' is unknown or empty in the manifest";
+            return null;
+        }
+
+        string[] paths = new string[members.Count];
+        for (int i = 0; i < members.Count; i++)
+        {
+            string? path = TryResolveSetMember(set, i, out problem);
+            if (path is null)
+            {
+                return null;
+            }
+
+            paths[i] = path;
+        }
+
+        problem = null;
+        return paths;
+    }
+
+    /// <summary><see cref="TryResolveSetMember" /> or a <see cref="SkipTestException" /> carrying its reason.</summary>
+    public string RequireSetMember(string set, int index) =>
+        TryResolveSetMember(set, index, out string? problem)
+        ?? throw new SkipTestException(problem ?? $"corpus set '{set}' is not available");
+
+    /// <summary><see cref="TryResolveSet" /> or a <see cref="SkipTestException" /> carrying its reason.</summary>
+    public string[] RequireSet(string set) =>
+        TryResolveSet(set, out string? problem)
+        ?? throw new SkipTestException(problem ?? $"corpus set '{set}' is not available");
+
     /// <summary>The cache path a demo takes. Content addressed, so two demos never collide.</summary>
     public string CachePath(CorpusDemo demo) =>
         Path.Combine(CacheRoot, demo.Sha256 ?? "unpinned-" + demo.Name, demo.File);
@@ -131,6 +212,15 @@ public sealed class DemoCorpus
         }
 
         CorpusDemo? demo = Manifest.ByFile(fileName);
+        if (demo is not null && _corpusRoot is not null)
+        {
+            string home = demo.PathUnder(_corpusRoot);
+            if (File.Exists(home))
+            {
+                return new Resolution(home, null);
+            }
+        }
+
         if (demo is null)
         {
             return new Resolution(null,

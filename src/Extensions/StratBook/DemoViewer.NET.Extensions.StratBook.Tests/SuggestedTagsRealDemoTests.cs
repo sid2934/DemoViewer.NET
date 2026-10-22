@@ -45,24 +45,9 @@ public class SuggestedTagsRealDemoTests
         SiteRegionTable Table, List<PlacedEvent> Events);
 
     // The replays folder DEMO_PATH names, or the folder of the file it names.
-    private static string ReplaysFolder()
-    {
-        string? env = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar);
-        if (!string.IsNullOrWhiteSpace(env))
-        {
-            if (Directory.Exists(env))
-            {
-                return env;
-            }
-
-            if (File.Exists(env))
-            {
-                return Path.GetDirectoryName(env)!;
-            }
-        }
-
-        throw new SkipTestException($"{DemoTestHelper.DemoPathEnvVar} does not name the replays folder the detectors were tuned on");
-    }
+    private static string ReplaysFolder() =>
+        DemoTestHelper.ResolveReplaysFolder(Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar), out string? problem)
+        ?? throw new SkipTestException(problem ?? $"{DemoTestHelper.DemoPathEnvVar} names no replays folder");
 
     private static Walked Walk(string demo)
     {

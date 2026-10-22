@@ -240,16 +240,5 @@ public class AimCapabilityProbeRealDemoTests
     }
 
     // The pinned replay out of the DEMO_PATH folder (or the folder of the file it names).
-    private static string RequireCurrentReplay()
-    {
-        string? env = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar);
-        string? folder = Directory.Exists(env) ? env : File.Exists(env) ? Path.GetDirectoryName(env) : null;
-        string? path = folder is null ? null : Path.Combine(folder, CurrentReplay);
-        if (path is null || !File.Exists(path))
-        {
-            throw new SkipTestException($"{CurrentReplay} is not in the {DemoTestHelper.DemoPathEnvVar} folder");
-        }
-
-        return path;
-    }
+    private static string RequireCurrentReplay() => DemoTestHelper.RequireReplayDemo(CurrentReplay);
 }
