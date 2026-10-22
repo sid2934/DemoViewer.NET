@@ -11,8 +11,7 @@ tests/fixtures/
 ├── <demo-id>/
 │   ├── ours.golden.json               Stat snapshot produced by AnalysisBench
 │   ├── expected.golden.json           Curated reference (see "Reliability posture" below)
-│   ├── aim.expected.golden.json       Aim-board pin (see "The aim board" below)
-│   └── entity-fields.ours.golden.json Per-tick entity-field snapshot (FuriaMirage only)
+│   └── aim.expected.golden.json       Aim-board pin (see "The aim board" below)
 ```
 
 ## Reliability posture: what each file means
@@ -97,7 +96,6 @@ so the two populations differ wherever a miss sits inside a spray.
 | `ours.golden.json` | `dotnet run -c Release --project tools/AnalysisBench -- --suite` |
 | `expected.golden.json` | **Not auto-refreshable.** Manual edit when hand-verifying. |
 | `aim.expected.golden.json` | `PIN_EXPECTED_AIM=1` with the demo present, running `AimStatParityTests`. Deliberate, reviewed re-pin only. |
-| `entity-fields.ours.golden.json` | `dotnet run --project tools/DemoViewer.NET.EntityFieldDiff -- <demo> --write-snapshot` (requires the gitignored EntityFieldDiff tool + sibling demofile-net repo). |
 
 ## Schema versioning
 
