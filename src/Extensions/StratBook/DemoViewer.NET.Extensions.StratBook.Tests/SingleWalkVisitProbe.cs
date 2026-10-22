@@ -1,8 +1,8 @@
 #region
 
-using System.Diagnostics;
 using System.Text.Json;
 using DemoViewer.NET.Services.DemoProcessing;
+using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -10,12 +10,18 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The pack-on visit harness: one demo, one scenario, one process, driven by
-///     <c>tools/single-walk-bench/run.sh</c>. Prints one <c>@SW_VISIT</c> JSON line with the visit's wall
-///     time, peak working set and managed heap over the visit, the decode count from the engine's meter split
-///     into analysis and shell decodes with the host hooks' count by site beside it, and per-pass time. Fails
-///     after printing when a visit decodes more than its target.
-///     Skipped unless <c>SW_DEMO</c>, <c>SW_VISIT</c> and <c>SW_CONFIG_ROOT</c> are set.
+///     The pack-on visit harness: one demo, any number of scenarios and trials, one process, driven by
+///     <c>tools/single-walk-bench/run.sh</c>. Each cell runs in its own fresh config directory and its own
+///     booted app, and prints one <c>@SW_VISIT</c> JSON line with the visit's wall time, peak working set and
+///     managed heap over the visit, allocated bytes and GC counts, the decode count from the engine's meter
+///     split into analysis and shell decodes with the host hooks' count by site beside it, and per-pass time.
+///     Wall time, memory and allocation are reported, never gated. The gate is the decode counters, which are
+///     exact integers: every cell is run and printed first, then the test fails if any missed its target.
+///     <para>
+///         Skipped unless <c>SW_DEMO</c>, <c>SW_VISIT</c> (comma separated) and <c>SW_CONFIG_ROOT</c> are set.
+///         <c>SW_TRIALS</c> (default 1) repeats each scenario; <c>SW_WARMUP=1</c> runs one extra leading cell
+///         per scenario, printed with trial 0, for a wall-time run that wants JIT out of the first number.
+///     </para>
 /// </summary>
 [NotInParallel]
 public class SingleWalkVisitProbe
@@ -25,18 +31,45 @@ public class SingleWalkVisitProbe
     public async Task Visit()
     {
         string demo = Require("SW_DEMO");
-        string scenario = Require("SW_VISIT");
+        string[] scenarios = Require("SW_VISIT").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         string root = Require("SW_CONFIG_ROOT");
-        if (scenario is not (SingleWalkSession.Sweep or SingleWalkSession.Open or SingleWalkSession.OpenStale or SingleWalkSession.Recheck))
+        foreach (string scenario in scenarios)
         {
-            throw new ArgumentException(
-                $"SW_VISIT must be {SingleWalkSession.Sweep}, {SingleWalkSession.Open}, {SingleWalkSession.OpenStale} or {SingleWalkSession.Recheck}, not {scenario}");
+            if (scenario is not (SingleWalkSession.Sweep or SingleWalkSession.Open or SingleWalkSession.OpenStale or SingleWalkSession.Recheck))
+            {
+                throw new ArgumentException(
+                    $"SW_VISIT entries must be {SingleWalkSession.Sweep}, {SingleWalkSession.Open}, {SingleWalkSession.OpenStale} or {SingleWalkSession.Recheck}, not {scenario}");
+            }
         }
 
+        int trials = int.TryParse(Environment.GetEnvironmentVariable("SW_TRIALS"), out int t) && t > 0 ? t : 1;
+        int first = Environment.GetEnvironmentVariable("SW_WARMUP") == "1" ? 0 : 1;
+
+        List<string> misses = [];
+        foreach (string scenario in scenarios)
+        {
+            for (int trial = first; trial <= trials; trial++)
+            {
+                SingleWalkSession.Visit visit = await RunCellAsync(demo, scenario, root, trial);
+                string? miss = TargetMiss(scenario, visit);
+                if (miss is not null)
+                {
+                    misses.Add($"{scenario} trial {trial}: {miss}");
+                }
+            }
+        }
+
+        await Assert.That(misses).IsEmpty().Because(string.Join("; ", misses));
+    }
+
+    private static async Task<SingleWalkSession.Visit> RunCellAsync(string demo, string scenario, string root, int trial)
+    {
         string config = Path.Combine(root, "sw-" + Guid.NewGuid().ToString("N"));
         double fileMb = new FileInfo(demo).Length / 1024.0 / 1024.0;
         SingleWalkSession.WarmPageCache(demo);
         MemorySampler? sampler = null;
+        long allocBase = 0;
+        int[] gcBase = new int[3];
         try
         {
             SingleWalkSession.Visit visit = await SingleWalkSession.WithAppAsync(config,
@@ -45,22 +78,35 @@ public class SingleWalkVisitProbe
                 {
                     GC.Collect(2, GCCollectionMode.Forced, true, true);
                     GC.WaitForPendingFinalizers();
-                    sampler = MemorySampler.Start(TimeSpan.FromMilliseconds(20));
+                    allocBase = GC.GetTotalAllocatedBytes(true);
+                    for (int g = 0; g < 3; g++)
+                    {
+                        gcBase[g] = GC.CollectionCount(g);
+                    }
+
+                    sampler = MemorySampler.Start();
                     return sampler;
                 }));
 
+            long allocated = GC.GetTotalAllocatedBytes(true) - allocBase;
             double peakWsMb = (sampler?.PeakRssBytes ?? 0) / 1024.0 / 1024.0;
             Console.WriteLine("@SW_VISIT " + JsonSerializer.Serialize(new
             {
                 visit = scenario,
+                trial,
                 demo = Path.GetFileName(demo),
                 fileMb = Math.Round(fileMb, 1),
                 wallMs = Math.Round(visit.WallMs, 1),
                 parseMs = Math.Round(visit.ParseMs, 1),
+                // Process-wide: in a long-lived process a later cell starts from the earlier cells' floor.
                 peakWsMb = Math.Round(peakWsMb, 1),
                 // macOS counts resident mapped file pages in the working set.
                 peakWsLessFileMb = Math.Round(peakWsMb - fileMb, 1),
                 peakHeapMb = Math.Round((sampler?.PeakManagedHeapBytes ?? 0) / 1024.0 / 1024.0, 1),
+                allocatedMb = Math.Round(allocated / 1024.0 / 1024.0, 1),
+                gc0 = GC.CollectionCount(0) - gcBase[0],
+                gc1 = GC.CollectionCount(1) - gcBase[1],
+                gc2 = GC.CollectionCount(2) - gcBase[2],
                 decodes = visit.Decodes,
                 analysisDecodes = visit.AnalysisDecodes,
                 shellDecodes = visit.ShellDecodes,
@@ -76,8 +122,7 @@ public class SingleWalkVisitProbe
                     .GroupBy(p => p.Pass).ToDictionary(g => g.Key, g => Math.Round(g.Sum(p => p.Ms), 1)),
                 passes = visit.Passes.Select(p => $"{p.Pass}:{p.Outcome}").ToArray()
             }));
-
-            await AssertTargets(scenario, visit);
+            return visit;
         }
         finally
         {
@@ -93,111 +138,19 @@ public class SingleWalkVisitProbe
     }
 
     // Open: the shell's rules run and nothing else. Sweep: one walk. Recheck: the library replay the visit keeps.
-    private static async Task AssertTargets(string scenario, SingleWalkSession.Visit visit)
+    private static string? TargetMiss(string scenario, SingleWalkSession.Visit visit)
     {
         string shellSites = string.Join(", ", visit.ShellSites.Select(kv => $"{kv.Key} x{kv.Value}"));
-        if (scenario == SingleWalkSession.Open)
+        if (scenario == SingleWalkSession.Open && visit.ShellDecodes != 0)
         {
-            await Assert.That(visit.AnalysisDecodes).IsEqualTo(1);
-            await Assert.That(visit.ShellDecodes).IsEqualTo(0).Because("shell decodes on the open: " + shellSites);
+            return $"shell decodes {visit.ShellDecodes}, expected 0 ({shellSites})";
         }
-        else if (scenario == SingleWalkSession.Sweep)
-        {
-            await Assert.That(visit.AnalysisDecodes).IsEqualTo(1);
-        }
-        else if (scenario == SingleWalkSession.Recheck)
-        {
-            await Assert.That(visit.AnalysisDecodes).IsEqualTo(1).Because("the library's replay is the recheck's one decode");
-        }
+
+        return scenario is SingleWalkSession.Open or SingleWalkSession.Sweep or SingleWalkSession.Recheck && visit.AnalysisDecodes != 1
+            ? $"analysis decodes {visit.AnalysisDecodes}, expected 1"
+            : null;
     }
 
     private static string Require(string name) =>
         Environment.GetEnvironmentVariable(name) is { Length: > 0 } value ? value : throw new SkipTestException(name + " not set");
-
-    /// <summary>
-    ///     High-water marks of managed heap and working set while it runs, polled. A copy of
-    ///     tools/AnalysisBench/MemorySampler.cs, which the test projects do not reference.
-    /// </summary>
-    private sealed class MemorySampler : IDisposable
-    {
-        private readonly CancellationTokenSource _cts = new();
-        private readonly Task _loop;
-        private readonly Process _process = Process.GetCurrentProcess();
-        private long _peakHeap;
-        private long _peakRss;
-
-        private MemorySampler(TimeSpan interval) => _loop = Task.Run(async () =>
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                Sample();
-                try
-                {
-                    await Task.Delay(interval, _cts.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-            }
-
-            Sample();
-        });
-
-        public long PeakManagedHeapBytes => Interlocked.Read(ref _peakHeap);
-
-        public long PeakRssBytes => Interlocked.Read(ref _peakRss);
-
-        public void Dispose()
-        {
-            if (_cts.IsCancellationRequested)
-            {
-                return;
-            }
-
-            _cts.Cancel();
-            try
-            {
-                _loop.Wait(TimeSpan.FromSeconds(2));
-            }
-            catch (AggregateException)
-            {
-                // best-effort telemetry
-            }
-
-            _process.Dispose();
-        }
-
-        public static MemorySampler Start(TimeSpan interval) => new(interval);
-
-        private void Sample()
-        {
-            long heap = Math.Max(GC.GetGCMemoryInfo().HeapSizeBytes, GC.GetTotalMemory(false));
-            Max(ref _peakHeap, heap);
-            try
-            {
-                _process.Refresh();
-                Max(ref _peakRss, _process.WorkingSet64);
-            }
-            catch (InvalidOperationException)
-            {
-                // metrics unavailable: keep what was seen
-            }
-        }
-
-        private static void Max(ref long slot, long candidate)
-        {
-            long seen = Interlocked.Read(ref slot);
-            while (candidate > seen)
-            {
-                long prior = Interlocked.CompareExchange(ref slot, candidate, seen);
-                if (prior == seen)
-                {
-                    return;
-                }
-
-                seen = prior;
-            }
-        }
-    }
 }

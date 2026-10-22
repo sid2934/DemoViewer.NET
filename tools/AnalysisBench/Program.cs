@@ -10,6 +10,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AnalysisBench;
+using DemoViewer.NET.TestSupport;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Abstractions;
 using CS2DemoKit.Analysis.Diagnostics;
