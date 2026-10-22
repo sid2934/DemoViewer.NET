@@ -4,7 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-        <NoWarn>NU1903;CS1591</NoWarn>
+        <NoWarn>$(NoWarn);CS1591</NoWarn>
         <RootNamespace>DemoViewer.NET.Visualization.Sample</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
