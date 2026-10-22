@@ -24,7 +24,7 @@ namespace DemoViewer.NET.AppTests;
 ///     cancellation. Rows come from a fake source here for speed and isolation; the real-demo variant
 ///     in <see cref="SearchFiltersRealDemoTests" /> runs the same checks over the shipped engine ruleset.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(SearchFiltersTests))]
 public class SearchFiltersTests
 {
     private const string DemoA = "/d/a.dem";

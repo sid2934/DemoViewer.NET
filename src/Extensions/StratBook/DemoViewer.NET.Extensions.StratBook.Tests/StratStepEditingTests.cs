@@ -17,7 +17,7 @@ namespace DemoViewer.NET.AppTests;
 ///     The step table's structural edits and inline checks: Duplicate, a new step that carries the tokens where
 ///     they stand, and the validator's issues on the row and field they name.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratStepEditingTests))]
 public class StratStepEditingTests
 {
     internal static StratBookTabViewModel OpenNew()

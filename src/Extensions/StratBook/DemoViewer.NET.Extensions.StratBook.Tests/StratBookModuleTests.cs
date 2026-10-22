@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     field edits as one op each, a step removed with the branches that named it, the step clock parsed from what
 ///     is typed, and the commit on tab deactivate and at shutdown.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratBookModuleTests))]
 public class StratBookModuleTests
 {
     private static readonly Func<Action, Task> _inline = a =>

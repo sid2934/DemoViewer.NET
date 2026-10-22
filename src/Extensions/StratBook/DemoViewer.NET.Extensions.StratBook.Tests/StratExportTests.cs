@@ -32,7 +32,7 @@ namespace DemoViewer.NET.AppTests;
 ///     first step to last plus 2 s; the job renders the strat through <c>SceneExportSession</c> with no demo; and
 ///     a GIF of a five-step strat is produced with its frame count and one frame pinned.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratExportTests))]
 public class StratExportTests
 {
     /// <summary>

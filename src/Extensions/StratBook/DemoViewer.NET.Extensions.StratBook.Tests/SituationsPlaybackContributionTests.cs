@@ -26,7 +26,7 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 ///     behaviour (the token round-trip, the shipped seam's tab switch) is <c>FindRoundsLikeThisTests</c> and
 ///     <c>SituationResultWalkTests</c>; this is the contribution's own wiring.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class SituationsPlaybackContributionTests
 {
     private static (Playback2DTabViewModel Vm, Playback2DFakeContext Ctx, SituationsPlaybackContribution Situations) Tab(

@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Watching by verb, the push and lurk verbs, and Who as a multi-select: each edit one undo entry written in the
 ///     stored shape, undone to the exact bytes; a lurk's model, checks, projection, exports and history.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratVerbsWhoTests))]
 public class StratVerbsWhoTests
 {
     private const string LurkFixture = "schema-v1.lurk.dvstrat.json";

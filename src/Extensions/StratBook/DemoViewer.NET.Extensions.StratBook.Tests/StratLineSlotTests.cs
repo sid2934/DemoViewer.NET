@@ -15,7 +15,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Changing who is in a step never moves or drops a player's line unless that player is removed: Who writes by
 ///     slot, a line's slot combo moves the whole line and swaps on a taken slot, and undo restores the exact bytes.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratLineSlotTests))]
 public class StratLineSlotTests
 {
     private static string Bytes(StratBookTabViewModel vm) => StratStore.Serialize(vm.Session.Document!);

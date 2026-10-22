@@ -19,7 +19,7 @@ namespace DemoViewer.NET.AppTests;
 ///     Renders of the approved visible changes from the UI-thread audit: the Teams tab while its
 ///     teams are read and while a change is applied. PNGs land in <see cref="HeadlessSession.ArtifactDir" />.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Integration")]
 public class UxConsistencyRenderTests
 {

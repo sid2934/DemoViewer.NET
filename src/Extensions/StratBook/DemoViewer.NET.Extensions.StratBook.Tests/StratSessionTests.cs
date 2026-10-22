@@ -14,7 +14,7 @@ namespace DemoViewer.NET.AppTests;
 ///     cap, the pending working copy written between commits and re-opened by the next session, the single-writer
 ///     checkout with the store's status routing, and the status line on each host.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratSessionTests))]
 public class StratSessionTests
 {
     private static StratSession Session(StratStore store, bool browser = false) =>

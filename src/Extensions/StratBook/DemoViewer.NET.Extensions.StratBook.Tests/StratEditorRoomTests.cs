@@ -27,7 +27,7 @@ namespace DemoViewer.NET.AppTests;
 ///     The Strat Book editor fits its column at 1280 wide with the hub rail and the strat list open: no field
 ///     reaches past the editor's viewport, which has no horizontal scroll bar to reach it with.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Integration")]
 public class StratEditorRoomTests
 {

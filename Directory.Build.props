@@ -19,6 +19,9 @@
     -->
     <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
         <Compile Include="$(MSBuildThisFileDirectory)tests/shared/*.cs" LinkBase="TestTiers"/>
+
+        <!-- Imported globally so TestLanes needs no per-file using at each attribute site. -->
+        <Using Include="DemoViewer.NET.Testing.Tiers"/>
     </ItemGroup>
 
     <PropertyGroup>

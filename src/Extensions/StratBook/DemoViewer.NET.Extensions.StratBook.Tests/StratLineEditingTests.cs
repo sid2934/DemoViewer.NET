@@ -20,7 +20,7 @@ namespace DemoViewer.NET.AppTests;
 ///     leaves (no lines is for everyone, one bare line is a plain step), the verb's rules per line, one undo entry
 ///     per change, and the canvas's Set On Map, cone drag and new step working on lines.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(StratLineEditingTests))]
 public class StratLineEditingTests
 {
     private static string Shape(StratStep step) => JsonSerializer.Serialize(step, StratJsonContext.Default.StratStep);

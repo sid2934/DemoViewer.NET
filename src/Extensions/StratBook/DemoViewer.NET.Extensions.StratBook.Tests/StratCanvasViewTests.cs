@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests;
 ///     frame host through the view's DataContext, the keys reach the canvas through the shared keymap, and a
 ///     tool picked by key reaches the host's router, the four wirings the 2D view makes around its own host.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Render")]
 public class StratCanvasViewTests
 {

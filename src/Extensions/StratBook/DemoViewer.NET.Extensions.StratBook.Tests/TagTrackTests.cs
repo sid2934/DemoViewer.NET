@@ -27,7 +27,7 @@ namespace DemoViewer.NET.AppTests;
 ///     starts past the parse dropped, a re-query on every version bump, and in the tab a lane band that
 ///     seeks to its first frame.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class TagTrackTests
 {
     private const string DemoPath = "/d/match.dem";

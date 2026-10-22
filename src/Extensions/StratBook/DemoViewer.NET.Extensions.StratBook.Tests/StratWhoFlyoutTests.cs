@@ -13,7 +13,7 @@ using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>The Who button's flyout in the real view: its toggles are staged and written as one entry on close.</summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Integration")]
 public class StratWhoFlyoutTests
 {

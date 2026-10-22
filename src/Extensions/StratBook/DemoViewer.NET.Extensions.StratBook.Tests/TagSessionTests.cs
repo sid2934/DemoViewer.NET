@@ -13,7 +13,7 @@ namespace DemoViewer.NET.AppTests;
 ///     that undo does not roll back, the 200-entry cap, derived rounds, debounced autosave that leaves no
 ///     file for an untouched demo, and the status line on each host.
 /// </summary>
-[NotInParallel]
+[NotInParallel(nameof(TagSessionTests))]
 public class TagSessionTests
 {
     private const string DemoPath = "/d/match.dem";

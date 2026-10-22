@@ -16,7 +16,7 @@ using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>The step table's keys and tab order in the real view, and the inline marker it draws.</summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Integration")]
 public class StratStepKeysTests
 {

@@ -12,7 +12,7 @@ using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>New Strat's menu offers Blank and every template; Apply Template shows only while the strat is bare.</summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Integration")]
 public class StratTemplateMenuTests
 {
