@@ -98,9 +98,15 @@ public class MatchMetaRealDemoTests
 
     private static string BenchmarkDemo(int which)
     {
-        string? env = Environment.GetEnvironmentVariable("DEMO_PATH");
-        string folder = env is null ? Path.Combine(DemoTestHelper.FindRepoRoot() ?? "", "demos", "benchmarks")
-            : File.Exists(env) ? Path.GetDirectoryName(env)! : env;
+        string? resolved = DemoTestHelper.ResolveDemoPathOverride(
+            Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar), null, out string? problem);
+        if (problem is not null)
+        {
+            throw new SkipTestException(problem);
+        }
+
+        string folder = resolved is null ? Path.Combine(DemoTestHelper.FindRepoRoot() ?? "", "demos", "benchmarks")
+            : Path.GetDirectoryName(resolved)!;
         List<string> demos = Directory.Exists(folder)
             ? [.. Directory.EnumerateFiles(folder, "match730_*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
             : [];
