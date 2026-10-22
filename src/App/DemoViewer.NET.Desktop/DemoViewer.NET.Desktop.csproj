@@ -5,7 +5,6 @@
         See https://docs.avaloniaui.net/docs/guides/platforms/platform-specific-code/dotnet for more details.-->
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
-        <NoWarn>NU1903</NoWarn>
         <!-- Workstation GC (reverses an earlier Server GC choice): 24x less resident after close — 112 MB vs
              2745 MB — for ~32% slower parse. Matrix + rejected alternatives: `AnalysisBench gc-sweep`. -->
         <ServerGarbageCollection>false</ServerGarbageCollection>

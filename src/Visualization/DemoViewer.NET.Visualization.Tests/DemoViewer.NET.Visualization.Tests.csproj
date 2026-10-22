@@ -6,12 +6,8 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
-        <!-- CA1707: test method names conventionally use underscores. NU1903: transitively pulls in
-             Tmds.DBus.Protocol 0.21.2 (GHSA-xrw6-gwf8-vvr9) via the ProjectReference to the Sample,
-             which itself references Avalonia.Desktop — same suppression as the Sample and Desktop
-             csproj carry; NoWarn does not flow across project references, so this project needs its
-             own copy. -->
-        <NoWarn>$(NoWarn);CA1707;NU1903</NoWarn>
+        <!-- CA1707: test method names conventionally use underscores. -->
+        <NoWarn>$(NoWarn);CA1707</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>

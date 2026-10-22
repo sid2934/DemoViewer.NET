@@ -14,7 +14,7 @@ on:
   push:
     branches: [main]
   pull_request:
-  # The real-GPU lane below is opt-in and has no other trigger.
+  # How a feature branch gets a full CI run before it has a PR.
   workflow_dispatch:
 
 concurrency:
@@ -388,7 +388,7 @@ jobs:
   #
   # Hosted runners have no GPU, but they DO exercise the real GPU code paths: Windows runs ANGLE over
   # D3D11 WARP, Linux runs EGL over llvmpipe. These lanes gate CORRECTNESS AND PERCEPTUAL PARITY ONLY.
-  # The >=2x-realtime throughput number is gated on the opt-in self-hosted lane below and never here:
+  # The >=2x-realtime throughput number is gated on the self-hosted lane in gpu.yml, never here:
   # a software rasteriser's frames-per-second means nothing.
   #
   # A lane that finds no GPU backend SKIPS its GPU cases (SkipTestException) and stays green. That is
@@ -450,35 +450,3 @@ jobs:
           name: render-diffs-${{ matrix.backend }}
           path: artifacts/bin/DemoViewer.NET.Playback2D.Tests/**/artifacts/**/*.png
           if-no-files-found: ignore
-
-  # Real-GPU lane. Opt-in only: label a PR `gpu-lane` or dispatch the workflow by hand. It needs a
-  # self-hosted runner carrying the labels below; where none exists the job is never scheduled at all,
-  # so it must NEVER be in the required-checks set.
-  render-backends-gpu:
-    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'gpu-lane') }}
-    runs-on: [self-hosted, windows, gpu]
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      # Fail here, in one line, if this self-hosted runner has lost its GPU, rather than three minutes
-      # later inside a suite. --require-hardware additionally rejects WARP/llvmpipe: this is the only
-      # lane whose numbers are meant to mean something, and a software rasterizer's do not.
-      - name: Require a real GPU
-        run: >
-          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli --
-          probe --json --require-gpu --require-hardware
-
-      # force-gpu, so the lane FAILS rather than silently skipping if the runner lost its GPU. That is
-      # the whole reason RenderBackendPreference.ForceGpu exists.
-      - name: GPU parity + determinism (must not skip)
-        env:
-          DV2D_RENDER_BACKEND: force-gpu
-        run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
-             -- --treenode-filter "/*/*/*/*[Category!=Budget]"
