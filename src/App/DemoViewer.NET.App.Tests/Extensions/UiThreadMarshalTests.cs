@@ -29,7 +29,7 @@ public class UiThreadMarshalTests
             bool inline = false;
             UiThreadMarshal.Run(() => inline = true);
 
-            await Assert.That(ranOnUi).IsEqualTo(true);
+            await Assert.That(ranOnUi).IsTrue();
             await Assert.That(inline).IsTrue().Because("a raise on the UI thread runs before Run returns");
         });
     }

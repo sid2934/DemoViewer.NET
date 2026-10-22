@@ -84,7 +84,7 @@ public class AnnotationStoreTests
         using (Assert.Multiple())
         {
             await Assert.That(store.ResolvePath(smb)).IsEqualTo(store.ResolvePath(nfs));
-            await Assert.That(loaded.Elements).HasCount().EqualTo(1);
+            await Assert.That(loaded.Elements).Count().IsEqualTo(1);
             await Assert.That(store.IdentityOf(nfs).Sha256).IsEqualTo("same-bytes")
                 .Because("neither path exists: the identity came from the resolver, not a read");
             await Assert.That(asked).Contains(smb);

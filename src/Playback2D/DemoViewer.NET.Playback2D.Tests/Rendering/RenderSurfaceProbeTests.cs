@@ -29,7 +29,7 @@ public class RenderSurfaceProbeTests
         RenderSurfaceProbe second = RenderSurfaceProviderFactory.Probe(lines.Add);
 
         await Assert.That(second).IsEqualTo(first);
-        await Assert.That(lines).HasCount().EqualTo(1);
+        await Assert.That(lines).Count().IsEqualTo(1);
         await Assert.That(lines[0]).Contains("backend=");
         await Assert.That(lines[0]).Contains("reason=");
     }
@@ -66,7 +66,7 @@ public class RenderSurfaceProbeTests
         // and it writes on its first call.
         await Assert.That(lines).IsEmpty();
         await Assert.That(RenderSurfaceProviderFactory.Probe(lines.Add).Reason).IsNotNull();
-        await Assert.That(lines).HasCount().EqualTo(1);
+        await Assert.That(lines).Count().IsEqualTo(1);
     }
 
     [Test]

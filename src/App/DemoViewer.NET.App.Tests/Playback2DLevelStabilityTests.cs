@@ -250,7 +250,7 @@ public class Playback2DLevelStabilityTests
     {
         MapSpace space = new();
         space.Rebuild(BakedNukeFloors());
-        await Assert.That(space.Levels).HasCount().EqualTo(2);
+        await Assert.That(space.Levels).Count().IsEqualTo(2);
 
         Dictionary<int, List<(int Frame, double Z)>> tracks = ZTracks(ResolveNuke());
         int traversed = 0;

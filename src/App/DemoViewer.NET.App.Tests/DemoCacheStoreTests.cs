@@ -105,7 +105,7 @@ public class DemoCacheStoreTests
                 await Assert.That(entry.CtScore).IsEqualTo(13);
                 await Assert.That(entry.Tier).IsEqualTo(DemoCacheTier.Parse);
                 // The index carries roster NAMES (the Library card renders them) but not the rest.
-                await Assert.That(entry.PlayerNames).HasCount(3)
+                await Assert.That(entry.PlayerNames).Count().IsEqualTo(3)
                     .Because("the observer is not a roster member");
                 await Assert.That(entry.PlayerNames).Contains("s1mple‮")
                     .Because("names are stored raw; sanitizing happens at the render boundary");
@@ -115,7 +115,7 @@ public class DemoCacheStoreTests
             using (Assert.Multiple())
             {
                 await Assert.That(loaded).IsNotNull();
-                await Assert.That(loaded!.Players).HasCount(4);
+                await Assert.That(loaded!.Players).Count().IsEqualTo(4);
                 await Assert.That(loaded.Roster.Count()).IsEqualTo(3);
                 await Assert.That(loaded.Spectators.Count()).IsEqualTo(1);
                 await Assert.That(loaded.Players.Single(p => p.Slot == 3).IsBot).IsTrue();
@@ -178,7 +178,7 @@ public class DemoCacheStoreTests
                 await Assert.That(after!.Tier).IsEqualTo(DemoCacheTier.Analysis);
                 await Assert.That(after.Parse.IsPresent).IsTrue()
                     .Because("filling analysis must not disturb the parse tier");
-                await Assert.That(after.Players).HasCount(4).Because("tier-2 payload survived");
+                await Assert.That(after.Players).Count().IsEqualTo(4).Because("tier-2 payload survived");
                 await Assert.That(after.Scoreboard.Single().Kills).IsEqualTo(24);
                 await Assert.That(after.IsAnalysisCurrent("fp-1")).IsTrue();
                 await Assert.That(after.IsAnalysisCurrent("fp-2")).IsFalse()
@@ -373,7 +373,7 @@ public class DemoCacheStoreTests
             {
                 await Assert.That(ReferenceEquals(first, second)).IsFalse()
                     .Because("each read is its own instance, even when served from the in-memory cache");
-                await Assert.That(first!.Players).HasCount(4);
+                await Assert.That(first!.Players).Count().IsEqualTo(4);
             }
 
             // Mutating what a reader was given must not reach the store or any later reader.
@@ -383,7 +383,7 @@ public class DemoCacheStoreTests
             DemoCacheRecord? third = store.TryLoadRecord("/demos/iso.dem");
             using (Assert.Multiple())
             {
-                await Assert.That(third!.Players).HasCount(4);
+                await Assert.That(third!.Players).Count().IsEqualTo(4);
                 await Assert.That(third.CtScore).IsEqualTo(13);
                 await Assert.That(store.TryGetIndex("/demos/iso.dem")!.CtScore).IsEqualTo(13);
             }
@@ -417,7 +417,7 @@ public class DemoCacheStoreTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(walked).HasCount(2);
+                await Assert.That(walked).Count().IsEqualTo(2);
                 await Assert.That(store.TryLoadRecord("/demos/seen.dem")).IsNotNull()
                     .Because("the walk read other.dem last and must not have replaced seen.dem in the cache");
             }
@@ -472,7 +472,7 @@ public class DemoCacheStoreTests
                 .IsNotEqualTo(DemoCacheStore.StableKey("/demos/h.dem"));
             // A literal, so a future "optimization" to a non-cryptographic hash fails loudly here rather
             // than silently orphaning every sidecar on the next launch.
-            await Assert.That(DemoCacheStore.StableKey("/demos/g.dem")).HasCount(24);
+            await Assert.That(DemoCacheStore.StableKey("/demos/g.dem").Length).IsEqualTo(24);
         }
     }
 

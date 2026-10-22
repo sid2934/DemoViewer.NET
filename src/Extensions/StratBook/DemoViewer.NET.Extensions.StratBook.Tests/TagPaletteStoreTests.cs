@@ -51,7 +51,7 @@ public class TagPaletteStoreTests
         using (Assert.Multiple())
         {
             await Assert.That(palette.Id).IsEqualTo(TagPaletteStore.DefaultId);
-            await Assert.That(palette.Root!.Buttons.Select(b => b.Code)).IsEquivalentTo(DefaultCodes);
+            await Assert.That(palette.Root!.Buttons.Select(b => b.Code!)).IsEquivalentTo(DefaultCodes);
             await Assert.That(palette.ClampToRound).IsTrue().Because("the shipped palette clamps");
             await Assert.That(palette.StickyGroups).Contains("opponent");
             // Refused for nothing, and shadowing exactly what it should: the

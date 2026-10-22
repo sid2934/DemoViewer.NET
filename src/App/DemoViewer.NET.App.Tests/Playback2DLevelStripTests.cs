@@ -104,7 +104,7 @@ public class Playback2DLevelStripTests
 
             await Assert.That(vm.LevelStrip.HasMultipleLevels).IsTrue();
             await Assert.That(Strip(view).IsVisible).IsTrue();
-            await Assert.That(vm.LevelStrip.Chips).HasCount().EqualTo(host.Levels.Levels.Count);
+            await Assert.That(vm.LevelStrip.Chips).Count().IsEqualTo(host.Levels.Levels.Count);
 
             // Highest floor first, matching the stacked bands' own top-to-bottom order.
             await Assert.That(vm.LevelStrip.Chips[0].Id).IsEqualTo(host.Levels.Levels[^1].Id);

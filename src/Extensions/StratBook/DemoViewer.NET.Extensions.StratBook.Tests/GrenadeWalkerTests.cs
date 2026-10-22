@@ -359,14 +359,14 @@ public class GrenadeWalkerTests
             await Assert.That(row.ReleasePosition).IsEqualTo(new WorldPoint(0, 0, 0));
             await Assert.That(row.ReleaseEyePitch).IsEqualTo(-12.5f);
             await Assert.That(row.ReleaseEyeYaw).IsEqualTo(90f);
-            await Assert.That(row.ReleaseOnGround).IsEqualTo(true);
-            await Assert.That(row.ReleaseCrouched).IsEqualTo(true);
+            await Assert.That(row.ReleaseOnGround).IsTrue();
+            await Assert.That(row.ReleaseCrouched).IsTrue();
             await Assert.That(row.ThrowStrengthClass).IsEqualTo(ThrowStrengthClass.Full);
             await Assert.That(row.SpeedAtRelease).IsEqualTo(320f);
             await Assert.That(row.Movement).IsEqualTo(MovementClass.Running);
             await Assert.That(row.SpawnPosition).IsEqualTo(new WorldPoint(0, 0, 64));
             await Assert.That(row.ThrowerPositionAtSpawn).IsEqualTo(new WorldPoint(20, 0, 30));
-            await Assert.That(row.ThrowerOnGroundAtSpawn).IsEqualTo(false);
+            await Assert.That(row.ThrowerOnGroundAtSpawn).IsFalse();
             await Assert.That(row.JumpThrow).IsTrue();
             await Assert.That(row.JumpThrowSource).IsEqualTo(JumpThrowSource.Inputs);
             await Assert.That(row.JumpPressTick).IsEqualTo(94);

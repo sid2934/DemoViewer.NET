@@ -125,7 +125,7 @@ public class SuggestedTagsReviewTests
             await Assert.That((string?)instance.Provenance!["source"]).IsEqualTo(SuggestedTagsService.ProvenanceSource);
             await Assert.That((string?)instance.Provenance["detector"]).IsEqualTo("execute");
             await Assert.That((string?)instance.Provenance["proposalId"]).IsEqualTo(ExecuteId);
-            await Assert.That((bool?)instance.Provenance["edited"]).IsEqualTo(false);
+            await Assert.That((bool?)instance.Provenance["edited"]).IsFalse();
             await Assert.That((string?)instance.Provenance["detectorSetFingerprint"])
                 .IsEqualTo(h.Service.FingerprintFor(SuggestedTagsTestData.Map));
             await Assert.That(instance.FactsStamp).IsNotNull().Because("the round's facts are stamped as it is made");
@@ -155,7 +155,7 @@ public class SuggestedTagsReviewTests
             await Assert.That(instance.Note).IsEqualTo("late");
             await Assert.That(instance.Labels.Any(l => l.Group == "tempo" && l.Value == "slow")).IsTrue();
             await Assert.That(instance.Labels.Any(l => l.Group == "count")).IsFalse().Because("the edit's labels replace the proposal's");
-            await Assert.That((bool?)instance.Provenance!["edited"]).IsEqualTo(true);
+            await Assert.That((bool?)instance.Provenance!["edited"]).IsTrue();
             await Assert.That(h.Tags.LoadVerdicts(Sha)!.Verdicts[ExecuteId].Verdict).IsEqualTo(SuggestionVerdicts.Edited);
         }
     }

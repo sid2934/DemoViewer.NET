@@ -329,7 +329,9 @@ public class RoundFactsProjectionTests
             await Assert.That(round.Extra["shared_column"]).IsEqualTo(7L);
             await Assert.That(round.Extra["my_team_column.ct"]).IsEqualTo("yes");
             await Assert.That(round.Extra["my_team_column.t"]).IsEqualTo("no");
-            await Assert.That(round.Extra["only_ct"]).IsEqualTo(true);
+            // Extra is object-valued. `as bool?` keeps a non-bool a failed assertion rather than a cast
+            // exception, which would abort the rest of this Assert.Multiple block.
+            await Assert.That(round.Extra["only_ct"] as bool?).IsTrue();
             await Assert.That(round.Extra.ContainsKey("my_team_column")).IsFalse();
             await Assert.That(round.Extra.ContainsKey(RoundFactsColumns.Equipment)).IsFalse()
                 .Because("known columns never leak into Extra");

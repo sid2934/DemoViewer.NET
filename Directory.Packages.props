@@ -118,7 +118,7 @@
              Keep in sync with the vpk CLI pin in .config/dotnet-tools.json. -->
         <PackageVersion Include="Velopack" Version="1.2.161"/>
         <!-- Test -->
-        <PackageVersion Include="TUnit" Version="0.25.21"/>
+        <PackageVersion Include="TUnit" Version="1.76.0"/>
         <!-- Micro-benchmark harness (tools/EntityMicroBench) -->
         <PackageVersion Include="BenchmarkDotNet" Version="0.14.0"/>
         <!--

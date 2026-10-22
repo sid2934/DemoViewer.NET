@@ -53,7 +53,7 @@ public class InboundLogicTests
             State(isPaused: true, demoFilePath: "/cs2/replays/a.dem"),
             true, 0, true, "/demos/a.dem");
         await Assert.That(sameDemo.DemoChangedPath).IsNull();
-        await Assert.That(sameDemo.SetPlaying).IsEqualTo(false);
+        await Assert.That(sameDemo.SetPlaying).IsFalse();
 
         // Without the capability the path is not trustable — never a change offer.
         InboundLogic.Decision noCap = InboundLogic.Decide(
@@ -69,7 +69,7 @@ public class InboundLogicTests
             State(isPlaying: false),
             true, null, true, "/demos/a.dem");
 
-        await Assert.That(decision.SetPlaying).IsEqualTo(false);
+        await Assert.That(decision.SetPlaying).IsFalse();
         await Assert.That(decision.SeekToTick).IsNull();
     }
 
@@ -81,7 +81,7 @@ public class InboundLogicTests
             State(isPaused: true, demoTick: 9000),
             true, 5000, true, "/demos/a.dem");
         await Assert.That(far.SeekToTick).IsEqualTo(9000);
-        await Assert.That(far.SetPlaying).IsEqualTo(false);
+        await Assert.That(far.SetPlaying).IsFalse();
 
         // Near tick → no seek; states already agree → no toggle.
         InboundLogic.Decision near = InboundLogic.Decide(
@@ -105,7 +105,7 @@ public class InboundLogicTests
         InboundLogic.Decision resume = InboundLogic.Decide(
             State(isPaused: false, demoTick: 500),
             false, 0, true, "/demos/a.dem");
-        await Assert.That(resume.SetPlaying).IsEqualTo(true);
+        await Assert.That(resume.SetPlaying).IsTrue();
     }
 
     [Test]
@@ -126,7 +126,7 @@ public class InboundLogicTests
             State(isPlaying: false),
             true, null, true, "/demos/a.dem",
             false);
-        await Assert.That(ended.SetPlaying).IsEqualTo(false);
+        await Assert.That(ended.SetPlaying).IsFalse();
     }
 
     // ── ClassifyTickAdvance — the pump's per-tick jump/restart decision ────────

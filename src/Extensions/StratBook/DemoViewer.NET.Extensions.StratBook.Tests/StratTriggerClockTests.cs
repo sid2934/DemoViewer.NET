@@ -194,7 +194,7 @@ public class StratTriggerClockTests
             .Because("a new step is later on a clock that counts up");
         StratSceneProjection projection = StratSceneProjection.Build(session.Document!, StratPath.MainLine(session.Document!));
         await Assert.That(StepAuthoringPatches.DuplicateStep(session.Document!, 1, Guid.NewGuid()).Value!["atSeconds"]!.GetValue<double>())
-            .IsGreaterThan(12).IsLessThanOrEqualTo(17);
+            .IsGreaterThan(12).And.IsLessThanOrEqualTo(17);
         await Assert.That(projection.ClockClamped).IsFalse();
     }
 

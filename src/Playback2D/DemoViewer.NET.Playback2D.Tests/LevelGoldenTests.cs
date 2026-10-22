@@ -40,7 +40,7 @@ public class LevelGoldenTests
 
         byte[] upper = RenderSingle(stage, fixture, TopMostIndex);
 
-        await Assert.That(stage.Renderer.Panes.Panes).HasCount().EqualTo(1);
+        await Assert.That(stage.Renderer.Panes.Panes).Count().IsEqualTo(1);
         await Assert.That(stage.Renderer.Panes.Panes[0].ViewportRect)
             .IsEqualTo(new SKRect(0, 0, fixture.Size.Width, fixture.Size.Height));
 
@@ -78,7 +78,7 @@ public class LevelGoldenTests
         byte[] png = stage.RenderFixturePng(fixture);
 
         MapSpace space = stage.Renderer.Levels.Space;
-        await Assert.That(space.Levels).HasCount().EqualTo(2);
+        await Assert.That(space.Levels).Count().IsEqualTo(2);
         await Assert.That(space.RadarBinding).IsEqualTo(RadarBindingQuality.None);
         foreach (MapLevel level in space.Levels)
         {

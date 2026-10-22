@@ -97,9 +97,9 @@ public class MapSpaceRemapTests
         // upper half does not.
         LevelSetChange change = space.Rebuild([new FloorSlice(0, 640), new FloorSlice(640, 1280)]);
 
-        await Assert.That(space.Levels).HasCount().EqualTo(2);
+        await Assert.That(space.Levels).Count().IsEqualTo(2);
         await Assert.That(change.Removed).IsEmpty();
-        await Assert.That(change.Added).HasCount().EqualTo(1);
+        await Assert.That(change.Added).Count().IsEqualTo(1);
         await Assert.That(space.Levels[0].Id).IsEqualTo(original);
         await Assert.That(space.Levels[0].Id).IsNotEqualTo(space.Levels[1].Id);
     }
@@ -112,8 +112,8 @@ public class MapSpaceRemapTests
 
         LevelSetChange change = space.Rebuild([new FloorSlice(0, 1280)]);
 
-        await Assert.That(space.Levels).HasCount().EqualTo(1);
-        await Assert.That(change.Removed).HasCount().EqualTo(1);
+        await Assert.That(space.Levels).Count().IsEqualTo(1);
+        await Assert.That(change.Removed).Count().IsEqualTo(1);
         await Assert.That(change.Added).IsEmpty();
     }
 
@@ -208,14 +208,14 @@ public class MapSpaceRemapTests
         PaneSet panes = new(new StackedLayout());
         panes.Reconcile(space, LevelDisplayMode.Stacked, new SKSize(600, 400),
             new WorldBounds(-1000, -1000, 1000, 1000));
-        await Assert.That(panes.Panes).HasCount().EqualTo(2);
+        await Assert.That(panes.Panes).Count().IsEqualTo(2);
 
         MapLevelId[] before = [.. space.Levels.Select(l => l.Id)];
         space.Reset();
         LevelSetChange change = space.LastChange;
 
         await Assert.That(change.Changed).IsTrue();
-        await Assert.That(change.Removed).HasCount().EqualTo(2);
+        await Assert.That(change.Removed).Count().IsEqualTo(2);
         await Assert.That(change.Removed.Contains(before[0])).IsTrue();
         await Assert.That(change.Removed.Contains(before[1])).IsTrue();
         await Assert.That(change.Added).IsEmpty();
@@ -260,7 +260,7 @@ public class MapSpaceRemapTests
         space.Rebuild([new FloorSlice(0, 640)]);
         LevelSetChange change = space.Rebuild([new FloorSlice(320, 960)]);
 
-        await Assert.That(change.Retained).HasCount().EqualTo(1);
+        await Assert.That(change.Retained).Count().IsEqualTo(1);
         await Assert.That(change.TryRemapAnchor(0, out double moved)).IsTrue();
         await Assert.That(moved).IsEqualTo(320);
     }
