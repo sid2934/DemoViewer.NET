@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.TestSupport.Corpus;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -54,6 +55,37 @@ public static class DemoTestHelper
     ///     because a run pinned to one demo must not quietly swap to another.
     /// </summary>
     public const string DemoPathPickEnvVar = "DEMO_PATH_PICK";
+
+    /// <summary>
+    ///     The corpus root, replacing <c>&lt;repo-root&gt;/demos</c> everywhere this class looks.
+    ///     Unset means <c>&lt;repo-root&gt;/demos</c>, so the main checkout needs no configuration.
+    ///     <para>
+    ///         This exists because a git worktree has its own empty <c>demos/</c> and
+    ///         <c>demos/**/*.dem</c> is gitignored, so every RealDemo test in a worktree skipped
+    ///         while the suite reported green. Configuration is the only supported fix: linking
+    ///         <c>demos/</c> into another tree once destroyed 2.8 GB when a worktree removal
+    ///         followed the link.
+    ///     </para>
+    /// </summary>
+    public const string CorpusRootEnvVar = "DEMO_CORPUS";
+
+    /// <summary>
+    ///     Ordered, <c>';'</c>-separated list of directories or <c>file://</c> URIs to fetch absent
+    ///     manifest demos from. Unset means no fetching, which is the default and is exactly the
+    ///     repo's behaviour before the layer existed.
+    ///     <para>
+    ///         The separator is <c>';'</c> and not <see cref="Path.PathSeparator" />, which is
+    ///         <c>':'</c> on Unix and would split a <c>file://</c> URI in half.
+    ///     </para>
+    /// </summary>
+    public const string DemoSourcesEnvVar = "DEMO_SOURCES";
+
+    /// <summary>
+    ///     Where fetched demos are cached. Defaults to a per-user directory rather than anywhere
+    ///     under the repo, so every worktree on a machine shares one copy instead of holding its
+    ///     own, and so no write path of this layer points into <c>demos/</c>.
+    /// </summary>
+    public const string CorpusCacheEnvVar = "DEMO_CORPUS_CACHE";
 
     /// <summary>
     ///     Canonical "reference" demo for integration tests that need a
@@ -279,7 +311,7 @@ public static class DemoTestHelper
             return testDataPath;
         }
 
-        // 2. Recursive search under the repo-root demo directories
+        // 2. Recursive search under the corpus directories
         foreach (string dir in RepoRelativeDemoDirs())
         {
             string? match = Directory.EnumerateFiles(dir, filename, SearchOption.AllDirectories).FirstOrDefault();
@@ -289,7 +321,9 @@ public static class DemoTestHelper
             }
         }
 
-        return null;
+        // 3. The fetch layer: an already-cached copy, else a fetch from a configured source. With
+        // no DEMO_SOURCES this costs two File.Exists and never reaches a network.
+        return Corpus.TryResolve(filename, out _);
     }
 
     /// <summary>
@@ -311,22 +345,43 @@ public static class DemoTestHelper
             Environment.GetEnvironmentVariable(DemoPathEnvVar),
             Environment.GetEnvironmentVariable(DemoPathPickEnvVar),
             out string? problem);
-        string why = problem is null ? "" : $" ({problem})";
+        ResolveCorpusRoot(out string? corpusProblem);
+        string why = string.Join("; ", new[] { problem, corpusProblem }.Where(p => p is not null));
         throw new SkipTestException(
-            $"No CS2 demo available{why}. Set the {DemoPathEnvVar} env var to a .dem file or a folder of them " +
-            $"(optionally {DemoPathPickEnvVar}=<filename>), place one under TestData/ next to the test assembly, " +
-            "or under <repo-root>/demos/benchmarks/ or <repo-root>/demos/.");
+            $"No CS2 demo available{(why.Length == 0 ? "" : $" ({why})")}. " +
+            $"Set the {DemoPathEnvVar} env var to a .dem file or a folder of them " +
+            $"(optionally {DemoPathPickEnvVar}=<filename>), set {CorpusRootEnvVar} to a corpus root, " +
+            "place one under TestData/ next to the test assembly, " +
+            "or under <corpus-root>/benchmarks/ or <corpus-root>/.");
     }
 
     /// <summary>
     ///     Returns the path to a specific demo by filename or throws <see cref="SkipTestException" />.
-    ///     Use this for oracle/regression tests pinned to a known reference demo.
+    ///     Use this for oracle/regression tests pinned to a known reference demo. A manifest demo
+    ///     that a configured source holds is fetched here; one whose bytes do not match the
+    ///     manifest throws <see cref="DemoCorpusIntegrityException" /> and FAILS the test.
     /// </summary>
-    public static string RequireDemo(string filename) =>
-        FindDemoPath(filename) ?? throw new SkipTestException(
-            $"Required demo '{filename}' was not found. " +
-            $"Place it under <repo-root>/demos/ (recursive lookup) or " +
-            $"under TestData/ next to the test assembly.");
+    public static string RequireDemo(string filename)
+    {
+        string testDataPath = Path.Combine(AppContext.BaseDirectory, "TestData", filename);
+        if (File.Exists(testDataPath))
+        {
+            return testDataPath;
+        }
+
+        foreach (string dir in RepoRelativeDemoDirs())
+        {
+            string? match = Directory.EnumerateFiles(dir, filename, SearchOption.AllDirectories).FirstOrDefault();
+            if (match is not null)
+            {
+                return match;
+            }
+        }
+
+        // The layer's own reason names the demo, its size and every source tried, which a generic
+        // "was not found" cannot.
+        return Corpus.Require(filename);
+    }
 
     /// <summary>
     ///     Walks up from <see cref="AppContext.BaseDirectory" /> until it finds a directory
@@ -358,26 +413,202 @@ public static class DemoTestHelper
         FindRepoRoot() ?? throw new SkipTestException(
             $"repo root not found: no DemoViewer.NET.slnx above {AppContext.BaseDirectory}");
 
-    // ── Internal: repo-root and demo-directory resolution ─────────────────────
+    // ── The corpus root, and the override that lets a worktree reach it ───────
 
-    private static IEnumerable<string> RepoRelativeDemoDirs()
+    /// <summary>
+    ///     The corpus root: <see cref="CorpusRootEnvVar" /> when set, else
+    ///     <c>&lt;repo-root&gt;/demos</c>. Returns null with <paramref name="problem" /> set when
+    ///     neither resolves.
+    ///     <para>
+    ///         An override that is set but is not a directory resolves to NOTHING. It must not fall
+    ///         back to the repo's own <c>demos/</c>: falling back is how a misconfigured run looks
+    ///         like a configured one, which is the mistake that skipped 119 RealDemo tests while
+    ///         reporting green.
+    ///     </para>
+    /// </summary>
+    public static string? ResolveCorpusRoot(out string? problem)
     {
+        problem = null;
+        string? configured = Environment.GetEnvironmentVariable(CorpusRootEnvVar);
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            if (Directory.Exists(configured))
+            {
+                return configured;
+            }
+
+            problem = $"{CorpusRootEnvVar} is set but is not a directory: {configured}";
+            return null;
+        }
+
         string? repoRoot = FindRepoRoot();
         if (repoRoot is null)
         {
-            yield break;
-        }
-
-        string benchmarks = Path.Combine(repoRoot, "demos", "benchmarks");
-        if (Directory.Exists(benchmarks))
-        {
-            yield return benchmarks;
+            problem = $"repo root not found above {AppContext.BaseDirectory} and {CorpusRootEnvVar} is unset";
+            return null;
         }
 
         string demos = Path.Combine(repoRoot, "demos");
         if (Directory.Exists(demos))
         {
-            yield return demos;
+            return demos;
         }
+
+        problem = $"no corpus: {demos} does not exist and {CorpusRootEnvVar} is unset";
+        return null;
+    }
+
+    /// <summary>
+    ///     A directory under the corpus root, or null when the corpus or the directory is absent.
+    ///     Call this instead of composing <c>FindRepoRoot() + "demos"</c>: a composed path cannot
+    ///     see <see cref="CorpusRootEnvVar" />, so a worktree gets its own empty directory.
+    /// </summary>
+    /// <param name="subdirectory">Corpus-relative directory, e.g. <c>"benchmarks"</c>; null for the root.</param>
+    public static string? CorpusDir(string? subdirectory = null)
+    {
+        string? root = ResolveCorpusRoot(out _);
+        if (root is null)
+        {
+            return null;
+        }
+
+        string dir = subdirectory is null ? root : Path.Combine(root, subdirectory);
+        return Directory.Exists(dir) ? dir : null;
+    }
+
+    /// <summary>
+    ///     <see cref="CorpusDir" /> or a <see cref="SkipTestException" /> carrying the reason,
+    ///     including a set-but-wrong <see cref="CorpusRootEnvVar" />. For tests that read a whole
+    ///     corpus directory, where an empty path silently selects zero demos and passes.
+    /// </summary>
+    public static string RequireCorpusDir(string? subdirectory = null)
+    {
+        string? root = ResolveCorpusRoot(out string? problem);
+        if (root is null)
+        {
+            throw new SkipTestException(problem ?? "no demo corpus available");
+        }
+
+        string dir = subdirectory is null ? root : Path.Combine(root, subdirectory);
+        return Directory.Exists(dir)
+            ? dir
+            : throw new SkipTestException($"corpus directory does not exist: {dir}");
+    }
+
+    // ── Folder-shaped DEMO_PATH, for tests that walk every demo ───────────────
+
+    /// <summary>
+    ///     Every <c>.dem</c> a folder-shaped <c>DEMO_PATH</c> names, in ordinal name order, with
+    ///     the environment passed in rather than read. The folder counterpart of
+    ///     <see cref="ResolveDemoPathOverride" />, which resolves to ONE demo: tests that walk the
+    ///     whole replays folder need the list, and hand-rolling it in each test is how two of them
+    ///     ended up bypassing these rules entirely.
+    ///     <para>
+    ///         A file yields itself. A folder yields its top-level <c>.dem</c> files, no recursion.
+    ///         Unset yields empty with no <paramref name="problem" />, which the caller reads as
+    ///         "not configured" and handles its own way. Every other empty result sets
+    ///         <paramref name="problem" />.
+    ///     </para>
+    /// </summary>
+    public static string[] ResolveDemoFolderOverride(string? demoPath, out string? problem)
+    {
+        problem = null;
+        if (string.IsNullOrWhiteSpace(demoPath))
+        {
+            return [];
+        }
+
+        if (File.Exists(demoPath))
+        {
+            return [demoPath];
+        }
+
+        if (!Directory.Exists(demoPath))
+        {
+            problem = $"{DemoPathEnvVar} does not exist: {demoPath}";
+            return [];
+        }
+
+        // The extension check is belt and braces over the "*.dem" pattern: the replays folder keeps
+        // a ".dem.info" beside every demo, and one of those parses as garbage.
+        string[] demos =
+        [
+            .. Directory.EnumerateFiles(demoPath, "*.dem")
+                .Where(f => Path.GetExtension(f).Equals(".dem", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(Path.GetFileName, StringComparer.Ordinal)
+        ];
+        if (demos.Length == 0)
+        {
+            problem = $"{DemoPathEnvVar} folder holds no .dem: {demoPath}";
+        }
+
+        return demos;
+    }
+
+    /// <summary>
+    ///     <see cref="ResolveDemoFolderOverride" /> against the process environment.
+    /// </summary>
+    public static string[] DemoFolderFromEnvironment(out string? problem) =>
+        ResolveDemoFolderOverride(Environment.GetEnvironmentVariable(DemoPathEnvVar), out problem);
+
+    // ── The fetch layer's process-wide default ────────────────────────────────
+
+    /// <summary>
+    ///     The process's <see cref="DemoCorpus" />, built once from the environment. Everything the
+    ///     layer needs is configuration: <see cref="CorpusRootEnvVar" />,
+    ///     <see cref="DemoSourcesEnvVar" /> and <see cref="CorpusCacheEnvVar" />. With none set it
+    ///     has no sources, so it resolves out of the existing demo directories and never touches a
+    ///     network.
+    /// </summary>
+    public static DemoCorpus Corpus => _corpus.Value;
+
+    private static readonly Lazy<DemoCorpus> _corpus = new(BuildCorpus,
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
+    private static DemoCorpus BuildCorpus() =>
+        new(CorpusManifest.Embedded, RepoRelativeDemoDirs(), DefaultCacheRoot(), ConfiguredSources());
+
+    private static string DefaultCacheRoot()
+    {
+        string? configured = Environment.GetEnvironmentVariable(CorpusCacheEnvVar);
+        return !string.IsNullOrWhiteSpace(configured)
+            ? configured
+            : Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "DemoViewer.NET", "demo-corpus");
+    }
+
+    private static IEnumerable<IDemoSource> ConfiguredSources()
+    {
+        string? configured = Environment.GetEnvironmentVariable(DemoSourcesEnvVar);
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return [];
+        }
+
+        return
+        [
+            .. configured.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(DirectoryDemoSource.FromSpecifier)
+        ];
+    }
+
+    // ── Internal: repo-root and demo-directory resolution ─────────────────────
+
+    private static IEnumerable<string> RepoRelativeDemoDirs()
+    {
+        string? corpusRoot = ResolveCorpusRoot(out _);
+        if (corpusRoot is null)
+        {
+            yield break;
+        }
+
+        string benchmarks = Path.Combine(corpusRoot, "benchmarks");
+        if (Directory.Exists(benchmarks))
+        {
+            yield return benchmarks;
+        }
+
+        yield return corpusRoot;
     }
 }

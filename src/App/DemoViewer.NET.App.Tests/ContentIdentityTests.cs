@@ -545,14 +545,13 @@ public class ContentIdentityTests
     // in which case the smallest demo in it is the subject (the parse dominates the test's cost, not the hash).
     private static string ResolveDemo()
     {
-        string? env = Environment.GetEnvironmentVariable("DEMO_PATH");
+        string? env = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar);
         if (!string.IsNullOrWhiteSpace(env) && Directory.Exists(env))
         {
-            string? smallest = new DirectoryInfo(env).EnumerateFiles("*.dem")
-                .OrderBy(f => f.Length)
-                .Select(f => f.FullName)
-                .FirstOrDefault();
-            return smallest ?? throw new SkipTestException($"DEMO_PATH folder holds no .dem: {env}");
+            string[] resolved = DemoTestHelper.ResolveDemoFolderOverride(env, out string? problem);
+            return resolved.Length == 0
+                ? throw new SkipTestException(problem ?? $"no .dem under {env}")
+                : resolved.MinBy(p => new FileInfo(p).Length)!;
         }
 
         return DemoTestHelper.RequireDemo();

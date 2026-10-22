@@ -256,19 +256,9 @@ public sealed class DemoCensus
 
     private static string ResolveDemo()
     {
-        // Prefer a checked-in pro demo (rich in unknown sound/decal events); fall back to the shared helper.
-        string root = AppContext.BaseDirectory;
-        for (int i = 0; i < 8 && root.Length > 1; i++)
-        {
-            string candidate = Path.Combine(root, "demos", "pro-demos", "vitality-vs-fut-m1-mirage.dem");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            root = Path.GetDirectoryName(root.TrimEnd(Path.DirectorySeparatorChar)) ?? root;
-        }
-
-        return DemoTestHelper.RequireDemo();
+        // Prefer this pro demo (rich in unknown sound/decal events); fall back to the shared helper.
+        // The pinned lookup carries the corpus override and the fetch layer; the hand-rolled walk
+        // it replaces saw neither, so a worktree never found the demo.
+        return DemoTestHelper.FindDemoPath("vitality-vs-fut-m1-mirage.dem") ?? DemoTestHelper.RequireDemo();
     }
 }
