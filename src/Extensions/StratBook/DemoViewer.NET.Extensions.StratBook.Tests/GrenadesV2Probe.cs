@@ -23,7 +23,7 @@ namespace DemoViewer.NET.AppTests;
 ///     rendered with today's grid grouping and with the density grouping. Skips unless <c>GV2_CACHE</c>
 ///     names a cache root copy; never point it at the live cache, the store writes its index.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class GrenadesV2Probe
 {
     private const string Map = "de_mirage";

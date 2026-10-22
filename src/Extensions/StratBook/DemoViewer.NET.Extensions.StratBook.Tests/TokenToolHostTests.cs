@@ -29,7 +29,7 @@ namespace DemoViewer.NET.AppTests;
 ///     each project's own test infrastructure is compile-linked rather than referenced, for the same
 ///     reason.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Render")]
 public class TokenToolHostTests
 {

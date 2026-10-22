@@ -21,7 +21,7 @@ namespace DemoViewer.NET.AppTests;
 ///     The one inbox rule in each place generated items appear: only new items show and
 ///     count, Dismiss and Restore, and one "Show settled (n)" toggle for the rest.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class GeneratedInboxTests
 {
     internal static string[] Ids(params int[] numbers) => [.. numbers.Select(n => $"7656{n:D4}")];

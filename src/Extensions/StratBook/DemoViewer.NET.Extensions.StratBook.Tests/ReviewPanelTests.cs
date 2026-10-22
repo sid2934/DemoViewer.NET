@@ -26,7 +26,7 @@ namespace DemoViewer.NET.AppTests;
 ///     and positions, deleting it and undoing the delete, a label over a whole round, the round clamp, and keys
 ///     typed into the editor never reaching the keymap.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class ReviewPanelTests
 {
     private const string DemoPath = "/d/match.dem";

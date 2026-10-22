@@ -32,6 +32,7 @@ namespace DemoViewer.NET.AppTests;
 ///     gates and persists. Pinned with fake modules and the real hub contribution, so the mechanism is tested
 ///     apart from any one feature.
 /// </summary>
+[NotInParallel(TestLanes.HeadlessUi)]
 public class StratBookShellTests
 {
     private static readonly string[] _railOrder = ["stratbook.browser", "situations.search", "review.queue"];

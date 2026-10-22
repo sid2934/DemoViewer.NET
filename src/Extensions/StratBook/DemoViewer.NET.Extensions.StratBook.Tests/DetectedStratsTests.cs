@@ -26,7 +26,7 @@ namespace DemoViewer.NET.AppTests;
 ///     narrows, Add to book saves the strat and returns to the book with it open, a dismissal hides the row, and
 ///     the view renders the list and the detail.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class DetectedStratsTests
 {
     private static StratBookTabViewModel Tab(Library library, StratMiningService mining) =>

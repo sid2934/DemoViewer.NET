@@ -36,7 +36,7 @@ namespace DemoViewer.NET.AppTests;
 ///     places; a map pick aimed at any one field; every reader printing a point-only value; the projection facing a
 ///     point; and the <see cref="PlaceField" /> control's list and keys.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 [Category("Render")]
 public partial class StratLocationFieldTests
 {

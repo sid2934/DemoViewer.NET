@@ -22,7 +22,7 @@ namespace DemoViewer.NET.AppTests;
 ///     first-pass tag set is enriched with the instance count unchanged, the labels added, and
 ///     every label taken back by undo.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class TagLabelModeTests
 {
     private const string DemoPath = "/d/match.dem";

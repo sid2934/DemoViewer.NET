@@ -24,7 +24,7 @@ namespace DemoViewer.NET.AppTests;
 ///     labels, the note, and the end-to-end case: a demo tagged without touching the mouse, pinned twice,
 ///     through the tab VM's key funnel and through real key events on the view.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class TagPaletteTests
 {
     private const string DemoPath = "/d/match.dem";

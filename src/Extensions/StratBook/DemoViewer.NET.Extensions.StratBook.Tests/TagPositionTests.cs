@@ -26,7 +26,7 @@ namespace DemoViewer.NET.AppTests;
 ///     position and the second makes a movement; and, end to end, the coordinates are queryable
 ///     through <see cref="TagQuery" />'s position predicate, the clause Search Filters reads tags with.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class TagPositionTests
 {
     private const string DemoPath = "/d/match.dem";

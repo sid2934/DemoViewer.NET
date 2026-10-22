@@ -29,7 +29,7 @@ namespace DemoViewer.NET.AppTests.Extensions.StratBook;
 ///     tag to the old document first; the mode persists to the tab's old settings key; and turning the pack
 ///     off with a tag pending writes it, then takes every panel, handler, lane and toggle with it.
 /// </summary>
-[NotInParallel]
+[NotInParallel(TestLanes.HeadlessUi)]
 public class ReviewPanelsPlaybackContributionTests
 {
     private const string DemoPath = "/d/match.dem";
