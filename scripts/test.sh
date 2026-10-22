@@ -143,6 +143,22 @@ for entry in "${SELECTED[@]}"; do
   START=$(date +%s%N)
   OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)
   EXIT=$?
+
+  # Known CoreCLR fault: the host dies with SIGSEGV/SIGABRT during startup, before any summary is
+  # printed. Retry exactly once, and only when nothing was reported: no
+  # summary line and no failed test. A real failure always prints one or the other, so this path
+  # cannot turn a red run green. The retry's own exit code is final.
+  if { [ $EXIT -eq 139 ] || [ $EXIT -eq 134 ]; } \
+     && ! echo "$OUT" | grep -qE '^  total: [0-9]+|^failed '; then
+    echo "[test] !!! $KEY: TEST HOST CRASHED (exit=$EXIT) BEFORE RUNNING ANY TESTS !!!" >&2
+    echo "[test] !!! Known CoreCLR startup fault (thread-static init race), not a test result. Retrying once." >&2
+    START=$(date +%s%N)
+    OUT=$(dotnet run --project "$PATH_" -c "$CONFIG" --no-build -- "${ARGS[@]}" 2>&1)
+    EXIT=$?
+    if [ $EXIT -eq 139 ] || [ $EXIT -eq 134 ]; then
+      echo "[test] !!! $KEY: HOST CRASHED AGAIN (exit=$EXIT). No tests ran. Treating as FAILED. !!!" >&2
+    fi
+  fi
   MS=$(( ( $(date +%s%N) - START ) / 1000000 ))
 
   if [ "$LIST_ONLY" -eq 1 ]; then
