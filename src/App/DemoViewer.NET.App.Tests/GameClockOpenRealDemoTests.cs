@@ -23,7 +23,7 @@ public class GameClockOpenRealDemoTests
 {
     private static string BenchmarkDemo(int which)
     {
-        string folder = Path.Combine(DemoTestHelper.FindRepoRoot() ?? "", "demos", "benchmarks");
+        string? folder = DemoTestHelper.CorpusDir("benchmarks");
         List<string> demos = Directory.Exists(folder)
             ? [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
             : [];

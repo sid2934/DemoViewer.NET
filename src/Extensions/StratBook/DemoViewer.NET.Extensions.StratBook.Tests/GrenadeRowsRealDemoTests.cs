@@ -131,18 +131,21 @@ public class GrenadeRowsRealDemoTests
         return diffs;
     }
 
-    // The five benchmark demos, then the seven pro demos, under CS2DEMOKIT_CORPUS_DIR or the repo's demos folder.
+    // The five benchmark demos, then the seven pro demos. CS2DEMOKIT_CORPUS_DIR predates
+    // DEMO_CORPUS and still wins, so an existing configuration keeps working.
     internal static string CorpusDemo(int which)
     {
         string? root = Environment.GetEnvironmentVariable("CS2DEMOKIT_CORPUS_DIR");
         if (root is null || !Directory.Exists(root))
         {
-            root = DemoTestHelper.FindRepoRoot() is { } repo ? Path.Combine(repo, "demos") : null;
+            root = DemoTestHelper.CorpusDir();
         }
 
         if (root is null || !Directory.Exists(Path.Combine(root, "benchmarks")))
         {
-            throw new SkipTestException("no corpus: set CS2DEMOKIT_CORPUS_DIR to a folder holding benchmarks/ and pro-demos/");
+            throw new SkipTestException(
+                $"no corpus: set CS2DEMOKIT_CORPUS_DIR or {DemoTestHelper.CorpusRootEnvVar} " +
+                "to a folder holding benchmarks/ and pro-demos/");
         }
 
         List<string> demos = [.. Directory.EnumerateFiles(Path.Combine(root, "benchmarks"), "*.dem").Order(StringComparer.Ordinal)];

@@ -1,0 +1,159 @@
+// The demo corpus, keyed by SHA-256 of the file's bytes.
+//
+// Identity is the hash. "dir" and "file" are location hints only, so a corpus that moves between
+// machines or mounts keeps the same entries. "bytes" is checked before the hash, which rejects most
+// wrong files without reading them. "sets" is for consumers that take a whole directory rather than
+// one demo (AnalysisBench --suite reads the benchmarks set).
+//
+// Embedded in DemoViewer.NET.TestSupport rather than placed in demos/: under DEMO_CORPUS the demos/
+// directory belongs to a different checkout, and a manifest living there would be read from a tree
+// other than the code that reads it. demos/CORPUS.md stays the prose record.
+//
+// Hashes taken 2026-10-22 with `shasum -a 256` against the live corpus.
+//
+// NOT LISTED, deliberately: match730_003826256877184877003_0981591541_410.dem. It sits in the Steam
+// replays folder and demos/CORPUS.md records that staging it into demos/ re-points
+// Nuke_TwoFloors_MatchesGolden off the committed assets/tour sample, failing on a 14.5% pixel
+// difference. A manifest entry would make a fetch stage it, so it has none.
+{
+  "demos": [
+    {
+      "name": "reference-mm-5v5",
+      "file": "003816248937665266002_0544286934.dem",
+      "sha256": "27f9de071bf3669137af73894f0abe1e4010a3562632181a95ebe3d58cafbc81",
+      "bytes": 180618110,
+      "dir": "benchmarks",
+      "sets": ["benchmarks", "reference", "pinned"]
+    },
+    {
+      "name": "benchmark-mm-02",
+      "file": "003816779297406845372_0003771537.dem",
+      "sha256": "e92b50d0d338da87dabad66ad0b4b7ab2756b0d2f0ec376b025cb5f0cca207de",
+      "bytes": 286665986,
+      "dir": "benchmarks",
+      "sets": ["benchmarks"]
+    },
+    {
+      "name": "benchmark-mm-03",
+      "file": "003816798820180689112_1066991563.dem",
+      "sha256": "c12a04f8d8d45a482eef1ef3170a1d80e8c0773b370012af9a4e08d1b0ccd61e",
+      "bytes": 255291182,
+      "dir": "benchmarks",
+      "sets": ["benchmarks"]
+    },
+    {
+      "name": "benchmark-mm-04",
+      "file": "003816804281231606001_0126308730.dem",
+      "sha256": "74b65ddf5303889c18840f9b2dcd16ec8201f55740d8931d28b0fa26f76ad0aa",
+      "bytes": 292356751,
+      "dir": "benchmarks",
+      "sets": ["benchmarks"]
+    },
+    {
+      "name": "benchmark-mm-05",
+      "file": "003816809596253634708_1168926414.dem",
+      "sha256": "1e9a68ac3f8d2f7c053f5879cfd78ee0844b4da9457d49baf669c3114fe5dac0",
+      "bytes": 260786248,
+      "dir": "benchmarks",
+      "sets": ["benchmarks"]
+    },
+    {
+      "name": "mm-01",
+      "file": "003801777854962729156_0256036251.dem",
+      "sha256": "1c211a4dc510df29e6ef5d5e24a5ecd601e9cc9295159005ae817b3ae20a5e22",
+      "bytes": 370995024,
+      "dir": null,
+      "sets": ["mm"]
+    },
+    {
+      "name": "mm-02",
+      "file": "003802582796258508821_1612401002.dem",
+      "sha256": "0d1d679340cbef74f6c2a80fcb550799a7bf0e65f28ff9ab61247db7476cfc4c",
+      "bytes": 466975881,
+      "dir": null,
+      "sets": ["mm"]
+    },
+    {
+      "name": "mm-03",
+      "file": "003802730901763260580_1218921269.dem",
+      "sha256": "55e43c6b4444e7ce02cd0a8e53bdf33d58f2eeaeb005d2e8792e18e108aaef30",
+      "bytes": 289087708,
+      "dir": null,
+      "sets": ["mm"]
+    },
+    {
+      // Named outright by UnknownMessageCardTests' candidate list.
+      "name": "mm-04",
+      "file": "003816306022075596881_1029495947.dem",
+      "sha256": "be657ece8abb30186e509cc1a09036cd30e416a43a0f7dc25ecdaf050e884ad0",
+      "bytes": 308718828,
+      "dir": null,
+      "sets": ["mm", "pinned"]
+    },
+    {
+      "name": "mm-05",
+      "file": "003816313710067056698_1777110562.dem",
+      "sha256": "f1272350cf6bc6252b3f473fe31e1a8d8bec2a66f37b6949e95f20630e8aeb40",
+      "bytes": 451049929,
+      "dir": null,
+      "sets": ["mm"]
+    },
+    {
+      // The reference demo for the rule-graph measurements: 434 nodes / 474 edges, ShippedScale.
+      "name": "pro-furia-vitality-m1-mirage",
+      "file": "furia-vs-vitality-m1-mirage.dem",
+      "sha256": "9019e9ee6cdeee54d93a73625620f3372ee55b8560240b6381f67fdb84676cbb",
+      "bytes": 740540720,
+      "dir": "pro-demos",
+      "sets": ["pro"]
+    },
+    {
+      "name": "pro-furia-vitality-m2-inferno",
+      "file": "furia-vs-vitality-m2-inferno.dem",
+      "sha256": "affd22a7fb10a99d149cd343ebe29b83457a40862244a398de3cb48930110907",
+      "bytes": 604571739,
+      "dir": "pro-demos",
+      "sets": ["pro"]
+    },
+    {
+      "name": "pro-furia-vitality-m3-nuke",
+      "file": "furia-vs-vitality-m3-nuke.dem",
+      "sha256": "2b2f6f3ceeb869dccc3078c300918a1deb8b495f384ee3809d577dcb5d7da582",
+      "bytes": 333796813,
+      "dir": "pro-demos",
+      "sets": ["pro", "pinned"]
+    },
+    {
+      "name": "pro-furia-vitality-m4-overpass",
+      "file": "furia-vs-vitality-m4-overpass.dem",
+      "sha256": "24370e1f72c2f2ca33108f786d9c08f175c3c821c4213641e782080a869c3640",
+      "bytes": 604583203,
+      "dir": "pro-demos",
+      "sets": ["pro"]
+    },
+    {
+      "name": "pro-vitality-fut-m1-mirage",
+      "file": "vitality-vs-fut-m1-mirage.dem",
+      "sha256": "555f486b19daad0b1e3b4f7796b03d8afd99ca6771333950f07f9340866ec8e3",
+      "bytes": 329657586,
+      "dir": "pro-demos",
+      "sets": ["pro", "pinned"]
+    },
+    {
+      "name": "pro-vitality-fut-m2-dust2",
+      "file": "vitality-vs-fut-m2-dust2.dem",
+      "sha256": "7ae218d35d7edb663054611f30a79a4982b9502b443ced12da39b698d002cd39",
+      "bytes": 480999442,
+      "dir": "pro-demos",
+      "sets": ["pro", "pinned"]
+    },
+    {
+      "name": "pro-vitality-fut-m3-nuke",
+      "file": "vitality-vs-fut-m3-nuke.dem",
+      "sha256": "7e996c3fb4ea70ee624634dde97e1d33fa5ff7314bc60b6ed672ff31374c30ec",
+      "bytes": 391208591,
+      "dir": "pro-demos",
+      "sets": ["pro", "pinned"]
+    }
+  ]
+}

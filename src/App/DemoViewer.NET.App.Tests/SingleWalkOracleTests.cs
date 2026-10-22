@@ -137,8 +137,7 @@ public partial class SingleWalkOracleTests
 
     private static string BenchmarkDemo(int which)
     {
-        string? root = DemoTestHelper.FindRepoRoot();
-        string folder = root is null ? "" : Path.Combine(root, "demos", "benchmarks");
+        string? folder = DemoTestHelper.CorpusDir("benchmarks");
         List<string> demos = Directory.Exists(folder)
             ? [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
             : [];

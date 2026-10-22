@@ -100,8 +100,7 @@ public class RoundIndexReindexRealDemoTests
 
     private static string BenchmarkDemo()
     {
-        string? root = DemoTestHelper.FindRepoRoot();
-        string folder = root is null ? "" : Path.Combine(root, "demos", "benchmarks");
+        string? folder = DemoTestHelper.CorpusDir("benchmarks");
         return Directory.Exists(folder) && Directory.EnumerateFiles(folder, "*.dem").Order(StringComparer.Ordinal).FirstOrDefault() is { } demo
             ? demo
             : throw new SkipTestException("no demos under demos/benchmarks");
