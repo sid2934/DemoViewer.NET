@@ -291,14 +291,49 @@ public class SettingsServiceTests
     {
         SettingsService svc = new(null); // fileless in-memory path
 
-        await Assert.That(svc.Current.Playback2D.LegacyViewport).IsFalse();
+        await Assert.That(svc.Current.Playback2D.AnnotationAnchorToEntities).IsFalse();
 
-        svc.Write(s => s.Playback2D.LegacyViewport = true);
-        await Assert.That(svc.Current.Playback2D.LegacyViewport).IsTrue()
+        svc.Write(s => s.Playback2D.AnnotationAnchorToEntities = true);
+        await Assert.That(svc.Current.Playback2D.AnnotationAnchorToEntities).IsTrue()
             .Because("a Playback2D key missing from WriteInMemory vanishes silently on WASM");
 
-        svc.Write(s => s.Playback2D.LegacyViewport = false);
-        await Assert.That(svc.Current.Playback2D.LegacyViewport).IsFalse();
+        svc.Write(s => s.Playback2D.AnnotationAnchorToEntities = false);
+        await Assert.That(svc.Current.Playback2D.AnnotationAnchorToEntities).IsFalse();
+    }
+
+    /// <summary>
+    ///     A settings.json written by an older build carries keys this build no longer models, and must
+    ///     still bind: the binder's <c>ErrorOnUnknownConfiguration</c> is off and
+    ///     <c>JsonSerializerOptions.UnmappedMemberHandling</c> is Skip, so an orphan is ignored rather
+    ///     than fatal. The next preference write replaces the whole section node, which is what prunes
+    ///     it.
+    /// </summary>
+    [Test]
+    public async Task AnOrphanedKey_FromAnOlderBuild_BindsAndIsPrunedOnTheNextWrite()
+    {
+        string dir = NewTempDir();
+        string path = Path.Combine(dir, "settings.json");
+        File.WriteAllText(path,
+            """
+            {
+              "FirstRunCompleted": true,
+              "Playback2D": { "LegacyViewport": true, "LastTool": "Draw" }
+            }
+            """);
+
+        SettingsService svc = new(dir);
+        await Assert.That(svc.NeedsFirstRun).IsFalse()
+            .Because("an unknown key must not look like an unparseable file");
+        await Assert.That(svc.Current.Playback2D.LastTool).IsEqualTo("Draw")
+            .Because("the keys this build does model still bind past the orphan");
+
+        svc.Write(s => s.Playback2D.LastTool = "Erase");
+
+        string written = File.ReadAllText(path);
+        Console.WriteLine($"[orphan-key] settings.json after the write:\n{written}");
+        await Assert.That(written).DoesNotContain("LegacyViewport")
+            .Because("a preference write replaces the whole Playback2D node");
+        await Assert.That(svc.Current.Playback2D.LastTool).IsEqualTo("Erase");
     }
 
     // ── Consolidated Session + Recents sections ────────────────────────────────
