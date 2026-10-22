@@ -90,224 +90,251 @@ public class TagPaletteTests
     [Test]
     public async Task ACodePress_SpansLeadAndLag_InTheDocumentsTicks()
     {
-        // 64 tick: A execute is 5 s before to 10 s after, 320 and 640 ticks.
-        (int from, int to) = TagPaletteViewModel.SpanFor(15_000, 5, 10, 64, _rounds, true);
-        await Assert.That(from).IsEqualTo(14_680);
-        await Assert.That(to).IsEqualTo(15_640);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            // 64 tick: A execute is 5 s before to 10 s after, 320 and 640 ticks.
+            (int from, int to) = TagPaletteViewModel.SpanFor(15_000, 5, 10, 64, _rounds, true);
+            await Assert.That(from).IsEqualTo(14_680);
+            await Assert.That(to).IsEqualTo(15_640);
+        });
     }
 
     [Test]
     public async Task TheSpan_IsClampedToThePlayheadsRound_WhenThePaletteSaysSo()
     {
-        // Early in round 2: the lead would reach back into round 1.
-        (int earlyFrom, _) = TagPaletteViewModel.SpanFor(10_100, 5, 10, 64, _rounds, true);
-        // Late in round 2: the lag would run into round 3.
-        (_, int lateTo) = TagPaletteViewModel.SpanFor(19_900, 5, 10, 64, _rounds, true);
-        (int freeFrom, int freeTo) = TagPaletteViewModel.SpanFor(19_900, 5, 10, 64, _rounds, false);
-        // Warmup: before the first round there is no round to clamp to, only the parse's start.
-        (int warmFrom, _) = TagPaletteViewModel.SpanFor(-500, 5, 10, 64, [new LibraryRound(1, 0)], true);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(earlyFrom).IsEqualTo(10_000);
-            await Assert.That(lateTo).IsEqualTo(19_999).Because("a round ends the tick before the next starts");
-            await Assert.That(freeFrom).IsEqualTo(19_580);
-            await Assert.That(freeTo).IsEqualTo(20_540);
-            await Assert.That(warmFrom).IsEqualTo(0);
-        }
+            // Early in round 2: the lead would reach back into round 1.
+            (int earlyFrom, _) = TagPaletteViewModel.SpanFor(10_100, 5, 10, 64, _rounds, true);
+            // Late in round 2: the lag would run into round 3.
+            (_, int lateTo) = TagPaletteViewModel.SpanFor(19_900, 5, 10, 64, _rounds, true);
+            (int freeFrom, int freeTo) = TagPaletteViewModel.SpanFor(19_900, 5, 10, 64, _rounds, false);
+            // Warmup: before the first round there is no round to clamp to, only the parse's start.
+            (int warmFrom, _) = TagPaletteViewModel.SpanFor(-500, 5, 10, 64, [new LibraryRound(1, 0)], true);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(earlyFrom).IsEqualTo(10_000);
+                await Assert.That(lateTo).IsEqualTo(19_999).Because("a round ends the tick before the next starts");
+                await Assert.That(freeFrom).IsEqualTo(19_580);
+                await Assert.That(freeTo).IsEqualTo(20_540);
+                await Assert.That(warmFrom).IsEqualTo(0);
+            }
+        });
     }
 
     [Test]
     public async Task ACode_RevealsOnlyThePanelThatFollows_AndTheGestureIsOneUndoEntry()
     {
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = Palette(session, () => 15_000);
-
-        await Assert.That(Hit(palette, Key.D1)).IsTrue();
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
-            await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(OutcomeValues)
-                .Because("the code reveals only the panel its then names, not every panel");
-            await Assert.That(session.Document!.Instances).IsEmpty().Because("the tag is pending until the flow ends");
-            await Assert.That(Hit(palette, Key.D2)).IsFalse()
-                .Because("the codes are not showing, so their hotkeys are not live");
-        }
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = Palette(session, () => 15_000);
 
-        await Assert.That(Hit(palette, Key.W)).IsTrue();
-        await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(SiteValues);
+            await Assert.That(Hit(palette, Key.D1)).IsTrue();
+            using (Assert.Multiple())
+            {
+                await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
+                await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(OutcomeValues)
+                    .Because("the code reveals only the panel its then names, not every panel");
+                await Assert.That(session.Document!.Instances).IsEmpty().Because("the tag is pending until the flow ends");
+                await Assert.That(Hit(palette, Key.D2)).IsFalse()
+                    .Because("the codes are not showing, so their hotkeys are not live");
+            }
 
-        await Assert.That(Hit(palette, Key.A)).IsTrue();
-        TagInstance tag = session.Document!.Instances.Single();
-        using (Assert.Multiple())
-        {
-            await Assert.That(tag.Code).IsEqualTo("A execute");
-            await Assert.That(tag.FromTick).IsEqualTo(14_680);
-            await Assert.That(tag.ToTick).IsEqualTo(15_640);
-            await Assert.That(tag.Round).IsEqualTo(2);
-            await Assert.That(tag.Source).IsEqualTo(TagSources.Human);
-            await Assert.That(tag.Labels.Select(l => $"{l.Group}={l.Value}")).IsEquivalentTo(WonAtA);
-            await Assert.That(session.UndoDepth).IsEqualTo(1);
-            await Assert.That(session.Document.Palette).IsEqualTo(TagPaletteStore.DefaultId);
-            await Assert.That(palette.PanelTitle).IsEqualTo("codes").Because("the flow ran out, so tagging starts again");
-        }
+            await Assert.That(Hit(palette, Key.W)).IsTrue();
+            await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(SiteValues);
 
-        session.Undo();
-        await Assert.That(session.Document!.Instances).IsEmpty().Because("one Ctrl+Z removes the code and its labels");
+            await Assert.That(Hit(palette, Key.A)).IsTrue();
+            TagInstance tag = session.Document!.Instances.Single();
+            using (Assert.Multiple())
+            {
+                await Assert.That(tag.Code).IsEqualTo("A execute");
+                await Assert.That(tag.FromTick).IsEqualTo(14_680);
+                await Assert.That(tag.ToTick).IsEqualTo(15_640);
+                await Assert.That(tag.Round).IsEqualTo(2);
+                await Assert.That(tag.Source).IsEqualTo(TagSources.Human);
+                await Assert.That(tag.Labels.Select(l => $"{l.Group}={l.Value}")).IsEquivalentTo(WonAtA);
+                await Assert.That(session.UndoDepth).IsEqualTo(1);
+                await Assert.That(session.Document.Palette).IsEqualTo(TagPaletteStore.DefaultId);
+                await Assert.That(palette.PanelTitle).IsEqualTo("codes").Because("the flow ran out, so tagging starts again");
+            }
+
+            session.Undo();
+            await Assert.That(session.Document!.Instances).IsEmpty().Because("one Ctrl+Z removes the code and its labels");
+        });
     }
 
     [Test]
     public async Task EscMidFlow_WritesTheTagWithTheLabelsSoFar_AndEscOnTheCodesLeaves()
     {
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = Palette(session, () => 15_000);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = Palette(session, () => 15_000);
 
-        Hit(palette, Key.D1);
-        Hit(palette, Key.L);
-        await Assert.That(Hit(palette, Key.Escape)).IsTrue();
+            Hit(palette, Key.D1);
+            Hit(palette, Key.L);
+            await Assert.That(Hit(palette, Key.Escape)).IsTrue();
 
-        await Assert.That(session.Document!.Instances.Single().Labels.Single().Value).IsEqualTo("lost");
-        await Assert.That(palette.IsFocused).IsTrue();
+            await Assert.That(session.Document!.Instances.Single().Labels.Single().Value).IsEqualTo("lost");
+            await Assert.That(palette.IsFocused).IsTrue();
 
-        await Assert.That(Hit(palette, Key.Escape)).IsTrue();
-        await Assert.That(palette.IsFocused).IsFalse();
-        await Assert.That(Hit(palette, Key.D3)).IsFalse().Because("an unfocused palette claims nothing");
+            await Assert.That(Hit(palette, Key.Escape)).IsTrue();
+            await Assert.That(palette.IsFocused).IsFalse();
+            await Assert.That(Hit(palette, Key.D3)).IsFalse().Because("an unfocused palette claims nothing");
+        });
     }
 
     [Test]
     public async Task ANewCodeMidFlow_FinishesThePreviousTag()
     {
-        using TagSession session = await Attached();
-        int playhead = 15_000;
-        using TagPaletteViewModel palette = Palette(session, () => playhead);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using TagSession session = await Attached();
+            int playhead = 15_000;
+            using TagPaletteViewModel palette = Palette(session, () => playhead);
 
-        Hit(palette, Key.D1); // A execute, waiting on outcome
-        Hit(palette, Key.Escape);
-        playhead = 16_000;
-        Hit(palette, Key.D3); // Default: no then, written at once
+            Hit(palette, Key.D1); // A execute, waiting on outcome
+            Hit(palette, Key.Escape);
+            playhead = 16_000;
+            Hit(palette, Key.D3); // Default: no then, written at once
 
-        await Assert.That(session.Document!.Instances.Select(i => i.Code)).IsEquivalentTo(ExecuteThenDefault);
-        await Assert.That(session.Document.Instances[1].FromTick).IsEqualTo(16_000);
-        await Assert.That(session.Document.Instances[1].ToTick).IsEqualTo(16_000 + 20 * 64);
+            await Assert.That(session.Document!.Instances.Select(i => i.Code)).IsEquivalentTo(ExecuteThenDefault);
+            await Assert.That(session.Document.Instances[1].FromTick).IsEqualTo(16_000);
+            await Assert.That(session.Document.Instances[1].ToTick).IsEqualTo(16_000 + 20 * 64);
+        });
     }
 
     [Test]
     public async Task StickyLabels_AreAskedOnce_ReappliedToEveryNewTag_UntilCleared()
     {
-        TagPaletteStore store = StoreWith(StickyPalette, out string dir);
-        try
+        await HeadlessSession.RunOnUi(async () =>
         {
-            using TagSession session = await Attached();
-            using TagPaletteViewModel palette = Palette(session, () => 15_000, store);
-            palette.SelectPalette("scrim");
-
-            Hit(palette, Key.D1);
-            await Assert.That(palette.PanelTitle).IsEqualTo("opponent");
-            Hit(palette, Key.V);
-            Hit(palette, Key.W);
-            await Assert.That(palette.StickyText).IsEqualTo("opponent=Vitality");
-
-            // Second push: the opponent panel is answered from the sticky value and skipped.
-            Hit(palette, Key.D1);
-            await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
-            Hit(palette, Key.L);
-
-            // A code with no panels still carries the sticky label.
-            Hit(palette, Key.D2);
-
-            List<TagInstance> tags = session.Document!.Instances;
-            using (Assert.Multiple())
+            TagPaletteStore store = StoreWith(StickyPalette, out string dir);
+            try
             {
-                await Assert.That(tags.Count).IsEqualTo(3);
-                await Assert.That(tags.All(t => t.Labels.Count(l => l is { Group: "opponent", Value: "Vitality" }) == 1)).IsTrue();
-                await Assert.That(tags[1].Labels.Single(l => l.Group == "outcome").Value).IsEqualTo("lost");
-            }
+                using TagSession session = await Attached();
+                using TagPaletteViewModel palette = Palette(session, () => 15_000, store);
+                palette.SelectPalette("scrim");
 
-            await Assert.That(Hit(palette, Key.Back, KeyModifiers.Control)).IsTrue();
-            await Assert.That(palette.HasSticky).IsFalse();
-            Hit(palette, Key.D1);
-            await Assert.That(palette.PanelTitle).IsEqualTo("opponent").Because("cleared, the group is asked again");
-        }
-        finally
-        {
-            DeleteQuietly(dir);
-        }
+                Hit(palette, Key.D1);
+                await Assert.That(palette.PanelTitle).IsEqualTo("opponent");
+                Hit(palette, Key.V);
+                Hit(palette, Key.W);
+                await Assert.That(palette.StickyText).IsEqualTo("opponent=Vitality");
+
+                // Second push: the opponent panel is answered from the sticky value and skipped.
+                Hit(palette, Key.D1);
+                await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
+                Hit(palette, Key.L);
+
+                // A code with no panels still carries the sticky label.
+                Hit(palette, Key.D2);
+
+                List<TagInstance> tags = session.Document!.Instances;
+                using (Assert.Multiple())
+                {
+                    await Assert.That(tags.Count).IsEqualTo(3);
+                    await Assert.That(tags.All(t => t.Labels.Count(l => l is { Group: "opponent", Value: "Vitality" }) == 1)).IsTrue();
+                    await Assert.That(tags[1].Labels.Single(l => l.Group == "outcome").Value).IsEqualTo("lost");
+                }
+
+                await Assert.That(Hit(palette, Key.Back, KeyModifiers.Control)).IsTrue();
+                await Assert.That(palette.HasSticky).IsFalse();
+                Hit(palette, Key.D1);
+                await Assert.That(palette.PanelTitle).IsEqualTo("opponent").Because("cleared, the group is asked again");
+            }
+            finally
+            {
+                DeleteQuietly(dir);
+            }
+        });
     }
 
     [Test]
     public async Task ANote_GoesOnThePendingTag_OrAsItsOwnEditOfTheLastOne()
     {
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = Palette(session, () => 15_000);
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = Palette(session, () => 15_000);
 
-        Hit(palette, Key.D1);
-        await Assert.That(Hit(palette, Key.M, KeyModifiers.Control)).IsTrue();
-        await Assert.That(palette.IsEditingNote).IsTrue();
-        await Assert.That(Hit(palette, Key.W)).IsFalse().Because("the note box owns the keys while it is open");
-        palette.NoteDraft = "smokes late";
-        await Assert.That(palette.TryHandleNoteKey(Key.Enter)).IsTrue();
-        Hit(palette, Key.W);
-        Hit(palette, Key.A);
+            Hit(palette, Key.D1);
+            await Assert.That(Hit(palette, Key.M, KeyModifiers.Control)).IsTrue();
+            await Assert.That(palette.IsEditingNote).IsTrue();
+            await Assert.That(Hit(palette, Key.W)).IsFalse().Because("the note box owns the keys while it is open");
+            palette.NoteDraft = "smokes late";
+            await Assert.That(palette.TryHandleNoteKey(Key.Enter)).IsTrue();
+            Hit(palette, Key.W);
+            Hit(palette, Key.A);
 
-        TagInstance tag = session.Document!.Instances.Single();
-        await Assert.That(tag.Note).IsEqualTo("smokes late");
-        await Assert.That(session.UndoDepth).IsEqualTo(1).Because("a note typed mid-gesture is part of the gesture");
+            TagInstance tag = session.Document!.Instances.Single();
+            await Assert.That(tag.Note).IsEqualTo("smokes late");
+            await Assert.That(session.UndoDepth).IsEqualTo(1).Because("a note typed mid-gesture is part of the gesture");
 
-        Hit(palette, Key.M, KeyModifiers.Control);
-        await Assert.That(palette.NoteDraft).IsEqualTo("smokes late");
-        palette.NoteDraft = "smokes late; B rotated early";
-        palette.TryHandleNoteKey(Key.Enter);
+            Hit(palette, Key.M, KeyModifiers.Control);
+            await Assert.That(palette.NoteDraft).IsEqualTo("smokes late");
+            palette.NoteDraft = "smokes late; B rotated early";
+            palette.TryHandleNoteKey(Key.Enter);
 
-        await Assert.That(session.Document!.Instances.Single().Note).IsEqualTo("smokes late; B rotated early");
-        await Assert.That(session.UndoDepth).IsEqualTo(2);
+            await Assert.That(session.Document!.Instances.Single().Note).IsEqualTo("smokes late; B rotated early");
+            await Assert.That(session.UndoDepth).IsEqualTo(2);
 
-        Hit(palette, Key.M, KeyModifiers.Control);
-        palette.NoteDraft = "discarded";
-        palette.TryHandleNoteKey(Key.Escape);
-        await Assert.That(session.Document!.Instances.Single().Note).IsEqualTo("smokes late; B rotated early");
+            Hit(palette, Key.M, KeyModifiers.Control);
+            palette.NoteDraft = "discarded";
+            palette.TryHandleNoteKey(Key.Escape);
+            await Assert.That(session.Document!.Instances.Single().Note).IsEqualTo("smokes late; B rotated early");
+        });
     }
 
     [Test]
     public async Task ThePalettesKeymapRows_LeaveTheClaimedKeysAlone_AndOnlyActInTheirScope()
     {
-        (Key Key, KeyModifiers Modifiers)[] claimed =
-        [
-            (Key.F, KeyModifiers.Control), (Key.J, KeyModifiers.None), (Key.K, KeyModifiers.None),
-            (Key.Y, KeyModifiers.None), (Key.N, KeyModifiers.None), (Key.Enter, KeyModifiers.None),
-            (Key.Y, KeyModifiers.Control)
-        ];
-        string[] palette =
-            [StratBookActions.FocusTagPalette, StratBookActions.TagPaletteBack, StratBookActions.TagNote, StratBookActions.TagClearSticky];
-
-        // These four are Strat Book extension commands, not core rows; the merged table is what has to
-        // be checked for them to be checked at all.
-        foreach (Playback2DBinding row in CommandRegistry.Default.EffectiveBindings.Where(b => palette.Contains(b.ActionId)))
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(claimed.Contains((row.Key, row.Modifiers))).IsFalse()
-                .Because($"{row.ActionId} must not take a key Ctrl+F or the Suggested Tags queue claimed");
-        }
+            (Key Key, KeyModifiers Modifiers)[] claimed =
+            [
+                (Key.F, KeyModifiers.Control), (Key.J, KeyModifiers.None), (Key.K, KeyModifiers.None),
+                (Key.Y, KeyModifiers.None), (Key.N, KeyModifiers.None), (Key.Enter, KeyModifiers.None),
+                (Key.Y, KeyModifiers.Control)
+            ];
+            string[] palette =
+                [StratBookActions.FocusTagPalette, StratBookActions.TagPaletteBack, StratBookActions.TagNote, StratBookActions.TagClearSticky];
 
-        Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
-        await Assert.That(profile.TryResolve(Key.Escape, KeyModifiers.None, false, out string? outside)).IsTrue();
-        await Assert.That(outside).IsEqualTo(nameof(Playback2DAction.ClearFollow)).Because("unfocused, Esc is still the tab's");
-        await Assert.That(profile.TryResolveInScope(new Playback2DBindingScope(StratBookActions.PaletteScope), Key.Escape,
-            KeyModifiers.None, out string? inside)).IsTrue();
-        await Assert.That(inside).IsEqualTo(StratBookActions.TagPaletteBack);
+            // These four are Strat Book extension commands, not core rows; the merged table is what has to
+            // be checked for them to be checked at all.
+            foreach (Playback2DBinding row in CommandRegistry.Default.EffectiveBindings.Where(b => palette.Contains(b.ActionId)))
+            {
+                await Assert.That(claimed.Contains((row.Key, row.Modifiers))).IsFalse()
+                    .Because($"{row.ActionId} must not take a key Ctrl+F or the Suggested Tags queue claimed");
+            }
+
+            Playback2DKeymapProfile profile = Playback2DKeymapProfile.Default;
+            await Assert.That(profile.TryResolve(Key.Escape, KeyModifiers.None, false, out string? outside)).IsTrue();
+            await Assert.That(outside).IsEqualTo(nameof(Playback2DAction.ClearFollow)).Because("unfocused, Esc is still the tab's");
+            await Assert.That(profile.TryResolveInScope(new Playback2DBindingScope(StratBookActions.PaletteScope), Key.Escape,
+                KeyModifiers.None, out string? inside)).IsTrue();
+            await Assert.That(inside).IsEqualTo(StratBookActions.TagPaletteBack);
+        });
     }
 
     [Test]
     public async Task ThePalettesKeys_AreRebindable_ThroughTheKeymap()
     {
-        using TagSession session = await Attached();
-        using TagPaletteViewModel palette = Palette(session, () => 15_000);
-        palette.ApplyKeymap(PaletteKeymaps.From(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected)));
-        await Assert.That(rejected).IsEmpty();
+        await HeadlessSession.RunOnUi(async () =>
+        {
+            using TagSession session = await Attached();
+            using TagPaletteViewModel palette = Palette(session, () => 15_000);
+            palette.ApplyKeymap(PaletteKeymaps.From(Playback2DKeymapProfile.FromOverrides(["TagNote=Ctrl+Shift+M"], out IReadOnlyList<string> rejected)));
+            await Assert.That(rejected).IsEmpty();
 
-        Hit(palette, Key.D3);
-        await Assert.That(Hit(palette, Key.M, KeyModifiers.Control)).IsFalse().Because("the vacated gesture reaches nothing");
-        await Assert.That(Hit(palette, Key.M, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();
-        await Assert.That(palette.IsEditingNote).IsTrue();
-        await Assert.That(palette.HintText).Contains("Ctrl+Shift+M note");
+            Hit(palette, Key.D3);
+            await Assert.That(Hit(palette, Key.M, KeyModifiers.Control)).IsFalse().Because("the vacated gesture reaches nothing");
+            await Assert.That(Hit(palette, Key.M, KeyModifiers.Control | KeyModifiers.Shift)).IsTrue();
+            await Assert.That(palette.IsEditingNote).IsTrue();
+            await Assert.That(palette.HintText).Contains("Ctrl+Shift+M note");
+        });
     }
 
     [Test]
