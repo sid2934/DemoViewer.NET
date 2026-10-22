@@ -211,14 +211,13 @@ public partial class Playback2DView : UserControl
             _boundViewModel.Annotations.ToolSelected += OnToolSelected;
             OnToolSelected(_boundViewModel.Annotations.ActiveTool);
 
-            // The strip drives the v2 host only. Under the legacy escape hatch there is no level
-            // identity to drive, so the strip stays unbound and collapsed.
+            // A surface with no level identity leaves the strip unbound and collapsed, rather than
+            // bound to stubs it cannot honour.
             _boundViewModel.LevelStrip.Bind(_levelSurface);
 
             // The export dialog's "mirror the live view" camera is captured on Start, from the panes the
-            // mounted surface actually has. The View is the only side that knows which surface is
-            // mounted; under the legacy hatch there are no pane cameras, so this stays null and the
-            // dialog falls back to the per-level fit.
+            // mounted surface actually has. The View is the only side that can reach the surface, so with
+            // nothing mounted this stays null and the dialog falls back to the per-level fit.
             _boundViewModel.LiveCameraSource =
                 _surface is Scene2DHost cameraHost ? cameraHost.CaptureCameraScript : null;
 
@@ -407,12 +406,11 @@ public partial class Playback2DView : UserControl
         // Two actions belong to the SURFACE, not the view-model: they act on the router's in-flight
         // gesture, which is host state the VM deliberately does not own.
         //
-        // Both are TOOL-SCOPED, so they can only resolve while toolActive, which is now false whenever
-        // the mounted surface cannot host ink. The `_toolSurface is null` arms below are therefore
+        // Both are TOOL-SCOPED, so they can only resolve while toolActive, which is false whenever the
+        // mounted surface cannot host ink. The `_toolSurface is null` arms below are therefore
         // unreachable in a shipped build; they stay because leaving the key UNHANDLED is the right
-        // answer if a future surface ever reports capable and then isn't, and because the previous
-        // spelling of this (`_surface is Scene2DHost` with an implicit fall-through) is what swallowed
-        // Space and Escape when the toolbar let a tool be selected over the legacy viewport.
+        // answer if a future surface ever reports capable and then isn't. A concrete-type check with an
+        // implicit fall-through here swallows Space and Escape instead.
         switch (action)
         {
             case Playback2DAction.HoldPan:
