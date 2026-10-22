@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Pack-on visit harness for the single-walk work. Runs SingleWalkVisitProbe (Strat Book tests,
-# Environmental) once per arm, demo, scenario and trial, each in its own process and its own fresh config
-# directory, and prints medians with min and max per arm.
+# Environmental) once per arm and demo. The process runs every scenario and trial itself, each cell in its
+# own fresh config directory and its own booted app, and this script prints the cells per arm.
+#
+# The gate is the decode counters (exact integers), asserted inside the probe, so the default is ONE trial.
+# Wall time, memory and allocation are reported, not gated. Use --trials N --warmup only when a wall-time
+# comparison is the point, and then interleave A/B in one session; the recorded run-to-run drift is 27-31%.
 #
 # Usage:
 #   tools/single-walk-bench/run.sh --tmp <dir> [--a <repo>] [--b <repo>] [--demos <file>]
-#       [--visits sweep,open] [--trials N] [-c Release|Debug] [--out <file.jsonl>] [--no-build]
+#       [--visits sweep,open] [--trials N] [--warmup] [-c Release|Debug] [--out <file.jsonl>] [--no-build]
 #
 # --tmp      Required. Scratch root for the per-trial config directories. Never the live config dir.
 # --a, --b   Checkouts to compare. Default: this checkout for both, which is the A/A run that sets the
@@ -19,7 +23,9 @@
 #            writes them.
 #            recheck: import with the sweeps on, then re-enlist the demo for the library's score repair;
 #            only the re-check visit is measured, with the library row present and every stamp current.
-# --trials   Measured trials per demo, scenario and arm. Default 3, after one discarded trial.
+# --trials   Measured trials per demo, scenario and arm. Default 1.
+# --warmup   Run one extra leading trial per scenario, kept in the output as trial 0 and left out of the
+#            medians. Only for wall-time runs; the counters do not need it.
 #
 # One heavy job at a time on a 16 GB machine: run the whole script under the machine's heavy-job lock,
 # not each step.
@@ -30,7 +36,8 @@ A="$HERE"
 B=""
 DEMOS=""
 VISITS="sweep,open"
-TRIALS=3
+TRIALS=1
+WARMUP=0
 CONFIG=Release
 OUT=""
 TMP=""
@@ -42,6 +49,7 @@ while [ $# -gt 0 ]; do
     --demos) DEMOS="$2"; shift 2 ;;
     --visits) VISITS="$2"; shift 2 ;;
     --trials) TRIALS="$2"; shift 2 ;;
+    --warmup) WARMUP=1; shift ;;
     -c) CONFIG="$2"; shift 2 ;;
     --out) OUT="$2"; shift 2 ;;
     --tmp) TMP="$2"; shift 2 ;;
@@ -72,48 +80,57 @@ if [ "$BUILD" = 1 ]; then
   done
 fi
 
-run_one() {
-  # $1 arm label, $2 repo, $3 demo, $4 scenario, $5 trial
-  local out line status=0
-  out="$(SW_DEMO="$3" SW_VISIT="$4" SW_CONFIG_ROOT="$TMP" \
+run_demo() {
+  # $1 arm label, $2 repo, $3 demo. One process covers every scenario and trial.
+  local out status=0 line n=0
+  out="$(SW_DEMO="$3" SW_VISIT="$VISITS" SW_TRIALS="$TRIALS" SW_WARMUP="$WARMUP" SW_CONFIG_ROOT="$TMP" \
     dotnet run --project "$2/$PROJ_REL" -c "$CONFIG" --no-build -- \
     --treenode-filter "/*/*/SingleWalkVisitProbe/Visit/*" 2>&1)" || status=$?
-  line="$(echo "$out" | grep -F '@SW_VISIT ' | tail -n1 | sed 's/^.*@SW_VISIT //')"
-  if [ -z "$line" ]; then
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    n=$((n + 1))
+    python3 -c 'import json,sys; d=json.loads(sys.argv[1]); d["arm"]=sys.argv[2]; print(json.dumps(d))' \
+      "$line" "$1" >> "$OUT"
+    python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print("[single-walk] %s %s trial %s %s: analysis decodes %s, shell decodes %s %s, reads %s, wallMs %s" % (sys.argv[2], d["visit"], d["trial"], d["demo"], d.get("analysisDecodes"), d.get("shellDecodes"), d.get("shellSites") or "", d.get("reads"), d.get("wallMs")))' \
+      "$line" "$1"
+  done < <(echo "$out" | grep -F '@SW_VISIT ' | sed 's/^.*@SW_VISIT //')
+  if [ "$n" = 0 ]; then
     echo "$out" | tail -n 40
     return 1
   fi
-  # The probe prints its line, then fails when the visit misses its decode targets; keep the row.
+  # The probe prints every cell, then fails if any missed its decode target; keep the rows.
   if [ "$status" != 0 ]; then
-    echo "[single-walk] warning: $1 $4 $(basename "$3") missed its decode targets"
+    echo "[single-walk] warning: $1 $(basename "$3") missed its decode targets"
+    MISSED=1
   fi
-  python3 -c 'import json,sys; d=json.loads(sys.argv[1]); d["arm"]=sys.argv[2]; d["trial"]=int(sys.argv[3]); print(json.dumps(d))' \
-    "$line" "$1" "$5" >> "$OUT"
-  echo "[single-walk] $1 trial $5 $4 $(basename "$3"): $line"
-  python3 -c 'import json,sys; d=json.loads(sys.argv[1]); print("  analysis decodes", d.get("analysisDecodes")); print("  shell decodes   ", d.get("shellDecodes"), d.get("shellSites") or "")' "$line"
 }
 
-IFS=',' read -r -a SCENARIOS <<< "$VISITS"
-for ((t = 0; t <= TRIALS; t++)); do
-  while IFS= read -r demo; do
-    [ -n "$demo" ] || continue
-    for scenario in "${SCENARIOS[@]}"; do
-      run_one A "$A" "$demo" "$scenario" "$t"
-      run_one B "$B" "$demo" "$scenario" "$t"
-    done
-  done < "$DEMOS"
-done
+MISSED=0
+while IFS= read -r demo; do
+  [ -n "$demo" ] || continue
+  run_demo A "$A" "$demo"
+  run_demo B "$B" "$demo"
+done < "$DEMOS"
 
-echo "[single-walk] results: $OUT (trial 0 discarded)"
+echo "[single-walk] results: $OUT (trial 0, if any, is left out of the summary)"
 python3 - "$OUT" <<'PY'
 import json, statistics, sys
 rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
-rows = [r for r in rows if r["trial"] > 0]
-metrics = ["wallMs", "peakWsMb", "peakWsLessFileMb", "peakHeapMb", "decodes", "analysisDecodes", "shellDecodes"]
+rows = [r for r in rows if r["trial"] > 0 or not any(x["trial"] > 0 for x in rows)]
+metrics = ["wallMs", "peakWsMb", "peakWsLessFileMb", "peakHeapMb", "allocatedMb", "gc2", "decodes", "analysisDecodes", "shellDecodes", "reads"]
 keys = sorted({(r["visit"], r["demo"]) for r in rows})
 sources = sorted({r.get("counterSource", "hooks") for r in rows})
 if len(sources) > 1:
     print("warning: decodes come from different counters across rows (" + ", ".join(sources) + "); do not compare them")
+counters = ("decodes", "analysisDecodes", "shellDecodes", "hookDecodes", "reads")
+unstable = []
+for arm, visit, demo in sorted({(r["arm"], r["visit"], r["demo"]) for r in rows}):
+    sel = [r for r in rows if (r["arm"], r["visit"], r["demo"]) == (arm, visit, demo)]
+    for c in counters:
+        if len({r.get(c) for r in sel}) > 1:
+            unstable.append(f"{arm} {visit} {demo} {c}")
+if unstable:
+    print("warning: counters that should be exact differed between trials: " + "; ".join(unstable))
 def stat(vals):
     return statistics.median(vals), min(vals), max(vals)
 print("visit  demo  arm  " + "  ".join(f"{m}(med [min..max])" for m in metrics))
@@ -140,3 +157,4 @@ for visit, demo in keys:
             deltas.append(f"{m} {100.0 * (b - a) / a:+.1f}%")
     print(f"{visit}  {demo}  B-vs-A  " + ", ".join(deltas))
 PY
+exit "$MISSED"

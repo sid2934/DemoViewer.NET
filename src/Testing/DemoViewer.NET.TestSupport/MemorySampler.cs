@@ -4,7 +4,7 @@ using System.Diagnostics;
 
 #endregion
 
-namespace AnalysisBench;
+namespace DemoViewer.NET.TestSupport;
 
 /// <summary>
 ///     Background poller that tracks the high-water marks of managed-heap size and process RSS for the
@@ -15,8 +15,11 @@ namespace AnalysisBench;
 ///         Sampling is polling-based, so the reported peaks are lower bounds: a spike shorter than the
 ///         sample interval can be missed. Compare runs at the same interval.
 ///     </para>
+///     <para>
+///         Compiled into AnalysisBench by link, so it must stay free of TUnit and Avalonia.
+///     </para>
 /// </summary>
-internal sealed class MemorySampler : IDisposable
+public sealed class MemorySampler : IDisposable
 {
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
@@ -50,6 +53,11 @@ internal sealed class MemorySampler : IDisposable
 
     public void Dispose()
     {
+        if (_cts.IsCancellationRequested)
+        {
+            return;
+        }
+
         _cts.Cancel();
         try
         {
@@ -64,9 +72,11 @@ internal sealed class MemorySampler : IDisposable
         _process.Dispose();
     }
 
+    /// <summary>The one interval every spine samples at, so peak figures compare across tools.</summary>
+    public static readonly TimeSpan DefaultInterval = TimeSpan.FromMilliseconds(20);
+
     /// <summary>Starts sampling immediately. Dispose to stop.</summary>
-    public static MemorySampler Start(TimeSpan? interval = null) =>
-        new(interval ?? TimeSpan.FromMilliseconds(25));
+    public static MemorySampler Start(TimeSpan? interval = null) => new(interval ?? DefaultInterval);
 
     private void Sample()
     {
