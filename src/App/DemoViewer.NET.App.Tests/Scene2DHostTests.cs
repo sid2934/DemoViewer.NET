@@ -94,8 +94,8 @@ public class Scene2DHostTests
 
     /// <summary>
     ///     A drag on a band pans only that band and flips it to manual override, and the mode selector
-    ///     clears every override again. Ports <c>Playback2DCameraModeTests</c>' assertions onto the v2
-    ///     host's identically named hooks.
+    ///     clears every override again. Ports the pre-v2 camera-mode assertions onto the v2 host's
+    ///     identically named hooks.
     /// </summary>
     [Test]
     public async Task Drag_PansOnlyThePaneUnderTheCursor_AndSetsManualOverride()

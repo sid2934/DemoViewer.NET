@@ -62,8 +62,6 @@ public partial class Playback2DView : UserControl
     {
         InitializeComponent();
 
-        // Mounted here rather than declared in XAML: the capability casts below need the instance, and
-        // the named slot is what the headless suites reach for.
         Control surface = new Scene2DHost();
         _surface = (IPlayback2DSurface)surface;
         _levelSurface = surface as ILevelSurface;

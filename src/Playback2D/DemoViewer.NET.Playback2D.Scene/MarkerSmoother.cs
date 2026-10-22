@@ -95,7 +95,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
     ///     <para>
     ///         Public and un-deduplicated so a test can drive it with a known <paramref name="dt" />:
     ///         the pre-v2 <c>AdvanceMarkers</c> was <c>internal</c> for the same reason, and
-    ///         <c>Playback2DInterpolationTests</c> is ported onto this signature.
+    ///         <c>MarkerSmoothingTests</c> drives this signature.
     ///     </para>
     /// </summary>
     /// <param name="markers">The frame's markers.</param>

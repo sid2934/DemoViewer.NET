@@ -2,7 +2,6 @@
 
 using Avalonia.Media.Imaging;
 using CS2DemoKit.Analysis.Visibility;
-using DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 #endregion
 

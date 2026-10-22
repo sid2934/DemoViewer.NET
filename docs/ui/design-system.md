@@ -285,7 +285,7 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 > **and** `PlayerAttributes.TeamColor`: the token is the canonical value the copies match **exactly**;
 > because the tokens are app-level (not `UserControl.Resources`), a later pass can reference them from the
 > renderer/VM to collapse the triplication. Same for viewport-bg/grid/label. **Verified no-op:** every
-> token's hex == its original literal (value-equivalence table) **and** `Playback2DHeadlessSmokeTests`
+> token's hex == its original literal (value-equivalence table) **and** the App's headless smoke suite
 > instantiated the real `Playback2DView` with a synthetic VM (no demo) → all `Pb2d*` `{StaticResource}`
 > keys resolve at control-load; the rendered frame is correct (team chips / HP-green / grey HUD ramp).
 >
@@ -2841,8 +2841,8 @@ shared class (`ListBox.card-grid`, above).
   > `IsT`/`IsCt` class flags → `Pb2dTeamT/Ct` tokens. The renderer's remaining ~31 inline hex are
   > design-time FALLBACKS, not owned colors. See the resolved triplication bullet in Open questions.
 - **D23. Verified no-op by value-equivalence + one executing view-instantiation, not by A/B render.** Each
-  token's hex == its original literal (exact, alpha included); `Playback2DHeadlessSmokeTests` constructs the
-  real `Playback2DView` with a synthetic VM (no demo, so it EXECUTES rather than skips) → proves every
+  token's hex == its original literal (exact, alpha included); the App's headless smoke suite constructed the
+  real `Playback2DView` with a synthetic VM (no demo, so it EXECUTED rather than skipped) → proves every
   `{StaticResource Pb2dX}` resolves at control-load (a typo/missing-token would throw there, not at compile).
   The rendered frame reads correct (team chips, HP-green, grey HUD ramp). No new UiCapture variant was added
   (the viewport needs a demo to show markers; the smoke test already instantiates the full view).
