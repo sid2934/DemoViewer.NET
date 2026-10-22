@@ -792,7 +792,7 @@ public class RuleWorkbenchModuleTests
 
     private static List<RulesetDoc> LoadShippedDocs()
     {
-        string rulesDir = Path.Combine(FindRepoRoot(), "rules");
+        string rulesDir = Path.Combine(DemoTestHelper.RequireRepoRoot(), "rules");
         List<RulesetDoc> docs = [];
         foreach (string path in Directory.EnumerateFiles(rulesDir, "*.rules.yaml"))
         {
@@ -814,7 +814,7 @@ public class RuleWorkbenchModuleTests
     /// </summary>
     private static async Task WithTempRules(Func<RuleWorkbenchTabViewModel, string, Task> body)
     {
-        string rulesDir = Path.Combine(FindRepoRoot(), "rules");
+        string rulesDir = Path.Combine(DemoTestHelper.RequireRepoRoot(), "rules");
         string userDir = Path.Combine(Path.GetTempPath(), "dvwb_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(userDir);
         string? prevRules = Environment.GetEnvironmentVariable("DEMOVIEWER_RULES_DIR");
@@ -869,22 +869,6 @@ public class RuleWorkbenchModuleTests
         }
 
         return count;
-    }
-
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("repo root not found");
     }
 
     private sealed class FakeHost : IModuleHost

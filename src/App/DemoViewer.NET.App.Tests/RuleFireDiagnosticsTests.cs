@@ -68,7 +68,7 @@ public class RuleFireDiagnosticsTests
     public async Task DeadRule_ProducesNeverFiredLint_AndBadges_EngineThread()
     {
         string demoPath = DemoTestHelper.RequireDemo();
-        string repoRoot = FindRepoRoot();
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
         string userDir = Path.Combine(Path.GetTempPath(),
             "demoviewer-firelint-user-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(userDir);
@@ -127,7 +127,7 @@ public class RuleFireDiagnosticsTests
     public async Task DeadRule_FullShell_RendersPanel()
     {
         string demoPath = DemoTestHelper.RequireDemo();
-        string repoRoot = FindRepoRoot();
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
         string userDir = Path.Combine(Path.GetTempPath(),
             "demoviewer-firelint-user-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(userDir);
@@ -207,23 +207,6 @@ public class RuleFireDiagnosticsTests
                 // Best-effort cleanup.
             }
         }
-    }
-
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx"))
-                || Directory.Exists(Path.Combine(dir.FullName, ".git")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("repo root not found from " + AppContext.BaseDirectory);
     }
 
     private static int CountDistinctColors(WriteableBitmap bmp)

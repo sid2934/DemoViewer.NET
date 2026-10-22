@@ -123,11 +123,6 @@ internal static class Playback2DWholeGraph
         && (ns.Contains("Playback2D", StringComparison.Ordinal)
             || string.Equals(ns, "DemoViewer.NET.Services.Export", StringComparison.Ordinal));
 
-    /// <summary>The repo root, or a skip: a source-reading guard says nothing about a stray binary.</summary>
-    public static string RepoRoot() =>
-        DemoTestHelper.FindRepoRoot()
-        ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
-
     /// <summary>
     ///     Every reference made from a method body in <paramref name="assemblies" /> to a member
     ///     <paramref name="isTarget" /> accepts, attributed to the method that makes it.
@@ -310,7 +305,7 @@ internal static class Playback2DWholeGraph
 
     private static List<SourceFile> LoadProductionSources()
     {
-        string root = RepoRoot();
+        string root = DemoTestHelper.RequireRepoRoot();
         List<SourceFile> files = [];
 
         foreach (string top in new[]

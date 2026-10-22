@@ -52,7 +52,7 @@ public class StratEditorRoomTests
                     ViewFactory = () => new TextBlock { Text = "Review" }
                 }
             ]);
-            hub.OnActivated(new StillContext());
+            hub.OnActivated(new Playback2DFakeContext { HasDemo = false, TotalFrames = 0, MapTicksToFrames = false });
 
             Window window = new() { Width = 1280, Height = 800, Content = new HubTabView { DataContext = hub } };
             window.Show();
@@ -383,29 +383,4 @@ public class StratEditorRoomTests
 
             window.Close();
         });
-
-    private sealed class StillContext : IModuleContext
-    {
-        public bool HasDemo => false;
-        public string? DemoPath => null;
-        public int TickRate => 64;
-        public int CurrentFrameIndex => 0;
-        public int CurrentTick => 0;
-        public bool IsPlaying => false;
-        public double Speed => 1;
-        public IReadOnlyEntityView Entities => null!;
-        public IReadOnlyList<PlayerRosterEntry> Players => [];
-        public IReadOnlyList<IPlayerState> CurrentPlayers => [];
-        public double CurtimeSeconds(int tick) => 0;
-        public void RequestSeekToFrame(int frameIndex) { }
-        public void RequestSeekToTick(int tick) { }
-        public void RequestPlay() { }
-        public void RequestPause() { }
-
-        public event Action<IPlaybackSnapshot>? Advanced
-        {
-            add { }
-            remove { }
-        }
-    }
 }

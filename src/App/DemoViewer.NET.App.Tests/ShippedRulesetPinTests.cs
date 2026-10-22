@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Analysis.Yaml;
+using DemoViewer.NET.TestSupport;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -27,11 +28,7 @@ public class ShippedRulesetPinTests
     [Arguments("weapon_stats.rules.yaml")]
     public async Task RepoRuleset_MatchesThePackagesEmbeddedCopy(string fileName)
     {
-        string? repoRoot = FindRepoRoot();
-        if (repoRoot is null)
-        {
-            throw new SkipTestException("not running from a repo checkout");
-        }
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
 
         string repoFile = Path.Combine(repoRoot, "rules", fileName);
         await Assert.That(File.Exists(repoFile)).IsTrue()
@@ -58,21 +55,5 @@ public class ShippedRulesetPinTests
         {
             Directory.Delete(extractDir, true);
         }
-    }
-
-    private static string? FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        return null;
     }
 }

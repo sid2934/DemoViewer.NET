@@ -26,11 +26,11 @@ public class Playback2DFeatureWiringTests
     [Test]
     public async Task EveryPlayback2dId_IsReferencedInAppSources()
     {
-        string appRoot = Path.Combine(RepoRoot(), "src", "App", "DemoViewer.NET");
+        string appRoot = Path.Combine(DemoTestHelper.RequireRepoRoot(), "src", "App", "DemoViewer.NET");
         string catalogPath = Path.Combine(appRoot, "Features", "FeatureCatalog.cs");
         // The compiled-in extensions' production sources: a pack reads the ids of the tabs and
         // features it contributes. Their test and capture projects are not production and do not count.
-        string extensionsRoot = Path.Combine(RepoRoot(), "src", "Extensions");
+        string extensionsRoot = Path.Combine(DemoTestHelper.RequireRepoRoot(), "src", "Extensions");
 
         string[] sources = Directory
             .EnumerateFiles(appRoot, "*.*", SearchOption.AllDirectories)
@@ -92,10 +92,10 @@ public class Playback2DFeatureWiringTests
     {
         string[] roots =
         [
-            Path.Combine(RepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Scene"),
-            Path.Combine(RepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Core"),
-            Path.Combine(RepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Pipeline"),
-            Path.Combine(RepoRoot(), "tools", "DemoViewer.NET.Playback2D.Cli")
+            Path.Combine(DemoTestHelper.RequireRepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Scene"),
+            Path.Combine(DemoTestHelper.RequireRepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Core"),
+            Path.Combine(DemoTestHelper.RequireRepoRoot(), "src", "Playback2D", "DemoViewer.NET.Playback2D.Pipeline"),
+            Path.Combine(DemoTestHelper.RequireRepoRoot(), "tools", "DemoViewer.NET.Playback2D.Cli")
         ];
 
         // "playback2d.annotations" is deliberately absent: the layer registry gives the ink LAYER that exact
@@ -156,8 +156,4 @@ public class Playback2DFeatureWiringTests
             .Because("the timeline track id is the bare word 'annotation' — three registries must not "
                      + "share one key");
     }
-
-    private static string RepoRoot() =>
-        DemoTestHelper.FindRepoRoot()
-        ?? throw new SkipTestException("repo root not found (no DemoViewer.NET.slnx above the test binary)");
 }

@@ -26,7 +26,7 @@ public class Playback2DAdrTests
     public async Task Adr_IsDamageOverRoundsPlayed_FlooredAtOneRound_RecomputedEachFrame()
     {
         Playback2DTabViewModel vm = new();
-        FakeCtx ctx = new();
+        Playback2DFakeContext ctx = Playback2DFakeContext.Bare();
         ctx.Roster.Add(new PlayerRosterEntry
         {
             Slot = 0,
@@ -56,7 +56,7 @@ public class Playback2DAdrTests
     public async Task Adr_FallsBackToDash_WhenControllerMissing()
     {
         Playback2DTabViewModel vm = new();
-        FakeCtx ctx = new();
+        Playback2DFakeContext ctx = Playback2DFakeContext.Bare();
         ctx.Roster.Add(new PlayerRosterEntry
         {
             Slot = 0,
@@ -104,51 +104,6 @@ public class Playback2DAdrTests
 
         // Attributes update independently of position; a fixed spot keeps a marker drawable when alive.
         public (float X, float Y, float Z)? WorldPosition => pawn is null ? null : (0f, 0f, 0f);
-    }
-
-    private sealed class FakeCtx : IModuleContext
-    {
-        private readonly List<IPlayerState> _current = new();
-        public List<PlayerRosterEntry> Roster { get; } = new();
-
-        public bool HasDemo => true;
-        public string? DemoPath => null;
-        public int TickRate => 64;
-        public int CurrentFrameIndex => 0;
-        public int CurrentTick => 0;
-        public bool IsPlaying => false;
-        public double Speed => 1;
-        public double CurtimeSeconds(int tick) => tick / 64.0;
-
-        public void RequestSeekToFrame(int frameIndex)
-        {
-        }
-
-        public void RequestSeekToTick(int tick)
-        {
-        }
-
-        public void RequestPlay()
-        {
-        }
-
-        public void RequestPause()
-        {
-        }
-
-        public event Action<IPlaybackSnapshot>? Advanced;
-        public IReadOnlyEntityView Entities { get; private set; } = new View(null);
-
-        public IReadOnlyList<PlayerRosterEntry> Players => Roster;
-        public IReadOnlyList<IPlayerState> CurrentPlayers => _current;
-
-        public void Push(FakeSnap snap)
-        {
-            _current.Clear();
-            _current.AddRange(snap.Players);
-            Entities = snap.Entities;
-            Advanced?.Invoke(snap);
-        }
     }
 
     private sealed class FakeSnap(int frameIndex, IReadOnlyList<IPlayerState> players, IReadOnlyEntityView view)

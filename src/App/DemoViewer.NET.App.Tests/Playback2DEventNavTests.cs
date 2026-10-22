@@ -21,7 +21,7 @@ public class Playback2DEventNavTests
     public async Task KillNav_ShownAndRouted_WhenDemoHasPlayerDeath()
     {
         Playback2DTabViewModel vm = new();
-        RecordingCtx ctx = new("player_death", "bomb_planted");
+        Playback2DFakeContext ctx = NavCtx("player_death", "bomb_planted");
         ctx.Roster.Add(new PlayerRosterEntry
         {
             Slot = 0,
@@ -33,19 +33,19 @@ public class Playback2DEventNavTests
         await Assert.That(vm.HasKillEvents).IsTrue();
 
         vm.NextKillCommand.Execute(null);
-        await Assert.That(ctx.LastNextFilter).IsNotNull();
-        await Assert.That(ctx.LastNextFilter!).Contains("player_death");
+        await Assert.That(ctx.NextEvents.LastOrDefault()).IsNotNull();
+        await Assert.That(ctx.NextEvents.LastOrDefault()!).Contains("player_death");
 
         vm.PrevKillCommand.Execute(null);
-        await Assert.That(ctx.LastPrevFilter).IsNotNull();
-        await Assert.That(ctx.LastPrevFilter!).Contains("player_death");
+        await Assert.That(ctx.PrevEvents.LastOrDefault()).IsNotNull();
+        await Assert.That(ctx.PrevEvents.LastOrDefault()!).Contains("player_death");
     }
 
     [Test]
     public async Task KillNav_Hidden_WhenDemoHasNoPlayerDeath()
     {
         Playback2DTabViewModel vm = new();
-        RecordingCtx ctx = new("round_start", "bomb_planted"); // no player_death
+        Playback2DFakeContext ctx = NavCtx("round_start", "bomb_planted"); // no player_death
         ctx.Roster.Add(new PlayerRosterEntry
         {
             Slot = 0,
@@ -60,63 +60,20 @@ public class Playback2DEventNavTests
         // Commands are still safe to invoke (the button is just hidden): they request the kill filter, which
         // the navigator simply can't satisfy. No throw.
         vm.NextKillCommand.Execute(null);
-        await Assert.That(ctx.LastNextFilter!).Contains("player_death");
+        await Assert.That(ctx.NextEvents.LastOrDefault()!).Contains("player_death");
     }
 
     // ── Recording double: exposes a configurable event-name set and captures the forward-nav filters ──
 
-    private sealed class RecordingCtx(params string[] eventNames) : IModuleContext
+    // The nav filters are recorded in NextEvents / PrevEvents; the names make those commands visible.
+    private static Playback2DFakeContext NavCtx(params string[] eventNames)
     {
-        public List<PlayerRosterEntry> Roster { get; } = new();
-        public IReadOnlyCollection<string>? LastNextFilter { get; private set; }
-        public IReadOnlyCollection<string>? LastPrevFilter { get; private set; }
-
-        public IReadOnlyCollection<string> AvailableEventNames { get; } = eventNames;
-        public void RequestNextEvent(IReadOnlyCollection<string>? names) => LastNextFilter = names;
-        public void RequestPrevEvent(IReadOnlyCollection<string>? names) => LastPrevFilter = names;
-
-        public bool HasDemo => true;
-        public string? DemoPath => null;
-        public int TickRate => 64;
-        public int CurrentFrameIndex => 0;
-        public int CurrentTick => 0;
-        public bool IsPlaying => false;
-        public double Speed => 1;
-        public double CurtimeSeconds(int tick) => tick / 64.0;
-
-        public void RequestSeekToFrame(int frameIndex)
+        Playback2DFakeContext ctx = Playback2DFakeContext.Bare();
+        foreach (string name in eventNames)
         {
+            ctx.Frames[name] = [];
         }
 
-        public void RequestSeekToTick(int tick)
-        {
-        }
-
-        public void RequestPlay()
-        {
-        }
-
-        public void RequestPause()
-        {
-        }
-
-        public event Action<IPlaybackSnapshot>? Advanced;
-        public IReadOnlyEntityView Entities { get; } = new EmptyView();
-        public IReadOnlyList<PlayerRosterEntry> Players => Roster;
-        public IReadOnlyList<IPlayerState> CurrentPlayers { get; } = new List<IPlayerState>();
-
-        // Advanced is never raised in this test (commands are driven directly); reference it to satisfy the
-        // "event is never used" analyzer without changing behavior.
-        public void Unused() => Advanced?.Invoke(null!);
-    }
-
-
-    private sealed class EmptyView : IReadOnlyEntityView
-    {
-        public IEnumerable<IReadOnlyEntity> All() => Array.Empty<IReadOnlyEntity>();
-        public IEnumerable<IReadOnlyEntity> OfClass(string className) => Array.Empty<IReadOnlyEntity>();
-        public IReadOnlyEntity? BySerial(int serial) => null;
-        public IReadOnlyEntity? ByIndex(int entityIndex) => null;
-        public IReadOnlyEntity? ResolveHandle(ulong handle) => null;
+        return ctx;
     }
 }
