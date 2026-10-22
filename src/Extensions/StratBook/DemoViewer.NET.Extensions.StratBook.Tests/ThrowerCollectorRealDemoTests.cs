@@ -71,12 +71,8 @@ public class ThrowerCollectorRealDemoTests
     private static string BenchmarkDemo(int which)
     {
         // The benchmarks are the oracle set; a folder DEMO_PATH stands in only where they are absent.
-        string folder = DemoTestHelper.CorpusDir("benchmarks") is { } benchmarks
-            ? benchmarks
-            : Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar) is { } env && Directory.Exists(env)
-                ? env
-                : throw new SkipTestException("no benchmark demos");
-        List<string> demos = [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)];
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} demos under {folder}");
+        return DemoTestHelper.TrySetDemo("benchmarks", which, out string? problem)
+               ?? DemoTestHelper.DemoPathFolderDemo(which)
+               ?? throw new SkipTestException($"no benchmark demos: {problem}");
     }
 }

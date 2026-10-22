@@ -29,14 +29,7 @@ public class OpenVisitSidecarsRealDemoTests
 {
     private static readonly JsonSerializerOptions Fields = new() { IncludeFields = true };
 
-    private static string BenchmarkDemo(int which)
-    {
-        string? folder = DemoTestHelper.CorpusDir("benchmarks");
-        List<string> demos = Directory.Exists(folder)
-            ? [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
-            : [];
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} demos under demos/benchmarks");
-    }
+    private static string BenchmarkDemo(int which) => DemoTestHelper.RequireSetDemo("benchmarks", which);
 
     // round_facts and the per-player facts fixture, both stamped and both stale.
     private static MergedRulesBuild Stale(string fixture)

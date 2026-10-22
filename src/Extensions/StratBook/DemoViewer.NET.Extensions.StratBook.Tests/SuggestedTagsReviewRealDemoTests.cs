@@ -26,12 +26,7 @@ public class SuggestedTagsReviewRealDemoTests
     [Test]
     public async Task OnAMeasuredDemo_TheEvaluatorBuilds_AndAVerdictLandsInTheTagStore()
     {
-        string? folder = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar);
-        string path = Path.Combine(folder ?? "", SuggestedTagsRealDemoTests.Pinned[1].Demo);
-        if (!File.Exists(path))
-        {
-            throw new SkipTestException($"{path} is not in the replays folder");
-        }
+        string path = DemoTestHelper.RequireReplayDemo(SuggestedTagsRealDemoTests.Pinned[1].Demo);
 
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
         DemoCacheStore cache = new(null);

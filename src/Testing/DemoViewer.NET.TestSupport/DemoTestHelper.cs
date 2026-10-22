@@ -65,6 +65,13 @@ public static class DemoTestHelper
     ///         a second tree at the corpus: removing a tree that links <c>demos/</c> deletes the
     ///         link's target, not the link.
     ///     </para>
+    ///     <para>
+    ///         Precedence: <c>CS2DEMOKIT_CORPUS_DIR</c> predates this variable and wins over it.
+    ///         Only <c>GrenadeRowsRealDemoTests.CorpusDemo</c> reads it, as a root holding
+    ///         <c>benchmarks/</c> and <c>pro-demos/</c>, and it falls through to this one when unset
+    ///         or not a directory. A set-but-invalid value of THIS variable fails the run rather than
+    ///         skipping it.
+    ///     </para>
     /// </summary>
     public const string CorpusRootEnvVar = "DEMO_CORPUS";
 
@@ -344,6 +351,7 @@ public static class DemoTestHelper
             Environment.GetEnvironmentVariable(DemoPathEnvVar),
             Environment.GetEnvironmentVariable(DemoPathPickEnvVar),
             out string? problem);
+        ThrowIfCorpusRootMisconfigured();
         ResolveCorpusRoot(out string? corpusProblem);
         string why = string.Join("; ", new[] { problem, corpusProblem }.Where(p => p is not null));
         throw new SkipTestException(
@@ -478,13 +486,19 @@ public static class DemoTestHelper
     }
 
     /// <summary>
-    ///     <see cref="CorpusDir" /> or a <see cref="SkipTestException" /> carrying the reason,
-    ///     including a set-but-wrong <see cref="CorpusRootEnvVar" />. For tests that read a whole
-    ///     corpus directory, where an empty path silently selects zero demos and passes.
+    ///     <see cref="CorpusDir" /> or a <see cref="SkipTestException" /> carrying the reason. For
+    ///     tests that read a whole corpus directory, where an empty path silently selects zero
+    ///     demos and passes. A set-but-invalid <see cref="CorpusRootEnvVar" /> throws
+    ///     <see cref="DemoCorpusConfigurationException" /> instead: that is a failure.
     /// </summary>
-    public static string RequireCorpusDir(string? subdirectory = null)
+    public static string RequireCorpusDir(string? subdirectory = null) =>
+        RequireCorpusDir(subdirectory, Environment.GetEnvironmentVariable(CorpusRootEnvVar), FindRepoRoot());
+
+    /// <summary><see cref="RequireCorpusDir(string?)" /> with the environment passed in.</summary>
+    public static string RequireCorpusDir(string? subdirectory, string? configured, string? repoRoot)
     {
-        string? root = ResolveCorpusRoot(out string? problem);
+        ThrowIfCorpusRootMisconfigured(configured);
+        string? root = ResolveCorpusRoot(configured, repoRoot, out string? problem);
         if (root is null)
         {
             throw new SkipTestException(problem ?? "no demo corpus available");
@@ -494,6 +508,55 @@ public static class DemoTestHelper
         return Directory.Exists(dir)
             ? dir
             : throw new SkipTestException($"corpus directory does not exist: {dir}");
+    }
+
+    /// <summary>
+    ///     Throws <see cref="DemoCorpusConfigurationException" /> when <see cref="CorpusRootEnvVar" />
+    ///     is set to something that is not a directory. Unset is fine: that is an unconfigured run.
+    /// </summary>
+    public static void ThrowIfCorpusRootMisconfigured() =>
+        ThrowIfCorpusRootMisconfigured(Environment.GetEnvironmentVariable(CorpusRootEnvVar));
+
+    /// <summary><see cref="ThrowIfCorpusRootMisconfigured()" /> with the value passed in.</summary>
+    public static void ThrowIfCorpusRootMisconfigured(string? configured)
+    {
+        if (!string.IsNullOrWhiteSpace(configured) && !Directory.Exists(configured))
+        {
+            throw new DemoCorpusConfigurationException(
+                $"{CorpusRootEnvVar} is set but is not a directory: {configured}");
+        }
+    }
+
+    // ── Sets: the manifest's groups, resolved to files ────────────────────────
+
+    /// <summary>
+    ///     The <paramref name="which" />th demo of a manifest set in ordinal file-name order, from a
+    ///     local corpus, the fetch cache or a configured source, in that order. Fetches only that
+    ///     demo. Skips, naming the cause, when the set is short or the demo cannot be obtained; fails
+    ///     on a set-but-invalid <see cref="CorpusRootEnvVar" /> or on bytes that are not the
+    ///     manifest's. Needs no local corpus when <see cref="DemoSourcesEnvVar" /> is configured.
+    /// </summary>
+    public static string RequireSetDemo(string set, int which)
+    {
+        ThrowIfCorpusRootMisconfigured();
+        return Corpus.RequireSetMember(set, which);
+    }
+
+    /// <summary>
+    ///     <see cref="RequireSetDemo" /> that reports instead of skipping, for callers with a
+    ///     fallback. A misconfigured root and corrupt bytes still throw.
+    /// </summary>
+    public static string? TrySetDemo(string set, int which, out string? problem)
+    {
+        ThrowIfCorpusRootMisconfigured();
+        return Corpus.TryResolveSetMember(set, which, out problem);
+    }
+
+    /// <summary>Every demo of a manifest set in ordinal file-name order, fetching each as needed.</summary>
+    public static string[] RequireSet(string set)
+    {
+        ThrowIfCorpusRootMisconfigured();
+        return Corpus.RequireSet(set);
     }
 
     // ── Folder-shaped DEMO_PATH, for tests that walk every demo ───────────────
@@ -552,6 +615,84 @@ public static class DemoTestHelper
     public static string[] DemoFolderFromEnvironment(out string? problem) =>
         ResolveDemoFolderOverride(Environment.GetEnvironmentVariable(DemoPathEnvVar), out problem);
 
+    // ── The replays folder: DEMO_PATH read as a folder, for tests pinned to its files ─────
+
+    /// <summary>
+    ///     The folder <c>DEMO_PATH</c> names, or the folder of the file it names, with the value
+    ///     passed in. Null with <paramref name="problem" /> when unset or missing.
+    /// </summary>
+    public static string? ResolveReplaysFolder(string? demoPath, out string? problem)
+    {
+        problem = null;
+        if (string.IsNullOrWhiteSpace(demoPath))
+        {
+            problem = $"{DemoPathEnvVar} is not set; it names a .dem or the folder they were written against";
+            return null;
+        }
+
+        if (Directory.Exists(demoPath))
+        {
+            return demoPath;
+        }
+
+        if (File.Exists(demoPath))
+        {
+            return Path.GetDirectoryName(Path.GetFullPath(demoPath));
+        }
+
+        problem = $"{DemoPathEnvVar} does not exist: {demoPath}";
+        return null;
+    }
+
+    /// <summary>
+    ///     A named demo out of the <c>DEMO_PATH</c> folder, or a skip naming the demo and the cause.
+    ///     Never reads the corpus: these tests are pinned to files the corpus does not hold.
+    /// </summary>
+    public static string RequireReplayDemo(string fileName)
+    {
+        string? folder = ResolveReplaysFolder(Environment.GetEnvironmentVariable(DemoPathEnvVar), out string? problem);
+        if (folder is null)
+        {
+            throw new SkipTestException($"{fileName}: {problem}");
+        }
+
+        string path = Path.Combine(folder, fileName);
+        return File.Exists(path) ? path : throw new SkipTestException($"{fileName} is not in the {DemoPathEnvVar} folder: {folder}");
+    }
+
+    /// <summary>
+    ///     Every <c>.dem</c> in the <c>DEMO_PATH</c> folder, ordinal name order, with the extension
+    ///     guard. Skips when the folder is unset, missing or empty.
+    /// </summary>
+    public static string[] RequireReplayDemos()
+    {
+        string? folder = ResolveReplaysFolder(Environment.GetEnvironmentVariable(DemoPathEnvVar), out string? problem);
+        if (folder is null)
+        {
+            throw new SkipTestException(problem ?? $"{DemoPathEnvVar} names no demo folder");
+        }
+
+        string[] demos = ResolveDemoFolderOverride(folder, out problem);
+        return demos.Length > 0 ? demos : throw new SkipTestException(problem ?? $"no .dem in {folder}");
+    }
+
+    /// <summary>
+    ///     The <paramref name="which" />th demo, ordinal name order, of a <c>DEMO_PATH</c> that names
+    ///     a FOLDER, else null. A file-shaped <c>DEMO_PATH</c> yields null: the callers use this as a
+    ///     stand-in for a whole set, and one demo is not a set.
+    /// </summary>
+    public static string? DemoPathFolderDemo(int which)
+    {
+        string? env = Environment.GetEnvironmentVariable(DemoPathEnvVar);
+        if (string.IsNullOrWhiteSpace(env) || !Directory.Exists(env))
+        {
+            return null;
+        }
+
+        string[] demos = ResolveDemoFolderOverride(env, out _);
+        return which >= 0 && which < demos.Length ? demos[which] : null;
+    }
+
     // ── The fetch layer's process-wide default ────────────────────────────────
 
     /// <summary>
@@ -567,7 +708,8 @@ public static class DemoTestHelper
         LazyThreadSafetyMode.ExecutionAndPublication);
 
     private static DemoCorpus BuildCorpus() =>
-        new(CorpusManifest.Embedded, RepoRelativeDemoDirs(), DefaultCacheRoot(), ConfiguredSources());
+        new(CorpusManifest.Embedded, RepoRelativeDemoDirs(), DefaultCacheRoot(), ConfiguredSources(),
+            ResolveCorpusRoot(out _));
 
     private static string DefaultCacheRoot()
     {

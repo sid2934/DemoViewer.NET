@@ -36,17 +36,10 @@ public class BackgroundPlanRealDemoTests
 
     internal static string SmallestDemo(int which)
     {
-        string? env = Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar);
-        string? folder = Directory.Exists(env) ? env : File.Exists(env) ? Path.GetDirectoryName(env) : null;
-        if (folder is null)
-        {
-            throw new SkipTestException($"{DemoTestHelper.DemoPathEnvVar} names no demo folder");
-        }
-
-        List<FileInfo> demos = [.. new DirectoryInfo(folder).EnumerateFiles("*.dem").OrderBy(f => f.Length)];
+        List<FileInfo> demos = [.. DemoTestHelper.RequireReplayDemos().Select(f => new FileInfo(f)).OrderBy(f => f.Length)];
         return which < demos.Count
             ? demos[which].FullName
-            : throw new SkipTestException($"fewer than {which + 1} demos in {folder}");
+            : throw new SkipTestException($"fewer than {which + 1} demos in the {DemoTestHelper.DemoPathEnvVar} folder");
     }
 
     internal static ParsedDemo ParseMapped(string path, DecodePlan plan) =>

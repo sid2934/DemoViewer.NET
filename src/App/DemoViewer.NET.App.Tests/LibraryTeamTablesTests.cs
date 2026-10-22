@@ -392,14 +392,7 @@ public class LibraryTeamTablesTests
     private static string Show(LibraryTeamState s) =>
         $"{s.Ct}:{s.T}:{s.CtClan}:{s.TClan}:[{string.Join(",", s.CoachSlots.Order())}]";
 
-    private static string BenchmarkDemo(int which)
-    {
-        string? folder = DemoTestHelper.CorpusDir("benchmarks");
-        List<string> demos = Directory.Exists(folder)
-            ? [.. Directory.EnumerateFiles(folder, "*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
-            : [];
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} demos under demos/benchmarks");
-    }
+    private static string BenchmarkDemo(int which) => DemoTestHelper.RequireSetDemo("benchmarks", which);
 
     // The read the tables replaced: CCSTeam per side and the controller at entity index slot + 1, replayed to
     // the last frame through a tracker that stores only those two classes.

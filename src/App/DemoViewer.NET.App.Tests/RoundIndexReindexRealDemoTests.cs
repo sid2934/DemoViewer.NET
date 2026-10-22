@@ -98,11 +98,5 @@ public class RoundIndexReindexRealDemoTests
         new(SingleWalkOracleTests.Canonical(root, demo).Where(kv => kv.Key.Contains("/round-index/", StringComparison.Ordinal))
             .ToDictionary(kv => kv.Key, kv => kv.Value), StringComparer.Ordinal);
 
-    private static string BenchmarkDemo()
-    {
-        string? folder = DemoTestHelper.CorpusDir("benchmarks");
-        return Directory.Exists(folder) && Directory.EnumerateFiles(folder, "*.dem").Order(StringComparer.Ordinal).FirstOrDefault() is { } demo
-            ? demo
-            : throw new SkipTestException("no demos under demos/benchmarks");
-    }
+    private static string BenchmarkDemo() => DemoTestHelper.RequireSetDemo("benchmarks", 0);
 }
