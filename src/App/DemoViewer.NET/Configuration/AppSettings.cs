@@ -482,17 +482,6 @@ public enum UserCategory
 /// </summary>
 public sealed class Playback2DSettings
 {
-    /// <summary>
-    ///     Mounts the pre-v2 <c>Playback2DViewport</c> instead of the v2 compositor host.
-    ///     <para>
-    ///         An internal parity escape hatch for one release, then deleted together with the old
-    ///         control. Deliberately NOT a <c>FeatureCatalog</c> id: catalog ids are permanent
-    ///         persisted keys and this is temporary by design. The
-    ///         <c>DV_PLAYBACK2D_RENDERER</c> environment variable overrides it, for CI and bisecting.
-    ///     </para>
-    /// </summary>
-    public bool LegacyViewport { get; set; }
-
     // ── Annotations. Property names are the registry's; every one of them has a
     //    SettingsService.WriteInMemory row, because annotations are WASM-reachable, in-session drawing
     //    works in the browser, and an unflattened key there is a setting that silently forgets itself.

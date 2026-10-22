@@ -266,7 +266,7 @@
 
                  Classification (chrome = HUD furniture; domain = game-semantic meaning):
                  these tokens are the single home for the team/grid/label/viewport-bg values.
-                 The Skia renderer (Playback2DViewport.cs) RESOLVES them from these tokens
+                 The scene palette (ScenePaletteFactory.cs) RESOLVES them from these tokens
                  (ThemeColors.Get; the inline hex is only a no-resources fallback), and the HUD
                  team chip (PlayerAttributes.cs → Playback2DView teamChip classes) resolves
                  Pb2dTeamT/Ct the same way — so there is one theme-aware source, no hardcoded copy.
@@ -359,7 +359,7 @@
             <SolidColorBrush x:Key="SyntaxNumber" Color="#B5CEA8" />
             <SolidColorBrush x:Key="SyntaxOperator" Color="#D4D4D4" />
 
-            <!-- 2D radar CANVAS renderer colours (T1a — Playback2DViewport resolves these from the token
+            <!-- 2D radar CANVAS renderer colours (T1a: ScenePaletteFactory resolves these from the token
                  namespace so any theme colours the radar with no code change). Dark = the former DarkCanvas
                  bundle EXACTLY. Team T/CT reuse Pb2dTeamT / Pb2dTeamCt (deduped). The baked radar bitmap stays
                  dark by design (theme-independent asset). -->
@@ -621,7 +621,7 @@
             <SolidColorBrush x:Key="LibraryCardScoreT" Color="#F0B23C" />
 
             <!-- ── Playback2D (Pb2d*) HUD chrome — LIGHT values (L2a). The 2D tab chrome (panels / info / kill
-                 feed / HUD text) goes light together with the Skia canvas (Playback2DViewport LightCanvas).
+                 feed / HUD text) goes light together with the Skia canvas (ScenePaletteFactory Light).
                  Surfaces = the app light-surface ramp; text darkens for light-bg contrast; team T/CT match the
                  canvas (deepened for legibility on light). The DOMAIN HUD accents below (health/armor/headshot/…)
                  are DARKENED for light-bg legibility: each clears WCAG AA (~4.5:1) against the DARKEST surface it

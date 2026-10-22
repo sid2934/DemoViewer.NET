@@ -19,7 +19,7 @@ public interface ISmoothedPositionSource
 /// <summary>
 ///     Per-slot smoothed draw positions, chased toward the latest sampled marker position once per
 ///     rendered frame so markers glide between discrete pushes instead of stepping. Port of
-///     <c>Playback2DViewport.AdvanceMarkers</c> (lines 648-699), verbatim, plus the discontinuity snap.
+///     the pre-v2 control's <c>AdvanceMarkers</c>, verbatim, plus the discontinuity snap.
 ///     <para>
 ///         <b>Camera targeting stays on the RAW positions</b>, and so does level assignment: only the
 ///         drawn dot is smoothed (parity invariant 3). Extracted from the marker layer because the
@@ -95,7 +95,7 @@ public sealed class MarkerSmoother : ISmoothedPositionSource
     ///     <para>
     ///         Public and un-deduplicated so a test can drive it with a known <paramref name="dt" />:
     ///         the pre-v2 <c>AdvanceMarkers</c> was <c>internal</c> for the same reason, and
-    ///         <c>Playback2DInterpolationTests</c> is ported onto this signature.
+    ///         <c>MarkerSmoothingTests</c> drives this signature.
     ///     </para>
     /// </summary>
     /// <param name="markers">The frame's markers.</param>

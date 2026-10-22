@@ -369,8 +369,8 @@ public static class HeadlessSession
                 // the compositor's in-flight batch queue: the headless render timer never ticks on
                 // its own (manual ForceRenderTimerTick platform), so the NEXT test's `new Window()`
                 // then parks forever inside a nested dispatcher frame waiting for a commit slot
-                // (root-caused via Playback2DCameraModeTests: AllModes leaked an animating window
-                // and ManualPanZoom wedged at Window construction; closing the window fixed it).
+                // (a camera-mode suite leaked an animating window and the next case wedged at Window
+                // construction; closing the window fixed it).
                 // Ticking here drains the backlog to at most the single re-requested frame, keeping
                 // leaked-but-animating windows from wedging their successors. The flush renders
                 // OTHER tests' leaked windows in whatever mid-teardown state they're in. A render

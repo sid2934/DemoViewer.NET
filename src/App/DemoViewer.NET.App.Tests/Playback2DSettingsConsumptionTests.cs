@@ -49,22 +49,10 @@ internal sealed record SettingConsumption(
 public class Playback2DSettingsConsumptionTests
 {
     /// <summary>
-    ///     Keys knowingly missing a reader or a writer. The reason is the entry.
-    ///     <para>
-    ///         <c>AnnotationAutoSave</c>'s entry is gone: round 3A gave the key the writer it never had
-    ///         (<c>AnnotationSessionController.WritePendingStyle</c>) and the UI it never had (the
-    ///         annotation toolbar's Auto-save box), and moved the authoritative check from the schedule
-    ///         to <c>SaveNowAsync</c> so a flush at shutdown honours it too.
-    ///     </para>
+    ///     Keys knowingly missing a reader or a writer. The reason is the entry. Empty: every key in the
+    ///     section is both read and written in production.
     /// </summary>
-    private static readonly Dictionary<string, string> _unconsumedByDesign = new(StringComparer.Ordinal)
-    {
-        ["LegacyViewport"] =
-            "BY DESIGN, and the only entry here that is. Plan decision D-9: a parity escape hatch for one "
-            + "release, deliberately NOT a FeatureCatalog id and deliberately with no UI — it is set by "
-            + "hand-editing settings.json or by DV_PLAYBACK2D_RENDERER, and it is deleted with the old "
-            + "control. It has a reader (Playback2DTabViewModel) and needs no writer."
-    };
+    private static readonly Dictionary<string, string> _unconsumedByDesign = new(StringComparer.Ordinal);
 
     /// <summary>
     ///     Registry keys that the class does not carry. The reason is the entry.
@@ -286,7 +274,6 @@ public class Playback2DSettingsConsumptionTests
         "ExportEncoder",
         "ExportQuality",
         "RenderBackend",
-        "LegacyViewport",
     ];
 
     private static List<string> RegistryKeys() => [.. _registry];

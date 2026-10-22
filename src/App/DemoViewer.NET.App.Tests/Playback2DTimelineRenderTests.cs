@@ -89,7 +89,7 @@ public class Playback2DTimelineRenderTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             TimelineControl timeline = Playback2DTimelineHarness.Timeline(view);
-            Playback2DViewport viewport = Playback2DTimelineHarness.Viewport(view);
+            Control viewport = Playback2DTimelineHarness.Surface(view);
             await Assert.That(timeline.IsVisible).IsTrue();
 
             double viewportWithTimeline = viewport.Bounds.Height;

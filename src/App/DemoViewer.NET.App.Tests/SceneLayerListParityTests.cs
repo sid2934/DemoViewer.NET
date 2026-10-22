@@ -48,8 +48,7 @@ public class SceneLayerListParityTests
         await HeadlessSession.RunOnUi(async () =>
         {
             (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
 
             Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
             string[] mounted = [.. host.Compositor.Layers.Select(l => l.Id).Order()];

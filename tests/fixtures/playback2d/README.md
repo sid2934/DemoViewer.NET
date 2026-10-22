@@ -104,11 +104,12 @@ describe the same world state.
 | `nuke-single-upper.scene.json` | Captured by `dv2d fixture capture` from the committed `assets/tour/sample-de_nuke.dem` at tick 9694. Despite the name it is a **stacked** render (`dv2d` cannot select a floor), so the true single-floor picture is `nuke-multilevel-upper`, below. |
 | `nuke-multilevel.scene.json` | **Pending, permanently as things stand.** The pre-v2 parity pair: its golden came from the control's own `DrawingContext` under the Light palette, and `GoldenParityTests` judges it on a delta distribution. Two further goldens are rendered *from this one scene* by `LevelGoldenTests` and listed under their own names: `nuke-multilevel-upper` (SingleLayout, top floor) and `nuke-multilevel-noradar` (floors bound, no radar art). |
 
-**Pre-v2 captures**: `prev2-*`, written by `Playback2DGoldenCaptureTests` from a real demo through
-headless Avalonia. `prev2-mirage-roundstart` is committed (captured from `furia-vs-vitality-m1-mirage.dem`,
-a pro GOTV demo staged under `demos/pro/` on developer machines, so its test skips on CI), and so is
-`prev2-dust2-roundstart` (captured from the matchmaking demo `003801777854962729156_0256036251.dem`, also
-skipped on CI). None is listed in the manifest, so
+**Pre-v2 captures**: `prev2-*`, captured from a real demo through headless Avalonia by the pre-v2
+control. **Frozen**: that control is deleted, so nothing regenerates these. `GoldenParityTests` and
+`LevelGoldenTests` still read them, and a deliberate change to one of them is a re-baseline against the
+v2 compositor. `prev2-mirage-roundstart` came from `furia-vs-vitality-m1-mirage.dem`, a pro GOTV demo
+staged under `demos/pro/` on developer machines; `prev2-dust2-roundstart` came from the matchmaking demo
+`003801777854962729156_0256036251.dem`. None is listed in the manifest, so
 `GoldenCorpusTests` exempts the prefix. The prefix exists because two of these
 captures used to be named `duel-mirage-b` and `fitmap-mirage-eco` (the names of two hand-authored
 640x360 fixtures) and overwrote both scene files on any machine that had the demos.
@@ -135,10 +136,7 @@ before they are committed: a golden that is silently rewritten is a test that no
 `PB2D_GOLDEN_UPDATE=1` rewrites an **existing** golden as well as filling in a missing one. It used to
 do only the latter, which left `scripts/update-playback2d-goldens.sh` unable to re-baseline anything:
 a deliberate visual change needed an undocumented `rm` first. `dv2d golden update` always overwrote;
-the three direct-execution suites now agree with it. The same variable is what gates the *scene*
-writes in `Playback2DGoldenCaptureTests`, which is new: that harness rewrote its fixtures on every
-run, and the tour demo ships in every checkout, so any App-suite run re-authored
-`scenes/nuke-multilevel.scene.json`, the input to `GoldenParityTests` and `LevelGoldenTests`.
+the direct-execution suites now agree with it.
 
 ```bash
 scripts/dv2d.sh golden update                 # every entry, through the dv2d render path
@@ -146,18 +144,8 @@ scripts/dv2d.sh golden update --name duel-mirage-b
 scripts/dv2d.sh golden verify                 # exit 4 on any mismatch, diffs in artifacts/
 ```
 
-The B0/B1 pairs captured from a demo through the App's own harness have their own script:
-
-```bash
-scripts/update-playback2d-goldens.sh          # captures the demo-derived pairs
-```
-
-which is a thin wrapper over:
-
-```bash
-PB2D_GOLDEN_UPDATE=1 dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release \
-  -- --treenode-filter "/*/*/Playback2DGoldenCaptureTests/*"
-```
+`scripts/update-playback2d-goldens.sh` runs the synthetic, budget-fixture and level families in the
+order they depend on each other. It does not touch the frozen `prev2-*` pairs.
 
 Without `PB2D_GOLDEN_UPDATE=1` a missing golden is a **failure**, not a silent write.
 

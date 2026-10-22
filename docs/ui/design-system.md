@@ -98,7 +98,7 @@ inversion. Only the `[Light]` dict was edited (`[Dark]` is untouched and renders
    > (`BinaryPane` isn't a variant); verify that pairing in-app at L2/L3.
 2. **L1-DEFERRED: the 29 `Pb2d*` 2D-HUD tokens.** *Not* theme-independent (a `Pb2d*`-lit tab could go
    light) but deliberately kept dark: the 2D Playback tab wraps a still-dark **Skia** viewport
-   (`Playback2DViewport.cs`, code-held). Lightening only the `Pb2d*` markup chrome now would make the tab a
+   (code-held, in the pre-v2 renderer). Lightening only the `Pb2d*` markup chrome now would make the tab a
    light HUD around a dark map canvas (an incoherent half-tab). Kept a **coherent dark island** and re-themed
    **together with the Skia viewport in L2**.
 3. **Code-held, not palette (out of L1 by definition).** The message-type accent classifiers
@@ -276,7 +276,7 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 `Pb2dAdr` `#E0A878`, `Pb2dDefuseTime` `#5AB0E0`, `Pb2dMapApprox` `#C0A060`.
 
 > **Scope + follow-up (P3.3a).** Only `Views/Playback2D/Playback2DView.axaml` was de-inlined
-> (67 bare-inline markup literals → tokens). The Skia renderer `Modules/Playback2D/Playback2DViewport.cs`
+> (67 bare-inline markup literals → tokens). The then-current Skia renderer under `Modules/Playback2D/`
 > (~34 hex) and the `PlayerAttributes.TeamColor` VM (3 hex) **keep** their colors: they already hold them
 > as **named `static readonly` brushes/pens** and a named property (already centralized, not bare-inline);
 > converting Skia static-init `Color.Parse` fields to `FindResource` is init-order/WASM-fragile and would
@@ -285,8 +285,8 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 > **and** `PlayerAttributes.TeamColor`: the token is the canonical value the copies match **exactly**;
 > because the tokens are app-level (not `UserControl.Resources`), a later pass can reference them from the
 > renderer/VM to collapse the triplication. Same for viewport-bg/grid/label. **Verified no-op:** every
-> token's hex == its original literal (value-equivalence table) **and** `Playback2DHeadlessSmokeTests`
-> instantiates the real `Playback2DView` with a synthetic VM (no demo) → all `Pb2d*` `{StaticResource}`
+> token's hex == its original literal (value-equivalence table) **and** the App's headless smoke suite
+> instantiated the real `Playback2DView` with a synthetic VM (no demo) → all `Pb2d*` `{StaticResource}`
 > keys resolve at control-load; the rendered frame is correct (team chips / HP-green / grey HUD ramp).
 >
 > **Follow-up CLOSED (recorded v0.6.0):** the "keep their colors" state and the triplication described
@@ -298,9 +298,10 @@ below is a *role* attribute (furniture vs game-meaning), not a naming rule.
 > shipped; the "kept dark in every theme" / `{StaticResource}` phrasing above is stale.** The `[Light]`
 > `ThemeDictionaries` block re-authors the 2D tokens (`Pb2dOverlayBg #CC15181C→#E6EDEFF3`, `Pb2dTextBright
 > #C0C8D0→#363D47`, `Pb2dPositive #86C786→#2A7530`, `Pb2dCanvasBg #15181C→#E7E9ED`, …) and the Skia
-> viewport re-resolves them on `ActualThemeVariantChanged` (`Playback2DViewport.BuildPalette`). So the 2D
+> surface re-resolves them on `ActualThemeVariantChanged` (`Scene2DHost` via `ScenePaletteFactory.Build`). So the 2D
 > tab is a **dark island on dark, a light island on light**. Verified by rendering `playback2d-canvas`
-> (light) as a light grid and `playback2d-livesync-hud` (dark/light/high-contrast). Any doc line that says
+> (light) as a light canvas and `playback2d-livesync-hud` (dark/light/high-contrast). The canvas variant
+> mounts a bare host with no frame, so it shows the resolved `Pb2dCanvasBg` and no grid. Any doc line that says
 > a `Pb2d*` token is "held identical to Dark" is superseded by this.
 
 <a id="pb2d-hud-dot"></a>
@@ -1367,7 +1368,7 @@ the export dialog's filename box.
 **Follow-by-card.** The right-hand attributes panel is a `ListBox` whose containers are stripped of Fluent
 chrome (`Padding=0`, transparent, `Focusable=False`). Selecting a card runs the single follow funnel
 (`Playback2DTabViewModel.NotifyFollowSlotChanged`), which marks exactly one card (`Border.playerCard.followed`
-→ `Pb2dPositive` outline + a `⦿ requested` chip), mirrors the slot onto `Playback2DViewport.FollowSlot`, and
+→ `Pb2dPositive` outline + a `⦿ requested` chip), mirrors the slot onto `Scene2DHost.FollowSlot`, and
 calls `IModuleContext.NotifySpectateTarget`. The wording is **"requested"**, never "confirmed". CS2
 spectating has no readback. Gated by `playback2d.follow`.
 
@@ -2474,7 +2475,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **Spotlight = one code-drawn even-odd geometry, not 4 dim panels or a converter.** A `SpotlightScrim`
   `Control` (full rect + rounded-rect hole, `FillRule.EvenOdd`) gives the rounded hole + token frame the
   brief asks for in one repaint; theme-reactivity is free via `StyledProperty<IBrush>` + `AffectsRender`
-  (no `ActualThemeVariantChanged` sub needed, nothing is cached, cf. `Playback2DViewport`). `ScrimOpacity`
+  (no `ActualThemeVariantChanged` sub needed, nothing is cached, cf. `Scene2DHost`). `ScrimOpacity`
   is baked into the fill colour (read from the `ISolidColorBrush` token) so the dim is translucent while the
   frame stroke stays crisp, avoids `PushOpacity` fragility and still re-themes (Render re-runs on token
   re-resolve).
@@ -2488,7 +2489,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   live" open question.
 - **Callout positioning is code-behind (layout, not data).** Clamping to the window needs the callout's
   *measured* size, which a converter/MultiBinding can't see; `PositionCallout` runs on `LayoutUpdated` (settles
-  under the headless render pump) + VM `PropertyChanged`. Same category as the `GraphView`/`Playback2DViewport`
+  under the headless render pump) + VM `PropertyChanged`. Same category as the `GraphView`/`Scene2DHost`
   render code-behind, not a reactive-binding violation.
 - ~~**Not integrated.**~~ **Shipped in v0.5.1** (the engine, then the sample-demo wiring). The
   walkthrough is live: `MainView`/`MainViewModel` host it, the wizard Done page offers it, it persists, and
@@ -2740,7 +2741,7 @@ shared class (`ListBox.card-grid`, above).
   adoptions remain.** Two axes to report honestly:
   - **(i) Code-held colour (NOT converged, separate, larger question, never in the markup-sweep scope).**
     A `grep -rE '"#[0-9A-Fa-f]{6,8}"' --include='*.cs'` finds meaningful colour still defined in code:
-    the **Playback2D Skia renderer** `Modules/Playback2D/Playback2DViewport.cs` (~30 hex) + `PlayerAttributes.cs`
+    the **Playback2D scene palette** `Modules/Playback2D/ScenePaletteFactory.cs` (~30 hex) + `PlayerAttributes.cs`
     `TeamColor` (3), D21/D22, kept for init-order/WASM reasons + the team-triplication unify follow-up;
     `WorkbenchYamlHighlighting.cs` (12 syntax roles, D31); and a **family of VM accent-CLASSIFIER palettes**
     that map a semantic key → a hue in code: `HarvestCardViewModel` (17), `HarvestPropertyViewModel` (15),
@@ -2827,7 +2828,7 @@ shared class (`ListBox.card-grid`, above).
   be referenced from the renderer/VM to collapse the team-color triplication; scoped resources can't. See
   [Playback2D palette](#playback2d-palette).
 - **D22. Scope = the AXAML only; the Skia renderer + `TeamColor` VM keep their named color symbols.**
-  `Playback2DViewport.cs` holds ~34 colors as `static readonly` brushes/pens and `PlayerAttributes.TeamColor`
+  The pre-v2 renderer held ~34 colors as `static readonly` brushes/pens and `PlayerAttributes.TeamColor`
   is a named property: already centralized, not the "bare-inline-in-markup" the P0.3 backlog flagged.
   Converting Skia static-field `Color.Parse` initializers to `FindResource` is init-order/WASM-fragile and
   would risk the large Playback2D render-test battery for ~zero gain; left as a documented follow-up (D21's
@@ -2840,8 +2841,8 @@ shared class (`ListBox.card-grid`, above).
   > `IsT`/`IsCt` class flags → `Pb2dTeamT/Ct` tokens. The renderer's remaining ~31 inline hex are
   > design-time FALLBACKS, not owned colors. See the resolved triplication bullet in Open questions.
 - **D23. Verified no-op by value-equivalence + one executing view-instantiation, not by A/B render.** Each
-  token's hex == its original literal (exact, alpha included); `Playback2DHeadlessSmokeTests` constructs the
-  real `Playback2DView` with a synthetic VM (no demo, so it EXECUTES rather than skips) → proves every
+  token's hex == its original literal (exact, alpha included); the App's headless smoke suite constructed the
+  real `Playback2DView` with a synthetic VM (no demo, so it EXECUTED rather than skipped) → proves every
   `{StaticResource Pb2dX}` resolves at control-load (a typo/missing-token would throw there, not at compile).
   The rendered frame reads correct (team chips, HP-green, grey HUD ramp). No new UiCapture variant was added
   (the viewport needs a demo to show markers; the smoke test already instantiates the full view).

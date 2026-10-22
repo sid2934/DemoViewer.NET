@@ -21,8 +21,8 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         render path here mirrors <see cref="SceneLayerCatalog.CreateSceneStack" /> plus
 ///         <see cref="HeadlessSceneRenderer" /> with the camera pinned, statement for statement what
 ///         <c>SceneRenderPlan</c> + <c>GoldenCommand</c> do, or the two would disagree by construction.
-///         Not the pre-v2 parity corpus, which pins the pre-v2 control's <c>DrawingContext</c> output via
-///         <c>Playback2DGoldenCaptureTests</c>.
+///         Not the pre-v2 parity corpus, which pins the pre-v2 control's <c>DrawingContext</c> output
+///         and is read by <c>GoldenParityTests</c>.
 ///     </para>
 ///     <para>
 ///         Compared perceptually rather than byte-exact, since anti-aliased edges can differ by a

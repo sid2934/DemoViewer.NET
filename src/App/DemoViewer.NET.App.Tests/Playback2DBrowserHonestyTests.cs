@@ -222,8 +222,7 @@ public class Playback2DBrowserHonestyTests
             vm.IsBrowserHost = static () => true;
             vm.OnActivated(ctx);
 
-            (Window _, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             Playback2DTimelineHarness.Pump();
 
             TextBlock label = view.FindControl<TextBlock>("ExportUnavailableLabel")

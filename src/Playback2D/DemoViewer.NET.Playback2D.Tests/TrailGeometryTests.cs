@@ -10,7 +10,7 @@ using SkiaSharp;
 namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
-///     The port of the App's <c>GrenadeTrailFloorSplitTests</c>, case for case, plus the two things B1
+///     The pre-v2 floor-split cases, case for case, plus the two things B1
 ///     adds: the non-allocating overload, and the context-driven form that needs no closure.
 ///     <para>
 ///         The behaviour under test is the reported bug that produced it: a grenade whose arc crosses

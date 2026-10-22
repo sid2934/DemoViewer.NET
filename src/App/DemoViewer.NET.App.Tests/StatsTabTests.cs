@@ -19,9 +19,9 @@ using DemoViewer.NET.Views.Stats;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Stats tab tests (release plan P1-3.1/4.1): fully synthetic per the harness practice
-///     (Playback2DHeadlessSmokeTests caveat: the headless session can't complete the async demo-load
-///     path, so the VM is fed a hand-built <see cref="EvaluationResult" /> directly via
+///     Stats tab tests (release plan P1-3.1/4.1): fully synthetic per the harness practice. The
+///     headless session can't complete the async demo-load path, so the VM is fed a hand-built
+///     <see cref="EvaluationResult" /> directly via
 ///     <see cref="StatsTabViewModel.Update" />). Covers: scoreboard rows + default kills-desc sort,
 ///     round browser filtering, column-follows-rules behavior, folder export writing both tables,
 ///     and a headless Skia render of the view producing a non-blank frame.

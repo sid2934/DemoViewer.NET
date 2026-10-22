@@ -11,7 +11,7 @@ namespace DemoViewer.NET.AppTests;
 
 /// <summary>
 ///     Follow-by-card end to end through the real control tree: the ListBox selection, the followed
-///     treatment on exactly one card, and the viewport mirror. The pure-VM funnel tests cover the LiveSync
+///     treatment on exactly one card, and the surface mirror. The pure-VM funnel tests cover the LiveSync
 ///     hop; this covers the wiring between them.
 /// </summary>
 [NotInParallel]
@@ -26,7 +26,7 @@ public class Playback2DFollowCardRenderTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.Push(1, 2);
             (Window _, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
-            Playback2DViewport viewport = Playback2DTimelineHarness.Viewport(view);
+            Scene2DHost surface = Playback2DTimelineHarness.SceneHost(view);
 
             ListBox cards = view.FindControl<ListBox>("PlayerCards")!;
             await Assert.That(cards.ItemCount).IsEqualTo(vm.Attributes.Count);
@@ -36,8 +36,8 @@ public class Playback2DFollowCardRenderTests
 
             await Assert.That(vm.FollowedSlot).IsEqualTo(2);
             await Assert.That(vm.Attributes.Count(a => a.IsFollowed)).IsEqualTo(1);
-            await Assert.That(viewport.FollowSlot).IsEqualTo(2);
-            await Assert.That(viewport.Mode).IsEqualTo(CameraMode.FollowPlayer);
+            await Assert.That(surface.FollowSlot).IsEqualTo(2);
+            await Assert.That(surface.Mode).IsEqualTo(CameraMode.FollowPlayer);
             await Assert.That(ctx.SpectateTargets).Contains(2);
 
             // Exactly one visible card carries the followed class. The treatment must not smear across the
@@ -56,7 +56,7 @@ public class Playback2DFollowCardRenderTests
         {
             // WorkspaceTabDescriptor DESTROYS the view on deactivation and rebuilds it from ViewFactory on
             // the next activation, keeping the cached VM. Without a re-projection the followed card and the
-            // "requested" chip come back while the new viewport sits in Fit. The follow would look live and
+            // "requested" chip come back while the new surface sits in Fit. The follow would look live and
             // be dead.
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.Push(1, 2);
@@ -69,11 +69,11 @@ public class Playback2DFollowCardRenderTests
 
             // The rebuild: a brand-new view over the SAME cached view-model.
             (Window _, Playback2DView second) = Playback2DTimelineHarness.Show(vm);
-            Playback2DViewport viewport = Playback2DTimelineHarness.Viewport(second);
+            Scene2DHost surface = Playback2DTimelineHarness.SceneHost(second);
 
-            Console.WriteLine($"[follow-rebind] vm={vm.FollowedSlot} viewport={viewport.FollowSlot}");
-            await Assert.That(viewport.FollowSlot).IsEqualTo(2);
-            await Assert.That(viewport.Mode).IsEqualTo(CameraMode.FollowPlayer);
+            Console.WriteLine($"[follow-rebind] vm={vm.FollowedSlot} surface={surface.FollowSlot}");
+            await Assert.That(surface.FollowSlot).IsEqualTo(2);
+            await Assert.That(surface.Mode).IsEqualTo(CameraMode.FollowPlayer);
             await Assert.That(vm.FollowedSlot).IsEqualTo(2);
             await Assert.That(vm.Attributes.Count(a => a.IsFollowed)).IsEqualTo(1);
         });

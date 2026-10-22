@@ -14,7 +14,7 @@ namespace DemoViewer.NET.Views.Tutorial;
 /// <summary>
 ///     Code-behind for the walkthrough overlay. The only logic here is <b>layout</b> of the callout bubble
 ///     relative to the spotlight, a rendering/geometry concern derived from bound state, not data pushing
-///     (the same category as the GraphView / Playback2DViewport render code-behind). It positions the
+///     (the same category as the GraphView / Scene2DHost render code-behind). It positions the
 ///     callout on a <see cref="Canvas" /> per <see cref="CalloutPlacement" /> and clamps it fully on-screen
 ///     so a spotlight near any window edge keeps its bubble visible.
 /// </summary>

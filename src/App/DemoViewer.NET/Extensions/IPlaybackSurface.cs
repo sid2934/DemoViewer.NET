@@ -27,7 +27,7 @@ public interface IPlaybackSurface
 {
     /// <summary>
     ///     The mounted viewport's map levels, for a contribution that keys a world Z to a floor. Empty when
-    ///     no surface with levels is mounted (the legacy viewport, a headless test).
+    ///     no surface with levels is mounted (a headless test).
     /// </summary>
     IReadOnlyList<MapLevel> MapLevels { get; }
 

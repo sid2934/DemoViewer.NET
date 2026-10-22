@@ -9,7 +9,7 @@ namespace DemoViewer.NET.Playback2D.Core.Vision;
 /// <summary>
 ///     Tuning for the line-of-sight overlay, shared by the layer and the Pipeline solver so the drawn
 ///     cone and the solved rays can never disagree about the field of view. Values are the pre-v2
-///     <c>Playback2DViewport</c> constants.
+///     the pre-v2 control's constants.
 /// </summary>
 /// <param name="ConeRays">Rays across the horizontal FOV fan.</param>
 /// <param name="ConeHalfFovDeg">Half the horizontal FOV, in degrees.</param>

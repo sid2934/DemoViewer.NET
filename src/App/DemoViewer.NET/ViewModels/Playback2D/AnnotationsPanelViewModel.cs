@@ -231,10 +231,10 @@ public sealed partial class AnnotationsPanelViewModel : ObservableObject, IDispo
     ///     mounted surface can actually host ink. Fails open on both halves.
     ///     <para>
     ///         The gate alone answers "is the user allowed to draw"; it cannot answer "is there anything
-    ///         to draw on", and under the legacy renderer the answer to the second is no. Binding the
-    ///         toolbar to the gate alone rendered a complete, inert tool row, and selecting a tool in it
-    ///         took <c>Space</c> and <c>Esc</c> away from transport and follow, because the keymap's
-    ///         tool-scoped rows key off <see cref="IsDrawingToolActive" />, which key off this.
+    ///         to draw on". Binding the toolbar to the gate alone renders a complete, inert tool row over
+    ///         a surface that cannot host ink, and selecting a tool in it takes <c>Space</c> and
+    ///         <c>Esc</c> away from transport and follow, because the keymap's tool-scoped rows key off
+    ///         <see cref="IsDrawingToolActive" />, which keys off this.
     ///     </para>
     /// </summary>
     public bool IsEnabled => _controller.IsEnabled && IsSurfaceCapable;

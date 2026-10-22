@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     <b>The port's exit criterion.</b> Re-renders each captured <c>SceneFixture</c> through the v2
-///     compositor and compares it to the PNG the pre-v2 <c>Playback2DViewport</c> produced from the very
+///     compositor and compares it to the PNG the pre-v2 control produced from the very
 ///     same push.
 ///     <para>
 ///         <b>What parity can honestly mean across two rasterisers.</b> The golden came from Avalonia's
@@ -42,10 +42,10 @@ public class GoldenParityTests
     // Measured on the nuke-multilevel corpus entry and written up in the review. Set just below the
     // observed values, so a genuine regression, a mis-placed layer, a wrong colour, a dropped pass,
     // moves the curve far enough to fail while resampling noise does not. Held in the pipeline rather
-    // than here because Playback2DGoldenCaptureTests judges the SAME golden against the SAME curve, and
-    // a second copy of these two numbers is a second thing to keep in step. Judge through Evaluate for
-    // the same reason: sharing the numbers but re-deciding the pass locally leaves two gates to keep in
-    // step instead of two constants.
+    // than here because the corpus manifest cites the curve by name, and a second copy of these two
+    // numbers is a second thing to keep in step. Judge through Evaluate for the same reason: sharing
+    // the numbers but re-deciding the pass locally leaves two gates to keep in step instead of two
+    // constants.
     private static readonly GoldenDistribution Gate = GoldenDistribution.PreV2Capture;
 
     /// <summary>

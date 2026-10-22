@@ -22,8 +22,7 @@ namespace DemoViewer.NET.AppTests;
 ///     zoomed into A site got a whole-map export and no indication why.
 ///     <para>
 ///         Two halves: the host produces a keyed snapshot of what is actually on screen, and the View
-///         hands that capture to the tab view-model, because the VM cannot reach the mounted surface and
-///         the legacy escape hatch has no pane cameras to capture at all.
+///         hands that capture to the tab view-model, because the VM cannot reach the mounted surface.
 ///     </para>
 /// </summary>
 [NotInParallel]
@@ -38,8 +37,7 @@ public class Playback2DMirrorLiveViewTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             try
             {
                 Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
@@ -81,8 +79,7 @@ public class Playback2DMirrorLiveViewTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, 64f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             try
             {
                 Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);
@@ -136,8 +133,7 @@ public class Playback2DMirrorLiveViewTests
         {
             (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             try
             {
                 // `Assert.That(someFunc)` binds to TUnit's delegate overload, so the null checks go
@@ -150,31 +146,6 @@ public class Playback2DMirrorLiveViewTests
                 view.DataContext = null;
                 await Assert.That(vm.LiveCameraSource is null).IsTrue()
                     .Because("a capture delegate must not outlive the surface it closes over");
-            }
-            finally
-            {
-                window.Close();
-            }
-        });
-    }
-
-    /// <summary>
-    ///     Under the legacy escape hatch there are no pane cameras, so nothing is wired and the dialog
-    ///     falls back to the empty <c>Fixed</c> script: the original behaviour, kept deliberately rather
-    ///     than stubbed with a lie.
-    /// </summary>
-    [Test]
-    public async Task LegacySurface_WiresNoCapture()
-    {
-        await HeadlessSession.RunOnUi(async () =>
-        {
-            (Playback2DTabViewModel vm, Playback2DFakeContext _) = Playback2DTimelineHarness.Tab();
-
-            (Window window, Playback2DView _) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Legacy);
-            try
-            {
-                await Assert.That(vm.LiveCameraSource is null).IsTrue();
             }
             finally
             {
@@ -203,8 +174,7 @@ public class Playback2DMirrorLiveViewTests
             (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Playback2DTimelineHarness.Tab();
             ctx.PushMarkers((0, 2, -800f, 600f, -700f, 90f), (1, 3, 900f, -500f, 64f, 270f));
 
-            (Window window, Playback2DView view) =
-                Playback2DTimelineHarness.Show(vm, renderer: Playback2DRendererKind.Scene);
+            (Window window, Playback2DView view) = Playback2DTimelineHarness.Show(vm);
             try
             {
                 Scene2DHost host = Playback2DTimelineHarness.SceneHost(view);

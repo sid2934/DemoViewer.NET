@@ -467,8 +467,6 @@ public sealed class SettingsService
             // browser (B5 D3 overrides B4's original "exclude them" call): a desktop user's default
             // format and output folder are written through the same code path, and an exclusion list
             // that has to be kept in step with a feature gate is a bug waiting for the gate to move.
-            new KeyValuePair<string, string?>("Playback2D:LegacyViewport",
-                settings.Playback2D.LegacyViewport ? "true" : "false"),
             new KeyValuePair<string, string?>("Playback2D:LastTool", settings.Playback2D.LastTool),
             new KeyValuePair<string, string?>("Playback2D:AnnotationColorArgb",
                 settings.Playback2D.AnnotationColorArgb.ToString(CultureInfo.InvariantCulture)),

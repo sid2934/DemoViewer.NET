@@ -19,7 +19,7 @@ namespace DemoViewer.NET.Views.Playback2D;
 
 /// <summary>
 ///     The 2D Playback tab's View. DataContext is the descriptor's
-///     <see cref="Playback2DTabViewModel" />. Hosts the custom-drawn <see cref="Playback2DViewport" /> plus
+///     <see cref="Playback2DTabViewModel" />. Hosts the <see cref="Scene2DHost" /> compositor surface plus
 ///     the camera-mode selector: a <see cref="SplitButton" /> whose main action is apply-once Fit and
 ///     whose dropdown caret opens the MODE menu (Fit / Alive / Map / Follow Player). The Follow Player
 ///     submenu is populated on open from the VM's current players; Map surfaces its approximation caveat.
@@ -41,10 +41,10 @@ public partial class Playback2DView : UserControl
     // on the way out, because hiding the box moves focus, and losing focus is itself a commit.
     private bool _editingText;
 
-    // The ink half of the mounted surface, or null under the legacy escape hatch. Every "can this thing
-    // draw?" question below asks THIS rather than `_surface is Scene2DHost`, so the tool entry points and
-    // the toolbar that offers them cannot disagree. A concrete-type check on one side and a feature-gate
-    // check on the other ships a complete, inert tool row over a surface with no router.
+    // The ink half of the mounted surface. Every "can this thing draw?" question below asks THIS rather
+    // than `_surface is Scene2DHost`, so the tool entry points and the toolbar that offers them cannot
+    // disagree. A concrete-type check on one side and a feature-gate check on the other ships a
+    // complete, inert tool row over a surface with no router.
     private readonly IAnnotationSurface? _toolSurface;
 
     private Playback2DTabViewModel? _boundViewModel;
@@ -62,12 +62,7 @@ public partial class Playback2DView : UserControl
     {
         InitializeComponent();
 
-        // The surface is chosen once per process (env var → developer setting → Scene) and mounted
-        // here rather than declared in XAML, which is what lets the pre-v2 control stay live behind the
-        // toggle for one release without a second view file.
-        Control surface = Playback2DRenderer.Selected == Playback2DRendererKind.Legacy
-            ? new Playback2DViewport()
-            : new Scene2DHost();
+        Control surface = new Scene2DHost();
         _surface = (IPlayback2DSurface)surface;
         _levelSurface = surface as ILevelSurface;
         _toolSurface = surface as IAnnotationSurface;
@@ -214,14 +209,13 @@ public partial class Playback2DView : UserControl
             _boundViewModel.Annotations.ToolSelected += OnToolSelected;
             OnToolSelected(_boundViewModel.Annotations.ActiveTool);
 
-            // The strip drives the v2 host only. Under the legacy escape hatch there is no level
-            // identity to drive, so the strip stays unbound and collapsed.
+            // A surface with no level identity leaves the strip unbound and collapsed, rather than
+            // bound to stubs it cannot honour.
             _boundViewModel.LevelStrip.Bind(_levelSurface);
 
             // The export dialog's "mirror the live view" camera is captured on Start, from the panes the
-            // mounted surface actually has. The View is the only side that knows which surface is
-            // mounted; under the legacy hatch there are no pane cameras, so this stays null and the
-            // dialog falls back to the per-level fit.
+            // mounted surface actually has. The View is the only side that can reach the surface, so with
+            // nothing mounted this stays null and the dialog falls back to the per-level fit.
             _boundViewModel.LiveCameraSource =
                 _surface is Scene2DHost cameraHost ? cameraHost.CaptureCameraScript : null;
 
@@ -410,12 +404,11 @@ public partial class Playback2DView : UserControl
         // Two actions belong to the SURFACE, not the view-model: they act on the router's in-flight
         // gesture, which is host state the VM deliberately does not own.
         //
-        // Both are TOOL-SCOPED, so they can only resolve while toolActive, which is now false whenever
-        // the mounted surface cannot host ink. The `_toolSurface is null` arms below are therefore
+        // Both are TOOL-SCOPED, so they can only resolve while toolActive, which is false whenever the
+        // mounted surface cannot host ink. The `_toolSurface is null` arms below are therefore
         // unreachable in a shipped build; they stay because leaving the key UNHANDLED is the right
-        // answer if a future surface ever reports capable and then isn't, and because the previous
-        // spelling of this (`_surface is Scene2DHost` with an implicit fall-through) is what swallowed
-        // Space and Escape when the toolbar let a tool be selected over the legacy viewport.
+        // answer if a future surface ever reports capable and then isn't. A concrete-type check with an
+        // implicit fall-through here swallows Space and Escape instead.
         switch (action)
         {
             case Playback2DAction.HoldPan:

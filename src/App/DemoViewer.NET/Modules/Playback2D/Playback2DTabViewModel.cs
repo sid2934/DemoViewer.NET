@@ -341,9 +341,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
     /// <param name="roundFacts">The round facts the winner tint reads; null leaves the pre-facts tint.</param>
     public Playback2DTabViewModel(IRoundFactsSource? roundFacts)
     {
-        // Every dependency is optional, resolved the way Playback2DRenderer resolves its setting: the
-        // descriptor's ViewModelFactory is a bare new(), and a headless test builds this with no
-        // container at all. No store and no settings means annotations still work, session only.
+        // Every dependency is optional: the descriptor's ViewModelFactory is a bare new(), and a
+        // headless test builds this with no container at all. No store and no settings means
+        // annotations still work, session only.
         _annotationController = new AnnotationSessionController(
             TryResolveAnnotationStore(AnnotationDemoKey), TryResolveSettings());
         _annotationController.LoadRecentColors();
@@ -497,16 +497,15 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     /// <summary>
     ///     The live surface's camera capture, supplied by the View when it binds (and cleared when it
-    ///     unbinds). The VM cannot reach the mounted control itself (the View owns the surface), and the
-    ///     legacy viewport has no pane cameras to capture, so this is null under the escape hatch and on
-    ///     any host that never mounted a surface at all.
+    ///     unbinds). The VM cannot reach the mounted control itself (the View owns the surface), so this
+    ///     is null on any host that never mounted a surface at all.
     /// </summary>
     internal Func<CameraScript>? LiveCameraSource { get; set; }
 
     /// <summary>
     ///     The mounted surface's map levels, supplied by the View like <see cref="LiveCameraSource" />: a captured
-    ///     pawn's level key is its level's <c>ZMin</c> on these. Null under the legacy
-    ///     viewport, where the Z itself is quantized instead.
+    ///     pawn's level key is its level's <c>ZMin</c> on these. Null with no surface mounted, where the
+    ///     Z itself is quantized instead.
     /// </summary>
     internal Func<IReadOnlyList<MapLevel>>? CaptureLevelsSource { get; set; }
 
@@ -1066,9 +1065,9 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
             rosterAt: _ => src.LastRoster);
 
     // A CAPTURE, taken once when Start is pressed. Panning the live window afterwards changes nothing
-    // about the video. With no live surface (the legacy escape hatch, a designer, a VM-only test) the
-    // fallback is an empty Fixed script, which leaves every pane on the fit its own level was born
-    // with. That is a correct framing, just not the user's.
+    // about the video. With no live surface (a designer, a VM-only test) the fallback is an empty Fixed
+    // script, which leaves every pane on the fit its own level was born with. That is a correct
+    // framing, just not the user's.
     //
     // The ink is captured beside it, from the dialog's Start, and both for the same reason: Start is the
     // one moment the dialog is on the UI THREAD before the job is handed to Task.Run, and copying a List
@@ -1906,8 +1905,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
 
     // Settings reach the tab through the container rather than the constructor, because the module
     // descriptor's ViewModelFactory is a bare new() by contract and a headless test builds this
-    // with no container at all. A missing service means the defaults, exactly as Playback2DRenderer
-    // resolves its own escape hatch.
+    // with no container at all. A missing service means the defaults.
     private static SettingsService? Settings()
     {
         try
