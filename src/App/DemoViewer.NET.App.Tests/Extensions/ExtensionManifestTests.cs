@@ -24,7 +24,7 @@ public class ExtensionManifestTests
           "assembly": "Example.dll",
           "entryType": "Example.ExamplePack",
           "requiresHost": "^1.0",
-          "requiresCs2DemoKit": "0.14.0-beta0001",
+          "requiresCs2DemoKit": "0.14.0",
           "minAppVersion": "0.9.0"
         }
         """;
@@ -41,7 +41,7 @@ public class ExtensionManifestTests
             await Assert.That(m.Assembly).IsEqualTo("Example.dll");
             await Assert.That(m.EntryType).IsEqualTo("Example.ExamplePack");
             await Assert.That(m.RequiresHost.ToString()).IsEqualTo("^1.0");
-            await Assert.That(m.RequiresCs2DemoKit.ToString()).IsEqualTo("0.14.0-beta0001");
+            await Assert.That(m.RequiresCs2DemoKit.ToString()).IsEqualTo("0.14.0");
             await Assert.That(m.MinAppVersion).IsEqualTo(SemVersion.Parse("0.9.0"));
         }
     }
@@ -106,7 +106,7 @@ public class ExtensionManifestTests
     [Arguments("\"version\": \"1.2.3\"", "\"version\": \"1.2\"", "version")]
     [Arguments("\"version\": \"1.2.3\"", "\"version\": \"\"", "version")]
     [Arguments("\"requiresHost\": \"^1.0\"", "\"requiresHost\": \"latest\"", "requiresHost")]
-    [Arguments("\"requiresCs2DemoKit\": \"0.14.0-beta0001\"", "\"requiresCs2DemoKit\": \">=\"", "requiresCs2DemoKit")]
+    [Arguments("\"requiresCs2DemoKit\": \"0.14.0\"", "\"requiresCs2DemoKit\": \">=\"", "requiresCs2DemoKit")]
     [Arguments("\"minAppVersion\": \"0.9.0\"", "\"minAppVersion\": \"nine\"", "minAppVersion")]
     [Arguments("\"assembly\": \"Example.dll\"", "\"assembly\": \"../Example.dll\"", "assembly")]
     [Arguments("\"assembly\": \"Example.dll\"", "\"assembly\": \"Example.exe\"", "assembly")]

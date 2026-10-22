@@ -116,7 +116,7 @@ public class ExtensionIsolationTests
               "assembly": "AppReference.dll",
               "entryType": "AppReference.Pack",
               "requiresHost": "^1.0",
-              "requiresCs2DemoKit": "0.14.0-beta0001"
+              "requiresCs2DemoKit": "0.14.0"
             }
             """);
         ExtensionCandidate candidate = new(Path.GetTempPath(), manifest);

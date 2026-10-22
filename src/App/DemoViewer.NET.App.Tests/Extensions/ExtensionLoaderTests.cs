@@ -25,7 +25,7 @@ namespace DemoViewer.NET.AppTests.Extensions;
 public class ExtensionLoaderTests
 {
     private const string FakeId = "net.demoviewer.pack.fake";
-    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0-beta0001"));
+    private static readonly ExtensionHostInfo Host = new(SemVersion.Parse("1.2.0"), null, SemVersion.Parse("0.14.0"));
     private static readonly ITrustPolicy TrustAll = new AllTrust();
 
     // ── Discover ─────────────────────────────────────────────────────────────────────────────────
@@ -190,7 +190,7 @@ public class ExtensionLoaderTests
         ExtensionLoader.Selection untrusted = ExtensionLoader.Select([Candidate("1.3.0")], FakeId, SemVersion.Parse("1.0.0"), Host, TrustPolicy.Nothing);
         ExtensionLoader.Selection unknownShipped = ExtensionLoader.Select([Candidate("1.3.0")], FakeId, null, Host, TrustAll);
         ExtensionLoader.Selection throwingTrust = ExtensionLoader.Select([Candidate("1.3.0")], FakeId, SemVersion.Parse("1.0.0"), Host, new ThrowingTrust());
-        ExtensionLoader.Selection prerelease = ExtensionLoader.Select([Candidate("1.3.0-beta1", requiresCs2DemoKit: "0.14.0")], FakeId, SemVersion.Parse("1.0.0"), Host, TrustAll);
+        ExtensionLoader.Selection prerelease = ExtensionLoader.Select([Candidate("1.3.0-beta1", requiresCs2DemoKit: "0.15.0")], FakeId, SemVersion.Parse("1.0.0"), Host, TrustAll);
 
         using (Assert.Multiple())
         {
