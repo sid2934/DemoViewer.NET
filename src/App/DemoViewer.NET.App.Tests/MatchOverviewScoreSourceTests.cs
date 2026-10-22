@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.TestSupport;
 using System.Globalization;
 using Avalonia.Threading;
 using CS2DemoKit.Parser;
@@ -77,10 +78,8 @@ public class MatchOverviewScoreSourceTests
     [Test]
     public async Task FinalScore_IsAConsistentCompletedResult_OnEveryAvailableDemo()
     {
-        string? repoRoot = FindRepoRoot();
-        List<string> demos = repoRoot is null
-            ? []
-            : _candidates.Select(c => Path.Combine(repoRoot, c)).Where(File.Exists).ToList();
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
+        List<string> demos = _candidates.Select(c => Path.Combine(repoRoot, c)).Where(File.Exists).ToList();
 
         if (demos.Count == 0)
         {
@@ -176,16 +175,5 @@ public class MatchOverviewScoreSourceTests
             Console.WriteLine("[score-sweep] WARNING: no clan-carrying (pro/HLTV) demo was available — this "
                               + "run could not discriminate the authoritative score from the analysis-derived one.");
         }
-    }
-
-    private static string? FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-        {
-            dir = dir.Parent;
-        }
-
-        return dir?.FullName;
     }
 }

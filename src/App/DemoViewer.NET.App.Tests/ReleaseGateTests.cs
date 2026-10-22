@@ -45,7 +45,7 @@ public class ReleaseGateTests
             throw new SkipTestException("release gate — set RELEASE_GATES=1 to run (publishes the app, ~1–2 min)");
         }
 
-        string repoRoot = FindRepoRoot();
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
         string publishDir = Path.Combine(Path.GetTempPath(), "demoviewer-release-gate-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -138,7 +138,7 @@ public class ReleaseGateTests
     public async Task UserRuleJourney_AddAndRetiredV1File_EndToEnd()
     {
         string demoPath = DemoTestHelper.RequireDemo();
-        string repoRoot = FindRepoRoot();
+        string repoRoot = DemoTestHelper.RequireRepoRoot();
 
         string userDir = Path.Combine(Path.GetTempPath(), "demoviewer-journey-user-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(userDir);
@@ -269,22 +269,5 @@ public class ReleaseGateTests
                 // Best-effort cleanup.
             }
         }
-    }
-
-    private static string FindRepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx"))
-                || Directory.Exists(Path.Combine(dir.FullName, ".git")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException("repo root not found from " + AppContext.BaseDirectory);
     }
 }

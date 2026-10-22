@@ -1,5 +1,6 @@
 #region
 
+using DemoViewer.NET.TestSupport;
 using System.Text.RegularExpressions;
 using DemoViewer.NET.GameIcons;
 
@@ -45,7 +46,7 @@ public class IconKeyReferenceTests
     [Test]
     public async Task EveryLiteralIconKeyInSource_ExistsInTheBake()
     {
-        string root = RepoRoot();
+        string root = DemoTestHelper.RequireRepoRoot();
         List<string> bad = [];
         int checkedKeys = 0;
 
@@ -109,21 +110,5 @@ public class IconKeyReferenceTests
                 yield return f;
             }
         }
-    }
-
-    private static string RepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new DirectoryNotFoundException("repository root not found from " + AppContext.BaseDirectory);
     }
 }

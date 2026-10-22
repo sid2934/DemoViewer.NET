@@ -436,28 +436,12 @@ public class Playback2DLevelStabilityTests
             return staged;
         }
 
-        string bundled = Path.Combine(RepoRoot(), NukeSample.Replace('/', Path.DirectorySeparatorChar));
+        string bundled = Path.Combine(DemoTestHelper.RequireRepoRoot(), NukeSample.Replace('/', Path.DirectorySeparatorChar));
         if (File.Exists(bundled))
         {
             return bundled;
         }
 
         throw new SkipTestException($"no nuke demo (tried the staged names and {NukeSample})");
-    }
-
-    private static string RepoRoot()
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "DemoViewer.NET.slnx")))
-            {
-                return dir.FullName;
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new SkipTestException("could not locate the repository root");
     }
 }

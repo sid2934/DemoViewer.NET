@@ -330,18 +330,14 @@ public static class DemoTestHelper
 
     /// <summary>
     ///     Walks up from <see cref="AppContext.BaseDirectory" /> until it finds a directory
-    ///     containing <c>DemoViewer.NET.slnx</c>. Used to locate <c>demos/</c> relative to
-    ///     the repo, not relative to the build output. Returns <c>null</c> if no slnx is
-    ///     found within 8 levels (defensive cap; the test assembly is typically 5–6 levels deep).
-    ///     <para>
-    ///         Public because tests other than the demo locators need it: a source-reading architecture
-    ///         or wiring test has to find the repo, not the build output.
-    ///     </para>
+    ///     containing <c>DemoViewer.NET.slnx</c>, with no depth cap. Returns <c>null</c> if there is
+    ///     none. The slnx is the sentinel on purpose: a <c>.git</c> match resolves to a different
+    ///     directory inside a worktree. Tests that need the repo call <see cref="RequireRepoRoot" />.
     /// </summary>
     public static string? FindRepoRoot()
     {
-        string? dir = AppContext.BaseDirectory;
-        for (int i = 0; i < 8 && dir is not null; i++)
+        string? dir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+        while (dir is not null)
         {
             if (File.Exists(Path.Combine(dir, "DemoViewer.NET.slnx")))
             {
@@ -353,6 +349,14 @@ public static class DemoTestHelper
 
         return null;
     }
+
+    /// <summary>
+    ///     The repo root, or a <see cref="SkipTestException" />. The one behaviour for a missing
+    ///     checkout: a source-reading test reports skipped, never passes on an empty input.
+    /// </summary>
+    public static string RequireRepoRoot() =>
+        FindRepoRoot() ?? throw new SkipTestException(
+            $"repo root not found: no DemoViewer.NET.slnx above {AppContext.BaseDirectory}");
 
     // ── Internal: repo-root and demo-directory resolution ─────────────────────
 

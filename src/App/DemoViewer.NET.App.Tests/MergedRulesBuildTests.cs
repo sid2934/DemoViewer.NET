@@ -528,7 +528,7 @@ public class MergedRulesBuildTests
     [Test]
     public async Task NoStampedRulesetReferencesEnemySpotted()
     {
-        string root = DemoTestHelper.FindRepoRoot() ?? throw new InvalidOperationException("repo root not found");
+        string root = DemoTestHelper.RequireRepoRoot();
         string[] files =
         [
             .. Directory.EnumerateFiles(Shipped, "*.rules.yaml"),
