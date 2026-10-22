@@ -94,9 +94,9 @@ public static class HeadlessSession
         ?? throw new InvalidOperationException(
             "The test assembly declares no [assembly: AvaloniaTestApplication(typeof(...))] naming a type with a static BuildAvaloniaApp().");
 
-    // Measurement scaffold for the isolation-level question. Avalonia.Headless 12.1.4 offers exactly
-    // two levels, PerAssembly and PerTest; the level is fixed at StartNew and cannot change later, so
-    // an env var read here is the only way to get both arms out of one binary.
+    // PerAssembly shares one dispatcher queue, so a control built off the UI thread fails
+    // deterministically; PerTest hides it. The nightly headless-isolation workflow sets this variable.
+    // The level is fixed at StartNew, so it has to be read here.
     private static AvaloniaTestIsolationLevel RequestedIsolation() =>
         string.Equals(
             Environment.GetEnvironmentVariable("DV_HEADLESS_ISOLATION"),
