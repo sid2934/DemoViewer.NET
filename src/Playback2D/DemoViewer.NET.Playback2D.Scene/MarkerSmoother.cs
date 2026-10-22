@@ -19,7 +19,7 @@ public interface ISmoothedPositionSource
 /// <summary>
 ///     Per-slot smoothed draw positions, chased toward the latest sampled marker position once per
 ///     rendered frame so markers glide between discrete pushes instead of stepping. Port of
-///     <c>Playback2DViewport.AdvanceMarkers</c> (lines 648-699), verbatim, plus the discontinuity snap.
+///     the pre-v2 control's <c>AdvanceMarkers</c>, verbatim, plus the discontinuity snap.
 ///     <para>
 ///         <b>Camera targeting stays on the RAW positions</b>, and so does level assignment: only the
 ///         drawn dot is smoothed (parity invariant 3). Extracted from the marker layer because the

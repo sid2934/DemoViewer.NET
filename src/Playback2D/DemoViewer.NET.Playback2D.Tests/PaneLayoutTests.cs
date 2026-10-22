@@ -244,7 +244,7 @@ public class PaneLayoutTests
         return panes;
     }
 
-    // Playback2DViewport.SliceIndexAtScreenY, lines 465-476, transcribed.
+    // The pre-v2 control's SliceIndexAtScreenY, transcribed.
     private static int LegacySliceIndexAtScreenY(double screenY, int count, double boundsHeight)
     {
         count = Math.Max(1, count);

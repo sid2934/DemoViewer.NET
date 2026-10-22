@@ -112,7 +112,7 @@ public readonly record struct ScenePalette(
     SceneStrokeWidths Strokes)
 {
     /// <summary>
-    ///     The Dark-variant fallbacks the pre-move <c>Playback2DViewport.BuildPalette</c> hard-coded,
+    ///     The Dark-variant fallbacks the pre-v2 control's palette builder hard-coded,
     ///     colour for colour and in the same order. In B1 the App builds a palette from its theme tokens
     ///     and <c>CanvasPalette</c> becomes a factory over this; a test then asserts the two agree.
     /// </summary>

@@ -13,11 +13,8 @@ namespace DemoViewer.NET.Modules.Playback2D;
 // radar layers into SKImages moved to DemoViewer.NET.Playback2D.Pipeline.Assets.MapAssetPipeline,
 // which is what makes the scene loadable without a windowing system.
 //
-// Two Avalonia-shaped jobs remain, both deliberate:
-//   * the library card thumbnail, which needs Bitmap.DecodeToWidth's downscale-on-decode and has no
-//     SKImage analogue;
-//   * radar bitmaps for the LEGACY Playback2DViewport, which draws through a DrawingContext and
-//     cannot consume an SKImage. That cache is deleted with the legacy control.
+// One Avalonia-shaped job remains: the library card thumbnail, which needs Bitmap.DecodeToWidth's
+// downscale-on-decode and has no SKImage analogue.
 
 /// <summary>
 ///     Loads the lightweight radar thumbnail the library card uses as a background.
@@ -62,74 +59,5 @@ public static class MapAssetLoader
         {
             return null; // undecodable / headless without imaging → accent fallback
         }
-    }
-}
-
-/// <summary>
-///     Avalonia <see cref="Bitmap" />s for the legacy <see cref="Playback2DViewport" />, decoded lazily
-///     from a loaded bundle's directory.
-///     <para>
-///         <b>Why this exists rather than a second decode in the bundle.</b> The scene path owns
-///         <c>SKImage</c>s; a <c>DrawingContext</c> cannot draw one. Rather than have every map load pay
-///         for two full-resolution decodes (~4 MB each) so that a temporary escape hatch can render, the
-///         legacy control decodes its own copy on first use and only if the toggle is actually set.
-///         Deleted with the legacy control.
-///     </para>
-/// </summary>
-internal sealed class LegacyRadarBitmapCache
-{
-    private readonly Dictionary<string, Bitmap?> _bitmaps = new(StringComparer.Ordinal);
-    private string? _bakedDir;
-
-    /// <summary>
-    ///     The decoded bitmap for one of the asset's radar images, or null when it cannot be decoded.
-    ///     Switching to a different bundle directory drops the previous map's bitmaps.
-    /// </summary>
-    /// <param name="asset">The loaded bundle the image belongs to.</param>
-    /// <param name="imageName">The bundle-relative image file name.</param>
-    public Bitmap? Get(LoadedMapAsset asset, string imageName)
-    {
-        ArgumentNullException.ThrowIfNull(asset);
-
-        if (!string.Equals(_bakedDir, asset.BakedDir, StringComparison.Ordinal))
-        {
-            Clear();
-            _bakedDir = asset.BakedDir;
-        }
-
-        if (_bitmaps.TryGetValue(imageName, out Bitmap? cached))
-        {
-            return cached;
-        }
-
-        Bitmap? decoded = null;
-        string path = Path.Combine(asset.BakedDir, imageName);
-        if (File.Exists(path))
-        {
-            try
-            {
-                decoded = new Bitmap(path);
-            }
-            catch (Exception)
-            {
-                decoded = null; // headless without imaging, or a corrupt PNG: draw the grid instead
-            }
-        }
-
-        // A null is cached too: a failed decode must not be retried once per band per frame.
-        _bitmaps[imageName] = decoded;
-        return decoded;
-    }
-
-    /// <summary>Releases every decoded bitmap. Called when the control detaches from the visual tree.</summary>
-    public void Clear()
-    {
-        foreach (Bitmap? bitmap in _bitmaps.Values)
-        {
-            bitmap?.Dispose();
-        }
-
-        _bitmaps.Clear();
-        _bakedDir = null;
     }
 }

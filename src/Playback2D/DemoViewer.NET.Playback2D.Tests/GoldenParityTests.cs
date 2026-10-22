@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2DTests;
 
 /// <summary>
 ///     <b>The port's exit criterion.</b> Re-renders each captured <c>SceneFixture</c> through the v2
-///     compositor and compares it to the PNG the pre-v2 <c>Playback2DViewport</c> produced from the very
+///     compositor and compares it to the PNG the pre-v2 control produced from the very
 ///     same push.
 ///     <para>
 ///         <b>What parity can honestly mean across two rasterisers.</b> The golden came from Avalonia's

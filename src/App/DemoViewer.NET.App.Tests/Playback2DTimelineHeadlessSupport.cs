@@ -58,9 +58,6 @@ internal static class Playback2DTimelineHarness
     public static (Window Window, Playback2DView View) Show(Playback2DTabViewModel vm,
         int width = 1000, int height = 700)
     {
-        // Pinned rather than resolved: the selection is a process-wide one-shot, and a stray
-        // DV_PLAYBACK2D_RENDERER in the environment must not decide what these suites mount.
-        Playback2DRenderer.ResetForTest(Playback2DRendererKind.Scene);
         Playback2DView view = new()
         {
             DataContext = vm

@@ -19,7 +19,7 @@ namespace DemoViewer.NET.Views.Playback2D;
 
 /// <summary>
 ///     The 2D Playback tab's View. DataContext is the descriptor's
-///     <see cref="Playback2DTabViewModel" />. Hosts the custom-drawn <see cref="Playback2DViewport" /> plus
+///     <see cref="Playback2DTabViewModel" />. Hosts the <see cref="Scene2DHost" /> compositor surface plus
 ///     the camera-mode selector: a <see cref="SplitButton" /> whose main action is apply-once Fit and
 ///     whose dropdown caret opens the MODE menu (Fit / Alive / Map / Follow Player). The Follow Player
 ///     submenu is populated on open from the VM's current players; Map surfaces its approximation caveat.
@@ -41,10 +41,10 @@ public partial class Playback2DView : UserControl
     // on the way out, because hiding the box moves focus, and losing focus is itself a commit.
     private bool _editingText;
 
-    // The ink half of the mounted surface, or null under the legacy escape hatch. Every "can this thing
-    // draw?" question below asks THIS rather than `_surface is Scene2DHost`, so the tool entry points and
-    // the toolbar that offers them cannot disagree. A concrete-type check on one side and a feature-gate
-    // check on the other ships a complete, inert tool row over a surface with no router.
+    // The ink half of the mounted surface. Every "can this thing draw?" question below asks THIS rather
+    // than `_surface is Scene2DHost`, so the tool entry points and the toolbar that offers them cannot
+    // disagree. A concrete-type check on one side and a feature-gate check on the other ships a
+    // complete, inert tool row over a surface with no router.
     private readonly IAnnotationSurface? _toolSurface;
 
     private Playback2DTabViewModel? _boundViewModel;
@@ -62,12 +62,9 @@ public partial class Playback2DView : UserControl
     {
         InitializeComponent();
 
-        // The surface is chosen once per process (env var → developer setting → Scene) and mounted
-        // here rather than declared in XAML, which is what lets the pre-v2 control stay live behind the
-        // toggle for one release without a second view file.
-        Control surface = Playback2DRenderer.Selected == Playback2DRendererKind.Legacy
-            ? new Playback2DViewport()
-            : new Scene2DHost();
+        // Mounted here rather than declared in XAML: the capability casts below need the instance, and
+        // the named slot is what the headless suites reach for.
+        Control surface = new Scene2DHost();
         _surface = (IPlayback2DSurface)surface;
         _levelSurface = surface as ILevelSurface;
         _toolSurface = surface as IAnnotationSurface;

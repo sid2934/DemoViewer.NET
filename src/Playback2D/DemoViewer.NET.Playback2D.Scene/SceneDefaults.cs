@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Core;
 
 /// <summary>
-///     Constants the pre-v2 <c>Playback2DViewport</c> held as private consts and that more than one
+///     Constants the pre-v2 control held as private consts and that more than one
 ///     layer now needs. Values are unchanged: every one of them is visible in a golden image.
 /// </summary>
 public static class SceneDefaults

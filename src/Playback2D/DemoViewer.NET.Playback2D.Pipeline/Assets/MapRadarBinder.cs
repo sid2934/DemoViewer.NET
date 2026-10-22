@@ -10,7 +10,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 
 /// <summary>
 ///     Decides which baked radar image belongs to which floor band. Replaces the pre-v2
-///     <c>Playback2DViewport.ResolveRadarImage</c> (lines 1096-1115), and is evaluated
+///     the pre-v2 control's <c>ResolveRadarImage</c>, and is evaluated
 ///     <b>
 ///         once per
 ///         level-set rebuild
