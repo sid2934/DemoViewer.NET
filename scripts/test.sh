@@ -132,7 +132,7 @@ for entry in "${SELECTED[@]}"; do
   KEY="${entry%%|*}"
   PATH_="${entry#*|}"
 
-  ARGS=(--treenode-filter "$TIER_FILTER" --disable-logo --no-progress)
+  ARGS=(--treenode-filter "$TIER_FILTER" --disable-logo --progress off)
   [ "$LIST_ONLY" -eq 1 ] && ARGS+=(--list-tests)
   # DV_TEST_EXTRA_ARGS: runner options appended verbatim (CI serialises the ext suite with it).
   if [ -n "${DV_TEST_EXTRA_ARGS:-}" ]; then

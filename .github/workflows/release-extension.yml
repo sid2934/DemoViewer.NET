@@ -110,7 +110,7 @@ jobs:
       - name: CompatibilityMatrixTests
         run: >
           dotnet run --project src/App/DemoViewer.NET.App.Tests -c Release --no-build
-          -- --treenode-filter "/*/*/CompatibilityMatrixTests/*" --disable-logo --no-progress
+          -- --treenode-filter "/*/*/CompatibilityMatrixTests/*" --disable-logo --progress off
 
       - name: Pack extension (build, stage, sign, verify, zip)
         env:
