@@ -176,9 +176,7 @@ public class StratSpawnTests
 
         gate.SetResult();
         await spawns.ForAsync("de_mirage");
-        await posted.WaitForPostAsync();
-
-        posted.Drain();
+        await posted.DrainUntilAsync(() => store.Index.Count > 0);
 
         await Assert.That(store.Index.Count).IsEqualTo(1).Because("a second click while waiting makes no second strat");
         await Assert.That(vm.Session.Document!.Start!.Positions.Count).IsEqualTo(10);
@@ -221,9 +219,7 @@ public class StratSpawnTests
 
         gate.SetResult();
         await spawns.ForAsync("de_mirage");
-        await posted.WaitForPostAsync();
-
-        posted.Drain();
+        await posted.DrainUntilAsync(() => store.Index.Any(e => e.Map == "de_mirage"));
 
         using (Assert.Multiple())
         {

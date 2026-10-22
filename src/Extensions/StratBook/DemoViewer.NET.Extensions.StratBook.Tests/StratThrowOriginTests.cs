@@ -66,6 +66,15 @@ public class StratThrowOriginTests
         }
     }
 
+    // Changed also fires for an index change, so only the one raised once the map is grouped counts. Subscribing
+    // after the canvas keeps the canvas's handler first in the list.
+    private static async Task GroupedAsync(LineupOriginSource origins, PostedActions posted)
+    {
+        bool grouped = false;
+        origins.Changed += () => grouped |= origins.For(Map) is not null;
+        await posted.DrainUntilAsync(() => grouped);
+    }
+
     [Test]
     public async Task ACanvasOpenedBeforeTheMapIsGrouped_MovesTheThrower_WhenTheGroupingLands()
     {
@@ -82,12 +91,7 @@ public class StratThrowOriginTests
             lineupOrigins: origins);
 
         TokenKeyframe before = BAt(canvas);
-        await posted.WaitForPostAsync();
-
-        while (posted.TryDequeue(out Action? action))
-        {
-            action();
-        }
+        await GroupedAsync(origins, posted);
 
         WorldPoint expected = GrenadeLineups.TechniqueFor(lineup, null)!.Origin;
         TokenKeyframe after = BAt(canvas);
@@ -140,12 +144,7 @@ public class StratThrowOriginTests
         canvas.Timeline.RequestSeek(330);
 
         canvas.BeginDrag("A", TokenGrip.Body);
-        await posted.WaitForPostAsync();
-
-        while (posted.TryDequeue(out Action? action))
-        {
-            action();
-        }
+        await GroupedAsync(origins, posted);
 
         await Assert.That(BAt(canvas).X).IsEqualTo(100f).Because("the drag keeps the projection it started on");
         canvas.CancelDrag();

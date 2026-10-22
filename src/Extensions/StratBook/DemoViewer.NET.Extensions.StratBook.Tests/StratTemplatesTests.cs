@@ -362,9 +362,7 @@ public class StratTemplatesTests
 
         gate.SetResult();
         await spawns.ForAsync("de_mirage");
-        await posted.WaitForPostAsync();
-
-        posted.Drain();
+        await posted.DrainUntilAsync(() => store.Index.Any(e => e.Type == "execute"));
 
         StratIndexEntry made = store.Index.Single(e => e.Type == "execute");
         using (Assert.Multiple())
