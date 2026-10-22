@@ -23,7 +23,7 @@ public class Playback2DKillFeedTests
     [Test]
     public async Task Window_ShowsKillsUpToPlayhead_ResolvesNamesAndModifiers()
     {
-        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate(
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activate(
             Kill(1000, 0, 1, "ak47", true),
             Kill(1100, 1, 0, "awp", penetrated: 2, assister: 0, flashAssist: true));
 
@@ -48,7 +48,7 @@ public class Playback2DKillFeedTests
     [Test]
     public async Task KillAheadOfPlayhead_IsHidden_UntilCrossed()
     {
-        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate(Kill(5000, 0, 1, "deagle"));
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activate(Kill(5000, 0, 1, "deagle"));
 
         // Before the kill's tick → not shown (the inclusive-upper-bound rule; load-bearing when paused/seeking).
         ctx.Push(1, 4000);
@@ -66,7 +66,7 @@ public class Playback2DKillFeedTests
     [Test]
     public async Task SeekingBackward_ShowsTheWindowForThatTick()
     {
-        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate(
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activate(
             Kill(1000, 0, 1, "ak47"),
             Kill(8000, 1, 0, "awp"));
 
@@ -89,7 +89,7 @@ public class Playback2DKillFeedTests
             kills[i] = Kill(1000 + i * 10, 0, i % 2 == 0 ? 1 : 0, "m4a1");
         }
 
-        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate(kills);
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activate(kills);
 
         // All 8 within the window of tick 1070; capped to the 6 most recent (ticks 1020..1070).
         ctx.Push(9, 1070);
@@ -117,7 +117,7 @@ public class Playback2DKillFeedTests
                 i % 2 == 0, i % 4 == 0 ? 1 : 0));
         }
 
-        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate([.. timeline]);
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activate([.. timeline]);
 
         // The rows the exported layer would draw, built the way the App builds them.
         List<KillFeedRow> all = [];
@@ -161,7 +161,7 @@ public class Playback2DKillFeedTests
     [Test]
     public async Task TheExportedClock_ProjectsTheSameGameInfoTheXamlPanelShows()
     {
-        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate();
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activate();
         ctx.Push(0, 1000);
 
         SceneGameInfo info = new("Live", "Planted", 13, 12, 34.5, "0:34",
@@ -197,7 +197,7 @@ public class Playback2DKillFeedTests
         await Assert.That(vm.ExportDialog).IsNull();
     }
 
-    private static string NameFor(FakeCtx ctx, int slot)
+    private static string NameFor(Playback2DFakeContext ctx, int slot)
     {
         foreach (PlayerRosterEntry entry in ctx.Roster)
         {
@@ -235,7 +235,7 @@ public class Playback2DKillFeedTests
         ];
 
         Playback2DTabViewModel vm = new();
-        FakeCtx ctx = new(kills);
+        Playback2DFakeContext ctx = DeathCtx(kills);
         ctx.Roster.Add(new PlayerRosterEntry
         {
             Slot = 0,
@@ -248,8 +248,8 @@ public class Playback2DKillFeedTests
             Name = "Smith",
             SteamId = 2
         });
-        ctx.TeamTimeline.Add(TeamSwap(Swap, 0, 3, 2));
-        ctx.TeamTimeline.Add(TeamSwap(Swap, 1, 2, 3));
+        ctx.Timelines["player_team"].Add(TeamSwap(Swap, 0, 3, 2));
+        ctx.Timelines["player_team"].Add(TeamSwap(Swap, 1, 2, 3));
         vm.OnActivated(ctx);
 
         ctx.Push(0, 6100);
@@ -268,7 +268,7 @@ public class Playback2DKillFeedTests
     [Test]
     public async Task WithNoSideTimeline_RowsSurvive_WithNeutralSides()
     {
-        (Playback2DTabViewModel vm, FakeCtx ctx) = Activate(Kill(1000, 0, 1, "ak47"));
+        (Playback2DTabViewModel vm, Playback2DFakeContext ctx) = Activate(Kill(1000, 0, 1, "ak47"));
 
         ctx.Push(0, 1010);
         KillFeedRow row = vm.KillFeed.Single();
@@ -292,10 +292,19 @@ public class Playback2DKillFeedTests
             }
         };
 
-    private static (Playback2DTabViewModel, FakeCtx) Activate(params GameEventView[] timeline)
+    // Empty player_team timeline by default: sides cannot be resolved, so every kill carries side 0.
+    private static Playback2DFakeContext DeathCtx(IReadOnlyList<GameEventView> deaths)
+    {
+        Playback2DFakeContext ctx = Playback2DFakeContext.Bare();
+        ctx.Timelines["player_death"] = [.. deaths];
+        ctx.Timelines["player_team"] = [];
+        return ctx;
+    }
+
+    private static (Playback2DTabViewModel, Playback2DFakeContext) Activate(params GameEventView[] timeline)
     {
         Playback2DTabViewModel vm = new();
-        FakeCtx ctx = new(timeline);
+        Playback2DFakeContext ctx = DeathCtx(timeline);
         ctx.Roster.Add(new PlayerRosterEntry
         {
             Slot = 0,
@@ -334,82 +343,4 @@ public class Playback2DKillFeedTests
                 ["AssistedFlash"] = flashAssist
             }
         };
-
-    private sealed class FakeCtx : IModuleContext
-    {
-        private readonly IReadOnlyList<GameEventView> _timeline;
-
-        public FakeCtx(IReadOnlyList<GameEventView> timeline) => _timeline = timeline;
-
-        public List<PlayerRosterEntry> Roster { get; } = new();
-
-        /// <summary>
-        ///     The side timeline. Empty by default, matching a demo whose sides cannot be resolved:
-        ///     every kill then carries side 0 and both feeds render it neutrally.
-        /// </summary>
-        public List<GameEventView> TeamTimeline { get; } = new();
-
-        public IReadOnlyList<GameEventView> GetEventTimeline(string eventName) => eventName switch
-        {
-            "player_death" => _timeline,
-            "player_team" => TeamTimeline,
-            _ => Array.Empty<GameEventView>()
-        };
-
-        public bool HasDemo => true;
-        public string? DemoPath => null;
-        public int TickRate => 64;
-        public int CurrentFrameIndex => 0;
-        public int CurrentTick => 0;
-        public bool IsPlaying => false;
-        public double Speed => 1;
-        public double CurtimeSeconds(int tick) => tick / 64.0;
-
-        public void RequestSeekToFrame(int frameIndex)
-        {
-        }
-
-        public void RequestSeekToTick(int tick)
-        {
-        }
-
-        public void RequestPlay()
-        {
-        }
-
-        public void RequestPause()
-        {
-        }
-
-        public event Action<IPlaybackSnapshot>? Advanced;
-        public IReadOnlyEntityView Entities { get; } = new EmptyView();
-        public IReadOnlyList<PlayerRosterEntry> Players => Roster;
-        public IReadOnlyList<IPlayerState> CurrentPlayers { get; } = new List<IPlayerState>();
-
-        public void Push(int frameIndex, int tick) => Advanced?.Invoke(new FakeSnap(frameIndex, tick));
-    }
-
-    private sealed class FakeSnap : IPlaybackSnapshot
-    {
-        public FakeSnap(int frameIndex, int tick)
-        {
-            FrameIndex = frameIndex;
-            Tick = tick;
-        }
-
-        public int FrameIndex { get; }
-        public int Tick { get; }
-        public IReadOnlyEntityView Entities { get; } = new EmptyView();
-        public IReadOnlyList<IPlayerState> Players { get; } = new List<IPlayerState>();
-    }
-
-
-    private sealed class EmptyView : IReadOnlyEntityView
-    {
-        public IEnumerable<IReadOnlyEntity> All() => Array.Empty<IReadOnlyEntity>();
-        public IEnumerable<IReadOnlyEntity> OfClass(string className) => Array.Empty<IReadOnlyEntity>();
-        public IReadOnlyEntity? BySerial(int serial) => null;
-        public IReadOnlyEntity? ByIndex(int entityIndex) => null;
-        public IReadOnlyEntity? ResolveHandle(ulong handle) => null;
-    }
 }
