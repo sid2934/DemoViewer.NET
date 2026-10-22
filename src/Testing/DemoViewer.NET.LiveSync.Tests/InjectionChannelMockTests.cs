@@ -117,7 +117,7 @@ public class InjectionChannelMockTests
                     "user-origin resumed DemoState", logs, cancellationToken);
                 InboundLogic.Decision resumeDecision = InboundLogic.Decide(
                     resumed, false, 0, true, demoPath);
-                await Assert.That(resumeDecision.SetPlaying).IsEqualTo(true);
+                await Assert.That(resumeDecision.SetPlaying).IsTrue();
 
                 // 2. In-game pause: user origin + paused truth; maps to "pause DV".
                 await injector.InjectAsync(MockUserActions.Pause, cancellationToken);
@@ -126,7 +126,7 @@ public class InjectionChannelMockTests
                     "user-origin paused DemoState", logs, cancellationToken);
                 InboundLogic.Decision pauseDecision = InboundLogic.Decide(
                     paused, true, 0, true, demoPath);
-                await Assert.That(pauseDecision.SetPlaying).IsEqualTo(false);
+                await Assert.That(pauseDecision.SetPlaying).IsFalse();
                 await Assert.That(pauseDecision.DemoChangedPath).IsNull();
 
                 // 3. In-game seek: user seeks emit NO DemoStateEvent (transitions only) — the
@@ -168,7 +168,7 @@ public class InjectionChannelMockTests
                 InboundLogic.Decision endDecision = InboundLogic.Decide(
                     ended, true, null, true,
                     otherDemoPath);
-                await Assert.That(endDecision.SetPlaying).IsEqualTo(false);
+                await Assert.That(endDecision.SetPlaying).IsFalse();
                 await Assert.That(endDecision.DemoChangedPath).IsNull();
             }
             finally

@@ -401,7 +401,7 @@ public class PackDataRemoverTests
             }
 
             store.SaveIndex();
-            await Assert.That(store.TryGetIndex("/smb/a.dem")!.Locations).HasCount(2);
+            await Assert.That(store.TryGetIndex("/smb/a.dem")!.Locations).Count().IsEqualTo(2);
 
             PackDataRemover remover = new(store, null, null);
             ExtensionDataRemovalResult result = await remover.DeleteAsync(PackId, [], ["facet-a"], "fake", "strip");

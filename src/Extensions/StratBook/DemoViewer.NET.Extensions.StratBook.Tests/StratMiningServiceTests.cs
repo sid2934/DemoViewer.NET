@@ -285,7 +285,7 @@ public class StratMiningServiceTests
             await Assert.That(thrown.Utility!.Kind).IsEqualTo("molotov").Because("a fire is a molotov whichever side threw it");
             await Assert.That(thrown.Utility.Landing!.X).IsEqualTo(1200);
             await Assert.That(thrown.Actor).IsEqualTo("C").Because("slot 2 is the third T in slot order");
-            await Assert.That(thrown.Strokes).HasCount().EqualTo(1).Because("the arrow from the release point");
+            await Assert.That(thrown.Strokes).Count().IsEqualTo(1).Because("the arrow from the release point");
             await Assert.That(thrown.AtSeconds).IsEqualTo(108);
         }
     }
@@ -355,7 +355,7 @@ public class StratMiningServiceTests
         }
 
         await background.MineAsync(user: false);
-        await Assert.That(found).HasCount().EqualTo(1).Because("the same patterns again are nothing new");
+        await Assert.That(found).Count().IsEqualTo(1).Because("the same patterns again are nothing new");
     }
 
     [Test]

@@ -536,7 +536,7 @@ public class DemoSchedulerTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(queue.Visits).HasCount().EqualTo(1).Because("one visit carries every wanted pass");
+            await Assert.That(queue.Visits).Count().IsEqualTo(1).Because("one visit carries every wanted pass");
             await Assert.That(queue.Visits[0].Path).IsEqualTo("/x/demo.dem");
             await Assert.That(queue.Visits[0].Passes.Select(p => p.Id)).IsEquivalentTo(["a", "b"],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("a pass is keyed by its evaluator's id");
@@ -569,7 +569,7 @@ public class DemoSchedulerTests
         scheduler.DemoChanged("/x/3.dem");
         await queue.RunDeferredAsync();
 
-        await Assert.That(queue.Visits).HasCount().EqualTo(2).Because("the stop lands before the third demo is planned");
+        await Assert.That(queue.Visits).Count().IsEqualTo(2).Because("the stop lands before the third demo is planned");
 
         queue.Token = CancellationToken.None;
         scheduler.DemoChanged("/x/4.dem");
@@ -606,7 +606,7 @@ public class DemoSchedulerTests
 
         scheduler.DemoChanged("/nfs/demo.dem");
         scheduler.Request("/smb/demo.dem");
-        await Assert.That(queue.Visits).HasCount().EqualTo(1).Because("the pass is already out on that demo");
+        await Assert.That(queue.Visits).Count().IsEqualTo(1).Because("the pass is already out on that demo");
 
         scheduler.RecheckAll();
         await Assert.That(queue.Visits.Select(v => v.Path))
@@ -727,7 +727,7 @@ public class DemoSchedulerTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(queue.Visits).HasCount().EqualTo(1)
+            await Assert.That(queue.Visits).Count().IsEqualTo(1)
                 .Because("the rider whose rules pass is out, and the rider on a demo nothing else wants, pay for no read");
             await Assert.That(queue.Visits[0].Passes.Select(p => p.Id)).IsEquivalentTo(["grenades"]);
         }

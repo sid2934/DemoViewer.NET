@@ -42,7 +42,7 @@ public class LevelCrossingTrackerTests
         tracker.EndFrame();
         tracker.Update(0, 400, space);
 
-        await Assert.That(tracker.CrossedSlots).HasCount().EqualTo(1);
+        await Assert.That(tracker.CrossedSlots).Count().IsEqualTo(1);
         tracker.EndFrame();
         await Assert.That(tracker.CrossedSlots).IsEmpty();
     }

@@ -27,7 +27,7 @@ public class PaneSetLevelRetentionTests
 
         IReadOnlyList<LevelPane> panes = layout.Arrange(space, LevelDisplayMode.Single, new SKSize(800, 600));
 
-        await Assert.That(panes).HasCount().EqualTo(1);
+        await Assert.That(panes).Count().IsEqualTo(1);
         await Assert.That(panes[0].LevelId).IsEqualTo(space.Levels[1].Id);
         await Assert.That(panes[0].LevelIndex).IsEqualTo(1);
         await Assert.That(panes[0].ViewportRect).IsEqualTo(new SKRect(0, 0, 800, 600));
@@ -44,7 +44,7 @@ public class PaneSetLevelRetentionTests
 
         IReadOnlyList<LevelPane> panes = layout.Arrange(space, LevelDisplayMode.Single, new SKSize(800, 600));
 
-        await Assert.That(panes).HasCount().EqualTo(1);
+        await Assert.That(panes).Count().IsEqualTo(1);
         await Assert.That(panes[0].LevelId).IsEqualTo(space.Levels[^1].Id);
     }
 
@@ -109,7 +109,7 @@ public class PaneSetLevelRetentionTests
         panes.Policy = single;
         panes.Reconcile(space, LevelDisplayMode.Single, new SKSize(800, 600), _extent);
 
-        await Assert.That(panes.Panes).HasCount().EqualTo(1);
+        await Assert.That(panes.Panes).Count().IsEqualTo(1);
         await Assert.That(panes.FindById(hidden)).IsNull();
         await Assert.That(panes.TryGetCamera(hidden, out SliceCamera held)).IsTrue();
         await Assert.That(held.ManualOverride).IsTrue();

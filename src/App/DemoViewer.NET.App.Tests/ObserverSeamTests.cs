@@ -54,7 +54,7 @@ public class ObserverSeamTests
             await Assert.That(declared.ObservedProjectileClasses).IsEquivalentTo(["CMolotovProjectile", "CSmokeGrenadeProjectile"],
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
             await Assert.That(declared.FrameObserver).IsSameReferenceAs(observer);
-            await Assert.That(declared.CaptureSnapshots).IsEqualTo(false).Because("the caller's options are kept");
+            await Assert.That(declared.CaptureSnapshots).IsFalse().Because("the caller's options are kept");
             await Assert.That(untouched).IsSameReferenceAs(plain).Because("a run with no collector declares nothing");
             await Assert.That(none).IsNull();
             await Assert.That(set.IsSupersetOf(CollectorSet.Of([CollectorKit.Register(CollectorKit.Counting("a",

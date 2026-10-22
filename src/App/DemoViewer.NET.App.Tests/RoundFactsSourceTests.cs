@@ -215,7 +215,7 @@ public class RoundFactsSourceTests
         DemoCacheRecord original = store.TryLoadRecord(DemoA, false)!;
         original.Sha256 = "sha-a";
         store.Upsert(original);
-        await Assert.That(store.TryGetIndex(DemoA)!.Locations).HasCount(2);
+        await Assert.That(store.TryGetIndex(DemoA)!.Locations).Count().IsEqualTo(2);
         RoundFactsSource source = new(store);
 
         IReadOnlyList<(DemoCacheIndexEntry Demo, RoundFacts Round)> all = source.Query(new RoundFactsFilter());

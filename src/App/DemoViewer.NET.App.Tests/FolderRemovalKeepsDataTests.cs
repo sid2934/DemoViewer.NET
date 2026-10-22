@@ -80,7 +80,7 @@ public class FolderRemovalKeepsDataTests
                 await Assert.That(tagsAfter.TryLoad(sha)?.Instances.Single().Labels.Single().Value).IsEqualTo("a-split");
                 await Assert.That(tagsAfter.Index.Single().StratIds).IsEquivalentTo(["a-split"]);
                 await Assert.That((await new AnnotationStore(Path.Combine(config, "annotations"), _ => sha).LoadAsync(demo, clock))
-                    .Elements).HasCount(1);
+                    .Elements).Count().IsEqualTo(1);
                 await Assert.That(cache.TryGetOrphan(sha)).IsNotNull();
                 await Assert.That(Directory.GetFiles(Path.Combine(config, "ext", "demo-data", "rounds"))).IsNotEmpty();
             }

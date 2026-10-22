@@ -108,7 +108,7 @@ public class LevelSelectionTests
 
         space.Rebuild([new FloorSlice(0, 640)]);
 
-        await Assert.That(space.Levels).HasCount().EqualTo(1);
+        await Assert.That(space.Levels).Count().IsEqualTo(1);
         await Assert.That(selection.ActiveLevelId).IsEqualTo(space.Levels[^1].Id);
     }
 

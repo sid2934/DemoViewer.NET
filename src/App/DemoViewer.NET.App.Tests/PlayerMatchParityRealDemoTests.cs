@@ -217,7 +217,7 @@ public class PlayerMatchParityRealDemoTests
             await Assert.That(library.Status(path, PlayerMatchFacet.Key)).IsEqualTo(FactStatus.Current);
             await Assert.That(row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId))?.State).IsEqualTo(DemoAnalysisState.Indexed);
             await Assert.That(facet.Values.Order(StringComparer.Ordinal)).IsEquivalentTo(ColumnRules.FacetColumns.Order(StringComparer.Ordinal));
-            await Assert.That(row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId))?.HasVisibility).IsEqualTo(false)
+            await Assert.That(row.Stamp(StampedFacts.StampId(PlayerMatchFacet.RulesetId))?.HasVisibility).IsFalse()
                 .Because("a forward visit has no line-of-sight geometry");
             await Assert.That(game.Keys.Where(s => facet.Rows.All(r => r.Dimensions["player_slot"].AsInteger() != s))).IsEmpty()
                 .Because("every Stats tab row has a facet row");

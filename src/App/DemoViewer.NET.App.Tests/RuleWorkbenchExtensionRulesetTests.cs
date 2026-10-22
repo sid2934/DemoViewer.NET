@@ -77,7 +77,7 @@ public class RuleWorkbenchExtensionRulesetTests
             {
                 await Assert.That(File.Exists(Path.Combine(userDir, Id + ".rules.yaml"))).IsTrue();
                 await Assert.That(vm.OpenableFiles.Any(f => f.IsExtension)).IsFalse().Because("a user file of its id overrides it");
-                await Assert.That(vm.SelectedFile?.IsExtension).IsEqualTo(false);
+                await Assert.That(vm.SelectedFile?.IsExtension).IsFalse();
                 await Assert.That(vm.IsReadOnlyFile).IsFalse();
             }
         });

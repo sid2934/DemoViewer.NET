@@ -84,7 +84,7 @@ public class LegacyCacheMigrationTests
 
                 // THE regression this guards: legacy players have no team, so a roster-only projection would
                 // return nothing and every already-indexed demo would render "…" as if it were un-indexed.
-                await Assert.That(entry.PlayerNames).HasCount(3)
+                await Assert.That(entry.PlayerNames).Count().IsEqualTo(3)
                     .Because("the Library card must still print names for a migrated row");
                 await Assert.That(record!.HasTeamSplit).IsFalse()
                     .Because("the legacy cache never stored teams — the record is honest about that");
@@ -211,9 +211,9 @@ public class LegacyCacheMigrationTests
             {
                 await Assert.That(record!.HasTeamSplit).IsTrue()
                     .Because("the fresher parse tier wins over the legacy names-only list");
-                await Assert.That(record.Players).HasCount(1);
+                await Assert.That(record.Players).Count().IsEqualTo(1);
                 await Assert.That(record.TickRate).IsEqualTo(64);
-                await Assert.That(record.Rounds).HasCount(1);
+                await Assert.That(record.Rounds).Count().IsEqualTo(1);
             }
         }
         finally
@@ -285,7 +285,7 @@ public class LegacyCacheMigrationTests
                     .Because("only the scanned row carried anything");
                 await Assert.That(store.TryGetIndex("/demos/stub.dem")).IsNull();
                 await Assert.That(real).IsNotNull();
-                await Assert.That(real!.Highlights).HasCount(1);
+                await Assert.That(real!.Highlights).Count().IsEqualTo(1);
                 await Assert.That(real.Highlights[0].Tick).IsEqualTo(54_000);
                 await Assert.That(real.AnalysisState).IsEqualTo(DemoAnalysisState.Indexed);
                 await Assert.That(real.ConfigFingerprint).IsEqualTo("fp-legacy");

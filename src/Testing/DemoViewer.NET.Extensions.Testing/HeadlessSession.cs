@@ -246,14 +246,14 @@ public static class HeadlessSession
     ///     </para>
     /// </remarks>
     public static Task RunOnUi(Func<Task> work) =>
-        RunOnUi(work, TestContext.Current?.TestDetails.TestName ?? "unknown test", DefaultBudget);
+        RunOnUi(work, TestContext.Current?.Metadata.TestDetails.TestName ?? "unknown test", DefaultBudget);
 
     /// <summary>
     ///     <see cref="RunOnUi(Func{Task})" /> with a longer budget than four minutes, for a real-corpus body
     ///     that reads several full demos.
     /// </summary>
     public static Task RunOnUi(Func<Task> work, TimeSpan budget) =>
-        RunOnUi(work, TestContext.Current?.TestDetails.TestName ?? "unknown test", budget);
+        RunOnUi(work, TestContext.Current?.Metadata.TestDetails.TestName ?? "unknown test", budget);
 
     private static readonly TimeSpan DefaultBudget = TimeSpan.FromMinutes(4);
 

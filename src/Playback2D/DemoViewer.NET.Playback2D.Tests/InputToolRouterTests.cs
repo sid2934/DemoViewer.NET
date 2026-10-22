@@ -382,7 +382,7 @@ public class InputToolRouterTests
 
         await Assert.That(closedByOwner).IsTrue();
         await Assert.That(router.IsGestureOpen).IsFalse();
-        await Assert.That(services.Session.Document.Elements).HasCount().EqualTo(1);
+        await Assert.That(services.Session.Document.Elements).Count().IsEqualTo(1);
 
         SKPoint chord = services.ScreenToWorld(pane, new SKPoint(240, 130));
         SKPoint expected = services.ScreenToWorld(pane, end);
@@ -414,7 +414,7 @@ public class InputToolRouterTests
         await Assert.That(closed).IsTrue();
         await Assert.That(router.IsGestureOpen).IsFalse();
         await Assert.That(services.Session.Wet.IsActive).IsFalse();
-        await Assert.That(services.Session.Document.Elements).HasCount().EqualTo(1);
+        await Assert.That(services.Session.Document.Elements).Count().IsEqualTo(1);
     }
 
     /// <summary>Ctrl coming down mid-stroke is a modifier change, and modifiers are read at press only.</summary>

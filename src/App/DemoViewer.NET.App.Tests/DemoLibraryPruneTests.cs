@@ -332,7 +332,7 @@ public sealed class DemoLibraryPruneTests : IDisposable
             await svc.RescanAsync();
             svc.Save();
 
-            await Assert.That(CachedPaths(dataPath)).HasCount(2)
+            await Assert.That(CachedPaths(dataPath)).Count().IsEqualTo(2)
                 .Because("every root was offline — pruning would wipe the entire cache");
 
             svc.Dispose();

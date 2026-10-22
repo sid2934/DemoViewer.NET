@@ -455,7 +455,7 @@ public class GrenadeIndexTests
         {
             await Assert.That(index.Rows(new GrenadeQuery(Mirage, new HashSet<GrenadeKind> { GrenadeKind.Flash })).Count)
                 .IsEqualTo(9);
-            await Assert.That(index.Rows(new GrenadeQuery(Mirage, ThrowerTeam: 2)).Select(r => r.LandingPlace).Distinct())
+            await Assert.That(index.Rows(new GrenadeQuery(Mirage, ThrowerTeam: 2)).Select(r => r.LandingPlace!).Distinct())
                 .IsEquivalentTo(TOnly);
             await Assert.That(index.Rows(new GrenadeQuery("DE_MIRAGE", DemoPaths: new HashSet<string> { DemoPath(6) })).Count)
                 .IsEqualTo(4).Because("map and path compare without case");

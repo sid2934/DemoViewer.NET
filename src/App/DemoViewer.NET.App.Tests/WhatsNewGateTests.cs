@@ -50,7 +50,7 @@ public class WhatsNewGateTests
 
                 vm.StartWhatsNewCheck();
 
-                await Assert.That(windows.WhatsNews).HasCount().EqualTo(0);
+                await Assert.That(windows.WhatsNews).Count().IsEqualTo(0);
                 await Assert.That(settings.Current.LastSeenVersion)
                     .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
             });
@@ -82,7 +82,7 @@ public class WhatsNewGateTests
 
                 vm.StartWhatsNewCheck();
 
-                await Assert.That(windows.WhatsNews).HasCount().EqualTo(1);
+                await Assert.That(windows.WhatsNews).Count().IsEqualTo(1);
                 await Assert.That(windows.WhatsNews[0].Version)
                     .IsEqualTo(AppVersionInfo.CurrentReleaseVersion);
                 // Advanced BEFORE the window opened: the crash-loop guard.
@@ -91,7 +91,7 @@ public class WhatsNewGateTests
 
                 // A second launch on the same version stays silent.
                 vm.StartWhatsNewCheck();
-                await Assert.That(windows.WhatsNews).HasCount().EqualTo(1);
+                await Assert.That(windows.WhatsNews).Count().IsEqualTo(1);
             });
         }
         finally
@@ -117,7 +117,7 @@ public class WhatsNewGateTests
 
                 vm.StartWhatsNewCheck();
 
-                await Assert.That(windows.WhatsNews).HasCount().EqualTo(0);
+                await Assert.That(windows.WhatsNews).Count().IsEqualTo(0);
             });
         }
         finally
@@ -149,14 +149,14 @@ public class WhatsNewGateTests
 
                     // No update offered → the command must no-op rather than open an empty window.
                     vm.ShowUpdateDetailsCommand.Execute(null);
-                    await Assert.That(windows.UpdateNotices).HasCount().EqualTo(0);
+                    await Assert.That(windows.UpdateNotices).Count().IsEqualTo(0);
 
                     UpdateViewModel.Shared.AvailableVersion = "9.9.9";
                     UpdateViewModel.Shared.IsUpdateAvailable = true;
                     vm.ShowUpdateDetailsCommand.Execute(null);
                     vm.ShowUpdateDetailsCommand.Execute(null);
 
-                    await Assert.That(windows.UpdateNotices).HasCount().EqualTo(2);
+                    await Assert.That(windows.UpdateNotices).Count().IsEqualTo(2);
                     await Assert.That(ReferenceEquals(windows.UpdateNotices[0], windows.UpdateNotices[1])).IsTrue();
                     await Assert.That(windows.UpdateNotices[0].HeadlineText).Contains("9.9.9");
                 });

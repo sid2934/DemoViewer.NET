@@ -39,7 +39,7 @@ public class DiagnosticsFileLogTests
         // run. The `[Category("Environmental")]` tag was covering it: the tag says "this depends on
         // machine state", and an illegal path is not machine state.
         string dir = Path.Combine(Path.GetTempPath(), "dvnet-difilelog-test",
-            SafeName(TestContext.Current?.TestDetails.TestId));
+            SafeName(TestContext.Current?.Metadata.TestDetails.TestId));
         if (Directory.Exists(dir))
         {
             Directory.Delete(dir, true);

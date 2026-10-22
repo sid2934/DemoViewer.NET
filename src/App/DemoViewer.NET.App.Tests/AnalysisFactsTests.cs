@@ -99,7 +99,7 @@ public class AnalysisFactsTests
             await Assert.That(row.Values["a"].Kind).IsEqualTo(FactValueKind.Whole);
             await Assert.That(row.Values["b"].Kind).IsEqualTo(FactValueKind.Number).Because("2.0 is not the whole number 2");
             await Assert.That(row.Values["c"].AsNumber()).IsEqualTo(0.25);
-            await Assert.That(row.Values["d"].AsBoolean()).IsEqualTo(true);
+            await Assert.That(row.Values["d"].AsBoolean()).IsTrue();
             await Assert.That(row.Values["e"]).IsEqualTo(FactValue.Of([FactValue.Of(1L), FactValue.Of("x"), FactValue.Null]));
             await Assert.That(row.Values["f"]).IsEqualTo(FactValue.Null);
         }
@@ -279,7 +279,7 @@ public class AnalysisFactsTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(cache.TryGetIndex(smb)!.Locations).HasCount(2);
+                await Assert.That(cache.TryGetIndex(smb)!.Locations).Count().IsEqualTo(2);
                 await Assert.That(Directory.GetFiles(Path.Combine(root, "demos")).Select(Path.GetFileName).All(n => n!.StartsWith("sha-a.", StringComparison.Ordinal)))
                     .IsTrue().Because("the saved index named the hash, so the files moved to it");
                 await Assert.That(facts.Status(smb, key)).IsEqualTo(FactStatus.Current);
