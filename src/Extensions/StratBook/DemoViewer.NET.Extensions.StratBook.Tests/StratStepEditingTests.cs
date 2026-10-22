@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
@@ -113,7 +112,7 @@ public class StratStepEditingTests
     }
 
     // A tab over the Grenade Index fixture, its posts queued so the test runs them on its own thread.
-    private static StratBookTabViewModel OpenWithLineups(GrenadeIndex index, ConcurrentQueue<Action> posted)
+    private static StratBookTabViewModel OpenWithLineups(GrenadeIndex index, PostedActions posted)
     {
         StratBookTabViewModel vm = new(new StratStore(null), null, posted.Enqueue, false, canvasMapLoader: _ => null, grenades: index);
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
@@ -121,18 +120,6 @@ public class StratStepEditingTests
         vm.SelectedMap = "de_mirage";
         vm.NewStratCommand.Execute(null);
         return vm;
-    }
-
-    private static async Task Drain(ConcurrentQueue<Action> posted, Func<bool> until)
-    {
-        for (int i = 0; i < 500 && !until(); i++)
-        {
-            await Task.Delay(10);
-            while (posted.TryDequeue(out Action? action))
-            {
-                action();
-            }
-        }
     }
 
     private static StratStep ThrowBy(string slot, Guid lineupId, double atSeconds)
@@ -146,10 +133,10 @@ public class StratStepEditingTests
     public async Task ANewStepAfterAResolvedThrow_CarriesTheThrowerAtTheLineupOrigin_FromBothAddStepButtons()
     {
         (GrenadeIndex index, GrenadeLineup lineup) = StratThrowOriginTests.Indexed();
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using StratBookTabViewModel vm = OpenWithLineups(index, posted);
         Seed(vm, Step(110, "all", "hold", At("B", 100, 100), At("C", 7)), ThrowBy("B", lineup.Id, 100));
-        await Drain(posted, () => vm.Editor.ResolveLineup(lineup.Id) is not null);
+        await posted.DrainUntilAsync(() => vm.Editor.ResolveLineup(lineup.Id) is not null);
 
         TokenPlacement origin = LineupOriginSource.PlacementOf(lineup, null, StratFromRound.FloorLevelKeys(null));
         vm.Editor.AddStepCommand.Execute(vm.Editor.Steps[1]);
@@ -174,10 +161,10 @@ public class StratStepEditingTests
     public async Task ANewStepAfterAnUnresolvedThrow_CarriesTheThrowersLastAuthoredPosition()
     {
         (GrenadeIndex index, GrenadeLineup lineup) = StratThrowOriginTests.Indexed();
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using StratBookTabViewModel vm = OpenWithLineups(index, posted);
         Seed(vm, Step(110, "all", "hold", At("B", 100, 100)), ThrowBy("B", Guid.NewGuid(), 100));
-        await Drain(posted, () => vm.Editor.ResolveLineup(lineup.Id) is not null);
+        await posted.DrainUntilAsync(() => vm.Editor.ResolveLineup(lineup.Id) is not null);
 
         vm.Editor.AddStepCommand.Execute(vm.Editor.Steps[1]);
         await Assert.That(vm.Session.Document!.Steps[2].Positions.Single(p => p.Slot == "B").X).IsEqualTo(100)
@@ -188,7 +175,7 @@ public class StratStepEditingTests
     public async Task ALineupId_IsNotCheckedWhileTheMapGroups_ThenWarnsOnTheRowWhenItDoesNotResolve()
     {
         (GrenadeIndex index, GrenadeLineup lineup) = StratThrowOriginTests.Indexed();
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using StratBookTabViewModel vm = OpenWithLineups(index, posted);
         Func<string, Func<string, Guid, bool>?>? wired = vm.Session.LineupLookup;
         StratIssue? Lineup(int step) => vm.Session.Issues.FirstOrDefault(i => i.Field == $"/steps/{step}/utility/lineupId");
@@ -205,7 +192,7 @@ public class StratStepEditingTests
 
         vm.Session.LineupLookup = wired;
         vm.Session.InvalidateIssues();
-        await Drain(posted, () => vm.Editor.ResolveLineup(lineup.Id) is not null && vm.Editor.Steps[0].LineupIssue is not null);
+        await posted.DrainUntilAsync(() => vm.Editor.ResolveLineup(lineup.Id) is not null && vm.Editor.Steps[0].LineupIssue is not null);
         using (Assert.Multiple())
         {
             await Assert.That(Lineup(0)?.Severity).IsEqualTo(StratIssueSeverity.Warning);

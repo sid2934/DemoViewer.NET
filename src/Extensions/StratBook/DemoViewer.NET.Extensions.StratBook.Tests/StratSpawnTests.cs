@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Concurrent;
 using CS2DemoKit.Analysis.Visibility;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Playback2D.Core.Levels;
@@ -166,9 +165,9 @@ public class StratSpawnTests
             gate.Task.Wait();
             return Fixed;
         });
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using StratBookTabViewModel vm = new(store, null, posted.Enqueue, false, spawns: spawns);
-        Drain(posted);
+        posted.Drain();
         vm.SelectedMap = "de_mirage";
 
         vm.NewStratCommand.Execute(null);
@@ -177,12 +176,7 @@ public class StratSpawnTests
 
         gate.SetResult();
         await spawns.ForAsync("de_mirage");
-        for (int i = 0; i < 500 && posted.IsEmpty; i++)
-        {
-            await Task.Delay(10);
-        }
-
-        Drain(posted);
+        await posted.DrainUntilAsync(() => store.Index.Count > 0);
 
         await Assert.That(store.Index.Count).IsEqualTo(1).Because("a second click while waiting makes no second strat");
         await Assert.That(vm.Session.Document!.Start!.Positions.Count).IsEqualTo(10);
@@ -203,11 +197,11 @@ public class StratSpawnTests
             return Fixed;
         });
         await spawns.ForAsync("de_dust2");
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using StratBookTabViewModel vm = new(store, null, posted.Enqueue, false, spawns: spawns);
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
-        Drain(posted);
+        posted.Drain();
 
         vm.SelectedMap = "de_mirage";
         vm.NewStratCommand.Execute(null);
@@ -218,19 +212,14 @@ public class StratSpawnTests
         await Assert.That(store.Index.Count).IsEqualTo(0).Because("a click while one is pending does nothing");
 
         StratDocument dust = store.Create(vm.SelectedOwner!.Owner, "de_dust2", "T", "default", "dust");
-        Drain(posted);
+        posted.Drain();
         vm.SelectedStrat = vm.Strats.Single(r => r.Id == dust.Id);
-        Drain(posted);
+        posted.Drain();
         await Assert.That(vm.Session.Document?.Id).IsEqualTo(dust.Id);
 
         gate.SetResult();
         await spawns.ForAsync("de_mirage");
-        for (int i = 0; i < 500 && posted.IsEmpty; i++)
-        {
-            await Task.Delay(10);
-        }
-
-        Drain(posted);
+        await posted.DrainUntilAsync(() => store.Index.Any(e => e.Map == "de_mirage"));
 
         using (Assert.Multiple())
         {
@@ -238,14 +227,6 @@ public class StratSpawnTests
             await Assert.That(vm.Session.Document?.Id).IsEqualTo(dust.Id).Because("it does not close the strat opened meanwhile");
             await Assert.That(vm.SelectedStrat?.Id).IsEqualTo(dust.Id);
             await Assert.That(vm.NewStratCommand.CanExecute(null)).IsTrue();
-        }
-    }
-
-    private static void Drain(ConcurrentQueue<Action> posted)
-    {
-        while (posted.TryDequeue(out Action? action))
-        {
-            action();
         }
     }
 

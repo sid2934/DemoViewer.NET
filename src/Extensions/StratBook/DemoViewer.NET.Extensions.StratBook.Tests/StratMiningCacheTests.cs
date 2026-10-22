@@ -231,10 +231,7 @@ public class StratMiningCacheTests
         service.QuietDelay = TimeSpan.FromMilliseconds(20);
         passes.Busy = false;
         passes.Raise();
-        for (int i = 0; i < 200 && Mines() < 2; i++)
-        {
-            await Task.Delay(25);
-        }
+        await jobs.WaitForSubmissionAsync(() => Mines() >= 2);
 
         await Assert.That(Mines()).IsEqualTo(2).Because("the passes settling re-arms the quiet timer and it fires");
 

@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Concurrent;
 using System.Text.Json;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
@@ -340,11 +339,11 @@ public class StratTemplatesTests
             gate.Task.Wait();
             return Fixed;
         });
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using StratBookTabViewModel vm = new(store, null, posted.Enqueue, false, spawns: spawns);
         vm.Session.AutoSaveDelay = TimeSpan.FromHours(1);
         vm.Session.IdleCommitDelay = TimeSpan.FromHours(1);
-        Drain(posted);
+        posted.Drain();
         vm.SelectedMap = "de_mirage";
         vm.SelectedSide = StratVocabulary.SideCt;
 
@@ -355,20 +354,15 @@ public class StratTemplatesTests
         if (openAnother)
         {
             StratDocument ct = store.Create(vm.SelectedOwner!.Owner, "de_mirage", StratVocabulary.SideCt, "setup", "other");
-            Drain(posted);
+            posted.Drain();
             vm.SelectedStrat = vm.Strats.Single(r => r.Id == ct.Id);
-            Drain(posted);
+            posted.Drain();
             other = ct.Id;
         }
 
         gate.SetResult();
         await spawns.ForAsync("de_mirage");
-        for (int i = 0; i < 500 && posted.IsEmpty; i++)
-        {
-            await Task.Delay(10);
-        }
-
-        Drain(posted);
+        await posted.DrainUntilAsync(() => store.Index.Any(e => e.Type == "execute"));
 
         StratIndexEntry made = store.Index.Single(e => e.Type == "execute");
         using (Assert.Multiple())
@@ -377,14 +371,6 @@ public class StratTemplatesTests
             await Assert.That(made.StepCount).IsEqualTo(StratTemplates.Find("execute-a")!.Steps.Count);
             await Assert.That(vm.Session.Document?.Id).IsEqualTo(openAnother ? other : made.Id);
             await Assert.That(vm.NewStratCommand.CanExecute(null)).IsTrue();
-        }
-    }
-
-    private static void Drain(ConcurrentQueue<Action> posted)
-    {
-        while (posted.TryDequeue(out Action? action))
-        {
-            action();
         }
     }
 

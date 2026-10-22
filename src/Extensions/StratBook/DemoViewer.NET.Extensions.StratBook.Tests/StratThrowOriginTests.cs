@@ -1,6 +1,5 @@
 #region
 
-using System.Collections.Concurrent;
 using System.Numerics;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook.Canvas;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
@@ -67,11 +66,20 @@ public class StratThrowOriginTests
         }
     }
 
+    // Changed also fires for an index change, so only the one raised once the map is grouped counts. Subscribing
+    // after the canvas keeps the canvas's handler first in the list.
+    private static async Task GroupedAsync(LineupOriginSource origins, PostedActions posted)
+    {
+        bool grouped = false;
+        origins.Changed += () => grouped |= origins.For(Map) is not null;
+        await posted.DrainUntilAsync(() => grouped);
+    }
+
     [Test]
     public async Task ACanvasOpenedBeforeTheMapIsGrouped_MovesTheThrower_WhenTheGroupingLands()
     {
         (GrenadeIndex index, GrenadeLineup lineup) = Indexed();
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using LineupOriginSource origins = new(index, posted.Enqueue);
 
         StratDocument document = FiveSteps();
@@ -83,15 +91,7 @@ public class StratThrowOriginTests
             lineupOrigins: origins);
 
         TokenKeyframe before = BAt(canvas);
-        for (int i = 0; i < 500 && posted.IsEmpty; i++)
-        {
-            await Task.Delay(10);
-        }
-
-        while (posted.TryDequeue(out Action? action))
-        {
-            action();
-        }
+        await GroupedAsync(origins, posted);
 
         WorldPoint expected = GrenadeLineups.TechniqueFor(lineup, null)!.Origin;
         TokenKeyframe after = BAt(canvas);
@@ -136,7 +136,7 @@ public class StratThrowOriginTests
     public async Task OriginsThatLandMidDrag_AreDrawn_WhenTheDragIsCancelled()
     {
         (GrenadeIndex index, GrenadeLineup lineup) = Indexed();
-        ConcurrentQueue<Action> posted = new();
+        PostedActions posted = new();
         using LineupOriginSource origins = new(index, posted.Enqueue);
         (StratStore store, StratSession session) = Opened(ThrowByB(lineup.Id));
         using StratCanvasViewModel canvas = new(session, _ => null, new ManualTicker(), id => store.Load(id).Document, StratTestKeymap.Shipped,
@@ -144,15 +144,7 @@ public class StratThrowOriginTests
         canvas.Timeline.RequestSeek(330);
 
         canvas.BeginDrag("A", TokenGrip.Body);
-        for (int i = 0; i < 500 && posted.IsEmpty; i++)
-        {
-            await Task.Delay(10);
-        }
-
-        while (posted.TryDequeue(out Action? action))
-        {
-            action();
-        }
+        await GroupedAsync(origins, posted);
 
         await Assert.That(BAt(canvas).X).IsEqualTo(100f).Because("the drag keeps the projection it started on");
         canvas.CancelDrag();

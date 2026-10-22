@@ -60,6 +60,7 @@ public static partial class Variants
 
     // A loaded de_dust2 demo as the tab sees it: 24 rounds across 90 000 frames and the ten players, no live
     // states (the review is the subject; the viewport and cards stay at their no-push state).
+    // Not the shared fake: UiCapture has no TUnit, and the kit's props file compiles HeadlessSession.cs, which needs it.
     private sealed class PaneContext : IModuleContext
     {
         private static readonly int[] _freezeEnds = [.. Enumerable.Range(0, 24).Select(r => 1200 + r * 3700)];

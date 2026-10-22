@@ -461,9 +461,25 @@ public class ReviewPanelsPlaybackContributionTests
     // thread pool for the flush, so wait for the session to land on the path with its document.
     private static async Task AttachedAsync(TagSession session, string demoPath)
     {
-        for (int i = 0; i < 1000 && !Landed(); i++)
+        TaskCompletionSource landed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void Check()
         {
-            await Task.Delay(10);
+            if (Landed())
+            {
+                landed.TrySetResult();
+            }
+        }
+
+        session.Changed += Check;
+        try
+        {
+            Check();
+            await landed.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }
+        finally
+        {
+            session.Changed -= Check;
         }
 
         await Assert.That(session.DemoPath).IsEqualTo(demoPath);

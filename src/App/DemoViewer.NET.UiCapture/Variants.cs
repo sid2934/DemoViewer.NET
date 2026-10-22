@@ -4988,6 +4988,8 @@ public static partial class Variants
         public (float X, float Y, float Z)? WorldPosition => (X, Y, Z);
     }
 
+    // Not the shared fake: this is also the IPlaybackSnapshot, and its players' Z is ground-snapped after the BVH
+    // loads. UiCapture also has no TUnit, which the kit's props file needs.
     private sealed class VisionModuleContext(string mapName, IReadOnlyList<VisionPlayer> players)
         : IModuleContext, IPlaybackSnapshot
     {
@@ -5052,6 +5054,7 @@ public static partial class Variants
 
     // Minimal IModuleContext double: the LiveSyncStatusViewModel only reads DemoPath + MapName and (no-op)
     // subscribes to the default DemoReset. The rest are stubbed; none are exercised by the flyout capture.
+    // Not the shared fake: UiCapture has no TUnit, and the kit's props file compiles HeadlessSession.cs, which needs it.
     private sealed class FakeModuleContext(string? demoPath, string? mapName) : IModuleContext
     {
         public bool HasDemo => demoPath is not null;

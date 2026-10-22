@@ -291,6 +291,8 @@ public class RuleWorkbenchGraphTests
     ///     A minimal <see cref="IModuleContext" /> carrying a loaded demo via <see cref="ICurrentDemoSource" />,
     ///     only the members the Workbench touches are functional; the rest are unused stubs.
     /// </summary>
+    // Not the shared fake: it needs ICurrentDemoSource, a host-internal seam. Playback2DFakeContext is compiled
+    // into third-party extension test projects and must not carry it.
     private sealed class FakeDemoContext(ParsedDemo demo) : IModuleContext, ICurrentDemoSource
     {
         public ParsedDemo? CurrentDemo { get; } = demo;
