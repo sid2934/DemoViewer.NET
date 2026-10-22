@@ -66,11 +66,8 @@ public static class DemoTestHelper
     ///         link's target, not the link.
     ///     </para>
     ///     <para>
-    ///         Precedence: <c>CS2DEMOKIT_CORPUS_DIR</c> predates this variable and wins over it.
-    ///         Only <c>GrenadeRowsRealDemoTests.CorpusDemo</c> reads it, as a root holding
-    ///         <c>benchmarks/</c> and <c>pro-demos/</c>, and it falls through to this one when unset
-    ///         or not a directory. A set-but-invalid value of THIS variable fails the run rather than
-    ///         skipping it.
+    ///         A set-but-invalid value fails the run rather than skipping it: someone who set the
+    ///         variable meant to run those tests.
     ///     </para>
     /// </summary>
     public const string CorpusRootEnvVar = "DEMO_CORPUS";
@@ -716,9 +713,30 @@ public static class DemoTestHelper
         string? configured = Environment.GetEnvironmentVariable(CorpusCacheEnvVar);
         return !string.IsNullOrWhiteSpace(configured)
             ? configured
-            : Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "DemoViewer.NET", "demo-corpus");
+            : Path.Combine(PlatformCacheHome(), "DemoViewer.NET", "demo-corpus");
+    }
+
+    // Multi-GB and regenerable, so it must land in a cache location rather than an application-data
+    // one. On macOS LocalApplicationData is ~/Library/Application Support, which Time Machine backs
+    // up by default; ~/Library/Caches is excluded. On Windows AppData\Local is already correct.
+    private static string PlatformCacheHome()
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Caches");
+        }
+
+        if (OperatingSystem.IsLinux())
+        {
+            string? xdg = Environment.GetEnvironmentVariable("XDG_CACHE_HOME");
+            return !string.IsNullOrWhiteSpace(xdg)
+                ? xdg
+                : Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cache");
+        }
+
+        return Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     }
 
     private static IEnumerable<IDemoSource> ConfiguredSources()
