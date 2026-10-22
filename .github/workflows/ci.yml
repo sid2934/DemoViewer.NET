@@ -334,8 +334,11 @@ jobs:
       - name: Install native deps
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
-      # One test at a time: the suite's window-booting classes share static state and race each
-      # other on a two-core runner (a different test fails each run). Serial costs about a minute.
+      # One test at a time. Several classes build Avalonia controls off the UI thread outside
+      # RunOnUi, and in parallel that fails 1 to 2 tests per run (Dispatcher.VerifyAccess via
+      # DataValidationErrors.SetError), a different set each time. This hides the defect and costs
+      # about 12 s on the standard tier (24.5 s to 37 s). Remove only once that construction is
+      # fixed and the suite has been re-measured green without the flag.
       - name: Extension (Strat Book) suite, full tier
         env:
           DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
