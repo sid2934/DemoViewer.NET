@@ -503,8 +503,8 @@
         "advance_p99_ms": 2.0,
         "bytes_per_frame": 0
       },
-      "pending": false,
-      "notes": "The v2 compositor's own render of the mirage round start capture, over the baked de_mirage floors and radar at the capture's 900x900. Distinct from prev2-mirage-roundstart@900x900.png, which is the PRE-V2 control's output of the SAME scene and is frozen because the control that produced it is deleted: that one is gated against a delta distribution by GoldenParityTests, this one is the regenerable v2 regression gate, written and read by dv2d golden. Ten labelled markers, so the glyph allowance applies. Before this entry the scene had no v2 golden at all and de_mirage had no 900x900 golden of any kind."
+      "pending": true,
+      "notes": "PENDING FOR ONE REASON ONLY: THE BYTES WERE AUTHORED ON macOS AND CI IS ubuntu-latest. The v2 compositor's own render of the mirage round start capture, over the baked de_mirage floors and radar at the capture's 900x900, written by `dv2d golden update`. Distinct from prev2-mirage-roundstart@900x900.png, which is the PRE-V2 control's output of the SAME scene and is frozen because the control that produced it is deleted; that one is gated on a delta distribution by GoldenParityTests, this one is meant to be the regenerable v2 regression gate. It is not gating yet. Three EXISTING goldens already fail GoldenAttributionTests on macOS by 11 to 13 against a ceiling of 8, nuke-single-upper among them at the same 10 labels and 900x900 as this entry, which is direct evidence that the two platforms disagree by more than the gate allows on exactly this shape of picture. Pending keeps it out of both corpus enumerations (they skip pending) so it cannot red the Linux lane on first push. TO ARM IT: run scripts/update-playback2d-goldens.sh step 3 on the CI platform, review the diff, and flip this to false in the same commit."
     },
     {
       "name": "dust2-roundstart",
@@ -521,8 +521,8 @@
         "advance_p99_ms": 2.0,
         "bytes_per_frame": 0
       },
-      "pending": false,
-      "notes": "The v2 compositor's own render of the dust2 round start capture, over the baked de_dust2 floors and radar at the capture's 900x900. Distinct from prev2-dust2-roundstart@900x900.png, which is the PRE-V2 control's output of the SAME scene and is frozen because the control that produced it is deleted: that one is gated against a delta distribution by GoldenParityTests, this one is the regenerable v2 regression gate, written and read by dv2d golden. Ten labelled markers, so the glyph allowance applies. Before this entry the scene had no v2 golden at all and de_dust2 had no 900x900 golden of any kind."
+      "pending": true,
+      "notes": "PENDING FOR ONE REASON ONLY: THE BYTES WERE AUTHORED ON macOS AND CI IS ubuntu-latest. The v2 compositor's own render of the dust2 round start capture, over the baked de_dust2 floors and radar at the capture's 900x900, written by `dv2d golden update`. Distinct from prev2-dust2-roundstart@900x900.png, which is the PRE-V2 control's output of the SAME scene and is frozen because the control that produced it is deleted; that one is gated on a delta distribution by GoldenParityTests, this one is meant to be the regenerable v2 regression gate. It is not gating yet. Three EXISTING goldens already fail GoldenAttributionTests on macOS by 11 to 13 against a ceiling of 8, nuke-single-upper among them at the same 10 labels and 900x900 as this entry, which is direct evidence that the two platforms disagree by more than the gate allows on exactly this shape of picture. Pending keeps it out of both corpus enumerations (they skip pending) so it cannot red the Linux lane on first push. TO ARM IT: run scripts/update-playback2d-goldens.sh step 3 on the CI platform, review the diff, and flip this to false in the same commit."
     }
   ]
 }

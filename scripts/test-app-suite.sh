@@ -129,4 +129,14 @@ if [ "$TOTAL_RUN" -lt "$EXPECTED" ]; then
   exit 1
 fi
 echo "[batch-runner] partition audit OK: ran $TOTAL_RUN >= $EXPECTED listed"
+
+# The partition audit above counts tests the batches RAN against tests the assembly LISTS, so a
+# class that escaped discovery is caught. It cannot catch the other shape: a class that was
+# discovered, selected and then skipped every case because its demos stopped resolving. That is
+# what the RealDemo guard is for, and this is the path CI's App lane takes, so it has to be here
+# and not only in scripts/test.sh. Self-disarms unless a corpus or source is configured.
+if [ "$TIER" = "full" ]; then
+  "$(dirname "$0")/check-realdemo-lane.sh" "$CONFIG" || TOTAL_FAILED=$((TOTAL_FAILED + 1))
+fi
+
 [ $TOTAL_FAILED -eq 0 ] || exit 1
