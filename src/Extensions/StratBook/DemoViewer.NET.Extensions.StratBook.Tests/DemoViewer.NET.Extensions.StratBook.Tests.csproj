@@ -55,6 +55,11 @@
         <Compile Include="..\..\..\App\DemoViewer.NET.App.Tests\Extensions\FakeManifests.cs" Link="FakeManifests.cs"/>
     </ItemGroup>
 
+    <!-- Fixtures that need the StratBook pack, shared with App.Tests. -->
+    <ItemGroup>
+        <Compile Include="..\..\..\Testing\StratBookFixtures\*.cs" LinkBase="StratBookFixtures"/>
+    </ItemGroup>
+
     <ItemGroup>
         <Using Include="DemoViewer.NET.Extensions.Sdk"/>
     </ItemGroup>
