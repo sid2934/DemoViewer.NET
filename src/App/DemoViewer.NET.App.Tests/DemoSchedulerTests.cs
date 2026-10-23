@@ -343,7 +343,7 @@ public class DemoSchedulerTests
         using DemoScheduler scheduler = new([a], queue, () => library);
 
         scheduler.RecheckAll();
-        await WaitFor(() => a.Count == 3 && queue.ActiveWorkerCount == 0, "every known demo planned");
+        await queue.IdleAsync("every known demo planned", () => a.Count == 3);
         scheduler.RecheckAll();
         await Task.Delay(120);
 

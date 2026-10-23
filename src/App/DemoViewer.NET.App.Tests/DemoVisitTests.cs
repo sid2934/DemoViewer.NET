@@ -167,7 +167,7 @@ public class DemoVisitTests
         IDemoQueueHandle mixed = queue.SubmitVisit(new DemoVisitRequest("/d/mixed.dem", PassLevel.Background, [walk]));
         queue.Resume();
         await mixed.Completion;
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && inputs.Count == 4, "both visits");
+        await queue.IdleAsync("both visits", () => inputs.Count == 4);
 
         using (Assert.Multiple())
         {

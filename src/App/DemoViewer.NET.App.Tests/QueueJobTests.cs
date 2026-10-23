@@ -100,7 +100,7 @@ public class QueueJobTests
         await WaitForAsync(() => order.Contains("pack"), "the pack, while paused");
         await Assert.That(queue.QueuedCount).IsEqualTo(4);
         queue.Resume();
-        await WaitForAsync(() => order.Count == 5 && queue.ActiveWorkerCount == 0, "drain");
+        await queue.IdleAsync("drain", () => order.Count == 5);
 
         await Assert.That(string.Join(",", order)).IsEqualTo("pack,demo,migrate,mine,clips");
     }
@@ -124,7 +124,7 @@ public class QueueJobTests
         }));
 
         await user.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "the workers to go idle");
+        await queue.IdleAsync("the workers to go idle");
         await Assert.That(ran).IsEqualTo(1).Because("the clips job waits for Resume");
         await Assert.That(user.State).IsEqualTo(DemoQueueItemState.Completed);
 
@@ -158,7 +158,7 @@ public class QueueJobTests
         running.Cancel();
         await running.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         await Assert.That(running.State).IsEqualTo(DemoQueueItemState.Cancelled);
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+        await queue.IdleAsync("worker exit");
         await Assert.That(queuedRan).IsFalse();
         await Assert.That(gate.InFlight).IsEqualTo(0);
     }
@@ -204,7 +204,7 @@ public class QueueJobTests
         await running.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         await other.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         await shared.Completion.WaitAsync(TimeSpan.FromSeconds(5));
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+        await queue.IdleAsync("worker exit");
 
         using (Assert.Multiple())
         {
@@ -380,7 +380,7 @@ public class QueueJobTests
         }
 
         await Task.WhenAll(many.Select(h => h.Completion)).WaitAsync(TimeSpan.FromSeconds(10));
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "worker exit");
+        await queue.IdleAsync("worker exit");
         await Assert.That(queue.Snapshot().Count).IsLessThanOrEqualTo(30);
     }
 
