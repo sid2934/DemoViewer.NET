@@ -9,18 +9,17 @@ using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
 using DemoViewer.NET.Services.MatchMeta;
 using DemoViewer.NET.TestSupport;
-using TUnit.Core.Exceptions;
 
 #endregion
 
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Game mode and rank off the forward read, on the five benchmark matchmaking demos (premier ×3,
+///     Game mode and rank off the forward read, on the five Valve matchmaking demos (premier ×3,
 ///     competitive ×2): the mode, ten rank rows, the server's update on both reads, the last-full-packet
 ///     checkpoint of a rules read agreeing with the bare read's replay, and the premier prediction standing in
-///     for an update the demo did not carry. Read in place from the <c>DEMO_PATH</c> folder, else
-///     <c>demos/benchmarks</c>.
+///     for an update the demo did not carry. The five are the manifest's <c>valve-mm</c> set, so a local
+///     corpus, the fetch cache or a configured <c>DEMO_SOURCES</c> can serve them.
 /// </summary>
 [NotInParallel]
 [Category("RealDemo")]
@@ -37,7 +36,7 @@ public class MatchMetaRealDemoTests
     [Arguments(4, "competitive")]
     public async Task TheVisit_ReadsTheModeAndTenRankRows_OnBothReads(int which, string mode)
     {
-        string path = BenchmarkDemo(which);
+        string path = ValveDemo(which);
         ForwardDemoResult bare = Read(path, ForwardNeeds.FinalState);
         ForwardDemoResult ruled = Read(path, ForwardNeeds.FinalState | ForwardNeeds.Rules);
         (string? gameMode, string source, List<MatchRankRow> rows) = MatchMetaEvaluator.Capture(ruled.GameMode, ruled.Demo.Profile.SourceKind,
@@ -96,20 +95,7 @@ public class MatchMetaRealDemoTests
         return ForwardDemoPass.Run(reader, needs, (needs & ForwardNeeds.Rules) != 0 ? Rules.Docs : null, null, null, CollectorSet.Empty, ranks);
     }
 
-    private static string BenchmarkDemo(int which)
-    {
-        string? resolved = DemoTestHelper.ResolveDemoPathOverride(
-            Environment.GetEnvironmentVariable(DemoTestHelper.DemoPathEnvVar), null, out string? problem);
-        if (problem is not null)
-        {
-            throw new SkipTestException(problem);
-        }
-
-        string? folder = resolved is null ? DemoTestHelper.RequireCorpusDir("benchmarks")
-            : Path.GetDirectoryName(resolved)!;
-        List<string> demos = Directory.Exists(folder)
-            ? [.. Directory.EnumerateFiles(folder, "match730_*.dem", SearchOption.TopDirectoryOnly).Order(StringComparer.Ordinal)]
-            : [];
-        return which < demos.Count ? demos[which] : throw new SkipTestException($"fewer than {which + 1} Valve demos in the benchmark folder");
-    }
+    // The mode and rank expectations are per index, so membership has to be the manifest's five and
+    // not whatever match730_*.dem a folder happens to hold in ordinal order.
+    private static string ValveDemo(int which) => DemoTestHelper.RequireSetDemo("valve-mm", which);
 }

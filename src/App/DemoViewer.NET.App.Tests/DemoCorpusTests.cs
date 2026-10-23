@@ -747,7 +747,7 @@ public class DemoCorpusTests
     public async Task EmbeddedSets_MatchTheOrdinalOrderOfTheirDirectories()
     {
         DemoCorpus corpus = new(CorpusManifest.Embedded, [], Path.Combine(TempRoot(), "cache"), []);
-        foreach (string set in new[] { "benchmarks", "mm", "pro" })
+        foreach (string set in new[] { "benchmarks", "mm", "pro", "valve-mm" })
         {
             string[] files = [.. corpus.SetMembers(set).Select(d => d.File)];
             using (Assert.Multiple())
