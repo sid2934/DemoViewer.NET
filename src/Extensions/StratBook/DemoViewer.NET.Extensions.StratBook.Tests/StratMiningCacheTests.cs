@@ -246,10 +246,7 @@ public class StratMiningCacheTests
     // The drain compaction item may still hold the slot for a moment after the mine completes.
     private static async Task Idle(DemoProcessingQueue queue)
     {
-        for (int i = 0; i < 200 && queue.ActiveWorkerCount > 0; i++)
-        {
-            await Task.Delay(10);
-        }
+        await queue.WhenIdleAsync().WaitAsync(TimeSpan.FromSeconds(30));
     }
 
     private static DemoProcessingQueue RealQueue(HeavyJobGate gate) =>

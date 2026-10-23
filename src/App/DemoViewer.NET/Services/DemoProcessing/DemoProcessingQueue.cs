@@ -271,6 +271,53 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
         }
     }
 
+    // Completed and replaced each time the last worker, heavy or light, exits. Under _sync.
+    private TaskCompletionSource _idleSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes when no worker is running. Idle means no worker, as <see cref="ActiveWorkerCount"/> does:
+    /// queued entries a paused or full queue is holding back do not count.
+    /// <para>
+    /// A queue that is already idle satisfies the call at once. Otherwise it completes at the next moment the
+    /// queue is idle, and a later enqueue does not revoke that. Observes only: it takes no part in scheduling.
+    /// </para>
+    /// <para>
+    /// <paramref name="and"/> is checked each time the queue is idle, on the caller's thread and outside any
+    /// queue lock. If it is false the wait continues to the next idle moment, so it must become true by
+    /// the queue's own work. Bound the wait with <c>WaitAsync(TimeSpan)</c>.
+    /// </para>
+    /// </summary>
+    public async Task WhenIdleAsync(Func<bool>? and = null, CancellationToken cancellationToken = default)
+    {
+        while (true)
+        {
+            Task next;
+            bool idle;
+            lock (_sync)
+            {
+                idle = _activeWorkers == 0 && _activeLightWorkers == 0;
+                next = _idleSignal.Task;
+            }
+
+            if (idle && (and is null || and()))
+            {
+                return;
+            }
+
+            await next.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    // Under _sync, after PumpLocked so a worker the pump just started keeps the queue busy.
+    private void SignalIdleLocked()
+    {
+        if (_activeWorkers == 0 && _activeLightWorkers == 0)
+        {
+            _idleSignal.TrySetResult();
+            _idleSignal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
     public event Action? Changed;
     public event Action? CapacityAvailable;
 
@@ -1526,6 +1573,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 _activeLightWorkers--;
                 PumpLocked();
+                SignalIdleLocked();
             }
         }
     }
@@ -1656,6 +1704,7 @@ public sealed class DemoProcessingQueue : IDemoProcessingQueue, IDisposable
             {
                 _activeWorkers--;
                 PumpLocked(); // work may have arrived during teardown
+                SignalIdleLocked();
             }
         }
     }
