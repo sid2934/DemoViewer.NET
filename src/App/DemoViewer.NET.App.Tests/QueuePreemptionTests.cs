@@ -86,7 +86,7 @@ public class QueuePreemptionTests
         }, DemoJobPriority.UserRequested));
 
         await clips.Completion.WaitAsync(TimeSpan.FromSeconds(10));
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0, "drain");
+        await queue.IdleAsync("drain");
 
         List<string> seen = [.. order];
         int user = seen.IndexOf("user");
@@ -166,7 +166,7 @@ public class QueuePreemptionTests
             "the user item to queue behind the parse");
         finishParse.Set();
         await user.Completion.WaitAsync(TimeSpan.FromSeconds(10));
-        await WaitForAsync(() => queue.ActiveWorkerCount == 0 && order.Count == 3, "drain");
+        await queue.IdleAsync("drain", () => order.Count == 3);
         await Assert.That(string.Join(",", order)).IsEqualTo("parse,user,parse");
     }
 
