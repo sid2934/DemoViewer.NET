@@ -59,6 +59,8 @@ public class GoldenParityTests
 
     [Test]
     [Arguments("nuke-multilevel")]
+    [Arguments("prev2-mirage-roundstart")]
+    [Arguments("prev2-dust2-roundstart")]
     public async Task PreV2Golden_IsReproducedByTheCompositor(string name)
     {
         (SceneFixture fixture, byte[] expected) = LoadCorpusEntry(name);
@@ -88,6 +90,8 @@ public class GoldenParityTests
     /// </summary>
     [Test]
     [Arguments("nuke-multilevel")]
+    [Arguments("prev2-mirage-roundstart")]
+    [Arguments("prev2-dust2-roundstart")]
     public async Task Geometry_WithoutText_IsAtLeastAsCloseAsTheFullFrame(string name)
     {
         (SceneFixture fixture, byte[] expected) = LoadCorpusEntry(name);
