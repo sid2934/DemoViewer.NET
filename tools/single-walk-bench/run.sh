@@ -11,6 +11,14 @@
 #   tools/single-walk-bench/run.sh --tmp <dir> [--a <repo>] [--b <repo>] [--demos <file>]
 #       [--visits sweep,open] [--trials N] [--warmup] [-c Release|Debug] [--out <file.jsonl>] [--no-build]
 #
+# The minutes-not-hours lane, which is what to run before reaching for the full matrix. One demo, all
+# four scenarios, one trial, both arms: 2 processes and 8 cells, since a process covers every scenario.
+#   echo <repo>/demos/benchmarks/003816248937665266002_0544286934.dem > /tmp/sw-one.txt
+#   tools/single-walk-bench/run.sh --tmp /tmp/sw --demos /tmp/sw-one.txt \
+#       --visits sweep,open,open-stale,recheck
+# The counters it gates on are exact, so two consecutive runs must agree on them. Promote to the whole
+# demos/benchmarks/ set only once this lane says something moved.
+#
 # --tmp      Required. Scratch root for the per-trial config directories. Never the live config dir.
 # --a, --b   Checkouts to compare. Default: this checkout for both, which is the A/A run that sets the
 #            session's noise band. Each arm is built once, then the arms alternate A, B, A, B.
