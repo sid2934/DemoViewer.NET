@@ -124,6 +124,12 @@ public sealed class PassInput
     /// <summary>Fires when the visit is cancelled.</summary>
     public CancellationToken CancellationToken { get; }
 
+    /// <summary>The server's rank update as the retained read captured it; empty when it captured none.</summary>
+    internal IReadOnlyList<ServerRankUpdate> RetainedRanks { get; init; } = [];
+
+    /// <summary>The server's end-of-match rank update, off whichever read the visit made.</summary>
+    internal IReadOnlyList<ServerRankUpdate> RankUpdates => Forward?.RankUpdates ?? RetainedRanks;
+
     /// <summary>The bare run's collector results for a retained read, the run made on first ask. Null reads none.</summary>
     internal Func<CollectorResults>? RetainedCollected { get; init; }
 
@@ -154,6 +160,16 @@ public sealed class PassInput
 internal interface ICollectingPass
 {
     CollectorSet Collectors { get; }
+}
+
+/// <summary>
+///     An evaluator that reads more of a retained visit than the parse: what the read captured beside the
+///     frames. <see cref="EvaluatorPassAdapter" /> hands it the whole <see cref="PassInput" /> in place of
+///     <see cref="IDemoEvaluator.Evaluate" />.
+/// </summary>
+internal interface IRetainedVisitEvaluator
+{
+    void Evaluate(string path, PassInput input);
 }
 
 /// <summary>
