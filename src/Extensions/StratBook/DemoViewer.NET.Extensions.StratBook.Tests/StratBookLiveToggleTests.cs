@@ -537,7 +537,9 @@ public class StratBookLiveToggleTests
                 await Assert.That(second.Built).IsGreaterThan(2L * 1024 * 1024).Because("the fixture must cost something or the test proves nothing");
                 await Assert.That(second.Left).IsLessThan(Math.Max(1L * 1024 * 1024, second.Built / 10))
                     .Because("after the release the heap is back within a margin the pack's shells and the queue history explain");
-                await Assert.That(second.Left - first.Left).IsLessThan(512L * 1024)
+                // GC.GetTotalMemory is process-wide, so an unrelated release between the first cycle's
+                // marks drives first.Left negative, and that must not raise the bar for the second.
+                await Assert.That(second.Left - Math.Max(first.Left, 0)).IsLessThan(512L * 1024)
                     .Because("a residual that grows per toggle is a leak; one that does not is the process's one-time cost");
             }
         }, configDir: copy);
