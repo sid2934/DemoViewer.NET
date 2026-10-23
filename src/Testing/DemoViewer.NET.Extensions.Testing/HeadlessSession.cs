@@ -94,13 +94,24 @@ public static class HeadlessSession
         ?? throw new InvalidOperationException(
             "The test assembly declares no [assembly: AvaloniaTestApplication(typeof(...))] naming a type with a static BuildAvaloniaApp().");
 
+    // PerAssembly shares one dispatcher queue, so a control built off the UI thread fails
+    // deterministically; PerTest hides it. The nightly headless-isolation workflow sets this variable.
+    // The level is fixed at StartNew, so it has to be read here.
+    private static AvaloniaTestIsolationLevel RequestedIsolation() =>
+        string.Equals(
+            Environment.GetEnvironmentVariable("DV_HEADLESS_ISOLATION"),
+            "PerAssembly",
+            StringComparison.OrdinalIgnoreCase)
+            ? AvaloniaTestIsolationLevel.PerAssembly
+            : AvaloniaTestIsolationLevel.PerTest;
+
     private static HeadlessUnitTestSession Session
     {
         get
         {
             lock (_sessionGate)
             {
-                return _session ??= HeadlessUnitTestSession.StartNew(EntryPoint());
+                return _session ??= HeadlessUnitTestSession.StartNew(EntryPoint(), RequestedIsolation());
             }
         }
     }

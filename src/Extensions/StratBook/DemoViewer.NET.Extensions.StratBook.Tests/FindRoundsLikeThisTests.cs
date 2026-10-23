@@ -50,212 +50,233 @@ public class FindRoundsLikeThisTests
     [Test]
     public async Task CtrlF_IsFindRoundsLikeThis_AndBareFStaysFollow()
     {
-        // FindRoundsLikeThis is a Strat Book extension command: the profile a tab routes through
-        // resolves it, the bare core table (Playback2DKeymap) does not.
-        Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, false, out string? find))
-                .IsTrue();
-            await Assert.That(find).IsEqualTo(StratBookActions.FindRoundsLikeThis);
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.None, false, out string? follow))
-                .IsTrue();
-            await Assert.That(follow).IsEqualTo(nameof(Playback2DAction.CycleFollowNext));
+            // FindRoundsLikeThis is a Strat Book extension command: the profile a tab routes through
+            // resolves it, the bare core table (Playback2DKeymap) does not.
+            Playback2DKeymapProfile keymap = Playback2DKeymapProfile.Default;
+            using (Assert.Multiple())
+            {
+                await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, false, out string? find))
+                    .IsTrue();
+                await Assert.That(find).IsEqualTo(StratBookActions.FindRoundsLikeThis);
+                await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.None, false, out string? follow))
+                    .IsTrue();
+                await Assert.That(follow).IsEqualTo(nameof(Playback2DAction.CycleFollowNext));
 
-            // A drawing tool does not take the chord away: the row is Always-scoped and nothing
-            // tool-scoped claims it.
-            await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, true, out string? tool))
-                .IsTrue();
-            await Assert.That(tool).IsEqualTo(StratBookActions.FindRoundsLikeThis);
+                // A drawing tool does not take the chord away: the row is Always-scoped and nothing
+                // tool-scoped claims it.
+                await Assert.That(keymap.TryResolve(Key.F, KeyModifiers.Control, true, out string? tool))
+                    .IsTrue();
+                await Assert.That(tool).IsEqualTo(StratBookActions.FindRoundsLikeThis);
 
-            // Not a shell accelerator and not one the browser eats, so a user may keep it on either head.
-            await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.F, KeyModifiers.Control));
-            await Assert.That(keymap.GestureText(StratBookActions.FindRoundsLikeThis)).IsEqualTo("Ctrl+F");
-        }
+                // Not a shell accelerator and not one the browser eats, so a user may keep it on either head.
+                await Assert.That(Playback2DKeymap.ReservedGestures(true)).DoesNotContain((Key.F, KeyModifiers.Control));
+                await Assert.That(keymap.GestureText(StratBookActions.FindRoundsLikeThis)).IsEqualTo("Ctrl+F");
+            }
+        });
     }
 
     [Test]
     public async Task TheSnapshot_MintsTheTokenTheBuilderMints_ForTheSamePositions()
     {
-        SceneTime time = new(1000, 10, 15.6, 0.015625, false);
-        SituationSnapshot snapshot = SituationSnapshot.Capture("de_nuke", time, Markers(), PawnPlaceSource.Instance);
-
-        // The builder over the same ten positions at the same tick, seen through PositionSampler's eyes.
-        RoundIndexDocument document = RoundIndexBuilder.Build(Demo(), Facts(Round(1, 1000, 1200)),
-            RoundIndexOptions.Default, PawnPlaceSource.Instance, Samples(1000));
-        RoundIndexRun stored = document.Rounds[0].Runs[0];
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(snapshot.Ct.Count).IsEqualTo(5);
-            await Assert.That(snapshot.T.Count).IsEqualTo(5);
-            await Assert.That(snapshot.TokenFor(QuerySide.Ct)).IsEqualTo(stored.Ct);
-            await Assert.That(snapshot.TokenFor(QuerySide.T)).IsEqualTo(stored.T);
-            await Assert.That(stored.Ct).IsEqualTo("BombsiteA:2|Outside:3");
-            await Assert.That(stored.T).IsEqualTo("Lobby:3|Ramp:2");
-        }
+            SceneTime time = new(1000, 10, 15.6, 0.015625, false);
+            SituationSnapshot snapshot = SituationSnapshot.Capture("de_nuke", time, Markers(), PawnPlaceSource.Instance);
 
-        // Then through the canvas: the loaded rail encodes to the same token, and the index counts it.
-        using Harness h = new();
-        Indexed(h.Cache, h.Sidecars, Demo, document);
-        h.Index.Load();
+            // The builder over the same ten positions at the same tick, seen through PositionSampler's eyes.
+            RoundIndexDocument document = RoundIndexBuilder.Build(Demo(), Facts(Round(1, 1000, 1200)),
+                RoundIndexOptions.Default, PawnPlaceSource.Instance, Samples(1000));
+            RoundIndexRun stored = document.Rounds[0].Runs[0];
 
-        h.Vm.LoadSnapshot(snapshot);
+            using (Assert.Multiple())
+            {
+                await Assert.That(snapshot.Ct.Count).IsEqualTo(5);
+                await Assert.That(snapshot.T.Count).IsEqualTo(5);
+                await Assert.That(snapshot.TokenFor(QuerySide.Ct)).IsEqualTo(stored.Ct);
+                await Assert.That(snapshot.TokenFor(QuerySide.T)).IsEqualTo(stored.T);
+                await Assert.That(stored.Ct).IsEqualTo("BombsiteA:2|Outside:3");
+                await Assert.That(stored.T).IsEqualTo("Lobby:3|Ramp:2");
+            }
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(h.Vm.Map).IsEqualTo("de_nuke");
-            await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(10);
-            await Assert.That(h.Vm.CtToken).IsEqualTo(stored.Ct);
-            await Assert.That(h.Vm.TToken).IsEqualTo(stored.T);
-            await Assert.That(h.Index.Count(h.Vm.Draft.ToQuery())).IsEqualTo(1);
-            await Assert.That(h.Vm.HintLine).Contains("tick 1000");
-            await Assert.That(h.Vm.Maps).Contains("de_nuke");
-        }
+            // Then through the canvas: the loaded rail encodes to the same token, and the index counts it.
+            using Harness h = new();
+            Indexed(h.Cache, h.Sidecars, Demo, document);
+            h.Index.Load();
 
-        // The token sits where the player stood, so the map shows the situation the key captured.
-        QueryToken first = h.Vm.Document.Get(QuerySide.Ct, 0)!.Value;
-        await Assert.That((first.WorldX, first.WorldY, first.Place)).IsEqualTo((600f, -400f, "BombsiteA"));
+            h.Vm.LoadSnapshot(snapshot);
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(h.Vm.Map).IsEqualTo("de_nuke");
+                await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(10);
+                await Assert.That(h.Vm.CtToken).IsEqualTo(stored.Ct);
+                await Assert.That(h.Vm.TToken).IsEqualTo(stored.T);
+                await Assert.That(h.Index.Count(h.Vm.Draft.ToQuery())).IsEqualTo(1);
+                await Assert.That(h.Vm.HintLine).Contains("tick 1000");
+                await Assert.That(h.Vm.Maps).Contains("de_nuke");
+            }
+
+            // The token sits where the player stood, so the map shows the situation the key captured.
+            QueryToken first = h.Vm.Document.Get(QuerySide.Ct, 0)!.Value;
+            await Assert.That((first.WorldX, first.WorldY, first.Place)).IsEqualTo((600f, -400f, "BombsiteA"));
+        });
     }
 
     [Test]
     public async Task TheZonesMode_ResolvesTheMarkerPositions_AsTheBuilderDoes()
     {
-        // The zone set names by X alone; the pawn field says something else, and must lose.
-        RoundIndexBuilderTests.FakeZoneResolver zones = new("zv-3", v => v.X < 0 ? "West" : "East");
-        RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Zones,
-            new RoundIndexEvaluatorTests.MapZones(("de_nuke", zones)));
-        IPlaceSource source = sources.SourceFor("de_nuke");
-
-        SceneTime time = new(1000, 10, 15.6, 0.015625, false);
-        SituationSnapshot snapshot = SituationSnapshot.Capture("de_nuke", time, Markers(), source);
-        RoundIndexDocument document = RoundIndexBuilder.Build(Demo(), Facts(Round(1, 1000, 1200)),
-            RoundIndexOptions.Default, source, Samples(1000));
-        RoundIndexRun stored = document.Rounds[0].Runs[0];
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(source).IsTypeOf<ZonePlaceSource>();
-            await Assert.That(snapshot.TokenFor(QuerySide.Ct)).IsEqualTo(stored.Ct);
-            await Assert.That(snapshot.TokenFor(QuerySide.T)).IsEqualTo(stored.T);
-            await Assert.That(stored.Ct).IsEqualTo("East:2|West:3");
-            await Assert.That(stored.T).IsEqualTo("East:2|West:3");
-        }
+            // The zone set names by X alone; the pawn field says something else, and must lose.
+            RoundIndexBuilderTests.FakeZoneResolver zones = new("zv-3", v => v.X < 0 ? "West" : "East");
+            RoundIndexPlaceSources sources = new(() => RoundIndexTokenSource.Zones,
+                new RoundIndexEvaluatorTests.MapZones(("de_nuke", zones)));
+            IPlaceSource source = sources.SourceFor("de_nuke");
+
+            SceneTime time = new(1000, 10, 15.6, 0.015625, false);
+            SituationSnapshot snapshot = SituationSnapshot.Capture("de_nuke", time, Markers(), source);
+            RoundIndexDocument document = RoundIndexBuilder.Build(Demo(), Facts(Round(1, 1000, 1200)),
+                RoundIndexOptions.Default, source, Samples(1000));
+            RoundIndexRun stored = document.Rounds[0].Runs[0];
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(source).IsTypeOf<ZonePlaceSource>();
+                await Assert.That(snapshot.TokenFor(QuerySide.Ct)).IsEqualTo(stored.Ct);
+                await Assert.That(snapshot.TokenFor(QuerySide.T)).IsEqualTo(stored.T);
+                await Assert.That(stored.Ct).IsEqualTo("East:2|West:3");
+                await Assert.That(stored.T).IsEqualTo("East:2|West:3");
+            }
+        });
     }
 
     [Test]
     public async Task DeadAndSpectatingMarkers_AreLeftOut_AndAnUnknownPlace_IsOnTheMapButOutOfTheQuery()
     {
-        SceneTime time = new(1000, 10, 15.6, 0.015625, false);
-        PlayerMarker[] markers =
-        [
-            Marker(1, 3, 600, -400, "BombsiteA"),
-            Marker(2, 3, 640, -420, "BombsiteA", alive: false),
-            Marker(3, 1, 0, 0, "BombsiteA"),
-            Marker(6, 2, -900, 200, null),
-            Marker(7, 2, -940, 220, "Lobby")
-        ];
-
-        SituationSnapshot snapshot = SituationSnapshot.Capture("de_nuke", time, markers, PawnPlaceSource.Instance);
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(snapshot.Ct.Count).IsEqualTo(1).Because("the dead CT and the spectator are not alive players");
-            await Assert.That(snapshot.T.Count).IsEqualTo(2);
-            await Assert.That(snapshot.TokenFor(QuerySide.Ct)).IsEqualTo("BombsiteA:1");
-            await Assert.That(snapshot.TokenFor(QuerySide.T)).IsEqualTo(PlaceCountToken.EncodePlaces([null, "Lobby"]))
-                .Because("the snapshot token is the builder's, unknown place included");
-        }
+            SceneTime time = new(1000, 10, 15.6, 0.015625, false);
+            PlayerMarker[] markers =
+            [
+                Marker(1, 3, 600, -400, "BombsiteA"),
+                Marker(2, 3, 640, -420, "BombsiteA", alive: false),
+                Marker(3, 1, 0, 0, "BombsiteA"),
+                Marker(6, 2, -900, 200, null),
+                Marker(7, 2, -940, 220, "Lobby")
+            ];
 
-        using Harness h = new();
-        h.Vm.LoadSnapshot(snapshot);
+            SituationSnapshot snapshot = SituationSnapshot.Capture("de_nuke", time, markers, PawnPlaceSource.Instance);
 
-        QueryToken unknown = h.Vm.Document.Get(QuerySide.T, 0)!.Value;
-        using (Assert.Multiple())
-        {
-            await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(3);
-            await Assert.That(unknown.IsResolved).IsFalse();
-            await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:1");
-            await Assert.That(h.Vm.TToken).IsEqualTo("Lobby:1").Because("a query never targets ?");
-            await Assert.That(h.Vm.Draft.ToQuery().T).IsEquivalentTo([new PlaceQuery("Lobby", 1)]);
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(snapshot.Ct.Count).IsEqualTo(1).Because("the dead CT and the spectator are not alive players");
+                await Assert.That(snapshot.T.Count).IsEqualTo(2);
+                await Assert.That(snapshot.TokenFor(QuerySide.Ct)).IsEqualTo("BombsiteA:1");
+                await Assert.That(snapshot.TokenFor(QuerySide.T)).IsEqualTo(PlaceCountToken.EncodePlaces([null, "Lobby"]))
+                    .Because("the snapshot token is the builder's, unknown place included");
+            }
+
+            using Harness h = new();
+            h.Vm.LoadSnapshot(snapshot);
+
+            QueryToken unknown = h.Vm.Document.Get(QuerySide.T, 0)!.Value;
+            using (Assert.Multiple())
+            {
+                await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(3);
+                await Assert.That(unknown.IsResolved).IsFalse();
+                await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:1");
+                await Assert.That(h.Vm.TToken).IsEqualTo("Lobby:1").Because("a query never targets ?");
+                await Assert.That(h.Vm.Draft.ToQuery().T).IsEquivalentTo([new PlaceQuery("Lobby", 1)]);
+            }
+        });
     }
 
     [Test]
     public async Task ASideBeyondTheRail_KeepsItsFirstFive_AndTheHintSaysSo()
     {
-        SceneTime time = new(2000, 20, 31.25, 0.015625, false);
-        List<PlayerMarker> markers = [];
-        for (int slot = 0; slot < 7; slot++)
+        await HeadlessSession.RunOnUi(async () =>
         {
-            markers.Add(Marker(slot, 2, slot * 10, 0, "Lobby"));
-        }
+            SceneTime time = new(2000, 20, 31.25, 0.015625, false);
+            List<PlayerMarker> markers = [];
+            for (int slot = 0; slot < 7; slot++)
+            {
+                markers.Add(Marker(slot, 2, slot * 10, 0, "Lobby"));
+            }
 
-        SituationSnapshot snapshot = SituationSnapshot.Capture("de_nuke", time, markers, PawnPlaceSource.Instance);
-        using Harness h = new();
-        h.Vm.LoadSnapshot(snapshot);
+            SituationSnapshot snapshot = SituationSnapshot.Capture("de_nuke", time, markers, PawnPlaceSource.Instance);
+            using Harness h = new();
+            h.Vm.LoadSnapshot(snapshot);
 
-        using (Assert.Multiple())
-        {
-            await Assert.That(snapshot.TokenFor(QuerySide.T)).IsEqualTo("Lobby:7");
-            await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(5);
-            await Assert.That(h.Vm.TToken).IsEqualTo("Lobby:5");
-            await Assert.That(h.Vm.HintLine).Contains("2 more than the rail holds");
-        }
+            using (Assert.Multiple())
+            {
+                await Assert.That(snapshot.TokenFor(QuerySide.T)).IsEqualTo("Lobby:7");
+                await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(5);
+                await Assert.That(h.Vm.TToken).IsEqualTo("Lobby:5");
+                await Assert.That(h.Vm.HintLine).Contains("2 more than the rail holds");
+            }
+        });
     }
 
     [Test]
     public async Task ASecondSnapshot_ReplacesTheRail_OnTheSameMap()
     {
-        using Harness h = new();
-        SceneTime time = new(1000, 10, 15.6, 0.015625, false);
-        h.Vm.LoadSnapshot(SituationSnapshot.Capture("de_nuke", time, Markers(), PawnPlaceSource.Instance));
-        await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(10);
-
-        h.Vm.LoadSnapshot(SituationSnapshot.Capture("de_nuke", time,
-            [Marker(1, 3, 600, -400, "BombsiteA")], PawnPlaceSource.Instance));
-
-        using (Assert.Multiple())
+        await HeadlessSession.RunOnUi(async () =>
         {
-            await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(1);
-            await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:1");
-            await Assert.That(h.Vm.TToken).IsEqualTo("");
-            await Assert.That(h.Vm.ResultCount).IsNull();
-        }
+            using Harness h = new();
+            SceneTime time = new(1000, 10, 15.6, 0.015625, false);
+            h.Vm.LoadSnapshot(SituationSnapshot.Capture("de_nuke", time, Markers(), PawnPlaceSource.Instance));
+            await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(10);
+
+            h.Vm.LoadSnapshot(SituationSnapshot.Capture("de_nuke", time,
+                [Marker(1, 3, 600, -400, "BombsiteA")], PawnPlaceSource.Instance));
+
+            using (Assert.Multiple())
+            {
+                await Assert.That(h.Vm.Document.PlacedCount).IsEqualTo(1);
+                await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:1");
+                await Assert.That(h.Vm.TToken).IsEqualTo("");
+                await Assert.That(h.Vm.ResultCount).IsNull();
+            }
+        });
     }
 
     [Test]
     public async Task TheShippedSeam_LoadsTheCanvas_AndShowsTheTab_OrRefusesWhenTheTabIsGone()
     {
-        using Harness h = new();
-        using SituationsTabViewModel tab = new(h.Index, null, h.Cache.Library(), h.Sources,
-            () => RoundIndexTokenSource.Pawn, false, h.Vm);
-        List<string> shown = [];
-        bool tabOnStrip = true;
-        FindRoundsLikeThis seam = new(() => tab, h.Sources, id =>
+        await HeadlessSession.RunOnUi(async () =>
         {
-            shown.Add(id);
-            return tabOnStrip;
-        });
-        SceneTime time = new(1000, 10, 15.6, 0.015625, false);
+            using Harness h = new();
+            using SituationsTabViewModel tab = new(h.Index, null, h.Cache.Library(), h.Sources,
+                () => RoundIndexTokenSource.Pawn, false, h.Vm);
+            List<string> shown = [];
+            bool tabOnStrip = true;
+            FindRoundsLikeThis seam = new(() => tab, h.Sources, id =>
+            {
+                shown.Add(id);
+                return tabOnStrip;
+            });
+            SceneTime time = new(1000, 10, 15.6, 0.015625, false);
 
-        await Assert.That(seam.Show("de_nuke", time, Markers())).IsTrue();
-        using (Assert.Multiple())
-        {
-            // The id the seam asks for is the one SituationsModule contributes.
-            await Assert.That(shown).IsEquivalentTo(["situations.search"]);
+            await Assert.That(seam.Show("de_nuke", time, Markers())).IsTrue();
+            using (Assert.Multiple())
+            {
+                // The id the seam asks for is the one SituationsModule contributes.
+                await Assert.That(shown).IsEquivalentTo(["situations.search"]);
+                await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:2|Outside:3");
+                await Assert.That(h.Vm.TToken).IsEqualTo("Lobby:3|Ramp:2");
+            }
+
+            // Nobody alive: nothing to search for, and the tab is not even asked for.
+            await Assert.That(seam.Show("de_nuke", time, [Marker(1, 3, 0, 0, "BombsiteA", alive: false)])).IsFalse();
+            await Assert.That(shown.Count).IsEqualTo(1);
+
+            // The tab is gated off: the key stays unhandled and the canvas keeps what it had.
+            tabOnStrip = false;
+            await Assert.That(seam.Show("de_nuke", time, [Marker(1, 3, 0, 0, "Ramp")])).IsFalse();
             await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:2|Outside:3");
-            await Assert.That(h.Vm.TToken).IsEqualTo("Lobby:3|Ramp:2");
-        }
-
-        // Nobody alive: nothing to search for, and the tab is not even asked for.
-        await Assert.That(seam.Show("de_nuke", time, [Marker(1, 3, 0, 0, "BombsiteA", alive: false)])).IsFalse();
-        await Assert.That(shown.Count).IsEqualTo(1);
-
-        // The tab is gated off: the key stays unhandled and the canvas keeps what it had.
-        tabOnStrip = false;
-        await Assert.That(seam.Show("de_nuke", time, [Marker(1, 3, 0, 0, "Ramp")])).IsFalse();
-        await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:2|Outside:3");
+        });
     }
 
     /// <summary>
