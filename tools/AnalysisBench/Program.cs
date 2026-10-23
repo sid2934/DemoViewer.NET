@@ -47,21 +47,6 @@ if (positional is ["rules", "check", ..])
     return RulesCheckCommand.Run(positional.Skip(2).ToArray(), namedArgs, flags);
 }
 
-// `gc-sweep <demo>` — run the parse+analysis under every GC configuration worth considering and
-// tabulate cost vs footprint. Dispatched here, before any GC-sensitive work, because the sweep's whole
-// job is to compare CLR startup configurations: each one has to be a fresh child process (Server vs
-// Workstation, background GC, RetainVM, heap count, ConserveMemory and DATAS are all immutable after
-// startup). `gc-sweep-probe` is the child half — one configuration, measured, emitted as JSON.
-if (positional is ["gc-sweep", ..])
-{
-    return GcSweepCommand.Run(positional.Skip(1).ToArray(), namedArgs);
-}
-
-if (positional is ["gc-sweep-probe", ..])
-{
-    return GcSweepCommand.RunProbe(positional.Skip(1).ToArray());
-}
-
 // `bg-run --list=<file>`: sequential background parses under the process's own GC environment.
 if (positional is ["bg-run", ..])
 {
@@ -70,28 +55,25 @@ if (positional is ["bg-run", ..])
 
 bool suiteMode = flags.Contains("--suite");
 bool listSuite = flags.Contains("--list-suite");
-// --no-golden suppresses WriteGoldenStatsFiles so verification runs don't clobber the
-// committed tests/fixtures/*/*.golden.json oracle. Golden regeneration is an explicit,
-// reviewed re-baseline (a normal run without this flag).
-bool noGolden = flags.Contains("--no-golden");
+// Writing golden stats is opt-in. Nothing in the repo reads ours.golden.json, so a plain run
+// writes nothing; --golden puts it back for a hand comparison. --no-golden is still accepted and
+// is now a no-op, so the command lines recorded in docs/profiling.md keep doing what they say.
+bool writeGolden = flags.Contains("--golden");
 // Diagnostic listeners — parsed here (not just in the single-demo path) so they compose with --suite
 // too. Each is a runtime opt-in (no profile build needed); see docs/profiling.md.
 bool enableTrace = flags.Contains("--trace");
 bool enableCounters = flags.Contains("--counters");
 bool enableTimeline = flags.Contains("--timeline");
-// --profile (runtime, no special build): turns on the parse + entity accumulator trees via the single
-// Profiling.Enabled switch AND attaches the Meter + ActivitySource listeners (by implying --counters /
-// --timeline, which construct one listener each — no double-attach). Set HERE, before any DemoParser.Parse
-// on the suite / early-return / normal paths, so every parse observes the flag (the set-before-run
-// contract). DEMOVIEWER_PROFILE=1 resolves the same switch at process start.
-// --mmap: read the .dem through a MemoryMappedDemoSource instead of File.ReadAllBytes, so the raw
-// file bytes never enter the managed heap. Same binary, same demo — toggling this flag is the
-// before/after comparison for the memory-mapped-buffer work. See MemoryMappedDemoSource's ownership
-// contract: the mapping is disposed as soon as the bytes are no longer needed.
+// --profile (runtime, no special build): turns on the entity accumulator tree via the single
+// Profiling.Enabled switch AND attaches the Meter + ActivitySource listeners (it implies --counters
+// and --timeline, which construct one listener each, so neither double-attaches). Set HERE, before
+// any read of a demo, so every read observes the flag (the set-before-run contract).
+// DEMOVIEWER_PROFILE=1 resolves the same switch at process start.
+// --mmap: the frame-walking debug modes below parse the whole demo, so they read it through a
+// MemoryMappedDemoSource instead of File.ReadAllBytes and the raw bytes never enter the managed
+// heap. See MemoryMappedDemoSource's ownership contract: the mapping is disposed as soon as the
+// bytes are no longer needed.
 bool useMmap = flags.Contains("--mmap");
-// --retained: parse the whole demo and evaluate over its frame list, the app's playback path.
-// The default is the forward path, DemoAnalysis.Run over the file, so the two can be compared.
-bool retained = flags.Contains("--retained");
 // --ray-counters: turn on the visibility path's ray budget counters (VisibilityCounters, off by
 // default in the library). Process-wide, set before any run like Profiling.Enabled; RunBench resets
 // them before eval and snapshots them after, so --suite reports each demo on its own. Per-ray
@@ -156,8 +138,7 @@ if (suiteMode)
         try
         {
             int result = RunBench(tc.DemoPath, rulesDir, reportFile, enableTrace, false,
-                noGolden: noGolden, enableCounters: enableCounters, enableTimeline: enableTimeline,
-                useMmap: useMmap, retained: retained);
+                writeGolden: writeGolden, enableCounters: enableCounters, enableTimeline: enableTimeline);
             if (result == 0)
             {
                 passed++;
@@ -202,10 +183,9 @@ if (positional.Length == 0)
     Console.Error.WriteLine("  --trace              Enable EventSource listener (adds instrumentation overhead)");
     Console.Error.WriteLine("  --counters           Attach a MeterListener (dotnet-counters-equivalent) and print counter totals");
     Console.Error.WriteLine("  --timeline           Attach an ActivityListener and print the phase timeline (read/parse/build/eval)");
-    Console.Error.WriteLine("  --retained           Parse the whole demo, then evaluate over it (the app's playback path); the default is the forward path");
-    Console.Error.WriteLine("  --bare               Run without snapshots (the forward path's default; with --retained it measures pure eval cost)");
-    Console.Error.WriteLine("  --no-golden          Skip writing tests/fixtures golden files (use for verification runs)");
-    Console.Error.WriteLine("  --mmap               With --retained: memory-map the .dem instead of File.ReadAllBytes (the forward reader always maps)");
+    Console.Error.WriteLine("  --bare               Run without snapshots, which is the default; --export and --state-trace turn them on");
+    Console.Error.WriteLine("  --golden             Write tests/fixtures/<demo-id>/ours.golden.json; untracked, and nothing reads it");
+    Console.Error.WriteLine("  --mmap               With --round-debug / --shots-debug: memory-map the .dem instead of File.ReadAllBytes");
     Console.Error.WriteLine("  --ray-counters       Count rays cast / frustum-rejected pairs on the visibility path and time the raycasting");
     Console.Error.WriteLine("  --round-debug        Detailed per-round event trace");
     Console.Error.WriteLine("  --report=<path>      Write JSON report to file");
@@ -216,7 +196,7 @@ if (positional.Length == 0)
     Console.Error.WriteLine("  --report-dir=<dir>   Output directory for suite reports (default: bench-reports)");
     Console.Error.WriteLine();
     Console.Error.WriteLine("Profiling (OFF by default; see docs/profiling.md):");
-    Console.Error.WriteLine("  --profile            (runtime) turn on parse + entity per-phase profile trees + attach Meter/Activity listeners");
+    Console.Error.WriteLine("  --profile            (runtime) turn on the entity per-phase profile tree + attach Meter/Activity listeners");
     Console.Error.WriteLine("  DEMOVIEWER_PROFILE=1 (env) same runtime switch resolved at process start + combined report on exit");
     Console.Error.WriteLine("  --trace / --counters / --timeline and the above all compose with --suite");
     return 1;
@@ -263,35 +243,27 @@ if (positional.Length == 0)
         return 0;
     }
 
-    return RunBench(demoPath, rulesDir, reportPath, enableTrace, bareMode, stateTraceArg, noGolden,
-        enableCounters, enableTimeline, exportFormat, exportOut, useMmap, retained);
+    return RunBench(demoPath, rulesDir, reportPath, enableTrace, bareMode, stateTraceArg, writeGolden,
+        enableCounters, enableTimeline, exportFormat, exportOut);
 }
 
 // ── Core Bench ─────────────────────────────────────────────────────────────
 
-// The forward path is the default: DemoAnalysis.Run over the file, every frame dropped behind the
-// evaluation loop. --retained is the parse-then-evaluate path the app's playback uses, kept so the
-// two can be compared on one demo; the frame-walking debug modes only have that path.
+// One path: DemoAnalysis.Run over the file, every frame dropped behind the evaluation loop.
 static int RunBench(string demoPath, string rulesDir, string? reportPath,
-    bool enableTrace, bool bareMode, string? stateTraceArg = null, bool noGolden = false,
-    bool enableCounters = false, bool enableTimeline = false, string? exportFormat = null, string? exportOut = null,
-    bool useMmap = false, bool retained = false)
+    bool enableTrace, bool bareMode, string? stateTraceArg = null, bool writeGolden = false,
+    bool enableCounters = false, bool enableTimeline = false, string? exportFormat = null, string? exportOut = null)
 {
     FileInfo demoFileInfo = new(demoPath);
     double demoSizeMb = demoFileInfo.Length / 1024.0 / 1024.0;
-    // Snapshot rows are what the stream exists to drop, so the forward path keeps them only for the
-    // consumers that read them (--export, --state-trace). The retained path keeps its old default,
-    // on unless --bare. The run records the choice as Provenance.SnapshotsCaptured.
-    bool captureSnapshots = !bareMode && (retained || exportFormat is not null || stateTraceArg is not null);
+    // Snapshot rows are what the stream exists to drop, so they are kept only for the consumers that
+    // read them (--export, --state-trace). The run records the choice as Provenance.SnapshotsCaptured.
+    bool captureSnapshots = !bareMode && (exportFormat is not null || stateTraceArg is not null);
 
     Console.WriteLine($"Demo:  {demoPath} ({demoSizeMb:F1} MB)");
     Console.WriteLine($"Rules: {rulesDir}");
-    Console.WriteLine($"Path:  {(retained ? "retained (DemoParser.Parse + DemoAnalysis.Evaluate)" : "forward (DemoAnalysis.Run over the file)")}");
+    Console.WriteLine("Path:  forward (DemoAnalysis.Run over the file)");
     Console.WriteLine($"Mode:  {(captureSnapshots ? "full (with snapshots)" : "bare (no snapshots)")}{(enableTrace ? " + trace" : "")}");
-    if (retained)
-    {
-        Console.WriteLine($"Buffer:{(useMmap ? " memory-mapped (off managed heap)" : " byte[] (File.ReadAllBytes)")}");
-    }
 
     if (reportPath is not null)
     {
@@ -333,13 +305,7 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // Ray budget counters: zeroed before the bake loads, so a --suite run reports each demo alone
     // and the bake timing still lands in this demo's numbers.
     VisibilityCounters.Reset();
-    BenchOutcome outcome = retained
-        ? RunRetained(demoPath, loaded.Rulesets, captureSnapshots, useMmap)
-        : RunForward(demoPath, loaded.Rulesets, captureSnapshots);
-    // OWNERSHIP: the retained path opened the mapping, this method disposes it, on every exit path.
-    // Held to the end like the byte[] so both buffer strategies model the app's "demo loaded, buffer
-    // still owned" state for the same span.
-    using MemoryMappedDemoSource? mapped = outcome.Mapped;
+    BenchOutcome outcome = RunForward(demoPath, loaded.Rulesets, captureSnapshots);
     AnalysisRun run = outcome.Run;
     DemoDescriptor facts = run.Demo;
     AnalysisProvenance provenance = run.Provenance;
@@ -400,45 +366,25 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // ── Summary ────────────────────────────────────────────────────────────
     Console.WriteLine();
     Console.WriteLine("─── Performance Summary ─────────────────────────────────");
-    Console.WriteLine($"  {(retained ? "Read: " : "Hash: ")}  {timings.Read.TotalMilliseconds,8:F1} ms");
-    if (timings.Parse is { } parseElapsed)
-    {
-        Console.WriteLine($"  Parse:  {parseElapsed.TotalMilliseconds,8:F1} ms");
-    }
-
+    Console.WriteLine($"  Hash:   {timings.Read.TotalMilliseconds,8:F1} ms");
     Console.WriteLine($"  Bake:   {timings.Bake.TotalMilliseconds,8:F1} ms");
-    if (timings.Build is { } buildElapsed)
-    {
-        Console.WriteLine($"  Build:  {buildElapsed.TotalMilliseconds,8:F1} ms");
-    }
-
-    Console.WriteLine($"  {(retained ? "Eval: " : "Run:  ")}  {timings.Eval.TotalMilliseconds,8:F1} ms{(retained ? "" : "  (open+build+decode+eval on the forward path)")}");
-    Console.WriteLine($"  ── load ({(retained ? "read+parse+build+eval" : "hash+run")}): {(timings.Read + timings.Total).TotalMilliseconds,8:F1} ms");
-    Console.WriteLine($"  Total ({(retained ? "parse+build+eval" : "run")}): {timings.Total.TotalMilliseconds,8:F1} ms");
+    Console.WriteLine($"  Run:    {timings.Eval.TotalMilliseconds,8:F1} ms  (open+build+decode+eval in one bracket)");
+    Console.WriteLine($"  ── load (hash+run): {(timings.Read + timings.Total).TotalMilliseconds,8:F1} ms");
+    Console.WriteLine($"  Total (run): {timings.Total.TotalMilliseconds,8:F1} ms");
     Console.WriteLine();
     Console.WriteLine($"  GC Gen0: {outcome.GcAfter.Gen0 - outcome.GcBefore.Gen0}  Gen1: {outcome.GcAfter.Gen1 - outcome.GcBefore.Gen1}  Gen2: {outcome.GcAfter.Gen2 - outcome.GcBefore.Gen2}");
     Console.WriteLine($"     Eval: Gen0={outcome.GcAfter.Gen0 - outcome.EvalGcBefore.Gen0}  Gen1={outcome.GcAfter.Gen1 - outcome.EvalGcBefore.Gen1}");
     Console.WriteLine($"  Eval allocated: {outcome.EvalAllocBytes / (1024.0 * 1024.0),8:F1} MiB on this thread, {outcome.AllocBytesAllThreads / (1024.0 * 1024.0),8:F1} MiB on all threads");
 
     // ── Memory ─────────────────────────────────────────────────────────────
-    // Peak managed heap is the target metric: a File.ReadAllBytes buffer is ~file-size of LOH that
-    // mapping removes, and the retained frame graph is what the forward reader never builds. Peak
-    // RSS is expected to move much less, since mapped pages are still resident, just file-backed and
-    // evictable instead of dirty heap the GC must trace.
+    // RSS stays well above the heap figure: the reader maps the file, so its pages are resident but
+    // file-backed and evictable rather than dirty heap the GC must trace.
     long allocatedTotal = GC.GetTotalAllocatedBytes(true) - allocatedBefore;
     Console.WriteLine();
-    Console.WriteLine($"  Buffer strategy:    {(retained ? useMmap ? "memory-mapped" : "byte[]" : "forward reader")}"
-                      + (retained
-                          ? $"   (buffer still held here: {(outcome.Bytes is null ? $"{mapped?.Length / (1024.0 * 1024.0):F1} MiB mapped view" : $"{outcome.Bytes.Length / (1024.0 * 1024.0):F1} MiB byte[]")})"
-                          : "   (memory-mapped by the reader, released with the run)"));
     Console.WriteLine($"  Peak managed heap:  {memSampler.PeakManagedHeapBytes / (1024.0 * 1024.0),9:F1} MiB");
     Console.WriteLine($"  Peak process RSS:   {memSampler.PeakRssBytes / (1024.0 * 1024.0),9:F1} MiB");
     Console.WriteLine($"  Total allocated:    {allocatedTotal / (1024.0 * 1024.0),9:F1} MiB");
     Console.WriteLine($"  Managed heap now:   {GC.GetTotalMemory(false) / (1024.0 * 1024.0),9:F1} MiB");
-    // Keep BOTH strategies honest and symmetric: without these the JIT may drop either buffer early,
-    // which would flatter whichever run got dropped first.
-    GC.KeepAlive(outcome.Bytes);
-    GC.KeepAlive(mapped);
 
     // ── Entity-tracking sub-phase profile ────────────────────────────────────
     // Populated only when a profiled run captured entity data (Profiling.Enabled, runtime gated
@@ -446,7 +392,6 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // unattributed remainder at each level; the remainder is what reveals a missing sub-phase.
     EntityProfilingSnapshot prof = run.Build.EntityScanner?.Layer.Tracker.GetProfilingSnapshot() ?? default;
     ScannerProfilingSnapshot sprof = run.Build.EntityScanner?.GetProfilingSnapshot() ?? default;
-    PrintParseProfile(ParseProfilingSnapshot.Read());
     PrintEntityProfile(prof, sprof);
     PrintRayCounters(rays, timings.Eval, VisibilityCounters.Enabled);
 
@@ -474,8 +419,6 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     // ── JSON Report ────────────────────────────────────────────────────────
     if (reportPath is not null)
     {
-        static double? Ms(TimeSpan? t) => t is { } v ? Math.Round(v.TotalMilliseconds, 1) : null;
-
         string gitCommit = GetGitCommit();
         BenchReport report = new(
             new ReportMetadata(
@@ -486,22 +429,16 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
                 outcome.Sha256,
                 facts.MapName,
                 facts.Players.Count(p => p.Value.Team is 2 or 3),
-                outcome.RoundsStarted,
-                outcome.RoundsEnded,
                 facts.TickCount,
                 facts.TickRate,
                 Math.Round(facts.Duration.TotalSeconds, 1),
                 GetMachineInfo()
             ),
             new ReportPerformance(
-                retained ? "retained" : "forward",
-                Ms(timings.Parse),
-                Ms(timings.Build),
                 Math.Round(timings.Eval.TotalMilliseconds, 1),
                 Math.Round(timings.Total.TotalMilliseconds, 1),
                 Math.Round(timings.Bake.TotalMilliseconds, 1),
                 provenance.FramesConsumed,
-                outcome.Demo?.AllGameEvents.Count,
                 provenance.MessagesConsumed,
                 run.Build.Nodes.Count,
                 run.Build.Edges.Count,
@@ -540,11 +477,8 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
         Console.WriteLine($"Report written to {reportPath}");
     }
 
-    // ── Golden-stats files (fixtures consumed by parity tests) ───────────
-    // Always written when playerReports are available, so a single `--suite`
-    // run refreshes every provider's golden file. The bench is the canonical
-    // producer for `ours`.
-    if (!noGolden && playerReports.Count > 0)
+    // ── Golden-stats file (--golden) ──────────────────────────────────────
+    if (writeGolden && playerReports.Count > 0)
     {
         WriteGoldenStatsFiles(demoPath, outcome.Sha256, facts, playerReports);
     }
@@ -561,105 +495,6 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
     return 0;
 }
 
-// The retained path: read the file, parse every frame, build over the ParsedDemo, evaluate over its
-// frame list. What the app's playback does, since it seeks and inspects after the run.
-static BenchOutcome RunRetained(string demoPath, IReadOnlyList<RulesetDoc> rulesets, bool captureSnapshots, bool useMmap)
-{
-    // ── Read ───────────────────────────────────────────────────────────────
-    // File read is NOT part of DemoParser.Parse but IS part of the end-to-end load the user feels
-    // (and is disk-cache sensitive: cold vs warm). Timed separately so the Parse number stays
-    // comparable. With --mmap the "read" is just the mmap syscall; the pages fault in lazily during
-    // the parse, so read time moves into parse time rather than disappearing.
-    long readStart = Stopwatch.GetTimestamp();
-    byte[]? bytes = null;
-    MemoryMappedDemoSource? mapped = useMmap ? MemoryMappedDemoSource.Open(demoPath) : null;
-    ReadOnlyMemory<byte> demoData;
-    using (AnalysisDiagnostics.ActivitySource.StartActivity("read"))
-    {
-        if (mapped is not null)
-        {
-            demoData = mapped.Memory;
-        }
-        else
-        {
-            bytes = File.ReadAllBytes(demoPath);
-            demoData = bytes;
-        }
-    }
-
-    TimeSpan readElapsed = Stopwatch.GetElapsedTime(readStart);
-    Console.WriteLine($"Read:   {readElapsed.TotalMilliseconds,8:F1} ms  |  {demoData.Length / 1024 / 1024} MB");
-    string sha256 = Convert.ToHexStringLower(SHA256.HashData(demoData.Span));
-
-    // ── Parse ──────────────────────────────────────────────────────────────
-    GC.Collect(2, GCCollectionMode.Forced, true, true);
-    GcCounts gcBefore = GcCounts.Now();
-    long parseStart = Stopwatch.GetTimestamp();
-    ParsedDemo demo;
-    using (AnalysisDiagnostics.ActivitySource.StartActivity("parse"))
-    {
-        demo = DemoParser.Parse(demoData);
-    }
-
-    TimeSpan parseElapsed = Stopwatch.GetElapsedTime(parseStart);
-
-    int roundsStarted = demo.AllGameEvents.Count(e => e.Payload is RoundFreezeEndEvent);
-    int roundsEnded = demo.AllGameEvents.Count(e => e.Payload is RoundOfficiallyEndedEvent);
-    int liveRoundsStarted = roundsStarted - CountWarmupRounds(demo);
-
-    Console.WriteLine($"Parse:  {parseElapsed.TotalMilliseconds,8:F1} ms  |  {demo.Frames.Count} frames, {demo.AllGameEvents.Count} events, {demo.Players.Count} players");
-    Console.WriteLine($"Rounds: {liveRoundsStarted} started, {roundsEnded} ended" +
-                      (liveRoundsStarted != roundsEnded ? $"  (delta: {liveRoundsStarted - roundsEnded})" : ""));
-
-    (VisibilityEngine? visibility, TimeSpan bakeElapsed) = LoadBake(demo.MapName);
-
-    // ── Build ──────────────────────────────────────────────────────────────
-    long buildStart = Stopwatch.GetTimestamp();
-    BuildResult build;
-    using (AnalysisDiagnostics.ActivitySource.StartActivity("build"))
-    {
-        // DemoAnalysis.Build supplies the default registries, including the entity-provider
-        // registries that make RuleChainBuilder construct the EntityChangeScanner, so the
-        // benchmark drives the same entity-tracking hot path as the app.
-        build = DemoAnalysis.Build(demo, rulesets, new AnalysisOptions
-        {
-            VisibilityEngine = visibility
-        });
-    }
-
-    TimeSpan buildElapsed = Stopwatch.GetElapsedTime(buildStart);
-    // Labelled "scaffolding", not "the graph". build.Nodes holds the shared game-scope nodes only:
-    // every rule in a `for: each_player` ruleset lives on a template this count never includes, so
-    // presenting it as the graph size understated a real corpus by a factor of about sixty. The
-    // materialized figure is printed with the evaluation below, which is the first point it exists.
-    Console.WriteLine($"Build:  {buildElapsed.TotalMilliseconds,8:F1} ms  |  {build.Nodes.Count} scaffolding nodes, {build.Edges.Count} edges");
-
-    // ── Evaluate ───────────────────────────────────────────────────────────
-    GC.Collect(2, GCCollectionMode.Forced, true, true);
-    GcCounts evalGcBefore = GcCounts.Now();
-    // Allocated-bytes bracket: Evaluate runs synchronously on this thread, so the current-thread
-    // figure attributes what the eval loop itself allocates; the all-threads figure adds the
-    // parallel digest workers. GC gen-counts alone cannot distinguish a churny short-lived path
-    // from a frugal one with the same collection cadence.
-    long allocAllBefore = GC.GetTotalAllocatedBytes(true);
-    long evalAllocBefore = GC.GetAllocatedBytesForCurrentThread();
-    long evalStart = Stopwatch.GetTimestamp();
-    AnalysisRun run = DemoAnalysis.Evaluate(demo, build, new AnalysisOptions
-    {
-        CaptureSnapshots = captureSnapshots
-    });
-    TimeSpan evalElapsed = Stopwatch.GetElapsedTime(evalStart);
-    long evalAllocBytes = GC.GetAllocatedBytesForCurrentThread() - evalAllocBefore;
-    long allocAllBytes = GC.GetTotalAllocatedBytes(true) - allocAllBefore;
-    GcCounts gcAfter = GcCounts.Now();
-    Console.WriteLine($"Eval:   {evalElapsed.TotalMilliseconds,8:F1} ms  |  {run.Provenance.MessagesConsumed} messages, {run.MaterializedPlayers.Count} materialized players");
-    PrintGraphSize(run);
-
-    return new BenchOutcome(run, demo, sha256, bytes, mapped,
-        new PhaseTimings(readElapsed, parseElapsed, buildElapsed, evalElapsed, bakeElapsed),
-        gcBefore, evalGcBefore, gcAfter, evalAllocBytes, allocAllBytes, liveRoundsStarted, roundsEnded);
-}
-
 // The forward path: DemoAnalysis.Run over the file. Open, resolve the profile, build, narrow the
 // decode to what the graph consumes, evaluate while frames are dropped behind the loop. One
 // bracket, since the reader and the evaluator overlap and no phase boundary exists to time.
@@ -674,7 +509,7 @@ static BenchOutcome RunForward(string demoPath, IReadOnlyList<RulesetDoc> rulese
     }
 
     // Hashed off a stream so the file never lands on the managed heap. The report and the golden
-    // key on it; the retained path gets it from the buffer it holds anyway.
+    // key on it.
     long hashStart = Stopwatch.GetTimestamp();
     string sha256;
     using (FileStream file = File.OpenRead(demoPath))
@@ -691,7 +526,7 @@ static BenchOutcome RunForward(string demoPath, IReadOnlyList<RulesetDoc> rulese
     GC.Collect(2, GCCollectionMode.Forced, true, true);
     GcCounts gcBefore = GcCounts.Now();
     // The evaluator loop runs on this thread; the reader and the digest workers allocate on their
-    // own, so the all-threads figure is the one that compares with the retained path.
+    // own, so the all-threads figure is the one to compare across runs.
     long allocAllBefore = GC.GetTotalAllocatedBytes(true);
     long runAllocBefore = GC.GetAllocatedBytesForCurrentThread();
     long runStart = Stopwatch.GetTimestamp();
@@ -713,9 +548,9 @@ static BenchOutcome RunForward(string demoPath, IReadOnlyList<RulesetDoc> rulese
     Console.WriteLine($"Build:  {run.Build.Nodes.Count} scaffolding nodes, {run.Build.Edges.Count} edges  |  {run.MaterializedPlayers.Count} materialized players");
     PrintGraphSize(run);
 
-    return new BenchOutcome(run, null, sha256, null, null,
-        new PhaseTimings(hashElapsed, null, null, runElapsed, bakeElapsed),
-        gcBefore, gcBefore, gcAfter, runAllocBytes, allocAllBytes, null, null);
+    return new BenchOutcome(run, sha256,
+        new PhaseTimings(hashElapsed, runElapsed, bakeElapsed),
+        gcBefore, gcBefore, gcAfter, runAllocBytes, allocAllBytes);
 }
 
 // The bake is what lets the builder synthesize enemy_spotted. Without it every visibility-gated aim
@@ -785,16 +620,12 @@ static void PrintStateTrace(EvaluationResult result, string stateTraceArg)
     }
 }
 
-// ── Golden-stats producer ─────────────────────────────────────────────────
+// ── Golden-stats producer (--golden) ──────────────────────────────────────
 //
-// Refreshes the canonical golden files consumed by parity tests under
-// tests/fixtures/<demo-id>/. One file per provider:
-//
-//   tests/fixtures/<demo-id>/ours.golden.json     (produced from this run)
-//
-// The directory pattern (rather than a flat layout) anticipates additional
-// providers, `hltv.golden.json`, `expected.golden.json`, without renaming
-// existing files.
+// Writes tests/fixtures/<demo-id>/ours.golden.json, a snapshot of what this run produced. No test
+// reads it, and the file is untracked: it is here for a hand comparison between two builds. The
+// fixture directory's committed expected.golden.json is a different file and must not be touched,
+// because its presence is what selects the benchmark demos (LiveAimStats.BenchmarkDemoIds).
 static void WriteGoldenStatsFiles(
     string demoPath, string demoSha256, DemoDescriptor demo,
     List<PlayerReport> playerReports)
@@ -976,30 +807,6 @@ static string FormatStat(object? value)
 static string GetGitCommit()
 {
     return RunCommand("git", "rev-parse --short HEAD") ?? "unknown";
-}
-
-static int CountWarmupRounds(ParsedDemo demo)
-{
-    int warmup = 0;
-    bool matchStarted = false;
-    foreach (GameEvent e in demo.AllGameEvents)
-    {
-        if (e.Payload is BeginNewMatchEvent)
-        {
-            matchStarted = true;
-            continue;
-        }
-
-        if (e.Payload is RoundFreezeEndEvent)
-        {
-            if (!matchStarted)
-            {
-                warmup++;
-            }
-        }
-    }
-
-    return warmup;
 }
 
 static void RunRoundDebug(ParsedDemo demo)
@@ -1402,37 +1209,6 @@ static void PrintEntityProfile(EntityProfilingSnapshot prof, ScannerProfilingSna
     Console.WriteLine($"        └─ other net msgs      {seek - pe,9:F1} ms  {Mib(sprof.SeekAlloc - prof.PacketEntitiesAlloc),9:F1} MiB");
 }
 
-// ── Parse-pipeline profile ───────────────────────────────────────────────────
-
-// Pass boundaries from DemoParser (gated at runtime on Profiling.Enabled), timed by brackets OUTSIDE the loops
-// so the protected parse loop is never restructured. Pass-2 shows wall-clock only (its parallel workers'
-// allocation has no correct outside-loop figure); passes 1 & 3 are sequential so their alloc is exact.
-// Read via ParseProfilingSnapshot.Read(); Enabled=false (just the "no data" line) when the last parse was unprofiled.
-static void PrintParseProfile(ParseProfilingSnapshot p)
-{
-    Console.WriteLine();
-    Console.WriteLine("─── Parse-Pipeline Profile ──────────────────────────────");
-    if (!p.Enabled)
-    {
-        Console.WriteLine("  (no data — rerun with --profile or DEMOVIEWER_PROFILE=1 to enable)");
-        return;
-    }
-
-    static double Ms(long ticks)
-    {
-        return (double)ticks / Stopwatch.Frequency * 1000.0;
-    }
-
-    static double Mib(long bytes)
-    {
-        return bytes / (1024.0 * 1024.0);
-    }
-
-    Console.WriteLine($"  Pass 1 header scan       {Ms(p.Pass1HeaderTicks),9:F1} ms  {Mib(p.Pass1Alloc),9:F1} MiB   ({p.FrameCount:N0} frames, {p.CompressedFrames:N0} compressed)");
-    Console.WriteLine($"  Pass 2 parallel decode   {Ms(p.Pass2WallTicks),9:F1} ms  {"—",9}      (wall-clock; per-worker alloc not isolable outside the loop — dotnet-trace for the decompress/parse split)");
-    Console.WriteLine($"  Pass 3 enrich            {Ms(p.Pass3EnrichTicks),9:F1} ms  {Mib(p.Pass3Alloc),9:F1} MiB");
-}
-
 // Converts the raw Stopwatch-tick snapshots into the milliseconds-based report record. Returns
 // null (omitted from the JSON) when no profiled run captured entity data (Profiling.Enabled was off).
 static ReportEntityProfile? BuildEntityProfileReport(EntityProfilingSnapshot prof, ScannerProfilingSnapshot sprof)
@@ -1584,8 +1360,6 @@ internal sealed record ReportMetadata(
     string DemoSha256,
     string Map,
     int PlayerCount,
-    int? RoundsStarted,
-    int? RoundsEnded,
     int TickCount,
     int TickRate,
     double DurationSeconds,
@@ -1601,19 +1375,13 @@ internal sealed record MachineInfo(
     long RamBytes,
     string DotnetVersion);
 
-// Path names the one the run took. parse_ms and build_ms are the retained path's; the forward path
-// has one bracket, DemoAnalysis.Run, reported as eval_ms. The rules load and the bake sit outside
-// every bracket on both paths, the bake with a figure of its own. game_event_count needs the
-// retained event list.
+// One bracket, DemoAnalysis.Run, reported as eval_ms. The rules load and the bake sit outside it,
+// the bake with a figure of its own.
 internal sealed record ReportPerformance(
-    string Path,
-    double? ParseMs,
-    double? BuildMs,
     double EvalMs,
     double TotalMs,
     double BakeMs,
     int FrameCount,
-    int? GameEventCount,
     int MessageCount,
     int NodeCount,
     int EdgeCount,
@@ -1624,7 +1392,7 @@ internal sealed record ReportPerformance(
     ReportVisibilityRays? VisibilityRays = null);
 
 // AllocBytes is the eval bracket on the calling thread; AllocBytesAllThreads adds the reader and the
-// digest workers, which is the figure that compares the two paths.
+// digest workers, which is the figure to compare across runs.
 internal sealed record GcReport(int Gen0, int Gen1, int Gen2, int EvalGen0, int EvalGen1, long AllocBytes, long AllocBytesAllThreads);
 
 // What the run reports about itself; see AnalysisProvenance in the engine.
@@ -1640,12 +1408,11 @@ internal sealed record ReportProvenance(
     int CsPreRestartSeen,
     bool BoundMarkerNeverSeen);
 
-// Wall-clock per phase. Parse and Build exist on the retained path only; on the forward path Eval is
-// the one bracket around DemoAnalysis.Run. Read is the file read (retained) or the hash (forward),
-// outside Total on both.
-internal sealed record PhaseTimings(TimeSpan Read, TimeSpan? Parse, TimeSpan? Build, TimeSpan Eval, TimeSpan Bake)
+// Wall-clock per phase. Eval is the one bracket around DemoAnalysis.Run; Read is the hash, which
+// sits outside Total.
+internal sealed record PhaseTimings(TimeSpan Read, TimeSpan Eval, TimeSpan Bake)
 {
-    public TimeSpan Total => (Parse ?? TimeSpan.Zero) + (Build ?? TimeSpan.Zero) + Eval;
+    public TimeSpan Total => Eval;
 }
 
 internal readonly record struct GcCounts(int Gen0, int Gen1, int Gen2)
@@ -1653,23 +1420,16 @@ internal readonly record struct GcCounts(int Gen0, int Gen1, int Gen2)
     public static GcCounts Now() => new(GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2));
 }
 
-// What one path hands to the shared reporting. Demo is the retained ParsedDemo, null on the forward
-// path. Bytes and Mapped are the retained path's buffer, held to the end of the bench so the heap
-// figures still count it.
+// What the run hands to the shared reporting.
 internal sealed record BenchOutcome(
     AnalysisRun Run,
-    ParsedDemo? Demo,
     string Sha256,
-    byte[]? Bytes,
-    MemoryMappedDemoSource? Mapped,
     PhaseTimings Timings,
     GcCounts GcBefore,
     GcCounts EvalGcBefore,
     GcCounts GcAfter,
     long EvalAllocBytes,
-    long AllocBytesAllThreads,
-    int? RoundsStarted,
-    int? RoundsEnded);
+    long AllocBytesAllThreads);
 
 /// <summary>
 ///     Entity-decode sub-phase timings (all milliseconds) captured when a profiled run ran
