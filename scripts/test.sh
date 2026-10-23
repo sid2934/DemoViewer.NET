@@ -187,6 +187,49 @@ for entry in "${SELECTED[@]}"; do
   fi
 done
 
+# ── RealDemo resolution guard ───────────────────────────────────────────────────────────────────────
+# The pathology: a RealDemo lane that SELECTS tests and RUNS none still exits 0, because a skip is
+# not a failure. That is how MatchMetaRealDemoTests sat skipping in CI, in a worktree AND in the
+# owner's own checkout with the whole corpus present, while the lane reported green. Five of the
+# first six red-but-invisible tests found in this repo were found by looking, not by a gate.
+#
+# --minimum-expected-tests counts tests that RAN, not tests that were selected: five skipped against
+# a minimum of five exits 9. Measured, all four combinations, before this was written.
+#
+# Armed only when a corpus or a source is configured. A machine with neither is MEANT to skip these:
+# that is the no-corpus lane, not a regression, and arming it there would turn every such run red.
+# Each entry is project|filter|minimum, and the minimum is how many that filter must actually run.
+REALDEMO_GUARDS=(
+  "app|/*/*/MatchMetaRealDemoTests/*|5"
+)
+
+if [ "$TIER" = "full" ] && [ "$LIST_ONLY" -eq 0 ] \
+   && { [ -n "${DEMO_CORPUS:-}" ] || [ -n "${DEMO_SOURCES:-}" ]; }; then
+  for guard in "${REALDEMO_GUARDS[@]}"; do
+    G_KEY="${guard%%|*}"; G_REST="${guard#*|}"
+    G_FILTER="${G_REST%|*}"; G_MIN="${G_REST##*|}"
+
+    G_PATH=""
+    for entry in "${SELECTED[@]}"; do
+      [ "${entry%%|*}" = "$G_KEY" ] && G_PATH="${entry#*|}"
+    done
+    [ -n "$G_PATH" ] || continue
+
+    dotnet run --project "$G_PATH" -c "$CONFIG" --no-build -- \
+      --treenode-filter "$G_FILTER" --disable-logo --progress off \
+      --minimum-expected-tests "$G_MIN" > /dev/null 2>&1
+    G_EXIT=$?
+    if [ $G_EXIT -eq 0 ]; then
+      printf '  %-14s %7s   realdemo guard: >=%s ran\n' "$G_KEY" "" "$G_MIN"
+    else
+      echo "[test] !!! $G_KEY: REALDEMO GUARD FAILED (exit=$G_EXIT). A corpus or source is" >&2
+      echo "[test] !!! configured, so '$G_FILTER' must RUN at least $G_MIN tests and it did not." >&2
+      echo "[test] !!! They were selected and skipped: demo resolution is broken, not absent." >&2
+      BROKEN=$(( BROKEN + 1 ))
+    fi
+  done
+fi
+
 echo "[test] ─────────────────────────────────────────────────────────────"
 if [ "$LIST_ONLY" -eq 1 ]; then
   echo "[test] tier=$TIER discovered=$TOTAL across ${#SELECTED[@]} project(s) in $(( $(date +%s) - SUITE_START ))s"
