@@ -154,6 +154,51 @@
       "bytes": 391208591,
       "dir": "pro-demos",
       "sets": ["pro", "pinned"]
+    },
+
+    // The five Valve matchmaking GOTV demos MatchMetaRealDemoTests indexes, and the demos the
+    // match730 single-walk digests at #50 and #51 were recorded against. They sit at the top of the
+    // demo share and in no demos/ directory, which is what "dir": null records here.
+    // Hashes taken 2026-10-23 with `shasum -a 256` from the share.
+    {
+      "name": "valve-mm-01",
+      "file": "match730_003769462952671838367_0003107139_392.dem",
+      "sha256": "0d027fe971edbcaa96f057ca6d599fd9df0da8bac91d9c5691848e7a00455099",
+      "bytes": 278444492,
+      "dir": null,
+      "sets": ["valve-mm"]
+    },
+    {
+      "name": "valve-mm-02",
+      "file": "match730_003770081941211054251_0235605701_129.dem",
+      "sha256": "b6f997a43e398fbb92d35e42609ea57e267a966b59effdb97eea8f01cbe185a7",
+      "bytes": 268553674,
+      "dir": null,
+      "sets": ["valve-mm"]
+    },
+    {
+      "name": "valve-mm-03",
+      "file": "match730_003776747382562095193_1164284481_129.dem",
+      "sha256": "607dc9a1a6b54036220642378f6a9ddec768cf6df75d485f2392af4f94a99843",
+      "bytes": 230867318,
+      "dir": null,
+      "sets": ["valve-mm"]
+    },
+    {
+      "name": "valve-mm-04",
+      "file": "match730_003777311051922538654_1847680867_392.dem",
+      "sha256": "1e06d0c1249bace8a10d8c55df8e7e0f24539ff9733ad15d9c92c1222a6d08fd",
+      "bytes": 263904046,
+      "dir": null,
+      "sets": ["valve-mm"]
+    },
+    {
+      "name": "valve-mm-05",
+      "file": "match730_003777334669947699355_1809437145_392.dem",
+      "sha256": "e93cd9d3007a49330e68c695dd04e82f974adeb5d13623a16790155db811481c",
+      "bytes": 265208772,
+      "dir": null,
+      "sets": ["valve-mm"]
     }
   ]
 }
