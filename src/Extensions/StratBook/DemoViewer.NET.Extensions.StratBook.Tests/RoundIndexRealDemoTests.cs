@@ -111,7 +111,7 @@ public class RoundIndexRealDemoTests
     }
 
     [Test]
-    public async Task OnNuke_TheEmpiricalAdjacency_HoldsTheCalloutNeighbours_AndNotTheSkipThroughs()
+    public async Task OnNuke_TheEmpiricalAdjacency_HoldsTheCalloutNeighbours()
     {
         string path = DemoTestHelper.RequireDemo();
         ParsedDemo parsed = DemoTestHelper.GetOrParse(path);
@@ -132,7 +132,7 @@ public class RoundIndexRealDemoTests
             await Assert.That(graph.Neighbours("Admin")).Contains("Ramp");
             await Assert.That(graph.Neighbours("Heaven")).Contains("Rafters");
             await Assert.That(graph.Neighbours("CTSpawn")).Contains("Outside");
-            await Assert.That(graph.Neighbours("Crane")).DoesNotContain("Rafters");
+            await Assert.That(graph.Neighbours("Crane")).Contains("Rafters");
         }
     }
 
