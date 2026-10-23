@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.Graphs;
 using CS2DemoKit.Analysis.Visibility;
@@ -89,11 +90,17 @@ public class SprayDrilldownTests
             .Because("the run list must be rebuilt from the tracking model, not left on the anchored one");
     }
 
-    private static async Task Wait(Func<bool> until)
+    private static async Task Wait(Func<bool> until,
+        [CallerArgumentExpression(nameof(until))] string? expression = null)
     {
         for (int i = 0; i < 200 && !until(); i++)
         {
             await Task.Delay(25);
+        }
+
+        if (!until())
+        {
+            throw new TimeoutException($"timed out waiting for `{expression}`");
         }
     }
 

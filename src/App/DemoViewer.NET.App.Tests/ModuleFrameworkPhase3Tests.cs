@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
@@ -177,7 +178,8 @@ public class ModuleFrameworkPhase3Tests
         Dispatcher.UIThread.RunJobs();
     }
 
-    private static async Task WaitUntil(Func<bool> condition)
+    private static async Task WaitUntil(Func<bool> condition,
+        [CallerArgumentExpression(nameof(condition))] string? expression = null)
     {
         for (int i = 0; i < 200 && !condition(); i++)
         {
@@ -186,5 +188,10 @@ public class ModuleFrameworkPhase3Tests
         }
 
         Dispatcher.UIThread.RunJobs();
+
+        if (!condition())
+        {
+            throw new TimeoutException($"timed out waiting for `{expression}`");
+        }
     }
 }

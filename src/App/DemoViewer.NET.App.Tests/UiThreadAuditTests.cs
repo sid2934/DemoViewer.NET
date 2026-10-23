@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Avalonia;
@@ -573,13 +574,19 @@ public class UiThreadAuditTests
         }
     }
 
-    private static async Task Until(Func<bool> done, int timeoutMs)
+    private static async Task Until(Func<bool> done, int timeoutMs,
+        [CallerArgumentExpression(nameof(done))] string? expression = null)
     {
         Stopwatch sw = Stopwatch.StartNew();
         while (!done() && sw.ElapsedMilliseconds < timeoutMs)
         {
             Settle();
             await Task.Delay(2);
+        }
+
+        if (!done())
+        {
+            throw new System.TimeoutException($"timed out waiting for `{expression}`");
         }
     }
 

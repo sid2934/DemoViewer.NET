@@ -1,5 +1,6 @@
 #region
 
+using System.Runtime.CompilerServices;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Modules.Playback2D.Annotations;
 using DemoViewer.NET.Playback2D.Core.Annotations;
@@ -360,7 +361,8 @@ public class Playback2DAnnotationPersistenceTests
             TimeEnvelope.Static,
             [new InkPoint(0, 0, 0.5f), new InkPoint(40, 10, 0.5f), new InkPoint(80, 0, 0.5f)], null);
 
-    private static async Task WaitFor(Func<bool> condition, TimeSpan timeout)
+    private static async Task WaitFor(Func<bool> condition, TimeSpan timeout,
+        [CallerArgumentExpression(nameof(condition))] string? expression = null)
     {
         DateTime deadline = DateTime.UtcNow + timeout;
         while (DateTime.UtcNow < deadline)
@@ -372,6 +374,8 @@ public class Playback2DAnnotationPersistenceTests
 
             await Task.Delay(15);
         }
+
+        throw new TimeoutException($"timed out waiting for `{expression}`");
     }
 
     private sealed class TempDemo : IDisposable
