@@ -5,7 +5,7 @@ using Avalonia.Media;
 
 #endregion
 
-namespace DemoViewer.NET.Visualization.Sample.SampleGraphs;
+namespace DemoViewer.NET.Visualization.Tests.SampleGraphs;
 
 /// <summary>Demo state graph sample.</summary>
 public static class DemoStateGraphSample

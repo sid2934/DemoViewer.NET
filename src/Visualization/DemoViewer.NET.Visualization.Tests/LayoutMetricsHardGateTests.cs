@@ -1,6 +1,5 @@
 #region
 
-using DemoViewer.NET.Visualization.Sample;
 
 #endregion
 

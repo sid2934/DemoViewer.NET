@@ -5,7 +5,7 @@ using System.Reflection;
 
 #endregion
 
-namespace DemoViewer.NET.Visualization.Sample.SampleGraphs;
+namespace DemoViewer.NET.Visualization.Tests.SampleGraphs;
 
 /// <summary>
 ///     The graph the Analysis tab actually draws, captured rather than modelled: 434 nodes and 474
@@ -41,7 +41,7 @@ namespace DemoViewer.NET.Visualization.Sample.SampleGraphs;
 public static class ShippedScaleGraph
 {
     private const string ResourceName =
-        "DemoViewer.NET.Visualization.Sample.SampleGraphs.shipped-scale.tsv";
+        "DemoViewer.NET.Visualization.Tests.SampleGraphs.shipped-scale.tsv";
 
     /// <summary>Materialises the captured graph into the sample node/edge/group types.</summary>
     public static (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges,

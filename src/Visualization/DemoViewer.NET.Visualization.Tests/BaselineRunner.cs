@@ -2,11 +2,11 @@
 
 using System.Globalization;
 using System.Text;
-using DemoViewer.NET.Visualization.Sample.SampleGraphs;
+using DemoViewer.NET.Visualization.Tests.SampleGraphs;
 
 #endregion
 
-namespace DemoViewer.NET.Visualization.Sample;
+namespace DemoViewer.NET.Visualization.Tests;
 
 /// <summary>
 ///     Headless driver that runs the <see cref="LayoutMetrics" /> analyzer over the

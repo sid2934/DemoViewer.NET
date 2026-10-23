@@ -1,4 +1,4 @@
-namespace DemoViewer.NET.Visualization.Sample.SampleGraphs;
+namespace DemoViewer.NET.Visualization.Tests.SampleGraphs;
 
 /// <summary>Sample edge data record.</summary>
 public record SampleEdge(

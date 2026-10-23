@@ -16,7 +16,14 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET.Visualization\DemoViewer.NET.Visualization.csproj"/>
-        <ProjectReference Include="..\DemoViewer.NET.Visualization.Sample\DemoViewer.NET.Visualization.Sample.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The captured Analysis-tab graph behind ShippedScaleGraph. LogicalName is explicit because
+             ShippedScaleGraph names the resource as a string constant, and a derived name would couple
+             that constant to this project's RootNamespace. -->
+        <EmbeddedResource Include="SampleGraphs\shipped-scale.tsv"
+                          LogicalName="DemoViewer.NET.Visualization.Tests.SampleGraphs.shipped-scale.tsv"/>
     </ItemGroup>
 
 </Project>

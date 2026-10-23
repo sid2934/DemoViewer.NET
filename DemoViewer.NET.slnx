@@ -57,8 +57,6 @@
     </Folder>
     <Folder Name="/src/Visualization/">
         <Project Path="src/Visualization/DemoViewer.NET.Visualization/DemoViewer.NET.Visualization.csproj"/>
-        <Project
-                Path="src/Visualization/DemoViewer.NET.Visualization.Sample/DemoViewer.NET.Visualization.Sample.csproj"/>
         <Project Path="src/Visualization/DemoViewer.NET.Visualization.Tests/DemoViewer.NET.Visualization.Tests.csproj"/>
     </Folder>
     <Folder Name="/tools/">

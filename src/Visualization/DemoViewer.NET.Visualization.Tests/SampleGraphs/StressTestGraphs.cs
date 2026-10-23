@@ -4,7 +4,7 @@ using System.Globalization;
 
 #endregion
 
-namespace DemoViewer.NET.Visualization.Sample.SampleGraphs;
+namespace DemoViewer.NET.Visualization.Tests.SampleGraphs;
 
 /// <summary>Stress test graphs.</summary>
 public static class StressTestGraphs

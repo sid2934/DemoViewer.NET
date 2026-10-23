@@ -6,7 +6,7 @@ using DemoViewer.NET.Visualization.Internal;
 
 #endregion
 
-namespace DemoViewer.NET.Visualization.Sample;
+namespace DemoViewer.NET.Visualization.Tests;
 
 /// <summary>
 ///     Headless, deterministic geometry metrics computed directly from a
