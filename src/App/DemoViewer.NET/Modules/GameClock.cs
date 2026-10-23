@@ -2,6 +2,7 @@
 
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
+using DemoViewer.NET.Services.DemoProcessing;
 
 #endregion
 
@@ -45,6 +46,7 @@ public static class GameClock
             return (0, false);
         }
 
+        DecodeSites.Enter(10);
         EntityTracker tracker = new();
         tracker.ReplayToIndex(firstFreezeEndFrame, frames);
         return Read(tracker, frames[firstFreezeEndFrame].ServerTick, tickRate);

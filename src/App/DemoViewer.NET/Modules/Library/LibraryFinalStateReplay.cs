@@ -131,8 +131,17 @@ public static class LibraryFinalStateReplay
         ArgumentNullException.ThrowIfNull(signonPrefix);
         ArgumentNullException.ThrowIfNull(lastFullPacket);
         EntityTracker tracker = NewTracker();
+        bool marked = false;
         foreach (DemoFrame frame in signonPrefix)
         {
+            // Site 11 on the first fold only, so it stays one-to-one with the engine's counter: that one
+            // fires on a tracker's first frame, and an empty prefix folds none.
+            if (!marked)
+            {
+                marked = true;
+                DecodeSites.Enter(11);
+            }
+
             tracker.AdvanceOneFrame(frame);
         }
 
