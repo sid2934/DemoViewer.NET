@@ -13,9 +13,6 @@ demos/**/*.dem.bz2
 # Generated benchmark reports
 bench-reports/
 
-# BenchmarkDotNet output (tools/EntityMicroBench writes here at repo root).
-BenchmarkDotNet.Artifacts/
-
 # CS2 game assets extracted at dev-time from the user's own install — never commit (Valve-origin, SSA §2.G)
 /cs2-assets/
 

@@ -119,8 +119,6 @@
         <PackageVersion Include="Velopack" Version="1.2.161"/>
         <!-- Test -->
         <PackageVersion Include="TUnit" Version="1.76.0"/>
-        <!-- Micro-benchmark harness (tools/EntityMicroBench) -->
-        <PackageVersion Include="BenchmarkDotNet" Version="0.14.0"/>
         <!--
             The CS2OpenDev family — community-maintained CS2 schema, protobuf and game-event
             definitions (github.com/CS2OpenDev). On nuget.org since 2026-08 under a renumbered
