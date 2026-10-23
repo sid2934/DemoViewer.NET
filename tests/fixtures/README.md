@@ -1,59 +1,47 @@
 # tests/fixtures/: reference data for parity tests
 
 Per-demo subdirectories named after the demo's filename (without `.dem`),
-plus a couple of top-level fixture files. Every JSON here is reference data
-that one or more tests assert against.
+plus a couple of top-level fixture files. Most of these files are reference
+data a test asserts against. The exception is `expected.golden.json`, which is
+read only for its presence, as the next section explains.
 
 ## Layout
 
 ```
 tests/fixtures/
 ├── <demo-id>/
-│   ├── ours.golden.json               Stat snapshot produced by AnalysisBench
-│   ├── expected.golden.json           Curated reference (see "Reliability posture" below)
+│   ├── expected.golden.json           Selects this demo as a benchmark (see below)
 │   └── aim.expected.golden.json       Aim-board pin (see "The aim board" below)
 ```
 
-## Reliability posture: what each file means
+## `expected.golden.json` is a selector, and its contents are unread
 
-The two stat-side providers (`ours`, `expected`) are NOT equally
-trustworthy, and any test that reads them has to treat them differently:
+Nothing parses this file. One line reads it, and only to ask whether it
+exists: `LiveAimStats.BenchmarkDemoIds` enumerates the fixture directories
+that carry one, and that list is the case list for `AimStatParityTests` and
+`CounterStrafeAdmissionFoldTests`. Five directories carry one, so each of
+those classes has five per-demo cases. Deleting a copy silently drops a demo
+from both classes rather than failing anything, so treat these files as the
+benchmark set's definition.
 
-| Provider | Source | Trust level today |
-|---|---|---|
-| `ours` | `AnalysisBench --suite` reads the demo through our parser/analyzer | Reflects what our code currently produces. NOT a reference; it's the thing being measured. |
-| `expected` | Hand-curated values | **Not yet reliable.** Today's files were seeded from a run that was cross-checked against a second source, NOT from a human watching the demo. Function: parser-regression tripwire only. |
+The values inside are a 2026-05 seed of objective per-match counts (kills,
+deaths, assists, multi-kills, rounds survived, trade kills, round wins),
+cross-checked against a second source rather than hand-verified. They were
+meant to become the ground truth for a stat-side parity test. That test was
+never written, and the comparer concept behind it is gone: see "What's not in
+here".
 
-## Why `expected` exists if it's not yet hand-verified
-
-The intent is for `expected.golden.json` to become the load-bearing ground
-truth. That requires actual hand-verification.
-
-Today's seed files carry only the stats a cross-check agreed on, which is a
-narrow set of objective per-match counts (kills, deaths, assists, multi-kills,
-rounds survived, trade kills, round wins). They serve two interim purposes:
-
-1. **Parser regression detection:** once a test reads them, a value ours
-   produces that differs from the seed is a failure. That catches our parser
-   drifting from its own past output, even without a human in the loop. **No
-   stat-side parity test exists yet**: today `expected.golden.json` is read
-   only for its presence, which is what marks a fixture directory as a
-   benchmark demo for the aim harness (`LiveAimStats.BenchmarkDemoIds`).
-2. **Infrastructure proof:** the schema, the loader and the serializer all
-   exist and work, and the aim board (below) already runs the full pin-and-
-   compare shape over them. Replacing seeded values with hand-verified values
-   is a content swap, no code change required.
-
-When hand-verification work happens, the file's `provider_version` field
-will move from `null` to something like `"hand-verified-2026-XX-XX-by-NAME"`.
+The fixture directory, not the demo, defines the set, because the demos
+themselves are gitignored and enumerating whatever is on the current machine
+would make the case list vary by checkout.
 
 ## The aim board
 
 `aim.expected.golden.json` pins the columns produced by `rules/aim_rating.rules.yaml`
 (accuracy, the counter-strafing triple, spray control, crosshair placement).
-It sits in the same posture as `expected.golden.json`: only the pin is
-committed, `ours` is derived by running the ruleset over the demo every time,
-and the comparison is at zero tolerance. The harness is
+Unlike `expected.golden.json` this one is read for its contents: only the pin
+is committed, the live numbers are derived by running the ruleset over the
+demo every time, and the comparison is at zero tolerance. The harness is
 `src/App/DemoViewer.NET.App.Tests/AimParity/`.
 
 Two things about it are specific to aim.
@@ -93,8 +81,7 @@ so the two populations differ wherever a miss sits inside a spray.
 
 | File | Refresh command |
 |---|---|
-| `ours.golden.json` | `dotnet run -c Release --project tools/AnalysisBench -- --suite` |
-| `expected.golden.json` | **Not auto-refreshable.** Manual edit when hand-verifying. |
+| `expected.golden.json` | **Not auto-refreshable.** Manual edit when hand-verifying. Adding or removing one changes the benchmark demo set. |
 | `aim.expected.golden.json` | `PIN_EXPECTED_AIM=1` with the demo present, running `AimStatParityTests`. Deliberate, reviewed re-pin only. |
 
 ## Schema versioning
@@ -112,8 +99,11 @@ when a v2 actually exists.
   refreshes are a maintainer activity (the maintainer has the demos
   locally).
 - **Per-stat tolerances.** There are none to keep: the aim board compares at
-  zero tolerance, and the stat-side files have no comparer yet.
-- **Cross-provider mappings.** Each provider's converter owns its own mapping
-  from raw input to the canonical schema. They moved out with the analysis
-  engine and now live in the `CS2DemoKit.Analysis` package, under
-  `CS2DemoKit.Analysis.GoldenStats`.
+  zero tolerance, and there is no stat-side comparer.
+- **`ours.golden.json`.** AnalysisBench used to write one per fixture on every
+  run and no test ever read it, so the committed copies were two months stale
+  by the time they went. Writing it is now opt-in behind `--golden`, and what
+  it writes is untracked.
+- **Cross-provider mappings.** The converters that map raw input to the
+  canonical schema moved out with the analysis engine and now live in the
+  `CS2DemoKit.Analysis` package, under `CS2DemoKit.Analysis.GoldenStats`.

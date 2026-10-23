@@ -70,10 +70,10 @@ if (positional is ["bg-run", ..])
 
 bool suiteMode = flags.Contains("--suite");
 bool listSuite = flags.Contains("--list-suite");
-// --no-golden suppresses WriteGoldenStatsFiles so verification runs don't clobber the
-// committed tests/fixtures/*/*.golden.json oracle. Golden regeneration is an explicit,
-// reviewed re-baseline (a normal run without this flag).
-bool noGolden = flags.Contains("--no-golden");
+// Writing golden stats is opt-in. Nothing in the repo reads ours.golden.json, so a plain run
+// writes nothing; --golden puts it back for a hand comparison. --no-golden is still accepted and
+// is now a no-op, so the command lines recorded in docs/profiling.md keep doing what they say.
+bool writeGolden = flags.Contains("--golden");
 // Diagnostic listeners — parsed here (not just in the single-demo path) so they compose with --suite
 // too. Each is a runtime opt-in (no profile build needed); see docs/profiling.md.
 bool enableTrace = flags.Contains("--trace");
@@ -156,7 +156,7 @@ if (suiteMode)
         try
         {
             int result = RunBench(tc.DemoPath, rulesDir, reportFile, enableTrace, false,
-                noGolden: noGolden, enableCounters: enableCounters, enableTimeline: enableTimeline,
+                writeGolden: writeGolden, enableCounters: enableCounters, enableTimeline: enableTimeline,
                 useMmap: useMmap, retained: retained);
             if (result == 0)
             {
@@ -204,7 +204,7 @@ if (positional.Length == 0)
     Console.Error.WriteLine("  --timeline           Attach an ActivityListener and print the phase timeline (read/parse/build/eval)");
     Console.Error.WriteLine("  --retained           Parse the whole demo, then evaluate over it (the app's playback path); the default is the forward path");
     Console.Error.WriteLine("  --bare               Run without snapshots (the forward path's default; with --retained it measures pure eval cost)");
-    Console.Error.WriteLine("  --no-golden          Skip writing tests/fixtures golden files (use for verification runs)");
+    Console.Error.WriteLine("  --golden             Write tests/fixtures/<demo-id>/ours.golden.json; untracked, and nothing reads it");
     Console.Error.WriteLine("  --mmap               With --retained: memory-map the .dem instead of File.ReadAllBytes (the forward reader always maps)");
     Console.Error.WriteLine("  --ray-counters       Count rays cast / frustum-rejected pairs on the visibility path and time the raycasting");
     Console.Error.WriteLine("  --round-debug        Detailed per-round event trace");
@@ -263,7 +263,7 @@ if (positional.Length == 0)
         return 0;
     }
 
-    return RunBench(demoPath, rulesDir, reportPath, enableTrace, bareMode, stateTraceArg, noGolden,
+    return RunBench(demoPath, rulesDir, reportPath, enableTrace, bareMode, stateTraceArg, writeGolden,
         enableCounters, enableTimeline, exportFormat, exportOut, useMmap, retained);
 }
 
@@ -273,7 +273,7 @@ if (positional.Length == 0)
 // evaluation loop. --retained is the parse-then-evaluate path the app's playback uses, kept so the
 // two can be compared on one demo; the frame-walking debug modes only have that path.
 static int RunBench(string demoPath, string rulesDir, string? reportPath,
-    bool enableTrace, bool bareMode, string? stateTraceArg = null, bool noGolden = false,
+    bool enableTrace, bool bareMode, string? stateTraceArg = null, bool writeGolden = false,
     bool enableCounters = false, bool enableTimeline = false, string? exportFormat = null, string? exportOut = null,
     bool useMmap = false, bool retained = false)
 {
@@ -540,11 +540,8 @@ static int RunBench(string demoPath, string rulesDir, string? reportPath,
         Console.WriteLine($"Report written to {reportPath}");
     }
 
-    // ── Golden-stats files (fixtures consumed by parity tests) ───────────
-    // Always written when playerReports are available, so a single `--suite`
-    // run refreshes every provider's golden file. The bench is the canonical
-    // producer for `ours`.
-    if (!noGolden && playerReports.Count > 0)
+    // ── Golden-stats file (--golden) ──────────────────────────────────────
+    if (writeGolden && playerReports.Count > 0)
     {
         WriteGoldenStatsFiles(demoPath, outcome.Sha256, facts, playerReports);
     }
@@ -785,16 +782,12 @@ static void PrintStateTrace(EvaluationResult result, string stateTraceArg)
     }
 }
 
-// ── Golden-stats producer ─────────────────────────────────────────────────
+// ── Golden-stats producer (--golden) ──────────────────────────────────────
 //
-// Refreshes the canonical golden files consumed by parity tests under
-// tests/fixtures/<demo-id>/. One file per provider:
-//
-//   tests/fixtures/<demo-id>/ours.golden.json     (produced from this run)
-//
-// The directory pattern (rather than a flat layout) anticipates additional
-// providers, `hltv.golden.json`, `expected.golden.json`, without renaming
-// existing files.
+// Writes tests/fixtures/<demo-id>/ours.golden.json, a snapshot of what this run produced. No test
+// reads it, and the file is untracked: it is here for a hand comparison between two builds. The
+// fixture directory's committed expected.golden.json is a different file and must not be touched,
+// because its presence is what selects the benchmark demos (LiveAimStats.BenchmarkDemoIds).
 static void WriteGoldenStatsFiles(
     string demoPath, string demoSha256, DemoDescriptor demo,
     List<PlayerReport> playerReports)
