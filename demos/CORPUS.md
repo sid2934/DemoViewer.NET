@@ -12,7 +12,6 @@ Keep this current when the corpus changes.
 | consumer | reads |
 |---|---|
 | `AnalysisBench --suite` | every `.dem` in `demos/benchmarks/` |
-| `scripts/perf-sweep.sh` | `demos/benchmarks/` and `demos/pro-demos/` |
 | `[Category("RealDemo")]` tests | `DemoTestHelper`: `DEMO_PATH` (a `.dem`, or a folder of them), then the reference demo `003816248937665266002_0544286934.dem` if present, then `TestData/`, then `demos/benchmarks/`, then `demos/` |
 
 A folder `DEMO_PATH` (the Steam replays directory, read in place) resolves to ONE demo for the whole
