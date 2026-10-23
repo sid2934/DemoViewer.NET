@@ -195,7 +195,7 @@ sweep/cache/demos/{key}.json.gz#HighlightHashes 2d463114d9e7747093c7ae4afcabf8cf
 sweep/cache/demos/{key}.json.gz#Highlights 4c513994fc6d82c4024cc2a7381efa5c575c29d92df9481ae39798e2ca56dbe9
 sweep/cache/demos/{key}.json.gz#Locations 86dc4280302dc53f80b508580aa7a09a191a66c5da5863286b265eac08e279c5
 sweep/cache/demos/{key}.json.gz#Map 619d95045ad824cb11e4b527e240e2c4629ea0484c7e8d7a5ea200db7a9c2b2f
-sweep/cache/demos/{key}.json.gz#MatchMeta 3f1e75739b1e61819841ad603e612d4bd50fcc14adb57381aca1cddcdbe1ac20
+sweep/cache/demos/{key}.json.gz#MatchMeta 3de6f6aead9d509ea6b3981dd526bdfcdd7299a35c175c2bf0bc9d0b88e794a4
 sweep/cache/demos/{key}.json.gz#ModifiedTicks fc530e4b226a7e00eec81c5b1602d98ccca8185fa0b3362f54b3524b3e221825
 sweep/cache/demos/{key}.json.gz#PackStamps 522593a38db2bd50ed8cc19298ad7116dc5ea1e22990575e240aa4bf66672724
 sweep/cache/demos/{key}.json.gz#Packs 44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a
