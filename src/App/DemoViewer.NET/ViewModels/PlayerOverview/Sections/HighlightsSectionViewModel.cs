@@ -117,23 +117,18 @@ public sealed partial class HighlightsSectionViewModel : PlayerOverviewSection
     private async Task LoadAsync(IAnalysisFacts facts, IReadOnlyList<PlayerMatch> matches, List<PlayerMatch> unread, int load,
         bool quiet)
     {
-        IProgress<int> progress = new Progress<int>(done =>
-        {
-            if (_load == load && !quiet)
-            {
-                LoadText = string.Create(CultureInfo.InvariantCulture, $"Reading highlights {done} of {unread.Count}");
-            }
-        });
         if (!quiet)
         {
             LoadText = "Reading highlights";
         }
 
-        await Task.Run(() =>
+        // The count must be written from this flow, not an IProgress callback: a posted callback can run
+        // after the clear below and leave IsLoading true.
+        for (int i = 0; i < unread.Count; i++)
         {
-            for (int i = 0; i < unread.Count; i++)
+            DemoCacheIndexEntry row = unread[i].Row;
+            await Task.Run(() =>
             {
-                DemoCacheIndexEntry row = unread[i].Row;
                 try
                 {
                     _read[row.Path] = new Read(row.HighlightCount, row.ConfigFingerprint, facts.Highlights(row.Path));
@@ -142,10 +137,13 @@ public sealed partial class HighlightsSectionViewModel : PlayerOverviewSection
                 {
                     // A sidecar that will not read leaves its demo out; the next refresh tries again.
                 }
+            });
 
-                progress.Report(i + 1);
+            if (_load == load && !quiet)
+            {
+                LoadText = string.Create(CultureInfo.InvariantCulture, $"Reading highlights {i + 1} of {unread.Count}");
             }
-        });
+        }
 
         if (_load == load)
         {
