@@ -82,10 +82,12 @@ fi
 
 run_demo() {
   # $1 arm label, $2 repo, $3 demo. One process covers every scenario and trial.
+  # --output Detailed is load-bearing: at Normal the runner prints a passing test's stdout nowhere, so
+  # the @SW_VISIT rows are only visible when the probe FAILS its decode targets.
   local out status=0 line n=0
   out="$(SW_DEMO="$3" SW_VISIT="$VISITS" SW_TRIALS="$TRIALS" SW_WARMUP="$WARMUP" SW_CONFIG_ROOT="$TMP" \
     dotnet run --project "$2/$PROJ_REL" -c "$CONFIG" --no-build -- \
-    --treenode-filter "/*/*/SingleWalkVisitProbe/Visit/*" 2>&1)" || status=$?
+    --treenode-filter "/*/*/SingleWalkVisitProbe/Visit/*" --output Detailed 2>&1)" || status=$?
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     n=$((n + 1))

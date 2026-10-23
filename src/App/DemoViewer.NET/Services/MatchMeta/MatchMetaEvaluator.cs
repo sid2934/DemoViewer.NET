@@ -2,7 +2,6 @@
 
 using System.Globalization;
 using CS2DemoKit.Parser;
-using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
@@ -17,7 +16,7 @@ namespace DemoViewer.NET.Services.MatchMeta;
 ///     for no more than the library's final state, so it rides the visit's one forward read. Stamped
 ///     <see cref="StampId" />, apart from the <c>matchmeta</c> record pass, which keeps what this pass wrote.
 /// </summary>
-public sealed class MatchMetaEvaluator : IDemoEvaluator
+public sealed class MatchMetaEvaluator : IDemoEvaluator, IRetainedVisitEvaluator
 {
     /// <summary>The pass id and the stamp it writes.</summary>
     public const string StampId = "matchrank";
@@ -64,29 +63,18 @@ public sealed class MatchMetaEvaluator : IDemoEvaluator
                 : pass.FinalState)));
     }
 
-    /// <summary>
-    ///     The same off a held parse, which reported no unknown message: the ranks after the match are the
-    ///     controllers' predictions.
-    /// </summary>
-    public void Evaluate(string path, ParsedDemo parsed)
-    {
-        ArgumentNullException.ThrowIfNull(parsed);
-        Write(path, () =>
-        {
-            string? mode = parsed.Frames.SelectMany(f => f.DecodedMessages)
-                .Select(m => (m.Payload as CSVCMsg_ServerInfo)?.GameSessionConfig?.Gamemode)
-                .FirstOrDefault(g => !string.IsNullOrEmpty(g));
-            if (parsed.Frames.Count == 0)
-            {
-                return Capture(mode, parsed.Profile.SourceKind, parsed.ServerName, [], [], () => null);
-            }
+    /// <summary>The same off a held parse that carries no rank update of its own, so it writes no rank rows.</summary>
+    public void Evaluate(string path, ParsedDemo parsed) => Held(path, parsed, []);
 
-            EntityTracker tracker = LibraryFinalStateReplay.NewTracker();
-            tracker.ReplayToIndex(parsed.Frames.Count - 1, parsed.Frames);
-            bool ended = parsed.AllGameEvents.Aggregate(false, (e, evt) => LibraryFinalScore.FoldMatchEnded(e, evt.Name));
-            return Capture(mode, parsed.Profile.SourceKind, parsed.ServerName, LibraryFinalStateReplay.ReadRanks(tracker), [],
-                () => WinningTeam(LibraryFinalStateReplay.Read(tracker, parsed.Players.Keys, ended, LibraryOvertime.Of(parsed.Frames))));
-        });
+    /// <summary>
+    ///     The same off a held visit: the ranks are the server's update, which rode the visit's one read on its
+    ///     unknown-message tap. The controllers' predictions are not a fallback here, because reading their rank
+    ///     fields off a held parse costs a second walk of every frame.
+    /// </summary>
+    public void Evaluate(string path, PassInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        Held(path, input.Retained!, input.RankUpdates);
     }
 
     /// <summary>
@@ -194,6 +182,18 @@ public sealed class MatchMetaEvaluator : IDemoEvaluator
         }
 
         return LibraryFinalScore.IsResult(Math.Max(ct, t), Math.Min(ct, t)) ? ct > t ? 3 : 2 : null;
+    }
+
+    private void Held(string path, ParsedDemo parsed, IReadOnlyList<ServerRankUpdate> updates)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        Write(path, () =>
+        {
+            string? mode = parsed.Frames.SelectMany(f => f.DecodedMessages)
+                .Select(m => (m.Payload as CSVCMsg_ServerInfo)?.GameSessionConfig?.Gamemode)
+                .FirstOrDefault(g => !string.IsNullOrEmpty(g));
+            return Capture(mode, parsed.Profile.SourceKind, parsed.ServerName, [], updates, () => null);
+        });
     }
 
     private static int? Ranked(int rank) => rank > 0 ? rank : null;

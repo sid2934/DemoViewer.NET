@@ -61,6 +61,10 @@ public sealed class EvaluatorPassAdapter : IDemoPass, IPassScheduling
         {
             Evaluator.EvaluateForward(input.Demo.Path, forward);
         }
+        else if (Evaluator is IRetainedVisitEvaluator retained)
+        {
+            retained.Evaluate(input.Demo.Path, input);
+        }
         else
         {
             Evaluator.Evaluate(input.Demo.Path, input.Retained!);
