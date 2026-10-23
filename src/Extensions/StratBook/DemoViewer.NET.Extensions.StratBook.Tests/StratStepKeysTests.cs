@@ -204,7 +204,17 @@ public class StratStepKeysTests
                 walked.Add(window.FocusManager!.GetFocusedElement()!);
             }
 
-            await Assert.That(walked).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+            // Identity, not structure: TUnit 1.x deep-compares reference elements, and two TextBoxes then differ by
+            // their focus state.
+            using (Assert.Multiple())
+            {
+                await Assert.That(walked.Count).IsEqualTo(expected.Count);
+                for (int i = 0; i < expected.Count; i++)
+                {
+                    await Assert.That(walked[i]).IsSameReferenceAs(expected[i]).Because($"Tab stop {i}");
+                }
+            }
+
             window.Close();
         });
 
