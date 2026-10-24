@@ -153,9 +153,9 @@ public static class TestTiers
     ///     <c>DemoViewer.NET.slnx</c>. Returns <c>null</c> when the assembly is running detached from a
     ///     checkout, which is the case the source-reading contract tests skip on rather than fail.
     /// </summary>
-    // The same walk as DemoTestHelper.FindRepoRoot, restated because the suites this file links into
-    // cannot reference the test-support assembly. No depth cap: a cap returns null on a deeper output
-    // path, and null here means "not a checkout", so the two must not disagree about which it is.
+    // The same walk as DemoTestHelper.FindRepoRoot, restated because Playback2D.Tests references no
+    // test-support assembly. No depth cap: a cap returns null on a deeper output path, and null here
+    // means "not a checkout", so the two must not disagree about which it is.
     public static string? FindRepoRoot()
     {
         string? dir = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
