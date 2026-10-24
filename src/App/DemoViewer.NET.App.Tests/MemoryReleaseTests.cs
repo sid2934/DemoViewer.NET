@@ -94,7 +94,6 @@ public class MemoryReleaseTests
             const int target = 40;
             vm.Navigation.SeekToFrame(target);
             EntityTracker? tracker = await WaitForTrackerAt(vm, target);
-            await Assert.That(tracker).IsNotNull().Because("sanity: the seek must have produced a tracker");
             await Assert.That(vm.EntityTab.EntityListItems.Count).IsGreaterThan(0);
 
             // Inspect: fills EntityInspector (relationship tree) + DeltaLog for the selected entity.
@@ -202,20 +201,11 @@ public class MemoryReleaseTests
             new WeakReference(vm.EntityTab.SelectedEntityItem!));
     }
 
-    /// <summary>Pumps the dispatcher until the async seek has published a tracker at the target frame.</summary>
-    private static async Task<EntityTracker?> WaitForTrackerAt(MainViewModel vm, int frameIndex)
+    /// <summary>Waits for the async seek's tracker push, then hands back the tracker it published.</summary>
+    private static async Task<EntityTracker> WaitForTrackerAt(MainViewModel vm, int frameIndex)
     {
-        for (int i = 0; i < 200; i++)
-        {
-            if (vm.Playback.AuthoritativeTracker is { } t && t.CurrentFrameIndex == frameIndex)
-            {
-                return t;
-            }
-
-            await Task.Delay(25);
-        }
-
-        return vm.Playback.AuthoritativeTracker;
+        await vm.Playback.TrackerAtFrameAsync(frameIndex);
+        return vm.Playback.AuthoritativeTracker!;
     }
 
     /// <summary>Full blocking compacting collection, repeated so finalizer-queue resurrections go too.</summary>

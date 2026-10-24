@@ -315,6 +315,12 @@ public class StratEditorRoomTests
         }
 
         Dispatcher.UIThread.RunJobs();
+
+        if (vm.Editor.ResolveLineup(lineup.Id) is null)
+        {
+            throw new TimeoutException($"timed out waiting for the catalog to resolve lineup {lineup.Id}");
+        }
+
         return vm;
     }
 

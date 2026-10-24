@@ -60,8 +60,7 @@ public class PlaybackControllerPhase0Tests
 
             // The discrete seek is async (debounce + Task.Run). Pump the dispatcher until the
             // authoritative tracker has been published and sits exactly at the target frame.
-            EntityTracker? t = await WaitForTrackerAt(vm, target);
-            await Assert.That(t).IsNotNull();
+            EntityTracker t = await WaitForTrackerAt(vm, target);
 
             // ── The discriminating assertion ──
             // StepForward must advance the SAME tracker instance one frame (O(1)), NOT rebuild a
@@ -70,7 +69,7 @@ public class PlaybackControllerPhase0Tests
             vm.Playback.StepForward();
 
             await Assert.That(ReferenceEquals(t, vm.Playback.AuthoritativeTracker)).IsTrue();
-            await Assert.That(t!.CurrentFrameIndex).IsEqualTo(target + 1);
+            await Assert.That(t.CurrentFrameIndex).IsEqualTo(target + 1);
             await Assert.That(vm.Playback.CurrentFrameIndex).IsEqualTo(target + 1);
 
             // …and the in-place-stepped entity set equals an independent seek-to-(N+1).
@@ -94,20 +93,11 @@ public class PlaybackControllerPhase0Tests
         });
     }
 
-    /// <summary>Pumps the headless dispatcher until the authoritative tracker reaches frame N (or times out).</summary>
-    private static async Task<EntityTracker?> WaitForTrackerAt(MainViewModel vm, int frameIndex)
+    /// <summary>Waits for the async seek's tracker push, then hands back the tracker it published.</summary>
+    private static async Task<EntityTracker> WaitForTrackerAt(MainViewModel vm, int frameIndex)
     {
-        for (int i = 0; i < 200; i++)
-        {
-            if (vm.Playback.AuthoritativeTracker is { } t && t.CurrentFrameIndex == frameIndex)
-            {
-                return t;
-            }
-
-            await Task.Delay(25);
-        }
-
-        return vm.Playback.AuthoritativeTracker;
+        await vm.Playback.TrackerAtFrameAsync(frameIndex);
+        return vm.Playback.AuthoritativeTracker!;
     }
 
     [Test]

@@ -130,6 +130,12 @@ public class TeamIdentityTests
                 await Task.Delay(5);
             }
 
+            if (library.Demos.Count < batches)
+            {
+                throw new System.TimeoutException($"timed out waiting for the library to hold all {batches} rows "
+                                           + $"(it holds {library.Demos.Count})");
+            }
+
             for (int spin = 0; spin < 200; spin++)
             {
                 (Action Work, TaskCompletionSource Done)? next = null;
