@@ -178,7 +178,7 @@ public class SceneLayerTests
     ///     without labels and diffing the two frames gives an exact glyph-ink mask; its bounding box has
     ///     to be centred on the disc.
     ///     <para>
-    ///         This is the regression gate for the measurement bug that shipped with B1:
+    ///         This is the regression gate for the measurement bug that shipped:
     ///         <c>ShapedText.Bounds</c> was <c>SKTextBlob.Bounds</c>, which Skia computes conservatively
     ///         from the font's <i>global</i> glyph box rather than from the run, so its <c>MidX</c> was
     ///         a constant ~0.37 em to the left of the real ink centre and every label drew 4-6 px left of

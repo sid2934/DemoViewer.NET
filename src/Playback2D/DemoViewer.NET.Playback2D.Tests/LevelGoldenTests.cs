@@ -19,8 +19,8 @@ namespace DemoViewer.NET.Playback2DTests;
 ///         Two committed goldens (<c>nuke-multilevel-upper</c>, <c>nuke-multilevel-noradar</c>) plus the
 ///         assertion that matters most for a phase that touched the shared pane machinery: the
 ///         <b>stacked</b> picture is byte-identical after a Stacked → Single → Stacked round trip. That
-///         is the acceptance line "StackedLayout's output is byte-identical to B1's golden", proved
-///         against the renderer rather than by committing the same PNG twice. B1's own
+///         is the acceptance line "StackedLayout's output is byte-identical to the stacked golden", proved
+///         against the renderer rather than by committing the same PNG twice.
 ///         <c>GoldenParityTests</c> already pins the stacked path against the pre-v2 control.
 ///     </para>
 /// </summary>
