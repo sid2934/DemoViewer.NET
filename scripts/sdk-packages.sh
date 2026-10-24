@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Prints the project directory of every package this repository publishes, one per line.
 #
-# A text match for `<IsPackable>true</IsPackable>` over the csproj bodies, not a hand-kept list:
+# A text match for the IsPackable element over the csproj bodies, not a hand-kept list:
 # Directory.Build.props defaults the property to false and only the published libraries turn it back
-# on. The match is on the literal element, so a conditioned PropertyGroup or any other spelling is
-# invisible to every consumer at once. Keep new packages on this one.
+# on. It is a grep, not an evaluation, so three shapes fool it and fool all four consumers at once: a
+# Condition on the element, a `$(...)` value, and the property set anywhere but the csproj. Spell it
+# plainly in the csproj and nowhere else.
 #
 # Consumers must capture the output (`dirs=$(bash scripts/sdk-packages.sh)`) and loop over the
 # variable. `for d in $(...)` swallows a nonzero exit here and runs the body zero times, which turns
