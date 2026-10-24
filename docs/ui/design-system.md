@@ -1438,7 +1438,7 @@ spectating has no readback. Gated by `playback2d.follow`.
   palette entries.
 - **CSVG Phase-3 additions to the Live Sync consumer (2026-07-18, `LiveSyncStatusViewModel` +
   `LiveSyncStatusView`):**
-  - **v1.0-plugin capability note (§5.2 + plan §6.6).** When `ILiveSyncService.Capabilities?.IsV10Baseline`
+  - **v1.0-plugin capability note (CSVG design notes in git history, §5.2 + §6.6).** When `ILiveSyncService.Capabilities?.IsV10Baseline`
     (the plugin advertised nothing), the Synced **and** Degraded flyout sections show a verbatim caution
     note *"plugin 1.0 — update CSVG for exact pause sync"* via `ShowV10BaselineNote`. Rendered as the
     **sibling treatment** (⚠ `AccentCaution` icon + neutral `TextMid` message in a wrapping `Grid Auto,*`),
@@ -1867,7 +1867,7 @@ mockup, never a promised headless before/after.
   `ScrollViewer`-capped (`MaxHeight`) so ≤10 recents never overflow the card. **The dense filter toolbar
   (search/map/player/sort/view/refresh) is gated `IsVisible="{Binding !HasNoFolders}"`** so the hero state
   shows only `LIBRARY` + `+ Add folder` above the card, not a wall of inert dropdowns.
-  - <a id="library-card-score-repair"></a>**Card score badge has TWO states (v0.5.3 §9.8).** The scoreboard
+  - <a id="library-card-score-repair"></a>**Card score badge has TWO states (v0.5.3, redesign plan notes in git history, §9.8).** The scoreboard
     badge (`HasScore`) and a `score ?` badge (`NeedsScoreRepair`) share the same top-right slot and are
     mutually exclusive (`NeedsScoreRepair` ANDs `!HasScore`). Both reuse `LibraryCardBadgeBg`; the repair
     state is `LibraryCardTextFaint` at 11px. **Zero new tokens.** It exists because an absent score is
@@ -1938,7 +1938,7 @@ mockup, never a promised headless before/after.
     [the viewport chrome contract](#playback2d-viewport-chrome).
 
 <a id="match-overview-page"></a>
-> **SUPERSEDED (v0.5.3, redesign plan step 5): Match Overview is now THE PER-DEMO PAGE, not a landing
+> **SUPERSEDED (v0.5.3, redesign plan notes in git history, step 5): Match Overview is now THE PER-DEMO PAGE, not a landing
 > page.** The section below documents the v0.5.1 landing layout (single 920px column, separate identity
 > hero / 104px stage card / score card). It is kept because its *principles* still hold verbatim:
 > skeleton-first, reserved slots, centered max-width column, team colour as a redundant non-text cue,
@@ -2360,7 +2360,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   in the background`, `Render lineup clips`). A `MountedSettingsPage` exists for every contribution from
   construction, but its VM and View build lazily, through `EnsureBuilt`, the first time its own
   `FeatureId` resolves on: a page must never construct whatever its VM pulls in while its pack is off
-  (plan doc §8). `RefreshContributedPageVisibility` calls `EnsureBuilt` (on a filter keystroke and on a
+  (extension plan notes in git history, §8). `RefreshContributedPageVisibility` calls `EnsureBuilt` (on a filter keystroke and on a
   gate change alike) before setting `IsVisible`, so a page builds at most once and stays built once its
   pack has been on. `SettingsView.axaml` hosts the list through one
   `ItemsControl ItemsSource="{Binding ContributedSettingsPages}"` beneath the row list, each item a header
@@ -2436,7 +2436,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
 - **Open:** UiCapture fails with a cross-thread error for any custom theme (`--theme high-contrast`,
   `egirl`), including `primitives`, so the new chrome was captured in Light and Dark only.
 
-### Decisions (Reels dashboard, plan step 7, feature/v0.5.3, 2026-07-28)
+### Decisions (Reels dashboard, redesign plan notes in git history, step 7, feature/v0.5.3, 2026-07-28)
 - **D-RD1. The tray renders from the plan builder, not a parallel model.** `ReelConfig.ClipGroups` is both
   the coalescing display and the tray. Considered and rejected: a `StagedClipViewModel` collection beside it.
   A second model would let the tray and the plan disagree, which is the exact failure the promotion exists
@@ -2500,7 +2500,7 @@ today's two small relocated cards, not a wall of rows, so the switch is worth su
   global numbering; `StepNumber`/`StepCount` remain VM-exposed, so per-segment numbering is still a
   zero-view-change switch if it's ever wanted.
 
-### Decisions (CSVG-integration UI review fixes, 2026-07-19)
+### Decisions (CSVG-integration UI review fixes, design notes in git history, 2026-07-19)
 Six confirmed review findings, all UI-surface, fixed on `feature/csvg-integration`. No new tokens; one new
 shared class (`ListBox.card-grid`, above).
 - **D-CSVG7. The open-remote-demo failure now surfaces (was swallowed).** `LiveSyncStatusViewModel`'s
@@ -2544,7 +2544,7 @@ shared class (`ListBox.card-grid`, above).
   inlined `FontFamily="Consolas,Menlo,monospace"` on the label; switched to the shared `Classes="mono"`
   (Primitives.axaml) per the §2 adoption guide.
 
-### Decisions (CSVG Highlights tab, 2026-07-18)
+### Decisions (CSVG Highlights tab, design notes in git history, 2026-07-18)
 > ⚠ **PARTLY SUPERSEDED (v0.5.3, 2026-07-28).** The master **card grid**, the four filters over it, the
 > per-demo details pane and the F2 Verify rows described below **no longer exist on this tab**: see
 > [Reels dashboard](#reels-dashboard-v053) and plan §5 for where each function landed (Match Overview for
@@ -2587,7 +2587,7 @@ shared class (`ListBox.card-grid`, above).
   in-flight marker)); other Pending ⇒ `queued`; `Failed` ⇒ retry. Background scan / reel / Verify are all
   suppressed under `OperatingSystem.IsBrowser()` (WASM degrades to open-demo-only + an explanatory note).
 
-### Decisions (CSVG Phase-3 Live Sync polish, 2026-07-18)
+### Decisions (CSVG Phase-3 Live Sync polish, design notes in git history, 2026-07-18)
 - **D-CSVG3. The 2D-tab CS2 indicator is DISPLAY-ONLY / non-interactive** (`IsHitTestVisible=False` on the
   whole top-right HUD stack it shares with the kill feed). The CSVG design notes' §5.3 offered "click → focuses/opens the
   shell sync flyout," but that flyout is owned by the `StatusChip` `Button` in the bottom `StatusStrip`;
@@ -3150,13 +3150,13 @@ The single-render window defaults to **640×360**: pass `--size` for taller vari
 | `workbench` (**new**) | 1200×680 | **real** `RuleWorkbenchView` + real `RuleWorkbenchTabViewModel` (shipped file selected → editor content + read-only; one seeded diagnostic) | Exercises all 3 workbench de-inline tokens: `AccentCaution` muted-gold "🔒 shipped (read-only)", `AccentErrorSoft` soft-red diagnostic location, `BorderTranslucent` pane outlines. Also confirms the **code-defined** `WorkbenchYamlHighlighting` colours render (Section magenta / Literal teal / Facet blue), validating D31. AvaloniaEdit **does** settle headlessly here (same as `RuleWorkbenchModuleTests`). |
 | `framelist` (**new**) | 460×340 | **real** `HarvestFrameListControl` (Parser frame list) + mock `HarvestFrameRowViewModel` rows over a `MainViewModel` (7 varied frame types; one breakpoint-set, one selected) | Exercises the new tokens: `FrameRowSelectedBg` (selected row), `FrameMsgBadgeBg` (×N badges), `TextFrameType` (NAME col), plus the reused header/label/dim tokens + per-type accent pills + the red-dim breakpoint dot. **BEFORE/AFTER byte-for-byte identical** (D32). |
 
-**Workbench de-inline gate results:** solution `-c Release` builds clean (analyzers-as-errors, 0 errors; WASM/Browser head
+**Library / RuleWorkbench / Stats de-inline gate results:** solution `-c Release` builds clean (analyzers-as-errors, 0 errors; WASM/Browser head
 compiles, only the pre-existing NativeFileReference warning); target-view App.Tests **47/47** green
 (`StatsTabTests`, `LibraryShellTests`/`LibraryFilterTests`/`LibraryScoreTests`/`ZLibraryRenderTests`,
 `WorkbenchHighlightingTests`, `RuleWorkbenchModuleTests`: confirms every `{StaticResource}` key resolves).
 `library-populated` BEFORE/AFTER pixel-identical.
 
-**Frame-list de-inline gate results:** solution `-c Release` clean (0 errors, 1 pre-existing NativeFileReference warning);
+**Frame-list de-inline + convergence gate results:** solution `-c Release` clean (0 errors, 1 pre-existing NativeFileReference warning);
 `framelist` BEFORE/AFTER **byte-for-byte identical** (`cmp -s`); Parser-tab App.Tests **6/6** green
 (`UnknownMessageCardTests`, `ModuleFrameworkPhase3Tests`). App-wide `.axaml` hex grep = 0 outside DarkPalette.
 
