@@ -102,7 +102,6 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Core.Layers.QueryTokenLayer",
         "DemoViewer.NET.Playback2D.Core.Layers.SceneLayerIds",
         "DemoViewer.NET.Playback2D.Core.Levels.FloorSlice",
-        "DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter",
         "DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy",
         "DemoViewer.NET.Playback2D.Core.Levels.ILevelRadarBinder",
         "DemoViewer.NET.Playback2D.Core.Levels.IMapAsset",

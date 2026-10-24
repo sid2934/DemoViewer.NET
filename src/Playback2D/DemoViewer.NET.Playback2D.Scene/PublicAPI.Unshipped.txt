@@ -266,19 +266,6 @@ DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MaxZ.init -> void
 DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MidZ.get -> double
 DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MinZ.get -> double
 DemoViewer.NET.Playback2D.Core.Levels.FloorSlice.MinZ.init -> void
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.BucketWidth.get -> double
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.FloorSplitter(double bucketWidth = 64, double gapThreshold = 180) -> void
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.GapThreshold.get -> double
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.HasAuthoritativeFloors.get -> bool
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.HasSectionHeights.get -> bool
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.Observe(double z) -> void
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.Observe(System.Collections.Generic.IEnumerable<double>! zs) -> void
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.Reset() -> void
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.SetAuthoritativeFloors(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.FloorSlice>? floors) -> void
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.SetSectionHeights(System.Collections.Generic.IReadOnlyList<double>? heights) -> void
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.SliceIndexFor(double z) -> int
-DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter.Slices.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.FloorSlice>!
 DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy
 DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy.Arrange(DemoViewer.NET.Playback2D.Core.Levels.MapSpace! space, DemoViewer.NET.Playback2D.Core.Levels.LevelDisplayMode mode, SkiaSharp.SKSize host) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.LevelPane!>!
 DemoViewer.NET.Playback2D.Core.Levels.ILevelLayoutPolicy.Revision.get -> int
@@ -1591,7 +1578,6 @@ DemoViewer.NET.Playback2D.Core.Levels.MapSpaceFactory.RadarBinder.set -> void
 DemoViewer.NET.Playback2D.Core.Levels.MapSpaceFactory.Reset() -> void
 DemoViewer.NET.Playback2D.Core.Levels.MapSpaceFactory.SetAuthoritativeFloors(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.FloorSlice>? floors) -> void
 DemoViewer.NET.Playback2D.Core.Levels.MapSpaceFactory.Space.get -> DemoViewer.NET.Playback2D.Core.Levels.MapSpace!
-DemoViewer.NET.Playback2D.Core.Levels.MapSpaceFactory.Splitter.get -> DemoViewer.NET.Playback2D.Core.Levels.FloorSplitter!
 DemoViewer.NET.Playback2D.Core.Levels.MapSpaceFactory.Update(DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> bool
 DemoViewer.NET.Playback2D.Core.MarkerSmoother
 DemoViewer.NET.Playback2D.Core.MarkerSmoother.Advance(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.PlayerMarker>! markers, double dt, bool isDiscontinuity = false) -> bool

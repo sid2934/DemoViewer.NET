@@ -49,7 +49,7 @@ public sealed class MapSpaceFactory
     public MapSpace Space { get; }
 
     /// <summary>The splitter deriving bands from observed player Z. Exposed for parity tests.</summary>
-    public FloorSplitter Splitter { get; } = new();
+    internal FloorSplitter Splitter { get; } = new();
 
     /// <summary>
     ///     The binder consulted once per rebuild. Setting it re-binds on the next
