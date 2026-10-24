@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Rendering;
 using DemoViewer.NET.Playback2D.Pipeline;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -44,7 +45,7 @@ public class HeadlessSceneRendererTests
         using MemoryStream stream = new();
         SceneRenderer.WritePng(image, stream);
 
-        await Assert.That(stream.ToArray()).IsEquivalentTo(whole);
+        await Assert.That(stream.ToArray()).IsEquivalentTo(whole, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -103,7 +104,7 @@ public class HeadlessSceneRendererTests
 
         string[] expected = [.. SceneLayerCatalog.SceneStackIds.Where(id => !SceneLayerIds.OptIn.Contains(id))];
         await Assert.That(scene.Layers.Select(l => l.Id).Order().ToArray())
-            .IsEquivalentTo(expected.Order().ToArray());
+            .IsEquivalentTo(expected.Order().ToArray(), CollectionOrdering.Matching);
         await Assert.That(expected.Length).IsEqualTo(7);
     }
 
@@ -122,7 +123,7 @@ public class HeadlessSceneRendererTests
             .IsEquivalentTo(new[]
             {
                 SceneLayerIds.Markers
-            });
+            }, CollectionOrdering.Matching);
     }
 
     [Test]

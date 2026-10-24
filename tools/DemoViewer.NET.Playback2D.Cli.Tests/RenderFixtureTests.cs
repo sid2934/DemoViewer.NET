@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 using DemoViewer.NET.Playback2D.Pipeline.Headless;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -143,7 +144,7 @@ public class RenderFixtureTests
             [.. SceneLayerCatalog.SceneStackIds.Where(id => !SceneLayerIds.OptIn.Contains(id))];
 
         await Assert.That(run.ExitCode).IsEqualTo(0);
-        await Assert.That(drawn).IsEquivalentTo(expected);
+        await Assert.That(drawn).IsEquivalentTo(expected, CollectionOrdering.Matching);
     }
 
     /// <summary>
