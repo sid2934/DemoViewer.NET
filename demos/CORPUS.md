@@ -11,8 +11,20 @@ Keep this current when the corpus changes.
 
 | consumer | reads |
 |---|---|
-| `AnalysisBench --suite` | every `.dem` in `demos/benchmarks/` |
-| `[Category("RealDemo")]` tests | `DemoTestHelper`: `DEMO_PATH` (a `.dem`, or a folder of them), then the reference demo `003816248937665266002_0544286934.dem` if present, then `TestData/`, then `demos/benchmarks/`, then `demos/` |
+| `AnalysisBench --suite` | every `.dem` in `<repo-root>/demos/benchmarks/`. It finds the repo root itself and does not honour `DEMO_CORPUS` |
+| `[Category("RealDemo")]` tests | `DemoTestHelper`: `DEMO_PATH` (a `.dem`, or a folder of them), then the reference demo `003816248937665266002_0544286934.dem` if present, then `TestData/`, then `<corpus-root>/benchmarks/`, then `<corpus-root>/` |
+
+`<corpus-root>` is `DEMO_CORPUS` when that is set, else `<repo-root>/demos`. A `DEMO_CORPUS` that is
+set but is not a directory resolves to NOTHING and never falls back, so a misconfigured run skips
+loudly instead of reporting as though it had the corpus.
+
+A demo the manifest names but the corpus root does not hold can be fetched. `DEMO_SOURCES` is a
+`;`-separated list of directories or `file://` URIs, tried in order; `DEMO_CORPUS_CACHE` is where a
+fetched copy lands, a per-user directory by default so every checkout on a machine shares one copy
+and no write path of that layer points into `demos/`. Unset `DEMO_SOURCES` means no fetching, which
+is the default and what this repo did before the layer existed. The manifest is
+`corpus.manifest.json`, embedded in `DemoViewer.NET.TestSupport` and keyed by SHA-256 of each file's
+bytes: it is the machine-readable half of this file, and the two have to be edited together.
 
 A folder `DEMO_PATH` (the Steam replays directory, read in place) resolves to ONE demo for the whole
 run: `DEMO_PATH_PICK=<filename>` when set, else the reference demo when the folder holds it, else the
@@ -25,7 +37,8 @@ Absent demos are a SKIP, not a failure: with an empty corpus the App suite still
 runs about 84 fewer tests (the count when this file was written; it drifts with the suite). CI has
 never had the corpus, which is why CI is green regardless.
 
-Layout as of 2026-10-22: 26 `.dem` files and 5 `.bz2` archives, about 6.8 GB of `.dem` in total.
+Layout as of 2026-10-22: 21 `.dem` files (6 + 5 + 7 + 3 across the sections below) and 5 `.bz2`
+archives, about 6.8 GB of `.dem` in total.
 
 ## demos/ (loose, matchmaking)
 
@@ -80,13 +93,25 @@ Three trimmer outputs, 11 MB each: `mm-nuke-v3c-no-usercmds-contiguous-3r.dem`,
 
 `s7s8probe/`: a throwaway probe project and its text output, 104 KB. Not a demo location.
 
-## Do not stage `match730_..._410.dem` here without reading this
+## `match730_..._410.dem`: staged here, and deliberately absent from the manifest
 
-A demo matching `demos/match730_003826256877184877003_0981591541_410.dem.info` exists in the Steam
-replays folder. It is NOT part of the corpus above and staging it changes test behaviour:
-`Nuke_TwoFloors_MatchesGolden` lists it as its second demo candidate, AHEAD of the committed
-`assets/tour/sample-de_nuke.dem` that its golden was actually captured against. Staging it
-silently re-points that capture and the test fails on a 14.5% pixel difference.
+`match730_003826256877184877003_0981591541_410.dem` is the sixth loose demo in `demos/`, and its
+`.dem.info` is the only tracked file under `demos/` besides this one. Four App tests resolve the
+demo by name (`LibraryScoreTests`, `EntityStoreFilterEquivalenceTests`, `VisibilityAnalyzerTests`,
+`ZFloorValidationProbe`) and `MatchInfoReaderTests` reads the committed `.info` beside it, so it is
+a working part of the local corpus rather than something to keep out.
+
+It has no `corpus.manifest.json` entry, so a configured `DEMO_SOURCES` fetch never stages it into a
+checkout that lacks it, and `DemoCorpusTests` asserts that absence. The reason recorded for the
+exclusion was `Nuke_TwoFloors_MatchesGolden`, a de_nuke golden that listed this demo as a candidate
+ahead of the committed `assets/tour/sample-de_nuke.dem` its capture was taken against, and failed on
+a 14.5% pixel difference when this one won. That test is gone, and no surviving golden lists this
+demo, so the exclusion now rests on nothing a reader can check. Decide it: name the capture that
+still needs protecting, or drop the exclusion and the test that asserts it.
+
+The pinned lookup `DemoTestHelper.FindDemoPath(name)` never looks inside a folder-shaped `DEMO_PATH`
+for the same class of reason. The Steam replays folder holds demos whose names match goldens captured
+against a different file, and pointing the pinned tests at it would silently re-point those captures.
 
 ## How the corpus was lost, so it does not happen twice
 
@@ -94,5 +119,7 @@ silently re-points that capture and the test fails on a 14.5% pixel difference.
 `git worktree remove --force` was then run. The removal followed the junction and deleted the
 TARGET's contents rather than the link.
 
-**The supported way to reach the corpus from elsewhere is the `DEMO_PATH` environment variable,
-which `DemoTestHelper` honours ahead of every other location.** Never link it.
+**The supported way to point a second checkout at an existing corpus is the `DEMO_CORPUS`
+environment variable**, which replaces `<repo-root>/demos` everywhere `DemoTestHelper` looks.
+`DEMO_PATH` is a different lever: one `.dem`, or a folder that resolves to one demo for the whole
+run. Never link `demos/`.
