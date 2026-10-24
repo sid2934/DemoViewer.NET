@@ -1,9 +1,8 @@
 #!/bin/bash
 # Fails when a RealDemo lane SELECTS tests and RUNS none.
 #
-# The pathology: a skip is not a failure, so a lane whose demos stopped resolving still exits 0.
-# That is how the five MatchMetaRealDemoTests cases sat skipping in CI, in a worktree AND in the
-# owner's own checkout with the whole corpus present, while the lane reported green.
+# A skip is not a failure, so a lane whose demos stopped resolving exits 0 on its own. This turns
+# that into a red: a configured corpus means these cases must RUN, not report skipped.
 #
 # --minimum-expected-tests counts tests that RAN, not tests that were selected. Measured, all four:
 #   corpus present, 5 run,  no minimum -> 0      corpus present, minimum 5 -> 0
