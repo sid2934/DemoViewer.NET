@@ -155,7 +155,7 @@ public class StrokeCadenceTests
     }
 
     /// <summary>
-    ///     Why the clock is on <c>IToolServices</c> at all: most annotation happens on a PAUSED demo,
+    ///     Why the clock is on <c>IInkToolServices</c> at all: most annotation happens on a PAUSED demo,
     ///     where <c>CurrentTick</c> does not move for the length of the gesture. A cadence anchored to it
     ///     collapses to nothing.
     /// </summary>
@@ -291,7 +291,7 @@ public class StrokeCadenceTests
 
     /// <summary>
     ///     A clock that steps backwards mid-gesture, the case the monotonic contract on
-    ///     <c>IToolServices.NowMilliseconds</c> exists to forbid, must degrade to a repeated instant.
+    ///     <c>IInkToolServices.NowMilliseconds</c> exists to forbid, must degrade to a repeated instant.
     ///     A table with a negative offset in it is the one shape <see cref="StrokeTiming" />'s readers
     ///     assume away.
     /// </summary>

@@ -13,5 +13,8 @@ demos/**/*.dem.bz2
 # Generated benchmark reports
 bench-reports/
 
+# `dotnet test` writes here at the repo root; `dotnet run` writes under /artifacts/ instead
+/TestResults/
+
 # CS2 game assets extracted at dev-time from the user's own install — never commit (Valve-origin, SSA §2.G)
 /cs2-assets/
