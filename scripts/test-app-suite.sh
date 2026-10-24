@@ -13,19 +13,21 @@
 # a single-process run of one tier, prefer `scripts/test.sh -t TIER -p app`; come back here when the
 # suite is holding real demos and the process is being OS-killed.
 #
-# Usage: scripts/test-app-suite.sh [-c Release|Debug] [-n BATCHES] [-t fast|standard|full] [-x]
+# Usage: scripts/test-app-suite.sh [-c Release|Debug] [-n BATCHES] [-t fast|standard|full] [-b skip] [-x]
 set -u
 CONFIG=Release
 BATCHES=3
 TIER=full
+BUDGET=tier
 SKIP_PB2D=0
-while getopts "c:n:t:x" opt; do
+while getopts "c:n:t:b:x" opt; do
   case $opt in
     c) CONFIG=$OPTARG ;;
     n) BATCHES=$OPTARG ;;
     t) TIER=$OPTARG ;;
+    b) BUDGET=$OPTARG ;;
     x) SKIP_PB2D=1 ;;
-    *) echo "usage: $0 [-c CONFIG] [-n BATCHES] [-t TIER] [-x]" >&2; exit 2 ;;
+    *) echo "usage: $0 [-c CONFIG] [-n BATCHES] [-t TIER] [-b skip] [-x]" >&2; exit 2 ;;
   esac
 done
 
@@ -36,6 +38,24 @@ case "$TIER" in
   standard) TIER_FILTER='[(Category!=Budget)&(Category!=Environmental)&(Category!=Integration)&(Category!=KnownFailure)&(Category!=RealDemo)]' ;;
   full)     TIER_FILTER='[(Category!=KnownFailure)]' ;;
   *) echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
+esac
+
+# `-b skip` composes [Category(Budget)] out of the tier, so this suite's three benchmarks leave the
+# correctness lane. Here rather than at each call site, and before everything below, because the
+# preamble, the two discovery listings and the batches all have to select the same set or the
+# partition audit compares unlike counts.
+#
+# No `only` half: a budget-only selection is three tests, which trips the discovery floor below, and
+# a batch runner exists for memory this suite does not use at that size. `scripts/test.sh -t full
+# -b only -p app` is that run.
+case "$BUDGET" in
+  tier) ;;
+  skip)
+    case "$TIER_FILTER" in
+      *'(Category!=Budget)'*) ;;   # fast and standard already drop it
+      *) TIER_FILTER="${TIER_FILTER%]}&(Category!=Budget)]" ;;
+    esac ;;
+  *) echo "unknown -b '$BUDGET' (expected skip)" >&2; exit 2 ;;
 esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

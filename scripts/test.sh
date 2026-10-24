@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # The one entry point for running this repository's tests, at a chosen TIER.
 #
-#   scripts/test.sh [-t fast|standard|full] [-p PROJECT|all] [-c Release|Debug] [-n] [-l]
+#   scripts/test.sh [-t fast|standard|full] [-p PROJECT|all] [-c Release|Debug] [-b skip|only] [-n] [-l]
 #
 #   -t  tier (default: standard, the in-flight default; see tests/shared/TestTiers.cs)
 #   -p  project key or `all` (default: all).  Keys: playback2d cli app ext livesync trimmer
 #       visualization gameicons ruleauthoring
 #   -c  configuration (default: Release, matching CI)
+#   -b  benchmark half: `skip` drops [Category(Budget)], `only` runs nothing else (needs -t full)
 #   -n  no build; assume the binaries are current
 #   -l  list only; discover and count, run nothing
 #
@@ -38,18 +39,20 @@ set -u
 TIER=standard
 PROJECT=all
 CONFIG=Release
+BUDGET=tier
 BUILD=1
 LIST_ONLY=0
 
-while getopts "t:p:c:nlh" opt; do
+while getopts "t:p:c:b:nlh" opt; do
   case $opt in
     t) TIER=$OPTARG ;;
     p) PROJECT=$OPTARG ;;
     c) CONFIG=$OPTARG ;;
+    b) BUDGET=$OPTARG ;;
     n) BUILD=0 ;;
     l) LIST_ONLY=1 ;;
-    h) sed -n '2,12p' "$0"; exit 0 ;;
-    *) echo "usage: $0 [-t fast|standard|full] [-p PROJECT|all] [-c CONFIG] [-n] [-l]" >&2; exit 2 ;;
+    h) sed -n '2,13p' "$0"; exit 0 ;;
+    *) echo "usage: $0 [-t fast|standard|full] [-p PROJECT|all] [-c CONFIG] [-b skip|only] [-n] [-l]" >&2; exit 2 ;;
   esac
 done
 
@@ -72,6 +75,31 @@ case "$TIER" in
     TIER_BLURB='everything except a known, deterministic failure: CI and a pre-push review run' ;;
   *)
     echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
+esac
+
+# ── The benchmark half ──────────────────────────────────────────────────────────────────────────────
+# `skip` and `only` are complementary, and they have to be applied PER PROJECT. Hand one half to a
+# project and not its sibling and the sibling's Budget cases run in no job at all: that is how
+# BenchAllocationTests stayed red and invisible for four phases. Written once here, so a CI lane
+# selects a half by name rather than by composing a filter of its own.
+case "$BUDGET" in
+  tier) ;;
+  skip)
+    case "$TIER_FILTER" in
+      *'(Category!=Budget)'*) ;;   # fast and standard already drop it
+      *) TIER_FILTER="${TIER_FILTER%]}&(Category!=Budget)]" ;;
+    esac
+    TIER_BLURB="$TIER_BLURB, benchmarks excluded" ;;
+  only)
+    # Only `full` keeps Budget, so only `full` has a half left to select; against the others the two
+    # clauses intersect in nothing and the run would be a silent no-op.
+    if [ "$TIER" != full ]; then
+      echo "-b only needs -t full; the $TIER tier already drops Budget" >&2; exit 2
+    fi
+    TIER_FILTER='/*/*/*/*[(Category=Budget)&(Category!=KnownFailure)]'
+    TIER_BLURB='benchmarks only: the half every correctness lane drops' ;;
+  *)
+    echo "unknown -b '$BUDGET' (expected skip or only)" >&2; exit 2 ;;
 esac
 
 # ── Project registry ────────────────────────────────────────────────────────────────────────────────
@@ -175,8 +203,13 @@ for entry in "${SELECTED[@]}"; do
 
   # Exit 8 is "the filter matched no tests". For a tier run that is a defect in the tier, not a pass:
   # it means every test in the suite carries a tag this tier drops, which is never intended.
+  #
+  # Under `-b only` it is the normal case instead: most projects hold no benchmarks, and the lane
+  # still has to select every project so that a Budget test cannot land in one nothing selects. The
+  # whole-run floor below is what catches a budget filter that matches nothing anywhere.
   STATUS=ok
-  if [ $EXIT -eq 8 ]; then STATUS="NO-TESTS-MATCHED"; BROKEN=$(( BROKEN + 1 ));
+  if [ $EXIT -eq 8 ] && [ "$BUDGET" = only ]; then STATUS="no-budget-tests";
+  elif [ $EXIT -eq 8 ]; then STATUS="NO-TESTS-MATCHED"; BROKEN=$(( BROKEN + 1 ));
   elif [ $EXIT -ne 0 ]; then STATUS="FAILED(exit=$EXIT)"; BROKEN=$(( BROKEN + 1 )); fi
 
   printf '  %-14s %7sms  total=%-5s failed=%-4s skipped=%-4s %s\n' \
@@ -191,7 +224,9 @@ done
 # See scripts/check-realdemo-lane.sh. It self-disarms unless a corpus or source is configured, and it
 # lives in its own script because CI's App lane reaches the suite through test-app-suite.sh, never
 # through here.
-if [ "$TIER" = "full" ] && [ "$LIST_ONLY" -eq 0 ]; then
+# Not under `-b only`: that run selects three benchmarks out of the App suite, and the guard is about
+# whether the suite's demo-reading cases resolve their demos.
+if [ "$TIER" = "full" ] && [ "$LIST_ONLY" -eq 0 ] && [ "$BUDGET" != only ]; then
   for entry in "${SELECTED[@]}"; do
     if [ "${entry%%|*}" = "app" ]; then
       "$ROOT/scripts/check-realdemo-lane.sh" "$CONFIG" || BROKEN=$(( BROKEN + 1 ))
@@ -205,5 +240,13 @@ if [ "$LIST_ONLY" -eq 1 ]; then
   exit 0
 fi
 echo "[test] tier=$TIER  total=$TOTAL  failed=$FAILED  skipped=$SKIPPED  wall=$(( $(date +%s) - SUITE_START ))s"
+
+# A budget-only run where every project reported nothing is a filter that parses and selects nothing,
+# which the per-project exit-8 tolerance above would otherwise swallow into a green run.
+if [ "$BUDGET" = only ] && [ "$TOTAL" -eq 0 ]; then
+  echo "[test] no benchmark ran in any selected project: the Budget selection matched nothing" >&2
+  BROKEN=$(( BROKEN + 1 ))
+fi
+
 [ $BROKEN -eq 0 ] || exit 1
 exit 0

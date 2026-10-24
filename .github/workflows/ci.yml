@@ -3,11 +3,17 @@
 # Every lane here runs the `full` tier. The tiers are exclusion filters over [Category] built for
 # IN-FLIGHT development; CI is not in-flight.
 #
-# The one split that is load-bearing: the correctness lanes select `Category!=Budget` and the budget
-# lane selects `Category=Budget`. Complementary, so their union is the whole suite, but only PER
-# PROJECT. Apply the pair to one project and not its sibling and the sibling's Budget cases run in no
-# job at all. That is how `BenchAllocationTests` stayed red and invisible for four phases.
-# A Budget test added to any project has to land in `playback2d-budget`.
+# The one split that is load-bearing: the correctness lanes drop `Category=Budget` and the budget lane
+# selects it back. Complementary, so their union is the whole suite, but only PER PROJECT. Apply the
+# pair to one project and not its sibling and the sibling's Budget cases run in no job at all. That is
+# how `BenchAllocationTests` stayed red and invisible for four phases, and it is why the claim this
+# header used to make ("every Budget test lands in playback2d-budget") was false for the three in
+# App.Tests and the seven in StratBook.Tests, which ran in their correctness lanes instead.
+#
+# Both halves now come from `scripts/test.sh -b skip|only`, and the budget lane selects every project
+# rather than the two that happened to have benchmarks when it was written. So the split holds for a
+# project nobody has thought about yet: `-b skip` is on every correctness invocation below, and a
+# Budget test in any project is picked up by `playback2d-budget` by construction.
 name: ci
 
 on:
@@ -185,8 +191,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
       - name: Playback2D core + pipeline tests (direct execution, no Avalonia)
-        run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
-             -- --treenode-filter "/*/*/*/*[Category!=Budget]"
+        run: bash scripts/test.sh -t full -b skip -p playback2d -c Release
 
       - name: Build dv2d
         run: dotnet build tools/DemoViewer.NET.Playback2D.Cli -c Release
@@ -194,9 +199,7 @@ jobs:
       # Demo-dependent cases skip themselves. The runner has the committed assets/tour sample, so most
       # of them actually run.
       - name: dv2d unit + architecture tests
-        run: >
-          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli.Tests
-          --treenode-filter "/*/*/*/*[Category!=Budget]"
+        run: bash scripts/test.sh -t full -b skip -p cli -c Release
 
       # Fixture-only (no .dem needed), CPU provider is the authoritative baseline. Exit 4 here means a
       # pixel regression, and nothing else does.
@@ -243,9 +246,18 @@ jobs:
   # Split from the correctness suite because it measures rather than asserts behaviour: a timing
   # failure here means "look at the machine or the change", not "the scene is wrong", and mixing the
   # two makes people ignore both.
+  #
+  # EVERY project, not the two that had benchmarks when this lane was written. It is the half the
+  # correctness lanes drop, so its reach has to be the same as theirs or the difference runs nowhere.
+  # Projects with no benchmarks report `no-budget-tests` and cost a build; the one in App.Tests and
+  # the seven in StratBook.Tests used to run in the correctness lanes, unscaled and uncollected.
+  #
+  # Keep the job id. The contract test and TestTiers.cs both name this lane as the one that selects
+  # Budget back.
   playback2d-budget:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 30 rather than 20: the lane now builds every test project, not two.
+    timeout-minutes: 30
     env:
       # A hosted runner is not the baseline laptop. Gate at 2x so the lane catches real
       # regressions (an O(n) blow-up, a re-introduced per-frame allocation) without firing on runner
@@ -269,14 +281,14 @@ jobs:
       - name: Install native deps
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
-      - name: Frame-time + allocation budget
-        run: dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c Release
-             -- --treenode-filter "/*/*/*/*[Category=Budget]"
-
-      - name: Frame-time + allocation budget (dv2d)
-        run: >
-          dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli.Tests
-          --treenode-filter "/*/*/*/*[Category=Budget]"
+      # One test at a time, for two reasons that happen to agree. A frame-time budget measured while
+      # three other tests share the runner's two cores is measuring the runner, and several classes in
+      # the extension suite build Avalonia controls off the UI thread outside RunOnUi, which fails
+      # nondeterministically in parallel (see the ext lane below).
+      - name: Frame-time + allocation budgets, every project
+        env:
+          DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
+        run: bash scripts/test.sh -t full -b only -c Release
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -314,7 +326,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
       - name: App suite, full tier (batched)
-        run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -x
+        run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -b skip -x
 
   # The pack's own tests. Its own job rather than a step in app-tests: a different memory
   # posture deserves a different timeout, not app-tests' budget shared by subtraction. Single process
@@ -344,7 +356,7 @@ jobs:
       - name: Extension (Strat Book) suite, full tier
         env:
           DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
-        run: bash scripts/test.sh -t full -p ext -c Release
+        run: bash scripts/test.sh -t full -b skip -p ext -c Release
 
   # The suites no lane above names. LiveSync's web-host tests are the slow half the `fast` and
   # `standard` tiers exist to let a developer skip. CI pays the other half of that bargain, so these
@@ -365,10 +377,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libfontconfig1
 
       - name: LiveSync suite (full tier)
-        run: bash scripts/test.sh -t full -p livesync
+        run: bash scripts/test.sh -t full -b skip -p livesync
 
       - name: Visualization suite (full tier)
-        run: bash scripts/test.sh -t full -p visualization
+        run: bash scripts/test.sh -t full -b skip -p visualization
 
       # The round-trip gate on the node editor. It reads
       # the real rules/ directory rather than a copied fixture, so a shipped ruleset that starts
@@ -378,16 +390,16 @@ jobs:
       # aliases, merge keys, tags, block scalars) are held by HostileYamlTests in the same suite,
       # which is where a construct that would parse but mean something different is caught.
       - name: RuleAuthoring suite (full tier)
-        run: bash scripts/test.sh -t full -p ruleauthoring
+        run: bash scripts/test.sh -t full -b skip -p ruleauthoring
 
       - name: DemoTrimmer suite (full tier)
-        run: bash scripts/test.sh -t full -p trimmer
+        run: bash scripts/test.sh -t full -b skip -p trimmer
 
       # The icon catalogue's own guards: the manifest round-trip, the four availability states, and
       # which artwork is tintable. They compile in `build` but nothing ran them, and the assembly
       # they guard is the one the Browser head cannot boot an icon without.
       - name: GameIcons suite (full tier)
-        run: bash scripts/test.sh -t full -p gameicons
+        run: bash scripts/test.sh -t full -b skip -p gameicons
 
   # Render-backend correctness.
   #
@@ -436,6 +448,10 @@ jobs:
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli -- probe --json
 
+      # The two steps below are the only test invocations in this file that still write a filter
+      # inline, and they stay that way: this job has a Windows leg, whose default shell is pwsh, and
+      # scripts/test.sh has never been run on Windows. `Category!=Budget` here is the same selection
+      # `-b skip` makes, since neither of these two projects has a KnownFailure case.
       - name: Render-backend tests (CPU contract + cross-backend parity)
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'
