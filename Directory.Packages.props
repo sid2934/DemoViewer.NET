@@ -63,10 +63,10 @@
             The demo parser and analysis engine. These were in-repo projects until 2026-08-17; they
             now live at github.com/CS2OpenDev/CS2DemoKit and this app is one consumer among others.
 
-            Versioned in lockstep and exact-pinned to each other inside the packages, so bump all
-            three together in one commit. CS2DemoKit.Analysis is the top of that graph and pulls
-            the other two transitively; the explicit references below are for the projects that
-            use the parser without the engine.
+            Versioned in lockstep and exact-pinned to each other inside the packages, so bump both
+            entries together in one commit. CS2DemoKit.Analysis is the top of that graph and pulls
+            the parser and the shipped rulesets transitively; the parser entry below is for the
+            projects that use it without the engine.
 
             0.12.0 adds the forward analysis path: DemoAnalysis.Run(path, rules, options) reads
             the demo as a stream and never retains its frames, and the retained
@@ -94,12 +94,11 @@
         -->
         <PackageVersion Include="CS2DemoKit.Parser" Version="0.14.0"/>
         <PackageVersion Include="CS2DemoKit.Analysis" Version="0.14.0"/>
-        <PackageVersion Include="CS2DemoKit.Analysis.Rules" Version="0.14.0"/>
         <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2"/>
-        <PackageVersion Include="Xamarin.AndroidX.Core.SplashScreen" Version="1.0.1.15"/>
         <!-- 3.29.5+ required by Cs2VideoGenerator.Core, and comfortably above the >= 3.27.0 floor
              CS2OpenDev.Protos states as policy. Grpc.Tools is gone: the parser no longer runs
-             protoc — the Valve message types arrive prebuilt in CS2OpenDev.Protos below. -->
+             protoc, and the Valve message types arrive prebuilt in CS2OpenDev.Protos, which the
+             parser pulls in transitively. -->
         <PackageVersion Include="Google.Protobuf" Version="3.29.5"/>
         <!-- CSVG live-CS2 integration (docs/csvg-integration/), from
              github.com/CS2OpenDev/CS2VideoGenerator.
@@ -120,23 +119,18 @@
         <!-- Test -->
         <PackageVersion Include="TUnit" Version="1.76.0"/>
         <!--
-            The CS2OpenDev family — community-maintained CS2 schema, protobuf and game-event
-            definitions (github.com/CS2OpenDev). On nuget.org since 2026-08 under a renumbered
-            public line, which replaced the withdrawn 5.x GitHub Packages line; they restore like
-            any other dependency now, with no feed mapping and no credentials.
+            CS2OpenDev: community-maintained CS2 schema, protobuf and game-event definitions
+            (github.com/CS2OpenDev). On nuget.org since 2026-08 under a renumbered public line, which
+            replaced the withdrawn 5.x GitHub Packages line; they restore like any other dependency
+            now, with no feed mapping and no credentials.
 
-            These versions must match what the CS2DemoKit packages above depend on. Only
-            CS2OpenDev.Sdk is referenced directly here (the App reads SchemaNames.* constants); the
-            rest arrive transitively through the parser and are pinned so a mismatched pair cannot
-            resolve silently.
+            ONE entry, because CS2OpenDev.Sdk is the only member anything here references directly
+            (the App reads SchemaNames.* constants). The rest of the family reaches the build through
+            CS2DemoKit.Parser's dependency graph, and a PackageVersion cannot pin a package nothing
+            references unless CentralPackageTransitivePinningEnabled is set, which it is not. An entry
+            for one of those would state a number the restore ignores.
         -->
         <PackageVersion Include="CS2OpenDev.Sdk" Version="0.9.0"/>
-        <PackageVersion Include="CS2OpenDev.Sdk.GameEvents" Version="0.9.0"/>
-        <PackageVersion Include="CS2OpenDev.Sdk.Entities.Abstractions" Version="1.0.3"/>
-        <PackageVersion Include="CS2OpenDev.Sdk.Entities" Version="1.2.0"/>
-        <PackageVersion Include="CS2OpenDev.Protos" Version="0.9.0"/>
-        <!-- ^ 5.0.1 is the family renumber riding the Sdk 5.0 TypeMapper repair; protos/ is
-             byte-identical to 4.1.1 (empty tag diff, audited 2026-08-13). -->
 
         <!-- Configuration + Options + DI (App settings foundation, P1.1). DI is consumed in a later
              chunk (App bootstrap); the refs live here so SettingsService can use Configuration/Options
