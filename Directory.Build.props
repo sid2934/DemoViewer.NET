@@ -53,8 +53,8 @@
         <WarningsAsErrors>$(WarningsAsErrors);NU1608;NU1605</WarningsAsErrors>
 
         <!--
-            Nothing in this repo is published to NuGet unless it opts in. Only the three
-            Cs2DemoKit library projects set IsPackable=true (see Directory.Build.targets for the
+            Nothing in this repo is published to NuGet unless it opts in. Only the five
+            SDK library projects set IsPackable=true (see Directory.Build.targets for the
             metadata they then inherit); the app, tools, tests and sample heads stay unpackable so
             a solution-wide `dotnet pack` can never produce a surprise artifact.
 
@@ -64,13 +64,12 @@
     </PropertyGroup>
 
     <!--
-        Build-path privacy for RELEASE builds (docs/upstream/build-path-leak-report.md).
+        Build-path privacy for RELEASE builds.
 
         Every assembly records the absolute path of its .pdb in the CodeView debug directory, and
         that string ships inside the .dll even though the .pdb itself does not (vpk excludes *.pdb).
-        Without this, all 13 first-party assemblies in a publish carried e.g.
-        /Users/<name>/Development/DemoViewer.NET/artifacts/obj/.../X.pdb — the same defect this
-        project reported to two upstream packages, so shipping it ourselves would be inconsistent.
+        Without this, first-party assemblies carry e.g.
+        /Users/<name>/Development/DemoViewer.NET/artifacts/obj/.../X.pdb.
 
         ContinuousIntegrationBuild normalizes those to /_/... A CI build already produced anonymous
         /Users/runner/... paths, so the practical exposure was a hand-uploaded local build; this

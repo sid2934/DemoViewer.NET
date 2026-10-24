@@ -1,28 +1,26 @@
 <Project>
     <!--
-        Shared NuGet pack metadata for the published Cs2DemoKit libraries
-        (docs/distribution/nuget-packaging-plan.md).
+        Shared NuGet pack metadata for the published SDK libraries: Modules.Abstractions,
+        Extensions.Sdk, Extensions.Sdk.Ui, GameIcons and Playback2D.Scene.
 
         This file is imported into every project in the repo, but every element below is gated on
-        IsPackable=true — which Directory.Build.props defaults to false and only Cs2DemoKit.Parser,
-        Cs2DemoKit.Analysis and Cs2DemoKit.Analysis.Rules turn back on. A .targets file (not .props)
+        IsPackable=true — which Directory.Build.props defaults to false and only those five projects
+        turn back on. A .targets file (not .props)
         is required: IsPackable is set in the csproj body, which .props files are evaluated before.
 
         Per-package metadata — PackageId, Description, PackageTags — stays in the csproj, because
         that is the part a reader needs to see next to the code it describes.
 
-        Deliberately absent: RepositoryUrl / PublishRepositoryUrl / SourceLink. The repo is private,
-        so a repository URL in the nuspec would advertise a 404 and SourceLink would emit unusable
-        source keys. Both land when the repo (or a mirror) goes public.
+        Deliberately absent: RepositoryUrl / PublishRepositoryUrl / SourceLink. Add them together.
+        Until then Release builds normalize source paths to /_/ and the symbols cannot be navigated.
     -->
 
     <PropertyGroup Condition="'$(IsPackable)' == 'true'">
         <Authors>sid2934</Authors>
         <Copyright>Copyright (c) 2026 sid2934</Copyright>
 
-        <!-- MIT for the whole family; the demofile-net-adapted files (BitBuffer, FieldDecoder,
-             FieldPath*, EntityTracker, …) carry their own MIT obligation, discharged by the
-             THIRD-PARTY-NOTICES.md packed alongside — see the None item below. -->
+        <!-- MIT for the whole family. Third-party obligations are discharged by the
+             THIRD-PARTY-NOTICES.md packed alongside; see the None item below. -->
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
 
@@ -40,8 +38,8 @@
              with NU5039 rather than shipping a package whose declared readme is missing. -->
         <None Update="README.md" Pack="true" PackagePath="\"/>
         <!-- Repo-root file, outside every project directory, so there is no default item to
-             update. Travels in all three packages; it is load-bearing for Parser, which is where
-             the demofile-net-adapted code actually lives. -->
+             update. Travels in every packable project. Scene and Sdk.Ui owe it for the Inter,
+             ANGLE and perfect-freehand sections. -->
         <None Include="$(MSBuildThisFileDirectory)THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\"
               Visible="false"/>
     </ItemGroup>
