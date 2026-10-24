@@ -50,7 +50,7 @@ fi
 echo "[goldens] budget fixture (generated)"
 dotnet run --project src/Playback2D/DemoViewer.NET.Playback2D.Tests -c "$CONFIG"   -- --treenode-filter "/*/*/BudgetFixtureCorpusTests/*"
 
-# 2. The level family (B3): nuke-multilevel-upper and nuke-multilevel-noradar are rendered from the
+# 2. The level family: nuke-multilevel-upper and nuke-multilevel-noradar are rendered from the
 #    COMMITTED nuke-multilevel scene (one floor at full height, and the same scene with no radar
 #    bound). Direct execution: no demo needed, only the committed scene and the de_nuke bundle.
 echo "[goldens] levels (direct execution)"
