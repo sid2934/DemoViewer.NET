@@ -75,7 +75,8 @@ when written the same.
 
 **The host.** `ExtensionHost` exposes three values and `Current` as one `ExtensionHostInfo`:
 
-- `ContractVersion`, 1.0.0 today, a constant bumped by hand with the change that needs it. The contract is
+- `ContractVersion`, the extension SDK assembly's own release version, read off that assembly at startup
+  rather than written here, so it moves with `src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json`. The contract is
   the surface a pack's own assembly references or implements, not every type under
   `DemoViewer.NET.Extensions`: host-side types that no pack touches (`Loading`, `CompatibilityReport`)
   change freely. **Major** on a breaking change to a type a pack does reference or implement, including
@@ -655,9 +656,10 @@ while ignoring `.staging`, and the Settings cases in `SettingsViewModelTests`.
 **`scripts/pack-extension.sh <id> [--key <private.pem>] [--dry-run] [--out <dir>]`.** Bash, runs the same
 way locally and in CI. In order:
 
-1. Reads the host values this build offers (`ContractVersion`'s literal from `ExtensionHost.cs`, the
-   `CS2DemoKit.Analysis` pin from `Directory.Packages.props`) from source rather than keeping its own
-   copy, and fails if either grep does not find exactly one match.
+1. Reads the host values this build offers rather than keeping its own copy: the contract version from
+   `nbgv get-version -p src/Sdk/DemoViewer.NET.Extensions.Sdk`, which is the same number
+   `ExtensionHost.ContractVersion` reads off that assembly at run time, and the `CS2DemoKit.Analysis` pin by
+   grepping `Directory.Packages.props`, which fails unless the grep finds exactly one match.
 2. Reads the manifest's own `version` and `assembly`; if `GITHUB_REF` is `refs/tags/extensions/<id>/v*`,
    the tag's version must equal the manifest's (pack-velopack.sh's own tag/version guard, same shape);
    otherwise the check is skipped, not failed, since a dispatch run or a local invocation names no tag.
