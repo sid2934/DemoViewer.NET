@@ -6,7 +6,8 @@
 # the <os>-beta channels and publishes as a GitHub prerelease, which only subscribed installs read.
 # Cutting one:
 #   1. Set version.json to X.Y.Z-betaNNNN (four digits; labels compare as text).
-#   2. Land it where `ci` runs (main, or a PR head) and let it go green. verify-ci refuses anything else.
+#   2. Get a completed, successful `ci` run on that exact commit: land it on main or a PR head, or
+#      dispatch `ci` on the branch and let it finish. verify-ci accepts any of those and nothing less.
 #   3. Tag vX.Y.Z-betaNNNN on that commit and push the tag.
 # pack-velopack.sh refuses a tag that disagrees with version.json. main keeps stamping the beta
 # version until the next bump.
