@@ -1,6 +1,7 @@
 #region
 
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Threading;
@@ -430,13 +431,7 @@ public class MatchOverviewLandingTests
                 await vm.LoadDemoFromPathAsync(demo);
                 // The final score resolves off the load path (CCSTeam replay / library entry): wait for it,
                 // since the round count reconciles against it.
-                for (int i = 0; i < 400 && !overview.HasScore; i++)
-                {
-                    Dispatcher.UIThread.RunJobs();
-                    await Task.Delay(50);
-                }
-
-                Dispatcher.UIThread.RunJobs();
+                await WaitForScoreAsync(() => overview.HasScore);
 
                 using (Assert.Multiple())
                 {
@@ -746,13 +741,7 @@ public class MatchOverviewLandingTests
             {
                 await vm.LoadDemoFromPathAsync(demo);
                 MatchOverviewTabViewModel o = vm.MatchOverviewTab;
-                for (int i = 0; i < 400 && !o.HasScore; i++)
-                {
-                    Dispatcher.UIThread.RunJobs();
-                    await Task.Delay(50);
-                }
-
-                Dispatcher.UIThread.RunJobs();
+                await WaitForScoreAsync(() => o.HasScore);
 
                 int rounds = int.Parse(o.RoundCountDisplay, CultureInfo.InvariantCulture);
                 int ctTeam = int.Parse(o.CtTeamScoreDisplay, CultureInfo.InvariantCulture);
@@ -1340,6 +1329,25 @@ public class MatchOverviewLandingTests
                 await Assert.That(vm.CanOpenDemo).IsFalse().Because("it is already open");
             }
         });
+    }
+
+    // 400 x 50 ms rather than the suite's usual 200 x 25 ms: the final score resolves off the load
+    // funnel (library entry, or a gated CCSTeam replay), which outlasts the shorter budget.
+    private static async Task WaitForScoreAsync(Func<bool> condition,
+        [CallerArgumentExpression(nameof(condition))] string? expression = null)
+    {
+        for (int i = 0; i < 400 && !condition(); i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(50);
+        }
+
+        Dispatcher.UIThread.RunJobs();
+
+        if (!condition())
+        {
+            throw new TimeoutException($"timed out waiting for `{expression}`");
+        }
     }
 
     private static async Task PumpForAsync(int ms)
