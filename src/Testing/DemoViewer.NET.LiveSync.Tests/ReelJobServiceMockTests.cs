@@ -3,6 +3,7 @@
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.LiveSync;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using TimeoutException = System.TimeoutException;
 
@@ -122,7 +123,7 @@ public class ReelJobServiceMockTests
             // exists-check) and lands in the retryable set.
             await Assert.That(final.Phase).IsEqualTo(ReelJobPhase.Failed);
             await Assert.That(final.ClipsCompleted).IsEqualTo(2);
-            await Assert.That(final.FailedClipIndices).IsEquivalentTo([2]);
+            await Assert.That(final.FailedClipIndices).IsEquivalentTo([2], CollectionOrdering.Matching);
             await Assert.That(final.HasRetryableClips).IsTrue();
             await Assert.That(gate.IsReelActive).IsFalse().Because("the reel session releases on completion");
 
