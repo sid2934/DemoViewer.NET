@@ -20,6 +20,10 @@ namespace DemoViewer.NET.AppTests.Extensions;
 /// </summary>
 public class CompatibilityMatrixTests
 {
+    // RequireRepoRootOrFail, not RequireRepoRoot: release-extension.yml runs this filter as its gate
+    // with no --minimum-expected-tests, so three skipped cases would exit 0 and the extension would
+    // pack, sign and publish with nothing asserted.
+
     // ── 1: the shipped manifest against this build's host, every axis ─────────────────────────────
 
     // The repo copy is a template: its version is the literal "{version}" and the build stamps the value
@@ -30,7 +34,7 @@ public class CompatibilityMatrixTests
     [Test]
     public async Task ManifestTemplate_InTheRepo_CarriesThePlaceholderOnce_AndStampsToTheBinCopy()
     {
-        string repoRoot = DemoTestHelper.RequireRepoRoot();
+        string repoRoot = DemoTestHelper.RequireRepoRootOrFail(nameof(CompatibilityMatrixTests));
         string repoPath = Path.Combine(repoRoot, "src", "Extensions", "StratBook", ExtensionManifest.FileName);
         string binPath = Path.Combine(AppContext.BaseDirectory, ExtensionManifest.FileName);
         string template = await File.ReadAllTextAsync(repoPath);
@@ -223,7 +227,7 @@ public class CompatibilityMatrixTests
     [Test]
     public async Task RequiresCs2DemoKit_EqualsTheDirectoryPackagesPropsPin_Exactly()
     {
-        string repoRoot = DemoTestHelper.RequireRepoRoot();
+        string repoRoot = DemoTestHelper.RequireRepoRootOrFail(nameof(CompatibilityMatrixTests));
         XDocument props = XDocument.Load(Path.Combine(repoRoot, "Directory.Packages.props"));
         string[] pins =
         [
@@ -246,7 +250,7 @@ public class CompatibilityMatrixTests
     [Test]
     public async Task RequiresHost_IsSatisfiedByTheCurrentContract_AndWouldBeViolatedByTheNextMajor()
     {
-        string repoRoot = DemoTestHelper.RequireRepoRoot();
+        string repoRoot = DemoTestHelper.RequireRepoRootOrFail(nameof(CompatibilityMatrixTests));
         ExtensionManifest manifest = await RepoTemplateManifest(repoRoot);
         SemVersion nextMajor = new(ExtensionHost.ContractVersion.Major + 1, 0, 0);
 

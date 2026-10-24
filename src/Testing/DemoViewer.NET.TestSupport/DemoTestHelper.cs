@@ -412,12 +412,22 @@ public static class DemoTestHelper
     }
 
     /// <summary>
-    ///     The repo root, or a <see cref="SkipTestException" />. The one behaviour for a missing
-    ///     checkout: a source-reading test reports skipped, never passes on an empty input.
+    ///     The repo root, or a <see cref="SkipTestException" />. For a source-reading test, where a
+    ///     detached binary is a legitimate case to shrug off: it reports skipped, and never passes on
+    ///     an empty input. A release gate wants <see cref="RequireRepoRootOrFail" /> instead.
     /// </summary>
     public static string RequireRepoRoot() =>
         FindRepoRoot() ?? throw new SkipTestException(
             $"repo root not found: no DemoViewer.NET.slnx above {AppContext.BaseDirectory}");
+
+    /// <summary>
+    ///     The repo root, or an <see cref="InvalidOperationException" />. A release gate must fail, not
+    ///     skip: a runner that exits 0 because every case skipped has asserted nothing, and the artefact
+    ///     ships anyway.
+    /// </summary>
+    public static string RequireRepoRootOrFail(string gate) =>
+        FindRepoRoot() ?? throw new InvalidOperationException(
+            $"{gate} is a release gate and needs the checkout: no DemoViewer.NET.slnx above {AppContext.BaseDirectory}");
 
     // ── The corpus root, and the override that lets a worktree reach it ───────
 
