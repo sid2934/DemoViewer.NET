@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 using DemoViewer.NET.Modules.Playback2D;
@@ -74,7 +75,7 @@ public interface IPlaybackSurface
     /// <param name="track">The track.</param>
     /// <param name="row">Which band row the track's bands draw in.</param>
     /// <param name="behaviour">What the lane does, or null for a display-only lane.</param>
-    ILaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null);
+    IHostLaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, IHostLaneBehaviour? behaviour = null);
 
     /// <summary>
     ///     A mode of the tab the contribution owns: the toolbar shows its toggle while it is available, and

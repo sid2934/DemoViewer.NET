@@ -83,7 +83,7 @@ public class ExtensionPlaybackFaultTests
     {
         (Playback2DTabViewModel vm, FaultRig rig, SdkPlaybackContribution hosted, ThrowingContribution fake) = Attach();
 
-        IReadOnlyList<MenuEntry> menu = vm.Timeline.MenuFor(RoundBand);
+        IReadOnlyList<Sdk.MenuEntry> menu = vm.Timeline.MenuFor(RoundBand);
         await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo([ThrowingContribution.EntryHeader])
             .Because("the throwing menu contributed nothing; the good one its entry");
 

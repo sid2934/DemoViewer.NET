@@ -15,6 +15,7 @@ using DemoViewer.NET.Playback2D.Core.Tools;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 
@@ -142,7 +143,7 @@ public sealed partial class Playback2DSurface : ObservableObject, IPlaybackSurfa
     }
 
     /// <inheritdoc />
-    public ILaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null) =>
+    public IHostLaneHandle AddLane(ITimelineTrack track, TimelineBandRow row, IHostLaneBehaviour? behaviour = null) =>
         _timeline.RegisterLane(track, row, behaviour);
 
     /// <inheritdoc />

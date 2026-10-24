@@ -863,8 +863,9 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
 
 ### Review mode (2D Playback)
 - **Files:** `Views/Playback2D/Playback2DView.axaml` (+ `.cs`, the toolbar's mode toggles, the right column's rows
-  and the panel host), `Extensions/ModeToggle.cs` (a contributed mode: label, tooltip, keymap action, on/off),
-  `Modules/Playback2D/Timeline/ILaneBehaviour.cs` (a contributed lane's handlers and its handle),
+  and the panel host), `src/Sdk/DemoViewer.NET.Extensions.Sdk/Playback/ModeToggle.cs` (a contributed mode: label,
+  tooltip, keymap action, on/off), `Modules/Playback2D/Timeline/IHostLaneBehaviour.cs` (a contributed lane's
+  handlers and its handle),
   `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Modules/RoundTagger/Review/ReviewPanelsPlaybackContribution.cs` (the mode, the lanes, the
   session, the panels and their behaviour), `src/Extensions/StratBook/DemoViewer.NET.Extensions.StratBook/Views/RoundTagger/ReviewPanelView.axaml` (toggle,
   editor, Labels list), `Views/RoundTagger/TagEditorView.axaml`, `Modules/RoundTagger/Review/ReviewPanelViewModel.cs`,
@@ -1052,7 +1053,7 @@ record its contract. Current shared controls live in `src/App/DemoViewer.NET/Con
      cursor.
      - **A right press is the band's menu, and it never seeks.** The control builds a `ContextMenu` from
        `Playback2DTimelineViewModel.MenuFor(band)`: the entries of the lane that made the band, from its
-       `ILaneBehaviour.MenuFor` (edit, delete, review on a tag or suggestion band, Review mode only), then
+       `IHostLaneBehaviour.MenuFor` (edit, delete, review on a tag or suggestion band, Review mode only), then
        the `BandMenus` contributors in order, whatever the extension packs attached through
        `IPlaybackSurface.AddBandMenu` (Create Strat From Round on a round band, while the Strat Book pack
        is on). No entries, no menu. The control holds no entry text of its own; a new entry is a lane's or

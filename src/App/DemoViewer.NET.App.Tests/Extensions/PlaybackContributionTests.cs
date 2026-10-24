@@ -13,6 +13,7 @@ using DemoViewer.NET.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using IPaneHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPaneHandle;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 using PanePlacement = DemoViewer.NET.Extensions.Sdk.Playback.PanePlacement;
 
 #endregion

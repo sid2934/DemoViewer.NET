@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.Theming;
+using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 
 #endregion
 
@@ -109,7 +110,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     public IReadOnlyList<ITimelineTrack> RegisteredTracks => _tracks;
 
     /// <summary>The lanes added through <see cref="RegisterLane" />, in registration order.</summary>
-    public IReadOnlyList<ILaneHandle> Lanes => _lanes;
+    public IReadOnlyList<IHostLaneHandle> Lanes => _lanes;
 
     /// <summary>The markers the enabled tracks built, in frame order, before the screen folds neighbours.</summary>
     internal IReadOnlyList<TimelineMarker> BuiltMarkers => _builtMarkers;
@@ -217,7 +218,7 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     /// <param name="track">The track.</param>
     /// <param name="row">Which band row the track's bands draw in.</param>
     /// <param name="behaviour">What the lane does, or null for a display-only lane.</param>
-    public ILaneHandle RegisterLane(ITimelineTrack track, TimelineBandRow row, ILaneBehaviour? behaviour = null)
+    public IHostLaneHandle RegisterLane(ITimelineTrack track, TimelineBandRow row, IHostLaneBehaviour? behaviour = null)
     {
         ArgumentNullException.ThrowIfNull(track);
         foreach (TimelineLane existing in _lanes)
@@ -600,12 +601,13 @@ public sealed partial class Playback2DTimelineViewModel : ObservableObject, IDis
     }
 
     /// <summary>A lane's registration: the handle a contribution holds, and the lane's state the row folds in.</summary>
-    private sealed class TimelineLane(Playback2DTimelineViewModel owner, ITimelineTrack track, ILaneBehaviour? behaviour) : ILaneHandle
+    private sealed class TimelineLane(Playback2DTimelineViewModel owner, ITimelineTrack track, IHostLaneBehaviour? behaviour)
+        : IHostLaneHandle
     {
         private (int Start, int End)? _editSpan;
         private bool _isEditable;
 
-        public ILaneBehaviour? Behaviour => behaviour;
+        public IHostLaneBehaviour? Behaviour => behaviour;
 
         public ITimelineTrack Track => track;
 

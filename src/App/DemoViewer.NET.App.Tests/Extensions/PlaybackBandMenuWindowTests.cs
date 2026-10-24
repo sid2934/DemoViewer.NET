@@ -13,6 +13,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Views.Playback2D;
 using Microsoft.Extensions.DependencyInjection;
+using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 
 #endregion
 

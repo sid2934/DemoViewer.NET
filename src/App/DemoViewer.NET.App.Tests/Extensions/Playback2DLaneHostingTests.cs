@@ -10,6 +10,7 @@ using DemoViewer.NET.Playback2D.Core.Timeline;
 using DemoViewer.NET.ViewModels;
 using SkiaSharp;
 using IPanelHandle = DemoViewer.NET.Extensions.Sdk.Playback.IPanelHandle;
+using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 using ModeToggle = DemoViewer.NET.Extensions.Sdk.Playback.ModeToggle;
 
 #endregion
@@ -52,8 +53,8 @@ public class Playback2DLaneHostingTests
             }
         };
 
-        ILaneHandle laneA = vm.Surface.AddLane(a, TimelineBandRow.Lane);
-        ILaneHandle laneB = vm.Surface.AddLane(b, TimelineBandRow.Lane);
+        IHostLaneHandle laneA = vm.Surface.AddLane(a, TimelineBandRow.Lane);
+        IHostLaneHandle laneB = vm.Surface.AddLane(b, TimelineBandRow.Lane);
         using (Assert.Multiple())
         {
             await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).IsEquivalentTo([.. CoreTracks, "lane-a", "lane-b"]);
@@ -117,8 +118,8 @@ public class Playback2DLaneHostingTests
         vm.Timeline.PixelWidth = 999; // one px per frame over the harness's 1000 frames
         FakeBehaviour behaviourA = new("a");
         FakeBehaviour behaviourB = new("b");
-        ILaneHandle laneA = vm.Surface.AddLane(new FakeLaneTrack("lane-a"), TimelineBandRow.Lane, behaviourA);
-        ILaneHandle laneB = vm.Surface.AddLane(new FakeLaneTrack("lane-b"), TimelineBandRow.Lane, behaviourB);
+        IHostLaneHandle laneA = vm.Surface.AddLane(new FakeLaneTrack("lane-a"), TimelineBandRow.Lane, behaviourA);
+        IHostLaneHandle laneB = vm.Surface.AddLane(new FakeLaneTrack("lane-b"), TimelineBandRow.Lane, behaviourB);
 
         vm.Timeline.RequestLaneLabel(50);
         using (Assert.Multiple())
@@ -171,7 +172,7 @@ public class Playback2DLaneHostingTests
     public async Task Suppression_HidesTheLaneForAMode_AndNeverTouchesTheUsersToggle()
     {
         (Playback2DTabViewModel vm, _) = Playback2DTimelineHarness.Tab();
-        ILaneHandle lane = vm.Surface.AddLane(new FakeLaneTrack("lane-a", (100, 200)), TimelineBandRow.Lane);
+        IHostLaneHandle lane = vm.Surface.AddLane(new FakeLaneTrack("lane-a", (100, 200)), TimelineBandRow.Lane);
         TimelineTrackToggle toggle = vm.Timeline.Tracks.Single(t => t.Id == "lane-a");
         int saves = 0;
         vm.Timeline.TrackVisibilityChanged += () => saves++;
@@ -471,7 +472,7 @@ public class Playback2DLaneHostingTests
         public void Raise() => _markersChanged?.Invoke();
     }
 
-    private sealed class FakeBehaviour(string name) : ILaneBehaviour
+    private sealed class FakeBehaviour(string name) : IHostLaneBehaviour
     {
         public List<int> Pressed { get; } = [];
         public List<int> Labels { get; } = [];

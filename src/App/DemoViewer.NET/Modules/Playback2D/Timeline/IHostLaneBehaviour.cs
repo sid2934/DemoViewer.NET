@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Playback2D.Core.Timeline;
+using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
 
 #endregion
 
@@ -9,8 +10,13 @@ namespace DemoViewer.NET.Modules.Playback2D.Timeline;
 /// <summary>
 ///     What a lane does when the user touches it. The timeline dispatches to the lane whose track made the
 ///     band, so a behaviour never filters by track id. A lane registered without one is display only.
+///     <para>
+///         The host side of <c>Sdk.Playback.ILaneBehaviour</c>: an extension implements that one and
+///         <c>SdkPlaybackSurface</c> adapts it onto this, which carries the app's own band view-model and
+///         timeline data.
+///     </para>
 /// </summary>
-public interface ILaneBehaviour
+public interface IHostLaneBehaviour
 {
     /// <summary>A left press on one of the lane's bands, before the seek to the band's first frame.</summary>
     /// <param name="band">The band pressed.</param>
@@ -22,11 +28,11 @@ public interface ILaneBehaviour
     /// <param name="data">The data the band was built from.</param>
     IEnumerable<MenuEntry> MenuFor(TimelineBandViewModel band, ITimelineData data);
 
-    /// <summary>A left click on the lane row where no band is, while the lane <see cref="ILaneHandle.IsEditable" />.</summary>
+    /// <summary>A left click on the lane row where no band is, while the lane <see cref="IHostLaneHandle.IsEditable" />.</summary>
     /// <param name="frame">The frame under the click.</param>
     void OnLabelRequested(int frame);
 
-    /// <summary>A handle of the lane's <see cref="ILaneHandle.EditSpan" /> dragged to new frames. The span is already moved.</summary>
+    /// <summary>A handle of the lane's <see cref="IHostLaneHandle.EditSpan" /> dragged to new frames. The span is already moved.</summary>
     /// <param name="startFrame">The span's first frame.</param>
     /// <param name="endFrame">The span's last frame.</param>
     void OnEditSpanDragged(int startFrame, int endFrame);
@@ -37,7 +43,7 @@ public interface ILaneBehaviour
 ///     taking edits, and the span drawn with two handles. Disposing unregisters the track and its behaviour
 ///     and clears all three.
 /// </summary>
-public interface ILaneHandle : IDisposable
+public interface IHostLaneHandle : IDisposable
 {
     /// <summary>The registered track.</summary>
     ITimelineTrack Track { get; }
