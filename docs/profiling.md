@@ -114,8 +114,9 @@ dotnet artifacts/bin/AnalysisBench/release/AnalysisBench.dll bg-run --list=/tmp/
 `--read=app-retained` is the pre-forward queue job (a mapped parse, then the separate builds), kept as the
 baseline arm that `app-forward` is measured against. The sweep-and-GC harnesses that used to sit beside
 `bg-run` (`--retained`, `gc-sweep`, `scripts/perf-sweep.sh`) are gone: they measured `DemoParser.Parse` and
-its passes, which are the CS2DemoKit package now. The Server-GC choice recorded in the Desktop project
-file was measured with `gc-sweep`; the harness is in history at `7ab2f5d^` if it needs re-measuring.
+its passes, which are the CS2DemoKit package now. The Workstation GC choice recorded in the Desktop
+project file was measured with `gc-sweep`, whose harness was `tools/AnalysisBench/GcSweepCommand.cs`;
+it is in history up to the commit that deleted it with the retained parse path.
 
 Interleave the configurations in one sweep (A, B, C, D, then the next round); timings drift between
 sessions, so two separate sweeps are not comparable.
@@ -202,8 +203,8 @@ the tab's **Re-run** reuses the already-parsed `ParsedDemo` (it does not re-pars
 ## Playback2D scene capture (`dv2d --perf`)
 
 The scene pipeline has its own per-layer / per-stage capture, because Core is banned from wall-clock
-APIs and cannot instrument itself (design §5.1). `dv2d bench --perf` and `dv2d export --perf` attach a
-recorder to `SceneCompositor`'s profiler seam and report, per stage and per layer, p50/p95/p99/total
+APIs and cannot instrument itself. `dv2d bench --perf` and `dv2d export --perf` attach a recorder to
+`SceneCompositor`'s profiler seam and report, per stage and per layer, p50/p95/p99/total
 and share-of-frame, plus picture-cache hit rates, the uncapped render-only fps, and a slowest-first
 ranking.
 

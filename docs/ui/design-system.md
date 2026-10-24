@@ -1381,10 +1381,10 @@ spectating has no readback. Gated by `playback2d.follow`.
 - **VM surface:** `Load` / `SetSpans` / `Clear` / `ByteClicked`; `HasData`, `HasHeader`/`HasFooter`,
   `WindowRangeText`, `Rows`.
 - **Gating:** hex decode is **expensive**: VM must also check `IFeatureGate.IsEnabled("parser.hex")`
-  before populating and clear buffers on disable (plan P1.2), not just `IsVisible`.
+  before populating and clear buffers on disable, not just `IsVisible`.
 
 <a id="statuschip"></a>
-### StatusChip + StatusStrip chip region (CSVG integration, `the design notes in git history` §4.1)
+### StatusChip + StatusStrip chip region (CSVG integration, design notes in git history, §4.1)
 - **Files (as-built):** `Controls/StatusChip.axaml(.cs)` (DataContext = `StatusChipViewModel`), both in the SDK UI kit
   (`src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/Controls`);
   `Controls/StatusStrip.axaml(.cs)` gained a right-aligned `ItemsControl` chip region (spacing 12) bound to a
@@ -1808,9 +1808,9 @@ Three surfaces intentionally serve **different jobs**, keep them coherent, do no
 
 Coherence model: **NavStrip = act, Debugger panel = manage, Analysis = a different breakpoint domain
 (rule graph, clearly labeled).** All three are developer-oriented chrome and should gate together as a
-`graphDebug` / `parserDeepDive`-style group (plan P1.2). The Analysis graph surface is **not
-headlessly renderable** (live MSAGL `GraphView` never settles geometry), iterate it via annotated
-static mockup or `SvgExporter`, never a promised headless before/after.
+`graphDebug` / `parserDeepDive`-style group. The Analysis graph surface is **not headlessly
+renderable** (live MSAGL `GraphView` never settles geometry), iterate it via an annotated static
+mockup, never a promised headless before/after.
 
 ---
 
@@ -1824,7 +1824,7 @@ static mockup or `SvgExporter`, never a promised headless before/after.
 - **Resizable panes = `Grid` + `GridSplitter`** with `*`/`Auto`/`px`. Avoid deep nested grids with
   hardcoded pixel widths that don't scale.
 - <a id="master-detail-split"></a>**Master-detail split = `Grid ColumnDefinitions="*,Auto,1.4*"` + a
-  `GridSplitter` in the `Auto` column** (CSVG integration, `the design notes in git history`
+  `GridSplitter` in the `Auto` column** (CSVG integration, design notes in git history,
   §4.2/§7.2; **first + only app consumer is the Highlights tab**, `Views/Highlights/HighlightsTabView.axaml`,
   the Library having no details-pane precedent). List left (`*`), detail right (`1.4*`, content-denser).
   **Responsive rule (mandatory):** below a width breakpoint (~760px) it **collapses to a single column**

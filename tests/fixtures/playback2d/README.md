@@ -111,10 +111,11 @@ put in those files is the v2 render they exist to be compared against, which wou
 each on a delta distribution; `nuke-multilevel` is also read by `LevelGoldenTests`. When a deliberate
 v2 change moves one past `GoldenDistribution.PreV2Capture`, retire that parity case with the reason
 rather than re-baselining it. `prev2-mirage-roundstart` came from
-`furia-vs-vitality-m1-mirage.dem`, a pro GOTV demo staged under `demos/pro/` on developer machines;
-`prev2-dust2-roundstart` came from the matchmaking demo
-`003801777854962729156_0256036251.dem`. None is listed in the manifest, so
-`GoldenCorpusTests` exempts the prefix.
+`furia-vs-vitality-m1-mirage.dem`, a pro GOTV demo staged under `demos/pro-demos/` on developer
+machines; `prev2-dust2-roundstart` came from the matchmaking demo
+`003801777854962729156_0256036251.dem`. Neither `prev2-` file is listed in the manifest, so
+`GoldenCorpusTests` exempts that prefix from its orphan check; `nuke-multilevel` IS a manifest entry,
+held pending for the reason its row above gives.
 
 The **scenes** are not frozen, only the PNGs, and `mirage-roundstart` / `dust2-roundstart` are v2's
 own goldens rendered from those same two captures. Those two are ordinary manifest entries written
