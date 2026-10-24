@@ -61,7 +61,6 @@
     </Folder>
     <Folder Name="/tools/">
         <Project Path="tools/AnalysisBench/AnalysisBench.csproj"/>
-        <Project Path="tools/DemoViewer.NET.DemoSourceDetails/DemoViewer.NET.DemoSourceDetails.csproj"/>
         <Project Path="tools/DemoViewer.NET.DemoTrimmer/DemoViewer.NET.DemoTrimmer.csproj"/>
         <Project Path="tools/DemoViewer.NET.DemoTrimmer.Tests/DemoViewer.NET.DemoTrimmer.Tests.csproj"/>
         <Project Path="tools/DemoViewer.NET.AssetBaker/DemoViewer.NET.AssetBaker.csproj"/>
