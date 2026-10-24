@@ -13,12 +13,12 @@ reason, and each entry is a contract the SDK has yet to publish rather than one 
 target state is both of that test's allow-lists empty and the app `ProjectReference` gone from the pack's
 project.
 
-Two things it does hold that a third party does not, both keyed off an id under the reserved
-`net.demoviewer.` prefix. `PackContributions.StoreRefusal` requires a third party's store paths to start
-with its own id, and exempts a shipped extension from that naming (the host's own folders and the demo
-cache's records still refuse it). `ExtensionScope.OwnsId` requires a third party's chip, hub, demo-action
-and toolbar ids to start with its id and a dot, and lets a shipped extension keep its own names. Both are
-namespace privileges, not capabilities: nothing a shipped extension can call is closed to a third party.
+Two of the naming rules a third party is held to are keyed off an id under the reserved
+`net.demoviewer.` prefix, and a shipped extension is exempt from both. `PackContributions.StoreRefusal`
+requires a third party's store paths to start with its own id; a shipped extension may name other paths,
+still bounded by the folders the host keeps for itself and, under the cache root, by not reaching the demo
+cache's own records. `ExtensionScope.OwnsId` requires a third party's chip, hub, demo-action and toolbar
+ids to start with its id and a dot, and lets a shipped extension keep its own names.
 
 ## 1. Manifest and compatibility
 

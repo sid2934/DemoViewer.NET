@@ -39,8 +39,8 @@ public interface IExtension
     ///     through <see cref="IExtensionContext.Stores" />, and "Delete extension data" removes them with the
     ///     rest. For a third-party extension, each path's first segment must be the extension's id, the id and
     ///     ".json", or start with the id and '-'; a store that names anything else is dropped and logged against
-    ///     the extension. The extensions the app ships are not held to that naming, only to the folders the host
-    ///     keeps for itself and to not reaching the demo cache's own records.
+    ///     the extension. The extensions the app ships are exempt from that naming; the folders the host keeps
+    ///     for itself, and the demo cache's own records under the cache root, refuse every extension alike.
     /// </summary>
     IEnumerable<StoreDescriptor> Stores => Array.Empty<StoreDescriptor>();
 
