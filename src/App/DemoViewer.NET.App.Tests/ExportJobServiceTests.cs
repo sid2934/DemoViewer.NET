@@ -295,8 +295,7 @@ public class ExportJobServiceTests
     private static async Task WaitUntil(Func<bool> condition,
         [CallerArgumentExpression(nameof(condition))] string? expression = null)
     {
-        // 30 s, matching the backstop on the converted waits. The old bound was 5 s, which a loaded
-        // machine lost: that is the failure this replaces.
+        // 30 s, matching the backstop on the converted waits: a loaded machine does not finish in 5.
         for (int i = 0; i < 1200; i++)
         {
             if (condition())

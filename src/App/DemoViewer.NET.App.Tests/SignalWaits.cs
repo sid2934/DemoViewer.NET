@@ -10,7 +10,7 @@ using DemoViewer.NET.ViewModels.Playback;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Signal-driven waits for the view-model landings the app suite used to sample for. Three rules
+///     Signal-driven waits for the view-model landings the app suite needs. Three rules
 ///     are load-bearing: subscribe BEFORE the first condition check, because a landing that already
 ///     happened raises nothing; treat the signal as a wake-up only and re-read the condition, because
 ///     none of these carries the value being waited on; and keep every budget well under

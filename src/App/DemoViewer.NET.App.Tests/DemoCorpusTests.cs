@@ -469,7 +469,7 @@ public class DemoCorpusTests
         }
     }
 
-    // ── The corpus root override (TQ-15) ──────────────────────────────────────
+    // ── The corpus root override ──────────────────────────────────────────────
 
     /// <summary>
     ///     The override rules, with the environment passed in rather than read, so they are
@@ -644,7 +644,7 @@ public class DemoCorpusTests
             .IsFalse();
     }
 
-    // ── Folder-shaped DEMO_PATH (DX-05) ───────────────────────────────────────
+    // ── Folder-shaped DEMO_PATH ───────────────────────────────────────────────
 
     [Test]
     public async Task FolderOverride_ListsEveryDemo_InOrdinalOrder_AndSkipsSidecars()
