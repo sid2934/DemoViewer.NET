@@ -175,7 +175,6 @@ public class ArchitectureTests
         "DemoViewer.NET.Playback2D.Core.Zones.PlaceOrigin",
         "DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline",
         "DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver",
-        "DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule",
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneArea",
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic",
         "DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor",

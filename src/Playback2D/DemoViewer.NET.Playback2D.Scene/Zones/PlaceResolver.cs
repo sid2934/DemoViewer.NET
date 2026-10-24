@@ -123,7 +123,7 @@ public sealed class PlaceResolver
     ///     rule winning. Custom volumes always come first regardless.
     /// </summary>
     /// <param name="mapName">The map, e.g. <c>de_mirage</c>.</param>
-    public static VolumeTieRule TieRuleFor(string? mapName) =>
+    internal static VolumeTieRule TieRuleFor(string? mapName) =>
         mapName is not null && _tieRules.TryGetValue(mapName, out VolumeTieRule rule) ? rule : VolumeTieRule.FirstInLump;
 
     /// <summary>
@@ -442,7 +442,7 @@ public sealed class PlaceResolver
 }
 
 /// <summary>Which of two overlapping baked place volumes claims a point.</summary>
-public enum VolumeTieRule
+internal enum VolumeTieRule
 {
     /// <summary>The first volume in entity-lump order. The default.</summary>
     FirstInLump,

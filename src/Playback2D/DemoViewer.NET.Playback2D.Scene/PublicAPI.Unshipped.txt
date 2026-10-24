@@ -872,9 +872,6 @@ DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.PlaceResolver(DemoViewer.NET.
 DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.Resolve(System.Numerics.Vector3 world) -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHit
 DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.ResolveOnFloor(double x, double y, double floorKey) -> DemoViewer.NET.Playback2D.Core.Zones.PlaceHit
 DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.Zones.get -> DemoViewer.NET.Playback2D.Core.Zones.ZoneSet!
-DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule
-DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule.FirstInLump = 0 -> DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule
-DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule.SmallestVolume = 1 -> DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule
 DemoViewer.NET.Playback2D.Core.Zones.ZoneArea
 DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.Area.get -> double
 DemoViewer.NET.Playback2D.Core.Zones.ZoneArea.CentroidX.get -> double
@@ -1080,7 +1077,6 @@ static DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.operator !=(DemoViewer.NET.
 static DemoViewer.NET.Playback2D.Core.Zones.PlaceHit.operator ==(DemoViewer.NET.Playback2D.Core.Zones.PlaceHit left, DemoViewer.NET.Playback2D.Core.Zones.PlaceHit right) -> bool
 static DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.operator !=(DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? left, DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? right) -> bool
 static DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline.operator ==(DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? left, DemoViewer.NET.Playback2D.Core.Zones.PlaceOutline? right) -> bool
-static DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver.TieRuleFor(string? mapName) -> DemoViewer.NET.Playback2D.Core.Zones.VolumeTieRule
 static DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.operator !=(DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? left, DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? right) -> bool
 static DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic.operator ==(DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? left, DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic? right) -> bool
 static DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor.operator !=(DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor left, DemoViewer.NET.Playback2D.Core.Zones.ZoneFloor right) -> bool
