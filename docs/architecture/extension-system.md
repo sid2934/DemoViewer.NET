@@ -4,6 +4,15 @@ How the app finds, checks, trusts, updates and turns off an extension such as th
 authoring API is in [`src/Sdk/DemoViewer.NET.Extensions.Sdk/README.md`](../../src/Sdk/DemoViewer.NET.Extensions.Sdk/README.md);
 this page is the host side.
 
+The Strat Book is the reference extension. It ships with the app, but it is built on the surfaces a
+third-party extension gets: the SDK, its UI kit, the scene package and the module abstractions. It is the
+evidence that those surfaces are enough for a real extension, not a component with standing privileges.
+Where it still binds the app or the unpublished Playback2D assembly directly (video and clip export, pack
+export, the review queue, and the zones overlay folder through `FirstPartyHost`), `PackPlayback2DBindingTests`
+pins every such type with its reason, and each entry is a contract the SDK has yet to publish rather than
+one the Strat Book keeps. The target state is both of that test's allow-lists empty and the app
+`ProjectReference` gone from the pack's project.
+
 ## 1. Manifest and compatibility
 
 Everything here lives in the app under `DemoViewer.NET.Extensions` (`ExtensionHost.cs`) and
