@@ -94,7 +94,7 @@ public sealed class PanZoomGesture
     /// <param name="delta">Wheel delta; positive zooms in.</param>
     /// <returns>True when the camera changed.</returns>
     [SuppressMessage("Performance", "CA1822:Mark members as static",
-        Justification = "Instance by contract: the ink work wraps this gesture as an IPointerTool, whose wheel " +
+        Justification = "Instance by contract: PanZoomTool wraps this gesture as an IPointerTool, whose wheel " +
                         "member is an instance method on the tool. Making it static here would force " +
                         "the wrapper to reach through the type name and would break the day the zoom " +
                         "anchor becomes stateful.")]

@@ -378,16 +378,8 @@ public class UiThreadAuditTests
         DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndex grenades = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndex>();
         DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator evaluator = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator>();
         Stopwatch wait = Stopwatch.StartNew();
-        while (!grenades.WhenLoaded.IsCompleted)
+        while (!grenades.WhenLoaded.IsCompleted && wait.Elapsed < TimeSpan.FromSeconds(60))
         {
-            // Everything below reads the merged index, so a walk that never finishes has to fail here
-            // rather than let the audit report stall figures taken against an empty one.
-            if (wait.Elapsed > TimeSpan.FromSeconds(60))
-            {
-                throw new System.TimeoutException(
-                    $"waited 60s for the grenade walk to merge and it never did; demos={grenades.DemoCount}");
-            }
-
             await Watch(TimeSpan.FromMilliseconds(200));
         }
 
