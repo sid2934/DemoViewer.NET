@@ -52,6 +52,10 @@
              the per-layer perf report and the app's host tests read the stats. -->
         <InternalsVisibleTo Include="dv2d"/>
         <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
+        <!-- The annotation session's wet stroke is internal: the ink tools that write it live in
+             Pipeline, and the app rebases it across a level-set rebuild. An extension gets the committed
+             document, never the stroke under the pointer. -->
+        <InternalsVisibleTo Include="DemoViewer.NET"/>
     </ItemGroup>
 
 </Project>
