@@ -5,8 +5,8 @@
 
       DELIBERATELY DEPENDENCY-FREE. It hands back bytes and streams and nothing else: no Avalonia (the
       Playback2D suites assert their process loads no Avalonia assembly, and this sits in their graph),
-      no SkiaSharp (the app is pinned to 2.88.x and the baker owns 3.x — a shared asset library must not
-      have an opinion), no serializer contract (the manifest is read with JsonDocument, so the Browser
+      no SkiaSharp (the baker owns rasterising, so a shared asset library must not have an
+      opinion), no serializer contract (the manifest is read with JsonDocument, so the Browser
       build can trim freely).
 
       EMBEDDED, not copied next to the exe like the map bundles. Map assets are per-map, large, and
@@ -54,7 +54,7 @@
     -->
     <Target Name="EnsureIconsAreBaked" BeforeTargets="BeforeBuild">
         <Error Condition="!Exists('$(MSBuildThisFileDirectory)../../../assets/icons/icons.json')"
-               Text="assets/icons/icons.json is missing - the CS2 icon bake has not been run. Run: dotnet run --project tools/DemoViewer.NET.AssetBaker -r win-x64 -- --icons"/>
+               Text="assets/icons/icons.json is missing - the CS2 icon bake has not been run. Run: dotnet run --project tools/DemoViewer.NET.AssetBaker -- --icons"/>
     </Target>
 
 </Project>

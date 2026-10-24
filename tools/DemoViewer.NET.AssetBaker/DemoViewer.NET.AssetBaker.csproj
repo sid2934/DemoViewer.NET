@@ -2,10 +2,10 @@
 
     <!--
       The CS2 map-asset BAKER.
-      A SEPARATE, independently-versioned tool: it owns VRF + ValvePak + SkiaSharp 3.x. The app NEVER
-      references this project (no ProjectReference), so the app stays on Avalonia's SkiaSharp 2.88.x and
-      the whole-app SkiaSharp-3 gate never applies. Interop is over a FILE boundary (baked PNG + JSON).
-  
+      A SEPARATE tool: it owns VRF + ValvePak + Svg.Skia. The app NEVER references this project (no
+      ProjectReference). SkiaSharp comes from central package management, so the baker rasterises with
+      the same SkiaSharp the app does. Interop is over a FILE boundary (baked PNG + JSON).
+
       Build/run standalone (NOT part of the main .slnx) via "dotnet run" against this project;
       pass map names as args and an optional diag flag. See Program.cs for the exact CLI.
     -->
@@ -14,11 +14,6 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
-        <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
-
-        <!-- Independently versioned: opt OUT of the app's Central Package Management so VRF's SkiaSharp 3.x
-             cannot collide with the app-wide pinned SkiaSharp 2.88.x. -->
-        <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
 
         <!-- Standalone dev tool: relax the repo's warnings-as-errors so VRF-interop nullability etc. don't block. -->
         <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
@@ -27,20 +22,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- Drop the repo-wide Nerdbank.GitVersioning (injected by Directory.Build.props, versioned via CPM
-             which this project opts out of). A standalone dev tool needs no git versioning. -->
+        <!-- A standalone dev tool needs no git versioning. -->
         <PackageReference Remove="Nerdbank.GitVersioning"/>
-        <PackageReference Include="ValveResourceFormat" Version="19.2.6339"/>
-        <PackageReference Include="ValvePak" Version="4.0.0.142"/>
-        <PackageReference Include="SkiaSharp" Version="3.119.2"/>
-        <PackageReference Include="SkiaSharp.NativeAssets.macOS" Version="3.119.2"/>
-        <!-- Both natives, because the RID below is a default and not a restriction: the icon bake is
-             run from whichever machine has CS2 installed, which in practice is a Windows one. -->
-        <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="3.119.2"/>
+        <PackageReference Include="ValveResourceFormat" VersionOverride="19.2.6339"/>
+        <PackageReference Include="ValvePak" VersionOverride="4.0.0.142"/>
+        <PackageReference Include="SkiaSharp"/>
+        <PackageReference Include="SkiaSharp.NativeAssets.macOS"/>
+        <!-- Both natives: the icon bake runs on whichever machine has CS2 installed, which in
+             practice is a Windows one. No RuntimeIdentifier is set, so the host picks its own. -->
+        <PackageReference Include="SkiaSharp.NativeAssets.Win32"/>
         <!-- The icon bake ONLY. CS2 ships its iconography as compiled Panorama SVG, so the baker needs
              an SVG rasteriser; Svg.Skia is the one that rides SkiaSharp 3.x. It is confined to this
-             project by the same file boundary that keeps SkiaSharp 3 away from the app's pinned 2.88.x. -->
-        <PackageReference Include="Svg.Skia" Version="3.0.2"/>
+             project by the file boundary. -->
+        <PackageReference Include="Svg.Skia" VersionOverride="3.0.2"/>
     </ItemGroup>
 
 </Project>

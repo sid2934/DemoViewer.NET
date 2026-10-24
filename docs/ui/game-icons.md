@@ -9,7 +9,7 @@ Three steps, and only the first needs thought.
 **1. Find its source path.** The baker lists what the game ships and marks what we already take:
 
 ```sh
-scripts/bake-icons.sh --list defus
+dotnet run --project tools/DemoViewer.NET.AssetBaker -- --list-icons=defus
 ```
 
 ```
@@ -17,9 +17,7 @@ scripts/bake-icons.sh --list defus
 [ ] panorama/images/icons/ui/defuser_white
 ```
 
-`--list` with no filter lists everything (1120 entries); `--free` and `--taken` narrow it. The script
-exists only to pick the host RID — the baker's own default is macOS, and forgetting `-r` fails in a
-way that does not mention RIDs.
+`--list-icons` with no filter lists everything (1120 entries); `--free` and `--taken` narrow it.
 
 **2. Add it to the curation.** `tools/DemoViewer.NET.AssetBaker/IconSet.cs` is the only file that
 decides *what* gets baked; everything else is mechanism. Put the path (minus `.vsvg_c`) in the
@@ -43,7 +41,7 @@ Namespaces exist because they have different key sources, and mixing them makes 
 **3. Re-bake and commit.**
 
 ```sh
-scripts/bake-icons.sh
+dotnet run --project tools/DemoViewer.NET.AssetBaker -- --icons
 ```
 
 This needs a CS2 install (found through Steam's `libraryfolders.vdf`, or passed as
