@@ -1,9 +1,9 @@
 # The local demo corpus
 
 `demos/**/*.dem` is gitignored, so nothing here is recoverable from this repository. This file
-records WHICH demos the corpus held, because on 2026-09-20 it was deleted and the filenames
-survived only in a chat transcript. A manifest is cheap; reconstructing a list of match IDs from
-memory is not.
+records WHICH demos the corpus held, because on 2026-09-20 it was deleted and the filenames were
+not recoverable from the repository. A manifest is cheap; reconstructing a list of match IDs after
+the fact is not.
 
 Keep this current when the corpus changes.
 
@@ -90,9 +90,9 @@ silently re-points that capture and the test fails on a 14.5% pixel difference.
 
 ## How the corpus was lost, so it does not happen twice
 
-An agent made `demos/` reachable from a git worktree with a Windows directory junction, then ran
-`git worktree remove --force`. The removal followed the junction and deleted the TARGET's
-contents rather than the link.
+`demos/` was made reachable from a git worktree with a Windows directory junction, and
+`git worktree remove --force` was then run. The removal followed the junction and deleted the
+TARGET's contents rather than the link.
 
 **The supported way to reach the corpus from elsewhere is the `DEMO_PATH` environment variable,
 which `DemoTestHelper` honours ahead of every other location.** Never link it.

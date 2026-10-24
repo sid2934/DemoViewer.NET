@@ -22,8 +22,8 @@ layer contract, floors, places and the world-to-screen transform, over SkiaSharp
     <Version>1.0.0</Version>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.1.*" />
-    <PackageReference Include="Avalonia" Version="12.1.2" />
+    <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.2.*" />
+    <PackageReference Include="Avalonia" Version="12.1.4" />
   </ItemGroup>
 </Project>
 ```

@@ -5,10 +5,10 @@ in. It builds on `DemoViewer.NET.Extensions.Sdk` and is versioned with it.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.1.*" />
-  <PackageReference Include="DemoViewer.NET.Extensions.Sdk.Ui" Version="1.1.*" />
-  <PackageReference Include="Avalonia" Version="12.1.2" />
-  <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.2.*" />
+  <PackageReference Include="DemoViewer.NET.Extensions.Sdk.Ui" Version="1.2.*" />
+  <PackageReference Include="Avalonia" Version="12.1.4" />
+  <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 </ItemGroup>
 ```
 

@@ -6,8 +6,8 @@ only, no UI framework. It is versioned with `DemoViewer.NET.Extensions.Sdk`.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.1.*" />
-  <PackageReference Include="DemoViewer.NET.Playback2D.Scene" Version="1.1.*" />
+  <PackageReference Include="DemoViewer.NET.Extensions.Sdk" Version="1.2.*" />
+  <PackageReference Include="DemoViewer.NET.Playback2D.Scene" Version="1.2.*" />
 </ItemGroup>
 ```
 
