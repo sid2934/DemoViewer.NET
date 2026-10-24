@@ -80,7 +80,8 @@ user's choices: never rename one. The master switch's id must start with `pack.`
 `Commands`, `CommandScopes`, `JobKinds` and `Stores` are read the same way, without DI. `Stores` lists the
 folders and files you keep outside the folders the host gives you (see `Stores` under "The host"): each path's
 first segment must be your id, your id and `.json`, or start with your id and `-`, and "Delete extension
-data" removes them with the rest.
+data" removes them with the rest. The extensions the app ships are exempt from that naming rule and may name
+other paths, bounded only by the folders the host keeps and by the demo cache's own records.
 
 ## What an extension can add
 

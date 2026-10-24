@@ -6,12 +6,19 @@ this page is the host side.
 
 The Strat Book is the reference extension. It ships with the app, but it is built on the surfaces a
 third-party extension gets: the SDK, its UI kit, the scene package and the module abstractions. It is the
-evidence that those surfaces are enough for a real extension, not a component with standing privileges.
-Where it still binds the app or the unpublished Playback2D assembly directly (video and clip export, pack
-export, the review queue, and the zones overlay folder through `FirstPartyHost`), `PackPlayback2DBindingTests`
-pins every such type with its reason, and each entry is a contract the SDK has yet to publish rather than
-one the Strat Book keeps. The target state is both of that test's allow-lists empty and the app
-`ProjectReference` gone from the pack's project.
+evidence that those surfaces are enough for a real extension. Where it still binds the app or the
+unpublished Playback2D assembly directly (video and clip export, pack export, the review queue, and the
+zones overlay folder through `FirstPartyHost`), `PackPlayback2DBindingTests` pins every such type with its
+reason, and each entry is a contract the SDK has yet to publish rather than one the Strat Book keeps. The
+target state is both of that test's allow-lists empty and the app `ProjectReference` gone from the pack's
+project.
+
+Two things it does hold that a third party does not, both keyed off an id under the reserved
+`net.demoviewer.` prefix. `PackContributions.StoreRefusal` requires a third party's store paths to start
+with its own id, and exempts a shipped extension from that naming (the host's own folders and the demo
+cache's records still refuse it). `ExtensionScope.OwnsId` requires a third party's chip, hub, demo-action
+and toolbar ids to start with its id and a dot, and lets a shipped extension keep its own names. Both are
+namespace privileges, not capabilities: nothing a shipped extension can call is closed to a third party.
 
 ## 1. Manifest and compatibility
 
