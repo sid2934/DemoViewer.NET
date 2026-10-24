@@ -747,8 +747,8 @@ internal sealed class HostedMapView : Control, IMapViewBackend, IDisposable
 
     /// <summary>
     ///     <see cref="IToolServices" /> over this host, and deliberately NOT
-    ///     <c>IInkToolServices</c>: there is no ink on these canvases, so the ink tools refuse the
-    ///     gesture rather than writing into a session nothing renders.
+    ///     <c>IInkToolServices</c>: these canvases register a map tool and nothing else, so there is no
+    ///     ink session for them to carry.
     /// </summary>
     private sealed class HostToolServices(HostedMapView host) : IToolServices
     {

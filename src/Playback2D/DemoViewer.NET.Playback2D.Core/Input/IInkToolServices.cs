@@ -10,17 +10,8 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 
 /// <summary>
 ///     What the ink tools need on top of <see cref="IToolServices" />: the session they mutate, the
-///     authoring clock, the two anchor lookups and the text-editor request.
-///     <para>
-///         A host with no ink implements <see cref="IToolServices" /> alone. The ink tools then refuse
-///         the gesture instead of writing into a throwaway session, which is how the static map views
-///         behave today: they registered no ink tool and answered every anchor lookup false.
-///     </para>
-///     <para>
-///         It lives in Core rather than in the published scene contract because an extension never
-///         implements it: the ink belongs to the playback tab, and publishing these five members would
-///         freeze the annotation session's authoring surface as third-party API.
-///     </para>
+///     authoring clock, the two anchor lookups and the text-editor request. A host that does not
+///     implement it gets every ink gesture refused rather than written into a session nothing renders.
 /// </summary>
 public interface IInkToolServices : IToolServices
 {
