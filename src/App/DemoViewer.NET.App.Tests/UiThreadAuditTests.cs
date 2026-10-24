@@ -378,8 +378,16 @@ public class UiThreadAuditTests
         DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndex grenades = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndex>();
         DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator evaluator = provider.GetRequiredService<DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator>();
         Stopwatch wait = Stopwatch.StartNew();
-        while (!grenades.WhenLoaded.IsCompleted && wait.Elapsed < TimeSpan.FromSeconds(60))
+        while (!grenades.WhenLoaded.IsCompleted)
         {
+            // Everything below reads the merged index, so a walk that never finishes has to fail here
+            // rather than let the audit report stall figures taken against an empty one.
+            if (wait.Elapsed > TimeSpan.FromSeconds(60))
+            {
+                throw new System.TimeoutException(
+                    $"waited 60s for the grenade walk to merge and it never did; demos={grenades.DemoCount}");
+            }
+
             await Watch(TimeSpan.FromMilliseconds(200));
         }
 
@@ -621,6 +629,13 @@ public class UiThreadAuditTests
                     "probe", "audit", _ => Thread.Sleep(5), priority);
                 while (!done.IsCompleted)
                 {
+                    // 30 s: above the 20 s the queue's own gates take, far below HeadlessSession's dispatch
+                    // budget. A wedged item fails here, or it wedges the session for every later UI test.
+                    if (sw.Elapsed > TimeSpan.FromSeconds(30))
+                    {
+                        throw new System.TimeoutException($"waited 30s for a {priority} queue job to finish and it never did.");
+                    }
+
                     Settle();
                     await Task.Delay(1);
                 }
