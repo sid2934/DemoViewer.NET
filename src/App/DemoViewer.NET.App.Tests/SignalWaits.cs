@@ -2,6 +2,7 @@
 
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Avalonia.Threading;
 using DemoViewer.NET.ViewModels.Playback;
 
 #endregion
@@ -9,24 +10,12 @@ using DemoViewer.NET.ViewModels.Playback;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Signal-driven waits for the view-model landings the app suite used to sample for. Two ordering
-///     rules are load-bearing, and both live here rather than at the call sites.
-///     <list type="number">
-///         <item>
-///             The subscription goes live BEFORE the first condition check, so a landing that already
-///             happened cannot be missed. The spray drilldown's first reload completes inside
-///             <c>Execute</c> and raises nothing afterwards, so a subscribe-then-await would hang.
-///         </item>
-///         <item>
-///             The signal is only a wake-up. None of these carries the value being waited on, so the
-///             condition is re-read on every raise.
-///         </item>
-///     </list>
-///     <para>
-///         Every budget here must stay well under <c>HeadlessSession</c>'s four-minute dispatch budget.
-///         A body that outlasts that wedges the session thread permanently and every later UI test in
-///         the run fails as collateral.
-///     </para>
+///     Signal-driven waits for the view-model landings the app suite used to sample for. Three rules
+///     are load-bearing: subscribe BEFORE the first condition check, because a landing that already
+///     happened raises nothing; treat the signal as a wake-up only and re-read the condition, because
+///     none of these carries the value being waited on; and keep every budget well under
+///     <c>HeadlessSession</c>'s four-minute dispatch budget, which a body that outlasts it wedges for
+///     every later UI test.
 /// </summary>
 internal static class SignalWaits
 {
@@ -103,6 +92,7 @@ internal static class SignalWaits
     {
         if (condition())
         {
+            Drain();
             return;
         }
 
@@ -113,6 +103,18 @@ internal static class SignalWaits
         catch (TimeoutException)
         {
             throw new TimeoutException($"timed out waiting for {what} after {timeoutMs}ms");
+        }
+
+        Drain();
+    }
+
+    // The signal continuation can resume ahead of lower-priority work the landing also queued, and
+    // callers read view-model state on the next line. Off the UI thread there is nothing to drain.
+    private static void Drain()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.RunJobs();
         }
     }
 }

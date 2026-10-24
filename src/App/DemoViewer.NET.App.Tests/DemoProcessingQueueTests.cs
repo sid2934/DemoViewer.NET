@@ -92,7 +92,12 @@ public class DemoProcessingQueueTests
                 releaseOnParsed.Wait(2000); // hold that window open while the foreground races in
             }));
 
-        await Task.Run(() => inOnParsed.Wait(5000));
+        if (!await Task.Run(() => inOnParsed.Wait(5000)))
+        {
+            // Without the worker parked inside OnParsed there is no window to race into, and the
+            // foreground open below would complete for the ordinary reason.
+            throw new TimeoutException("timed out waiting for the background worker to enter OnParsed");
+        }
 
         // Start the foreground open for the SAME path mid-window, then release OnParsed. The open must
         // complete (WaitAsync throws TimeoutException on the orphaned-waiter hang the fix prevents).
