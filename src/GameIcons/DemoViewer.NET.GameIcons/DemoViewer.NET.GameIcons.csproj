@@ -14,23 +14,17 @@
       and needed by every target including Browser, so they ride inside the assembly.
     -->
     <PropertyGroup>
-        <!--
-          NOT PUBLISHED, and that is the whole reason this property is here rather than inherited: the
-          artwork is Valve's, so it travels inside the application and no NuGet package redistributes it
-          (THIRD-PARTY-NOTICES.md §b2). The UI kit's GameIcon control reaches it through a backend the app
-          installs, which is what lets the SDK ship without it.
-
-          The version is still the extension SDK's, computed from that project's version.json: the app
-          loads this assembly beside the SDK's and ExtensionSdkArchitectureTests pins the two together.
-        -->
+        <!-- Not published: the artwork is Valve's, so it travels inside the application only
+             (THIRD-PARTY-NOTICES.md §b2), and the UI kit's GameIcon control reaches it through a backend
+             the app installs. The version stays the extension SDK's, which
+             ExtensionSdkArchitectureTests pins this assembly to. -->
         <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
-        <!-- The surface is still tracked, because the app and the Playback2D pipeline build against it.
-             Nothing ships it, so scripts/ship-public-api.sh (which reads the packable projects) leaves
-             these lists alone. -->
+        <!-- Still tracked for the app and the Playback2D pipeline. Nothing publishes it, so
+             scripts/ship-public-api.sh reads the packable projects and leaves these lists alone. -->
         <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
         <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
         <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>
