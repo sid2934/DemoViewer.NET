@@ -46,9 +46,10 @@ public class ExtensionSdkArchitectureTests
     public async Task TheSdkFamily_CarriesOneVersion()
     {
         // The package version, not the assembly version: assemblyVersion.precision is "major", so every 1.x
-        // assembly stamps 1.0.0.0 and a minor- or patch-level drift is invisible there. It has to be caught,
-        // because Directory.Build.targets pins the intra-family dependencies exactly and a drift therefore
-        // ships as a dependency on a version its sibling does not carry.
+        // assembly stamps 1.0.0.0 and a drift below the major is invisible there. The family ships in
+        // lockstep, and Directory.Build.targets pins each intra-family dependency at exactly the sibling's
+        // own computed version, so a drift ships as a set with no one version to ask for, under an sdk/v tag
+        // that names the SDK's alone.
         //
         // GameIcons is not published but belongs here anyway: it reads the SDK's version.json through
         // GitVersionBaseDirectory, so it is on the same line whether or not it is packed.

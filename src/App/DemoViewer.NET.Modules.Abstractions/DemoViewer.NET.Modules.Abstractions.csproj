@@ -7,8 +7,7 @@
       Published alongside the SDK and versioned with it; its public API is pinned the same way.
     -->
     <PropertyGroup>
-        <!-- The SDK's version, computed from its version.json, whose path filters include this project. A copy
-             here would be a second filter list to keep in step, and the one that existed drifted. -->
+        <!-- The SDK's version, computed from its version.json, whose path filters include this project. -->
         <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
         <IsPackable>true</IsPackable>
         <PackageId>DemoViewer.NET.Modules.Abstractions</PackageId>
