@@ -63,13 +63,22 @@ public sealed class MatchMetaEvaluator : IDemoEvaluator, IRetainedVisitEvaluator
                 : pass.FinalState)));
     }
 
-    /// <summary>The same off a held parse that carries no rank update of its own, so it writes no rank rows.</summary>
+    /// <summary>
+    ///     Unreachable for this evaluator: it exists to satisfy <see cref="IDemoEvaluator" />, and
+    ///     <c>EvaluatorPassAdapter.Run</c> prefers <see cref="IRetainedVisitEvaluator" />, which this type
+    ///     also implements. Were it reached, it would be the held path with no rank update of its own.
+    /// </summary>
     public void Evaluate(string path, ParsedDemo parsed) => Held(path, parsed, []);
 
     /// <summary>
     ///     The same off a held visit: the ranks are the server's update, which rode the visit's one read on its
     ///     unknown-message tap. The controllers' predictions are not a fallback here, because reading their rank
     ///     fields off a held parse costs a second walk of every frame.
+    ///     <para>
+    ///         Two outputs narrow as a result. With no update the demo gets no rank rows, and
+    ///         <see cref="Capture" />'s game-mode fallback reads those same rows, so GameMode rests on the
+    ///         ServerInfo gamemode string alone on this path.
+    ///     </para>
     /// </summary>
     public void Evaluate(string path, PassInput input)
     {
