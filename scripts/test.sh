@@ -172,9 +172,10 @@ for entry in "${SELECTED[@]}"; do
   EXIT=$?
 
   # Known CoreCLR fault: the host dies with SIGSEGV/SIGABRT during startup, before any summary is
-  # printed. Retry exactly once, and only when nothing was reported: no
-  # summary line and no failed test. A real failure always prints one or the other, so this path
-  # cannot turn a red run green. The retry's own exit code is final.
+  # printed. Retry exactly once, and only when nothing was reported: no summary line and no failed
+  # test. What that guarantees is narrow: a crash that reported either one is never retried. A host
+  # that dies mid-run with every test so far passing reports neither, so a timing-dependent fault of
+  # that shape can still be retried past. The retry's own exit code is final.
   if { [ $EXIT -eq 139 ] || [ $EXIT -eq 134 ]; } \
      && ! echo "$OUT" | grep -qE '^  total: [0-9]+|^failed '; then
     echo "[test] !!! $KEY: TEST HOST CRASHED (exit=$EXIT) WITH NO RESULTS REPORTED !!!" >&2

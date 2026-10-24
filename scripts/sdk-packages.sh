@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # Prints the project directory of every package this repository publishes, one per line.
 #
-# Derived from IsPackable, not listed: Directory.Build.props defaults it to false and only the SDK
-# libraries turn it back on, so the property IS the list.
+# A text match for `<IsPackable>true</IsPackable>` over the csproj bodies, not a hand-kept list:
+# Directory.Build.props defaults the property to false and only the published libraries turn it back
+# on. The match is on the literal element, so a conditioned PropertyGroup or any other spelling is
+# invisible to every consumer at once. Keep new packages on this one.
 #
 # Consumers must capture the output (`dirs=$(bash scripts/sdk-packages.sh)`) and loop over the
 # variable. `for d in $(...)` swallows a nonzero exit here and runs the body zero times, which turns
@@ -10,7 +12,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-DIRS=$(git ls-files '*.csproj' | xargs grep -l '<IsPackable>true</IsPackable>' | xargs -n1 dirname | sort)
+# `|| true`: grep exits 1 on no match, and under pipefail that would end the run here, before the
+# diagnostic below can say what went wrong.
+MATCHED=$(git ls-files '*.csproj' | xargs grep -lEi '<IsPackable>[[:space:]]*true[[:space:]]*</IsPackable>' || true)
+DIRS=$(printf '%s' "$MATCHED" | sed '/^$/d; s|/[^/]*$||' | sort -u)
 if [ -z "$DIRS" ]; then
     echo "error: no project sets IsPackable=true, so there is nothing to publish" >&2
     exit 1

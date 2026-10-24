@@ -67,7 +67,7 @@ dotnet build "$PROJ" -c "$CONFIG" -v q --nologo || exit 2
 # start. Pass -x wherever that suite has already run; CI does, since `playback2d-tests` gates on it.
 if [ "$SKIP_PB2D" -eq 0 ]; then
   PB2D_PROJ="$ROOT/src/Playback2D/DemoViewer.NET.Playback2D.Tests"
-  echo "[batch-runner] playback2d core+pipeline (direct execution, tier=$TIER)"
+  echo "[batch-runner] playback2d scene+pipeline (direct execution, tier=$TIER)"
   dotnet run --project "$PB2D_PROJ" -c "$CONFIG" -- --treenode-filter "/*/*/*/*$TIER_FILTER" || exit 1
 fi
 
@@ -154,7 +154,7 @@ echo "[batch-runner] partition audit OK: ran $TOTAL_RUN >= $EXPECTED listed"
 # what the RealDemo guard is for, and this is the path CI's App lane takes, so it has to be here
 # and not only in scripts/test.sh. Self-disarms unless a corpus or source is configured.
 if [ "$TIER" = "full" ]; then
-  "$(dirname "$0")/check-realdemo-lane.sh" "$CONFIG" || TOTAL_FAILED=$((TOTAL_FAILED + 1))
+  "$ROOT/scripts/check-realdemo-lane.sh" "$CONFIG" || TOTAL_FAILED=$((TOTAL_FAILED + 1))
 fi
 
 [ $TOTAL_FAILED -eq 0 ] || exit 1
