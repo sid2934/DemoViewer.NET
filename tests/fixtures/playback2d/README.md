@@ -10,12 +10,12 @@ regression suite covers.
 ```
 scenes/<name>.scene.json          the fixture
 goldens/cpu/<name>@<w>x<h>.png    the CPU-provider golden for it
-goldens/gpu/<name>@<w>x<h>.png    the GPU parity image (C2)
-annotations/<name>.dvann.json     the annotation sidecar (B2)
+goldens/gpu/<name>@<w>x<h>.png    the GPU parity image
+annotations/<name>.dvann.json     the annotation sidecar
 zones/<name>.zones.json           the zones overlay, applied over the map's baked zones.json
 queries/<name>.dvquery.json       the Query Canvas tokens the entry draws (Strat Room, Query Canvas)
 overlays/<name>.dvoverlay.json    the Overlay View points the entry stacks (Strat Room, Overlay View)
-manifest.json                     the corpus index (C1 owns this file)
+manifest.json                     the corpus index
 ```
 
 This is the canonical layout for every phase. There is no `tests/goldens/`, no `…/golden/`, and no
@@ -50,8 +50,7 @@ rather than failing it, and an entry may be listed with no scene file at all whi
 which is what lets a later phase register the fixture it is going to author.
 
 A stale flag therefore hides: pending is skipped, never failed, so nothing goes red when the phase it
-was waiting on ships. Four of ten entries were pending at one point, three of them naming owners (B1,
-B2, dv2d) that had all landed, including `annotated-mirage-b`, whose scene file did not exist, so
+was waiting on ships. Four of ten entries were pending at one point, three of them naming owners that had all landed, including `annotated-mirage-b`, whose scene file did not exist, so
 **no golden anywhere covered burned-in annotations**. All three are cleared. The three that remain
 pending carry a reason in the note that is not "waiting on a phase":
 
@@ -135,7 +134,7 @@ Ellipse, Text) from Shape Tools. They are the only goldens anywhere that cover b
 Note on tolerance. Entries default to `GoldenTolerance.DefaultPerceptual`: CPU rasterisation of
 anti-aliased edges can differ by a least-significant bit between SIMD paths, and headless Skia text
 metrics differ across operating systems (design risk 1: text differences are reviewed, not
-auto-failed). An entry can opt into `"tolerance": "byte-exact"` in the manifest once B1's embedded
+auto-failed). An entry can opt into `"tolerance": "byte-exact"` in the manifest once an embedded
 typeface makes that safe.
 
 ## Regenerating
