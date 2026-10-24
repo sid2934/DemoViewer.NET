@@ -7,9 +7,6 @@
       Published alongside the SDK and versioned with it (version.json); its public API is pinned the same way.
     -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
         <IsPackable>true</IsPackable>
         <PackageId>DemoViewer.NET.Modules.Abstractions</PackageId>
         <Description>The read-only playback contract DemoViewer.NET extensions and modules see. Install DemoViewer.NET.Extensions.Sdk, which depends on it.</Description>

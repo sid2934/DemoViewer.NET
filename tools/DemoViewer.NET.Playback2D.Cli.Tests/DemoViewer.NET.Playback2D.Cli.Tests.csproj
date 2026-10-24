@@ -10,8 +10,6 @@
         <OutputType>Exe</OutputType>
         <AssemblyName>DemoViewer.NET.Playback2D.Cli.Tests</AssemblyName>
         <RootNamespace>DemoViewer.NET.Playback2D.Cli.Tests</RootNamespace>
-        <!-- CA1707: test method names conventionally use underscores (e.g. Method_Condition_Expected) -->
-        <NoWarn>$(NoWarn);CA1707</NoWarn>
         <ServerGarbageCollection>false</ServerGarbageCollection>
     </PropertyGroup>
 

@@ -25,12 +25,9 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       - name: Extension suite, full tier, PerAssembly isolation
         env:

@@ -11,9 +11,6 @@
     -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
 
         <!-- Standalone dev tool: relax the repo's warnings-as-errors so VRF-interop nullability etc. don't block. -->
         <TreatWarningsAsErrors>false</TreatWarningsAsErrors>

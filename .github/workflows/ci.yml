@@ -42,9 +42,7 @@ jobs:
           # parser moved to the CS2DemoKit package and gets its Valve message types prebuilt from
           # CS2OpenDev.Protos. cs2-opendocs stays as reference material for humans.
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       # The Browser head's runtime pack (Microsoft.NETCore.App.Runtime.Mono.browser-wasm) ships in
       # this workload, not the base SDK, so the solution below does not build without it. Keep the
@@ -130,9 +128,7 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       # PINNED to the SDK's own runtime-pack band. Installing the newest manifest relinks against a
       # System.Private.CoreLib the runtime then rejects ("Your mono runtime and class libraries are
@@ -180,15 +176,9 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      # SkiaSharp.NativeAssets.Linux links fontconfig. The full package is used rather than
-      # …NoDependencies because the layers draw text and the goldens contain it, and swapping the
-      # native later would silently re-baseline every golden.
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       - name: Playback2D core + pipeline tests (direct execution, no Avalonia)
         run: bash scripts/test.sh -t full -b skip -p playback2d -c Release
@@ -274,12 +264,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       # One test at a time, for two reasons that happen to agree. A frame-time budget measured while
       # three other tests share the runner's two cores is measuring the runner, and several classes in
@@ -316,14 +303,10 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      # Avalonia.Headless + Avalonia.Skia here too, and Inter needs fontconfig to resolve.
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      # Same native as playback2d-tests: the suite renders through Avalonia.Headless + Avalonia.Skia,
-      # and Inter needs fontconfig to resolve.
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       - name: App suite, full tier (batched)
         run: bash scripts/test-app-suite.sh -c Release -n 4 -t full -b skip -x
@@ -340,13 +323,10 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      # Renders through Avalonia.Headless + Avalonia.Skia, like app-tests.
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      # Same native as app-tests: this suite also renders through Avalonia.Headless + Avalonia.Skia.
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       # One test at a time. Several classes build Avalonia controls off the UI thread outside
       # RunOnUi, and in parallel that fails 1 to 2 tests per run (Dispatcher.VerifyAccess via
@@ -369,12 +349,9 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      - name: Install native deps
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1
+          native: skia
 
       - name: LiveSync suite (full tier)
         run: bash scripts/test.sh -t full -b skip -p livesync
@@ -428,15 +405,9 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      - uses: actions/setup-dotnet@v4
+      - uses: ./.github/actions/dotnet-sdk
         with:
-          dotnet-version: '10.0.x'
-
-      # libfontconfig1 is the SkiaSharp native's dependency (see playback2d-tests above); libegl1 and
-      # libgles2 are what the surfaceless EGL path binds.
-      - name: Install native deps (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libfontconfig1 libegl1 libgles2 libgl1 libglx-mesa0
+          native: render
 
       # What this runner actually resolved to, in the log, before any test runs. Exit 0 either way;
       # the value is GL_RENDERER. A lane that thought it was on ANGLE and is really on WARP is

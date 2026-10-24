@@ -10,9 +10,6 @@
       export, keyframes and rendering backends stay in DemoViewer.NET.Playback2D.Core, which is not published.
     -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
         <RootNamespace>DemoViewer.NET.Playback2D.Core</RootNamespace>
         <!-- Published with the extension SDK at the SDK's version: the SDK's version.json path filters
              include this project. Its public API is pinned by the PublicAPI files. -->

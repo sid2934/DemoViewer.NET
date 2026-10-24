@@ -10,7 +10,6 @@
         <OutputType>Exe</OutputType>
         <AssemblyName>dv2d</AssemblyName>
         <RootNamespace>DemoViewer.NET.Playback2D.Cli</RootNamespace>
-        <LangVersion>latest</LangVersion>
         <!-- A demo replay holds raw bytes + ParsedDemo + a private EntityTracker; the same
              single-demo-at-a-time posture as DemoTrimmer. -->
         <ServerGarbageCollection>false</ServerGarbageCollection>

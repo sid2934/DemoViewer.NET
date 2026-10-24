@@ -24,10 +24,18 @@
         <Using Include="DemoViewer.NET.Testing.Tiers"/>
     </ItemGroup>
 
+    <!--
+        The four every project wants. They were restated in the csproj bodies instead: TargetFramework
+        in 26, Nullable in 23, LangVersion in 23 and ImplicitUsings in 12, which is why a policy change
+        that reached most of them read as done. A project overrides any of these by setting it in its
+        own body, which is evaluated after this file; the Browser head does exactly that for its
+        net10.0-browser TFM.
+    -->
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
 
         <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
         <EnableNETAnalyzers>true</EnableNETAnalyzers>
@@ -61,6 +69,18 @@
             IsPackable is read only by the pack targets, so this affects build/publish in no way.
         -->
         <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <!--
+        CA1707 for test projects only: test method names carry underscores by convention
+        (Method_Condition_Expected), and TreatWarningsAsErrors above makes the analyzer's objection
+        fatal. Nine csproj files carried this same two-line pair.
+
+        AFTER the group above, not before. That one assigns NoWarn without reading $(NoWarn), so a
+        group placed earlier would be overwritten rather than appended to.
+    -->
+    <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+        <NoWarn>$(NoWarn);CA1707</NoWarn>
     </PropertyGroup>
 
     <!--

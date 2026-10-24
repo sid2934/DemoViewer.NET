@@ -1,0 +1,44 @@
+name: dotnet SDK and native dependencies
+description: >
+  The .NET SDK band every lane in this repository builds against, plus the native libraries the ones
+  that draw pixels need. Both were restated per job: the SDK version in fifteen steps and the
+  fontconfig install in seven, so a bump that reached fourteen of fifteen left one lane building
+  against a different SDK with nothing to say so.
+
+inputs:
+  native:
+    description: >
+      Which native libraries to install, on Linux runners only. `none` installs nothing. `skia` is
+      fontconfig, which the SkiaSharp native links and every suite that draws text needs; the full
+      package rather than …NoDependencies because the goldens contain text and swapping the native
+      would silently re-baseline them. `render` adds what the surfaceless EGL path binds.
+    required: false
+    default: none
+
+runs:
+  using: composite
+  steps:
+    # Not global-json-file. global.json pins 10.0.100 with rollForward latestFeature, which governs
+    # which already-installed SDK is selected rather than which one this action downloads, so
+    # pointing the action at it would move the band the wasm-tools 10.0.103 pin was measured against.
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    # Runs on every Linux job rather than only when something is wanted, so a misspelled `native`
+    # value fails the lane here instead of three minutes later inside a suite that cannot resolve a
+    # font. A skipped step cannot validate its own input.
+    - name: Install native deps
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        case '${{ inputs.native }}' in
+          none)   echo "no native libraries requested"; exit 0 ;;
+          skia)   packages=(libfontconfig1) ;;
+          render) packages=(libfontconfig1 libegl1 libgles2 libgl1 libglx-mesa0) ;;
+          *)      echo "unknown native '${{ inputs.native }}' (expected none, skia or render)" >&2
+                  exit 1 ;;
+        esac
+        sudo apt-get update
+        sudo apt-get install -y "${packages[@]}"

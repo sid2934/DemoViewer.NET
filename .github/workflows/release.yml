@@ -102,9 +102,7 @@ jobs:
           # package now and its Valve message types arrive prebuilt from CS2OpenDev.Protos. The
           # Parser tab's source links read the submodule at runtime in a dev checkout only.
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       - name: Restore CLI tools (vpk, nbgv)
         run: dotnet tool restore
@@ -160,9 +158,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4   # for .config/dotnet-tools.json (vpk). No submodules needed here.
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/dotnet-sdk
 
       - name: Restore CLI tools (vpk)
         run: dotnet tool restore

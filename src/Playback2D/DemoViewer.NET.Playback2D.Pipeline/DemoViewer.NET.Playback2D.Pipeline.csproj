@@ -6,9 +6,6 @@
       packages + the (now Avalonia-free) module abstractions. Still NO Avalonia — enforced by test.
     -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
         <RootNamespace>DemoViewer.NET.Playback2D.Pipeline</RootNamespace>
     </PropertyGroup>
 

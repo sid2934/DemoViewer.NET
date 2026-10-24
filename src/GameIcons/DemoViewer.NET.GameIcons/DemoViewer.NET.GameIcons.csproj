@@ -14,7 +14,6 @@
       and needed by every target including Browser, so they ride inside the assembly.
     -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
         <!-- Published with the extension SDK, whose UI kit's GameIcon control depends on it, at the SDK's
              version: the SDK's version.json path filters include this project and the icon bake. Its public
              API is pinned the same way. -->

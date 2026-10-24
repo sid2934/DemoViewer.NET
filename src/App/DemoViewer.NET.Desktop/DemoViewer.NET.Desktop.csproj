@@ -3,8 +3,6 @@
         <OutputType>WinExe</OutputType>
         <!--If you are willing to use platform-specific APIs, use conditional compilation.
         See https://docs.avaloniaui.net/docs/guides/platforms/platform-specific-code/dotnet for more details.-->
-        <TargetFramework>net10.0</TargetFramework>
-        <Nullable>enable</Nullable>
         <!-- Workstation GC (reverses an earlier Server GC choice): 24x less resident after close, 112 MB
              against 2745 MB, for about 32% slower parse. The gc-sweep harness that measured the matrix was
              deleted with the retained parse path; it is recoverable at 92973a3 if the choice is revisited. -->
