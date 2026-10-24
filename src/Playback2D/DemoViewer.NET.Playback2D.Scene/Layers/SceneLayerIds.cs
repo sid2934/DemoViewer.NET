@@ -71,10 +71,7 @@ public static class SceneLayerIds
     /// </summary>
     public const string Overlay = "playback2d.overlay";
 
-    /// <summary>
-    ///     The Utility Book map: landing groups and a focused group's throw positions and flights. Opt-in
-    ///     like the overlay: it draws a document the caller supplies.
-    /// </summary>
+    /// <summary>The Utility Book map: landing groups and a focused group's throw positions and flights.</summary>
     public const string Utility = "playback2d.utility";
 
     /// <summary>
