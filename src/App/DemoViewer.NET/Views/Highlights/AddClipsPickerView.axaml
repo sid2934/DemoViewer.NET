@@ -7,7 +7,7 @@
              x:DataType="vm:AddClipsPickerViewModel">
 
     <!--
-      THE CROSS-DEMO ADD-CLIPS PICKER (docs/ui/highlights-matchoverview-redesign.md).
+      THE CROSS-DEMO ADD-CLIPS PICKER.
 
       A flat, VIRTUALIZED highlight-ROW list spanning every cached demo — the unit of work is a clip, not a
       demo, which is also why the card grid's chunked CardRow machinery is gone (it only ever existed because

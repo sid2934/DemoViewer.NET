@@ -1458,8 +1458,7 @@ public sealed partial class Playback2DTabViewModel : ObservableObject, IWorkspac
         HasKillEvents = _context?.AvailableEventNames.Contains(KillEventName) ?? false;
 
     /// <summary>
-    ///     Raised when the user picks a Follow-Player target in the viewport (csvg-integration
-    ///     the DV→CS2 spectate seam). Payload = roster slot. The pick is also
+    ///     Raised when the user picks a Follow-Player target in the viewport (the DV→CS2 spectate seam). Payload = roster slot. The pick is also
     ///     relayed to the host via <see cref="IModuleContext.NotifySpectateTarget" />.
     /// </summary>
     public event Action<int>? FollowSlotChanged;

@@ -6,7 +6,7 @@
              MinWidth="300" MaxWidth="360">
 
     <!--
-        Reel job flyout body (docs/csvg-integration/ux-design.md). Hosted inside the StatusChip's
+        Reel job flyout body. Hosted inside the StatusChip's
         Border.card-flyout (surface + rounding), so this view provides only inner padding + content.
         Sections are mutually-exclusive per job phase, driven by bound IsVisible flags (reactive, not
         code-behind). All colour is {DynamicResource}; the per-clip status glyph resolves its token via a

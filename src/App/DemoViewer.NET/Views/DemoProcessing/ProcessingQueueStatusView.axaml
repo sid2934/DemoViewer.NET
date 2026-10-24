@@ -6,7 +6,7 @@
              Width="340">
 
     <!--
-        Background-work queue flyout body (docs/demo-processing-queue.md): demo parses and every other heavy
+        Background-work queue flyout body: demo parses and every other heavy
         job (lineup clips, strat mining, pack export, sidecar migration, heap compaction). Hosted inside the StatusChip's
         Border.card-flyout (which supplies the surface + rounding), so this view provides only inner padding
         + content. Everything is reactive (bound), theme-driven ({DynamicResource} + the shared Ellipse.dot.*

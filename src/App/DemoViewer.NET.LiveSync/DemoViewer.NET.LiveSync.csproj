@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 
-    <!-- Desktop-only live CS2 sync engine (docs/csvg-integration/implementation-plan.md).
+    <!-- Desktop-only live CS2 sync engine.
          Referenced ONLY by DemoViewer.NET.Desktop; the App/Browser projects must never depend on
          this project — CSVG + the ASP.NET Core framework reference are WASM poison. The App sees
          the engine solely through ILiveSyncService via the AppHostHooks static seam. -->

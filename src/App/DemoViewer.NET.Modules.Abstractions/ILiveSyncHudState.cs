@@ -1,8 +1,7 @@
 namespace DemoViewer.NET.Modules.Abstractions;
 
 /// <summary>
-///     The dot's semantic bucket for the 2D Playback in-context CS2 indicator (csvg-integration
-///     ux-design.md). It maps onto the walled-off <c>Pb2d*</c> HUD palette in the view (NOT the
+///     The dot's semantic bucket for the 2D Playback in-context CS2 indicator. It maps onto the walled-off <c>Pb2d*</c> HUD palette in the view (NOT the
 ///     app-chrome ramp — design-system D21), so this abstraction stays free of any brush/token.
 /// </summary>
 public enum LiveSyncHudDot

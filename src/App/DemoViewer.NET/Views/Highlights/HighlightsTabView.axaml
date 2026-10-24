@@ -7,7 +7,7 @@
              x:DataType="vm:HighlightsTabViewModel">
 
     <!--
-      THE REELS DASHBOARD (docs/ui/highlights-matchoverview-redesign.md).
+      THE REELS DASHBOARD.
 
       Left: the clip TRAY — ordered, provenance-bearing (map accent + map + demo file + round + player +
       tick + window), reorderable by ▲▼ or drag, removable per clip and per (player · demo) group, with the

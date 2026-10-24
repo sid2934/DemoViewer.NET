@@ -5,9 +5,8 @@
              x:DataType="vm:HighlightReelDialogViewModel">
 
     <!--
-        THE REEL CONFIGURATION PANE (docs/csvg-integration/ux-design.md, promoted out of the modal
-        by docs/ui/highlights-matchoverview-redesign.md). Embedded as the Reels dashboard's right-hand
-        column; the tab owns the clip TRAY, the pre-flight banner, the interlock strip and the primary
+        THE REEL CONFIGURATION PANE, promoted out of the modal. Embedded as the Reels dashboard's
+        right-hand column; the tab owns the clip TRAY, the pre-flight banner, the interlock strip and the primary
         action, so none of those live here any more.
 
         The file name is unchanged on purpose: a test guards the ViewLocator name mapping

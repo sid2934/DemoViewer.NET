@@ -7,7 +7,7 @@ using DemoViewer.NET.Services;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The resized <see cref="HeavyJobGate" /> (demo-processing-queue.md). At
+///     The resized <see cref="HeavyJobGate" />. At
 ///     <c>MaxConcurrency == 1</c> every path must be behaviourally identical to the historical
 ///     <c>SemaphoreSlim(1,1)</c> gate: one holder at a time; background yields to a pending
 ///     interactive between demos; a reel session drains the in-flight holder and refuses

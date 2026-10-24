@@ -10,7 +10,7 @@ using TUnit.Assertions.Enums;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     The global demo-processing queue (demo-processing-queue.md). A fake parser stands in for the
+///     The global demo-processing queue. A fake parser stands in for the
 ///     heavy demo parse, no demos, no bytes, so the tests exercise priority ordering, coalescing,
 ///     the size cap + refeed, max-concurrency, pause/disable, removal, and the awaitable foreground
 ///     path deterministically. Correctness of the concurrency primitive is the whole point here.

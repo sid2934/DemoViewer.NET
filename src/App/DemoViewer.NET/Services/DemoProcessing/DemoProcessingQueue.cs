@@ -18,7 +18,7 @@ using Microsoft.Extensions.Logging;
 namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
-///     The global demo-processing queue (demo-processing-queue.md). The single source all background
+///     The global demo-processing queue. The single source all background
 ///     demo parse/analyse work is pulled from, plus the awaitable highest-priority foreground open.
 ///     <para>
 ///         <b>Two authorities, one live number.</b> This pump is the PRIMARY limiter: it starts

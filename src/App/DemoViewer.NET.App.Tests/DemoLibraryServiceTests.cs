@@ -156,7 +156,7 @@ public class DemoLibraryServiceTests
     }
 
     /// <summary>
-    ///     Queue-path tier-2 (demo-processing-queue.md): RescanAsync submits tier-2 to the shared
+    ///     Queue-path tier-2: RescanAsync submits tier-2 to the shared
     ///     queue (returning before it drains), and the END-OF-BACKLOG Save persists the cache so a second
     ///     launch loads from cache WITHOUT re-parsing. Uses a fake queue parser so no real demo is needed.
     ///     <para>

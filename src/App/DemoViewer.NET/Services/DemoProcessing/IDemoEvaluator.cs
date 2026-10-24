@@ -7,7 +7,7 @@ using CS2DemoKit.Parser;
 namespace DemoViewer.NET.Services.DemoProcessing;
 
 /// <summary>
-///     A feature that needs a background parse of a demo (demo-processing-queue "one parse, many
+///     A feature that needs a background parse of a demo ("one parse, many
 ///     evaluators"). The <see cref="DemoScheduler" /> asks every registered evaluator's cheap
 ///     <see cref="Wants" /> for a demo it was told about and submits the interested ones together as one
 ///     visit; the queue parses the demo ONCE and each interested evaluator's <see cref="Evaluate" /> runs on

@@ -100,7 +100,7 @@
              protoc, and the Valve message types arrive prebuilt in CS2OpenDev.Protos, which the
              parser pulls in transitively. -->
         <PackageVersion Include="Google.Protobuf" Version="3.29.5"/>
-        <!-- CSVG live-CS2 integration (docs/csvg-integration/), from
+        <!-- CSVG live-CS2 integration, from
              github.com/CS2OpenDev/CS2VideoGenerator.
 
              0.10.0 is the newest published version, NOT a downgrade from the 1.x line that predates
