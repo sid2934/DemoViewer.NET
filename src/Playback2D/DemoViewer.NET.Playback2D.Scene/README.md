@@ -28,8 +28,8 @@ zone loaders, the sidecar identity records and the content key under `DemoViewer
 | `Playback2D.Core.Zones` | `PlaceResolver`, `ZoneSet`, `PlaceHit` and the zone geometry |
 | `Playback2D.Core.Cameras` | `ICameraRig` and the built-in rigs |
 | `Playback2D.Core.Tools` | `IMapTool`, `MapToolEvent`, `IMapToolContext`, `MapToolButton`, `MapToolModifiers` |
-| `Playback2D.Core.Layers` (drawing) | `OverlayHeatmapLayer`, `QueryTokenLayer`, `UtilityMapLayer` |
-| `Playback2D.Core.Overlay`, `.Query`, `.Utility` | the documents those three layers draw |
+| `Playback2D.Core.Layers` (drawing) | `OverlayHeatmapLayer`, `QueryTokenLayer` |
+| `Playback2D.Core.Overlay`, `.Query` | the documents those two layers draw |
 | `Playback2D.Core.Annotations` | `AnnotationDocument`, `AnnotationElement`, `AnnotationSession`, `DocDelta` and the styles and timing they carry |
 | `Playback2D.Core.Timeline` | `ITimelineTrack`, `ITimelineData`, `TimelineMarker`, `TimelineBand`, `AnnotationTrack` |
 | `Playback2D.Core.Input` | `IPointerTool`, `ToolPointerEvent`, `IToolServices`, `ITokenEditor`: the playback tab's own tool contract, which a tool that edits tokens needs. Writing ink is first-party: the session and the authoring clock are not on `IToolServices` |

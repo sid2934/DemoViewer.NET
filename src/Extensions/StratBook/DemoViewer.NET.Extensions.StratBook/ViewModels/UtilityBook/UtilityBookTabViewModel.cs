@@ -9,7 +9,6 @@ using CommunityToolkit.Mvvm.Input;
 using DemoViewer.NET.Modules.Abstractions;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
-using DemoViewer.NET.Playback2D.Core.Utility;
 using GrenadeKind = DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeKind;
 using GrenadeTrailPoint = DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint;
 using DemoViewer.NET.ViewModels;
@@ -595,18 +594,18 @@ public sealed partial class UtilityBookTabViewModel : ExtensionViewModel, IWorks
         }
 
         // Biggest last, so it draws on top and wins the hit test where icons overlap.
-        List<UtilityLanding> landings =
+        List<UtilityMapLanding> landings =
         [
             .. _groups.Values.OrderBy(g => g.ThrowCount).ThenBy(g => g.Id, StringComparer.Ordinal)
-                .Select(g => new UtilityLanding(g.Id, g.Landing.X, g.Landing.Y, g.Landing.Z, IconKey(g.Kind),
+                .Select(g => new UtilityMapLanding(g.Id, g.Landing.X, g.Landing.Y, g.Landing.Z, IconKey(g.Kind),
                     g.Kind.ToString()[0], g.ThrowCount, ReferenceEquals(g, focused)))
         ];
-        List<UtilityThrow> throws = focused is null
+        List<UtilityMapThrow> throws = focused is null
             ? []
             :
             [
                 .. Positions(focused).OrderBy(p => p.Throws.Count)
-                    .Select(p => new UtilityThrow(p.Key, p.Origin.X, p.Origin.Y, p.Origin.Z, TeamOf(p.Throws), p.JumpThrow,
+                    .Select(p => new UtilityMapThrow(p.Key, p.Origin.X, p.Origin.Y, p.Origin.Z, TeamOf(p.Throws), p.JumpThrow,
                         p.Key == selected?.Key, Flight(p, focused.Landing)))
             ];
         Document.Set(landings, throws);

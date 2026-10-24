@@ -11,7 +11,7 @@ using Avalonia.Platform;
 using Avalonia.Threading;
 using DemoViewer.NET.Playback2D.Core.Layers;
 using DemoViewer.NET.Playback2D.Core.Levels;
-using DemoViewer.NET.Playback2D.Core.Utility;
+using DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 using DemoViewer.NET.Extensions.StratBook.Views.UtilityBook;
 using DemoViewer.NET.Features;
 using DemoViewer.NET.Modules.Abstractions;
@@ -821,7 +821,7 @@ public class GrenadeIndexTests
             }
 
             focused = vm.HasFocus;
-            UtilityThrow? jump = vm.Document.Throws.FirstOrDefault(t => t.JumpThrow);
+            UtilityMapThrow? jump = vm.Document.Throws.FirstOrDefault(t => t.JumpThrow);
             if (jump is not null && host.HostPointOf(jump.X, jump.Y, jump.Z) is { } origin)
             {
                 // The jump-throw and the standard throw 4 units away stack on one disc: repeated clicks

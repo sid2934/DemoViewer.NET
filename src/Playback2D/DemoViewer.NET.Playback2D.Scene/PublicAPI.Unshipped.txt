@@ -1582,31 +1582,6 @@ DemoViewer.NET.Playback2D.Core.Layers.QueryTokenLayer.Order.get -> int
 DemoViewer.NET.Playback2D.Core.Layers.QueryTokenLayer.QueryTokenLayer(DemoViewer.NET.Playback2D.Core.Query.QueryCanvasDocument! document) -> void
 DemoViewer.NET.Playback2D.Core.Layers.QueryTokenLayer.Render(SkiaSharp.SKCanvas! canvas, DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext ctx) -> void
 DemoViewer.NET.Playback2D.Core.Layers.QueryTokenLayer.Slot.get -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Advance(in DemoViewer.NET.Playback2D.Core.SceneTime time, DemoViewer.NET.Playback2D.Core.Scene2DFrame! frame) -> bool
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Cache.get -> DemoViewer.NET.Playback2D.Core.Compositing.LayerCacheHint
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.ContentVersion.get -> int
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Deconstruct(out float X, out float Y, out float Radius, out bool Keep) -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Disc() -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Disc(float X, float Y, float Radius, bool Keep) -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Equals(DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc other) -> bool
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Keep.get -> bool
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Keep.init -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Radius.get -> float
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Radius.init -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.X.get -> float
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.X.init -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Y.get -> float
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Y.init -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Dispose() -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Id.get -> string!
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.IsEnabled.get -> bool
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.IsEnabled.set -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Order.get -> int
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Render(SkiaSharp.SKCanvas! canvas, DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext ctx) -> void
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Slot.get -> DemoViewer.NET.Playback2D.Core.Compositing.LayerSlot
-DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.UtilityMapLayer(DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument! document, DemoViewer.NET.Playback2D.Core.Hud.IIconSource? icons = null) -> void
 DemoViewer.NET.Playback2D.Core.Levels.ILevelRadarBinder
 DemoViewer.NET.Playback2D.Core.Levels.ILevelRadarBinder.Bind(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Levels.FloorSlice>! bands, System.Collections.Generic.List<SkiaSharp.SKImage?>! images, System.Collections.Generic.List<string?>! names) -> DemoViewer.NET.Playback2D.Core.Levels.RadarBindingQuality
 DemoViewer.NET.Playback2D.Core.Levels.MapSpaceFactory
@@ -1785,56 +1760,6 @@ DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarkerKind.Custom = 6 -> DemoVie
 DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarkerKind.Kill = 1 -> DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarkerKind
 DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarkerKind.Round = 0 -> DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarkerKind
 DemoViewer.NET.Playback2D.Core.TrailGeometry
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Deconstruct(out string! Id, out float X, out float Y, out float Z, out string! IconKey, out char Letter, out int Throws, out bool Focused) -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Equals(DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding other) -> bool
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Focused.get -> bool
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Focused.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.IconKey.get -> string!
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.IconKey.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Id.get -> string!
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Id.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Letter.get -> char
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Letter.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Throws.get -> int
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Throws.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.UtilityLanding() -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.UtilityLanding(string! Id, float X, float Y, float Z, string! IconKey, char Letter, int Throws, bool Focused) -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.X.get -> float
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.X.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Y.get -> float
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Y.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Z.get -> float
-DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Z.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument
-DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument.Changed -> System.Action?
-DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument.HasFocus.get -> bool
-DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument.Landings.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding>!
-DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument.Set(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding>! landings, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow!>! throws) -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument.Throws.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow!>!
-DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument.UtilityMapDocument() -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument.Version.get -> int
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.<Clone>$() -> DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow!
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Deconstruct(out string! Id, out float X, out float Y, out float Z, out int Team, out bool JumpThrow, out bool Selected, out System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint>! Trajectory) -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Equals(DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow? other) -> bool
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Id.get -> string!
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Id.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.JumpThrow.get -> bool
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.JumpThrow.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Selected.get -> bool
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Selected.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Team.get -> int
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Team.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Trajectory.get -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint>!
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Trajectory.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.UtilityThrow(string! Id, float X, float Y, float Z, int Team, bool JumpThrow, bool Selected, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint>! Trajectory) -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.X.get -> float
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.X.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Y.get -> float
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Y.init -> void
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Z.get -> float
-DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Z.init -> void
 DemoViewer.NET.Playback2D.Core.Vision.ConePolygon
 DemoViewer.NET.Playback2D.Core.Vision.ConePolygon.ApexX.get -> float
 DemoViewer.NET.Playback2D.Core.Vision.ConePolygon.ApexY.get -> float
@@ -1928,11 +1853,6 @@ const DemoViewer.NET.Playback2D.Core.Layers.OverlayHeatmapLayer.MaxKernelRadiusP
 const DemoViewer.NET.Playback2D.Core.Layers.OverlayHeatmapLayer.MinKernelRadiusPx = 4 -> float
 const DemoViewer.NET.Playback2D.Core.Layers.OverlayHeatmapLayer.PeakAlpha = 0.85 -> float
 const DemoViewer.NET.Playback2D.Core.Layers.QueryTokenLayer.Radius = 12 -> float
-const DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.HitSlop = 4 -> float
-const DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.LandingGrowth = 2 -> float
-const DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.LandingRadius = 11 -> float
-const DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.LandingRadiusMax = 17 -> float
-const DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.ThrowRadius = 10 -> float
 const DemoViewer.NET.Playback2D.Core.MarkerSmoother.LerpResponse = 16 -> double
 const DemoViewer.NET.Playback2D.Core.MarkerSmoother.SettleEpsilonSq = 0.25 -> float
 const DemoViewer.NET.Playback2D.Core.MarkerSmoother.SnapDistanceSq = 62500 -> float
@@ -2010,16 +1930,11 @@ override DemoViewer.NET.Playback2D.Core.Hud.HudStyle.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Core.Hud.HudStyle.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Hud.HudStyle.ToString() -> string!
 override DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Query.QueryToken.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Timeline.TimelineBand.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Timeline.TimelineEventRecord.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarker.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.Equals(object? obj) -> bool
-override DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.GetHashCode() -> int
-override DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.ToString() -> string!
 override DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment.GetHashCode() -> int
 override DemoViewer.NET.Playback2D.Core.Vision.VisionOptions.Equals(object? obj) -> bool
 override DemoViewer.NET.Playback2D.Core.Vision.VisionOptions.GetHashCode() -> int
@@ -2075,12 +1990,6 @@ static DemoViewer.NET.Playback2D.Core.Input.TokenHitTest.WorldRadius(double worl
 static DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent.operator !=(DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent left, DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent right) -> bool
 static DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent.operator ==(DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent left, DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent right) -> bool
 static DemoViewer.NET.Playback2D.Core.Layers.QueryTokenLayer.ScreenPosition(in DemoViewer.NET.Playback2D.Core.Query.QueryToken token, DemoViewer.NET.Playback2D.Core.ViewportTransform transform) -> SkiaSharp.SKPoint
-static DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Declutter(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc>! discs) -> (bool[]! Hidden, int[]! Counts)
-static DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.operator !=(DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc left, DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc right) -> bool
-static DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.operator ==(DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc left, DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc right) -> bool
-static DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.LandingsAt(DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument! document, DemoViewer.NET.Playback2D.Core.ViewportTransform transform, System.Func<double, bool>! belongsHere, SkiaSharp.SKPoint local) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding>!
-static DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.RadiusFor(int throws) -> float
-static DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.ThrowsAt(DemoViewer.NET.Playback2D.Core.Utility.UtilityMapDocument! document, DemoViewer.NET.Playback2D.Core.ViewportTransform transform, System.Func<double, bool>! belongsHere, SkiaSharp.SKPoint local) -> System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow!>!
 static DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint.operator !=(DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint left, DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint right) -> bool
 static DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint.operator ==(DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint left, DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint right) -> bool
 static DemoViewer.NET.Playback2D.Core.Query.QueryToken.operator !=(DemoViewer.NET.Playback2D.Core.Query.QueryToken left, DemoViewer.NET.Playback2D.Core.Query.QueryToken right) -> bool
@@ -2094,10 +2003,6 @@ static DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarker.operator ==(DemoVi
 static DemoViewer.NET.Playback2D.Core.TrailGeometry.FloorSegmentRuns(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint>! points, in DemoViewer.NET.Playback2D.Core.Compositing.SceneRenderContext ctx, System.Collections.Generic.List<(int Start, int End)>! into) -> void
 static DemoViewer.NET.Playback2D.Core.TrailGeometry.FloorSegmentRuns(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint>! points, int levelIndex, System.Func<double, int>! levelOf) -> System.Collections.Generic.List<(int Start, int End)>!
 static DemoViewer.NET.Playback2D.Core.TrailGeometry.FloorSegmentRuns(System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.GrenadeTrailPoint>! points, int levelIndex, System.Func<double, int>! levelOf, System.Collections.Generic.List<(int Start, int End)>! into) -> void
-static DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.operator !=(DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding left, DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding right) -> bool
-static DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.operator ==(DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding left, DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding right) -> bool
-static DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.operator !=(DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow? left, DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow? right) -> bool
-static DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow.operator ==(DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow? left, DemoViewer.NET.Playback2D.Core.Utility.UtilityThrow? right) -> bool
 static DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment.operator !=(DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment left, DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment right) -> bool
 static DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment.operator ==(DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment left, DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment right) -> bool
 static DemoViewer.NET.Playback2D.Core.Vision.VisionOptions.operator !=(DemoViewer.NET.Playback2D.Core.Vision.VisionOptions? left, DemoViewer.NET.Playback2D.Core.Vision.VisionOptions? right) -> bool
@@ -2133,8 +2038,6 @@ virtual DemoViewer.NET.Playback2D.Core.Annotations.SpaceRef.PrintMembers(System.
 ~override DemoViewer.NET.Playback2D.Core.Hud.HudSnapshot.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Core.Input.ToolWheelEvent.ToString() -> string
-~override DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.Equals(object obj) -> bool
-~override DemoViewer.NET.Playback2D.Core.Layers.UtilityMapLayer.Disc.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Core.Overlay.OverlayPoint.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.Query.QueryToken.Equals(object obj) -> bool
@@ -2145,8 +2048,6 @@ virtual DemoViewer.NET.Playback2D.Core.Annotations.SpaceRef.PrintMembers(System.
 ~override DemoViewer.NET.Playback2D.Core.Timeline.TimelineEventRecord.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarker.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Core.Timeline.TimelineMarker.ToString() -> string
-~override DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.Equals(object obj) -> bool
-~override DemoViewer.NET.Playback2D.Core.Utility.UtilityLanding.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment.Equals(object obj) -> bool
 ~override DemoViewer.NET.Playback2D.Core.Vision.SightlineSegment.ToString() -> string
 ~override DemoViewer.NET.Playback2D.Core.Zones.NavWaypoint.Equals(object obj) -> bool

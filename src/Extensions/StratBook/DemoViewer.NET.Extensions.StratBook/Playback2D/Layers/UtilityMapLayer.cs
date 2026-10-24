@@ -1,13 +1,15 @@
 #region
 
+using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Playback2D.Core.Compositing;
 using DemoViewer.NET.Playback2D.Core.Hud;
-using DemoViewer.NET.Playback2D.Core.Utility;
+using DemoViewer.NET.Playback2D.Core.Layers;
 using SkiaSharp;
 
 #endregion
 
-namespace DemoViewer.NET.Playback2D.Core.Layers;
+namespace DemoViewer.NET.Extensions.StratBook.Playback2D.Layers;
 
 /// <summary>
 ///     The Utility Book map: an icon where each landing group goes off, and, when a group is focused, a
@@ -90,15 +92,15 @@ public sealed class UtilityMapLayer : ISceneLayer
     /// <param name="transform">The pane's world to screen transform.</param>
     /// <param name="belongsHere">The pane's floor test, the same one the layer draws with.</param>
     /// <param name="local">The pane-local point.</param>
-    public static IReadOnlyList<UtilityLanding> LandingsAt(UtilityMapDocument document, ViewportTransform transform,
+    public static IReadOnlyList<UtilityMapLanding> LandingsAt(UtilityMapDocument document, ViewportTransform transform,
         Func<double, bool> belongsHere, SKPoint local)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(belongsHere);
-        List<UtilityLanding> hits = [];
+        List<UtilityMapLanding> hits = [];
         for (int i = document.Landings.Count - 1; i >= 0; i--)
         {
-            UtilityLanding landing = document.Landings[i];
+            UtilityMapLanding landing = document.Landings[i];
             if (!belongsHere(landing.Z))
             {
                 continue;
@@ -123,15 +125,15 @@ public sealed class UtilityMapLayer : ISceneLayer
     /// <param name="transform">The pane's world to screen transform.</param>
     /// <param name="belongsHere">The pane's floor test.</param>
     /// <param name="local">The pane-local point.</param>
-    public static IReadOnlyList<UtilityThrow> ThrowsAt(UtilityMapDocument document, ViewportTransform transform,
+    public static IReadOnlyList<UtilityMapThrow> ThrowsAt(UtilityMapDocument document, ViewportTransform transform,
         Func<double, bool> belongsHere, SKPoint local)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(belongsHere);
-        List<UtilityThrow> hits = [];
+        List<UtilityMapThrow> hits = [];
         for (int i = document.Throws.Count - 1; i >= 0; i--)
         {
-            UtilityThrow position = document.Throws[i];
+            UtilityMapThrow position = document.Throws[i];
             if (!belongsHere(position.Z))
             {
                 continue;
@@ -155,14 +157,14 @@ public sealed class UtilityMapLayer : ISceneLayer
         bool focus = _document.HasFocus;
 
         // Flights first, then the throw discs, then the landing icons on top: a flight ends under its icon.
-        foreach (UtilityThrow position in _document.Throws)
+        foreach (UtilityMapThrow position in _document.Throws)
         {
             DrawFlight(canvas, position, in ctx);
         }
 
         for (int i = 0; i < _document.Throws.Count; i++)
         {
-            UtilityThrow position = _document.Throws[i];
+            UtilityMapThrow position = _document.Throws[i];
             if (ctx.BelongsHere(position.Z))
             {
                 DrawThrow(canvas, position, in ctx);
@@ -177,7 +179,7 @@ public sealed class UtilityMapLayer : ISceneLayer
         List<Disc> discs = [];
         for (int i = 0; i < _document.Landings.Count; i++)
         {
-            UtilityLanding landing = _document.Landings[i];
+            UtilityMapLanding landing = _document.Landings[i];
             if (ctx.BelongsHere(landing.Z))
             {
                 (double x, double y) = ctx.Transform.WorldToScreen(landing.X, landing.Y);
@@ -194,7 +196,7 @@ public sealed class UtilityMapLayer : ISceneLayer
                 continue;
             }
 
-            UtilityLanding landing = _document.Landings[here[k]];
+            UtilityMapLanding landing = _document.Landings[here[k]];
             byte alpha = focus && !landing.Focused ? (byte)90 : (byte)255;
             DrawLanding(canvas, landing, alpha, in ctx);
             if (counts[k] > 1)
@@ -297,8 +299,8 @@ public sealed class UtilityMapLayer : ISceneLayer
 
     private static (float X, float Y, float Z) Where<T>(T item) => item switch
     {
-        UtilityThrow t => (t.X, t.Y, t.Z),
-        UtilityLanding l => (l.X, l.Y, l.Z),
+        UtilityMapThrow t => (t.X, t.Y, t.Z),
+        UtilityMapLanding l => (l.X, l.Y, l.Z),
         _ => (0, 0, 0)
     };
 
@@ -324,7 +326,7 @@ public sealed class UtilityMapLayer : ISceneLayer
         _font.Dispose();
     }
 
-    private void DrawFlight(SKCanvas canvas, UtilityThrow position, in SceneRenderContext ctx)
+    private void DrawFlight(SKCanvas canvas, UtilityMapThrow position, in SceneRenderContext ctx)
     {
         IReadOnlyList<GrenadeTrailPoint> points = position.Trajectory;
         if (points.Count < 2)
@@ -356,7 +358,7 @@ public sealed class UtilityMapLayer : ISceneLayer
         }
     }
 
-    private void DrawThrow(SKCanvas canvas, UtilityThrow position, in SceneRenderContext ctx)
+    private void DrawThrow(SKCanvas canvas, UtilityMapThrow position, in SceneRenderContext ctx)
     {
         (double x, double y) = ctx.Transform.WorldToScreen(position.X, position.Y);
         SKPoint at = new((float)x, (float)y);
@@ -373,7 +375,7 @@ public sealed class UtilityMapLayer : ISceneLayer
         }
     }
 
-    private void DrawLanding(SKCanvas canvas, UtilityLanding landing, byte alpha, in SceneRenderContext ctx)
+    private void DrawLanding(SKCanvas canvas, UtilityMapLanding landing, byte alpha, in SceneRenderContext ctx)
     {
         (double x, double y) = ctx.Transform.WorldToScreen(landing.X, landing.Y);
         SKPoint at = new((float)x, (float)y);
