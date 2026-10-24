@@ -1,4 +1,9 @@
+#region
+
+using System.Reflection;
 using TUnit.Assertions.Enums;
+
+#endregion
 
 namespace DemoViewer.NET.AppTests.Extensions;
 
@@ -38,13 +43,24 @@ public class ExtensionSdkArchitectureTests
     }
 
     [Test]
-    public async Task TheUiKitIconAndSceneAssemblyVersions_AreTheSdks()
+    public async Task TheSdkFamily_CarriesOneVersion()
     {
-        Version sdk = typeof(IExtension).Assembly.GetName().Version!;
+        // The package version, not the assembly version: assemblyVersion.precision is "major", so every 1.x
+        // assembly stamps 1.0.0.0 and a minor- or patch-level drift is invisible there. It has to be caught,
+        // because Directory.Build.targets pins the intra-family dependencies exactly and a drift therefore
+        // ships as a dependency on a version its sibling does not carry.
+        //
+        // GameIcons is not published but belongs here anyway: it reads the SDK's version.json through
+        // GitVersionBaseDirectory, so it is on the same line whether or not it is packed.
+        string sdk = ReleaseVersion(typeof(IExtension).Assembly);
 
-        await Assert.That(typeof(DisplayText).Assembly.GetName().Version).IsEqualTo(sdk);
-        await Assert.That(typeof(GameIcons.IconCatalogue).Assembly.GetName().Version).IsEqualTo(sdk);
-        await Assert.That(typeof(Playback2D.Core.Scene2DFrame).Assembly.GetName().Version).IsEqualTo(sdk);
+        using (Assert.Multiple())
+        {
+            await Assert.That(ReleaseVersion(typeof(Modules.Abstractions.IModuleContext).Assembly)).IsEqualTo(sdk);
+            await Assert.That(ReleaseVersion(typeof(DisplayText).Assembly)).IsEqualTo(sdk);
+            await Assert.That(ReleaseVersion(typeof(Playback2D.Core.Scene2DFrame).Assembly)).IsEqualTo(sdk);
+            await Assert.That(ReleaseVersion(typeof(GameIcons.IconCatalogue).Assembly)).IsEqualTo(sdk);
+        }
     }
 
     [Test]
@@ -80,4 +96,10 @@ public class ExtensionSdkArchitectureTests
 
         await Assert.That(version.Minor + version.Build + version.Revision).IsEqualTo(0);
     }
+
+    // Nerdbank.GitVersioning writes the release version, then '+' and the commit id, into the informational
+    // version. The NuGet package version is this plus a -g<commit> suffix off a release ref, which is the same
+    // suffix for every assembly built from one commit, so the part before the '+' is what can drift.
+    private static string ReleaseVersion(Assembly assembly) =>
+        assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0];
 }
