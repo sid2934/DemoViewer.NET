@@ -34,7 +34,7 @@ public interface ISceneLayer : IDisposable
 
     /// <summary>
     ///     Bumped by the layer whenever its cacheable content changes; ignored when <see cref="Cache" />
-    ///     is <see cref="LayerCacheHint.Dynamic" />. Declared here rather than added by B1 so there is one
+    ///     is <see cref="LayerCacheHint.Dynamic" />. Declared here rather than added later so there is one
     ///     interface shape for the whole track.
     /// </summary>
     int ContentVersion { get; }

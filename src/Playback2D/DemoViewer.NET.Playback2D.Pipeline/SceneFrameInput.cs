@@ -56,7 +56,7 @@ public readonly ref struct SceneFrameInput
     /// <summary>The decoded radar layers for this map, or null when no bundle is loaded.</summary>
     public IReadOnlyList<MapRadarImage>? Radars { get; init; }
 
-    /// <summary>Solved line-of-sight geometry. B1 fills this; B0 always passes <see cref="SceneVision.Off" />.</summary>
+    /// <summary>Solved line-of-sight geometry; null is read as <see cref="SceneVision.Off" />.</summary>
     public SceneVision? Vision { get; init; }
 
     // Stored biased by one so an unset input means "nobody" (-1) rather than "slot 0". A ref struct

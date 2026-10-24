@@ -45,7 +45,7 @@ public sealed class PanZoomGesture
     }
 
     /// <summary>
-    ///     Begins a drag on a pane the caller has already hit-tested. B2's <c>PanZoomTool</c> takes this
+    ///     Begins a drag on a pane the caller has already hit-tested. <c>PanZoomTool</c> takes this
     ///     overload: the router resolves the pane once per event and hands it to whichever tool owns the
     ///     gesture, so re-running the hit test here would be both redundant and a second answer.
     /// </summary>

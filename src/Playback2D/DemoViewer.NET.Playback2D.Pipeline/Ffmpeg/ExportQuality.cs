@@ -1,7 +1,7 @@
 namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 
 /// <summary>
-///     How much an export is willing to spend per frame: plan <c>P2-export-throughput</c> D3.
+///     How much an export is willing to spend per frame.
 ///     <para>
 ///         It is a request, not a codec setting: every encoder maps the three ids onto its own speed and
 ///         rate controls (<c>-cq</c> plus a preset for NVENC, <c>-crf</c> plus <c>-deadline</c>/

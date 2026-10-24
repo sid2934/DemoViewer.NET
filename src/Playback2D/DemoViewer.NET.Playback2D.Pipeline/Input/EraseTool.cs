@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2D.Core.Input;
 ///     <para>
 ///         <b>There is no pixel erase.</b> A stroke-level eraser is
 ///         what keeps the document a list of vector elements that can be re-rendered at any zoom, at any
-///         export resolution, by any of B4/C1's headless paths.
+///         export resolution, by any of the headless paths.
 ///     </para>
 /// </summary>
 public sealed class EraseTool : IPointerTool

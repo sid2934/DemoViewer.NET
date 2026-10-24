@@ -113,7 +113,7 @@ public readonly record struct ScenePalette(
 {
     /// <summary>
     ///     The Dark-variant fallbacks the pre-v2 control's palette builder hard-coded,
-    ///     colour for colour and in the same order. In B1 the App builds a palette from its theme tokens
+    ///     colour for colour and in the same order. The App builds a palette from its theme tokens
     ///     and <c>CanvasPalette</c> becomes a factory over this; a test then asserts the two agree.
     /// </summary>
     public static readonly ScenePalette Dark = new(
@@ -161,7 +161,7 @@ public readonly record struct ScenePalette(
     ///     The Light-variant values from the app's theme dictionary (<c>Styles/DarkPalette.axaml</c>'s
     ///     Light bundle), colour for colour and in the same order as <see cref="Dark" />.
     ///     <para>
-    ///         Added in B1 because the pre-v2 golden corpus was captured under the headless app's Light
+    ///         Added because the pre-v2 golden corpus was captured under the headless app's Light
     ///         variant, and a headless re-render has no theme system to ask. Without this, the parity
     ///         gate would be comparing two different colour schemes and calling the result a regression.
     ///     </para>

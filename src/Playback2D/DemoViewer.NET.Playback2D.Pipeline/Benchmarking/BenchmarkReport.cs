@@ -28,7 +28,7 @@ public sealed record BenchmarkRequest(
 /// <summary>
 ///     A distribution of frame times, in milliseconds. <b>p99, not max</b>: on a shared runner the
 ///     maximum is whatever else the machine was doing, and a gate that fires on that gets muted within
-///     a week (plan risk R11).
+///     a week.
 /// </summary>
 /// <param name="P50Ms">Median.</param>
 /// <param name="P95Ms">95th percentile.</param>

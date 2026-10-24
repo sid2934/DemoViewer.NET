@@ -22,8 +22,8 @@ public enum GoldenMode
 ///         CPU goldens are authoritative and compared byte-exact. The perceptual mode exists because
 ///         GPU rasterisation legitimately differs from software raster in anti-aliasing and rounding, and
 ///         because headless text metrics vary across operating systems: differences that must be
-///         reviewed, not auto-failed. B0 ships the byte-exact path plus the channel/fraction budgets;
-///         C2 implements the SSIM fields against these same tolerances.
+///         reviewed, not auto-failed. The byte-exact path and the channel/fraction budgets ship here; the
+///         SSIM fields are implemented against these same tolerances.
 ///     </para>
 /// </summary>
 /// <param name="Mode">Byte-exact or perceptual.</param>
@@ -91,7 +91,7 @@ public readonly record struct GoldenTolerance(
     public static readonly GoldenTolerance DefaultPerceptual =
         new(GoldenMode.Perceptual, 8, 0.005, 0.995);
 
-    /// <summary>Alias for <see cref="DefaultPerceptual" />, the name C2's parity lane uses.</summary>
+    /// <summary>Alias for <see cref="DefaultPerceptual" />, the name the parity lane uses.</summary>
     public static GoldenTolerance CrossBackend => DefaultPerceptual;
 
     /// <summary>

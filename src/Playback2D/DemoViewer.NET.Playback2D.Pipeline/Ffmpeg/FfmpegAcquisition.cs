@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Ffmpeg;
 ///     The middle rung of the ffmpeg ladder: an <b>optional, explicitly consented</b> download of a
 ///     pinned LGPL build, verified by SHA-256 before a byte of it is extracted.
 ///     <para>
-///         <b>Why LGPL (plan D9).</b> WebM/VP9, the export default, is present in an LGPL build; H.264
+///         <b>Why LGPL.</b> WebM/VP9, the export default, is present in an LGPL build; H.264
 ///         is not. Downloading the LGPL variant keeps the redistribution story trivial: the app ships no
 ///         ffmpeg, fetches a build whose licence it shows the user first, and links that build's source.
 ///         A user who wants MP4/H.264 installs a GPL ffmpeg themselves and the <c>PATH</c> rung finds it.
@@ -34,9 +34,8 @@ public static class FfmpegAcquisition
     public const string LicenseName = "LGPL-2.1";
 
     /// <summary>
-    ///     The dated, immutable release tag the pins below belong to. Re-check it each release
-    ///     (plan R5): BtbN re-points its <c>-latest-</c> assets, which is exactly why nothing here uses
-    ///     one.
+    ///     The dated, immutable release tag the pins below belong to. Re-check it each release:
+    ///     BtbN re-points its <c>-latest-</c> assets, which is exactly why nothing here uses one.
     /// </summary>
     public const string ReleaseTag = "autobuild-2026-08-24-13-10";
 
@@ -47,7 +46,7 @@ public static class FfmpegAcquisition
     // WINDOWS ONLY, deliberately. BtbN publishes its Linux builds as .tar.xz, and neither .NET nor this
     // repository has an xz decoder; taking a compression dependency to unpack a binary that every Linux
     // distribution already packages (`apt install ffmpeg`) is the wrong trade. Linux and macOS get
-    // install instructions and the GIF floor: see plan deviation 3. The table is data: a Linux row goes
+    // install instructions and the GIF floor. The table is data: a Linux row goes
     // in the day an xz decoder earns its place.
     private const string WindowsAsset =
         "ffmpeg-n9.0.1-6-g9d4ca21220-win64-lgpl-9.0.zip";

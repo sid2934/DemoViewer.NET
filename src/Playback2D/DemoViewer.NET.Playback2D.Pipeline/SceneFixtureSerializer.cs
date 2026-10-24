@@ -26,7 +26,7 @@ public static class SceneFixtureSerializer
     // committed text that .gitattributes pins to LF (eol=lf). The visible symptom was
     // tests/fixtures/playback2d/scenes/nuke-multilevel.scene.json turning up CRLF in the working tree
     // after every Windows App-suite run: staging normalised it back, so nothing ever reached a commit and
-    // nothing ever stopped happening either. Recorded at the B2 merge (deviation 35); fixed here, because
+    // nothing ever stopped happening either. Fixed here, because
     // "your checkout is dirty and it does not matter" is a thing every contributor has to learn once.
     private static readonly JsonWriterOptions _writerOptions = new()
     {

@@ -1,6 +1,6 @@
 namespace DemoViewer.NET.Playback2D.Core;
 
-/// <summary>Grenade-projectile kind, drives the trail colour (A4).</summary>
+/// <summary>Grenade-projectile kind, drives the trail colour.</summary>
 public enum GrenadeKind
 {
     /// <summary>A high-explosive grenade.</summary>
@@ -23,7 +23,7 @@ public enum GrenadeKind
 public readonly record struct GrenadeTrailPoint(float X, float Y, float Z);
 
 /// <summary>
-///     A grenade's flight trail (A4 overlay): the path a thrown projectile traced, accumulated LIVE per push
+///     A grenade's flight trail (overlay): the path a thrown projectile traced, accumulated LIVE per push
 ///     (forward-play artifact: a trail seeked-into shows the arc from the seek point forward, which is
 ///     incomplete, not wrong). Keyed by the projectile's network Serial (the entity index gets
 ///     reused on detonation). Drawn as a fading comet line; <see cref="Alpha" /> is 1 while the projectile is
