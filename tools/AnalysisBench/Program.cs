@@ -1445,10 +1445,9 @@ internal sealed record BenchOutcome(
 ///         compare it across runs, not against <c>ReportPerformance.EvalMs</c>.
 ///     </para>
 ///     <para>
-///         Do NOT baseline against the <c>bench-reports/*.json</c> committed before this field existed. Those
-///         runs used a ruleset with <c>edge_count</c> 9, i.e. a near-empty rule graph, so their eval and
-///         fold numbers measure almost no rule work and will read as a false regression against any
-///         real ruleset. Take a fresh baseline first.
+///         Take a fresh baseline before comparing these numbers. A run over a near-empty rule graph
+///         (<c>edge_count</c> 9) measures almost no rule work, so its eval and fold numbers read as a
+///         false regression against any real ruleset.
 ///     </para>
 /// </summary>
 internal sealed record ReportEntityProfile(

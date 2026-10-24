@@ -6,8 +6,7 @@
 namespace DemoViewer.NET.Visualization.Tests;
 
 /// <summary>
-///     Drives the same canonical fixture set the headless <c>--baseline</c> CLI
-///     emits, but asserted as CI gates. Geometry columns are deterministic so any
+///     Drives the canonical fixture set as CI gates. Geometry columns are deterministic so any
 ///     regression in a layout pass surfaces here immediately. See
 ///     <see cref="BaselineRunner.BuildAll" /> for the fixture roster and
 ///     <c>visualization-graph-review.md</c> (historical doc) for the gate rationale.

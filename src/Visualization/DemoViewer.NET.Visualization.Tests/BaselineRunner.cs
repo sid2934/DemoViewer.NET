@@ -1,7 +1,5 @@
 #region
 
-using System.Globalization;
-using System.Text;
 using DemoViewer.NET.Visualization.Tests.SampleGraphs;
 
 #endregion
@@ -9,16 +7,12 @@ using DemoViewer.NET.Visualization.Tests.SampleGraphs;
 namespace DemoViewer.NET.Visualization.Tests;
 
 /// <summary>
-///     Headless driver that runs the <see cref="LayoutMetrics" /> analyzer over the
-///     full canonical fixture set through the layout pipeline and
-///     prints a markdown metrics table. No GUI / UI thread required. Invoke via
-///     <c>dotnet run -- --baseline</c>.
+///     The canonical fixture set <see cref="LayoutMetricsHardGateTests" /> drives the
+///     <see cref="LayoutMetrics" /> analyzer over. No GUI and no UI thread: the roster is built here
+///     so one list feeds every gate case.
 /// </summary>
 public static class BaselineRunner
 {
-    /// <summary>Prints the layout-metrics table for the full fixture set.</summary>
-    public static string Run() => RunTable(new GraphStyle());
-
     internal static IReadOnlyList<Fixture> BuildAll()
     {
         (IReadOnlyList<IGraphNode> Nodes, IReadOnlyList<IGraphEdge> Edges, IReadOnlyList<INodeGroup> Groups, INodeTable Table) demo = DemoStateGraphSample.Build();
@@ -53,31 +47,6 @@ public static class BaselineRunner
             new Fixture("BigStandard", big.Nodes, big.Edges, big.Groups, big.Tables),
             new Fixture("ShippedScale", shipped.Nodes, shipped.Edges, shipped.Groups, null)
         ];
-    }
-
-    private static string RunTable(GraphStyle style)
-    {
-        StringBuilder sb = new();
-        CultureInfo ci = CultureInfo.InvariantCulture;
-
-        sb.AppendLine("| Fixture | NodeOverlap | EdgeNodeX | EdgeCross | EdgeLen | SharedPorts | LabelOverlap | OOB | SelfLoopOX | Aspect | LayoutMs | LabelOverNode |");
-        sb.AppendLine("|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|");
-
-        foreach (Fixture f in BuildAll())
-        {
-            // Run layout twice; report the faster (warm) layout time to discount JIT.
-            LayoutMetrics m = LayoutMetrics.Compute(f.Nodes, f.Edges, f.Groups, f.Tables, style);
-            LayoutMetrics m2 = LayoutMetrics.Compute(f.Nodes, f.Edges, f.Groups, f.Tables, style);
-            double ms = Math.Min(m.LayoutMilliseconds, m2.LayoutMilliseconds);
-
-            sb.AppendLine(string.Format(ci,
-                "| {0} | {1} | {2} | {3} | {4:F0} | {5} | {6} | {7} | {8} | {9:F2} | {10:F1} | {11:F2} |",
-                f.Name, m.NodeNodeOverlaps, m.EdgeNodeIntersections, m.EdgeCrossings,
-                m.TotalEdgeLength, m.SharedPortEndpoints, m.LabelOverlaps,
-                m.OutOfBoundsPrimitives, m.SelfLoopOverlaps, m.AspectRatio, ms, m.WidestLabelOverNode));
-        }
-
-        return sb.ToString();
     }
 
     internal sealed record Fixture(
