@@ -49,7 +49,7 @@
 
              License: BSD-3-Clause (The ANGLE Project Authors); see THIRD-PARTY-NOTICES.md §e. Unlike
              ffmpeg this is LINKED IN-PROCESS, so the "separate programs" posture does not apply; the
-             obligation is reproducing the notice, which §d does. -->
+             obligation is reproducing the notice, which §e does. -->
         <PackageVersion Include="Avalonia.Angle.Windows.Natives" Version="2.1.27548.20260419"/>
         <!-- 2D-playback video export (docs/playback2d-v2/export.md). FFMpegCore is MIT and only
              BUILDS ARGUMENTS and pipes rawvideo to an ffmpeg SUBPROCESS. No ffmpeg code is linked, which

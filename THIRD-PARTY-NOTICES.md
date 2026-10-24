@@ -6,11 +6,17 @@ Each is documented below. Section letters are stable because source files cite t
 
 ## b. Valve protobuf definitions
 
-The demo decoder this project depends on (the `CS2OpenDev.Sdk` packages) contains C# generated
-from protobuf definitions originating from Valve's Counter-Strike 2, as tracked by
-[SteamDatabase/GameTracking-CS2](https://github.com/SteamDatabase/GameTracking-CS2). These
-definitions describe a wire format. Valve Corporation owns Counter-Strike 2 and its data formats. This project is
-unaffiliated with Valve. No game assets are redistributed in the packages.
+The C# for Counter-Strike 2's demo and engine wire protocol arrives prebuilt in the
+`CS2OpenDev.Protos` package (namespace `CS2OpenSchema.Protos`), which this project reaches
+transitively through `CS2DemoKit.Parser`. It was generated from protobuf definitions originating in
+Valve's Counter-Strike 2, as tracked by
+[SteamDatabase/GameTracking-CS2](https://github.com/SteamDatabase/GameTracking-CS2). `CS2OpenDev.Sdk`,
+the one package of that family referenced directly here, is generated the same way from CS2's own
+schema dump rather than from the protobuf definitions.
+
+These definitions describe a wire format. Valve Corporation owns Counter-Strike 2 and its data
+formats. This project is unaffiliated with Valve. Valve artwork is a separate question, and §b2
+answers it: which packages this repository publishes, and what they do not contain.
 
 ## b2. Valve game artwork (map radars and iconography)
 
@@ -31,10 +37,16 @@ and claims no rights in it. The images are transformations of format only — de
 rasterised, not redrawn — and are used to label the game's own entities in a demo-analysis tool.
 
 The raw extraction cache (`cs2-assets/`) is **git-ignored and never committed**; only the baked
-derivatives are. Note that §b's "No game assets are redistributed in the packages" is a statement
-about the published **NuGet packages**, which contain none of this; it has never covered the
-application's own `assets/` directory, and this section exists to say so plainly rather than leave
-the two readings to collide.
+derivatives are.
+
+**None of this artwork is published to NuGet.** This repository publishes four packages:
+`DemoViewer.NET.Extensions.Sdk`, `DemoViewer.NET.Extensions.Sdk.Ui`,
+`DemoViewer.NET.Modules.Abstractions` and `DemoViewer.NET.Playback2D.Scene`. None of them contains a
+radar image or an icon PNG, loose or embedded, and none of them declares a dependency on
+`DemoViewer.NET.GameIcons`, the one assembly here that embeds the icons.
+`DemoViewer.NET.GameIcons` is deliberately not published, and the UI kit's `GameIcon` control reaches
+the catalogue through a backend the application installs rather than by referencing it. The artwork
+travels with the application and nowhere else, which is what the rest of this section is about.
 
 Anyone redistributing this project, or shipping a build of it, should satisfy themselves that
 their use is consistent with the Steam Subscriber Agreement and Valve's policies on game content.
