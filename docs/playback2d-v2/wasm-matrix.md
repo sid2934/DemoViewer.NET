@@ -7,13 +7,13 @@
 
 | | When | By what |
 |---|---|---|
-| **In-browser run** (the capability matrix and the checklist) | **2026-08-25, phase B5** | A human, against the published head in a real browser with a real demo. Nothing since has re-run it. |
-| **Publish, payload size, boot-critical artefacts** | 2026-08-26, D6 round 3 | `dotnet publish` on this tree; figures below re-measured, artefact names listed. |
-| **Rows the D and D6 tracks changed** | 2026-08-26, D6 round 3 | Read from the source that decides each one, and **labelled as such** where that is all the evidence there is. |
+| **In-browser run** (the capability matrix and the checklist) | **2026-08-25** | A human, against the published head in a real browser with a real demo. Nothing since has re-run it. |
+| **Publish, payload size, boot-critical artefacts** | 2026-08-26, the source pass | `dotnet publish` on this tree; figures below re-measured, artefact names listed. |
+| **Rows the later work changed** | 2026-08-26, the source pass | Read from the source that decides each one, and **labelled as such** where that is all the evidence there is. |
 
-D6 round 3 re-stamped this file rather than re-verifying it, because re-verifying it means opening a
+The source pass re-stamped this file rather than re-verifying it, because re-verifying it means opening a
 browser and this repo has no way to do that in CI. A stamp that says "verified 2026-08-25" over a
-document the D track has since invalidated in four places is how this file got into the state the audit
+document the later work has since invalidated in four places is how this file got into the state the audit
 found it in. Every row below now says which of the three rows above it rests on.
 
 This is the per-capability record. The pass that filled it in was an actual run of
@@ -35,7 +35,7 @@ python -m http.server -d artifacts/wasm-publish/wwwroot 8765
 Then open `http://127.0.0.1:8765/`, load a demo, and walk the checklist at the bottom.
 
 **Publish, not build.** `dotnet build` of this head succeeds in states where the app cannot start: it
-does not run ILLink, and until B5 it did not prove the native relink either. Both of the ways this head
+does not run ILLink, and until the browser run it did not prove the native relink either. Both of the ways this head
 has actually broken were invisible to a build. The CI job therefore publishes.
 
 ---
@@ -54,8 +54,8 @@ defaults today and a default that flips takes the app with it, silently, at runt
 against runtime 10.0.103) relinks against a `System.Private.CoreLib` the runtime rejects: *"Your mono
 runtime and class libraries are out of sync."* Pin it, and bump it in the same commit as the SDK.
 
-**Payload size**, re-measured 2026-08-26 (D6 round 3) on this tree: **63.5 MiB uncompressed, 16.4 MiB
-brotli**. B5 recorded 63.1 / 16.3, so D4's two added packages cost about **+0.4 MiB** uncompressed and
+**Payload size**, re-measured 2026-08-26 on this tree: **63.5 MiB uncompressed, 16.4 MiB
+brotli**. The browser run recorded 63.1 / 16.3, so the two packages added since cost about **+0.4 MiB** uncompressed and
 **+0.1 MiB** over the wire.
 
 **Units, because this figure has been quoted three different ways.** Those are *mebibytes*
@@ -96,15 +96,15 @@ longer smuggle a claim about the UI: whether the user is told is now stated per 
 |---|:-:|---|
 | Shell boots, tabs render | works | Avalonia.Browser, software 2D canvas. See "Rendering" below. |
 | Open a demo | works | File System Access picker → `ArrayBuffer` → the ordinary parse path. An 11.5 MB, 19 237-frame Nuke demo parses in-browser in well under a minute on the interpreter. |
-| 2D scene: markers, labels, rings, trails, smoke/fire, bomb | works | The same scene layers as desktop, drawn by `SceneCompositor` through Avalonia's Skia lease. (This said "the same seven"; the catalog holds **eleven** ids since D3b added `hud.roster`, and B5 observed the seven world layers, which is what the row names.) |
+| 2D scene: markers, labels, rings, trails, smoke/fire, bomb | works | The same scene layers as desktop, drawn by `SceneCompositor` through Avalonia's Skia lease. (This said "the same seven"; the catalog holds **eleven** ids since `hud.roster` was added, and the browser run observed the seven world layers, which is what the row names.) |
 | Kill feed, round HUD, clock | works | Same `TimelineHudDataSource`. |
-| Roster cards (`hud.roster`, D3b) | unknown | Nothing platform-specific about it, and no reason it would differ, but it landed after the B5 run and **has not been seen on this head**. |
+| Roster cards (`hud.roster`) | unknown | Nothing platform-specific about it, and no reason it would differ, but it landed after the browser run and **has not been seen on this head**. |
 | Floor label + multi-level panes | works | `MapSpace` / `PaneSet` / `StackedLayout`. |
-| Level strip (STACK · L0/L1 · AUTO) | works | B3's strip, present on a two-floor map. |
+| Level strip (STACK · L0/L1 · AUTO) | works | The level strip, present on a two-floor map. |
 | Timeline: round bands, kill/bomb markers, scrub | works | Frame-index axis; a click seeks. |
 | Follow player by card | works | Local follow only, see LiveSync below. |
-| Keymap: the **shipped** gestures (transport, rounds, kills, tools) | works | Tunnelling handler on the view. B5 run. |
-| Keymap: **rebinding** (D1's editor) | degraded | **Session only, and the UI says so** since D6 round 3. An override goes to the in-memory configuration provider and dies with the page; `SettingsView.axaml`'s `KeybindPersistenceNote` shows a caution line on the browser head and is collapsed on desktop. **And it now has a platform dependency**: `Playback2DKeymap.BrowserReservedGestures` refuses a rebind onto a gesture Chrome eats before the page sees it (`Ctrl+T`, `Ctrl+N`, `F12`), which `ShellReservedGestures` alone could not express. Both halves of this row's old text, "works" and *"no platform dependency"*, were false from D1 until round 3. *Source-verified only: neither the note nor a refusal has been seen in a browser.* |
+| Keymap: the **shipped** gestures (transport, rounds, kills, tools) | works | Tunnelling handler on the view. Seen in the browser run. |
+| Keymap: **rebinding** (the keybinding editor) | degraded | **Session only, and the UI says so** since the source pass. An override goes to the in-memory configuration provider and dies with the page; `SettingsView.axaml`'s `KeybindPersistenceNote` shows a caution line on the browser head and is collapsed on desktop. **And it now has a platform dependency**: `Playback2DKeymap.BrowserReservedGestures` refuses a rebind onto a gesture Chrome eats before the page sees it (`Ctrl+T`, `Ctrl+N`, `F12`), which `ShellReservedGestures` alone could not express. Both halves of this row's old text, "works" and *"no platform dependency"*, were false from the day that editor shipped until the source pass. *Source-verified only: neither the note nor a refusal has been seen in a browser.* |
 | Camera modes (Fit / Alive / Map / Follow) | works | n/a |
 | Overlay toggles | works | n/a |
 | Settings → the five 2D feature rows, live | works | Toggling `playback2d.timeline` off removes the timeline **and the viewport reclaims the row**, with the status bar counter going 9 → 10 hidden. No restart. |
@@ -113,10 +113,10 @@ longer smuggle a claim about the UI: whether the user is told is now stated per 
 
 | Capability | Browser | What actually happens |
 |---|:-:|---|
-| **Annotations** | degraded | Draw, erase, undo/redo and the timeline track all work **for the session**. The sidecar write lands in the WASM runtime's in-memory virtual filesystem, which the next reload discards. The panel says so, in those words: *"session only — this browser tab forgets annotations when it reloads."* (Before B5 it named a path, `saving to /sample-de_nuke.dem.dvann.json`, which a user reads as a promise. Fixed; pinned by `Playback2DAnnotationPersistenceTests.Controller_OnBrowser_SaysTheTabForgets_RatherThanNamingAPath`.) |
-| **Radar images** | degraded | Baked map art is loaded from disk beside the executable, and the browser head has no such directory. Every level falls back to the debug grid: the same visible no-radar state a map with no baked radar gets on desktop, so nothing is silently blank. Shipping the radar set as web assets is a real option, and is not B5's. |
+| **Annotations** | degraded | Draw, erase, undo/redo and the timeline track all work **for the session**. The sidecar write lands in the WASM runtime's in-memory virtual filesystem, which the next reload discards. The panel says so, in those words: *"session only — this browser tab forgets annotations when it reloads."* (Before the browser run it named a path, `saving to /sample-de_nuke.dem.dvann.json`, which a user reads as a promise. Fixed; pinned by `Playback2DAnnotationPersistenceTests.Controller_OnBrowser_SaysTheTabForgets_RatherThanNamingAPath`.) |
+| **Radar images** | degraded | Baked map art is loaded from disk beside the executable, and the browser head has no such directory. Every level falls back to the debug grid: the same visible no-radar state a map with no baked radar gets on desktop, so nothing is silently blank. Shipping the radar set as web assets is a real option, and was outside the browser run's scope. |
 | **Zone data** (`zones.json`, the user overlay, `playback2d.zones`) | absent | No asset directory on the browser host, so `ZoneAssetPipeline.TryLoad` returns null, `LoadedMapAsset.Zones` is null and the outline layer is never mounted; `AppPaths.ZonesDirectory` is null there too, so there is no overlay to read either. Every consumer degrades to its no-zones path (the Query Canvas snaps to sampled place centroids, the Grenade Index leaves the landing place empty, the Tolerance Slider offers exact match only). Shipping `zones.json` as a web asset is the same open option as the radar set. *Source-verified only: no browser run has been made with the zones layer in the build.* |
-| **Settings persistence** | degraded | No settings file. Everything is held by the in-memory configuration provider `SettingsService.WriteInMemory` populates by hand, which is why **every** `Playback2DSettings` property must have a row there, and why `SettingsWasmRoundTripTests` reflects over the type rather than listing it. Preferences survive a tab switch, not a reload. **The UI says so only for the two surfaces that were asked to**: annotations (B5) and the keybinding editor (D6 round 3). The Settings screen as a whole still does not tell a browser user that *nothing* on it persists. |
+| **Settings persistence** | degraded | No settings file. Everything is held by the in-memory configuration provider `SettingsService.WriteInMemory` populates by hand, which is why **every** `Playback2DSettings` property must have a row there, and why `SettingsWasmRoundTripTests` reflects over the type rather than listing it. Preferences survive a tab switch, not a reload. **The UI says so only for the two surfaces that were asked to**: annotations (the browser run) and the keybinding editor (the source pass). The Settings screen as a whole still does not tell a browser user that *nothing* on it persists. |
 | **Demo library / cache / bookmarks** | degraded | Same shape: the stores write, the writes do not outlive the tab. Pre-existing, not 2D-specific. **Nothing in the UI says so.** |
 | **Round Facts** (the per-round rows in the demo cache) | degraded | The same store, so the same shape: the evaluator runs wherever a parse runs, its rows land in the in-memory record store, and they die with the tab. The timeline's round bands tint from them for the session. The engine row source evaluates the shipped `round_facts` ruleset from the shipped rules directory only, since the browser has no user rules directory to override it from. *Source-verified only*: no browser run has produced a row yet. |
 | **Situation Search index** (the round index behind the Situations tab) | degraded | No queue and no filesystem, so no evaluator runs and no library index exists. The `SituationIndex` runs fully in memory: at most the demo open in the tab is searchable, for the session, and only if the open's pass run (`IDemoOpenTicket.RunPassesAsync`) carries the index pass on that head (unverified; it is `_openPassesTask` on an interactive open). The strip says so, in those words: *"session only: no library index in the browser"*. `tab.situations` is not in `DesktopOnlyIds`: the tab renders and says what it cannot do, the `ExportUnavailableNote` shape. Both Situations settings live in the Strat Book's own settings, which the browser keeps in memory for the session. The Query Canvas below the strip degrades with it: the map picker lists the maps the index rows name (none, with no library), and a picked map with no bundle directory arranges no pane and says *"no map art for &lt;map&gt; on this host"* over the empty surface. The Result Cards under the canvas follow the search: with no index there are no hits and no cards, and a card's thumbnail comes from the in-memory positions part the same store holds, never from a demo, so nothing here touches a filesystem, and Overlay all N stacks the same in-memory positions onto the canvas and touches none either. The filter rail renders in full: the fact fields read the in-memory rows, the opponent and our-side fields read the session-only Team Identity (so they list nothing until a team clusters in the session) and the source field reads the same session's labels; the live count on the Search button reads *"Search, 0 rounds"* with the coverage *"over 0 of 0 demos"*, which is the truth of the host rather than a blank. *Source-verified only.* |
@@ -127,13 +127,13 @@ longer smuggle a claim about the UI: whether the user is told is now stated per 
 | **Review Queue** (`review-queue.json` beside `teams.json`, and the Review tab) | degraded | No config root, so `ReviewQueue` keeps the queue in memory: clips staged in the Reels tray, sent from the Result Cards or picked at the playhead sit in one list with their title cards and questions for the session, and a reload loses them. The Review tab says so, in the annotations panel's words: *"session only: this browser tab forgets the queue when it reloads"*. `tab.review` is not in `DesktopOnlyIds`: the tab renders and says what it cannot do. Open seeks through the same seam a Result Card uses. The Reels tray is a client of the same in-memory queue, so its staged clips are exactly as session-only as they were before the queue. *Source-verified only.* |
 | **Strat Book** (`<config>/strats/`, the callouts tables and history logs beside it, and the Strat Book tab) | degraded | No config root, so `StratStore` keeps every book, strat and history log in memory: authoring, undo and the commit buffer work for the session, and a reload loses every strat. The tab says so, in the annotations panel's words: *"session only: this browser tab forgets strats when it reloads"* (`StratBookTabViewModel.BrowserNote`). `tab.stratbook` is not in `DesktopOnlyIds`: the tab renders and says what it cannot do. `StratEvidenceService`'s record pane reads the session-only Tag Store, and the book selector reads the session-only Team Identity, so both list nothing until the session has built them itself. The call sheet and the role sheets' HTML (`StratTextExporter`, `RoleSheetHtmlWriter`) are pure string builders and render the same on every host; only **LAN Print**'s launch degrades further, to *absent in effect*: `LanPrint.WriteTempFile` writes into the WASM runtime's in-memory filesystem same as any other file, but `LanPrint.WriteAndOpen`'s `Process.Start` throws on browser, caught by `OpenExternal.OpenUri`'s existing try/catch, so the export silently returns null rather than crashing; nothing in the UI yet tells the user why the print page never opened. *Source-verified only.* |
 | **Grenade Walk, open demo** (the Strat Book's per-demo `grenades` data) | degraded | The browser keeps no per-demo data, so `GrenadeStore` holds the rows in the session's `MemoryDemoData`: the rows die with the tab. With no queue the only way a walk can run is the open demo's visit, which `GrenadeIndexEvaluator.Wants` claims for the open demo whatever the opt-in says, and only if the open's pass run fires on that head (unverified, the Situation Search row's caveat). The Utility Book tab is the first reader and says "session only" for these rows (the Grenade Index row below). The walk decodes the demo about twice (the projectile sampler, then the pawn and command pass): measured 2.8 s over 154,869 frames native in Release (about 1.8 s per 100,000, input coverage 1.0 on the demo the App suite picks from the corpus), **unmeasured** on the interpreter, where the parse row above suggests tens of seconds. *Source-verified only.* |
-| **Window title diagnostics** | degraded | `Process.GetCurrentProcess()` throws on browser, so the CPU/RAM/PID readout is not produced and the title stays the product name. Before B5 this threw from a **field initializer** during `MainViewModel` construction and the whole app came up black with one console line (`Process_PlatformNotSupported`). |
+| **Window title diagnostics** | degraded | `Process.GetCurrentProcess()` throws on browser, so the CPU/RAM/PID readout is not produced and the title stays the product name. Before the browser run this threw from a **field initializer** during `MainViewModel` construction and the whole app came up black with one console line (`Process_PlatformNotSupported`). |
 
 ### Absent by design
 
 | Capability | Browser | Why |
 |---|:-:|---|
-| **Video export** | absent | `playback2d.export` ANDs `!OperatingSystem.IsBrowser()` in exactly one place: `ShellModuleFeatureGate.DesktopOnlyIds` (B5 D4). The export dialog is unreachable and nothing calls `FfmpegDependency.Locate()`; there is no filesystem to write an mp4 to and no `System.Diagnostics.Process` to run ffmpeg with. **The button is gone but the slot now says why** (D6 round 3): `ExportUnavailableNote` renders *"Export video — unavailable in the browser"* where the button would be, because the same `CanExport` binding also hides it on desktop when no demo is open, and a user who cannot tell "not available here" from "open a demo first" has been told nothing. This row said "not in the toolbar at all" until D6; that was true and was the defect. |
+| **Video export** | absent | `playback2d.export` ANDs `!OperatingSystem.IsBrowser()` in exactly one place: `ShellModuleFeatureGate.DesktopOnlyIds`. The export dialog is unreachable and nothing calls `FfmpegDependency.Locate()`; there is no filesystem to write an mp4 to and no `System.Diagnostics.Process` to run ffmpeg with. **The button is gone but the slot now says why** (the source pass): `ExportUnavailableNote` renders *"Export video — unavailable in the browser"* where the button would be, because the same `CanExport` binding also hides it on desktop when no demo is open, and a user who cannot tell "not available here" from "open a demo first" has been told nothing. This row said "not in the toolbar at all" until the pass that added the note; that was true and was the defect. |
 | **Strat Export** (the Strat Book canvas to GIF or video) | absent | `stratbook.export` joins `playback2d.export` in `ShellModuleFeatureGate.DesktopOnlyIds`, for the same reason: an export writes a file and may drive ffmpeg, and the browser head has neither. `App.axaml.cs` wires no `StratExportHost` there, so `StratBookTabViewModel.CanExport` is false and the button's slot says *"Export strat: unavailable in the browser"* (`ExportUnavailableNote`) rather than vanishing. *Source-verified only.* |
 | **Create Strat From Round** (a round band's right-click in 2D Playback) | works, session only | The parsed demo is in memory on both heads and the walk is a private `EntityTracker` over it, so the capture and the review run the same. `App.axaml.cs` wires `StratCaptureHost` in both lifetimes; the strat it commits lands in the session-only `StratStore` (the Strat Book row above), so it lives as long as the tab. *Source-verified only.* |
 | **Live Sync (CS2)** | absent | `chrome.livesync`, desktop-only for the same reason (it drives a local CS2 install). `NotifySpectateTarget` is a no-op; the 2D follow still works locally. |
@@ -145,14 +145,14 @@ longer smuggle a claim about the UI: whether the user is told is now stated per 
 
 ### Known cosmetic: closed
 
-- ~~**The Video export row in Settings shows its toggle ON** on the browser~~: **fixed in D6 round 3.**
+- ~~**The Video export row in Settings shows its toggle ON** on the browser~~: **fixed in the source pass.**
   The Settings list binds the raw `IFeatureGate`, which resolves catalog and override state and knows
   nothing about the platform, while modules read the same ids through `ShellModuleFeatureGate`, which
   ANDs `!IsBrowser()` in. So the browser showed a live, ON toggle for a capability forced off one layer
   out, and flipping it persisted an override nothing would ever honour. `FeatureToggleRow` now carries
   `IsPlatformUnavailable`, which makes the row non-interactive and labels it *"unavailable in the
-  browser"*, the same wording the demo-folder picker already used. B5 recorded this as a D4 follow-up
-  and D4 shipped without it, which is why it appears in the audit (D6 §4b). *Source-verified only.*
+  browser"*, the same wording the demo-folder picker already used. The browser run recorded this as a follow-up for the export work, which
+  shipped without it, which is why it appears in the audit. *Source-verified only.*
 
 ---
 
@@ -161,11 +161,11 @@ longer smuggle a claim about the UI: whether the user is told is now stated per 
 Worth stating precisely, because "the browser uses the CPU provider" is nearly right and misleading.
 
 - **On screen**, `Scene2DHost` draws through Avalonia's `ISkiaSharpApiLeaseFeature`, using *Avalonia's*
-  `SKCanvas`, into whichever canvas render mode the browser gave Avalonia. B1's `WriteableBitmap`
+  `SKCanvas`, into whichever canvas render mode the browser gave Avalonia. The `WriteableBitmap`
   fallback is the second path, and it deliberately does **not** use `CpuSurfaceProvider` (registry §3.7).
 - **Offscreen** (goldens, benchmarks, export): `CpuSurfaceProvider` is the only path that exists on this
-  head, which is what the factory's browser short-circuit guarantees. B0's D11 spike proved a raster
-  `SKSurface` works under the WASM runtime; B5 proved the app path around it.
+  head, which is what the factory's browser short-circuit guarantees. An early spike proved a raster
+  `SKSurface` works under the WASM runtime; the browser run proved the app path around it.
 
 Under **headless** Chrome the console logs, harmlessly:
 
@@ -190,17 +190,17 @@ everything correctly. On a real browser with a GPU, mode 3 succeeds. **No consol
 | `ShellModuleFeatureGateTests` | `playback2d.export` resolves false on the browser branch and the other four are untouched. |
 
 **None of these is an in-browser run.** This repo has no WASM test host and CI has no browser runner, so
-claiming automated browser coverage would be false (B5 D5). The checklist below is the part a human does.
+claiming automated browser coverage would be false. The checklist below is the part a human does.
 
 ---
 
 ## Manual checklist: run once per release
 
-**Last actually run: 2026-08-25 (B5). Not re-run since, and the boxes below are cleared to say so.**
-Every item was ticked at B5 and the ticks stayed on through the whole D track, which shipped a
+**Last actually run: 2026-08-25. Not re-run since, and the boxes below are cleared to say so.**
+Every item was ticked then and the ticks stayed on through all the work that followed, which shipped a
 keybinding editor, a `Custom` envelope editor, two colour pickers and a settings-page change, so the
 ticks had stopped meaning "someone looked" and started meaning "someone looked, once, at a different
-build". D6 round 3 re-measured the publish (above) and re-read the source behind four rows, and could
+build". The source pass re-measured the publish (above) and re-read the source behind four rows, and could
 not re-run these: they need a browser, and this repo has no way to drive one. **Re-run the whole list
 and re-tick it in one sitting; do not tick individually as things are fixed.**
 
@@ -211,11 +211,11 @@ and re-tick it in one sitting; do not tick individually as things are fixed.**
 - [ ] The level strip appears on a multi-floor map.
 - [ ] Annotations draw and undo **in session**, and the panel says a reload loses them.
 - [ ] **Video export is absent from the 2D toolbar**, and its Settings row is non-interactive and
-      reads *"unavailable in the browser"* (D6 round 3, never seen in a browser).
+      reads *"unavailable in the browser"* (source-verified, never seen in a browser).
 - [ ] The keybinding editor shows the session-only caution, and refuses `Ctrl+T` / `F12` with a reason
-      (D1 + D6 round 3, never seen in a browser).
+      (source-verified, never seen in a browser).
 - [ ] The annotation ink colour pickers render as real pickers rather than 46×24 of nothing
-      (D4's `Avalonia.Controls.ColorPicker` include: the artefact ships, the control has not been seen).
+      (the `Avalonia.Controls.ColorPicker` include: the artefact ships, the control has not been seen).
 - [ ] Settings lists all five 2D sub-features, and toggling one takes effect live with no restart.
 - [ ] No console exception mentions ffmpeg, `GRContext`, a filesystem path, or trimming.
 - [ ] Radar images render (**known degraded**, see the table above; expected to stay unticked).
