@@ -192,9 +192,9 @@ status-strip chip (the same shape the highlight-reel job uses) whose flyout carr
 | Radar, trails, area effects, markers, bomb, floor labels (`playback2d.*`) | on | on | The scene |
 | Score + clock (`hud.clock`) | on | off (`--hud`) | Opt-in by name: an export never burns in a scoreboard by accident |
 | Kill feed (`hud.killfeed`) | on | off (`--hud`) | See the parity note below |
-| Player cards (`hud.roster`) | on | off (`--hud`) | D3b's cards down both edges |
-| Annotations (`playback2d.annotations`) | on | off (`--annotations`) | B2's ink. On the CLI this is the demo's own `.dvann.json` sidecar; with no sidecar the layer is not named at all |
-| Vision cones (`playback2d.vision`) | **off** | **off**, and naming it does nothing here | The frame's biggest per-frame cost. In the app the layer reads a live `IVisionSolver` over the map's visibility engine. **`dv2d export` builds no engine**, and its frames come off `SceneFrameBuilder`, which fills no pre-solved geometry either, so `--layers …,playback2d.vision` on an export registers a layer with nothing to draw. `dv2d render`/`golden`/`bench` *do* draw it, because a scene fixture carries the solved cones (D6 round 3). Closing the export half means constructing a `VisibilityEngine` for the demo's map in `ExportCommand`; nobody has needed it. |
+| Player cards (`hud.roster`) | on | off (`--hud`) | The roster cards down both edges |
+| Annotations (`playback2d.annotations`) | on | off (`--annotations`) | The annotation ink. On the CLI this is the demo's own `.dvann.json` sidecar; with no sidecar the layer is not named at all |
+| Vision cones (`playback2d.vision`) | **off** | **off**, and naming it does nothing here | The frame's biggest per-frame cost. In the app the layer reads a live `IVisionSolver` over the map's visibility engine. **`dv2d export` builds no engine**, and its frames come off `SceneFrameBuilder`, which fills no pre-solved geometry either, so `--layers …,playback2d.vision` on an export registers a layer with nothing to draw. `dv2d render`/`golden`/`bench` *do* draw it, because a scene fixture carries the solved cones. Closing the export half means constructing a `VisibilityEngine` for the demo's map in `ExportCommand`; nobody has needed it. |
 
 **Palette.** The app exports in the theme you are looking at. `dv2d` defaults to dark and takes
 `--palette dark|light`.

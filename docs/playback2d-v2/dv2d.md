@@ -53,9 +53,9 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
   (`playback2d.markers`). **An unknown id is exit 1**, not a silent no-op. A typo in a CI invocation
   must fail loudly, and `--exclude-layers` is checked the same way. The error message names the known
   set. Omitted, the stack is **the seven scene layers**, identical to what `export` draws minus its
-  opt-in chrome, because both go through `SceneLayerCatalog.CreateSceneStack`. Until D6 they did not:
+  opt-in chrome, because both go through `SceneLayerCatalog.CreateSceneStack`. That was not always so:
   `render`, `golden` and `bench` built from a second table holding one debug-grid layer, so
-  `--layers markers` was an error and every committed golden was a picture of a grid (D6 G-1).
+  `--layers markers` was an error and every committed golden was a picture of a grid.
 - The seven **opt-in** ids need a source, and this command refuses one it cannot feed rather than
   handing back a PNG that quietly lacks it. `playback2d.annotations` takes `--ink`;
   `playback2d.zones` takes the map bundle's `zones.json` under `--assets` (so `--no-radar`, which
@@ -64,7 +64,7 @@ dv2d render   --fixture <path> | --demo <path> (--tick N | --frame N)
   and kill timeline, so only `dv2d export --hud` can draw them.
 - `playback2d.vision` is **not** opt-in and needs no flag: it draws the fixture's own pre-solved
   `SceneVision`: the cones and could-see lines a scene file carries. It was in the default set and drew
-  nothing until D6 round 3, because the layer read an `IVisionSolver` (which a fixture render has none
+  nothing until it was fixed, because the layer read an `IVisionSolver` (which a fixture render has none
   of) and ignored the geometry sitting in the frame. Three corpus entries carry vision:
   `duel-mirage-b`, `annotated-mirage-b`, `full-scene-budget`, and their goldens moved when it started
   drawing. **`export` is the exception**: its frames come off a demo through `SceneFrameBuilder`, which
@@ -362,8 +362,8 @@ and it is counted apart so it does not read as a permanent cache failure).
 
 > **Which command to ask about layers.** All four (`render`, `golden`, `bench`, `export`) build
 > through `SceneLayerCatalog.CreateSceneStack`, so `bench --perf` and `export --no-encode --perf`
-> profile the same stack and their per-layer tables are comparable. That was not true before D6: the
-> first three built from a second table holding only `playback2d.debuggrid` (the seam C1 deviation 14
+> profile the same stack and their per-layer tables are comparable. That was not always true: the
+> first three built from a second table holding only `playback2d.debuggrid` (a seam deviation
 > left open), which made `export --no-encode --perf` the sole per-layer authority. The one remaining
 > difference is what FEEDS a layer, not which layers exist: `bench` has no HUD source and no
 > visibility engine.
@@ -572,7 +572,7 @@ across every project in the separate `playback2d-budget` job, below.
     --report-dir artifacts/bench-reports
 ```
 
-**`--budget-bytes-per-frame 4096` is gone** (D6 G-1/G-4). It was a temporary ceiling for B0's smoke
+**`--budget-bytes-per-frame 4096` is gone.** It was a temporary ceiling for the old smoke
 layer, which built three `SKPaint`s inside `Render` (2784 B/frame measured), so `bench --gate` failed
 its own manifest budget of 0 unless CI passed the override. The real stack is allocation-clean: the
 same run reports **0 B/frame**, and the gate is back on the number the manifest declares.
