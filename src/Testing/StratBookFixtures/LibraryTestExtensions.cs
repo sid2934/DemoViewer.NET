@@ -37,14 +37,4 @@ internal static class LibraryTestExtensions
 
     /// <summary>A fixture's index row as the library hands it out.</summary>
     public static LibraryDemo AsRow(this DemoCacheIndexEntry entry) => HostLibrary.For(Memory, null).Project(entry);
-
-    /// <summary>A cached round as the library hands it out.</summary>
-    public static LibraryRound ToLibrary(this CachedRound round) => new(round.Number, round.StartTickFrameClock);
-
-    /// <summary>Cached rounds as the library hands them out.</summary>
-    public static IReadOnlyList<LibraryRound> ToLibrary(this IEnumerable<CachedRound> rounds) => [.. rounds.Select(ToLibrary)];
-
-    /// <summary>A rounds lookup for a tag session over fixed rounds.</summary>
-    public static Task<IReadOnlyList<LibraryRound>?> AsRounds(this IEnumerable<CachedRound>? rounds) =>
-        Task.FromResult<IReadOnlyList<LibraryRound>?>(rounds?.ToLibrary());
 }
