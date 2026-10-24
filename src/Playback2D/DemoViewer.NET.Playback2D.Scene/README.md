@@ -43,7 +43,8 @@ zone loaders, the sidecar identity records and the content key under `DemoViewer
 
 The app's own layers (radar, markers, roster and the rest), the drawing tools, video export, keyframes and the
 render backends are not published. `IMapTool` is the contract to write a new tool against; `IPointerTool`
-is published for tools that hold the playback tab's token editor or annotation session.
+is published for tools that hold the playback tab's token editor. Ink authoring is not: the annotation
+session and the authoring clock are not reachable from `IToolServices`.
 
 ## Frames and layers
 
