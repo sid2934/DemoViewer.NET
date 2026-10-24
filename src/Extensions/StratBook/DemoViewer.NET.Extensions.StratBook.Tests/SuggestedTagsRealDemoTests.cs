@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -255,11 +256,11 @@ public class SuggestedTagsRealDemoTests
             await Assert.That(golden.Round.StartTick).IsEqualTo(fromSynthesised.Round.StartTick);
             await Assert.That(golden.Round.EndTick).IsLessThan(fromSynthesised.Round.EndTick)
                 .Because("the engine closes the round when it is decided, not when it is officially over");
-            await Assert.That(golden.Round.Sides).IsEquivalentTo(fromSynthesised.Round.Sides)
+            await Assert.That(golden.Round.Sides).IsEquivalentTo(fromSynthesised.Round.Sides, CollectionOrdering.Matching)
                 .Because("the sides are the same facts under either row source");
             await Assert.That(golden.Round.Bomb).IsEqualTo(fromSynthesised.Round.Bomb)
                 .Because("the plant is the same fact under either row source");
-            await Assert.That(golden.Proposals.Select(p => p.Id)).IsEquivalentTo(fromSynthesised.Proposals.Select(p => p.Id))
+            await Assert.That(golden.Proposals.Select(p => p.Id)).IsEquivalentTo(fromSynthesised.Proposals.Select(p => p.Id), CollectionOrdering.Matching)
                 .Because("the same proposals fire under either row source");
         }
     }
@@ -294,6 +295,6 @@ public class SuggestedTagsRealDemoTests
             .Order(StringComparer.Ordinal);
 
         await Assert.That(Keys(fromWalk)).IsNotEmpty();
-        await Assert.That(Keys(fromIndexed)).IsEquivalentTo(Keys(fromWalk));
+        await Assert.That(Keys(fromIndexed)).IsEquivalentTo(Keys(fromWalk), CollectionOrdering.Matching);
     }
 }

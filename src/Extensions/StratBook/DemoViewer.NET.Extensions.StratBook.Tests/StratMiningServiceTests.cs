@@ -11,6 +11,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -184,7 +185,7 @@ public class StratMiningServiceTests
         using (Assert.Multiple())
         {
             await Assert.That(execute.Site).IsEqualTo("A");
-            await Assert.That(execute.Members.Select(m => m.DemoPath).Order()).IsEquivalentTo(["/d/m1.dem", "/d/m2.dem", "/d/m3.dem"])
+            await Assert.That(execute.Members.Select(m => m.DemoPath).Order()).IsEquivalentTo(["/d/m1.dem", "/d/m2.dem", "/d/m3.dem"], CollectionOrdering.Matching)
                 .Because("the B take is another site");
             await Assert.That(execute.UtilityCompared).IsFalse().Because("no grenade rows were indexed");
             await Assert.That(service.LastRead.Demos).IsEqualTo(4);
@@ -199,7 +200,7 @@ public class StratMiningServiceTests
             await Assert.That(doc.TargetSite).IsEqualTo("A");
             await Assert.That(doc.Tempo).IsEqualTo("mid");
             await Assert.That(doc.Economy).IsEqualTo("full");
-            await Assert.That(doc.Tags).IsEquivalentTo([MinedStratBuilder.Tag]);
+            await Assert.That(doc.Tags).IsEquivalentTo([MinedStratBuilder.Tag], CollectionOrdering.Matching);
             await Assert.That(doc.Steps[0].Verb).IsEqualTo("hold");
             await Assert.That(doc.Steps.Select(s => s.Verb)).Contains("plant");
             await Assert.That(doc.Steps.Select(s => s.Verb)).Contains("move");
@@ -312,7 +313,7 @@ public class StratMiningServiceTests
 
         Dictionary<string, string> moves = StratMiningService.KeyMoves(before, after, k => k is "old" or "kept");
 
-        await Assert.That(moves).IsEquivalentTo(new Dictionary<string, string> { ["old"] = "new" })
+        await Assert.That(moves).IsEquivalentTo(new Dictionary<string, string> { ["old"] = "new" }, CollectionOrdering.Matching)
             .Because("two of old's three rounds are in new; kept kept its key; quiet had no state to carry");
     }
 
@@ -350,7 +351,7 @@ public class StratMiningServiceTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(found).IsEquivalentTo([background.Patterns.Count]);
+            await Assert.That(found).IsEquivalentTo([background.Patterns.Count], CollectionOrdering.Matching);
             await Assert.That(userFound).IsEqualTo(0);
         }
 

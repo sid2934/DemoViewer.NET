@@ -11,6 +11,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.ViewModels.Library;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Teams;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -156,7 +157,7 @@ public class TeamsModuleTests
         identity.Set(Ids(21, 99), Ids(99)[0]);
         using (Assert.Multiple())
         {
-            await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(21, 99));
+            await Assert.That(teams.MyAccounts).IsEquivalentTo(Ids(21, 99), CollectionOrdering.Matching);
             await Assert.That(teams.OurDemos().Count).IsEqualTo(3).Because("the me account resolves the third demo");
             await Assert.That(vm.MyAccountsLine)
                 .IsEqualTo($"Your accounts: {Ids(21)[0]}, {Ids(99)[0]} (active). Open Settings > Identity to change them.")
@@ -212,7 +213,7 @@ public class TeamsModuleTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.OffersPlayerOverview).IsTrue();
-            await Assert.That(opened).IsEquivalentTo([member.SteamId64!.Value]).Because("an id that is not a decimal SteamID64 opens nothing");
+            await Assert.That(opened).IsEquivalentTo([member.SteamId64!.Value], CollectionOrdering.Matching).Because("an id that is not a decimal SteamID64 opens nothing");
             await Assert.That(browser.OffersPlayerOverview).IsFalse().Because("the browser host has no Player Overview");
             await Assert.That(bare.OffersPlayerOverview).IsFalse();
         }
@@ -255,7 +256,7 @@ public class TeamsModuleTests
         filter.Selected = filter.Items[2];
         using (Assert.Multiple())
         {
-            await Assert.That(vm.FilteredEntries.Select(e => e.FilePath)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"]);
+            await Assert.That(vm.FilteredEntries.Select(e => e.FilePath)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"], CollectionOrdering.Matching);
             await Assert.That(vm.HasActiveFilters).IsTrue();
         }
 

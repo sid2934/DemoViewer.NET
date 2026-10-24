@@ -15,6 +15,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 using DemoViewer.NET.Extensions.Sdk.Playback;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -128,7 +129,7 @@ public class TagTrackTests
             IReadOnlyList<TimelineMark> markers = track.BuildMarks(new HalfTickData(1000));
 
             await Assert.That(markers.Count).IsEqualTo(3).Because("the merge must hide nothing");
-            await Assert.That(markers.Select(m => m.FrameIndex)).IsEquivalentTo(MarkerFrames);
+            await Assert.That(markers.Select(m => m.FrameIndex)).IsEquivalentTo(MarkerFrames, CollectionOrdering.Matching);
 
             using (Assert.Multiple())
             {
@@ -259,7 +260,7 @@ public class TagTrackTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(timeline.Bands.Select(b => b.TrackId).Distinct()).IsEquivalentTo(RoundOnly);
+                await Assert.That(timeline.Bands.Select(b => b.TrackId).Distinct()).IsEquivalentTo(RoundOnly, CollectionOrdering.Matching);
                 await Assert.That(timeline.LaneBands.Count).IsEqualTo(1);
                 await Assert.That(timeline.LaneBands[0].StartFrameIndex).IsEqualTo(50);
                 await Assert.That(timeline.HasLaneBands).IsTrue();

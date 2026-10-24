@@ -6,6 +6,7 @@ using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -118,7 +119,7 @@ public class StratBookCompositionRootTests
                     DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeIndexEvaluator.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.SuggestedTagsService.EvaluatorId,
                     DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.LineupClipPass.PassId
-                });
+                }, CollectionOrdering.Matching);
             await Assert.That(coordinator.PassIds[2]).IsEqualTo("roundfacts");
             // The rulesets' tables, a core pass beside Round Facts.
             await Assert.That(coordinator.PassIds[3]).IsEqualTo("facts");
@@ -180,7 +181,7 @@ public class StratBookCompositionRootTests
             Services.DemoProcessing.DemoScheduler coordinator =
                 provider.GetRequiredService<Services.DemoProcessing.DemoScheduler>();
 
-            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts", "matchrank"])
+            await Assert.That(coordinator.PassIds).IsEquivalentTo(["library", "highlights", "roundfacts", "facts", "matchrank"], CollectionOrdering.Matching)
                 .Because("the pack is off: its three evaluators are never in the fan-out");
 
             StratBookPackInstances instances =

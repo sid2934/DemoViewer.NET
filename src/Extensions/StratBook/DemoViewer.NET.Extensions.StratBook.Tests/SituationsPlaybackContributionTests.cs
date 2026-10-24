@@ -11,6 +11,7 @@ using DemoViewer.NET.Modules.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -62,7 +63,7 @@ public class SituationsPlaybackContributionTests
             using (Assert.Multiple())
             {
                 await Assert.That(situations.ToolbarItem).IsNotNull().Because("the pack came on with a map already open");
-                await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id]);
+                await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id], CollectionOrdering.Matching);
             }
 
             gate.On = false;
@@ -93,7 +94,7 @@ public class SituationsPlaybackContributionTests
             using (Assert.Multiple())
             {
                 await Assert.That(situations.ToolbarItem).IsNotNull();
-                await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id]);
+                await Assert.That(vm.Surface.ToolbarItems.Select(i => i.Id)).IsEquivalentTo([situations.ToolbarItem!.Id], CollectionOrdering.Matching);
             }
 
             ctx.MapName = null;
@@ -132,7 +133,7 @@ public class SituationsPlaybackContributionTests
                 (string map, SceneTime time, IReadOnlyList<PlayerMarker> markers) = seam.Calls[0];
                 await Assert.That(map).IsEqualTo("de_dust2");
                 await Assert.That(time.Tick).IsEqualTo(ctx.CurrentTick).Because("the frame the markers belong to");
-                await Assert.That(markers.Select(m => m.Place ?? "?")).IsEquivalentTo(["BombsiteA", "Lobby"]);
+                await Assert.That(markers.Select(m => m.Place ?? "?")).IsEquivalentTo(["BombsiteA", "Lobby"], CollectionOrdering.Matching);
             }
 
             // Ctrl+F and the toolbar button run the same funnel.
@@ -274,7 +275,7 @@ public class SituationsPlaybackContributionTests
             {
                 await Assert.That(vm.ExecuteAction(StratBookActions.NextSituationResult)).IsTrue();
                 await Assert.That(vm.ExecuteAction(StratBookActions.PrevSituationResult)).IsTrue();
-                await Assert.That(walk.Directions).IsEquivalentTo([1, -1]);
+                await Assert.That(walk.Directions).IsEquivalentTo([1, -1], CollectionOrdering.Matching);
             }
 
             // With nothing to walk to, the seam's own answer leaves the key unhandled.

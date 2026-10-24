@@ -10,6 +10,7 @@ using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratTestData;
 using DemoViewer.NET.Extensions.StratBook.Services.Zones;
@@ -878,7 +879,7 @@ public class StratStepMotionTests
             List<StepPosition> after = session.Document!.Steps[1].Positions;
             using (Assert.Multiple())
             {
-                await Assert.That(after.Select(p => p.Slot)).IsEquivalentTo(["A", "C", "D", "E"]).Because("only B's carried entry goes");
+                await Assert.That(after.Select(p => p.Slot)).IsEquivalentTo(["A", "C", "D", "E"], CollectionOrdering.Matching).Because("only B's carried entry goes");
                 await Assert.That(session.UndoDepth).IsEqualTo(depth + 1);
             }
 
@@ -894,7 +895,7 @@ public class StratStepMotionTests
             // The step's own to on a step for everyone drops every carried entry it has.
             StratLocationField own = new(document.Steps[1].Id, null, StratLocationKind.To);
             session.Apply(StratLocationPatches.Write(session.Document!, 1, own, [new PlaceRef { Place = "BombsiteA" }]));
-            await Assert.That(session.Document!.Steps[1].Positions.Select(p => p.Slot)).IsEquivalentTo(["C"]);
+            await Assert.That(session.Document!.Steps[1].Positions.Select(p => p.Slot)).IsEquivalentTo(["C"], CollectionOrdering.Matching);
             await Assert.That(session.Undo()).IsTrue();
             await Assert.That(StratStore.Serialize(session.Document!)).IsEqualTo(before);
         });
@@ -1045,7 +1046,7 @@ public class StratStepMotionTests
                 }
             }
 
-            await Assert.That(still).IsEquivalentTo(["default", "anti-eco"]).Because("only these two send no one anywhere");
+            await Assert.That(still).IsEquivalentTo(["default", "anti-eco"], CollectionOrdering.Matching).Because("only these two send no one anywhere");
         });
     }
 }

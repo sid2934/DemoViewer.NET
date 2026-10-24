@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratAssignmentsTests;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratTestData;
@@ -116,8 +117,8 @@ public class StratAssignmentsFacingTests
             TokenTrack unknown = Track(Watching(new StepWatch { Places = ["Nowhere", "Ramp"] }), "B", Centres);
             using (Assert.Multiple())
             {
-                await Assert.That(noZones.Keyframes).IsEquivalentTo(baseline.Keyframes);
-                await Assert.That(unknown.Keyframes).IsEquivalentTo(baseline.Keyframes).Because("only the first watched place is faced");
+                await Assert.That(noZones.Keyframes).IsEquivalentTo(baseline.Keyframes, CollectionOrdering.Matching);
+                await Assert.That(unknown.Keyframes).IsEquivalentTo(baseline.Keyframes, CollectionOrdering.Matching).Because("only the first watched place is faced");
             }
         });
     }

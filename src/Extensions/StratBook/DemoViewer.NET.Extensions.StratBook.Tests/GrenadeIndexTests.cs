@@ -20,6 +20,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -255,7 +256,7 @@ public class GrenadeIndexTests
         using UtilityBookTabViewModel vm = new(index, isBrowser: false, loadMapAsset: _ => null);
         vm.SelectedMap = Mirage;
         await Assert.That(index.Query(vm.CurrentQuery()!).Select(c => c.Cell).Distinct().Count()).IsEqualTo(1);
-        await Assert.That(vm.Groups.Select(g => g.ThrowCount)).IsEquivalentTo([4, 2]);
+        await Assert.That(vm.Groups.Select(g => g.ThrowCount)).IsEquivalentTo([4, 2], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -371,14 +372,14 @@ public class GrenadeIndexTests
             await Assert.That(b.Throws.Count).IsEqualTo(6);
             await Assert.That(b.JumpThrow).IsTrue().Because("its most thrown technique is the jump-throw");
             await Assert.That(b.Techniques.Select(t => (t.Key, t.Throws.Count)))
-                .IsEquivalentTo(new[] { ("stand-jump-left", 4), ("stand-throw-left", 2) })
+                .IsEquivalentTo(new[] { ("stand-jump-left", 4), ("stand-throw-left", 2) }, CollectionOrdering.Matching)
                 .Because("the same spot thrown another way is another position of the same lineup");
             await Assert.That(GrenadeIndex.RoundedOrigin(b.Techniques[1].Origin)).IsEqualTo(GrenadeIndex.RoundedOrigin(b.Techniques[0].Origin));
 
             await Assert.That(north.Cell).IsEqualTo((-5, -5, -2));
             await Assert.That(north.LandingPlace).IsEqualTo("CTSpawn");
             await Assert.That(north.Lineups.Single().Throws.Select(t => t.Demo.Path))
-                .IsEquivalentTo(new[] { DemoPath(6), DemoPath(7) });
+                .IsEquivalentTo(new[] { DemoPath(6), DemoPath(7) }, CollectionOrdering.Matching);
         }
     }
 
@@ -398,8 +399,8 @@ public class GrenadeIndexTests
             await Assert.That(index.DemoCount).IsEqualTo(10).Because("the nine and inferno: the copy is the same demo");
             await Assert.That(index.GrenadeCount).IsEqualTo(9 * 3 + 4 + 2 + 2 + 1)
                 .Because("rows without a landing point are not index rows; the copy is not counted");
-            await Assert.That(index.Maps()).IsEquivalentTo(new[] { "de_inferno", Mirage });
-            await Assert.That(index.LandingPlaces(Mirage)).IsEquivalentTo(CtAndT);
+            await Assert.That(index.Maps()).IsEquivalentTo(new[] { "de_inferno", Mirage }, CollectionOrdering.Matching);
+            await Assert.That(index.LandingPlaces(Mirage)).IsEquivalentTo(CtAndT, CollectionOrdering.Matching);
         }
     }
 
@@ -434,7 +435,7 @@ public class GrenadeIndexTests
                 await Assert.That(index.DemoCount).IsEqualTo(1);
                 await Assert.That(index.IsLoaded("/d/a-copy/mirage-3.dem")).IsTrue();
                 await Assert.That(index.Rows(SmokesIntoCt()).Select(r => r.Demo.Path).Distinct())
-                    .IsEquivalentTo(["/d/a-copy/mirage-3.dem"]);
+                    .IsEquivalentTo(["/d/a-copy/mirage-3.dem"], CollectionOrdering.Matching);
             }
         }
         finally
@@ -456,7 +457,7 @@ public class GrenadeIndexTests
             await Assert.That(index.Rows(new GrenadeQuery(Mirage, new HashSet<GrenadeKind> { GrenadeKind.Flash })).Count)
                 .IsEqualTo(9);
             await Assert.That(index.Rows(new GrenadeQuery(Mirage, ThrowerTeam: 2)).Select(r => r.LandingPlace!).Distinct())
-                .IsEquivalentTo(TOnly);
+                .IsEquivalentTo(TOnly, CollectionOrdering.Matching);
             await Assert.That(index.Rows(new GrenadeQuery("DE_MIRAGE", DemoPaths: new HashSet<string> { DemoPath(6) })).Count)
                 .IsEqualTo(4).Because("map and path compare without case");
             await Assert.That(index.Rows(SmokesIntoCt()).All(r => r.PlaceSource == "zones:zv-mirage")).IsTrue()
@@ -495,7 +496,7 @@ public class GrenadeIndexTests
             await Assert.That(index.Query(SmokesIntoCt())).IsEmpty();
             await Assert.That(index.Rows(new GrenadeQuery(Mirage, LandingPlaces: new HashSet<string> { "ct" })).Count)
                 .IsEqualTo(9 * 2 + 4 + 2 + 2).Because("the new name, compared without case");
-            await Assert.That(index.LandingPlaces(Mirage)).IsEquivalentTo(Renamed);
+            await Assert.That(index.LandingPlaces(Mirage)).IsEquivalentTo(Renamed, CollectionOrdering.Matching);
         }
     }
 

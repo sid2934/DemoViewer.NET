@@ -7,6 +7,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratStepEditingTests;
 using static DemoViewer.NET.AppTests.StratTestData;
@@ -56,7 +57,7 @@ public class StratLineEditingTests
             {
                 await Assert.That(two.Actor).IsEqualTo(StratVocabulary.ActorAll);
                 await Assert.That(two.To).IsNull();
-                await Assert.That(two.Assignments!.Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>BombsiteA", "B>"]);
+                await Assert.That(two.Assignments!.Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>BombsiteA", "B>"], CollectionOrdering.Matching);
                 await Assert.That(vm.Editor.Steps[step].CanEditActor).IsFalse();
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 2);
             }
@@ -97,7 +98,7 @@ public class StratLineEditingTests
                 await Assert.That(watching.Actor).IsEqualTo("B");
                 await Assert.That(watching.To).IsNull().Because("the place moves into the line");
                 await Assert.That(watching.Assignments!.Single().To!.Place).IsEqualTo("BombsiteA");
-                await Assert.That(watching.Assignments!.Single().Watch!.Places).IsEquivalentTo(["BombsiteA", "CTSpawn", "Nowhere"]);
+                await Assert.That(watching.Assignments!.Single().Watch!.Places).IsEquivalentTo(["BombsiteA", "CTSpawn", "Nowhere"], CollectionOrdering.Matching);
                 await Assert.That(vm.Editor.Steps[step].Lines.Single().WatchText).IsEqualTo("Bombsite A, CT Spawn, Nowhere");
                 await Assert.That(vm.Editor.Steps[step].Lines.Single().IsExplicit).IsTrue();
             }
@@ -199,7 +200,7 @@ public class StratLineEditingTests
             StratStep written = session.Document!.Steps[1];
             using (Assert.Multiple())
             {
-                await Assert.That(written.Assignments!.Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>", "C>Ramp"]);
+                await Assert.That(written.Assignments!.Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>", "C>Ramp"], CollectionOrdering.Matching);
                 await Assert.That(written.To).IsNull();
                 await Assert.That(session.UndoDepth).IsEqualTo(1);
             }
@@ -276,7 +277,7 @@ public class StratLineEditingTests
             using (Assert.Multiple())
             {
                 await Assert.That(watch.YawDegrees).IsNull();
-                await Assert.That(watch.Places).IsEquivalentTo(["BombsiteA"]);
+                await Assert.That(watch.Places).IsEquivalentTo(["BombsiteA"], CollectionOrdering.Matching);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(vm.Editor.Steps[^1].Lines[0].HasAngle).IsFalse();
             }

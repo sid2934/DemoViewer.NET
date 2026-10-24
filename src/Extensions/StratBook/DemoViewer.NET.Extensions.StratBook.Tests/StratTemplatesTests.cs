@@ -4,6 +4,7 @@ using System.Text.Json;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -123,11 +124,11 @@ public class StratTemplatesTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(splitSteps.Where(StratStepLines.HasLines).Select(s => s.Verb)).IsEquivalentTo(["hold", "move"]);
+                await Assert.That(splitSteps.Where(StratStepLines.HasLines).Select(s => s.Verb)).IsEquivalentTo(["hold", "move"], CollectionOrdering.Matching);
                 await Assert.That(splitSteps.Single(s => s.Verb == "move" && StratStepLines.HasLines(s)).Assignments!
-                    .Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>BombsiteB", "D>BombsiteB"]);
+                    .Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>BombsiteB", "D>BombsiteB"], CollectionOrdering.Matching);
                 await Assert.That(hold.Assignments!.Select(l => l.Slot + ">" + l.To?.Place))
-                    .IsEquivalentTo(["A>BombsiteA", "B>BombsiteA", "C>", "D>BombsiteB", "E>BombsiteB"]);
+                    .IsEquivalentTo(["A>BombsiteA", "B>BombsiteA", "C>", "D>BombsiteB", "E>BombsiteB"], CollectionOrdering.Matching);
                 await Assert.That(hold.Actor).IsEqualTo(StratVocabulary.ActorAll);
             }
         });
@@ -237,7 +238,7 @@ public class StratTemplatesTests
                 await Assert.That(document.Name).IsEqualTo("Execute B");
                 await Assert.That(document.Start!.Kind).IsEqualTo(StratStart.SpawnKind);
                 await Assert.That(document.Start.Positions.Count).IsEqualTo(10).Because("the spawns are the start");
-                await Assert.That(document.Steps.Select(s => s.Verb)).IsEquivalentTo(template.Steps.Select(s => s.Verb));
+                await Assert.That(document.Steps.Select(s => s.Verb)).IsEquivalentTo(template.Steps.Select(s => s.Verb), CollectionOrdering.Matching);
                 await Assert.That(document.Steps.All(s => s.Positions.Count == 0)).IsTrue();
                 await Assert.That(stored.Steps.Count).IsEqualTo(template.Steps.Count).Because("the template is in the created revision");
                 await Assert.That(stored.Start!.Positions.Count).IsEqualTo(10);

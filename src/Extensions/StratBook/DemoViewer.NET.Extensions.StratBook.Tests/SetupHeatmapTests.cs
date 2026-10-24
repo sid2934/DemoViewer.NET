@@ -12,6 +12,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -160,16 +161,16 @@ public class SetupHeatmapTests
 
             await Assert.That(pistol.Map).IsEqualTo("de_nuke");
             await Assert.That(pistol.Buy).IsEqualTo(BuyType.Pistol);
-            await Assert.That(pistol.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([1]);
+            await Assert.That(pistol.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([1], CollectionOrdering.Matching);
             // Steps 15..35 inclusive, two CT tuples each; the T tuple at Outside never counts.
             await Assert.That(pistol.StateCount).IsEqualTo(21);
             await Assert.That(pistol.Points.Count).IsEqualTo(42);
             await Assert.That(pistol.Points.All(p => p.Side == QuerySide.Ct)).IsTrue();
             await Assert.That(pistol.Points[0]).IsEqualTo(new OverlayPoint(600, -400, -416, QuerySide.Ct));
-            await Assert.That(pistol.Positions.Select(p => p.Place)).IsEquivalentTo(["BombsiteA", "Ramp"]);
+            await Assert.That(pistol.Positions.Select(p => p.Place)).IsEquivalentTo(["BombsiteA", "Ramp"], CollectionOrdering.Matching);
 
             await Assert.That(full.Buy).IsEqualTo(BuyType.Full);
-            await Assert.That(full.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([2, 3, 5])
+            await Assert.That(full.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([2, 3, 5], CollectionOrdering.Matching)
                 .Because("round 4 is the team's T side, and round 3 belongs even with no window");
             await Assert.That(full.Rounds.Single(r => r.RoundNumber == 3).Sampled).IsFalse();
             await Assert.That(full.SampledRounds).IsEqualTo(2);
@@ -275,11 +276,11 @@ public class SetupHeatmapTests
             await Assert.That(queue.ClipCount).IsEqualTo(3);
             await Assert.That(queue.Clips.All(c => c.TeamId == vm.SelectedTeam!.Id)).IsTrue().Because("a Dossier clip carries its team");
             await Assert.That(queue.Clips.All(c => c.Source == ReviewSources.Dossier)).IsTrue();
-            await Assert.That(queue.Clips.Select(c => c.FromTick)).IsEquivalentTo([10000, 20000, 40000]);
+            await Assert.That(queue.Clips.Select(c => c.FromTick)).IsEquivalentTo([10000, 20000, 40000], CollectionOrdering.Matching);
             await Assert.That(queue.Clips[0].Note).IsEqualTo("de_nuke · full buy · round 2");
             await Assert.That(queue.SectionOf(queue.Clips[0].Id)).IsNotNull();
             await Assert.That(vm.ReviewLine).IsEqualTo("3 rounds sent to Review");
-            await Assert.That(shown).IsEquivalentTo(["review.queue"]);
+            await Assert.That(shown).IsEquivalentTo(["review.queue"], CollectionOrdering.Matching);
         }
 
         vm.OpenRoundsCommand.Execute(full);

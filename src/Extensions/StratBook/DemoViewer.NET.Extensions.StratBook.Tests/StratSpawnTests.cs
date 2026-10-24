@@ -7,6 +7,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -77,10 +78,10 @@ public class StratSpawnTests
             double below = MapSpace.QuantizeZ(-100000);
             using (Assert.Multiple())
             {
-                await Assert.That(vertigo.T.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { below });
-                await Assert.That(vertigo.Ct.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(11728) });
-                await Assert.That(nuke.T.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(-528) });
-                await Assert.That(nuke.Ct.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(-528) });
+                await Assert.That(vertigo.T.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { below }, CollectionOrdering.Matching);
+                await Assert.That(vertigo.Ct.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(11728) }, CollectionOrdering.Matching);
+                await Assert.That(nuke.T.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(-528) }, CollectionOrdering.Matching);
+                await Assert.That(nuke.Ct.Select(s => s.LevelMinZ).Distinct()).IsEquivalentTo(new[] { MapSpace.QuantizeZ(-528) }, CollectionOrdering.Matching);
             }
         });
     }
@@ -106,7 +107,7 @@ public class StratSpawnTests
             {
                 await Assert.That(t.Steps).IsEmpty().Because("the start is not a step");
                 await Assert.That(start.Kind).IsEqualTo(StratStart.SpawnKind);
-                await Assert.That(start.Positions.Select(p => p.Slot)).IsEquivalentTo(StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots));
+                await Assert.That(start.Positions.Select(p => p.Slot)).IsEquivalentTo(StratVocabulary.Slots.Concat(StratVocabulary.OpponentSlots), CollectionOrdering.Matching);
                 await Assert.That(start.Positions.Single(p => p.Slot == "A").X).IsEqualTo(1000);
                 await Assert.That(start.Positions.Single(p => p.Slot == "O1").X).IsEqualTo(-1000);
                 await Assert.That(start.Positions.Single(p => p.Slot == "O1").LevelMinZ).IsEqualTo(-128);

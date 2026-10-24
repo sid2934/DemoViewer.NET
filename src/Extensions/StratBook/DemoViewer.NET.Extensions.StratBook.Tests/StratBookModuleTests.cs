@@ -8,6 +8,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -195,7 +196,7 @@ public class StratBookModuleTests
                 await Assert.That(vm.Editor.Map).IsEqualTo("de_nuke");
                 await Assert.That(vm.Editor.Side).IsEqualTo("CT");
                 await Assert.That(vm.Editor.Type).IsEqualTo("setup");
-                await Assert.That(vm.Editor.Slots.Select(s => s.Letter)).IsEquivalentTo(StratVocabulary.Slots);
+                await Assert.That(vm.Editor.Slots.Select(s => s.Letter)).IsEquivalentTo(StratVocabulary.Slots, CollectionOrdering.Matching);
                 await Assert.That(store.SessionFor(vm.Strats[0].Id)).IsSameReferenceAs(vm.Session);
             }
         });
@@ -302,7 +303,7 @@ public class StratBookModuleTests
             editor.Project();
 
             StratStepRow row = editor.Steps[0];
-            await Assert.That(row.LineupOptions.Select(o => o.Label)).IsEquivalentTo([StratEditorViewModel.None])
+            await Assert.That(row.LineupOptions.Select(o => o.Label)).IsEquivalentTo([StratEditorViewModel.None], CollectionOrdering.Matching)
                 .Because("no utility kind yet: the lookup is never asked");
 
             row.UtilityKind = "smoke";
@@ -310,7 +311,7 @@ public class StratBookModuleTests
             using (Assert.Multiple())
             {
                 await Assert.That(row.LineupOptions.Select(o => o.Label))
-                    .IsEquivalentTo([StratEditorViewModel.None, "Smoke into CTSpawn"]);
+                    .IsEquivalentTo([StratEditorViewModel.None, "Smoke into CTSpawn"], CollectionOrdering.Matching);
                 await Assert.That(row.Lineup).IsEqualTo(StratLineupOption.None).Because("choosing a kind does not choose a lineup");
             }
 

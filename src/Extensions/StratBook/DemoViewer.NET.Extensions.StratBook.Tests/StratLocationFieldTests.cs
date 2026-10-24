@@ -21,6 +21,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratMapFirstTests;
@@ -195,13 +196,13 @@ public partial class StratLocationFieldTests
             StepLurk lurkBack = JsonSerializer.Deserialize(JsonSerializer.Serialize(oldLurk, OldOptions), StratJsonContext.Default.StepLurk)!;
             using (Assert.Multiple())
             {
-                await Assert.That(oldLurk.Areas).IsEquivalentTo(["Hut"]);
+                await Assert.That(oldLurk.Areas).IsEquivalentTo(["Hut"], CollectionOrdering.Matching);
                 await Assert.That(oldLurk.Rotate!.To!.Place).IsNull();
                 await Assert.That(oldLurk.Rotate!.To!.Extra!.ContainsKey("x")).IsTrue().Because("the point rides in the old build's extension data");
                 await Assert.That(lurkBack.AreaPoints!.Single().X).IsEqualTo(7);
                 await Assert.That(lurkBack.Rotate!.To!.Y).IsEqualTo(2);
                 await Assert.That(oldTo.Place).IsEqualTo("Hut");
-                await Assert.That(oldWatch.Places).IsEquivalentTo(["Hut"]);
+                await Assert.That(oldWatch.Places).IsEquivalentTo(["Hut"], CollectionOrdering.Matching);
                 await Assert.That(StratLocations.Same(back, to)).IsTrue();
                 await Assert.That(watchBack.Points!.Single().X).IsEqualTo(5);
                 await Assert.That(watchBack.YawDegrees).IsEqualTo(90);
@@ -312,7 +313,7 @@ public partial class StratLocationFieldTests
                 StepWatch stored = session.Document!.Steps[1].Assignments!.Single().Watch!;
                 using (Assert.Multiple())
                 {
-                    await Assert.That(stored.Places).IsEquivalentTo(["Hut"]);
+                    await Assert.That(stored.Places).IsEquivalentTo(["Hut"], CollectionOrdering.Matching);
                     await Assert.That(stored.Points!.Single().X).IsEqualTo(900.4);
                     await Assert.That(session.UndoDepth).IsEqualTo(2).Because("a second click on a watched place adds nothing");
                     await Assert.That(StratStepPhrasing.Watching(session.Document!.Steps[1].Assignments![0], null))
@@ -473,11 +474,11 @@ public partial class StratLocationFieldTests
             using (Assert.Multiple())
             {
                 await Assert.That(PlaceFieldOptions.For(Mirage)).IsSameReferenceAs(options);
-                await Assert.That(options.All.Select(o => o.Place).Order(StringComparer.Ordinal)).IsEquivalentTo(Mirage.CanonicalNames.Order(StringComparer.Ordinal));
+                await Assert.That(options.All.Select(o => o.Place).Order(StringComparer.Ordinal)).IsEquivalentTo(Mirage.CanonicalNames.Order(StringComparer.Ordinal), CollectionOrdering.Matching);
                 await Assert.That(options.All.Single(o => o.Place == "PalaceInterior").Display).IsEqualTo("palace");
                 await Assert.That(options.Filter("a ramp")[0].Place).IsEqualTo("TRamp").Because("an alias finds its place");
-                await Assert.That(options.Filter("bombsite").Select(o => o.Place)).IsEquivalentTo(["BombsiteA", "BombsiteB"]);
-                await Assert.That(options.Filter("site").Select(o => o.Place).Take(2)).IsEquivalentTo(["BombsiteA", "BombsiteB"])
+                await Assert.That(options.Filter("bombsite").Select(o => o.Place)).IsEquivalentTo(["BombsiteA", "BombsiteB"], CollectionOrdering.Matching);
+                await Assert.That(options.Filter("site").Select(o => o.Place).Take(2)).IsEquivalentTo(["BombsiteA", "BombsiteB"], CollectionOrdering.Matching)
                     .Because("a name containing the text still lists");
                 await Assert.That(options.Filter("").Count).IsEqualTo(options.All.Count);
             }
@@ -533,7 +534,7 @@ public partial class StratLocationFieldTests
             using (Assert.Multiple())
             {
                 await Assert.That(multi.Text).IsEmpty().Because("a pick appends a chip and clears the add field");
-                await Assert.That(watched.Select(w => w.Place)).IsEquivalentTo(["Stairs", null, "Jungle"]);
+                await Assert.That(watched.Select(w => w.Place)).IsEquivalentTo(["Stairs", null, "Jungle"], CollectionOrdering.Matching);
                 await Assert.That(watched[1].X).IsEqualTo(-900).Because("the point chip is kept as stored");
                 await Assert.That(PlaceField.ChooseUp(500, 60, 200)).IsTrue();
                 await Assert.That(PlaceField.ChooseUp(50, 60, 200)).IsFalse();
@@ -798,7 +799,7 @@ public partial class StratLocationFieldTests
             Dispatcher.UIThread.RunJobs();
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Session.Document!.Steps[index].Lurk!.Areas).IsEquivalentTo(["PalaceInterior"]);
+                await Assert.That(vm.Session.Document!.Steps[index].Lurk!.Areas).IsEquivalentTo(["PalaceInterior"], CollectionOrdering.Matching);
                 await Assert.That(vm.Session.Document!.Steps.Count).IsEqualTo(steps).Because("Enter picked from the list");
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
             }
@@ -866,7 +867,7 @@ public partial class StratLocationFieldTests
             {
                 await Assert.That(document.Steps[m].From!.Place).IsEqualTo("Connector");
                 await Assert.That(document.Steps[m].From!.X).IsNull().Because("another place drops the point");
-                await Assert.That(watch.Places).IsEquivalentTo(["Stairs", "Jungle"]);
+                await Assert.That(watch.Places).IsEquivalentTo(["Stairs", "Jungle"], CollectionOrdering.Matching);
                 await Assert.That(watch.Points!.Single().X).IsEqualTo(-900).Because("editing the watching keeps its points");
             }
 

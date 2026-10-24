@@ -14,6 +14,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -188,7 +189,7 @@ public class FindRoundsLikeThisTests
                 await Assert.That(unknown.IsResolved).IsFalse();
                 await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:1");
                 await Assert.That(h.Vm.TToken).IsEqualTo("Lobby:1").Because("a query never targets ?");
-                await Assert.That(h.Vm.Draft.ToQuery().T).IsEquivalentTo([new PlaceQuery("Lobby", 1)]);
+                await Assert.That(h.Vm.Draft.ToQuery().T).IsEquivalentTo([new PlaceQuery("Lobby", 1)], CollectionOrdering.Matching);
             }
         });
     }
@@ -263,7 +264,7 @@ public class FindRoundsLikeThisTests
             using (Assert.Multiple())
             {
                 // The id the seam asks for is the one SituationsModule contributes.
-                await Assert.That(shown).IsEquivalentTo(["situations.search"]);
+                await Assert.That(shown).IsEquivalentTo(["situations.search"], CollectionOrdering.Matching);
                 await Assert.That(h.Vm.CtToken).IsEqualTo("BombsiteA:2|Outside:3");
                 await Assert.That(h.Vm.TToken).IsEqualTo("Lobby:3|Ramp:2");
             }

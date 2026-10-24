@@ -21,6 +21,7 @@ using DemoViewer.NET.ViewModels.Playback;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 
 #endregion
@@ -72,7 +73,7 @@ public class StratExportTests
                     await Assert.That(dialog.CanStart).IsTrue();
 
                     // The seven scene layers, the ink and the clock, named: the killfeed and roster have no source.
-                    await Assert.That(request.LayerIds).IsEquivalentTo(StratExportJob.LayerIds(true, true));
+                    await Assert.That(request.LayerIds).IsEquivalentTo(StratExportJob.LayerIds(true, true), CollectionOrdering.Matching);
                     await Assert.That(request.LayerIds.Count).IsEqualTo(9);
                     await Assert.That(request.LayerIds).DoesNotContain(SceneLayerIds.HudKillFeed);
 

@@ -3,6 +3,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratAssignmentsTests;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -69,8 +70,8 @@ public class StratAssignmentsExportTests
             [
                 "own: B throws T Ramp → Bombsite A",
                 "own: B moves T Ramp → Palace Interior, watching Bombsite A, CT Spawn"
-            ]);
-            await Assert.That(d.Lines.Select(Line)).IsEquivalentTo(["own: D moves T Ramp → Stairs, watching T Ramp"]);
+            ], CollectionOrdering.Matching);
+            await Assert.That(d.Lines.Select(Line)).IsEquivalentTo(["own: D moves T Ramp → Stairs, watching T Ramp"], CollectionOrdering.Matching);
             await Assert.That(d.Lines.Single().Actor).IsEqualTo("D");
             await Assert.That(a.Lines).IsEmpty().Because("A has no line, and the step's actor 'all' is only a summary");
         }
@@ -88,7 +89,7 @@ public class StratAssignmentsExportTests
             "context: C throws T Ramp → Bombsite A",
             "context: B, C, D move from T Ramp: B → Palace Interior, watching Bombsite A, CT Spawn; C → Connector, watching Stairs; D → Stairs, watching T Ramp",
             "own: E moves Connector → Bombsite A"
-        ]);
+        ], CollectionOrdering.Matching);
     }
 
     [Test]

@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.StratBook.Playback2D.Frames;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.ViewModels.Playback2D;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using GrenadeKind = DemoViewer.NET.Playback2D.Core.GrenadeKind;
 
@@ -128,7 +129,7 @@ public class StratThrowsTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(points.Select(p => p.Tick)).IsEquivalentTo([Release, Release + 64, Release + 128]);
+                await Assert.That(points.Select(p => p.Tick)).IsEquivalentTo([Release, Release + 64, Release + 128], CollectionOrdering.Matching);
                 await Assert.That(points[0]).IsEqualTo(new FlightPoint(Release, 0, 0, (float)(MapSpace.LevelQuantum / 2)));
                 await Assert.That(points[1].X).IsEqualTo(500f).Because("half way, half of each end's correction");
                 await Assert.That(points[1].Y).IsEqualTo(290f);
@@ -215,7 +216,7 @@ public class StratThrowsTests
 
             IReadOnlyList<UtilityCue> cues = Build(document).Utility;
 
-            await Assert.That(cues.Select(c => c.Team)).IsEquivalentTo([3, 3]);
+            await Assert.That(cues.Select(c => c.Team)).IsEquivalentTo([3, 3], CollectionOrdering.Matching);
             await Assert.That(cues.Select(c => c.Flight![0].X).Distinct().Count()).IsEqualTo(2).Because("each from its own token");
         });
     }

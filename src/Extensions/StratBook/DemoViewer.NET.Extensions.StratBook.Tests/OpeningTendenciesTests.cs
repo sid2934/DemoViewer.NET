@@ -10,6 +10,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -190,7 +191,7 @@ public class OpeningTendenciesTests
 
             await Assert.That(t.Map).IsEqualTo("de_nuke");
             await Assert.That(t.Side).IsEqualTo(2);
-            await Assert.That(t.Rounds.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([1, 2, 3]);
+            await Assert.That(t.Rounds.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([1, 2, 3], CollectionOrdering.Matching);
             await Assert.That(t.UtilityRounds).IsEqualTo(3);
             await Assert.That(Shape(t.FirstUtilityClock)).IsEqualTo(Joined("0-5 s:0", "5-10 s:2", "none:1"))
                 .Because("the CT smoke at 3 s is the other side's, and the empty bar keeps the clock");
@@ -205,7 +206,7 @@ public class OpeningTendenciesTests
             await Assert.That(Shape(t.Lurkers)).IsEqualTo(Joined("p3:1"));
 
             await Assert.That(ct.Side).IsEqualTo(3);
-            await Assert.That(ct.Rounds.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([4, 5]);
+            await Assert.That(ct.Rounds.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([4, 5], CollectionOrdering.Matching);
             await Assert.That(Shape(ct.FirstUtilityClock)).IsEqualTo(Joined("0-5 s:1", "none:1"));
             await Assert.That(Shape(ct.FirstUtilityPlaces)).IsEqualTo(Joined("smoke at Ramp:1"));
             await Assert.That(ct.FirstContactClock.Count).IsEqualTo(13).Because("thirteen bars to 60 s+, and both rounds had contact");
@@ -329,7 +330,7 @@ public class OpeningTendenciesTests
             await Assert.That(queue.Clips.All(c => c.TeamId == vm.SelectedTeam!.Id)).IsTrue().Because("a Dossier clip carries its team");
             await Assert.That(queue.SectionOf(queue.Clips[0].Id)).IsNotNull();
             await Assert.That(vm.Openings.ReviewLine).IsEqualTo("2 rounds sent to Review");
-            await Assert.That(shown).IsEquivalentTo(["review.queue"]);
+            await Assert.That(shown).IsEquivalentTo(["review.queue"], CollectionOrdering.Matching);
         }
 
         vm.Openings.OpenCommand.Execute(bar);

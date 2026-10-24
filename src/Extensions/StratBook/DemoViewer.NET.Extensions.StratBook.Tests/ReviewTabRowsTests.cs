@@ -11,6 +11,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.Review;
 using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Review;
 using DemoViewer.NET.Extensions.StratBook.Views.Review;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -37,9 +38,9 @@ public class ReviewTabRowsTests
         rows.SyncTo([d, a, c, e]);
         using (Assert.Multiple())
         {
-            await Assert.That(rows.ToList()).IsEquivalentTo([d, a, c, e]);
+            await Assert.That(rows.ToList()).IsEquivalentTo([d, a, c, e], CollectionOrdering.Matching);
             await Assert.That(events.Select(x => x.Action)).IsEquivalentTo(
-                [NotifyCollectionChangedAction.Remove, NotifyCollectionChangedAction.Add, NotifyCollectionChangedAction.Add]);
+                [NotifyCollectionChangedAction.Remove, NotifyCollectionChangedAction.Add, NotifyCollectionChangedAction.Add], CollectionOrdering.Matching);
         }
 
         events.Clear();
@@ -114,7 +115,7 @@ public class ReviewTabRowsTests
                 await Assert.That(changes).IsEqualTo(1);
                 await Assert.That(json.Split("\"reviewed\": true").Length - 1).IsEqualTo(2);
                 await Assert.That(json).DoesNotContain("\"reviewed\": false").Because("older files and builds see no new field");
-                await Assert.That(reread.Clips.Select(c => c.Reviewed)).IsEquivalentTo([true, true, false]);
+                await Assert.That(reread.Clips.Select(c => c.Reviewed)).IsEquivalentTo([true, true, false], CollectionOrdering.Matching);
                 await Assert.That(reread.UnreviewedCount).IsEqualTo(1);
             }
         }
@@ -135,7 +136,7 @@ public class ReviewTabRowsTests
         tab.Rows[1].ToggleReviewedCommand.Execute(null);
         using (Assert.Multiple())
         {
-            await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["two", "three"]);
+            await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["two", "three"], CollectionOrdering.Matching);
             await Assert.That(tab.Rows[0].ClipCountText).IsEqualTo("2 of 3 clips unreviewed");
             await Assert.That(tab.Rows[1].Position).IsEqualTo(2).Because("positions count every clip");
             await Assert.That(badge.Badge).IsEqualTo("2");
@@ -172,7 +173,7 @@ public class ReviewTabRowsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(queue.Clips.Select(c => c.Reviewed)).IsEquivalentTo([true, true, false]);
+            await Assert.That(queue.Clips.Select(c => c.Reviewed)).IsEquivalentTo([true, true, false], CollectionOrdering.Matching);
             await Assert.That(tab.Rows.Count(r => r.IsClip)).IsEqualTo(0);
         }
 
@@ -207,18 +208,18 @@ public class ReviewTabRowsTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(tab.MapFilters).IsEquivalentTo([ReviewQueueTabViewModel.AllMaps, "de_mirage", "de_nuke", ReviewQueueTabViewModel.NoMap]);
+            await Assert.That(tab.MapFilters).IsEquivalentTo([ReviewQueueTabViewModel.AllMaps, "de_mirage", "de_nuke", ReviewQueueTabViewModel.NoMap], CollectionOrdering.Matching);
             await Assert.That(tab.TeamFilters).IsEquivalentTo(
-                [ReviewQueueTabViewModel.AllTeams, "Spirit", ReviewQueueTabViewModel.NoTeam, ReviewQueueTabViewModel.UnknownTeam]);
+                [ReviewQueueTabViewModel.AllTeams, "Spirit", ReviewQueueTabViewModel.NoTeam, ReviewQueueTabViewModel.UnknownTeam], CollectionOrdering.Matching);
         }
 
         tab.SelectedMap = "de_nuke";
-        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["spirit nuke", "old nuke"]);
+        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["spirit nuke", "old nuke"], CollectionOrdering.Matching);
         tab.SelectedTeam = "Spirit";
-        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["spirit nuke"]);
+        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["spirit nuke"], CollectionOrdering.Matching);
         tab.SelectedMap = ReviewQueueTabViewModel.AllMaps;
         tab.SelectedTeam = ReviewQueueTabViewModel.NoTeam;
-        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["old nuke", "no demo"]);
+        await Assert.That(tab.Rows.Where(r => r.IsClip).Select(r => r.Note)).IsEquivalentTo(["old nuke", "no demo"], CollectionOrdering.Matching);
         await Assert.That(lookups).IsEqualTo(5).Because("one lookup per demo, not per clip per reconcile");
 
         tab.SelectedMap = "de_mirage";

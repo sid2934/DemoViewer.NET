@@ -5,6 +5,7 @@ using CS2DemoKit.Analysis;
 using CS2DemoKit.Analysis.RulesetsV2.Model;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -27,8 +28,8 @@ public class GrenadeTablesTests
         using (Assert.Multiple())
         {
             await Assert.That(validation.Diagnostics).IsEmpty().Because(string.Join("; ", validation.Diagnostics));
-            await Assert.That(docs.Select(d => d.Id)).IsEquivalentTo(GrenadeTables.RulesetIds);
-            await Assert.That(declared).IsEquivalentTo(GrenadeTables.Tables);
+            await Assert.That(docs.Select(d => d.Id)).IsEquivalentTo(GrenadeTables.RulesetIds, CollectionOrdering.Matching);
+            await Assert.That(declared).IsEquivalentTo(GrenadeTables.Tables, CollectionOrdering.Matching);
         }
     }
 
@@ -93,7 +94,7 @@ public class GrenadeTablesTests
         ReleaseFacts smokeRelease = rows.Releases.Single(r => r.Slot == 5);
         using (Assert.Multiple())
         {
-            await Assert.That(rows.Projectiles.Select(p => p.Id)).IsEquivalentTo(["g120-7", "g140-2", "g130-9"]).Because("spawn order, the landing between");
+            await Assert.That(rows.Projectiles.Select(p => p.Id)).IsEquivalentTo(["g120-7", "g140-2", "g130-9"], CollectionOrdering.Matching).Because("spawn order, the landing between");
             await Assert.That(he.ThrowerSlot).IsEqualTo(3);
             await Assert.That(he.InitialPosition).IsNull().Because("NaN is no position");
             await Assert.That(he.LastPosition).IsEqualTo(new Vector3(460, 0, 64));

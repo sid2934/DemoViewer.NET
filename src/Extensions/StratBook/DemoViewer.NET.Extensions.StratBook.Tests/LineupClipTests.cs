@@ -11,6 +11,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.Export;
 using DemoViewer.NET.Services.Review;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -149,7 +150,7 @@ public class LineupClipTests
             using (Assert.Multiple())
             {
                 await Assert.That(written).IsEqualTo(2).Because("both repeated lineups have a throw in b");
-                await Assert.That(renderer.Calls.Select(c => c.Demo)).IsEquivalentTo(["/d/b.dem"]);
+                await Assert.That(renderer.Calls.Select(c => c.Demo)).IsEquivalentTo(["/d/b.dem"], CollectionOrdering.Matching);
                 await Assert.That(renderer.Calls[0].Jobs.All(j => j.DemoPath == "/d/b.dem")).IsTrue();
                 await Assert.That(planned).IsEqualTo(0).Because("a demo the visit already served is not read for its clips");
                 await Assert.That(System.IO.Directory.GetFiles(clips, "*" + LineupClipPlanner.SetposExtension).Length).IsEqualTo(2);
@@ -227,13 +228,13 @@ public class LineupClipTests
     {
         GrenadeCluster cluster = TwoLineups();
         IReadOnlyList<LineupClipJob> all = LineupClipPlanner.PlanAll([cluster], Directory, _ => false);
-        await Assert.That(all.Select(j => j.Key)).IsEquivalentTo(["sha-a/a1", "sha-b/b2"]);
+        await Assert.That(all.Select(j => j.Key)).IsEquivalentTo(["sha-a/a1", "sha-b/b2"], CollectionOrdering.Matching);
         await Assert.That(all.All(j => j.Title == "Smoke into CTSpawn")).IsTrue();
 
         LineupClipJob first = all[0];
         HashSet<string> done = [first.GifPath, first.SetposPath];
         await Assert.That(LineupClipPlanner.PlanAll([cluster], Directory, done.Contains).Select(j => j.Key))
-            .IsEquivalentTo(["sha-b/b2"]);
+            .IsEquivalentTo(["sha-b/b2"], CollectionOrdering.Matching);
 
         HashSet<string> gifOnly = [first.GifPath];
         await Assert.That(LineupClipPlanner.PlanAll([cluster], Directory, gifOnly.Contains).Count).IsEqualTo(2);
@@ -266,7 +267,7 @@ public class LineupClipTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(jobs.Select(j => j.TechniqueKey ?? "")).IsEquivalentTo(["stand-jump-left", "stand-throw-left"])
+            await Assert.That(jobs.Select(j => j.TechniqueKey ?? "")).IsEquivalentTo(["stand-jump-left", "stand-throw-left"], CollectionOrdering.Matching)
                 .Because("a technique other than the first needs two throws of its own");
             await Assert.That(jobs[0].Stem).IsEqualTo(old + "-stand-jump-left");
             await Assert.That(jobs[1].DemoPath).IsEqualTo("/d/c.dem").Because("each technique's clip shows its own throw");
@@ -288,7 +289,7 @@ public class LineupClipTests
             IReadOnlyList<LineupClipJob> onDisk = LineupClipPlanner.PlanEvery([Cluster(lineup)], clips);
             using (Assert.Multiple())
             {
-                await Assert.That(renderer.Calls.SelectMany(c => c.Jobs).Select(j => j.TechniqueKey ?? "")).IsEquivalentTo(["stand-throw-left"]);
+                await Assert.That(renderer.Calls.SelectMany(c => c.Jobs).Select(j => j.TechniqueKey ?? "")).IsEquivalentTo(["stand-throw-left"], CollectionOrdering.Matching);
                 await Assert.That(HasPair(clips, onDisk[0].Stem)).IsTrue().Because("the old per-lineup pair was renamed");
                 await Assert.That(HasPair(clips, old)).IsFalse();
                 await Assert.That(LineupClipPlanner.FinishedGif(clips, Mirage, GrenadeKind.Smoke, IdOf("spot"), "stand-throw-left"))
@@ -446,7 +447,7 @@ public class LineupClipTests
         await Assert.That(planned).IsEqualTo(2);
 
         // One render call per demo, each parsed once; every GIF has its setpos beside it.
-        await Assert.That(renderer.Calls.Select(c => c.Demo)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"]);
+        await Assert.That(renderer.Calls.Select(c => c.Demo)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"], CollectionOrdering.Matching);
         foreach (LineupClipJob job in renderer.Calls.SelectMany(c => c.Jobs))
         {
             await Assert.That(written[job.SetposPath]).IsEqualTo(Setpos + Environment.NewLine);
@@ -471,7 +472,7 @@ public class LineupClipTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(renderer.Calls.Select(c => c.Demo)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"]);
+            await Assert.That(renderer.Calls.Select(c => c.Demo)).IsEquivalentTo(["/d/a.dem", "/d/b.dem"], CollectionOrdering.Matching);
             await Assert.That(written.Count).IsEqualTo(0).Because("no sidecar without its GIF");
         }
     }
@@ -652,7 +653,7 @@ public class LineupClipTests
                     await Assert.That(HasPair(clips, "de_mirage-smoke-000000000001")).IsFalse().Because("the oldest write goes first");
                     await Assert.That(HasPair(clips, "de_mirage-smoke-000000000002")).IsTrue();
                     await Assert.That(jobs.All(j => HasPair(clips, j.Stem))).IsTrue();
-                    await Assert.That(service.Evicted).IsEquivalentTo(["de_mirage-smoke-000000000001"]);
+                    await Assert.That(service.Evicted).IsEquivalentTo(["de_mirage-smoke-000000000001"], CollectionOrdering.Matching);
                 }
             }
 
@@ -698,7 +699,7 @@ public class LineupClipTests
                 service.Plan();
                 present = true;
                 await Assert.That(service.Plan()).IsEqualTo(0);
-                await Assert.That(service.Evicted).IsEquivalentTo([jobs[1].Stem]);
+                await Assert.That(service.Evicted).IsEquivalentTo([jobs[1].Stem], CollectionOrdering.Matching);
             }
 
             using LineupClipService impatient = new(() => present ? [cluster] : [], clips, () => true, new FileRenderer(),
@@ -845,7 +846,7 @@ public class LineupClipTests
                 await Assert.That(HasPair(clips, stems[higher.Id])).IsTrue();
                 await Assert.That(HasPair(clips, stems[keptOld.Id])).IsFalse().Because("the lowest rank, then the oldest, goes");
                 await Assert.That(HasPair(clips, stems[keptNew.Id])).IsTrue();
-                await Assert.That(service.Evicted).IsEquivalentTo([stems[keptOld.Id]]);
+                await Assert.That(service.Evicted).IsEquivalentTo([stems[keptOld.Id]], CollectionOrdering.Matching);
             }
 
             // Still full: the equal and the lower lineup never displace a kept pair, so nothing churns.

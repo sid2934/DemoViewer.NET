@@ -13,6 +13,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
 using DemoViewer.NET.TestSupport;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratStepMotionTests;
 using static DemoViewer.NET.AppTests.StratTestData;
@@ -78,7 +79,7 @@ public class StratStartBlockTests
                 await Assert.That(StratStore.Serialize(document)).IsEqualTo(text).Because("nothing is written on open");
                 await Assert.That(document.Start).IsNull();
                 await Assert.That(start).IsNotNull();
-                await Assert.That(start!.Positions.Select(p => p.Slot)).IsEquivalentTo(["A", "B", "C", "D", "E", "O1", "O2", "O3", "O4", "O5"]);
+                await Assert.That(start!.Positions.Select(p => p.Slot)).IsEquivalentTo(["A", "B", "C", "D", "E", "O1", "O2", "O3", "O4", "O5"], CollectionOrdering.Matching);
                 await Assert.That(sources.Where(s => s.Step == 1).Count()).IsEqualTo(4).Because("A to D's only spawn entries are the lurk's copies");
                 await Assert.That(sources.Where(s => s.Step == 0).Count()).IsEqualTo(6);
                 foreach ((string slot, float x, float y) in Spawn)
@@ -226,7 +227,7 @@ public class StratStartBlockTests
                 await Assert.That(after.Start!.Kind).IsEqualTo(StratStart.CustomKind);
                 await Assert.That(after.Start.Positions.Count).IsEqualTo(10);
                 await Assert.That(after.Steps[0].Positions).IsEmpty().Because("the start replaces the seed's entries");
-                await Assert.That(after.Steps[1].Positions.Select(p => p.Slot)).IsEquivalentTo(["E"]).Because("the lurk's spawn copies became the start");
+                await Assert.That(after.Steps[1].Positions.Select(p => p.Slot)).IsEquivalentTo(["E"], CollectionOrdering.Matching).Because("the lurk's spawn copies became the start");
                 await Assert.That(Sample(now, "O1", 0).X).IsEqualTo(300f);
                 foreach (string slot in StratVocabulary.Slots)
                 {
@@ -268,7 +269,7 @@ public class StratStartBlockTests
                 await Assert.That(captured.Start!.Kind).IsEqualTo(StratStart.CapturedKind);
                 await Assert.That(captured.Start.Positions.All(p => p.Observed == true && p.Place == "TSpawn")).IsTrue();
                 await Assert.That(captured.Steps[0].Verb).IsEqualTo("hold").Because("the freeze-end step stays");
-                await Assert.That(with.Tracks.Select(t => t.Slot)).IsEquivalentTo(plain.Tracks.Select(t => t.Slot));
+                await Assert.That(with.Tracks.Select(t => t.Slot)).IsEquivalentTo(plain.Tracks.Select(t => t.Slot), CollectionOrdering.Matching);
                 foreach (TokenTrack track in plain.Tracks)
                 {
                     for (int tick = 0; tick <= plain.ContentEndTick; tick += 7)
@@ -308,7 +309,7 @@ public class StratStartBlockTests
             int move = StepSchedule.TickFor(106, 115);
             using (Assert.Multiple())
             {
-                await Assert.That(StratStartBlock.Effective(document)!.Positions.Select(p => p.Slot)).IsEquivalentTo(StratVocabulary.OpponentSlots);
+                await Assert.That(StratStartBlock.Effective(document)!.Positions.Select(p => p.Slot)).IsEquivalentTo(StratVocabulary.OpponentSlots, CollectionOrdering.Matching);
                 await Assert.That(StratStartBlock.Effective(document, FixedSpawns)!.Positions.Count).IsEqualTo(10);
                 await Assert.That(without.Tracks.Single(t => t.Slot == "A").TrySample(0, out _)).IsFalse().Because("no spawns, no start for A");
                 await Assert.That(Sample(with, "A", 0).X).IsEqualTo(1000f);
@@ -489,10 +490,10 @@ public class StratStartBlockTests
             near.Positions = [new StepPosition { Slot = "A", X = 200, Y = 10, LevelMinZ = -512 }];
             using (Assert.Multiple())
             {
-                await Assert.That(StratDepartureCheck.Check(WithStart(far)).Select(i => i.Field)).IsEquivalentTo(["/steps/0/positions/0"])
+                await Assert.That(StratDepartureCheck.Check(WithStart(far)).Select(i => i.Field)).IsEquivalentTo(["/steps/0/positions/0"], CollectionOrdering.Matching)
                     .Because("3000 units from the start in 5 s is faster than a run");
                 await Assert.That(StratDepartureCheck.Check(WithStart(near))).IsEmpty();
-                await Assert.That(StratDepartureCheck.Check(Legacy()).Select(i => i.Field)).IsEquivalentTo(["/steps/1/positions/4"])
+                await Assert.That(StratDepartureCheck.Check(Legacy()).Select(i => i.Field)).IsEquivalentTo(["/steps/1/positions/4"], CollectionOrdering.Matching)
                     .Because("the seed's own entries are its start; E's dragged lurk departure was already too far for a run");
             }
         });

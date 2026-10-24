@@ -8,6 +8,7 @@ using DemoViewer.NET.Playback2D.Core.Input;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -127,7 +128,7 @@ public class StratDragFieldsTests
             using (Assert.Multiple())
             {
                 await Assert.That(written.To!.Place).IsEqualTo("Hut");
-                await Assert.That(written.Positions.Select(p => p.Slot)).IsEquivalentTo(["B"]).Because("the entry would beat the field");
+                await Assert.That(written.Positions.Select(p => p.Slot)).IsEquivalentTo(["B"], CollectionOrdering.Matching).Because("the entry would beat the field");
                 await Assert.That(canvas.StatusLine).Contains($"A's {word} is now Hut");
             }
 
@@ -251,7 +252,7 @@ public class StratDragFieldsTests
             }
 
             canvas.EndDrag();
-            await Assert.That(session.Document!.Steps[1].Lurk!.Areas).IsEquivalentTo(["Hut", "Ramp"]);
+            await Assert.That(session.Document!.Steps[1].Lurk!.Areas).IsEquivalentTo(["Hut", "Ramp"], CollectionOrdering.Matching);
             await Assert.That(session.Document!.Steps[1].Lurk!.Areas[0]).IsEqualTo("Hut");
             await OneEntryByteExact(canvas, session, before, 0);
 
@@ -282,7 +283,7 @@ public class StratDragFieldsTests
             {
                 await Assert.That(written.Rotate!.To!.Place).IsEqualTo("Hut");
                 await Assert.That(written.Rotate!.To!.X).IsEqualTo(20);
-                await Assert.That(written.Areas).IsEquivalentTo(["Hut"]);
+                await Assert.That(written.Areas).IsEquivalentTo(["Hut"], CollectionOrdering.Matching);
                 await Assert.That(canvas.Transport.Tick).IsEqualTo(end);
             }
 
@@ -369,7 +370,7 @@ public class StratDragFieldsTests
             StratStep step = session.Document!.Steps[1];
             using (Assert.Multiple())
             {
-                await Assert.That(step.Via).IsEquivalentTo(["Hut"]);
+                await Assert.That(step.Via).IsEquivalentTo(["Hut"], CollectionOrdering.Matching);
                 await Assert.That(step.To!.Place).IsEqualTo("Ramp");
                 await Assert.That(canvas.Transport.Tick).IsEqualTo(S1 + 20);
             }
@@ -524,7 +525,7 @@ public class StratDragFieldsTests
             GuidePin earlier = canvas.Guides.Pins.Single(p => p.Earlier);
             using (Assert.Multiple())
             {
-                await Assert.That(session.Document!.Steps[1].Lurk!.Areas).IsEquivalentTo(["Hut", "Ramp"]);
+                await Assert.That(session.Document!.Steps[1].Lurk!.Areas).IsEquivalentTo(["Hut", "Ramp"], CollectionOrdering.Matching);
                 await Assert.That(earlier.At.Label).IsEqualTo("E");
                 await Assert.That(earlier.At.X).IsLessThan(100f).Because("the ring is at Hut, the new first area");
             }
@@ -551,9 +552,9 @@ public class StratDragFieldsTests
             StepAssignment a = session.Document!.Steps[1].Assignments!.Single(l => l.Slot == "A");
             using (Assert.Multiple())
             {
-                await Assert.That(a.Via).IsEquivalentTo(["Hut"]);
+                await Assert.That(a.Via).IsEquivalentTo(["Hut"], CollectionOrdering.Matching);
                 await Assert.That(a.ViaPoints!.Single().X).IsEqualTo(300);
-                await Assert.That(session.Document!.Steps[1].Assignments!.Single(l => l.Slot == "B").Via).IsEquivalentTo(["Hut"]);
+                await Assert.That(session.Document!.Steps[1].Assignments!.Single(l => l.Slot == "B").Via).IsEquivalentTo(["Hut"], CollectionOrdering.Matching);
                 await Assert.That(session.UndoDepth).IsEqualTo(1);
             }
         });

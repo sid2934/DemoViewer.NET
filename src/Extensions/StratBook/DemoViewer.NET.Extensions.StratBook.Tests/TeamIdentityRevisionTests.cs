@@ -6,6 +6,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -138,7 +139,7 @@ public class TeamIdentityRevisionTests
                 List<string> expected = sides >= TeamSuggestions.ActiveMinAppearances
                     ? [.. team.Rosters.Single().CoreLineup!.Order(StringComparer.Ordinal)]
                     : [];
-                await Assert.That(active).IsEquivalentTo(expected)
+                await Assert.That(active).IsEquivalentTo(expected, CollectionOrdering.Matching)
                     .Because("who plays now is the five once a team has five sides, and nobody before");
             }
         }
@@ -272,11 +273,11 @@ public class TeamIdentityRevisionTests
         {
             await Assert.That(teams.Teams.Count).IsEqualTo(1).Because("four of the five keep it one team");
             await Assert.That(change.Kind).IsEqualTo(TeamSuggestionKind.RosterChange);
-            await Assert.That(change.Players.Select(p => p.SteamId64)).IsEquivalentTo(Ids(6));
-            await Assert.That(change.Left.Select(p => p.SteamId64)).IsEquivalentTo(Ids(5));
+            await Assert.That(change.Players.Select(p => p.SteamId64)).IsEquivalentTo(Ids(6), CollectionOrdering.Matching);
+            await Assert.That(change.Left.Select(p => p.SteamId64)).IsEquivalentTo(Ids(5), CollectionOrdering.Matching);
             await Assert.That(change.Since).IsEqualTo(new DateOnly(2026, 1, 8)).Because("the newcomer's first side inside the window");
             await Assert.That(TeamSuggestions.ActiveRoster(index, teams.Teams[0].Id).Select(p => p.SteamId64).Order(StringComparer.Ordinal))
-                .IsEquivalentTo(Ids(1, 2, 3, 4, 6));
+                .IsEquivalentTo(Ids(1, 2, 3, 4, 6), CollectionOrdering.Matching);
         }
 
         // Dismissed, it stays gone for the same proposal.
@@ -402,7 +403,7 @@ public class TeamIdentityRevisionTests
         using (Assert.Multiple())
         {
             await Assert.That(service.Us).IsNotNull();
-            await Assert.That(service.Us!.Rosters.Single(r => r.IsSquad).Squad!).IsEquivalentTo(Ids(1, 2, 3));
+            await Assert.That(service.Us!.Rosters.Single(r => r.IsSquad).Squad!).IsEquivalentTo(Ids(1, 2, 3), CollectionOrdering.Matching);
         }
     }
 }

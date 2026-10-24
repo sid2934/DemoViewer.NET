@@ -11,6 +11,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
 using DemoViewer.NET.Extensions.StratBook.Services.Zones;
@@ -350,7 +351,7 @@ public class StratRoutingTests
             }
 
             TokenTrack plain = Track(Project(Doc(false), map), "A"), through = Track(Project(Doc(true), map), "A");
-            await Assert.That(through.Keyframes).IsEquivalentTo(plain.Keyframes).Because("the run ends facing its last leg, not the straight line from spawn");
+            await Assert.That(through.Keyframes).IsEquivalentTo(plain.Keyframes, CollectionOrdering.Matching).Because("the run ends facing its last leg, not the straight line from spawn");
         });
     }
 

@@ -9,6 +9,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.RoundTagger;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -174,9 +175,9 @@ public class TagMatrixTests
                 await Assert.That(entries[0].Note).IsEqualTo("Falcons, last 6 demos, de_nuke, T side");
                 await Assert.That(entries.Skip(1).All(e => e.Source == ReviewSources.Tag)).IsTrue();
                 await Assert.That(entries.Skip(1).Select(e => (e.DemoPath, e.FromTick, e.ToTick)))
-                    .IsEquivalentTo(cell.Refs.Select(r => (corpus.PathOf(r.Sha256), r.FromTick, r.ToTick)));
+                    .IsEquivalentTo(cell.Refs.Select(r => (corpus.PathOf(r.Sha256), r.FromTick, r.ToTick)), CollectionOrdering.Matching);
                 await Assert.That(entries.Skip(1).All(e => e.TickRate == 64)).IsTrue().Because("the document's clock names the rate");
-                await Assert.That(corpus.SelectedTabs).IsEquivalentTo([ReviewQueueModule.TabId]);
+                await Assert.That(corpus.SelectedTabs).IsEquivalentTo([ReviewQueueModule.TabId], CollectionOrdering.Matching);
                 await Assert.That(corpus.Matrix.StatusLine).IsEqualTo("7 clips sent to Review");
             }
 
@@ -249,7 +250,7 @@ public class TagMatrixTests
             int eco = corpus.Mocked.Count(m => m.Buy == "eco");
             using (Assert.Multiple())
             {
-                await Assert.That(matrix.FilterValue.Options.Select(o => o.Value)).IsEquivalentTo([null, "eco", "full"]);
+                await Assert.That(matrix.FilterValue.Options.Select(o => o.Value)).IsEquivalentTo([null, "eco", "full"], CollectionOrdering.Matching);
                 await Assert.That(matrix.Table!.Total).IsEqualTo(eco);
                 await Assert.That(eco).IsGreaterThan(0).And.IsLessThan(79);
             }
@@ -277,7 +278,7 @@ public class TagMatrixTests
             {
                 await Assert.That(matrix.Title).IsEqualTo("All tagged demos");
                 await Assert.That(matrix.SummaryLine).IsEqualTo($"{corpus.AllInstances} instances in 10 demos");
-                await Assert.That(matrix.Map.Options.Select(o => o.Value)).IsEquivalentTo([null, "de_mirage", "de_nuke"]);
+                await Assert.That(matrix.Map.Options.Select(o => o.Value)).IsEquivalentTo([null, "de_mirage", "de_nuke"], CollectionOrdering.Matching);
                 await Assert.That(matrix.HasTeam).IsFalse();
             }
         });

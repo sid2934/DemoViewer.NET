@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -27,9 +28,9 @@ public class PlaceAdjacencyAndSnapTests
         using (Assert.Multiple())
         {
             await Assert.That(graph.Source).IsEqualTo("index:18");
-            await Assert.That(graph.Neighbours("Admin")).IsEquivalentTo(["Ramp"]);
-            await Assert.That(graph.Neighbours("Ramp")).IsEquivalentTo(["Admin"]).Because("edges are undirected");
-            await Assert.That(graph.Neighbours("Rafters")).IsEquivalentTo(["Heaven"]).Because("a skip-through seen once is not an edge; three is");
+            await Assert.That(graph.Neighbours("Admin")).IsEquivalentTo(["Ramp"], CollectionOrdering.Matching);
+            await Assert.That(graph.Neighbours("Ramp")).IsEquivalentTo(["Admin"], CollectionOrdering.Matching).Because("edges are undirected");
+            await Assert.That(graph.Neighbours("Rafters")).IsEquivalentTo(["Heaven"], CollectionOrdering.Matching).Because("a skip-through seen once is not an edge; three is");
             await Assert.That(graph.Neighbours("Crane")).IsEmpty();
             await Assert.That(graph.Neighbours("Silo")).IsEmpty().Because("a place is not its own neighbour");
             await Assert.That(graph.Neighbours("Nowhere")).IsEmpty();

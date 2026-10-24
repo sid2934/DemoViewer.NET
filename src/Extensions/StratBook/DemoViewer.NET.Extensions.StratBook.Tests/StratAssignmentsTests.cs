@@ -3,6 +3,7 @@
 using System.Text.Json;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -97,8 +98,8 @@ public class StratAssignmentsTests
             {
                 await Assert.That(StratStore.Serialize(WithLines()) + "\n").IsEqualTo(original).Because("this build writes the committed shape");
                 await Assert.That(StratStore.Serialize(loaded.Document) + "\n").IsEqualTo(original).Because("load and save is field-identical");
-                await Assert.That(step.Assignments!.Select(a => a.Slot)).IsEquivalentTo(["B", "C", "D"]);
-                await Assert.That(step.Assignments![0].Watch!.Places).IsEquivalentTo(["BombsiteA", "CTSpawn"]);
+                await Assert.That(step.Assignments!.Select(a => a.Slot)).IsEquivalentTo(["B", "C", "D"], CollectionOrdering.Matching);
+                await Assert.That(step.Assignments![0].Watch!.Places).IsEquivalentTo(["BombsiteA", "CTSpawn"], CollectionOrdering.Matching);
                 await Assert.That(step.Assignments![2].Watch!.YawDegrees).IsEqualTo(135);
                 await Assert.That(step.Assignments![2].Extra!.ContainsKey("futureLine")).IsTrue();
                 await Assert.That(loaded.Issues.Where(i => i.Severity != StratIssueSeverity.Info)).IsEmpty();
@@ -119,7 +120,7 @@ public class StratAssignmentsTests
         StratStep lines = document.Steps[2];
         using (Assert.Multiple())
         {
-            await Assert.That(StratStepLines.Of(plain).Select(l => l.Slot)).IsEquivalentTo(["B"]);
+            await Assert.That(StratStepLines.Of(plain).Select(l => l.Slot)).IsEquivalentTo(["B"], CollectionOrdering.Matching);
             await Assert.That(StratStepLines.ToFor(plain, "B")).IsEqualTo("BombsiteA");
             await Assert.That(StratStepLines.Involves(plain, "C")).IsFalse();
             await Assert.That(StratStepLines.Of(all)).IsEmpty();

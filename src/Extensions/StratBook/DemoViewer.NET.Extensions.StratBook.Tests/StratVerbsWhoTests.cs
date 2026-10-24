@@ -12,6 +12,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -80,7 +81,7 @@ public class StratVerbsWhoTests
             StratStep step = vm.Session.Document!.Steps[index];
             using (Assert.Multiple())
             {
-                await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["Stairs", "Connector"]);
+                await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["Stairs", "Connector"], CollectionOrdering.Matching);
                 await Assert.That(StratLocations.LurkAreas(step.Lurk)).IsEmpty().Because("watching writes no area");
             }
 
@@ -88,8 +89,8 @@ public class StratVerbsWhoTests
             step = vm.Session.Document!.Steps[index];
             using (Assert.Multiple())
             {
-                await Assert.That(step.Lurk!.Areas).IsEquivalentTo(["PalaceInterior"]);
-                await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["Stairs", "Connector"]).Because("an area writes no watch");
+                await Assert.That(step.Lurk!.Areas).IsEquivalentTo(["PalaceInterior"], CollectionOrdering.Matching);
+                await Assert.That(step.Assignments!.Single().Watch!.Places).IsEquivalentTo(["Stairs", "Connector"], CollectionOrdering.Matching).Because("an area writes no watch");
             }
         });
     }
@@ -191,7 +192,7 @@ public class StratVerbsWhoTests
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(step.Actor).IsEqualTo(StratVocabulary.ActorAll);
                 await Assert.That(step.To).IsNull();
-                await Assert.That(step.Assignments!.Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["B>BombsiteA", "C>BombsiteA"]);
+                await Assert.That(step.Assignments!.Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["B>BombsiteA", "C>BombsiteA"], CollectionOrdering.Matching);
                 await Assert.That(row.ShowCompact).IsTrue();
                 await Assert.That(row.WhoText).IsEqualTo("B, C");
                 await Assert.That(row.CanSplit).IsTrue();
@@ -202,7 +203,7 @@ public class StratVerbsWhoTests
             step = vm.Session.Document!.Steps[index];
             using (Assert.Multiple())
             {
-                await Assert.That(step.Assignments!.Select(l => l.To?.Place ?? "")).IsEquivalentTo(["BombsiteB", "BombsiteB"]);
+                await Assert.That(step.Assignments!.Select(l => l.To?.Place ?? "")).IsEquivalentTo(["BombsiteB", "BombsiteB"], CollectionOrdering.Matching);
                 await Assert.That(step.Assignments!.All(l => l.Watch!.Places.SequenceEqual(["Stairs", "Connector"]))).IsTrue();
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 3);
                 await Assert.That(row.ShowCompact).IsTrue();
@@ -262,7 +263,7 @@ public class StratVerbsWhoTests
             using (Assert.Multiple())
             {
                 await Assert.That(row.ShowApart).IsTrue();
-                await Assert.That(row.Lines.Select(l => l.Slot ?? "")).IsEquivalentTo(StratVocabulary.Slots);
+                await Assert.That(row.Lines.Select(l => l.Slot ?? "")).IsEquivalentTo(StratVocabulary.Slots, CollectionOrdering.Matching);
                 await Assert.That(row.Lines.All(l => l.IsExplicit)).IsTrue();
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth).Because("split writes nothing");
             }
@@ -273,7 +274,7 @@ public class StratVerbsWhoTests
             using (Assert.Multiple())
             {
                 await Assert.That(step.Assignments!.Select(l => l.Slot + ">" + l.To?.Place))
-                    .IsEquivalentTo(["A>BombsiteA", "B>BombsiteA", "C>Connector", "D>BombsiteA", "E>BombsiteA"]);
+                    .IsEquivalentTo(["A>BombsiteA", "B>BombsiteA", "C>Connector", "D>BombsiteA", "E>BombsiteA"], CollectionOrdering.Matching);
                 await Assert.That(step.Actor).IsEqualTo(StratVocabulary.ActorAll);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(row.Lines[0]).IsSameReferenceAs(first).Because("the rows stay, so focus is kept");
@@ -375,7 +376,7 @@ public class StratVerbsWhoTests
             row.CommitWho();
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Select(l => l.Slot)).IsEquivalentTo(["B", "C"]);
+                await Assert.That(vm.Session.Document!.Steps[index].Assignments!.Select(l => l.Slot)).IsEquivalentTo(["B", "C"], CollectionOrdering.Matching);
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(vm.Session.Document!.Name).IsEqualTo("renamed while picking");
             }
@@ -472,7 +473,7 @@ public class StratVerbsWhoTests
             await Assert.That(canvas.BeginSetPlace()).IsTrue();
             canvas.TryTagPositionAt(StratMapFirstTests.Upper, 150, 50);
             await Assert.That(session.Document!.Steps[1].Assignments!.Select(l => l.Slot + ">" + l.To?.Place))
-                .IsEquivalentTo(["A>Hut", "B>Hut", "C>Ramp", "D>Hut", "E>Hut"]);
+                .IsEquivalentTo(["A>Hut", "B>Hut", "C>Ramp", "D>Hut", "E>Hut"], CollectionOrdering.Matching);
         });
     }
 
@@ -515,7 +516,7 @@ public class StratVerbsWhoTests
             canvas.TryTagPositionAt(StratMapFirstTests.Upper, 150, 50);
             using (Assert.Multiple())
             {
-                await Assert.That(session.Document!.Steps[1].Assignments!.Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>Ramp", "C>Ramp"]);
+                await Assert.That(session.Document!.Steps[1].Assignments!.Select(l => l.Slot + ">" + l.To?.Place)).IsEquivalentTo(["A>Ramp", "C>Ramp"], CollectionOrdering.Matching);
                 await Assert.That(session.UndoDepth).IsEqualTo(1);
             }
 
@@ -526,7 +527,7 @@ public class StratVerbsWhoTests
             canvas.TryTagPositionAt(StratMapFirstTests.Upper, 50, 50);
             using (Assert.Multiple())
             {
-                await Assert.That(session.Document!.Steps[3].Lurk!.Areas).IsEquivalentTo(["Hut"]);
+                await Assert.That(session.Document!.Steps[3].Lurk!.Areas).IsEquivalentTo(["Hut"], CollectionOrdering.Matching);
                 await Assert.That(session.UndoDepth).IsEqualTo(2);
             }
         });
@@ -594,14 +595,14 @@ public class StratVerbsWhoTests
 
             step.Lurk = new StepLurk { Areas = ["Connector"], Rotate = new LurkRotate { AtSeconds = 40 } };
             List<PatchOp> clear = StratLurkPatches.Edit(step, "/steps/0", l => l.Rotate!.AtSeconds = null);
-            await Assert.That(clear.Select(o => o.Op + " " + o.Path)).IsEquivalentTo(["remove /steps/0/lurk/rotate"]);
+            await Assert.That(clear.Select(o => o.Op + " " + o.Path)).IsEquivalentTo(["remove /steps/0/lurk/rotate"], CollectionOrdering.Matching);
 
             List<PatchOp> gone = StratLurkPatches.Edit(step, "/steps/0", l =>
             {
                 l.Areas.Clear();
                 l.Rotate = null;
             });
-            await Assert.That(gone.Select(o => o.Op + " " + o.Path)).IsEquivalentTo(["remove /steps/0/lurk"]);
+            await Assert.That(gone.Select(o => o.Op + " " + o.Path)).IsEquivalentTo(["remove /steps/0/lurk"], CollectionOrdering.Matching);
         });
     }
 

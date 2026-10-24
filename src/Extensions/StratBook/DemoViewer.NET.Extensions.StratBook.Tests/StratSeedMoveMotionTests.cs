@@ -9,6 +9,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Services.Zones;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratStepMotionTests;
 using static DemoViewer.NET.AppTests.StratTestData;
@@ -388,7 +389,7 @@ public class StratSeedMoveMotionTests
                 await Assert.That(after[k] - before[k]).IsEqualTo(3 * 64).Because($"the hold delays the walk, so {LurkWatch[k]} comes 3 s later");
             }
 
-            await Assert.That(jumped.Skip(1)).IsEquivalentTo(before.Skip(1)).Because("a hold-interpolated leg arrives when a walk would");
+            await Assert.That(jumped.Skip(1)).IsEquivalentTo(before.Skip(1), CollectionOrdering.Matching).Because("a hold-interpolated leg arrives when a walk would");
             await Assert.That((double)between.X).IsEqualTo(tx).Within(0.01).Because("between areas it waits at Top of Mid, then jumps");
             await Assert.That((double)between.Y).IsEqualTo(ty).Within(0.01);
         }
@@ -404,7 +405,7 @@ public class StratSeedMoveMotionTests
             StratDocument document = OwnersLurk(map, false);
             document.Steps[1].Lurk!.Areas.Insert(at, "Nowhere");
             TokenTrack e = Routed(document, map).Tracks.Single(t => t.Slot == "E");
-            await Assert.That(e.Keyframes).IsEquivalentTo(baseline.Keyframes).Because($"an unknown area at {at} is skipped");
+            await Assert.That(e.Keyframes).IsEquivalentTo(baseline.Keyframes, CollectionOrdering.Matching).Because($"an unknown area at {at} is skipped");
         }
     }
 

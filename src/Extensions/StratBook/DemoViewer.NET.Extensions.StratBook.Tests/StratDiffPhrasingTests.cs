@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 using static DemoViewer.NET.AppTests.StratTestData;
 
@@ -57,7 +58,7 @@ public class StratDiffPhrasingTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rows.Select(r => r.Revision)).IsEquivalentTo([5, 4, 3, 2, 1]);
+            await Assert.That(rows.Select(r => r.Revision)).IsEquivalentTo([5, 4, 3, 2, 1], CollectionOrdering.Matching);
             await Assert.That(rows[^1].Revision).IsEqualTo(1).Because("newest first");
             await Assert.That(changes[1]).IsEqualTo("created");
             await Assert.That(changes[2]).IsEqualTo("molotov moved from 1:22 to 1:16");

@@ -9,6 +9,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Goldens;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.TestSupport;
 using SkiaSharp;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -190,7 +191,7 @@ public class ResultCardThumbnailTests
             await Assert.That(result.Match).IsTrue();
             await Assert.That(committed.Frame.Markers.Count).IsEqualTo(frame.Markers.Count);
             await Assert.That(committed.Frame.Markers.Select(m => (m.Slot, m.Team, m.WorldX, m.WorldY, m.WorldZ)))
-                .IsEquivalentTo(frame.Markers.Select(m => (m.Slot, m.Team, m.WorldX, m.WorldY, m.WorldZ)));
+                .IsEquivalentTo(frame.Markers.Select(m => (m.Slot, m.Team, m.WorldX, m.WorldY, m.WorldZ)), CollectionOrdering.Matching);
             await Assert.That(committed.MapVersion).IsEqualTo(asset.Bundle.MapVersion);
         }
     }

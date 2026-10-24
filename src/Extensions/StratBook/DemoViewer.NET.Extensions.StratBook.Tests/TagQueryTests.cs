@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -70,8 +71,8 @@ public class TagQueryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(pivot.RowKeys).IsEquivalentTo(ThreeCodes);
-            await Assert.That(pivot.ColumnKeys).IsEquivalentTo(Outcomes);
+            await Assert.That(pivot.RowKeys).IsEquivalentTo(ThreeCodes, CollectionOrdering.Matching);
+            await Assert.That(pivot.ColumnKeys).IsEquivalentTo(Outcomes, CollectionOrdering.Matching);
             await Assert.That(pivot.Cells[("A execute", "won")].Count).IsEqualTo(2);
             await Assert.That(pivot.Cells[("A execute", "lost")].Count).IsEqualTo(1);
             await Assert.That(pivot.Cells[("B execute", "won")].Count).IsEqualTo(1)
@@ -93,11 +94,11 @@ public class TagQueryTests
         TagPivot forward = TagQuery.Pivot(docs, TagSlice.Everything, code, outcome);
         TagPivot swapped = TagQuery.Pivot(docs, TagSlice.Everything, outcome, code);
 
-        await Assert.That(swapped.RowKeys).IsEquivalentTo(forward.ColumnKeys);
-        await Assert.That(swapped.ColumnKeys).IsEquivalentTo(forward.RowKeys);
+        await Assert.That(swapped.RowKeys).IsEquivalentTo(forward.ColumnKeys, CollectionOrdering.Matching);
+        await Assert.That(swapped.ColumnKeys).IsEquivalentTo(forward.RowKeys, CollectionOrdering.Matching);
         foreach (((string row, string column), IReadOnlyList<TagInstanceRef> refs) in forward.Cells)
         {
-            await Assert.That(swapped.Cells[(column, row)]).IsEquivalentTo(refs);
+            await Assert.That(swapped.Cells[(column, row)]).IsEquivalentTo(refs, CollectionOrdering.Matching);
         }
     }
 
@@ -113,7 +114,7 @@ public class TagQueryTests
             await Assert.That(pivot.Cells[(ShaA, "A")].Count).IsEqualTo(2);
             await Assert.That(pivot.Cells[(ShaA, "B")].Count).IsEqualTo(1);
             await Assert.That(pivot.Cells[(ShaA, "B")].Single().Round).IsEqualTo(3);
-            await Assert.That(pivot.RowKeys).IsEquivalentTo(new[] { ShaA, ShaB })
+            await Assert.That(pivot.RowKeys).IsEquivalentTo(new[] { ShaA, ShaB }, CollectionOrdering.Matching)
                 .Because("demo C has no human site label, so it has no key on the column axis and no row");
         }
     }
@@ -147,7 +148,7 @@ public class TagQueryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(pivot.RowKeys).IsEquivalentTo(RoundKeys);
+            await Assert.That(pivot.RowKeys).IsEquivalentTo(RoundKeys, CollectionOrdering.Matching);
             await Assert.That(pivot.RowKeys[^1]).IsEqualTo("10").Because("round keys sort as numbers, not text");
             await Assert.That(pivot.Cells.Values.Sum(c => c.Count)).IsEqualTo(6)
                 .Because("seven admitted instances, one with no round, which is in no cell");
@@ -171,7 +172,7 @@ public class TagQueryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(found.Select(r => r.FromTick)).IsEquivalentTo(WonOnASite);
+            await Assert.That(found.Select(r => r.FromTick)).IsEquivalentTo(WonOnASite, CollectionOrdering.Matching);
             await Assert.That(TagQuery.Find(Fixture(), TagSlice.Everything with
             {
                 Where = [new LabelPredicate(LabelNamespace.Human, "outcome", Set())]
@@ -202,7 +203,7 @@ public class TagQueryTests
             await Assert.That(TagQuery.Find(docs, TagSlice.Everything with { Demos = Set(ShaB, ShaC) }).Count).IsEqualTo(4);
             await Assert.That(TagQuery.Find(docs, TagSlice.Everything with { Codes = Set("Default") }).Count).IsEqualTo(2);
             await Assert.That(TagQuery.Find(docs, TagSlice.Everything with { Rounds = new HashSet<int> { 2 } })
-                .Select(r => r.Sha256)).IsEquivalentTo(new[] { ShaB, ShaC });
+                .Select(r => r.Sha256)).IsEquivalentTo(new[] { ShaB, ShaC }, CollectionOrdering.Matching);
         }
     }
 
@@ -233,7 +234,7 @@ public class TagQueryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(sinceStart.Select(r => r.FromTick)).IsEquivalentTo(CreatedLater);
+            await Assert.That(sinceStart.Select(r => r.FromTick)).IsEquivalentTo(CreatedLater, CollectionOrdering.Matching);
             await Assert.That(sinceDayOne.Single().FromTick).IsEqualTo(7000)
                 .Because("an instance created at the cursor is already seen");
         }
@@ -250,7 +251,7 @@ public class TagQueryTests
         {
             await Assert.That(found[0]).IsEqualTo(new TagInstanceRef(ShaA, first.Id, "A execute", 1000, 1600, 1));
             await Assert.That(found.Select(r => r.Sha256).ToArray())
-                .IsEquivalentTo(new[] { ShaA, ShaA, ShaA, ShaB, ShaB, ShaC, ShaC });
+                .IsEquivalentTo(new[] { ShaA, ShaA, ShaA, ShaB, ShaB, ShaC, ShaC }, CollectionOrdering.Matching);
             await Assert.That(found[^1].Round).IsNull();
         }
     }
@@ -267,7 +268,7 @@ public class TagQueryTests
         {
             await Assert.That(TagQuery.At(doc, 99).Count).IsEqualTo(0);
             await Assert.That(TagQuery.At(doc, 100).Single().Code).IsEqualTo("A");
-            await Assert.That(TagQuery.At(doc, 200).Select(r => r.Code)).IsEquivalentTo(AtTwoHundred);
+            await Assert.That(TagQuery.At(doc, 200).Select(r => r.Code)).IsEquivalentTo(AtTwoHundred, CollectionOrdering.Matching);
             await Assert.That(TagQuery.At(doc, 300).Single().Code).IsEqualTo("B");
             await Assert.That(TagQuery.At(doc, 400).Single().Code).IsEqualTo("C");
             await Assert.That(TagQuery.At(doc, 401).Count).IsEqualTo(0);
@@ -290,7 +291,7 @@ public class TagQueryTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(pivot.ColumnKeys).IsEquivalentTo(new[] { ShaA, ShaC });
+            await Assert.That(pivot.ColumnKeys).IsEquivalentTo(new[] { ShaA, ShaC }, CollectionOrdering.Matching);
             await Assert.That(pivot.Cells[("A execute", ShaA)].Count).IsEqualTo(2);
             await Assert.That(pivot.Cells[("A execute", ShaC)].Count).IsEqualTo(1);
         }

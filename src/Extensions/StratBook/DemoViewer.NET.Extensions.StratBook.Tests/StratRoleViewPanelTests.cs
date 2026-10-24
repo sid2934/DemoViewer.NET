@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -64,7 +65,7 @@ public class StratRoleViewPanelTests
                 "context: C throws molotov A ramp → A site (Jungle) [lineup: e4f5a6b7-c8d9-4e0f-9a1b-2c3d4e5f6a7b]",
                 "own: A peeks A ramp → Connector",
                 "own: All move A ramp → A site"
-            ]);
+            ], CollectionOrdering.Matching);
             await Assert.That(vm.CanPrint).IsTrue();
         }
     }
@@ -80,7 +81,7 @@ public class StratRoleViewPanelTests
         using (Assert.Multiple())
         {
             await Assert.That(vm.Lines.Any(l => !l.IsContext && l.Text.Contains("molotov", StringComparison.Ordinal))).IsTrue();
-            await Assert.That(vm.Branches).IsEquivalentTo(["if contact at Connector before 1:05 → A exec, double smoke, step 4"]);
+            await Assert.That(vm.Branches).IsEquivalentTo(["if contact at Connector before 1:05 → A exec, double smoke, step 4"], CollectionOrdering.Matching);
         }
 
         vm.SelectedSlot = "A";

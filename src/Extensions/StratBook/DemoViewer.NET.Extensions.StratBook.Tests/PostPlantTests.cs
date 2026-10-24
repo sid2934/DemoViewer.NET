@@ -8,6 +8,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -196,8 +197,8 @@ public class PostPlantTests
 
             await Assert.That(t.Map).IsEqualTo("de_nuke");
             await Assert.That(t.Side).IsEqualTo(2);
-            await Assert.That(t.SideRounds.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([1, 2, 3, 4, 5]);
-            await Assert.That(t.Planted.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([1, 2, 3, 4]);
+            await Assert.That(t.SideRounds.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([1, 2, 3, 4, 5], CollectionOrdering.Matching);
+            await Assert.That(t.Planted.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([1, 2, 3, 4], CollectionOrdering.Matching);
             await Assert.That(Shape(t.ManCount)).IsEqualTo(Joined("5v5:3", "5v4:1"));
             await Assert.That(Shape(t.Outcomes)).IsEqualTo(Joined("won: exploded:2", "lost: defused:1", "lost: elimination:1"));
             await Assert.That(t.PositionRounds).IsEqualTo(4);
@@ -210,7 +211,7 @@ public class PostPlantTests
 
             await Assert.That(ct.Side).IsEqualTo(3);
             await Assert.That(ct.SideRounds.Count).IsEqualTo(4);
-            await Assert.That(ct.Planted.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([6, 7, 8]);
+            await Assert.That(ct.Planted.Rounds.Select(r => r.RoundNumber)).IsEquivalentTo([6, 7, 8], CollectionOrdering.Matching);
             await Assert.That(Shape(ct.ManCount)).IsEqualTo(Joined("5v5:2", "3v5:1"));
             await Assert.That(Shape(ct.Outcomes)).IsEqualTo(Joined("lost: elimination:1", "lost: exploded:1", "won: defused:1"));
             await Assert.That(Shape(ct.RetakeGroups)).IsEqualTo(Joined("nobody reached the bomb:1", "together:1", "trickled:1"));
@@ -343,7 +344,7 @@ public class PostPlantTests
             await Assert.That(queue.Clips[1].Note).IsEqualTo("de_nuke T · plant A spot 1 (1050, 1000) · round 2");
             await Assert.That(queue.SectionOf(queue.Clips[0].Id)).IsNotNull();
             await Assert.That(vm.PostPlant.ReviewLine).IsEqualTo("2 rounds sent to Review");
-            await Assert.That(shown).IsEquivalentTo(["review.queue"]);
+            await Assert.That(shown).IsEquivalentTo(["review.queue"], CollectionOrdering.Matching);
         }
 
         vm.PostPlant.OpenCommand.Execute(cluster);

@@ -18,6 +18,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -61,7 +62,7 @@ public class CreateStratFromRoundTests
             // goes, 30 s stays, and nothing is swept at or after the end.
             IReadOnlyList<int> sweeps = RoundCaptureWalker.SweepTicks([At(8), At(21.5)], Freeze, At(45), Rate);
 
-            await Assert.That(sweeps).IsEquivalentTo(new[] { At(30), At(40) });
+            await Assert.That(sweeps).IsEquivalentTo(new[] { At(30), At(40) }, CollectionOrdering.Matching);
         });
     }
 
@@ -267,7 +268,7 @@ public class CreateStratFromRoundTests
                 await Assert.That(walked.TargetSite).IsEqualTo("A").Because("the planter stood in BombsiteA");
                 await Assert.That(walked.Economy).IsNull().Because("no row, no buy type");
                 await Assert.That(walked.Origin).IsSameReferenceAs(origin);
-                await Assert.That(walked.Slots.Select(s => s.Slot)).IsEquivalentTo(StratVocabulary.Slots);
+                await Assert.That(walked.Slots.Select(s => s.Slot)).IsEquivalentTo(StratVocabulary.Slots, CollectionOrdering.Matching);
                 await Assert.That(withRow.TargetSite).IsEqualTo("B").Because("the row's plant site wins");
                 await Assert.That(withRow.Economy).IsEqualTo("force");
                 await Assert.That(ct.Side).IsEqualTo(StratVocabulary.SideCt);

@@ -15,6 +15,7 @@ using DemoViewer.NET.ViewModels.Shell;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -272,12 +273,12 @@ public class StratBookPackTests
             using (Assert.Multiple())
             {
                 await Assert.That(pack.Pack.Id).IsEqualTo("net.demoviewer.pack.stratbook");
-                await Assert.That(pack.Rulesets.Select(r => (r.RulesetId, r.ReadBy))).IsEquivalentTo(expected);
+                await Assert.That(pack.Rulesets.Select(r => (r.RulesetId, r.ReadBy))).IsEquivalentTo(expected, CollectionOrdering.Matching);
                 await Assert.That(pack.Rulesets.Where(r => r.ReadsUserCommands).Select(r => r.RulesetId))
-                    .IsEquivalentTo([DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeTables.RulesetId("grenade_projectiles")])
+                    .IsEquivalentTo([DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook.GrenadeTables.RulesetId("grenade_projectiles")], CollectionOrdering.Matching)
                     .Because("only the projectile ruleset reads the thrower's commands");
                 await Assert.That(build.StampedRulesets.Where(r => r.Owner != Modules.Highlights.StampedRuleset.CoreOwner)
-                    .Select(r => (r.RulesetId, r.Owner, r.ReadBy))).IsEquivalentTo(expected.Select(e => (e.Item1, pack.Pack.Id, e.Item2)));
+                    .Select(r => (r.RulesetId, r.Owner, r.ReadBy))).IsEquivalentTo(expected.Select(e => (e.Item1, pack.Pack.Id, e.Item2)), CollectionOrdering.Matching);
                 await Assert.That(build.StampedRulesets.Select(r => r.RulesetId)).Contains("round_facts");
                 await Assert.That(read).Contains("round_facts");
                 await Assert.That(read).Contains(roundIndex);
@@ -289,7 +290,7 @@ public class StratBookPackTests
                 await Assert.That(build.EnabledDoc("round_facts")).IsNotNull();
                 await Assert.That(new DemoViewer.NET.Services.Facts.StampedFacts(build).Facets().Select(f => f.RulesetId).Intersect(packIds)).IsEmpty()
                     .Because("the pack's tables are its passes' inputs, not library facts");
-                await Assert.That(pack.Passes.Single(p => p.Id == "roundindex").After).IsEquivalentTo([DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass]);
+                await Assert.That(pack.Passes.Single(p => p.Id == "roundindex").After).IsEquivalentTo([DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass], CollectionOrdering.Matching);
                 await Assert.That(pack.Passes.Select(p => p.Id)).DoesNotContain(DemoViewer.NET.Extensions.Sdk.HostIds.RoundFactsPass)
                     .Because("Delete extension data strips the pack's own pass stamps, never the core Round Facts one");
             }
@@ -318,9 +319,9 @@ public class StratBookPackTests
 
             string[] packFeatureIds = [.. new StratBookPack().Features.Select(f => f.Id)];
             await Assert.That(packFeatureIds)
-                .IsEquivalentTo([StratBookPack.PackFeatureId, .. _movedIds.Select(m => m.Id)]);
+                .IsEquivalentTo([StratBookPack.PackFeatureId, .. _movedIds.Select(m => m.Id)], CollectionOrdering.Matching);
             await Assert.That(FeatureCatalog.Children(StratBookPack.PackFeatureId).Select(d => d.Id))
-                .IsEquivalentTo(_movedIds.Where(m => m.Parent == StratBookPack.PackFeatureId).Select(m => m.Id));
+                .IsEquivalentTo(_movedIds.Where(m => m.Parent == StratBookPack.PackFeatureId).Select(m => m.Id), CollectionOrdering.Matching);
         });
     }
 
@@ -354,7 +355,7 @@ public class StratBookPackTests
             }
 
             string[] packTabIds = [.. new StratBookPack().Features.Where(f => f.Kind == ExtensionFeatureKind.Tab).Select(f => f.Id)];
-            await Assert.That(declaredIds).IsEquivalentTo(packTabIds)
+            await Assert.That(declaredIds).IsEquivalentTo(packTabIds, CollectionOrdering.Matching)
                 .Because("every tab id the pack registers must be declared by exactly one module, and vice versa");
         });
     }
@@ -370,7 +371,7 @@ public class StratBookPackTests
             [
                 StratBookJobKinds.Mining, StratBookJobKinds.Preview, StratBookJobKinds.LineupClips,
                 StratBookJobKinds.SuggestionsInbox, StratBookJobKinds.Teams, StratBookJobKinds.Tuning
-            ]);
+            ], CollectionOrdering.Matching);
             await Assert.That(kinds.All(k => k.Id.StartsWith("stratbook.", StringComparison.Ordinal))).IsTrue();
         });
     }

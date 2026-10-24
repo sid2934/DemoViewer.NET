@@ -12,6 +12,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -87,7 +88,7 @@ public class WatchedSituationsTests
                 await Assert.That(loaded.Tolerance).IsEqualTo(SituationTolerance.Adjacent);
                 await Assert.That(loaded.CreatedTicks).IsEqualTo(5000);
                 await Assert.That(loaded.WatermarkTicks).IsEqualTo(5000).Because("a new watch has seen what it matches today");
-                await Assert.That(loaded.Tokens).IsEquivalentTo(tokens.Select(WatchedToken.From));
+                await Assert.That(loaded.Tokens).IsEquivalentTo(tokens.Select(WatchedToken.From), CollectionOrdering.Matching);
                 await Assert.That(loaded.Filters).IsEqualTo(filters);
                 await Assert.That(loaded.TokenFor(QuerySide.Ct)).IsEqualTo("BombsiteA:2");
                 await Assert.That(loaded.TokenFor(QuerySide.T)).IsEqualTo("Lobby:1").Because("the unresolved token is kept on the canvas and left out of the query");
@@ -101,7 +102,7 @@ public class WatchedSituationsTests
 
             second.Remove(saved.Id);
             using WatchedSituationsService third = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), h.Index, h.Cache.Library());
-            await Assert.That(third.Watches.Select(w => w.Map)).IsEquivalentTo(["de_dust2"]);
+            await Assert.That(third.Watches.Select(w => w.Map)).IsEquivalentTo(["de_dust2"], CollectionOrdering.Matching);
         }
         finally
         {
@@ -325,7 +326,7 @@ public class WatchedSituationsTests
         using (Assert.Multiple())
         {
             await Assert.That(canvas.Map).IsEqualTo("de_nuke");
-            await Assert.That(canvas.Document.Placed.Select(WatchedToken.From)).IsEquivalentTo(watch.Tokens);
+            await Assert.That(canvas.Document.Placed.Select(WatchedToken.From)).IsEquivalentTo(watch.Tokens, CollectionOrdering.Matching);
             await Assert.That(canvas.Draft.Tolerance).IsEqualTo(SituationTolerance.AnyPlace);
             await Assert.That(canvas.Filters.Values).IsEqualTo(watch.Filters);
             await Assert.That(searched.Count).IsEqualTo(3)

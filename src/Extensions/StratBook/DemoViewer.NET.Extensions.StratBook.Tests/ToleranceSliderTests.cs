@@ -5,6 +5,7 @@ using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -35,7 +36,7 @@ public class ToleranceSliderTests
         using (Assert.Multiple())
         {
             await Assert.That(h.Vm.ToleranceStops).IsEquivalentTo(
-                [SituationTolerance.Exact, SituationTolerance.Adjacent, SituationTolerance.TwoHops, SituationTolerance.AnyPlace]);
+                [SituationTolerance.Exact, SituationTolerance.Adjacent, SituationTolerance.TwoHops, SituationTolerance.AnyPlace], CollectionOrdering.Matching);
             await Assert.That(h.Vm.ToleranceMaximum).IsEqualTo(3);
             await Assert.That(h.Vm.ToleranceValue).IsEqualTo(0);
         }
@@ -113,7 +114,7 @@ public class ToleranceSliderTests
         using (Assert.Multiple())
         {
             await Assert.That(h.Index.Adjacency("de_train")).IsNull().Because("train has a row but no indexed demo");
-            await Assert.That(h.Vm.ToleranceStops).IsEquivalentTo([SituationTolerance.Exact, SituationTolerance.AnyPlace]);
+            await Assert.That(h.Vm.ToleranceStops).IsEquivalentTo([SituationTolerance.Exact, SituationTolerance.AnyPlace], CollectionOrdering.Matching);
             await Assert.That(h.Vm.ToleranceMaximum).IsEqualTo(1);
             await Assert.That(h.Vm.AdjacencySource).IsNull();
             await Assert.That(h.Vm.AdjacencyLine).IsEqualTo("no adjacency graph: exact or any place");

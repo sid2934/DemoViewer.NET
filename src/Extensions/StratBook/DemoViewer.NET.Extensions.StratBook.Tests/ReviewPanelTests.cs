@@ -16,6 +16,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
 using MenuEntry = DemoViewer.NET.Extensions.Sdk.Playback.MenuEntry;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -82,9 +83,9 @@ public class ReviewPanelTests
             using (Assert.Multiple())
             {
                 await Assert.That(panel.Labels.Count).IsEqualTo(3);
-                await Assert.That(panel.HandLabels.Select(r => r.Id)).IsEquivalentTo([hand.Id]);
-                await Assert.That(panel.MachineLabels.Select(r => r.Id)).IsEquivalentTo([run.Id, accepted.Id]);
-                await Assert.That(panel.MachineLabels.Select(r => r.SourceText)).IsEquivalentTo(["strat run", "suggested: retake"]);
+                await Assert.That(panel.HandLabels.Select(r => r.Id)).IsEquivalentTo([hand.Id], CollectionOrdering.Matching);
+                await Assert.That(panel.MachineLabels.Select(r => r.Id)).IsEquivalentTo([run.Id, accepted.Id], CollectionOrdering.Matching);
+                await Assert.That(panel.MachineLabels.Select(r => r.SourceText)).IsEquivalentTo(["strat run", "suggested: retake"], CollectionOrdering.Matching);
                 await Assert.That(panel.HandHeader).IsEqualTo("Yours (1)");
                 await Assert.That(panel.MachineHeader).IsEqualTo("From suggestions (2)");
             }
@@ -128,7 +129,7 @@ public class ReviewPanelTests
                 await Assert.That(saved.Code).IsEqualTo("Retake");
                 await Assert.That(saved.FromTick).IsEqualTo(10_000 + 20 * 64);
                 await Assert.That(saved.ToTick).IsEqualTo(10_000 + 25 * 64);
-                await Assert.That(saved.Labels.Select(l => $"{l.Group}={l.Value}")).IsEquivalentTo(["outcome=won"]);
+                await Assert.That(saved.Labels.Select(l => $"{l.Group}={l.Value}")).IsEquivalentTo(["outcome=won"], CollectionOrdering.Matching);
                 await Assert.That(saved.Positions.Single().Place).IsEqualTo("Ramp");
                 await Assert.That(saved.Round).IsEqualTo(2);
             }
@@ -266,7 +267,7 @@ public class ReviewPanelTests
 
             TimelineBandViewModel band = vm.Timeline.LaneBands.Single(b => b.TrackId == TagTrack.TrackId);
             IReadOnlyList<MenuEntry> menu = vm.Timeline.MenuFor(band);
-            await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo(["Edit A execute", "Delete A execute"]);
+            await Assert.That(menu.Select(m => m.Header)).IsEquivalentTo(["Edit A execute", "Delete A execute"], CollectionOrdering.Matching);
             menu[1].Run();
             await Assert.That(tags.Document!.Instances).IsEmpty();
 

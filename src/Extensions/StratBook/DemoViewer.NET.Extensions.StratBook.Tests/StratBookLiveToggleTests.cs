@@ -23,6 +23,7 @@ using DemoViewer.NET.ViewModels.Setup;
 using DemoViewer.NET.ViewModels.Shell;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -127,9 +128,9 @@ public class StratBookLiveToggleTests
             using (Assert.Multiple())
             {
                 await Assert.That(packs.IsOn(Pack)).IsFalse();
-                await Assert.That(queue.CancelledOwners.Skip(cancelsBefore)).IsEquivalentTo([StratBookPack.PackId])
+                await Assert.That(queue.CancelledOwners.Skip(cancelsBefore)).IsEquivalentTo([StratBookPack.PackId], CollectionOrdering.Matching)
                     .Because("every job and pass of the pack carries the extension's id, which the host cancels once");
-                await Assert.That(queue.Titles.Skip(before)).IsEquivalentTo([StratBookLifecycle.ReleaseTitle])
+                await Assert.That(queue.Titles.Skip(before)).IsEquivalentTo([StratBookLifecycle.ReleaseTitle], CollectionOrdering.Matching)
                     .Because("the release is the one item the switch-off queues");
                 await Assert.That(instances.Situations).IsNull();
                 await Assert.That(instances.Grenades).IsNull();

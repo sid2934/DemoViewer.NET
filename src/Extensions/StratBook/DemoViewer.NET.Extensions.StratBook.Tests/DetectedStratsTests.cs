@@ -16,6 +16,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
 using Library = DemoViewer.NET.AppTests.StratMiningServiceTests.Library;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -226,7 +227,7 @@ public class DetectedStratsTests
             StratDocument saved = library.Strats.TryLoad(library.Strats.Index.Single().Id)!;
             using (Assert.Multiple())
             {
-                await Assert.That(saved.Steps.Select(s => s.Id)).IsEquivalentTo(previewedSteps)
+                await Assert.That(saved.Steps.Select(s => s.Id)).IsEquivalentTo(previewedSteps, CollectionOrdering.Matching)
                     .Because("Add to book saves the previewed document, not a rebuild");
                 await Assert.That(saved.Id).IsNotEqualTo(preview.Document.Id);
                 await Assert.That(Normalized(saved)).IsEqualTo(previewed);
@@ -272,7 +273,7 @@ public class DetectedStratsTests
             // Reviewed again: the rebuilt preview is what gets saved.
             List<Guid> steps = [.. vm.Detected.Preview!.Document!.Steps.Select(s => s.Id)];
             await vm.Detected.AddToBookCommand.ExecuteAsync(null);
-            await Assert.That(library.Strats.TryLoad(library.Strats.Index.Single().Id)!.Steps.Select(s => s.Id)).IsEquivalentTo(steps);
+            await Assert.That(library.Strats.TryLoad(library.Strats.Index.Single().Id)!.Steps.Select(s => s.Id)).IsEquivalentTo(steps, CollectionOrdering.Matching);
         });
     }
 

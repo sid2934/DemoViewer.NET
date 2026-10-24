@@ -4,6 +4,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Generated;
 using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -14,7 +15,7 @@ public class GeneratedStateTests
 {
     [Test]
     public async Task ThereIsNoReviewedState_OutsideReviewClips() =>
-        await Assert.That(Enum.GetNames<GeneratedState>()).IsEquivalentTo(["New", "Dismissed", "Accepted"]);
+        await Assert.That(Enum.GetNames<GeneratedState>()).IsEquivalentTo(["New", "Dismissed", "Accepted"], CollectionOrdering.Matching);
 
     [Test]
     public async Task OnlyNewShows_UntilSettledIsOn()
@@ -22,8 +23,8 @@ public class GeneratedStateTests
         GeneratedState[] states = Enum.GetValues<GeneratedState>();
         using (Assert.Multiple())
         {
-            await Assert.That(states.Where(s => GeneratedInbox.Shows(s, false))).IsEquivalentTo([GeneratedState.New]);
-            await Assert.That(states.Where(s => GeneratedInbox.Shows(s, true))).IsEquivalentTo(states);
+            await Assert.That(states.Where(s => GeneratedInbox.Shows(s, false))).IsEquivalentTo([GeneratedState.New], CollectionOrdering.Matching);
+            await Assert.That(states.Where(s => GeneratedInbox.Shows(s, true))).IsEquivalentTo(states, CollectionOrdering.Matching);
             await Assert.That(GeneratedInbox.SettledLabel(3)).IsEqualTo("Show settled (3)");
         }
     }

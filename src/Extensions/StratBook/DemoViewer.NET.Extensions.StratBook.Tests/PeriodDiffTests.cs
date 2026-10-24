@@ -3,6 +3,7 @@
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -102,9 +103,9 @@ public class PeriodDiffTests
             await Assert.That(set.TotalDemos).IsEqualTo(6);
             await Assert.That(set.HasBothPeriods).IsTrue();
 
-            await Assert.That(set.Recent.Demos.Select(d => d.Map)).IsEquivalentTo(["de_overpass", "de_nuke", "de_dust2"])
+            await Assert.That(set.Recent.Demos.Select(d => d.Map)).IsEquivalentTo(["de_overpass", "de_nuke", "de_dust2"], CollectionOrdering.Matching)
                 .Because("newest first: day 6, day 5, day 4");
-            await Assert.That(set.Previous.Demos.Select(d => d.Map)).IsEquivalentTo(["de_inferno", "de_mirage", "de_nuke"])
+            await Assert.That(set.Previous.Demos.Select(d => d.Map)).IsEquivalentTo(["de_inferno", "de_mirage", "de_nuke"], CollectionOrdering.Matching)
                 .Because("newest first within the older window: day 3, day 2, day 1");
 
             await Assert.That(set.Recent.Wins).IsEqualTo(0);

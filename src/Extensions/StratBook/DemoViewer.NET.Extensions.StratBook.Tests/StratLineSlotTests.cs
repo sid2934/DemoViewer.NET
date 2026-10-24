@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratCanvasTestData;
 using static DemoViewer.NET.AppTests.StratStepEditingTests;
 
@@ -225,7 +226,7 @@ public class StratLineSlotTests
             {
                 await Assert.That(Lines(after)).IsEqualTo("E>BombsiteB/Back,Window C>Tunnels");
                 await Assert.That(after.Assignments![0].Watch!.YawDegrees).IsEqualTo(135);
-                await Assert.That(vm.Session.PendingOps.Select(o => o.Op + " " + o.Path)).IsEquivalentTo(["replace /steps/0/assignments/0/slot"]);
+                await Assert.That(vm.Session.PendingOps.Select(o => o.Op + " " + o.Path)).IsEquivalentTo(["replace /steps/0/assignments/0/slot"], CollectionOrdering.Matching);
             }
 
             vm.Session.Undo();
@@ -251,7 +252,7 @@ public class StratLineSlotTests
             string before = Bytes(vm);
             int depth = vm.Session.UndoDepth;
 
-            await Assert.That(Row(vm, id).Lines[0].SlotOptions).IsEquivalentTo(StratVocabulary.Slots).Because("a taken slot is a swap");
+            await Assert.That(Row(vm, id).Lines[0].SlotOptions).IsEquivalentTo(StratVocabulary.Slots, CollectionOrdering.Matching).Because("a taken slot is a swap");
             Row(vm, id).Lines[0].Slot = "D";
             StratStep swapped = Doc(vm, id);
             using (Assert.Multiple())
@@ -475,7 +476,7 @@ public class StratLineSlotTests
             string before = Bytes(vm);
             int depth = vm.Session.UndoDepth;
 
-            await Assert.That(Row(vm, id).Lines[0].SlotOptions).IsEquivalentTo(["A"]);
+            await Assert.That(Row(vm, id).Lines[0].SlotOptions).IsEquivalentTo(["A"], CollectionOrdering.Matching);
 
             // What the combo's binding does on a pick: the row's Slot is set first.
             Row(vm, id).Lines[0].Slot = "C";

@@ -10,6 +10,7 @@ using DemoViewer.NET.Services.Facts;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -55,7 +56,7 @@ public class SuggestedTagsOccupancyTests
             await Assert.That(round.AliveCount(2, 3)).IsEqualTo(0).Because("nothing was sampled in second 3");
             await Assert.That(round.PlaceOf(6, 1)).IsEqualTo("Ramp");
             await Assert.That(round.SideOf(6)).IsEqualTo(2);
-            await Assert.That(round.Slots(3)).IsEquivalentTo(CtSlots);
+            await Assert.That(round.Slots(3)).IsEquivalentTo(CtSlots, CollectionOrdering.Matching);
         }
     }
 
@@ -269,13 +270,13 @@ public class SuggestedTagsOccupancyTests
         {
             await Assert.That(indexed.HasSlots).IsFalse();
             await Assert.That(indexed.Seconds).IsEqualTo(walked.Seconds);
-            await Assert.That(indexed.Slots(2)).IsEquivalentTo(walked.Slots(2));
+            await Assert.That(indexed.Slots(2)).IsEquivalentTo(walked.Slots(2), CollectionOrdering.Matching);
             for (int s = 0; s < walked.Seconds; s++)
             {
                 foreach (int side in (int[])[2, 3])
                 {
                     await Assert.That(indexed.AliveCount(side, s)).IsEqualTo(walked.AliveCount(side, s)).Because($"side {side} second {s}");
-                    await Assert.That(indexed.CountsAt(side, s)).IsEquivalentTo(walked.CountsAt(side, s)).Because($"side {side} second {s}");
+                    await Assert.That(indexed.CountsAt(side, s)).IsEquivalentTo(walked.CountsAt(side, s), CollectionOrdering.Matching).Because($"side {side} second {s}");
                 }
             }
         }
@@ -321,7 +322,7 @@ public class SuggestedTagsOccupancyTests
             await Assert.That(DetectorMath.Evidence(smoke).Text).Contains("by window guy");
             await Assert.That(events[0].ThrowerSteamId).IsEqualTo(0UL);
             await Assert.That(events.Select(e => e.Kind)).IsEquivalentTo(
-                [DetonationEvents.Smoke, DetonationEvents.Flash, DetonationEvents.He, DetonationEvents.Inferno, DetonationEvents.Decoy]);
+                [DetonationEvents.Smoke, DetonationEvents.Flash, DetonationEvents.He, DetonationEvents.Inferno, DetonationEvents.Decoy], CollectionOrdering.Matching);
             await Assert.That(events[0].ThrowerSlot).IsEqualTo(6);
             await Assert.That(events[0].Position).IsEqualTo(new Vector3(4, 5, 6));
             await Assert.That(events[3].ThrowerSlot).IsEqualTo(-1).Because("inferno_startburn has no thrower");

@@ -16,6 +16,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
 using Library = DemoViewer.NET.AppTests.StratMiningServiceTests.Library;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -202,7 +203,7 @@ public class StratMiningCacheTests
         using (Assert.Multiple())
         {
             await Assert.That(restarted.Signatures.LastBuild).IsEqualTo((4, 0));
-            await Assert.That(restarted.Patterns.Select(p => p.Pattern.Key)).IsEquivalentTo(first);
+            await Assert.That(restarted.Patterns.Select(p => p.Pattern.Key)).IsEquivalentTo(first, CollectionOrdering.Matching);
             await Assert.That(File.Exists(Path.Combine(library.Root, "cache", "strat-mining", "signatures.json.gz"))).IsTrue();
         }
     }

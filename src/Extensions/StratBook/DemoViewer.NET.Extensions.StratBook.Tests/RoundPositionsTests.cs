@@ -68,15 +68,15 @@ public class RoundPositionsTests
         {
             await Assert.That(positions.Fingerprint).IsEqualTo(build.Index.Fingerprint);
             await Assert.That(positions.CadenceTicks).IsEqualTo(64);
-            await Assert.That(positions.Places).IsEquivalentTo(["BombsiteA", "Ramp", "?"]);
+            await Assert.That(positions.Places).IsEquivalentTo(["BombsiteA", "Ramp", "?"], CollectionOrdering.Matching);
             await Assert.That(round.Number).IsEqualTo(1);
             await Assert.That(round.FreezeEndTick).IsEqualTo(1000);
-            await Assert.That(round.Ct).IsEquivalentTo(CtSlots);
+            await Assert.That(round.Ct).IsEquivalentTo(CtSlots, CollectionOrdering.Matching);
             await Assert.That(round.Pos.Count).IsEqualTo(3);
             await Assert.That(round.At(0).Count).IsEqualTo(10);
             await Assert.That(round.At(1).Count).IsEqualTo(9).Because("slot 3 died at the sampled tick");
             await Assert.That(round.At(1).Any(p => p.Slot == 3)).IsFalse();
-            await Assert.That(round.At(0).Select(p => p.Slot)).IsEquivalentTo([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+            await Assert.That(round.At(0).Select(p => p.Slot)).IsEquivalentTo([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], CollectionOrdering.Matching);
             await Assert.That(round.At(0)[0]).IsEqualTo(new RoundPosition(1, 601, -401, -416, 0));
             await Assert.That(round.At(0)[5]).IsEqualTo(new RoundPosition(6, 1307, -1000, -700, 1));
             await Assert.That(round.At(2).Single()).IsEqualTo(new RoundPosition(6, 10, 21, 30, 2));
@@ -256,8 +256,8 @@ public class RoundPositionsTests
             await Assert.That(loaded!.SchemaVersion).IsEqualTo(RoundPositionsDocument.CurrentSchemaVersion);
             await Assert.That(loaded.Fingerprint).EndsWith(";pos=1");
             await Assert.That(loaded.Demo.Sha256).IsNull();
-            await Assert.That(loaded.Places).IsEquivalentTo(["Outside", "Lobby", "Ramp", "?"]);
-            await Assert.That(loaded.Rounds.Single().Ct).IsEquivalentTo([0, 2, 5, 7, 9]);
+            await Assert.That(loaded.Places).IsEquivalentTo(["Outside", "Lobby", "Ramp", "?"], CollectionOrdering.Matching);
+            await Assert.That(loaded.Rounds.Single().Ct).IsEquivalentTo([0, 2, 5, 7, 9], CollectionOrdering.Matching);
             await Assert.That(loaded.Rounds[0].At(1)[1]).IsEqualTo(new RoundPosition(2, -129, -1848, -416, 1));
             await Assert.That(loaded.PlayerOf(2)).IsEqualTo(new RoundPositionsPlayer(2, 76561198000000002, "two"));
             await Assert.That(loaded.PlayerOf(4)).IsEqualTo(new RoundPositionsPlayer(4, 0, "BOT Kim"));

@@ -5,6 +5,7 @@ using DemoViewer.NET.Extensions;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats.Mining;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -33,8 +34,8 @@ public class StoredFileTests
             byte[]? afterWrite = file.Read();
             using (Assert.Multiple())
             {
-                await Assert.That(first).IsEquivalentTo(legacy);
-                await Assert.That(copied).IsEquivalentTo(legacy).Because("the copy lands in the extension's own folder");
+                await Assert.That(first).IsEquivalentTo(legacy, CollectionOrdering.Matching);
+                await Assert.That(copied).IsEquivalentTo(legacy, CollectionOrdering.Matching).Because("the copy lands in the extension's own folder");
                 await Assert.That(Encoding.UTF8.GetString(afterWrite!)).IsEqualTo("{}")
                     .Because("once copied, the extension's file is the store, not the old one");
                 await Assert.That(legacyReads).IsEqualTo(1);

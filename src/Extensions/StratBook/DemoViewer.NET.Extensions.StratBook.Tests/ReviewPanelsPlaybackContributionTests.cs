@@ -13,6 +13,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags;
 using DemoViewer.NET.Playback2D.Pipeline.Annotations;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -75,16 +76,16 @@ public class ReviewPanelsPlaybackContributionTests
             {
                 await Assert.That(review.Session).IsNotNull();
                 await Assert.That(lane.Session).IsSameReferenceAs(review.Session).Because("the lane reads the contribution's session");
-                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).IsEquivalentTo([.. coreTracks, TagTrack.TrackId, ProposalTrack.TrackId])
+                await Assert.That(vm.Timeline.Tracks.Select(t => t.Id)).IsEquivalentTo([.. coreTracks, TagTrack.TrackId, ProposalTrack.TrackId], CollectionOrdering.Matching)
                     .Because("the tag lane comes first, then the suggestions, after the tab's own tracks");
-                await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo([TagTrack.TrackId, ProposalTrack.TrackId]);
-                await Assert.That(vm.Surface.ModeToggles.Select(t => t.Id)).IsEquivalentTo([ReviewPanelsPlaybackContribution.ReviewModeId]);
+                await Assert.That(vm.Timeline.Lanes.Select(l => l.Track.Id)).IsEquivalentTo([TagTrack.TrackId, ProposalTrack.TrackId], CollectionOrdering.Matching);
+                await Assert.That(vm.Surface.ModeToggles.Select(t => t.Id)).IsEquivalentTo([ReviewPanelsPlaybackContribution.ReviewModeId], CollectionOrdering.Matching);
                 await Assert.That(review.ReviewMode!.ActionId).IsEqualTo(StratBookActions.ToggleReviewMode);
                 await Assert.That(review.ReviewMode.IsOn).IsFalse();
                 await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsTrue().Because("the lanes are the mode's");
                 await Assert.That(vm.Surface.Panels.Select(p => p.Content!.GetType()))
-                    .IsEquivalentTo([typeof(TagPaletteViewModel), typeof(ReviewPanelViewModel), typeof(SuggestionQueueViewModel)]);
-                await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([false, false, false]);
+                    .IsEquivalentTo([typeof(TagPaletteViewModel), typeof(ReviewPanelViewModel), typeof(SuggestionQueueViewModel)], CollectionOrdering.Matching);
+                await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([false, false, false], CollectionOrdering.Matching);
                 await Assert.That(((Playback2DPanel)review.PalettePanel!).FeatureId).IsEqualTo(RoundTaggerModule.PaletteFeatureId);
                 await Assert.That(((Playback2DPanel)review.QueuePanel!).FeatureId).IsEqualTo(SuggestedTagsService.FeatureId);
                 await Assert.That(vm.Surface.Panels.All(p => ReferenceEquals(p.Mode, review.ReviewMode))).IsTrue()
@@ -97,14 +98,14 @@ public class ReviewPanelsPlaybackContributionTests
             review.ReviewMode.IsOn = true;
             using (Assert.Multiple())
             {
-                await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([true, true, true]);
+                await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([true, true, true], CollectionOrdering.Matching);
                 await Assert.That(vm.IsCardStrip).IsTrue();
                 await Assert.That(vm.Timeline.IsTrackSuppressed(TagTrack.TrackId)).IsFalse();
                 await Assert.That(vm.Timeline.IsTrackSuppressed(ProposalTrack.TrackId)).IsFalse();
             }
 
             review.ReviewMode.IsOn = false;
-            await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([false, false, false]);
+            await Assert.That(vm.Surface.Panels.Select(p => p.IsShown)).IsEquivalentTo([false, false, false], CollectionOrdering.Matching);
 
             vm.Dispose();
         });
@@ -150,7 +151,7 @@ public class ReviewPanelsPlaybackContributionTests
             {
                 await Assert.That(session.Document!.Demo.Sha256).IsEqualTo(OtherSha);
                 await Assert.That(session.Document.Instances).IsEmpty();
-                await Assert.That(store.TryLoad(Sha)!.Instances.Select(i => i.Code)).IsEquivalentTo(["Default"])
+                await Assert.That(store.TryLoad(Sha)!.Instances.Select(i => i.Code)).IsEquivalentTo(["Default"], CollectionOrdering.Matching)
                     .Because("the swap flushed the old document to the store the contribution resolved");
             }
 
@@ -173,7 +174,7 @@ public class ReviewPanelsPlaybackContributionTests
                 });
 
             // Attach and the activation's demo-change signal both asked for this demo; one identity is in flight.
-            await Assert.That(asked).IsEquivalentTo([DemoPath]).Because("the second request sees the first still attaching");
+            await Assert.That(asked).IsEquivalentTo([DemoPath], CollectionOrdering.Matching).Because("the second request sees the first still attaching");
 
             ctx.RaiseDemoReset(); // the same demo again, still in flight
             await Assert.That(asked.Count).IsEqualTo(1);
@@ -228,7 +229,7 @@ public class ReviewPanelsPlaybackContributionTests
             using (Assert.Multiple())
             {
                 await Assert.That(review.IsPaletteFocused).IsFalse();
-                await Assert.That(review.Session.Document!.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"]);
+                await Assert.That(review.Session.Document!.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"], CollectionOrdering.Matching);
                 await Assert.That(vm.Timeline.IsLaneEditable).IsFalse();
             }
 
@@ -315,7 +316,7 @@ public class ReviewPanelsPlaybackContributionTests
             gate.Raise();
             using (Assert.Multiple())
             {
-                await Assert.That(store.TryLoad(Sha)!.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"])
+                await Assert.That(store.TryLoad(Sha)!.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"], CollectionOrdering.Matching)
                     .Because("the pending tag is written before the session goes");
                 await Assert.That(vm.Surface.Panels).IsEmpty();
                 await Assert.That(vm.Surface.ModeToggles).IsEmpty();
@@ -343,7 +344,7 @@ public class ReviewPanelsPlaybackContributionTests
             gate.On = true;
             gate.Raise();
             await review.Session!.AttachAsync(Demo, Clock, DemoPath);
-            await Assert.That(review.Session.Document!.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"]);
+            await Assert.That(review.Session.Document!.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"], CollectionOrdering.Matching);
 
             vm.Dispose();
         });
@@ -445,7 +446,7 @@ public class ReviewPanelsPlaybackContributionTests
             await AttachedAsync(session, OtherPath);
             using (Assert.Multiple())
             {
-                await Assert.That(old.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"]).Because("written before the swap");
+                await Assert.That(old.Instances.Select(i => i.Code)).IsEquivalentTo(["A execute"], CollectionOrdering.Matching).Because("written before the swap");
                 await Assert.That(old.Instances[0].Note).IsNull().Because("the note was never kept");
                 await Assert.That(session.Document!.Instances).IsEmpty().Because("the new document starts clean");
                 await Assert.That(review.Palette.IsEditingNote).IsFalse();

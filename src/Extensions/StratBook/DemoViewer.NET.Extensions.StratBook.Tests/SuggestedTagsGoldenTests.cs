@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -56,6 +57,6 @@ public class SuggestedTagsGoldenTests
                 .SelectMany(f => SuggestedTagsGolden.Load(f).Proposals.Select(p => p.Detector))
         ];
 
-        await Assert.That(detectors).IsEquivalentTo(DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.ProposalDetection.All.Select(d => d.Id));
+        await Assert.That(detectors).IsEquivalentTo(DemoViewer.NET.Extensions.StratBook.Modules.SuggestedTags.ProposalDetection.All.Select(d => d.Id), CollectionOrdering.Any);
     }
 }

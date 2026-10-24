@@ -14,6 +14,7 @@ using DemoViewer.NET.Modules.Playback2D.Timeline;
 using DemoViewer.NET.Extensions.StratBook.Modules.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -62,7 +63,7 @@ public class CreateStratPlaybackContributionTests
             using (Assert.Multiple())
             {
                 await Assert.That(vm.Timeline.MenuFor(round).Select(m => m.Header))
-                    .IsEquivalentTo([CreateStratPlaybackContribution.Label]);
+                    .IsEquivalentTo([CreateStratPlaybackContribution.Label], CollectionOrdering.Matching);
                 await Assert.That(vm.Timeline.MenuFor(CreateStratFromRoundTests.Band("round", "wu"))).IsEmpty();
                 await Assert.That(vm.Timeline.MenuFor(CreateStratFromRoundTests.Band("tags", "3"))).IsEmpty();
                 await Assert.That(vm.Surface.Panes.Count).IsEqualTo(1);

@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -355,7 +356,7 @@ public class StratSessionTests
             using (Assert.Multiple())
             {
                 await Assert.That(entry.Revision).IsEqualTo(2);
-                await Assert.That(entry.Ops.Select(o => o.Path)).IsEquivalentTo(["/name", "/steps/1/atSeconds"]);
+                await Assert.That(entry.Ops.Select(o => o.Path)).IsEquivalentTo(["/name", "/steps/1/atSeconds"], CollectionOrdering.Matching);
                 await Assert.That(entry.Ops.Single(o => o.Path == "/name").From!.GetValue<string>()).IsEqualTo("A exec");
                 await Assert.That(reopened.Materialize(committed.Id, 2)!.Name).IsEqualTo("after the crash");
             }

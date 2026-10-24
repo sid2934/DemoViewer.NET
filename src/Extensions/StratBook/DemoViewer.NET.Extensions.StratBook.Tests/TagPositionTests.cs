@@ -14,6 +14,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -236,12 +237,12 @@ public class TagPositionTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(atHut.Select(r => r.Id)).IsEquivalentTo(new[] { hutTag });
-                await Assert.That(atRamp.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag })
+                await Assert.That(atHut.Select(r => r.Id)).IsEquivalentTo(new[] { hutTag }, CollectionOrdering.Matching);
+                await Assert.That(atRamp.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag }, CollectionOrdering.Matching)
                     .Because("a movement's end counts as a point of the tag");
-                await Assert.That(inSquare.Select(r => r.Id)).IsEquivalentTo(new[] { hutTag });
-                await Assert.That(belowAnywhere.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag });
-                await Assert.That(rampAndBelow.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag })
+                await Assert.That(inSquare.Select(r => r.Id)).IsEquivalentTo(new[] { hutTag }, CollectionOrdering.Matching);
+                await Assert.That(belowAnywhere.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag }, CollectionOrdering.Matching);
+                await Assert.That(rampAndBelow.Select(r => r.Id)).IsEquivalentTo(new[] { moveTag }, CollectionOrdering.Matching)
                     .Because("separate predicates may be met by separate points");
                 await Assert.That(rampBelow).IsEmpty().Because("one predicate's clauses must hold on the same point");
                 await Assert.That(TagQuery.Find(docs, TagSlice.Everything).Count).IsEqualTo(2)

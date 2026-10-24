@@ -8,6 +8,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Provenance;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.Testing;
 using DemoViewer.NET.ViewModels.Library;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -497,7 +498,7 @@ public class DemoProvenanceTests
     {
         using (Assert.Multiple())
         {
-            await Assert.That(DemoProvenanceLabel.All).IsEquivalentTo(["official", "scrim", "our scrim", "matchmaking"]);
+            await Assert.That(DemoProvenanceLabel.All).IsEquivalentTo(["official", "scrim", "our scrim", "matchmaking"], CollectionOrdering.Matching);
             await Assert.That(DemoProvenanceLabel.IsKnown("our scrim")).IsTrue();
             await Assert.That(DemoProvenanceLabel.IsKnown("Official")).IsFalse();
             await Assert.That(DemoProvenanceLabel.IsKnown("unlabeled")).IsFalse().Because("unlabeled is the absence of a value");

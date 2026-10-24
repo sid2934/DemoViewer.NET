@@ -6,6 +6,7 @@ using Avalonia.VisualTree;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Views.StratBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -42,7 +43,7 @@ public class StratTemplateMenuTests
             using (Assert.Multiple())
             {
                 await Assert.That(items[0].Header).IsEqualTo("Blank");
-                await Assert.That(ids).IsEquivalentTo(StratTemplates.Templates.Select(t => t.Id));
+                await Assert.That(ids).IsEquivalentTo(StratTemplates.Templates.Select(t => t.Id), CollectionOrdering.Matching);
                 await Assert.That(apply.IsEffectivelyVisible).IsTrue().Because("a blank strat can take a template");
             }
 

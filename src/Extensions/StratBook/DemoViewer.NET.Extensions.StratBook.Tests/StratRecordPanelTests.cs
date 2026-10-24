@@ -7,6 +7,7 @@ using DemoViewer.NET.Services.Review;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -72,7 +73,7 @@ public class StratRecordPanelTests
             await Assert.That(fixture.Panel.Total.Aborted.Count).IsEqualTo(1);
             await Assert.That(fixture.Panel.WinRateText).IsEqualTo("50%");
             await Assert.That(fixture.Panel.ByProvenance.Select(r => r.Display))
-                .IsEquivalentTo([DemoProvenanceLabel.Scrim, StratEvidence.Unlabeled]);
+                .IsEquivalentTo([DemoProvenanceLabel.Scrim, StratEvidence.Unlabeled], CollectionOrdering.Matching);
             await Assert.That(fixture.Panel.Failures.Single().Failure).IsEqualTo("utility-late");
             await Assert.That(fixture.Panel.Failures.Single().Count).IsEqualTo(1);
             await Assert.That(fixture.Panel.Caution).IsEqualTo("3 runs: a small sample, read with caution");
@@ -161,7 +162,7 @@ public class StratRecordPanelTests
             await Assert.That(entries[0].Kind).IsEqualTo(ReviewEntryKind.Section);
             await Assert.That(entries[0].Title).IsEqualTo("Strat record · total · All runs");
             await Assert.That(entries.Skip(1).All(e => e.DemoPath == "/d/a.dem" && e.Source == ReviewSources.Tag)).IsTrue();
-            await Assert.That(fixture.SelectedTabs).IsEquivalentTo([ReviewQueueModule.TabId]);
+            await Assert.That(fixture.SelectedTabs).IsEquivalentTo([ReviewQueueModule.TabId], CollectionOrdering.Matching);
             await Assert.That(fixture.Panel.StatusLine).IsEqualTo("2 clips sent to Review");
         }
 

@@ -10,6 +10,7 @@ using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Situations;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.RoundIndexTestData;
 
 #endregion
@@ -150,37 +151,37 @@ public class SearchFiltersTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(Keys(ctFull)).IsEquivalentTo([(DemoA, 1), (DemoB, 1)]);
-            await Assert.That(Keys(tEco)).IsEquivalentTo([(DemoA, 1)]);
-            await Assert.That(Keys(both)).IsEquivalentTo([(DemoB, 1)]);
+            await Assert.That(Keys(ctFull)).IsEquivalentTo([(DemoA, 1), (DemoB, 1)], CollectionOrdering.Matching);
+            await Assert.That(Keys(tEco)).IsEquivalentTo([(DemoA, 1)], CollectionOrdering.Matching);
+            await Assert.That(Keys(both)).IsEquivalentTo([(DemoB, 1)], CollectionOrdering.Matching);
 
             // Post-plant: the two long rounds, with the window narrowed to the steps from the plant on.
-            await Assert.That(Keys(postPlant)).IsEquivalentTo([(DemoA, 1), (DemoB, 1)]);
+            await Assert.That(Keys(postPlant)).IsEquivalentTo([(DemoA, 1), (DemoB, 1)], CollectionOrdering.Matching);
             await Assert.That(postPlant.Single(x => x.DemoPath == DemoA).FirstMatchTick).IsEqualTo(10000 + 24 * 64)
                 .Because("the first sampled step at or after the plant at 1,500 ticks");
             await Assert.That(postPlant.Single(x => x.DemoPath == DemoA).MatchedSteps).IsEqualTo(76);
-            await Assert.That(Keys(retake)).IsEquivalentTo(Keys(postPlant)).Because("retake is the same interval seen from the CT side");
-            await Assert.That(Keys(opening)).IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1), (DemoC, 1)])
+            await Assert.That(Keys(retake)).IsEquivalentTo(Keys(postPlant), CollectionOrdering.Matching).Because("retake is the same interval seen from the CT side");
+            await Assert.That(Keys(opening)).IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1), (DemoC, 1)], CollectionOrdering.Matching)
                 .Because("every round opens; the quiet rounds never leave the opening");
             await Assert.That(opening.Single(x => x.DemoPath == DemoA && x.RoundNumber == 1).LastMatchTick).IsEqualTo(10000 + 7 * 64);
 
             // Bands: only the hundred-second rounds reach 1:15; every round has an early window.
-            await Assert.That(Keys(late)).IsEquivalentTo([(DemoA, 1), (DemoB, 1)]);
+            await Assert.That(Keys(late)).IsEquivalentTo([(DemoA, 1), (DemoB, 1)], CollectionOrdering.Matching);
             await Assert.That(late.Single(x => x.DemoPath == DemoA).FirstMatchTick).IsEqualTo(10000 + 75 * 64);
-            await Assert.That(Keys(early)).IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1), (DemoC, 1)]);
+            await Assert.That(Keys(early)).IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1), (DemoC, 1)], CollectionOrdering.Matching);
             await Assert.That(early.Single(x => x.DemoPath == DemoA && x.RoundNumber == 1).MatchedSteps).IsEqualTo(30);
 
             // Man count: 5v4 between the two kills, even before the first and after the second.
-            await Assert.That(Keys(ctUp)).IsEquivalentTo([(DemoA, 1), (DemoB, 1)]);
+            await Assert.That(Keys(ctUp)).IsEquivalentTo([(DemoA, 1), (DemoB, 1)], CollectionOrdering.Matching);
             await Assert.That(ctUp.Single(x => x.DemoPath == DemoA).FirstMatchTick).IsEqualTo(10000 + 8 * 64);
             await Assert.That(ctUp.Single(x => x.DemoPath == DemoA).LastMatchTick).IsEqualTo(10000 + 46 * 64);
-            await Assert.That(Keys(even)).IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1), (DemoC, 1)]);
+            await Assert.That(Keys(even)).IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1), (DemoC, 1)], CollectionOrdering.Matching);
             await Assert.That(tUp).IsEmpty();
 
             // Score before the round.
-            await Assert.That(Keys(tied)).IsEquivalentTo([(DemoA, 1), (DemoC, 1)]);
-            await Assert.That(Keys(ctLeading)).IsEquivalentTo([(DemoA, 2), (DemoB, 1)]);
-            await Assert.That(Keys(matchPoint)).IsEquivalentTo([(DemoB, 1)]).Because("12 up under MR12 is one round from the win");
+            await Assert.That(Keys(tied)).IsEquivalentTo([(DemoA, 1), (DemoC, 1)], CollectionOrdering.Matching);
+            await Assert.That(Keys(ctLeading)).IsEquivalentTo([(DemoA, 2), (DemoB, 1)], CollectionOrdering.Matching);
+            await Assert.That(Keys(matchPoint)).IsEquivalentTo([(DemoB, 1)], CollectionOrdering.Matching).Because("12 up under MR12 is one round from the win");
 
             // Two tick-anchored fields must hold at the same tick: late is after the second kill, so CT up never coincides.
             await Assert.That(lateAndUp).IsEmpty();
@@ -202,8 +203,8 @@ public class SearchFiltersTests
         {
             await Assert.That(rail.HasUs).IsTrue();
             await Assert.That(rail.ShowNoUsNote).IsFalse();
-            await Assert.That(Keys(usT)).IsEquivalentTo([(DemoA, 1), (DemoC, 1)]).Because("our five seat the T slots there");
-            await Assert.That(Keys(usCt)).IsEquivalentTo([(DemoA, 2), (DemoB, 1)]).Because("A switched sides at its second round");
+            await Assert.That(Keys(usT)).IsEquivalentTo([(DemoA, 1), (DemoC, 1)], CollectionOrdering.Matching).Because("our five seat the T slots there");
+            await Assert.That(Keys(usCt)).IsEquivalentTo([(DemoA, 2), (DemoB, 1)], CollectionOrdering.Matching).Because("A switched sides at its second round");
             await Assert.That(rail.ActiveLine).IsEqualTo("Us on CT");
         }
 
@@ -225,7 +226,7 @@ public class SearchFiltersTests
         SearchFiltersViewModel rail = h.Filters;
 
         await Assert.That(rail.ToDemos()).IsNull().Because("nothing set narrows no demo");
-        await Assert.That(rail.Opponent.Options.Select(o => o.Display)).IsEquivalentTo(["Any opponent", "Falcons"])
+        await Assert.That(rail.Opponent.Options.Select(o => o.Display)).IsEquivalentTo(["Any opponent", "Falcons"], CollectionOrdering.Matching)
             .Because("the us team is not an opponent");
 
         rail.Opponent.Selected = rail.Opponent.Options.Single(o => o.Display == "Falcons");
@@ -261,15 +262,15 @@ public class SearchFiltersTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(Sorted(against)).IsEquivalentTo(Keys(DemoA, DemoB)).Because("C was played against strangers");
-            await Assert.That(Sorted(official)).IsEquivalentTo(Keys(DemoB)).Because("only B carries both clan tags");
-            await Assert.That(Sorted(ourScrim)).IsEquivalentTo(Keys(DemoA)).Because("us against a team the library knows, no tags");
-            await Assert.That(Sorted(matchmaking)).IsEquivalentTo(Keys(DemoC)).Because("us against strangers on a Valve server");
+            await Assert.That(Sorted(against)).IsEquivalentTo(Keys(DemoA, DemoB), CollectionOrdering.Matching).Because("C was played against strangers");
+            await Assert.That(Sorted(official)).IsEquivalentTo(Keys(DemoB), CollectionOrdering.Matching).Because("only B carries both clan tags");
+            await Assert.That(Sorted(ourScrim)).IsEquivalentTo(Keys(DemoA), CollectionOrdering.Matching).Because("us against a team the library knows, no tags");
+            await Assert.That(Sorted(matchmaking)).IsEquivalentTo(Keys(DemoC), CollectionOrdering.Matching).Because("us against strangers on a Valve server");
             await Assert.That(unlabeled).IsEmpty();
-            await Assert.That(Sorted(fromDay3)).IsEquivalentTo(Keys(DemoB, DemoC));
-            await Assert.That(Sorted(day3To5)).IsEquivalentTo(Keys(DemoB)).Because("the upper bound is inclusive of its day");
-            await Assert.That(Sorted(toDay5)).IsEquivalentTo(Keys(DemoA, DemoB));
-            await Assert.That(Sorted(officialFalconsToDay5)).IsEquivalentTo(Keys(DemoB));
+            await Assert.That(Sorted(fromDay3)).IsEquivalentTo(Keys(DemoB, DemoC), CollectionOrdering.Matching);
+            await Assert.That(Sorted(day3To5)).IsEquivalentTo(Keys(DemoB), CollectionOrdering.Matching).Because("the upper bound is inclusive of its day");
+            await Assert.That(Sorted(toDay5)).IsEquivalentTo(Keys(DemoA, DemoB), CollectionOrdering.Matching);
+            await Assert.That(Sorted(officialFalconsToDay5)).IsEquivalentTo(Keys(DemoB), CollectionOrdering.Matching);
             await Assert.That(officialFalconsFromDay9).IsEmpty();
             await Assert.That(activeLine).IsEqualTo("vs Falcons · from 2026-03-10 · official");
             await Assert.That(rail.IsActive).IsFalse().Because("Clear puts every field back to any");
@@ -279,7 +280,7 @@ public class SearchFiltersTests
         // The demo set narrows the same hit set the tokens produce, and the count follows it.
         rail.Opponent.Selected = rail.Opponent.Options.Single(o => o.Display == "Falcons");
         IReadOnlyList<SituationHit> hits = await HitsAndCheck(h.Index, Q(demos: rail.ToDemos()));
-        await Assert.That(Keys(hits)).IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1)]);
+        await Assert.That(Keys(hits)).IsEquivalentTo([(DemoA, 1), (DemoA, 2), (DemoB, 1)], CollectionOrdering.Matching);
     }
 
     [Test]
@@ -320,7 +321,7 @@ public class SearchFiltersTests
         using (Assert.Multiple())
         {
             await Assert.That(canvas.CtToken).IsEqualTo("BombsiteA:2");
-            await Assert.That(Sorted(canvas.Draft.Demos)).IsEquivalentTo(Keys(DemoB));
+            await Assert.That(Sorted(canvas.Draft.Demos)).IsEquivalentTo(Keys(DemoB), CollectionOrdering.Matching);
             await Assert.That(counted).IsEqualTo(1).Because("B's round holds two in A, is a CT full buy and is official");
             await Assert.That(canvas.ResultCount).IsEqualTo(counted).Because("the button's number is the number of cards");
             await Assert.That(canvas.SearchLabel).IsEqualTo("Search, 1 round");
@@ -373,15 +374,15 @@ public class SearchFiltersTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(source.Query(new RoundFactsFilter { Phase = RoundPhase.PostPlant }).Select(x => x.Round.Number)).IsEquivalentTo([1]);
-            await Assert.That(source.Query(new RoundFactsFilter { ClockBand = ClockBand.Late }).Select(x => x.Round.Number)).IsEquivalentTo([1])
+            await Assert.That(source.Query(new RoundFactsFilter { Phase = RoundPhase.PostPlant }).Select(x => x.Round.Number)).IsEquivalentTo([1], CollectionOrdering.Matching);
+            await Assert.That(source.Query(new RoundFactsFilter { ClockBand = ClockBand.Late }).Select(x => x.Round.Number)).IsEquivalentTo([1], CollectionOrdering.Matching)
                 .Because("a forty-second round never reaches 1:15");
-            await Assert.That(source.Query(new RoundFactsFilter { ManCount = ManCountState.CtUp }).Select(x => x.Round.Number)).IsEquivalentTo([1]);
+            await Assert.That(source.Query(new RoundFactsFilter { ManCount = ManCountState.CtUp }).Select(x => x.Round.Number)).IsEquivalentTo([1], CollectionOrdering.Matching);
             await Assert.That(source.Query(new RoundFactsFilter { ClockBand = ClockBand.Late, ManCount = ManCountState.CtUp })).IsEmpty()
                 .Because("both must hold at one tick, and the second kill evens the round before 1:15");
-            await Assert.That(source.Query(new RoundFactsFilter { Phase = RoundPhase.Opening }).Select(x => x.Round.Number)).IsEquivalentTo([1, 2]);
-            await Assert.That(source.Query(new RoundFactsFilter { Score = ScoreSituation.CtLeading }).Select(x => x.Round.Number)).IsEquivalentTo([2]);
-            await Assert.That(source.Query(new RoundFactsFilter { Where = (_, r) => r.Number == 2 }).Select(x => x.Round.Number)).IsEquivalentTo([2]);
+            await Assert.That(source.Query(new RoundFactsFilter { Phase = RoundPhase.Opening }).Select(x => x.Round.Number)).IsEquivalentTo([1, 2], CollectionOrdering.Matching);
+            await Assert.That(source.Query(new RoundFactsFilter { Score = ScoreSituation.CtLeading }).Select(x => x.Round.Number)).IsEquivalentTo([2], CollectionOrdering.Matching);
+            await Assert.That(source.Query(new RoundFactsFilter { Where = (_, r) => r.Number == 2 }).Select(x => x.Round.Number)).IsEquivalentTo([2], CollectionOrdering.Matching);
         }
     }
 

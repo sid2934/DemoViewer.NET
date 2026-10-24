@@ -10,6 +10,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.RoundIndex;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.Sdk;
 using DemoViewer.NET.Extensions.Sdk.Playback;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.SuggestedTagsReviewHarness;
 
 #endregion
@@ -237,7 +238,7 @@ public class SuggestedTagsQueueTests
                     await Assert.That(accepted.Source).IsEqualTo(TagSources.Suggested);
                     await Assert.That(verdicts[Opener.Id].Verdict).IsEqualTo(SuggestionVerdicts.Accepted);
                     await Assert.That(verdicts[Execute.Id].Verdict).IsEqualTo(SuggestionVerdicts.Rejected);
-                    await Assert.That(queue.Rows.Select(r => r.Proposal.Id)).IsEquivalentTo([Default.Id]);
+                    await Assert.That(queue.Rows.Select(r => r.Proposal.Id)).IsEquivalentTo([Default.Id], CollectionOrdering.Matching);
                     await Assert.That(queue.Selected!.Proposal.Id).IsEqualTo(Default.Id);
                     await Assert.That(queue.HeaderText).IsEqualTo("Suggested: 1");
                     await Assert.That(track.BuildBands(new HalfTickData(20000)).Single().Label).IsEqualTo("default")
@@ -267,7 +268,7 @@ public class SuggestedTagsQueueTests
                     await Assert.That(queue.IsEditing).IsTrue();
                     await Assert.That(editor.FromText).IsEqualTo("5").Because("(1320 - 1000) / 64 seconds from the round start");
                     await Assert.That(editor.SelectedCode).IsEqualTo(Execute.Code);
-                    await Assert.That(editor.Labels.Select(l => l.Text)).IsEquivalentTo(["site: BombsiteA"]);
+                    await Assert.That(editor.Labels.Select(l => l.Text)).IsEquivalentTo(["site: BombsiteA"], CollectionOrdering.Matching);
                 }
 
                 editor.FromText = "4";
@@ -404,7 +405,7 @@ public class SuggestedTagsQueueTests
             using (h)
             {
                 queue.DetectorFilter = "opener";
-                await Assert.That(queue.Rows.Select(r => r.Proposal.Id)).IsEquivalentTo([Opener.Id]);
+                await Assert.That(queue.Rows.Select(r => r.Proposal.Id)).IsEquivalentTo([Opener.Id], CollectionOrdering.Matching);
                 await Assert.That(queue.PendingCount).IsEqualTo(3).Because("the header counts the demo, not the filter");
                 await Assert.That(queue.DetectorFilters[0]).IsEqualTo(SuggestionQueueViewModel.AllDetectors);
             }

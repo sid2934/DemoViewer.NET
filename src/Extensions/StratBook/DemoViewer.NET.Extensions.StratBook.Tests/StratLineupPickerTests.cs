@@ -11,6 +11,7 @@ using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.UtilityBook;
 using DemoViewer.NET.Playback2D.Core.Levels;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -203,8 +204,8 @@ public class StratLineupPickerTests
             {
                 await Assert.That(choice?.Id).IsEqualTo(h.Lineup.Id);
                 await Assert.That(choice?.UtilityKind).IsEqualTo("smoke");
-                await Assert.That(choice?.Techniques.Select(t => t.Key)).IsEquivalentTo(h.Lineup.Techniques.Select(t => t.Key));
-                await Assert.That(catalog.Options(Map, "smoke").Select(o => o.Id)).IsEquivalentTo(new Guid?[] { h.Lineup.Id });
+                await Assert.That(choice?.Techniques.Select(t => t.Key)).IsEquivalentTo(h.Lineup.Techniques.Select(t => t.Key), CollectionOrdering.Matching);
+                await Assert.That(catalog.Options(Map, "smoke").Select(o => o.Id)).IsEquivalentTo(new Guid?[] { h.Lineup.Id }, CollectionOrdering.Matching);
                 await Assert.That(catalog.Options(Map, "flash")).IsEmpty();
             }
         });

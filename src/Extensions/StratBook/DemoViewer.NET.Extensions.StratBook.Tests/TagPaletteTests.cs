@@ -12,6 +12,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Palette;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Views.Playback2D;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -135,7 +136,7 @@ public class TagPaletteTests
             using (Assert.Multiple())
             {
                 await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
-                await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(OutcomeValues)
+                await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(OutcomeValues, CollectionOrdering.Matching)
                     .Because("the code reveals only the panel its then names, not every panel");
                 await Assert.That(session.Document!.Instances).IsEmpty().Because("the tag is pending until the flow ends");
                 await Assert.That(Hit(palette, Key.D2)).IsFalse()
@@ -143,7 +144,7 @@ public class TagPaletteTests
             }
 
             await Assert.That(Hit(palette, Key.W)).IsTrue();
-            await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(SiteValues);
+            await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(SiteValues, CollectionOrdering.Matching);
 
             await Assert.That(Hit(palette, Key.A)).IsTrue();
             TagInstance tag = session.Document!.Instances.Single();
@@ -154,7 +155,7 @@ public class TagPaletteTests
                 await Assert.That(tag.ToTick).IsEqualTo(15_640);
                 await Assert.That(tag.Round).IsEqualTo(2);
                 await Assert.That(tag.Source).IsEqualTo(TagSources.Human);
-                await Assert.That(tag.Labels.Select(l => $"{l.Group}={l.Value}")).IsEquivalentTo(WonAtA);
+                await Assert.That(tag.Labels.Select(l => $"{l.Group}={l.Value}")).IsEquivalentTo(WonAtA, CollectionOrdering.Matching);
                 await Assert.That(session.UndoDepth).IsEqualTo(1);
                 await Assert.That(session.Document.Palette).IsEqualTo(TagPaletteStore.DefaultId);
                 await Assert.That(palette.PanelTitle).IsEqualTo("codes").Because("the flow ran out, so tagging starts again");
@@ -200,7 +201,7 @@ public class TagPaletteTests
             playhead = 16_000;
             Hit(palette, Key.D3); // Default: no then, written at once
 
-            await Assert.That(session.Document!.Instances.Select(i => i.Code)).IsEquivalentTo(ExecuteThenDefault);
+            await Assert.That(session.Document!.Instances.Select(i => i.Code)).IsEquivalentTo(ExecuteThenDefault, CollectionOrdering.Matching);
             await Assert.That(session.Document.Instances[1].FromTick).IsEqualTo(16_000);
             await Assert.That(session.Document.Instances[1].ToTick).IsEqualTo(16_000 + 20 * 64);
         });
@@ -389,8 +390,8 @@ public class TagPaletteTests
             List<TagInstance> written = tags.Document!.Instances;
             using (Assert.Multiple())
             {
-                await Assert.That(written.Select(t => t.Code)).IsEquivalentTo(ThreeCodes);
-                await Assert.That(written[0].Labels.Select(l => l.Value)).IsEquivalentTo(WonA);
+                await Assert.That(written.Select(t => t.Code)).IsEquivalentTo(ThreeCodes, CollectionOrdering.Matching);
+                await Assert.That(written[0].Labels.Select(l => l.Value)).IsEquivalentTo(WonA, CollectionOrdering.Matching);
                 await Assert.That(written[1].Labels.Single().Value).IsEqualTo("B");
                 await Assert.That(written[1].FromTick).IsEqualTo(30_000 - 3 * 64);
                 await Assert.That(written[2].Note).IsEqualTo("slow default");
@@ -454,7 +455,7 @@ public class TagPaletteTests
             using (Assert.Multiple())
             {
                 await Assert.That(tag.Code).IsEqualTo("B execute");
-                await Assert.That(tag.Labels.Select(l => l.Value)).IsEquivalentTo(LostB);
+                await Assert.That(tag.Labels.Select(l => l.Value)).IsEquivalentTo(LostB, CollectionOrdering.Matching);
                 await Assert.That(tag.Note).IsEqualTo("rotated early");
                 await Assert.That(review.IsPaletteFocused).IsFalse().Because("Esc on the codes leaves the palette");
             }

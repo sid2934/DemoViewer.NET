@@ -4,6 +4,7 @@ using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -153,10 +154,10 @@ public class DossierEditingTests
             DossierTeamNotes reloaded = new DossierNotesStore(StoredFile.At(Path.Combine(root, DossierNotesStore.FileName))).For(team);
             using (Assert.Multiple())
             {
-                await Assert.That(reloaded.Starred).IsEquivalentTo(["map|de_nuke"]);
+                await Assert.That(reloaded.Starred).IsEquivalentTo(["map|de_nuke"], CollectionOrdering.Matching);
                 await Assert.That(reloaded.Edits["map|de_mirage"]).IsEqualTo("mirage is their comfort pick");
                 await Assert.That(reloaded.Edits.ContainsKey("map|de_inferno")).IsFalse();
-                await Assert.That(reloaded.Hidden).IsEquivalentTo(["heatmap|x"]);
+                await Assert.That(reloaded.Hidden).IsEquivalentTo(["heatmap|x"], CollectionOrdering.Matching);
                 await Assert.That(reloaded.Notes.Single().Text).IsEqualTo("watch the B apps smoke");
                 await Assert.That(DossierNotesStore.NoteKey(reloaded.Notes.Single().Id)).IsEqualTo(note);
                 await Assert.That(reloaded.Summary).IsEqualTo("Aggressive CT.");
@@ -242,8 +243,8 @@ public class DossierEditingTests
             await Assert.That(md).Contains("- de_nuke: their best map");
             await Assert.That(md).Contains("Slow defaults.");
             await Assert.That(md).DoesNotContain("full buy");
-            await Assert.That(doc.Findings.Single(f => f.Key.StartsWith("heatmap", StringComparison.Ordinal)).ImagePng).IsEquivalentTo(_png);
-            await Assert.That(editor.Findings.Select(f => f.Key)).IsEquivalentTo(["map|de_nuke"]);
+            await Assert.That(doc.Findings.Single(f => f.Key.StartsWith("heatmap", StringComparison.Ordinal)).ImagePng).IsEquivalentTo(_png, CollectionOrdering.Matching);
+            await Assert.That(editor.Findings.Select(f => f.Key)).IsEquivalentTo(["map|de_nuke"], CollectionOrdering.Matching);
         }
 
         // Reset puts the generated line back; "Show settled" lists the dismissed line with Restore.

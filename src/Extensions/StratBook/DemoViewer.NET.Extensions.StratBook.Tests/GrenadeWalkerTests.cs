@@ -6,6 +6,7 @@ using CS2DemoKit.Analysis.Clips;
 using CS2DemoKit.Parser;
 using CS2DemoKit.Parser.EntityTracking;
 using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -376,7 +377,7 @@ public class GrenadeWalkerTests
             await Assert.That(row.EndTick).IsEqualTo(204);
             await Assert.That(row.BounceCount).IsEqualTo(2);
             await Assert.That(row.AirTimeTicks).IsEqualTo(90).Because("at rest from tick 190, before the fuse at 204");
-            await Assert.That(row.Trajectory.Select(p => p.Tick)).IsEquivalentTo([100, 190]);
+            await Assert.That(row.Trajectory.Select(p => p.Tick)).IsEquivalentTo([100, 190], CollectionOrdering.Matching);
             await Assert.That(GrenadeConsole.Format(row)).IsEqualTo("setpos 0.00 0.00 0.00; setang -12.50 90.00 0.00");
         }
     }
@@ -492,7 +493,7 @@ public class GrenadeWalkerTests
 
         using (Assert.Multiple())
         {
-            await Assert.That(rows.Select(r => r.Id)).IsEquivalentTo(["g120-7", "g140-2"]);
+            await Assert.That(rows.Select(r => r.Id)).IsEquivalentTo(["g120-7", "g140-2"], CollectionOrdering.Matching);
             await Assert.That(all[0]).IsEqualTo(He()).Because("a resolved row keeps its own fields");
             await Assert.That(rows[1].EndKind).IsEqualTo(GrenadeEndKind.DemoEnded);
             await Assert.That(rows[1].EndTick).IsEqualTo(1000);

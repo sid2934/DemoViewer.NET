@@ -4,6 +4,7 @@ using DemoViewer.NET.Playback2D.Core.Zones;
 using DemoViewer.NET.Playback2D.Pipeline.Assets;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.TestSupport;
+using TUnit.Assertions.Enums;
 using TUnit.Core.Exceptions;
 
 #endregion
@@ -112,7 +113,7 @@ public class CalloutResolverTests
             throw new SkipTestException("repo root not found from the test output directory");
         }
 
-        await Assert.That(CanonicalPlaces.Maps).IsEquivalentTo(ShippedMaps);
+        await Assert.That(CanonicalPlaces.Maps).IsEquivalentTo(ShippedMaps, CollectionOrdering.Matching);
         await Assert.That(CanonicalPlaces.Embedded("de_mirage").Count).IsEqualTo(23).Because("the 23 pawn places measured on de_mirage");
         await Assert.That(CanonicalPlaces.Embedded("de_nuke").Count).IsEqualTo(29).Because("the 29 pawn places measured on de_nuke");
         await Assert.That(CanonicalPlaces.Embedded("de_nowhere").Count).IsEqualTo(0);
@@ -121,7 +122,7 @@ public class CalloutResolverTests
         {
             ZoneSet baked = ZoneAssetPipeline.TryReadBaked(Path.Combine(repo, "assets", map))!;
             await Assert.That(CanonicalPlaces.Embedded(map))
-                .IsEquivalentTo(baked.Places.Select(p => p.Name).Distinct().Order(StringComparer.Ordinal))
+                .IsEquivalentTo(baked.Places.Select(p => p.Name).Distinct().Order(StringComparer.Ordinal), CollectionOrdering.Matching)
                 .Because($"the embedded list for {map} is generated from its baked env_cs_place names and must not drift");
         }
     }

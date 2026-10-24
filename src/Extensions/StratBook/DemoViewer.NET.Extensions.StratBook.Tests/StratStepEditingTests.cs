@@ -7,6 +7,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.UtilityBook;
 using DemoViewer.NET.Extensions.StratBook.Playback2D.Keyframes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.StratBook;
+using TUnit.Assertions.Enums;
 
 #endregion
 
@@ -107,7 +108,7 @@ public class StratStepEditingTests
                 await Assert.That(vm.Session.UndoDepth).IsEqualTo(depth + 1);
                 await Assert.That(added.AtSeconds).IsEqualTo(95);
                 await Assert.That(added.Strokes).IsEmpty();
-                await Assert.That(added.Positions.Select(p => $"{p.Slot}={p.X}")).IsEquivalentTo(["A=1", "B=2", "C=3", "O1=9"])
+                await Assert.That(added.Positions.Select(p => $"{p.Slot}={p.X}")).IsEquivalentTo(["A=1", "B=2", "C=3", "O1=9"], CollectionOrdering.Matching)
                     .Because("without a catalog B's lineup does not resolve, so the projection keeps B where it was authored");
             }
 

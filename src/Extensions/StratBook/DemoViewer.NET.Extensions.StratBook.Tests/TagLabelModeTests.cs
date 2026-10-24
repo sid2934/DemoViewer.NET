@@ -10,6 +10,7 @@ using DemoViewer.NET.Extensions.StratBook.Modules.RoundTagger.Timeline;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
 using DemoViewer.NET.Extensions.StratBook;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -99,7 +100,7 @@ public class TagLabelModeTests
             {
                 await Assert.That(palette.IsLabelMode).IsTrue();
                 await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
-                await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(OutcomeValues);
+                await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(OutcomeValues, CollectionOrdering.Matching);
                 await Assert.That(palette.LabelTargetText).StartsWith("A execute");
                 await Assert.That(Hit(palette, Key.D1)).IsFalse().Because("the codes are not live in Label Mode");
             }
@@ -119,8 +120,8 @@ public class TagLabelModeTests
             using (Assert.Multiple())
             {
                 await Assert.That(tags.Count).IsEqualTo(2).Because("Label Mode never makes a tag");
-                await Assert.That(tags.Select(t => t.Id)).IsEquivalentTo(firstPassIds);
-                await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(WonAtA);
+                await Assert.That(tags.Select(t => t.Id)).IsEquivalentTo(firstPassIds, CollectionOrdering.Matching);
+                await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(WonAtA, CollectionOrdering.Matching);
                 await Assert.That(tags[1].Labels.Single().Value).IsEqualTo("lost");
                 await Assert.That(session.UndoDepth).IsEqualTo(depthAfterFirstPass + 3).Because("one undo entry per label");
             }
@@ -133,12 +134,12 @@ public class TagLabelModeTests
             using (Assert.Multiple())
             {
                 await Assert.That(tags.Count).IsEqualTo(2).Because("undoing a label never takes the tag with it");
-                await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(Unlabelled);
+                await Assert.That(LabelsOf(tags[0])).IsEquivalentTo(Unlabelled, CollectionOrdering.Matching);
                 await Assert.That(session.UndoDepth).IsEqualTo(depthAfterFirstPass);
             }
 
             session.Redo();
-            await Assert.That(LabelsOf(session.Document!.Instances[0])).IsEquivalentTo(Won);
+            await Assert.That(LabelsOf(session.Document!.Instances[0])).IsEquivalentTo(Won, CollectionOrdering.Matching);
         });
     }
 
@@ -213,8 +214,8 @@ public class TagLabelModeTests
                 await Assert.That(palette.PanelTitle).IsEqualTo("codes");
                 await Assert.That(session.Document!.Instances.Count).IsEqualTo(2);
                 await Assert.That(session.Document.Instances[0].Id).IsEqualTo(execute.Id);
-                await Assert.That(LabelsOf(session.Document.Instances[0])).IsEquivalentTo(Lost);
-                await Assert.That(LabelsOf(session.Document.Instances[1])).IsEquivalentTo(SiteB);
+                await Assert.That(LabelsOf(session.Document.Instances[0])).IsEquivalentTo(Lost, CollectionOrdering.Matching);
+                await Assert.That(LabelsOf(session.Document.Instances[1])).IsEquivalentTo(SiteB, CollectionOrdering.Matching);
             }
         });
     }
@@ -234,7 +235,7 @@ public class TagLabelModeTests
 
             await Assert.That(palette.PanelTitle).IsEqualTo("outcome");
             await Assert.That(Hit(palette, Key.G, KeyModifiers.Control)).IsTrue();
-            await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(SiteValues);
+            await Assert.That(palette.Buttons.Select(b => b.Caption)).IsEquivalentTo(SiteValues, CollectionOrdering.Matching);
             Hit(palette, Key.G, KeyModifiers.Control);
             await Assert.That(palette.PanelTitle).IsEqualTo("outcome").Because("the walk wraps");
             await Assert.That(palette.HintText).Contains("Ctrl+L back to tagging");
@@ -285,9 +286,9 @@ public class TagLabelModeTests
 
             using (Assert.Multiple())
             {
-                await Assert.That(track.InstancesInRun(data, 50)).IsEquivalentTo(new[] { early.Id, late.Id });
+                await Assert.That(track.InstancesInRun(data, 50)).IsEquivalentTo(new[] { early.Id, late.Id }, CollectionOrdering.Matching);
                 await Assert.That(track.InstancesInRun(data, 50)[0]).IsEqualTo(early.Id);
-                await Assert.That(track.InstancesInRun(data, 450)).IsEquivalentTo(new[] { apart.Id });
+                await Assert.That(track.InstancesInRun(data, 450)).IsEquivalentTo(new[] { apart.Id }, CollectionOrdering.Matching);
                 await Assert.That(track.InstancesInRun(data, 150)).IsEmpty().Because("no band starts inside a run");
             }
         });
@@ -373,8 +374,8 @@ public class TagLabelModeTests
             using (Assert.Multiple())
             {
                 await Assert.That(written.Count).IsEqualTo(2);
-                await Assert.That(LabelsOf(written[0])).IsEquivalentTo(Won);
-                await Assert.That(LabelsOf(written[1])).IsEquivalentTo(SiteB);
+                await Assert.That(LabelsOf(written[0])).IsEquivalentTo(Won, CollectionOrdering.Matching);
+                await Assert.That(LabelsOf(written[1])).IsEquivalentTo(SiteB, CollectionOrdering.Matching);
             }
 
             await Assert.That(Press(Key.Z, KeyModifiers.Control)).IsTrue();

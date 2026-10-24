@@ -2,6 +2,7 @@
 
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Extensions.StratBook.Services.Tags;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.TagTestData;
 
 #endregion
@@ -62,7 +63,7 @@ public class TagSessionTests
 
         await Assert.That(session.Redo()).IsTrue();
         await Assert.That(session.Document!.Instances.Single().Labels.Select(l => l.Value))
-            .IsEquivalentTo(WonAtA);
+            .IsEquivalentTo(WonAtA, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -141,7 +142,7 @@ public class TagSessionTests
 
         using TagSession session = await Attached(store);
 
-        await Assert.That(session.Document!.Instances.Select(i => i.Round)).IsEquivalentTo(RoundsThreeAndOne);
+        await Assert.That(session.Document!.Instances.Select(i => i.Round)).IsEquivalentTo(RoundsThreeAndOne, CollectionOrdering.Matching);
         await Assert.That(session.UndoDepth).IsEqualTo(0);
     }
 
@@ -231,7 +232,7 @@ public class TagSessionTests
             session.Apply(new TagDelta.Add(Instance("A execute", 1, 2)));
             session.Detach();
 
-            await Assert.That(new TagStore(root).Index.Single().Codes).IsEquivalentTo(OneCode);
+            await Assert.That(new TagStore(root).Index.Single().Codes).IsEquivalentTo(OneCode, CollectionOrdering.Matching);
             await Assert.That(File.Exists(Path.Combine(root, "index.json"))).IsTrue();
 
             // Released: another session can take the document now.

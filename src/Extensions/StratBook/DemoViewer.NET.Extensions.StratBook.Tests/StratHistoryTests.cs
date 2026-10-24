@@ -2,6 +2,7 @@
 
 using System.Text.Json.Nodes;
 using DemoViewer.NET.Extensions.StratBook.Services.Strats;
+using TUnit.Assertions.Enums;
 using static DemoViewer.NET.AppTests.StratTestData;
 
 #endregion
@@ -47,7 +48,7 @@ public class StratHistoryTests
         buffer.Record(Replace("/steps/1/atSeconds", 80, 78), Created);
 
         await Assert.That(buffer.Drain().Select(o => o.Path))
-            .IsEquivalentTo(UnmergedPaths);
+            .IsEquivalentTo(UnmergedPaths, CollectionOrdering.Matching);
     }
 
     [Test]
@@ -120,7 +121,7 @@ public class StratHistoryTests
         {
             await Assert.That(edited.Steps.Count).IsEqualTo(1);
             await Assert.That(edited.Steps[0].To!.Place).IsEqualTo("Stairs");
-            await Assert.That(edited.Tags).IsEquivalentTo(EditedTags);
+            await Assert.That(edited.Tags).IsEquivalentTo(EditedTags, CollectionOrdering.Matching);
             await Assert.That(edited.Extra!.ContainsKey("extra/field")).IsTrue().Because("~1 unescapes to /");
             await Assert.That(document.Steps.Count).IsEqualTo(2);
             await Assert.That(StratHistory.Escape("a/b~c")).IsEqualTo("a~1b~0c");
@@ -152,7 +153,7 @@ public class StratHistoryTests
         HistoryEntry inverse = entry.Inverse();
         using (Assert.Multiple())
         {
-            await Assert.That(inverse.Ops.Select(o => o.Op)).IsEquivalentTo(InverseKinds);
+            await Assert.That(inverse.Ops.Select(o => o.Op)).IsEquivalentTo(InverseKinds, CollectionOrdering.Matching);
             await Assert.That(inverse.Ops[0].Value!.GetValue<string>()).IsEqualTo("n");
             await Assert.That(inverse.Ops[1].From!.GetValue<string>()).IsEqualTo("x");
             await Assert.That(inverse.Ops[2].From!.GetValue<double>()).IsEqualTo(88);
