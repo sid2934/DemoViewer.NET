@@ -10,7 +10,7 @@ using DemoViewer.NET.Playback2D.Core;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A4 grenade area effects: active smoke clouds (<c>CSmokeGrenadeProjectile</c>, once
+///     Grenade area effects: active smoke clouds (<c>CSmokeGrenadeProjectile</c>, once
 ///     <c>m_nSmokeEffectTickBegin &gt; 0</c>) become one big smoke disc at <c>m_vSmokeDetonationPos</c>, and
 ///     each BURNING inferno cell (<c>CInferno.m_firePositions[i]</c> where <c>m_bFireIsBurning[i]</c>) becomes
 ///     a small fire disc. A still-flying smoke projectile and non-burning cells are excluded. Field

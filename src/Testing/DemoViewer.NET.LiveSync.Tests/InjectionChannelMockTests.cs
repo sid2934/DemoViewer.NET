@@ -147,7 +147,7 @@ public class InjectionChannelMockTests
                 }
 
                 // 4. In-game demo change: user origin + the NEW path; maps to the Open-in-DV
-                //    offer (D7 — never a silent auto-load).
+                //    offer (never a silent auto-load).
                 await injector.InjectAsync(MockUserActions.PlayDemo(otherDemoPath), cancellationToken);
                 DemoState changed = await NextMatchingAsync(states.Reader,
                     s => s.Origin == DemoStateOrigin.User

@@ -16,7 +16,7 @@ using TUnit.Core.Exceptions;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Gates the A4 grenade flight-trail overlay end-to-end on a REAL demo: stepping the real
+///     Gates the grenade flight-trail overlay end-to-end on a REAL demo: stepping the real
 ///     <see cref="EntityTracker" /> through the frames LEADING UP TO a real <c>smokegrenade_detonate</c>
 ///     (when the smoke projectile is in flight), the VM must accumulate a multi-point <c>GrenadeKind.Smoke</c>
 ///     trail at sane in-world coordinates, proving the projectile classes resolve through the live entity

@@ -35,7 +35,7 @@ public class Playback2DLevelStabilityTests
     ///     <b>The drift case, on real data.</b> Replays Nuke with the histogram alone, no baked bundle,
     ///     so the band boundaries move for the whole demo as more player Z accumulates. Every identity
     ///     must survive that: an id whose band no longer overlaps the one it was minted on has silently
-    ///     become a different floor, taking its camera and (from B2) its annotations with it.
+    ///     become a different floor, taking its camera and its annotations with it.
     ///     <para>
     ///         The assertion that the bands actually <i>did</i> move is part of the test: without it this
     ///         would pass vacuously on a demo whose histogram happened to settle immediately.
@@ -350,7 +350,7 @@ public class Playback2DLevelStabilityTests
         return tracks;
     }
 
-    /// <summary>A single-floor map must produce no level chrome at all (plan D9).</summary>
+    /// <summary>A single-floor map must produce no level chrome at all.</summary>
     [Test]
     public async Task Dust2_StaysSingleLevel_StripHidden()
     {

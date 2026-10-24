@@ -10,7 +10,7 @@ using TUnit.Assertions.Enums;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A4 grenade flight trails: each in-flight grenade projectile (the five <c>C*Projectile</c> classes)
+///     Grenade flight trails: each in-flight grenade projectile (the five <c>C*Projectile</c> classes)
 ///     accumulates a Serial-keyed trail of its reconstructed flight path, coloured by grenade kind. The trail
 ///     fades + prunes after the projectile detonates and, the one real correctness guard, is cleared
 ///     wholesale on a discontinuous frame jump so a polyline never streaks from a pre-seek point to a

@@ -8,7 +8,7 @@ using DemoViewer.NET.Modules.Playback2D;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     Phase E (module forward-nav, A3): the 2D tab offers "jump to next/prev kill" and routes it through
+///     Module forward-nav: the 2D tab offers "jump to next/prev kill" and routes it through
 ///     <see cref="IModuleContext.RequestNextEvent" /> / <c>RequestPrevEvent</c> with the player_death filter,
 ///     so the seek lands on the shell's shared clock. The buttons are gated on the demo actually carrying
 ///     player_death (<c>HasKillEvents</c> ← <c>AvailableEventNames</c>) so a demo without kills shows nothing

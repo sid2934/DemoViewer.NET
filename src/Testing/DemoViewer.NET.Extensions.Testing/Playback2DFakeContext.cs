@@ -8,7 +8,7 @@ using DemoViewer.NET.Modules.Abstractions;
 namespace DemoViewer.NET.Extensions.Testing;
 
 /// <summary>
-///     A recording <see cref="IModuleContext" /> for the A1 dispatch / follow / adapter tests. Every
+///     A recording <see cref="IModuleContext" /> for the dispatch / follow / adapter tests. Every
 ///     <c>Request*</c> is logged rather than acted on, which is what lets a test assert "the key routed
 ///     through the shared clock" instead of "the VM changed some field of its own".
 /// </summary>

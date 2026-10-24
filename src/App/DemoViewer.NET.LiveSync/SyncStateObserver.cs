@@ -199,7 +199,7 @@ internal sealed class SyncStateObserver : IDisposable
         }
 
         int frame = _shell.Playback.CurrentFrameIndex;
-        // No frame selected = the demo start, via the mapper, so the D2 TickOffset applies
+        // No frame selected = the demo start, via the mapper, so the TickOffset applies
         // exactly once here like at every other emission site (a literal 0 would skip it).
         return frame >= 0 ? Mapper.Cs2DemoTick(frame) : Mapper.Cs2TickFromDvTick(0);
     }

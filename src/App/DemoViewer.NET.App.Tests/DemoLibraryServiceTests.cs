@@ -965,11 +965,11 @@ public class DemoLibraryServiceTests
         await Assert.That(events.Count).IsEqualTo(1);
     }
 
-    // ── P1.1 chunk C: settings-backed folder path ─────────────────────────────────────────────────
+    // ── Settings-backed folder path ─────────────────────────────────────────────────
 
     /// <summary>
     ///     When constructed WITH a settings service, the configured folder list is the one in
-    ///     <c>AppSettings.Library.Folders</c>, not library.json, so the two P1.1 consumers stay in sync.
+    ///     <c>AppSettings.Library.Folders</c>, not library.json, so the two consumers stay in sync.
     /// </summary>
     [Test]
     public async Task SettingsBacked_ReadsFoldersFromAppSettings()

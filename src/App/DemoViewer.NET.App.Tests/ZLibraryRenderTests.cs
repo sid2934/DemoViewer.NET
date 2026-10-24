@@ -127,7 +127,7 @@ public class ZLibraryRenderTests
     }
 
     /// <summary>
-    ///     Headless render smoke for the P3.2b landing hero: with NO folders configured, the empty state is
+    ///     Headless render smoke for the landing hero: with NO folders configured, the empty state is
     ///     a proper hero: app title + primary "Open Demo…" + a recents list (one dimmed missing row) + the
     ///     drop hint. Asserts the hero produces visible ink and that the recents projected (incl. the
     ///     grey-out Exists flag), catching XAML/binding faults the compile can't (the recents template, the

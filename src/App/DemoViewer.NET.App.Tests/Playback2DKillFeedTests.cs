@@ -11,7 +11,7 @@ using DemoViewer.NET.Playback2D.Pipeline.Hud;
 namespace DemoViewer.NET.AppTests;
 
 /// <summary>
-///     A4 kill feed (redesigned): the feed is PRE-BUILT once from the demo's player_death timeline
+///     Kill feed (redesigned): the feed is PRE-BUILT once from the demo's player_death timeline
 ///     (<see cref="IModuleContext.GetEventTimeline" />) and the visible rows are a TICK-WINDOW filter over it
 ///     each push: decoupling display from the push cadence (no kill lost to a render-skipped frame) and
 ///     making seeking correct. Verifies the window (inclusive upper bound: kills ahead of the playhead are
