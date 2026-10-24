@@ -59,10 +59,11 @@
         <WarningsAsErrors>$(WarningsAsErrors);NU1608;NU1605</WarningsAsErrors>
 
         <!--
-            Nothing in this repo is published to NuGet unless it opts in. Only the five
+            Nothing in this repo is published to NuGet unless it opts in. Only the four
             SDK library projects set IsPackable=true (see Directory.Build.targets for the
             metadata they then inherit); the app, tools, tests and sample heads stay unpackable so
-            a solution-wide `dotnet pack` can never produce a surprise artifact.
+            a solution-wide `dotnet pack` can never produce a surprise artifact. GameIcons is
+            deliberately among the unpackable: it carries Valve artwork.
 
             IsPackable is read only by the pack targets, so this affects build/publish in no way.
         -->

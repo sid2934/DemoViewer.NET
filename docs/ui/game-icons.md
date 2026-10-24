@@ -136,8 +136,13 @@ Stat column headers are also deliberately left as words — a column header is r
 
 Icons are **embedded** in `DemoViewer.NET.GameIcons.dll`, not copied beside the executable. The
 Browser head has no filesystem to probe, and per-map bundles (radar, collision) are the only assets
-that ship loose. `publish.sh` copies `assets/` then deletes `assets/icons` again for that reason —
+that ship loose. `publish.sh` copies `assets/` then deletes `assets/icons` again for that reason:
 otherwise the same ~1.9 MB would ride in every release and every Velopack delta for nothing.
+
+The assembly is **not** on NuGet. The artwork is Valve's, so it ships with the application and nothing
+else, and the extension SDK's `GameIcon` control reaches it through a backend the app installs
+(`HostGameIcons`) rather than a package dependency. That is what lets THIRD-PARTY-NOTICES.md §b2 say the
+published packages carry none of it.
 
 ## Premier tiers are generated, not curated
 

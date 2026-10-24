@@ -30,7 +30,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\DemoViewer.NET.Extensions.Sdk\DemoViewer.NET.Extensions.Sdk.csproj"/>
-        <ProjectReference Include="..\..\GameIcons\DemoViewer.NET.GameIcons\DemoViewer.NET.GameIcons.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -39,7 +38,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- The app installs the renderer a MapView draws through. -->
+        <!-- The app installs the renderer a MapView draws through and the catalogue a GameIcon draws from. -->
         <InternalsVisibleTo Include="DemoViewer.NET"/>
         <InternalsVisibleTo Include="DemoViewer.NET.App.Tests"/>
         <InternalsVisibleTo Include="DemoViewer.NET.UiCapture"/>

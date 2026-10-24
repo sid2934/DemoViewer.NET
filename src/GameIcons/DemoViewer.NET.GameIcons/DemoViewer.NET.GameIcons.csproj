@@ -14,17 +14,23 @@
       and needed by every target including Browser, so they ride inside the assembly.
     -->
     <PropertyGroup>
-        <!-- Published with the extension SDK, whose UI kit's GameIcon control depends on it, at the SDK's
-             version: the SDK's version.json path filters include this project and the icon bake. Its public
-             API is pinned the same way. -->
+        <!--
+          NOT PUBLISHED, and that is the whole reason this property is here rather than inherited: the
+          artwork is Valve's, so it travels inside the application and no NuGet package redistributes it
+          (THIRD-PARTY-NOTICES.md §b2). The UI kit's GameIcon control reaches it through a backend the app
+          installs, which is what lets the SDK ship without it.
+
+          The version is still the extension SDK's, computed from that project's version.json: the app
+          loads this assembly beside the SDK's and ExtensionSdkArchitectureTests pins the two together.
+        -->
         <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)../../Sdk/DemoViewer.NET.Extensions.Sdk</GitVersionBaseDirectory>
-        <IsPackable>true</IsPackable>
-        <PackageId>DemoViewer.NET.GameIcons</PackageId>
-        <Description>The baked CS2 icon catalogue DemoViewer.NET draws from: weapons, kill modifiers, ranks, Premier emblems and map icons, as embedded PNGs with their manifest.</Description>
-        <PackageTags>demoviewer;cs2;counter-strike;icons</PackageTags>
+        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- The surface is still tracked, because the app and the Playback2D pipeline build against it.
+             Nothing ships it, so scripts/ship-public-api.sh (which reads the packable projects) leaves
+             these lists alone. -->
         <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all"/>
         <AdditionalFiles Include="PublicAPI.Shipped.txt"/>
         <AdditionalFiles Include="PublicAPI.Unshipped.txt"/>

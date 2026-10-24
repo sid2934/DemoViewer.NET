@@ -10,8 +10,6 @@
     "/src/Sdk/DemoViewer.NET.Extensions.Sdk",
     "/src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui",
     "/src/App/DemoViewer.NET.Modules.Abstractions",
-    "/src/GameIcons/DemoViewer.NET.GameIcons",
-    "/assets/icons",
     "/src/App/DemoViewer.NET/Styles"
   ],
   "publicReleaseRefSpec": [

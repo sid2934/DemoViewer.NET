@@ -34,7 +34,7 @@ Namespace `DemoViewer.NET.Extensions.Sdk.Ui.Controls`, in XAML
 | `StatusChip`, `StatusChipViewModel` | A dot and a label that opens a flyout. Set `DotState` (`Off`, `Working`, `Good`, `Degraded`, `Error`), `IsPulsing`, `IsHollow`, `Label`, `Tooltip` and `FlyoutContent`; the colour follows the theme. |
 | `KeyValueTable`, `KvpRow` | A two-column key/value list; delta rows show the previous value struck through. |
 | `MarkdownBlock` | Headings, paragraphs, lists, bold and inline code from a Markdown string. |
-| `GameIcon` | A CS2 icon by key (`equipment/ak47`, `modifier/headshot`), sized by `IconHeight` and tinted by `Foreground`. |
+| `GameIcon` | A CS2 icon by key (`equipment/ak47`, `modifier/headshot`), sized by `IconHeight` and tinted by `Foreground`. The artwork is the game's own and ships inside the app, not in this package, so a key draws the control's `Fallback` text anywhere but in the app. |
 | `GifView` | An animated GIF from a file path. |
 | `ParseLinkChip`, `OpenExternal` | A monospace link that opens a file in the user's editor or a URL in the browser. |
 | `MapView` | A CS2 map with pan and zoom, your layers and your pointer tool. See below. |
