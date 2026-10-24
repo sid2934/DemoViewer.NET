@@ -78,10 +78,9 @@ case "$TIER" in
 esac
 
 # ── The benchmark half ──────────────────────────────────────────────────────────────────────────────
-# `skip` and `only` are complementary, and they have to be applied PER PROJECT. Hand one half to a
-# project and not its sibling and the sibling's Budget cases run in no job at all: that is how
-# BenchAllocationTests stayed red and invisible for four phases. Written once here, so a CI lane
-# selects a half by name rather than by composing a filter of its own.
+# `skip` and `only` are complementary and have to be applied PER PROJECT: hand one half to a project
+# and not its sibling and the sibling's Budget cases run in no job at all. Here rather than at the
+# call sites so a CI lane names a half instead of composing a filter.
 case "$BUDGET" in
   tier) ;;
   skip)
@@ -204,9 +203,9 @@ for entry in "${SELECTED[@]}"; do
   # Exit 8 is "the filter matched no tests". For a tier run that is a defect in the tier, not a pass:
   # it means every test in the suite carries a tag this tier drops, which is never intended.
   #
-  # Under `-b only` it is the normal case instead: most projects hold no benchmarks, and the lane
-  # still has to select every project so that a Budget test cannot land in one nothing selects. The
-  # whole-run floor below is what catches a budget filter that matches nothing anywhere.
+  # Under `-b only` it is expected, because most projects hold no benchmarks and the selection still
+  # has to reach every one of them. The whole-run floor below is what still catches a budget filter
+  # that selects nothing anywhere.
   STATUS=ok
   if [ $EXIT -eq 8 ] && [ "$BUDGET" = only ]; then STATUS="no-budget-tests";
   elif [ $EXIT -eq 8 ]; then STATUS="NO-TESTS-MATCHED"; BROKEN=$(( BROKEN + 1 ));
@@ -224,8 +223,8 @@ done
 # See scripts/check-realdemo-lane.sh. It self-disarms unless a corpus or source is configured, and it
 # lives in its own script because CI's App lane reaches the suite through test-app-suite.sh, never
 # through here.
-# Not under `-b only`: that run selects three benchmarks out of the App suite, and the guard is about
-# whether the suite's demo-reading cases resolve their demos.
+# Not under `-b only`: the guard is about the App suite's demo-reading cases, and that selection
+# contains none of them.
 if [ "$TIER" = "full" ] && [ "$LIST_ONLY" -eq 0 ] && [ "$BUDGET" != only ]; then
   for entry in "${SELECTED[@]}"; do
     if [ "${entry%%|*}" = "app" ]; then
@@ -241,8 +240,8 @@ if [ "$LIST_ONLY" -eq 1 ]; then
 fi
 echo "[test] tier=$TIER  total=$TOTAL  failed=$FAILED  skipped=$SKIPPED  wall=$(( $(date +%s) - SUITE_START ))s"
 
-# A budget-only run where every project reported nothing is a filter that parses and selects nothing,
-# which the per-project exit-8 tolerance above would otherwise swallow into a green run.
+# A budget-only run where every project reported nothing is a filter that parses and selects nothing.
+# The per-project exit-8 tolerance above would otherwise swallow that into a green run.
 if [ "$BUDGET" = only ] && [ "$TOTAL" -eq 0 ]; then
   echo "[test] no benchmark ran in any selected project: the Budget selection matched nothing" >&2
   BROKEN=$(( BROKEN + 1 ))

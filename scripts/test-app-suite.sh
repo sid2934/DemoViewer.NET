@@ -40,14 +40,12 @@ case "$TIER" in
   *) echo "unknown tier '$TIER' (expected fast, standard or full)" >&2; exit 2 ;;
 esac
 
-# `-b skip` composes [Category(Budget)] out of the tier, so this suite's three benchmarks leave the
-# correctness lane. Here rather than at each call site, and before everything below, because the
-# preamble, the two discovery listings and the batches all have to select the same set or the
-# partition audit compares unlike counts.
+# `-b skip` composes [Category(Budget)] out of the tier, so this suite's benchmarks leave the
+# correctness lane. BEFORE everything below: the preamble, both discovery listings and the batches
+# have to select the same set or the partition audit compares unlike counts.
 #
-# No `only` half: a budget-only selection is three tests, which trips the discovery floor below, and
-# a batch runner exists for memory this suite does not use at that size. `scripts/test.sh -t full
-# -b only -p app` is that run.
+# No `only` half. That selection is a handful of tests, too few for the discovery floor below and far
+# too few to need batching; `scripts/test.sh -t full -b only -p app` is that run.
 case "$BUDGET" in
   tier) ;;
   skip)

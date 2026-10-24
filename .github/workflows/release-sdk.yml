@@ -1,6 +1,4 @@
-# The extension SDK's release: every project scripts/sdk-packages.sh names, which today is
-# DemoViewer.NET.Modules.Abstractions, DemoViewer.NET.GameIcons, DemoViewer.NET.Extensions.Sdk,
-# DemoViewer.NET.Extensions.Sdk.Ui and DemoViewer.NET.Playback2D.Scene. Packed at the version
+# The extension SDK's release: every project scripts/sdk-packages.sh names, packed at the version
 # Nerdbank.GitVersioning computes from src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json and pushed
 # to nuget.org.
 #

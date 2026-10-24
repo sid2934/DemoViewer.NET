@@ -3,17 +3,14 @@
 # Every lane here runs the `full` tier. The tiers are exclusion filters over [Category] built for
 # IN-FLIGHT development; CI is not in-flight.
 #
-# The one split that is load-bearing: the correctness lanes drop `Category=Budget` and the budget lane
-# selects it back. Complementary, so their union is the whole suite, but only PER PROJECT. Apply the
-# pair to one project and not its sibling and the sibling's Budget cases run in no job at all. That is
-# how `BenchAllocationTests` stayed red and invisible for four phases, and it is why the claim this
-# header used to make ("every Budget test lands in playback2d-budget") was false for the three in
-# App.Tests and the seven in StratBook.Tests, which ran in their correctness lanes instead.
+# The one split that is load-bearing: the correctness lanes drop `Category=Budget` and
+# `playback2d-budget` selects it back. Complementary, but only PER PROJECT: hand one half to a project
+# and not its sibling and the sibling's Budget cases run in no job at all. That is how
+# `BenchAllocationTests` stayed red and invisible for four phases.
 #
-# Both halves now come from `scripts/test.sh -b skip|only`, and the budget lane selects every project
-# rather than the two that happened to have benchmarks when it was written. So the split holds for a
-# project nobody has thought about yet: `-b skip` is on every correctness invocation below, and a
-# Budget test in any project is picked up by `playback2d-budget` by construction.
+# Both halves are `scripts/test.sh -b skip|only`, and the budget lane selects every project in that
+# script's registry, so a benchmark in a project nobody has thought about is still covered. The
+# exception is `render-backends`, which writes its filter inline; see there.
 name: ci
 
 on:
@@ -69,8 +66,8 @@ jobs:
         run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
 
       # The SDK packages: all pack, and each public API matches its PublicAPI files (the build fails
-      # otherwise). Which projects those are comes from scripts/sdk-packages.sh, which derives it from
-      # IsPackable, so this lane and release-sdk.yml cannot pack different sets.
+      # otherwise). The project list is scripts/sdk-packages.sh, shared with release-sdk.yml so the two
+      # cannot pack different sets.
       - name: SDK packaging dry run
         run: |
           set -euo pipefail
@@ -237,16 +234,13 @@ jobs:
   # failure here means "look at the machine or the change", not "the scene is wrong", and mixing the
   # two makes people ignore both.
   #
-  # EVERY project, not the two that had benchmarks when this lane was written. It is the half the
-  # correctness lanes drop, so its reach has to be the same as theirs or the difference runs nowhere.
-  # Projects with no benchmarks report `no-budget-tests` and cost a build; the one in App.Tests and
-  # the seven in StratBook.Tests used to run in the correctness lanes, unscaled and uncollected.
+  # EVERY project, because this is the half the correctness lanes drop and its reach has to match
+  # theirs or the difference runs in nothing. A project with no benchmarks reports `no-budget-tests`
+  # and costs only its build, which is why the timeout is 30 rather than app-tests' 20.
   #
-  # Keep the job id. The contract test and TestTiers.cs both name this lane as the one that selects
-  # Budget back.
+  # Keep the job id: TestTiers.cs and the contract test both name this lane.
   playback2d-budget:
     runs-on: ubuntu-latest
-    # 30 rather than 20: the lane now builds every test project, not two.
     timeout-minutes: 30
     env:
       # A hosted runner is not the baseline laptop. Gate at 2x so the lane catches real
@@ -268,10 +262,9 @@ jobs:
         with:
           native: skia
 
-      # One test at a time, for two reasons that happen to agree. A frame-time budget measured while
-      # three other tests share the runner's two cores is measuring the runner, and several classes in
-      # the extension suite build Avalonia controls off the UI thread outside RunOnUi, which fails
-      # nondeterministically in parallel (see the ext lane below).
+      # One test at a time. A frame time measured while three other tests share the runner's two cores
+      # is measuring the runner, and the extension classes this lane now reaches fail in parallel for
+      # the reason the ext lane below gives.
       - name: Frame-time + allocation budgets, every project
         env:
           DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
@@ -303,7 +296,7 @@ jobs:
         with:
           fetch-depth: 0          # Nerdbank.GitVersioning needs full history
 
-      # Avalonia.Headless + Avalonia.Skia here too, and Inter needs fontconfig to resolve.
+      # Renders through Avalonia.Headless + Avalonia.Skia, and Inter needs fontconfig to resolve.
       - uses: ./.github/actions/dotnet-sdk
         with:
           native: skia
@@ -419,10 +412,9 @@ jobs:
         run: >
           dotnet run -c Release --project tools/DemoViewer.NET.Playback2D.Cli -- probe --json
 
-      # The two steps below are the only test invocations in this file that still write a filter
-      # inline, and they stay that way: this job has a Windows leg, whose default shell is pwsh, and
-      # scripts/test.sh has never been run on Windows. `Category!=Budget` here is the same selection
-      # `-b skip` makes, since neither of these two projects has a KnownFailure case.
+      # The only filters still written inline in this file. This job has a Windows leg, whose default
+      # shell is pwsh, and scripts/test.sh has never run there. `Category!=Budget` is what `-b skip`
+      # selects for this project, which carries no KnownFailure case.
       - name: Render-backend tests (CPU contract + cross-backend parity)
         env:
           LIBGL_ALWAYS_SOFTWARE: '1'

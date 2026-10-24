@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Prints the project directory of every package this repository publishes, one per line.
 #
-# Derived from IsPackable rather than listed: Directory.Build.props defaults it to false and only the
-# SDK libraries turn it back on, so the property already IS the list. It used to be restated in
-# ci.yml, release-sdk.yml's pack step, release-sdk.yml's PublicAPI gate and ship-public-api.sh, which
-# meant four places to find when the family gained Playback2D.Scene.
+# Derived from IsPackable, not listed: Directory.Build.props defaults it to false and only the SDK
+# libraries turn it back on, so the property IS the list.
 #
-# Consumers must capture the output first (`dirs=$(bash scripts/sdk-packages.sh)`) and loop over the
+# Consumers must capture the output (`dirs=$(bash scripts/sdk-packages.sh)`) and loop over the
 # variable. `for d in $(...)` swallows a nonzero exit here and runs the body zero times, which turns
 # the release's Unshipped gate into a no-op.
 set -euo pipefail
@@ -18,9 +16,9 @@ if [ -z "$DIRS" ]; then
     exit 1
 fi
 
-# A derived list can reach a project that never acquired the analyzer's lists, and release-sdk.yml
-# gates the release on `grep -qv '^#nullable'` over Unshipped. grep on a missing file exits 2, which
-# the gate's `if` reads as "no entries", so the release would go out ungated.
+# release-sdk.yml gates on `grep -qv '^#nullable'` over Unshipped, and grep on a missing file exits
+# 2, which the gate's `if` reads as "no entries". A derived list can reach a project that has no such
+# file, so it has to be refused here or that release goes out ungated.
 for dir in $DIRS; do
     for list in PublicAPI.Shipped.txt PublicAPI.Unshipped.txt; do
         if [ ! -f "$dir/$list" ]; then
