@@ -1,7 +1,8 @@
-# The extension SDK's release: DemoViewer.NET.Modules.Abstractions, DemoViewer.NET.GameIcons,
-# DemoViewer.NET.Extensions.Sdk, DemoViewer.NET.Extensions.Sdk.Ui and DemoViewer.NET.Playback2D.Scene, packed
-# at the version Nerdbank.GitVersioning computes from src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json and
-# pushed to nuget.org.
+# The extension SDK's release: every project scripts/sdk-packages.sh names, which today is
+# DemoViewer.NET.Modules.Abstractions, DemoViewer.NET.GameIcons, DemoViewer.NET.Extensions.Sdk,
+# DemoViewer.NET.Extensions.Sdk.Ui and DemoViewer.NET.Playback2D.Scene. Packed at the version
+# Nerdbank.GitVersioning computes from src/Sdk/DemoViewer.NET.Extensions.Sdk/version.json and pushed
+# to nuget.org.
 #
 # Publishes only on a tag push matching sdk/v<version>, which must equal the computed version (create it with
 # `dotnet nbgv tag -p src/Sdk/DemoViewer.NET.Extensions.Sdk` on main, after scripts/ship-public-api.sh). A
@@ -94,7 +95,9 @@ jobs:
         if: steps.version.outputs.publish == '1'
         run: |
           set -euo pipefail
-          for list in src/App/DemoViewer.NET.Modules.Abstractions/PublicAPI.Unshipped.txt src/GameIcons/DemoViewer.NET.GameIcons/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk/PublicAPI.Unshipped.txt src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui/PublicAPI.Unshipped.txt src/Playback2D/DemoViewer.NET.Playback2D.Scene/PublicAPI.Unshipped.txt; do
+          dirs=$(bash scripts/sdk-packages.sh)
+          for dir in $dirs; do
+            list="$dir/PublicAPI.Unshipped.txt"
             if grep -qv '^#nullable' "$list"; then
               echo "error: $list still has entries; run scripts/ship-public-api.sh and tag that commit" >&2
               exit 1
@@ -103,11 +106,11 @@ jobs:
 
       - name: Pack
         run: |
-          dotnet pack src/App/DemoViewer.NET.Modules.Abstractions -c Release -o artifacts/sdk-packages
-          dotnet pack src/GameIcons/DemoViewer.NET.GameIcons -c Release -o artifacts/sdk-packages
-          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk -c Release -o artifacts/sdk-packages
-          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui -c Release -o artifacts/sdk-packages
-          dotnet pack src/Playback2D/DemoViewer.NET.Playback2D.Scene -c Release -o artifacts/sdk-packages
+          set -euo pipefail
+          dirs=$(bash scripts/sdk-packages.sh)
+          for dir in $dirs; do
+            dotnet pack "$dir" -c Release -o artifacts/sdk-packages
+          done
           ls -l artifacts/sdk-packages
 
       - uses: actions/upload-artifact@v4

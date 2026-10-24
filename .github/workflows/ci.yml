@@ -64,14 +64,16 @@ jobs:
       - name: Extension packaging dry run (Strat Book)
         run: bash scripts/pack-extension.sh net.demoviewer.pack.stratbook --dry-run
 
-      # The SDK packages: all pack, and each public API matches its PublicAPI files (the build fails otherwise).
+      # The SDK packages: all pack, and each public API matches its PublicAPI files (the build fails
+      # otherwise). Which projects those are comes from scripts/sdk-packages.sh, which derives it from
+      # IsPackable, so this lane and release-sdk.yml cannot pack different sets.
       - name: SDK packaging dry run
         run: |
-          dotnet pack src/App/DemoViewer.NET.Modules.Abstractions -c Release --no-build -o artifacts/sdk-packages
-          dotnet pack src/GameIcons/DemoViewer.NET.GameIcons -c Release --no-build -o artifacts/sdk-packages
-          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk -c Release --no-build -o artifacts/sdk-packages
-          dotnet pack src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui -c Release --no-build -o artifacts/sdk-packages
-          dotnet pack src/Playback2D/DemoViewer.NET.Playback2D.Scene -c Release --no-build -o artifacts/sdk-packages
+          set -euo pipefail
+          dirs=$(bash scripts/sdk-packages.sh)
+          for dir in $dirs; do
+            dotnet pack "$dir" -c Release --no-build -o artifacts/sdk-packages
+          done
           ls artifacts/sdk-packages
 
       # The sample against those packages, not the projects: a dependency or build asset the packages lack

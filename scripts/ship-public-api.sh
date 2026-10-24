@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # Moves every PublicAPI.Unshipped.txt entry of the SDK packages into PublicAPI.Shipped.txt, for the commit
 # an sdk/v* release tag points at. release-sdk.yml refuses to publish while either Unshipped list has entries.
+#
+# Which projects those are comes from scripts/sdk-packages.sh, the one place that answers it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-for dir in src/App/DemoViewer.NET.Modules.Abstractions src/GameIcons/DemoViewer.NET.GameIcons src/Sdk/DemoViewer.NET.Extensions.Sdk src/Sdk/DemoViewer.NET.Extensions.Sdk.Ui src/Playback2D/DemoViewer.NET.Playback2D.Scene; do
+DIRS=$(bash scripts/sdk-packages.sh)
+for dir in $DIRS; do
     shipped="$dir/PublicAPI.Shipped.txt"
     unshipped="$dir/PublicAPI.Unshipped.txt"
     {
