@@ -141,6 +141,13 @@ and 0.04 GiB of allocation, the one difference the sweep shows in the same direc
 Re-measure when an extension ships a table keyed per tick or per event, where the row count is no longer
 a few hundred.
 
+The Peak heap column above predates `bg-run` moving to the shared `MemorySampler`, which takes the larger
+of `GC.GetGCMemoryInfo().HeapSizeBytes` and `GC.GetTotalMemory(false)` where `bg-run`'s own sampler took
+only the second, and polls from the thread pool rather than a dedicated thread, so under the digest
+producer's fan-out its cadence can stretch. A fresh run tends to read higher per sample but can miss a
+spike the old sampler caught; re-baseline before comparing against those figures. Wall, job ratio and
+alloc are unaffected.
+
 ## Profiling the shipped app (no rebuild): `dotnet-trace` / `dotnet-counters`
 
 Because the runtime sources ship in the default binary, you can attach to a **running** Desktop app

@@ -15,6 +15,7 @@ using DemoViewer.NET.Modules.Library;
 using DemoViewer.NET.Services;
 using DemoViewer.NET.Services.DemoProcessing;
 using DemoViewer.NET.Services.DemoProcessing.Collectors;
+using DemoViewer.NET.TestSupport;
 
 #endregion
 
@@ -100,7 +101,9 @@ internal static class BackgroundRunCommand
             _ => new HashSet<string>(outputsArg.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries), StringComparer.Ordinal)
         };
 
-        PeakSampler sampler = new();
+        // The same sampler and interval as the single-demo bench and the single-walk probe, so peak
+        // figures compare across the three. Disposed after the end snapshot, not at method scope.
+        MemorySampler sampler = MemorySampler.Start();
         int gen0 = GC.CollectionCount(0), gen1 = GC.CollectionCount(1), gen2 = GC.CollectionCount(2);
         TimeSpan pause0 = GC.GetTotalPauseDuration();
         long alloc0 = GC.GetTotalAllocatedBytes();
@@ -144,7 +147,7 @@ internal static class BackgroundRunCommand
         }
 
         Snapshot end = Snapshot.Take();
-        sampler.Stop();
+        sampler.Dispose();
 
         Console.WriteLine("@BGRUN " + JsonSerializer.Serialize(new
         {
@@ -161,8 +164,8 @@ internal static class BackgroundRunCommand
             vision = _vision,
             demos = demos.Length,
             wallMs,
-            peakWsMb = sampler.PeakWs / Mb,
-            peakHeapMb = sampler.PeakHeap / Mb,
+            peakWsMb = sampler.PeakRssBytes / Mb,
+            peakHeapMb = sampler.PeakManagedHeapBytes / Mb,
             preCompact,
             end,
             gen0 = GC.CollectionCount(0) - gen0,
@@ -299,27 +302,5 @@ internal static class BackgroundRunCommand
                 gi.GenerationInfo[3].SizeAfterBytes / Mb, gi.GenerationInfo[3].FragmentationAfterBytes / Mb,
                 Environment.WorkingSet / Mb);
         }
-    }
-
-    private sealed class PeakSampler
-    {
-        private volatile bool _stop;
-        public long PeakHeap;
-        public long PeakWs;
-
-        public PeakSampler() => new Thread(() =>
-        {
-            while (!_stop)
-            {
-                PeakWs = Math.Max(PeakWs, Environment.WorkingSet);
-                PeakHeap = Math.Max(PeakHeap, GC.GetTotalMemory(false));
-                Thread.Sleep(20);
-            }
-        })
-        {
-            IsBackground = true
-        }.Start();
-
-        public void Stop() => _stop = true;
     }
 }
