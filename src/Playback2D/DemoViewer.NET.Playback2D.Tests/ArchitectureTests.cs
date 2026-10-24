@@ -27,15 +27,13 @@ public class ArchitectureTests
     ];
 
     // Published types that kept the namespace they had in Pipeline: the demo content key, the sidecar
-    // identity records and the zone loaders. Nothing else in a Pipeline namespace is published.
+    // identity records, the zone pipeline and its result. Nothing else in a Pipeline namespace is published.
     private static readonly string[] _keptPipelineNamespaceTypes =
     [
         "DemoViewer.NET.Playback2D.Pipeline.Annotations.ClockIdentity",
         "DemoViewer.NET.Playback2D.Pipeline.Annotations.DemoIdentity",
         "DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneAssetPipeline",
         "DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult",
-        "DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneOverlayReader",
-        "DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneSetReader",
         "DemoViewer.NET.Playback2D.Pipeline.DemoContentHash",
     ];
 

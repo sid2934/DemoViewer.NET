@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///     applier's diagnostic, not this reader's exception, so one bad entry never costs the rest of the
 ///     file. Unknown fields are ignored, as the format promises.
 /// </summary>
-public static class ZoneOverlayReader
+internal static class ZoneOverlayReader
 {
     private static readonly JsonSerializerOptions _options = new()
     {

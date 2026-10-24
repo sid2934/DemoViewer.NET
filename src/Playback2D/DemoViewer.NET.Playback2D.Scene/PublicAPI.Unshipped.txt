@@ -2147,8 +2147,6 @@ DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult.OverlayPath.init -> voi
 DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult.Resolver.get -> DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver?
 DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult.Resolver.init -> void
 DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult.ZoneLoadResult(DemoViewer.NET.Playback2D.Core.Zones.PlaceResolver? Resolver, DemoViewer.NET.Playback2D.Core.Zones.ZoneSet? Baked, string? OverlayPath, System.Collections.Generic.IReadOnlyList<DemoViewer.NET.Playback2D.Core.Zones.ZoneDiagnostic!>! Diagnostics) -> void
-DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneOverlayReader
-DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneSetReader
 DemoViewer.NET.Playback2D.Pipeline.DemoContentHash
 const DemoViewer.NET.Playback2D.Pipeline.Annotations.ClockIdentity.DvFrameClock = "dv-frame-clock" -> string!
 const DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneAssetPipeline.FileName = "zones.json" -> string!
@@ -2196,8 +2194,6 @@ static DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneAssetPipeline.TryLoad(strin
 static DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneAssetPipeline.TryReadBaked(string? bundleDir) -> DemoViewer.NET.Playback2D.Core.Zones.ZoneSet?
 static DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult.operator !=(DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult? left, DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult? right) -> bool
 static DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult.operator ==(DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult? left, DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneLoadResult? right) -> bool
-static DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneOverlayReader.Read(System.ReadOnlySpan<byte> json) -> DemoViewer.NET.Playback2D.Core.Zones.ZoneOverlayDocument!
-static DemoViewer.NET.Playback2D.Pipeline.Assets.ZoneSetReader.Read(System.ReadOnlySpan<byte> json) -> DemoViewer.NET.Playback2D.Core.Zones.ZoneSet!
 static DemoViewer.NET.Playback2D.Pipeline.DemoContentHash.Compute(System.ReadOnlySpan<byte> bytes) -> string!
 static DemoViewer.NET.Playback2D.Pipeline.DemoContentHash.Compute(string! path) -> string!
 static DemoViewer.NET.Playback2D.Pipeline.DemoContentHash.TryCompute(string! path) -> string?

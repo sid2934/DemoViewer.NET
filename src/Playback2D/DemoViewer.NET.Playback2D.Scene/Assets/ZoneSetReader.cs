@@ -20,7 +20,7 @@ namespace DemoViewer.NET.Playback2D.Pipeline.Assets;
 ///         newer baker's additive fields do not break an older reader.
 ///     </para>
 /// </summary>
-public static class ZoneSetReader
+internal static class ZoneSetReader
 {
     private static readonly JsonSerializerOptions _options = new()
     {

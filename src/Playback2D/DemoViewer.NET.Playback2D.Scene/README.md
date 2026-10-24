@@ -36,7 +36,7 @@ zone loaders, the sidecar identity records and the content key under `DemoViewer
 | `Playback2D.Core.Hud` | `IHudDataSource`, `HudSnapshot`, `IIconSource` |
 | `Playback2D.Core.Vision` | `IVisionSolver`, `VisionSolution` |
 | `Playback2D.Core.Zones` (overlays) | `ZoneOverlayDocument`, `ZoneOverlayApplier`: a user's zone edits over the baked set |
-| `Playback2D.Pipeline.Assets` | `ZoneAssetPipeline`, `ZoneSetReader`, `ZoneOverlayReader`: a map's places loaded from its bundle directory |
+| `Playback2D.Pipeline.Assets` | `ZoneAssetPipeline`, `ZoneLoadResult`: a map's places loaded from its bundle directory |
 | `Playback2D.Pipeline.Annotations` | `DemoIdentity`, `ClockIdentity`: which demo and which parse a sidecar was written against |
 | `Playback2D.Pipeline` | `DemoContentHash`, the demo content key every store joins on |
 | `Playback2D.Core` (more) | `MarkerSmoother`, `SceneGuides`, `TrailGeometry`, `SceneDefaults`; `Levels.MapSpaceFactory`; `Zones.NavPathfinder` |
