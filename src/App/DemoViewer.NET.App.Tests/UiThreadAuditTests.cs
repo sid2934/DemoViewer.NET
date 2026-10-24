@@ -692,7 +692,8 @@ public class UiThreadAuditTests
         File.Copy(Path.Combine(source, "cache", "team-index.json"), Path.Combine(teamsRoot, "cache", "team-index.json"));
         sw.Restart();
         DemoViewer.NET.Extensions.StratBook.Services.Teams.TeamIdentityService teams = new(
-            new DemoViewer.NET.Extensions.StratBook.Services.Teams.TeamIdentityFiles(Path.Combine(teamsRoot, "teams.json"),
+            new DemoViewer.NET.Extensions.StratBook.Services.Teams.TeamIdentityFiles(
+                DemoViewer.NET.Extensions.StratBook.StoredFile.At(Path.Combine(teamsRoot, "teams.json")),
                 DemoViewer.NET.Extensions.StratBook.StoredFile.At(Path.Combine(teamsRoot, "cache", "team-index.json"))),
             cache.Library());
         double teamsCtor = sw.Elapsed.TotalMilliseconds;

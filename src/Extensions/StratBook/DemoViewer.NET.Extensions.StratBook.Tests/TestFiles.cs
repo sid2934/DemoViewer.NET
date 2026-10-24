@@ -13,7 +13,7 @@ internal static class TestFiles
 {
     /// <summary><c>teams.json</c> in <paramref name="root" /> and the index under its <c>cache</c> folder; null for none.</summary>
     public static TeamIdentityFiles? Teams(string? root) => root is null ? null :
-        new(Path.Combine(root, TeamIdentityService.TeamsFileName),
+        new(StoredFile.At(Path.Combine(root, TeamIdentityService.TeamsFileName)),
             StoredFile.At(Path.Combine(root, "cache", TeamIdentityService.IndexFileName)));
 
     /// <summary>The detections and signatures under <paramref name="cacheRoot" />, the user's choices under <paramref name="configRoot" />.</summary>

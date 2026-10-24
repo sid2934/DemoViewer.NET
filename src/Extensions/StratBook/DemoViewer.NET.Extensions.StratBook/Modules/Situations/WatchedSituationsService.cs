@@ -52,17 +52,17 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     // Per watch, per demo stable key: the demo's index stamp and the hits that are new in it.
     private readonly Dictionary<Guid, Dictionary<string, NewGroup>> _new = new();
     private readonly Func<long> _now;
-    private readonly string? _path;
+    private readonly StoredFile? _file;
     private readonly Action<Action> _post;
     private readonly IDemoProvenanceSource? _provenance;
     private readonly TeamIdentityService? _teams;
 
     private bool _attached;
     private bool _disposed;
-    private WatchedSituationsFile _file = new();
+    private WatchedSituationsFile _doc = new();
     private bool _refused;
 
-    /// <param name="path">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
+    /// <param name="file">The <see cref="FileName" /> file, or null for a session-only store (the browser, tests).</param>
     /// <param name="index">The in-memory situation index the watches run against.</param>
     /// <param name="library">The index rows the filter's demo set and the stamps read.</param>
     /// <param name="teams">Team Identity, for the opponent and our-side fields; null leaves both inert.</param>
@@ -70,7 +70,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     /// <param name="post">Marshals <see cref="Changed" /> onto the UI thread; defaults to synchronous.</param>
     /// <param name="now">The clock a watermark is set from, UTC ticks; defaults to <see cref="DateTime.UtcNow" />. Tests pin it.</param>
     public WatchedSituationsService(
-        string? path,
+        StoredFile? file,
         ISituationIndex index,
         IExtensionLibrary library,
         TeamIdentityService? teams = null,
@@ -86,14 +86,14 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
         _provenance = provenance;
         _post = post ?? (action => action());
         _now = now ?? (() => DateTime.UtcNow.Ticks);
-        _path = path;
+        _file = file;
 
         Load();
         Attach();
     }
 
     /// <summary>True when nothing persists: the browser host, and tests without a file.</summary>
-    public bool IsSessionOnly => _path is null;
+    public bool IsSessionOnly => _file is null;
 
     /// <summary>
     ///     Why the file could not be read, or null. While set the file is never written: a user's saved
@@ -108,7 +108,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
         {
             lock (_gate)
             {
-                return [.. _file.Watches];
+                return [.. _doc.Watches];
             }
         }
     }
@@ -202,7 +202,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     {
         lock (_gate)
         {
-            _file = new WatchedSituationsFile();
+            _doc = new WatchedSituationsFile();
             _new.Clear();
             _refused = false;
             FileProblem = null;
@@ -303,7 +303,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
 
         lock (_gate)
         {
-            _file.Watches.Add(watch);
+            _doc.Watches.Add(watch);
             _new[watch.Id] = new Dictionary<string, NewGroup>(StringComparer.Ordinal);
             Save();
         }
@@ -319,7 +319,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
         bool removed;
         lock (_gate)
         {
-            removed = _file.Watches.RemoveAll(w => w.Id == id) > 0;
+            removed = _doc.Watches.RemoveAll(w => w.Id == id) > 0;
             _new.Remove(id);
             if (removed)
             {
@@ -343,7 +343,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
         bool changed = false;
         lock (_gate)
         {
-            if (_file.Watches.FirstOrDefault(w => w.Id == id) is { } watch)
+            if (_doc.Watches.FirstOrDefault(w => w.Id == id) is { } watch)
             {
                 changed = MarkSeenLocked(watch);
                 if (changed)
@@ -365,7 +365,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
         bool changed = false;
         lock (_gate)
         {
-            foreach (WatchedSituation watch in _file.Watches)
+            foreach (WatchedSituation watch in _doc.Watches)
             {
                 changed |= MarkSeenLocked(watch);
             }
@@ -495,7 +495,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
         bool changed = false;
         lock (_gate)
         {
-            foreach (WatchedSituation watch in _file.Watches)
+            foreach (WatchedSituation watch in _doc.Watches)
             {
                 if (!string.Equals(watch.Map, indexed.Map, StringComparison.OrdinalIgnoreCase))
                 {
@@ -528,7 +528,7 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
         bool changed = false;
         lock (_gate)
         {
-            foreach (WatchedSituation watch in _file.Watches)
+            foreach (WatchedSituation watch in _doc.Watches)
             {
                 Dictionary<string, NewGroup> groups = GroupsLocked(watch.Id);
                 Dictionary<string, NewGroup> next = new(StringComparer.Ordinal);
@@ -622,22 +622,27 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
 
     private void Load()
     {
-        if (_path is null || !File.Exists(_path))
+        if (_file is null)
         {
             return;
         }
 
         try
         {
-            WatchedSituationsFile? file = JsonSerializer.Deserialize<WatchedSituationsFile>(File.ReadAllText(_path), WatchedSituationsFile.JsonOptions);
+            if (_file.Read() is not { } bytes)
+            {
+                return;
+            }
+
+            WatchedSituationsFile? file = JsonSerializer.Deserialize<WatchedSituationsFile>(bytes, WatchedSituationsFile.JsonOptions);
             if (file is null || file.SchemaVersion > WatchedSituationsFile.CurrentSchema)
             {
                 Refuse($"{FileName} is at schema {file?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads");
                 return;
             }
 
-            _file = file;
-            foreach (WatchedSituation watch in _file.Watches)
+            _doc = file;
+            foreach (WatchedSituation watch in _doc.Watches)
             {
                 _new[watch.Id] = new Dictionary<string, NewGroup>(StringComparer.Ordinal);
             }
@@ -652,19 +657,19 @@ public sealed class WatchedSituationsService : IExtensionResident, IDisposable
     {
         _refused = true;
         FileProblem = problem;
-        _file = new WatchedSituationsFile();
+        _doc = new WatchedSituationsFile();
     }
 
     private void Save()
     {
-        if (_path is null || _refused)
+        if (_file is null || _refused)
         {
             return;
         }
 
         try
         {
-            AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(_file, WatchedSituationsFile.JsonOptions));
+            _file.Write(JsonSerializer.SerializeToUtf8Bytes(_doc, WatchedSituationsFile.JsonOptions));
         }
         catch (Exception)
         {

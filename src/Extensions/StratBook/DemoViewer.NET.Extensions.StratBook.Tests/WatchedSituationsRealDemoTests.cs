@@ -1,6 +1,7 @@
 #region
 
 using CS2DemoKit.Parser;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Modules.Situations;
 using DemoViewer.NET.Playback2D.Core.Query;
 using DemoViewer.NET.Services.DemoCache;
@@ -54,13 +55,13 @@ public class WatchedSituationsRealDemoTests
                 }
             }
 
-            using WatchedSituationsService service = new(Path.Combine(root, WatchedSituationsService.FileName), index, cache.Library(), now: () => 1000);
+            using WatchedSituationsService service = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), index, cache.Library(), now: () => 1000);
             WatchedSituation watch = service.Watch("", document.Map, tokens, SituationTolerance.Exact, SearchFilterValues.None);
             evaluator.RebuildAll();
             evaluator.Evaluate(path, parsed);
             await Assert.That(service.NewCountOf(watch.Id)).IsGreaterThanOrEqualTo(1);
 
-            using WatchedSituationsService restarted = new(Path.Combine(root, WatchedSituationsService.FileName), index, cache.Library(), now: () => 1000);
+            using WatchedSituationsService restarted = new(StoredFile.At(Path.Combine(root, WatchedSituationsService.FileName)), index, cache.Library(), now: () => 1000);
             await Assert.That(restarted.NewCountOf(watch.Id)).IsEqualTo(service.NewCountOf(watch.Id));
         }
         finally

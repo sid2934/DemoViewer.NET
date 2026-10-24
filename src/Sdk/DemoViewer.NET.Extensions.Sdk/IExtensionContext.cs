@@ -37,6 +37,9 @@ public interface IExtensionContext
     /// <summary>The extension's own files.</summary>
     IExtensionStorage Storage { get; }
 
+    /// <summary>The stores the extension declared in <see cref="IExtension.Stores" />, as folders.</summary>
+    IExtensionStores Stores { get; }
+
     /// <summary>The extension's own settings, which a <see cref="SettingsSchema" /> page edits.</summary>
     IExtensionSettings Settings { get; }
 

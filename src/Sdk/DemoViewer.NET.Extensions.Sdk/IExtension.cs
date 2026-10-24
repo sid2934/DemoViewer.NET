@@ -34,6 +34,15 @@ public interface IExtension
     IEnumerable<ExtensionJobKind> JobKinds => Array.Empty<ExtensionJobKind>();
 
     /// <summary>
+    ///     Folders and files the extension owns outside its own folders: where it keeps data a user is meant to
+    ///     find, or data an older build left where the user has it. Read without DI. The host hands each back
+    ///     through <see cref="IExtensionContext.Stores" />, and "Delete extension data" removes them with the
+    ///     rest. Each path's first segment must be the extension's id, the id and ".json", or start with the id
+    ///     and '-'; a store that names anything else is dropped and logged against the extension.
+    /// </summary>
+    IEnumerable<StoreDescriptor> Stores => Array.Empty<StoreDescriptor>();
+
+    /// <summary>
     ///     Adds the extension's services. Runs whether the extension is on or off, so register factories
     ///     and do no work here: the switch can turn the extension on later in the same session.
     /// </summary>

@@ -1,6 +1,7 @@
 #region
 
 using DemoViewer.NET.Services.DemoCache;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Extensions.StratBook.ViewModels.Dossier;
 
@@ -135,7 +136,7 @@ public class DossierEditingTests
         try
         {
             Guid team = Guid.NewGuid();
-            DossierNotesStore store = new(Path.Combine(root, DossierNotesStore.FileName));
+            DossierNotesStore store = new(StoredFile.At(Path.Combine(root, DossierNotesStore.FileName)));
             int changes = 0;
             store.Changed += () => changes++;
             store.SetStarred(team, "map|de_nuke", true);
@@ -149,7 +150,7 @@ public class DossierEditingTests
             await Assert.That(changes).IsEqualTo(5).Because("a repeat star and an edit equal to the generated text change nothing");
             await Assert.That(File.Exists(Path.Combine(root, DossierNotesStore.FileName))).IsTrue();
 
-            DossierTeamNotes reloaded = new DossierNotesStore(Path.Combine(root, DossierNotesStore.FileName)).For(team);
+            DossierTeamNotes reloaded = new DossierNotesStore(StoredFile.At(Path.Combine(root, DossierNotesStore.FileName))).For(team);
             using (Assert.Multiple())
             {
                 await Assert.That(reloaded.Starred).IsEquivalentTo(["map|de_nuke"]);
@@ -164,7 +165,7 @@ public class DossierEditingTests
             // A file at a newer schema is refused and never overwritten.
             string path = Path.Combine(root, DossierNotesStore.FileName);
             await File.WriteAllTextAsync(path, "{\"schemaVersion\": 99, \"teams\": []}");
-            DossierNotesStore refused = new(Path.Combine(root, DossierNotesStore.FileName));
+            DossierNotesStore refused = new(StoredFile.At(Path.Combine(root, DossierNotesStore.FileName)));
             refused.SetSummary(team, "overwrite?");
             using (Assert.Multiple())
             {

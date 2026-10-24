@@ -328,7 +328,6 @@ DemoViewer.NET.Extensions.Sdk.IExtensionContributions.ReindexEstimate(DemoViewer
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Ruleset(DemoViewer.NET.Extensions.Sdk.RulesetContribution! ruleset) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsPage(DemoViewer.NET.Extensions.Sdk.SettingsPageContribution! page) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.SettingsSchema(DemoViewer.NET.Extensions.Sdk.SettingsSchema! schema) -> void
-DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Store(DemoViewer.NET.Extensions.Sdk.StoreDescriptor! store) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionContributions.Tabs(DemoViewer.NET.Modules.Abstractions.IWorkspaceModule! workspaceModule) -> void
 DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval
 DemoViewer.NET.Extensions.Sdk.IExtensionDataRemoval.DeleteAsync() -> System.Threading.Tasks.Task<DemoViewer.NET.Extensions.Sdk.ExtensionDataRemovalResult!>!
@@ -1951,3 +1950,31 @@ static DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.operator !=(DemoViewer.N
 static DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerAlias? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.operator !=(DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? right) -> bool
 static DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch.operator ==(DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? left, DemoViewer.NET.Extensions.Sdk.LibraryPlayerMatch? right) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionContext.Stores.get -> DemoViewer.NET.Extensions.Sdk.IExtensionStores!
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Append(string! relativePath, string! line) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Create() -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Delete(string! relativePath) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.EnumerateDirectories(string! relativePath) -> System.Collections.Generic.IEnumerable<string!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.EnumerateFiles(string! relativePath, string! searchPattern) -> System.Collections.Generic.IEnumerable<string!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.FileExists(string! relativePath) -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.LastWriteTimeUtc(string! relativePath) -> System.DateTime?
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Move(string! fromRelativePath, string! toRelativePath, bool overwrite) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.OpenRead(string! relativePath) -> System.IO.Stream?
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Path.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.Read(string! relativePath) -> byte[]?
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.WriteAtomic(string! relativePath, System.Action<System.IO.Stream!>! write) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionFolder.WriteAtomic(string! relativePath, System.ReadOnlySpan<byte> content) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionStores
+DemoViewer.NET.Extensions.Sdk.IExtensionStores.Open(string! storeId) -> DemoViewer.NET.Extensions.Sdk.IExtensionFolder?
+DemoViewer.NET.Extensions.Sdk.IExtension.Stores.get -> System.Collections.Generic.IEnumerable<DemoViewer.NET.Extensions.Sdk.StoreDescriptor!>!
+DemoViewer.NET.Extensions.Sdk.IExtensionFile
+DemoViewer.NET.Extensions.Sdk.IExtensionFile.Delete() -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionFile.Exists.get -> bool
+DemoViewer.NET.Extensions.Sdk.IExtensionFile.LastWriteTimeUtc.get -> System.DateTime?
+DemoViewer.NET.Extensions.Sdk.IExtensionFile.OpenRead() -> System.IO.Stream?
+DemoViewer.NET.Extensions.Sdk.IExtensionFile.Path.get -> string!
+DemoViewer.NET.Extensions.Sdk.IExtensionFile.Read() -> byte[]?
+DemoViewer.NET.Extensions.Sdk.IExtensionFile.WriteAtomic(System.Action<System.IO.Stream!>! write) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionFile.WriteAtomic(System.ReadOnlySpan<byte> content) -> void
+DemoViewer.NET.Extensions.Sdk.IExtensionStores.OpenFile(string! storeId) -> DemoViewer.NET.Extensions.Sdk.IExtensionFile?

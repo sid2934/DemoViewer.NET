@@ -368,6 +368,8 @@ public static class ExtensionLoader
             _ = pack.Commands.ToArray();
             step = "reading its job kinds";
             _ = pack.JobKinds.ToArray();
+            step = "reading its stores";
+            _ = pack.Stores.ToArray();
             step = "registering its services";
             pack.Register(new Microsoft.Extensions.DependencyInjection.ServiceCollection());
             return null;

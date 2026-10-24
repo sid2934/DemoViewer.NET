@@ -3,6 +3,7 @@
 using System.Text.Json;
 using DemoViewer.NET.Configuration;
 using DemoViewer.NET.Extensions;
+using DemoViewer.NET.Extensions.StratBook;
 using DemoViewer.NET.Extensions.StratBook.Services.Teams;
 using DemoViewer.NET.Services.DemoCache;
 using DemoViewer.NET.Services.Identity;
@@ -114,7 +115,7 @@ public class ExtensionIdentityTests
             using IdentityService service = new(new SettingsService(dir));
             HostIdentity identity = new(() => service, ExtensionPassHostTests.StandaloneGuard());
             DemoCacheStore cache = new(null);
-            using TeamIdentityService teams = new(new TeamIdentityFiles(teamsPath, null), cache.Library(), run: _inline, identity: identity);
+            using TeamIdentityService teams = new(new TeamIdentityFiles(StoredFile.At(teamsPath), null), cache.Library(), run: _inline, identity: identity);
             await teams.StartAsync();
             string[] mine = [A, .. Five(1)[1..]];
             string[] other = [B, .. Five(11)[1..]];

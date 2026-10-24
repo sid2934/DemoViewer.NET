@@ -51,6 +51,34 @@ public class StoredFileTests
     }
 
     [Test]
+    public async Task AFileInADeclaredStore_ReadsAndWritesThroughTheStoresFolder()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"dv-stored-file-{Guid.NewGuid():N}");
+        try
+        {
+            StoredFile file = StoredFile.In(new ExtensionFile(Path.Combine(root, "teams.json")))!;
+
+            byte[]? before = file.Read();
+            file.Write(Encoding.UTF8.GetBytes("{}"));
+            using (Assert.Multiple())
+            {
+                await Assert.That(before).IsNull();
+                await Assert.That(await File.ReadAllTextAsync(Path.Combine(root, "teams.json"))).IsEqualTo("{}");
+                await Assert.That(Encoding.UTF8.GetString(file.Read()!)).IsEqualTo("{}");
+                await Assert.That(file.Name).IsEqualTo("teams.json");
+                await Assert.That(StoredFile.In(null)).IsNull().Because("no store (the browser) is a session-only file");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, true);
+            }
+        }
+    }
+
+    [Test]
     public async Task NoFileAndNothingToCopy_ReadsAsNull_AndWritesNothing()
     {
         string root = Path.Combine(Path.GetTempPath(), $"dv-stored-file-{Guid.NewGuid():N}");

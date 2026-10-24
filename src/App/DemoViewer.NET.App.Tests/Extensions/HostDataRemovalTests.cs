@@ -27,7 +27,7 @@ public class HostDataRemovalTests
         string otherId = id + ".other";
         string configRoot = AppPaths.ConfigRoot!;
         string cacheRoot = AppPaths.DemoCacheDir!;
-        Pack pack = new(id);
+        Pack pack = new(id, [new StoreDescriptor("legacy", "Legacy", StoreRoot.Config, [id + "-legacy.json"], IsUserWork: true)]);
         ServiceCollection services = new();
         services.AddSingleton<ExtensionShellHub>();
         services.AddSingleton(new DemoCacheStore(null));
@@ -45,7 +45,6 @@ public class HostDataRemovalTests
         await File.WriteAllTextAsync(Path.Combine(otherFolder, "keep.json"), "{}");
 
         PackContributions contributions = new(pack, () => context);
-        contributions.Store(new StoreDescriptor("legacy", "Legacy", StoreRoot.Config, [id + "-legacy.json"], IsUserWork: true));
         int deleted = 0;
         contributions.DataDeleted(() => deleted++);
         HostDataRemoval removal = new(contributions, sp);
@@ -143,7 +142,7 @@ public class HostDataRemovalTests
         }
     }
 
-    private sealed class Pack(string id) : IExtension, IManifestSource
+    private sealed class Pack(string id, IEnumerable<StoreDescriptor>? stores = null) : IExtension, IManifestSource
     {
         public ExtensionManifest Manifest { get; } = ExtensionManifest.Parse($$"""
             {
@@ -155,6 +154,7 @@ public class HostDataRemovalTests
         public string Id => id;
         public string FeatureId => "pack." + id;
         public IEnumerable<ExtensionFeature> Features => [];
+        public IEnumerable<StoreDescriptor> Stores => stores ?? [];
 
         public void Register(IServiceCollection services)
         {

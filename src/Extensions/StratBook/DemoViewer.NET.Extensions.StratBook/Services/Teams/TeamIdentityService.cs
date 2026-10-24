@@ -13,7 +13,7 @@ namespace DemoViewer.NET.Extensions.StratBook.Services.Teams;
 /// <summary>Where Team Identity keeps its files.</summary>
 /// <param name="Teams">The user's <c>teams.json</c>; null keeps both files in memory.</param>
 /// <param name="Index">The derived index; null rebuilds it every session.</param>
-public sealed record TeamIdentityFiles(string? Teams, StoredFile? Index);
+public sealed record TeamIdentityFiles(StoredFile? Teams, StoredFile? Index);
 
 /// <summary>
 ///     Teams as data: who played in which demo, which team is us, and who the opponent was.
@@ -66,7 +66,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     private readonly Action<Action> _post;
     private readonly IRoundFacts? _roundFacts;
     private readonly Func<Action, Task> _run;
-    private readonly string? _teamsPath;
+    private readonly StoredFile? _teamsFile;
     private readonly Func<Action, Task>? _scheduleLoad;
     private bool _attached;
     private bool _loadScheduled;
@@ -118,8 +118,8 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
         _roundFacts = roundFacts;
         _post = post ?? (action => action());
         _run = run ?? (action => Task.Run(action));
-        _teamsPath = files?.Teams;
-        _indexFile = _teamsPath is null ? null : files?.Index;
+        _teamsFile = files?.Teams;
+        _indexFile = _teamsFile is null ? null : files?.Index;
 
         _scheduleLoad = scheduleLoad;
         _load = NewLoad();
@@ -168,7 +168,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     /// </summary>
     public const string QueueSerial = "teams";
 
-    public bool IsSessionOnly => _teamsPath is null;
+    public bool IsSessionOnly => _teamsFile is null;
 
     /// <summary>
     ///     Why <c>teams.json</c> could not be read, or null. While set the file is never written: a user's
@@ -1529,7 +1529,7 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
     private void Load()
     {
-        if (_teamsPath is null)
+        if (_teamsFile is null)
         {
             NeedsRebuild = true;
             return;
@@ -1537,9 +1537,9 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
 
         try
         {
-            if (File.Exists(_teamsPath))
+            if (_teamsFile.Read() is { } teamsBytes)
             {
-                TeamsFile? teams = JsonSerializer.Deserialize<TeamsFile>(File.ReadAllText(_teamsPath), TeamsFile.JsonOptions);
+                TeamsFile? teams = JsonSerializer.Deserialize<TeamsFile>(teamsBytes, TeamsFile.JsonOptions);
                 if (teams is null || teams.SchemaVersion > TeamsFile.CurrentSchema)
                 {
                     Refuse($"{TeamsFileName} is at schema {teams?.SchemaVersion.ToString(CultureInfo.InvariantCulture) ?? "?"}, newer than this build reads");
@@ -1594,14 +1594,14 @@ public sealed class TeamIdentityService : IExtensionResident, IDisposable
     {
         MirrorMe();
         // Detached, the service read nothing, so nothing it holds may reach the user's file.
-        if (_teamsPath is null || _teamsRefused || !_attached)
+        if (_teamsFile is null || _teamsRefused || !_attached)
         {
             return;
         }
 
         try
         {
-            AtomicFile.WriteAllText(_teamsPath, JsonSerializer.Serialize(_teams, TeamsFile.JsonOptions));
+            _teamsFile.Write(JsonSerializer.SerializeToUtf8Bytes(_teams, TeamsFile.JsonOptions));
         }
         catch (Exception)
         {

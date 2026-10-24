@@ -88,6 +88,12 @@ public sealed class StratBookPack : IExtension
     public IEnumerable<ExtensionJobKind> JobKinds => StratBookJobKinds.All;
 
     /// <summary>
+    ///     The user's own work where users have it, and the old layout older builds left: declared, not moved,
+    ///     so a build predating this one still reads the same files. None on the browser, which has no filesystem.
+    /// </summary>
+    public IEnumerable<StoreDescriptor> Stores => OperatingSystem.IsBrowser() ? [] : StratBookStores.All;
+
+    /// <summary>
     ///     The Strat Book hub: one strip tab whose rail lists every section that names
     ///     <see cref="HostIds.StratBookHub" />. Order 4 sits after 2D Playback and before Authoring. Public so
     ///     a shell test can host sections on the real hub without the rest of the pack.
@@ -269,7 +275,7 @@ public sealed class StratBookPack : IExtension
         // holds it. Null root (the browser) keeps tags in memory for the session.
         services.AddSingleton(sp =>
         {
-            TagStore tags = new(Paths(sp).TagsDirectory, Host(sp).Post);
+            TagStore tags = new(StoresOf(sp).Open(StratBookStores.Tags)?.Path, Host(sp).Post);
             // Shutdown flushes the index only when a factory built the store (StratBookLifecycle.OnShutdown).
             sp.GetRequiredService<StratBookPackInstances>().Tags = tags;
             return tags;
@@ -292,7 +298,7 @@ public sealed class StratBookPack : IExtension
         // no directory and offers the built-in alone.
         services.AddSingleton(sp =>
         {
-            TagPaletteStore palettes = new(Paths(sp).EnsurePalettesDirectory(), keymap: Host(sp).Keymap);
+            TagPaletteStore palettes = new(PalettesDirectory(StoresOf(sp).Open(StratBookStores.Palettes)), keymap: Host(sp).Keymap);
             palettes.Reload();
             return palettes;
         });
@@ -308,7 +314,7 @@ public sealed class StratBookPack : IExtension
             // read enter the queue. The gate is not read here on purpose, since at container build the
             // first-run wizard has not asked yet.
             TeamIdentityService teams = new(
-                new TeamIdentityFiles(Paths(sp).TeamsFile,
+                new TeamIdentityFiles(StoredFile.In(StoresOf(sp).OpenFile(StratBookStores.Teams)),
                     StoredFile.In(Host(sp).Storage, StoreRoot.Cache, TeamIdentityService.IndexFileName)),
                 Library(sp),
                 RoundFactsOf(sp),
@@ -424,7 +430,7 @@ public sealed class StratBookPack : IExtension
         services.AddSingleton(sp =>
         {
             WatchedSituationsService watched = new(
-                Paths(sp).WatchedSituationsFile,
+                StoredFile.In(StoresOf(sp).OpenFile(StratBookStores.WatchedSituations)),
                 sp.GetRequiredService<ISituationIndex>(),
                 Library(sp),
                 sp.GetRequiredService<TeamIdentityService>(),
@@ -457,11 +463,11 @@ public sealed class StratBookPack : IExtension
         // the open demo, resolved at call time, is always built. Null roots (the
         // browser) keep all of it for the session.
         services.AddSingleton(sp => new ProposalStore(Data(sp)));
-        services.AddSingleton(sp => new SiteRegionStore(Paths(sp).SuggestedTagsDirectory));
+        services.AddSingleton(sp => new SiteRegionStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)?.Path));
         // The parameter profile: <config>/suggested-tags/profile.json, seeded with the shipped default
         // on first read the way a theme drop-in folder is. A singleton so the evaluator's Func
         // and the tuning view's save reach the same in-memory Current.
-        services.AddSingleton(sp => new ProfileStore(Paths(sp).SuggestedTagsDirectory));
+        services.AddSingleton(sp => new ProfileStore(StoresOf(sp).Open(StratBookStores.SuggestedTags)?.Path));
         services.AddSingleton(sp =>
         {
             StratBookSettings settings = sp.GetRequiredService<StratBookSettings>();
@@ -500,7 +506,7 @@ public sealed class StratBookPack : IExtension
         // single-writer guarantee is only as wide as the instance that holds it. Null root (the browser) keeps
         // strats in memory for the session. The tab VM is a container singleton resolved lazily on first
         // activation; its books are Team Identity's teams plus me.
-        services.AddSingleton(sp => new StratStore(Paths(sp).StratsDirectory, Host(sp).Post));
+        services.AddSingleton(sp => new StratStore(StoresOf(sp).Open(StratBookStores.Strats)?.Path, Host(sp).Post));
         // Callout Aliases: one resolver builder over the store's tables and the map's
         // baked-plus-overlay zones, shared by the Strat Book and anything else that turns a team's word into
         // a nav place.
@@ -660,7 +666,8 @@ public sealed class StratBookPack : IExtension
                 sp.GetRequiredService<IZonePlaceResolverSource>(),
                 sp.GetRequiredService<GrenadeIndexEvaluator>(),
                 Host(sp).Post,
-                lineups: GrenadeLineupStore.In(Host(sp).Storage, Paths(sp).ReadLegacyGrenadeLineups),
+                lineups: GrenadeLineupStore.In(Host(sp).Storage,
+                    () => StoresOf(sp).OpenFile(StratBookStores.GrenadeLineups)?.Read()),
                 scheduleSave: drain => Job(sp, "Save: grenade lineups", drain,
                     new JobOptions(BuiltInJobKinds.Save, Key: "save:grenade-lineups")));
             sp.GetRequiredService<StratBookPackInstances>().Record(index);
@@ -670,10 +677,10 @@ public sealed class StratBookPack : IExtension
 
         // The Opponent Dossier's veto history: manual entry only, beside teams.json. No file (the
         // browser) keeps entries in memory for the session.
-        services.AddSingleton(sp => new VetoHistoryStore(Paths(sp).VetoHistoryFile));
+        services.AddSingleton(sp => new VetoHistoryStore(StoredFile.In(StoresOf(sp).OpenFile(StratBookStores.VetoHistory))));
         // Dossier Editing And Export: the user's stars, rewritten lines, notes and summary per team, beside
         // the veto history; session-only on the browser the same way.
-        services.AddSingleton(sp => new DossierNotesStore(Paths(sp).DossierNotesFile));
+        services.AddSingleton(sp => new DossierNotesStore(StoredFile.In(StoresOf(sp).OpenFile(StratBookStores.DossierNotes))));
         // The Dossier tab VM: a container singleton resolved lazily on first activation, over Team
         // Identity's own teams and the unified cache the Map Pool Record reads. The Setup Heatmaps read
         // the round index's positions files under the same fingerprint the Situations tab trusts, and
@@ -729,7 +736,7 @@ public sealed class StratBookPack : IExtension
             ILogger log = DiagnosticsLog.CreateLogger(GrenadeIndexLog.Category);
             LineupClipService clips = new(
                 () => [.. index.Maps().SelectMany(map => index.Query(new GrenadeQuery(map)))],
-                Paths(sp).LineupClipsDirectory,
+                StoresOf(sp).Open(StratBookStores.LineupClips)?.Path,
                 () => settings.RenderLineupClips,
                 new LineupClipRenderer(log: line => GrenadeIndexLog.LineupClip(log, line)),
                 log: line => GrenadeIndexLog.LineupClip(log, line),
@@ -757,8 +764,34 @@ public sealed class StratBookPack : IExtension
     // The pack's host context: the SDK's way into the shell, the gate, the queue and the UI thread.
     private static IExtensionContext Host(IServiceProvider sp) => sp.GetExtensionContext(PackId);
 
-    // Where the user's own work already lives, from before extensions had folders of their own.
+    // The app's zones overlay folder, the one thing the pack reads of the app that is not a store of its own.
     private static FirstPartyHost Paths(IServiceProvider sp) => sp.GetRequiredService<FirstPartyHost>();
+
+    // The pack's declared stores: where the user's own work already lives, from before extensions had
+    // folders of their own, each handed out by the host as a folder or a file. Null (the browser) keeps a
+    // store in memory.
+    private static IExtensionStores StoresOf(IServiceProvider sp) => Host(sp).Stores;
+
+    // The palettes folder is where the user drops files, so it is created on first use where it can be; a
+    // folder that cannot be created offers the built-in palette alone.
+    private static string? PalettesDirectory(IExtensionFolder? palettes)
+    {
+        if (palettes is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            palettes.Create();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // TagPaletteStore checks the folder exists and offers the built-in palette alone.
+        }
+
+        return palettes.Path;
+    }
 
     // Strat Mining's files in the extension's own folders. The detections rebuild on the next mine; the
     // user's dismissed and promoted patterns are copied once from where an older build kept them.
@@ -768,7 +801,8 @@ public sealed class StratBookPack : IExtension
         return new StratMiningFiles(
             StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.DetectedPath),
             StoredFile.In(storage, StoreRoot.Cache, StratMiningFiles.SignaturesPath),
-            StoredFile.In(storage, StoreRoot.Config, StratMiningFiles.StatePath, Paths(sp).ReadLegacyStratMiningState));
+            StoredFile.In(storage, StoreRoot.Config, StratMiningFiles.StatePath,
+                () => StoresOf(sp).OpenFile(StratBookStores.StratMiningState)?.Read()));
     }
 
     // The demo library, read only.
@@ -918,16 +952,10 @@ public sealed class StratBookPack : IExtension
             GrenadeIndexEvaluator.EvaluatorId);
 
 
-        // Every store and cache path the pack owns outside its own folders: "delete extension data" removes
-        // them with the rest, then the stores the pack keeps live re-read what is left. No filesystem on the
-        // browser, the same gate the settings pages above take.
+        // After "delete extension data" removes the declared stores with the rest, the stores the pack keeps
+        // live re-read what is left. No filesystem on the browser, the same gate the settings pages above take.
         if (!OperatingSystem.IsBrowser())
         {
-            foreach (StoreDescriptor store in StratBookStores.All)
-            {
-                contributions.Store(store);
-            }
-
             contributions.DataDeleted(() => StratBookStores.ReloadLiveStores(sp));
         }
 
@@ -994,7 +1022,7 @@ public sealed class StratBookPack : IExtension
             sp.GetRequiredService<GrenadeIndex>(),
             sp.GetRequiredService<ISituationPlayback>(),
             demoDate: path => library.Find(path) is { Modified.Ticks: > 0 } entry ? new DateTime(entry.Modified.Ticks) : null,
-            clipDirectory: Paths(sp).LineupClipsDirectory,
+            clipDirectory: StoresOf(sp).Open(StratBookStores.LineupClips)?.Path,
             background: work => _ = Job(sp, lockedMap is null ? "Utility Book" : "Lineup picker", work,
                 new JobOptions(Key: lockedMap is null ? "section:utility" : "section:lineup-picker", Preemptible: true)),
             post: Host(sp).Post,

@@ -300,9 +300,9 @@ public class StratBookLifecycleTests
                 }
             }
 
-            string? stratsRoot = AppPaths.StratsDir;
-            await Assert.That(stratsRoot).IsNotNull();
-            string indexPath = Path.Combine(stratsRoot!, "index.json");
+            string? configRoot = AppPaths.ConfigRoot;
+            await Assert.That(configRoot).IsNotNull();
+            string indexPath = Path.Combine(configRoot!, StratBookStores.Strats, "index.json");
             await Assert.That(File.Exists(indexPath)).IsTrue()
                 .Because("the strat committed through the real store must survive shutdown even though the lifecycle never started");
             await Assert.That(await File.ReadAllTextAsync(indexPath))
