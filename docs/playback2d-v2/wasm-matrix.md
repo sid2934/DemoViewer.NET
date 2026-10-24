@@ -16,7 +16,7 @@ browser and this repo has no way to do that in CI. A stamp that says "verified 2
 document the D track has since invalidated in four places is how this file got into the state the audit
 found it in. Every row below now says which of the three rows above it rests on.
 
-This is the per-capability record design §8 asks for. The B5 pass that filled it in was an actual run of
+This is the per-capability record. The pass that filled it in was an actual run of
 the **published** head in a real browser with a real demo loaded, not reading the code, and not a
 `dotnet build` that succeeds whether or not the app can start.
 
@@ -47,8 +47,8 @@ defaults today and a default that flips takes the app with it, silently, at runt
 
 | Property | Why |
 |---|---|
-| `WasmBuildNative=true` | Relinks the native runtime so `@(NativeFileReference)` items are linked in. `libSkiaSharp.a` arrives through **Avalonia.Browser** (and again through Playback2D.Pipeline's SkiaSharp reference, at the same 2.88.9 pin). Without the relink the head throws `System.DllNotFoundException: libSkiaSharp` out of `SKImageInfo`'s static constructor at boot, whether or not *our* code touches Skia, because Avalonia's own browser renderer needs the same native. B0 D11 finding 1. |
-| `PublishTrimmed=false` | A trimmed publish fails outright: ~30 `IL2026` sites plus `IL2104` for `CS2DemoKit.Parser`, `CS2DemoKit.Analysis` and `FFMpegCore`. They are three whole mechanisms, not incidental call sites: reflection-based `System.Text.Json` in eleven stores, `ConfigurationBinder.Get<AppSettings>()` (which *is* the settings layer), and Avalonia's reflection `ViewLocator` (which resolves every view). Suppressing the warnings produces a head that builds and then throws `JsonSerializerIsReflectionDisabled` on the way up. B0 D11 finding 3 saw exactly that. |
+| `WasmBuildNative=true` | Relinks the native runtime so `@(NativeFileReference)` items are linked in. `libSkiaSharp.a` arrives through **Avalonia.Browser** (and again through Playback2D.Pipeline's own `SkiaSharp` reference, at the same pin). Without the relink the head throws `System.DllNotFoundException: libSkiaSharp` out of `SKImageInfo`'s static constructor at boot, whether or not *our* code touches Skia, because Avalonia's own browser renderer needs the same native. |
+| `PublishTrimmed=false` | A trimmed publish fails outright: ~30 `IL2026` sites plus `IL2104` for `CS2DemoKit.Parser`, `CS2DemoKit.Analysis` and `FFMpegCore`. They are three whole mechanisms, not incidental call sites: reflection-based `System.Text.Json` in eleven stores, `ConfigurationBinder.Get<AppSettings>()` (which *is* the settings layer), and Avalonia's reflection `ViewLocator` (which resolves every view). Suppressing the warnings produces a head that builds and then throws `JsonSerializerIsReflectionDisabled` on the way up, which is what a measured publish did. |
 
 **The `wasm-tools` manifest must match the SDK's runtime pack.** Installing the newest manifest (10.0.111
 against runtime 10.0.103) relinks against a `System.Private.CoreLib` the runtime rejects: *"Your mono

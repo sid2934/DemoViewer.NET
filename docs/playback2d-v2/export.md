@@ -4,7 +4,7 @@ Turns a stretch of a demo into a video file: the same scene the 2D tab draws, re
 timestep through the same layer stack, encoded to WebM, MP4 or GIF.
 
 It is available in the app (2D Playback → Export) and headlessly through
-[`dv2d export`](../dv2d.md). Both go through the same `SceneExportSession`, so a request the dialog
+[`dv2d export`](dv2d.md). Both go through the same `SceneExportSession`, so a request the dialog
 accepts is a request the CLI accepts, and neither can produce a file the other would refuse.
 
 **That is a statement about the validator, not about the picture.** The two front ends agree on what a
@@ -119,8 +119,8 @@ Levers if an export is slower than you want, in order:
 ## ffmpeg
 
 DemoViewer **ships no ffmpeg** and links no ffmpeg code: it starts ffmpeg as a separate program and
-pipes raw frames to it. See [`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md) §e for why that
-distinction matters.
+pipes raw frames to it. See the ffmpeg section of
+[`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md) for why that distinction matters.
 
 The ladder, in order:
 
