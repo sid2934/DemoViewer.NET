@@ -24,7 +24,7 @@ internal sealed class SceneHostToolServices(Scene2DHost host, AnnotationSession 
 {
     // Stopwatch, not DateTime: its timestamp counts from an arbitrary origin on a monotonic counter, so
     // an NTP correction or a DST step landing mid-stroke cannot walk it backwards and hand the cadence
-    // accumulator a negative offset. Banned in Core, which is why the clock is an IInkToolServices member
+    // accumulator a negative offset. Banned in Scene and Pipeline, which is why the clock is an IInkToolServices member
     // implemented out here in the app rather than read where it is used.
     private readonly long _origin = Stopwatch.GetTimestamp();
 

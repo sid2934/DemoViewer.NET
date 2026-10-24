@@ -161,7 +161,7 @@ public class App : Application
                 viewModel.AttachReelJob(reelJob);
             }
 
-            // 2D video export. Everything reusable is in Core/Pipeline and
+            // 2D video export. Everything reusable is in Scene/Pipeline and
             // the 2D tab composes the job itself. What it cannot see through IModuleContext, such as the frame
             // list, the export plumbing, and whether Live Sync or a reel already owns the machine, is
             // handed to it here, the same way the live-sync HUD projection and the speed lock are.
