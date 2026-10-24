@@ -164,7 +164,7 @@ jobs:
           ls "$FW" | grep -q '^DemoViewer\.NET\.Playback2D\.Scene\..*\.wasm$' || { echo "the 2D scene contract did not ship, the 2D Playback tab is built on it"; exit 1; }
           du -sh artifacts/wasm-publish/wwwroot
 
-  # The ONE core/pipeline test invocation. Do not add a second.
+  # The ONE scene/pipeline test invocation. Do not add a second.
   playback2d-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -236,7 +236,7 @@ jobs:
   #
   # EVERY project, because this is the half the correctness lanes drop and its reach has to match
   # theirs or the difference runs in nothing. A project with no benchmarks reports `no-budget-tests`
-  # and costs only its build, which is why the timeout is 30 rather than app-tests' 20.
+  # and costs only its build, which is why the timeout is 30 rather than ext-tests' 20.
   #
   # Keep the job id: TestTiers.cs and the contract test both name this lane.
   playback2d-budget:
@@ -263,8 +263,8 @@ jobs:
           native: skia
 
       # One test at a time. A frame time measured while three other tests share the runner's two cores
-      # is measuring the runner, and the extension classes this lane now reaches fail in parallel for
-      # the reason the ext lane below gives.
+      # is measuring the runner, and the extension classes this lane now reaches carry the same
+      # unmeasured-without-the-flag status the ext lane below records.
       - name: Frame-time + allocation budgets, every project
         env:
           DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1
@@ -321,11 +321,12 @@ jobs:
         with:
           native: skia
 
-      # One test at a time. Several classes build Avalonia controls off the UI thread outside
-      # RunOnUi, and in parallel that fails 1 to 2 tests per run (Dispatcher.VerifyAccess via
-      # DataValidationErrors.SetError), a different set each time. This hides the defect and costs
-      # about 12 s on the standard tier (24.5 s to 37 s). Remove only once that construction is
-      # fixed and the suite has been re-measured green without the flag.
+      # One test at a time, and still set. The off-UI-thread control construction that made this
+      # suite fail 1 to 2 tests per run (Dispatcher.VerifyAccess via DataValidationErrors.SetError,
+      # a different set each time) is now inside HeadlessSession.RunOnUi throughout, and
+      # headless-isolation.yml is the nightly guard that keeps it there. What is outstanding is the
+      # measurement: nobody has run this suite green without the flag. Drop it only after that run.
+      # Cost while it stays: about 12 s on the standard tier (24.5 s to 37 s).
       - name: Extension (Strat Book) suite, full tier
         env:
           DV_TEST_EXTRA_ARGS: --maximum-parallel-tests 1

@@ -10,8 +10,9 @@ public static class TestLanes
 {
     /// <summary>
     ///     The single headless Avalonia dispatcher, and the application statics the classes that drive
-    ///     it share. One key for all of them: per-class keys would let those classes overlap, which
-    ///     <c>ci.yml</c> records as a race, and they would re-serialize on the one UI thread anyway.
+    ///     it share. One key for all of them: per-class keys would let those classes overlap on the
+    ///     shared dispatcher and the shared statics, and they would re-serialize on the one UI
+    ///     thread anyway.
     /// </summary>
     public const string HeadlessUi = "headless-ui";
 }
